@@ -8,6 +8,7 @@ import {
   MancalaGame,
   ReversiGame,
 } from "./more-games";
+import { JanggiGame } from "./janggi-game";
 
 type GameId =
   | "gomoku"
@@ -16,7 +17,8 @@ type GameId =
   | "mancala"
   | "battleship"
   | "dice"
-  | "checkers";
+  | "checkers"
+  | "janggi";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위";
 
 type GameDefinition = {
@@ -81,6 +83,14 @@ const GAMES: GameDefinition[] = [
     id: "checkers",
     title: "체커",
     subtitle: "대각선 전진과 점프로 상대 말을 잡으세요",
+    category: "전략",
+    players: "AI 1:1",
+    tone: "green",
+  },
+  {
+    id: "janggi",
+    title: "장기",
+    subtitle: "궁을 지키며 한 수 앞을 내다보세요",
     category: "전략",
     players: "AI 1:1",
     tone: "green",
@@ -174,6 +184,20 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <i>⚄</i><i>⚅</i><i>⚂</i>
         </div>
         <span className="float-chip">5 rounds</span>
+      </div>
+    );
+  }
+
+  if (game.id === "janggi") {
+    return (
+      <div className="card-art janggi-art" aria-hidden="true">
+        <div className="janggi-preview">
+          <span className="preview-piece han">漢</span>
+          <span className="preview-piece cho">楚</span>
+          <span className="preview-piece small han">車</span>
+          <span className="preview-piece small cho">包</span>
+        </div>
+        <span className="float-chip">9 × 10</span>
       </div>
     );
   }
@@ -762,6 +786,9 @@ export default function Home() {
   }
   if (activeGame === "checkers") {
     return <CheckersGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "janggi") {
+    return <JanggiGame onExit={() => setActiveGame(null)} />;
   }
 
   return (
