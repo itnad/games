@@ -33,6 +33,11 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /PLAYROOM/);
   assert.match(html, /오목/);
   assert.match(html, /짝 맞추기/);
+  assert.match(html, /리버시/);
+  assert.match(html, /만칼라/);
+  assert.match(html, /해전/);
+  assert.match(html, /주사위 대결/);
+  assert.match(html, /체커/);
   assert.match(html, /게임 이름 검색/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
 });

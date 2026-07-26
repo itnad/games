@@ -1,9 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  BattleshipGame,
+  CheckersGame,
+  DiceDuelGame,
+  MancalaGame,
+  ReversiGame,
+} from "./more-games";
 
-type GameId = "gomoku" | "memory";
-type Category = "전체" | "전략" | "기억력";
+type GameId =
+  | "gomoku"
+  | "memory"
+  | "reversi"
+  | "mancala"
+  | "battleship"
+  | "dice"
+  | "checkers";
+type Category = "전체" | "전략" | "기억력" | "추리" | "주사위";
 
 type GameDefinition = {
   id: GameId;
@@ -11,7 +25,7 @@ type GameDefinition = {
   subtitle: string;
   category: Exclude<Category, "전체">;
   players: string;
-  tone: "violet" | "orange";
+  tone: "violet" | "orange" | "teal" | "gold" | "blue" | "red" | "green";
 };
 
 const GAMES: GameDefinition[] = [
@@ -30,6 +44,46 @@ const GAMES: GameDefinition[] = [
     category: "기억력",
     players: "AI 1:1",
     tone: "orange",
+  },
+  {
+    id: "reversi",
+    title: "리버시",
+    subtitle: "상대의 돌을 뒤집어 판을 채우세요",
+    category: "전략",
+    players: "AI 1:1",
+    tone: "teal",
+  },
+  {
+    id: "mancala",
+    title: "만칼라",
+    subtitle: "돌을 나누어 보물창고를 채우세요",
+    category: "전략",
+    players: "AI 1:1",
+    tone: "gold",
+  },
+  {
+    id: "battleship",
+    title: "해전",
+    subtitle: "좌표를 추리해 숨은 함대를 격침하세요",
+    category: "추리",
+    players: "AI 1:1",
+    tone: "blue",
+  },
+  {
+    id: "dice",
+    title: "주사위 대결",
+    subtitle: "최적의 주사위를 남겨 높은 점수를 만드세요",
+    category: "주사위",
+    players: "AI 1:1",
+    tone: "red",
+  },
+  {
+    id: "checkers",
+    title: "체커",
+    subtitle: "대각선 전진과 점프로 상대 말을 잡으세요",
+    category: "전략",
+    players: "AI 1:1",
+    tone: "green",
   },
 ];
 
@@ -65,13 +119,71 @@ function GameArtwork({ game }: { game: GameDefinition }) {
     );
   }
 
-  return (
+  if (game.id === "memory") return (
     <div className="card-art memory-art" aria-hidden="true">
       <span className="memory-tile tile-a">☀</span>
       <span className="memory-tile tile-b">✿</span>
       <span className="memory-tile tile-c">☀</span>
       <span className="memory-tile tile-d">✦</span>
       <span className="float-chip">8 pairs</span>
+    </div>
+  );
+
+  if (game.id === "reversi") {
+    return (
+      <div className="card-art reversi-art" aria-hidden="true">
+        <div className="preview-grid reversi-preview">
+          {Array.from({ length: 16 }, (_, index) => (
+            <i key={index} className={[5, 10].includes(index) ? "light" : [6, 9, 11].includes(index) ? "dark" : ""} />
+          ))}
+        </div>
+        <span className="float-chip">8 × 8</span>
+      </div>
+    );
+  }
+
+  if (game.id === "mancala") {
+    return (
+      <div className="card-art mancala-art" aria-hidden="true">
+        <div className="mancala-preview">
+          <i className="store" />
+          <span>{Array.from({ length: 6 }, (_, index) => <b key={index}>{index % 2 ? "•••" : "••"}</b>)}</span>
+          <span>{Array.from({ length: 6 }, (_, index) => <b key={index}>{index % 3 ? "••" : "••••"}</b>)}</span>
+          <i className="store" />
+        </div>
+        <span className="float-chip">48 stones</span>
+      </div>
+    );
+  }
+
+  if (game.id === "battleship") {
+    return (
+      <div className="card-art battleship-art" aria-hidden="true">
+        <div className="preview-grid battleship-preview">
+          {Array.from({ length: 25 }, (_, index) => <i key={index} className={[6, 7, 8, 17, 22].includes(index) ? "ship" : [3, 14].includes(index) ? "hit" : ""} />)}
+        </div>
+        <span className="float-chip">Fleet 3</span>
+      </div>
+    );
+  }
+
+  if (game.id === "dice") {
+    return (
+      <div className="card-art dice-art" aria-hidden="true">
+        <div className="dice-preview">
+          <i>⚄</i><i>⚅</i><i>⚂</i>
+        </div>
+        <span className="float-chip">5 rounds</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card-art checkers-art" aria-hidden="true">
+      <div className="preview-grid checkers-preview">
+        {Array.from({ length: 25 }, (_, index) => <i key={index} className={[3, 7, 11].includes(index) ? "cream" : [13, 17, 21].includes(index) ? "coral" : ""} />)}
+      </div>
+      <span className="float-chip">8 × 8</span>
     </div>
   );
 }
@@ -636,6 +748,21 @@ export default function Home() {
   if (activeGame === "memory") {
     return <MemoryGame onExit={() => setActiveGame(null)} />;
   }
+  if (activeGame === "reversi") {
+    return <ReversiGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "mancala") {
+    return <MancalaGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "battleship") {
+    return <BattleshipGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "dice") {
+    return <DiceDuelGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "checkers") {
+    return <CheckersGame onExit={() => setActiveGame(null)} />;
+  }
 
   return (
     <main className="hub-shell">
@@ -693,7 +820,7 @@ export default function Home() {
         </div>
 
         <div className="category-row" role="tablist" aria-label="게임 분류">
-          {(["전체", "전략", "기억력"] as Category[]).map((item) => (
+          {(["전체", "전략", "기억력", "추리", "주사위"] as Category[]).map((item) => (
             <button
               key={item}
               role="tab"
