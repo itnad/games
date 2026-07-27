@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { chooseAiHeld, describeAiHeld, shouldAiStop } from "../app/dice-ai.js";
 import { scoreDice } from "../app/dice-scoring.js";
 import {
   createRaceHorses,
@@ -64,6 +65,21 @@ test("scores dice with official Yahtzee lower-section values", () => {
   assert.deepEqual(scoreDice([1, 2, 3, 4, 4]), { score: 30, name: "스몰 스트레이트" });
   assert.deepEqual(scoreDice([2, 3, 4, 5, 6]), { score: 40, name: "라지 스트레이트" });
   assert.deepEqual(scoreDice([3, 3, 3, 3, 3]), { score: 50, name: "다섯 주사위!" });
+});
+
+test("AI preserves strong dice combinations and stops at completed scores", () => {
+  assert.equal(shouldAiStop([1, 2, 3, 4, 5]), true);
+  assert.equal(shouldAiStop([2, 3, 4, 5, 6]), true);
+  assert.equal(shouldAiStop([6, 6, 6, 6, 6]), true);
+  assert.equal(shouldAiStop([5, 5, 5, 2, 2]), true);
+  assert.deepEqual(chooseAiHeld([1, 2, 3, 4, 5]), [true, true, true, true, true]);
+
+  assert.equal(shouldAiStop([1, 2, 3, 4, 4]), false);
+  assert.deepEqual(chooseAiHeld([1, 2, 3, 4, 4]), [true, true, true, true, false]);
+  assert.equal(describeAiHeld([1, 2, 3, 4, 4], [true, true, true, true, false]), "1·2·3·4 눈 4개");
+
+  assert.deepEqual(chooseAiHeld([6, 6, 5, 5, 2]), [true, true, true, true, false]);
+  assert.deepEqual(chooseAiHeld([4, 4, 4, 2, 6]), [true, true, true, false, false]);
 });
 
 test("runs Winner's Circle movement cycles and race settlement", () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { chooseAiHeld, describeAiHeld, shouldAiStop } from "./dice-ai.js";
 import { scoreDice } from "./dice-scoring.js";
 
 type ExitProps = { onExit: () => void };
@@ -744,17 +745,6 @@ function randomDie() {
   return Math.floor(Math.random() * 6) + 1;
 }
 
-function chooseAiHeld(dice: number[]) {
-  const counts = dice.reduce<Record<number, number>>((map, die) => {
-    map[die] = (map[die] ?? 0) + 1;
-    return map;
-  }, {});
-  const target = Number(
-    Object.entries(counts).sort((a, b) => b[1] - a[1] || Number(b[0]) - Number(a[0]))[0][0],
-  );
-  return dice.map((die) => die === target);
-}
-
 const DIE_FACES = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 type DiceResult = ReturnType<typeof scoreDice>;
 type DicePhase = "player" | "ai" | "round-result" | "game-result";
@@ -820,6 +810,26 @@ export function DiceDuelGame({ onExit }: ExitProps) {
     });
 
     const playAiTurn = async () => {
+      const finishTurn = (values: number[]) => {
+        const result = scoreDice(values);
+        setAiDice(values);
+        setAiHeld([true, true, true, true, true]);
+        setAiResult(result);
+        setAiScore((value) => value + result.score);
+        setPhase(round >= 5 ? "game-result" : "round-result");
+        setNotice(`AI는 ${result.name} · ${result.score}점입니다`);
+      };
+
+      const stopOnCompletedCombination = async (values: number[]) => {
+        if (!shouldAiStop(values)) return false;
+        const result = scoreDice(values);
+        setAiHeld([true, true, true, true, true]);
+        setNotice(`AI가 ${result.name} 조합을 확정했습니다`);
+        await wait(850);
+        if (!cancelled) finishTurn(values);
+        return true;
+      };
+
       setAiDice(null);
       setAiHeld([false, false, false, false, false]);
       setAiRolls(0);
@@ -833,11 +843,11 @@ export function DiceDuelGame({ onExit }: ExitProps) {
       setNotice("AI의 첫 번째 굴림");
       await wait(900);
       if (cancelled) return;
+      if (await stopOnCompletedCombination(values)) return;
 
       let kept = chooseAiHeld(values);
       setAiHeld(kept);
-      const firstTarget = values[kept.findIndex(Boolean)];
-      setNotice(`AI가 ${firstTarget} 주사위 ${kept.filter(Boolean).length}개를 선택했습니다`);
+      setNotice(`AI가 ${describeAiHeld(values, kept)}를 선택했습니다`);
       await wait(900);
       if (cancelled) return;
 
@@ -847,11 +857,11 @@ export function DiceDuelGame({ onExit }: ExitProps) {
       setNotice("AI의 두 번째 굴림");
       await wait(900);
       if (cancelled) return;
+      if (await stopOnCompletedCombination(values)) return;
 
       kept = chooseAiHeld(values);
       setAiHeld(kept);
-      const secondTarget = values[kept.findIndex(Boolean)];
-      setNotice(`AI가 ${secondTarget} 주사위 ${kept.filter(Boolean).length}개를 남기고 다시 굴립니다`);
+      setNotice(`AI가 ${describeAiHeld(values, kept)}를 남기고 다시 굴립니다`);
       await wait(900);
       if (cancelled) return;
 
@@ -863,16 +873,7 @@ export function DiceDuelGame({ onExit }: ExitProps) {
       await wait(900);
       if (cancelled) return;
 
-      const result = scoreDice(values);
-      setAiResult(result);
-      setAiScore((value) => value + result.score);
-      if (round >= 5) {
-        setPhase("game-result");
-        setNotice(`AI는 ${result.name} · ${result.score}점입니다`);
-      } else {
-        setPhase("round-result");
-        setNotice(`AI는 ${result.name} · ${result.score}점입니다`);
-      }
+      finishTurn(values);
     };
 
     void playAiTurn();
