@@ -3124,12 +3124,16 @@ footer { font-size: 15px; }
 
 .janggi-piece.cho {
   color: #123f2e;
-  background: #e4cb8f;
+  background: #f0dda9;
 }
 
 .janggi-piece.han {
   color: #7d271f;
-  background: #e6cd91;
+  background: #f1dca9;
+}
+
+.janggi-board button.opponent-to .janggi-piece {
+  background: #d4b88d;
 }
 
 .janggi-piece.type-k {

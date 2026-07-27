@@ -545,14 +545,15 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
                 const destination = destinations.has(index);
                 const isSelected = selected === index;
                 const isOpponentFrom = lastAiPieceAlive && lastAiMove?.from === index;
+                const isOpponentTo = lastAiPieceAlive && lastAiMove?.to === index;
                 return (
                   <button
                     key={index}
                     onClick={() => play(index)}
                     disabled={turn !== "cho" || Boolean(winner) || (!selectable && !destination)}
-                    className={`${destination ? "destination" : ""} ${isSelected ? "selected" : ""} ${isOpponentFrom ? "opponent-from" : ""}`}
+                    className={`${destination ? "destination" : ""} ${isSelected ? "selected" : ""} ${isOpponentFrom ? "opponent-from" : ""} ${isOpponentTo ? "opponent-to" : ""}`}
                     role="gridcell"
-                    aria-label={`${rowOf(index) + 1}행 ${colOf(index) + 1}열${piece ? ` ${piece.side === "cho" ? "초" : "한"} ${PIECE_NAME[piece.type]}` : destination ? " 이동 가능" : ""}${isOpponentFrom ? " AI의 최근 출발 위치" : ""}`}
+                    aria-label={`${rowOf(index) + 1}행 ${colOf(index) + 1}열${piece ? ` ${piece.side === "cho" ? "초" : "한"} ${PIECE_NAME[piece.type]}` : destination ? " 이동 가능" : ""}${isOpponentFrom ? " AI의 최근 출발 위치" : isOpponentTo ? " AI가 최근 움직인 말" : ""}`}
                   >
                     {piece && (
                       <span className={`janggi-piece ${piece.side} type-${piece.type.toLowerCase()}`}>
