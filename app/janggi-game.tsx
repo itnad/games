@@ -37,6 +37,7 @@ const PIECE_NAME: Record<PieceType, string> = {
   E: "상",
   S: "졸",
 };
+const CAPTURE_PREVIEW_COUNT = 4;
 
 function makePiece(side: Side, type: PieceType): Piece {
   return { side, type };
@@ -370,7 +371,10 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
   const [turn, setTurn] = useState<Side>("cho");
   const [selected, setSelected] = useState<number | null>(null);
   const [winner, setWinner] = useState<Side | null>(null);
-  const [lastMove, setLastMove] = useState<Move | null>(null);
+  const [lastAiMove, setLastAiMove] = useState<Move | null>(null);
+  const [capturedCho, setCapturedCho] = useState<Piece[]>([]);
+  const [capturedHan, setCapturedHan] = useState<Piece[]>([]);
+  const [showAllCaptured, setShowAllCaptured] = useState(false);
   const [notice, setNotice] = useState("움직일 기물을 선택하세요");
   const [moveNumber, setMoveNumber] = useState(1);
 
@@ -381,11 +385,28 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
   const hanCount = board.filter((piece) => piece?.side === "han").length;
   const choChecked = isInCheck(board, "cho");
   const hanChecked = isInCheck(board, "han");
+  const lastAiPieceAlive = Boolean(
+    lastAiMove && board[lastAiMove.to]?.side === "han",
+  );
+  const visibleCapturedCho = showAllCaptured
+    ? capturedCho
+    : capturedCho.slice(-CAPTURE_PREVIEW_COUNT);
+  const visibleCapturedHan = showAllCaptured
+    ? capturedHan
+    : capturedHan.slice(-CAPTURE_PREVIEW_COUNT);
+  const hiddenCapturedCho = Math.max(0, capturedCho.length - visibleCapturedCho.length);
+  const hiddenCapturedHan = Math.max(0, capturedHan.length - visibleCapturedHan.length);
+  const hasMoreCaptured = capturedCho.length > CAPTURE_PREVIEW_COUNT || capturedHan.length > CAPTURE_PREVIEW_COUNT;
 
   const play = (index: number) => {
     if (turn !== "cho" || winner) return;
     const piece = board[index];
     if (piece?.side === "cho") {
+      if (selected === index) {
+        setSelected(null);
+        setNotice("선택을 취소했습니다. 다른 기물을 선택하세요");
+        return;
+      }
       setSelected(index);
       setNotice(`${PIECE_NAME[piece.type]}의 이동 위치를 선택하세요`);
       return;
@@ -398,9 +419,12 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
       return;
     }
 
+    const captured = board[move.to];
     const next = applyMove(board, move);
     setBoard(next);
-    setLastMove(move);
+    if (captured?.side === "han") {
+      setCapturedHan((pieces) => [...pieces, captured]);
+    }
     setSelected(null);
     setMoveNumber((value) => value + 1);
     const checked = isInCheck(next, "han");
@@ -436,9 +460,13 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
         }
         return;
       }
+      const captured = board[aiMove.to];
       const next = applyMove(board, aiMove);
       setBoard(next);
-      setLastMove(aiMove);
+      setLastAiMove(aiMove);
+      if (captured?.side === "cho") {
+        setCapturedCho((pieces) => [...pieces, captured]);
+      }
       setMoveNumber((value) => value + 1);
       const checked = isInCheck(next, "cho");
       const replies = legalMoves(next, "cho");
@@ -458,7 +486,10 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
     setTurn("cho");
     setSelected(null);
     setWinner(null);
-    setLastMove(null);
+    setLastAiMove(null);
+    setCapturedCho([]);
+    setCapturedHan([]);
+    setShowAllCaptured(false);
     setNotice("움직일 기물을 선택하세요");
     setMoveNumber(1);
   };
@@ -513,15 +544,16 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
                 const selectable = piece?.side === "cho" && moves.some((move) => move.from === index);
                 const destination = destinations.has(index);
                 const isSelected = selected === index;
-                const isLast = lastMove?.from === index || lastMove?.to === index;
+                const isOpponentFrom = lastAiPieceAlive && lastAiMove?.from === index;
+                const isOpponentTo = lastAiPieceAlive && lastAiMove?.to === index;
                 return (
                   <button
                     key={index}
                     onClick={() => play(index)}
                     disabled={turn !== "cho" || Boolean(winner) || (!selectable && !destination)}
-                    className={`${destination ? "destination" : ""} ${isSelected ? "selected" : ""} ${isLast ? "last-move" : ""}`}
+                    className={`${destination ? "destination" : ""} ${isSelected ? "selected" : ""} ${isOpponentFrom ? "opponent-from" : ""} ${isOpponentTo ? "opponent-to" : ""}`}
                     role="gridcell"
-                    aria-label={`${rowOf(index) + 1}행 ${colOf(index) + 1}열${piece ? ` ${piece.side === "cho" ? "초" : "한"} ${PIECE_NAME[piece.type]}` : destination ? " 이동 가능" : ""}`}
+                    aria-label={`${rowOf(index) + 1}행 ${colOf(index) + 1}열${piece ? ` ${piece.side === "cho" ? "초" : "한"} ${PIECE_NAME[piece.type]}` : destination ? " 이동 가능" : ""}${isOpponentFrom ? " AI의 최근 출발 위치" : isOpponentTo ? " AI가 최근 이동한 위치" : ""}`}
                   >
                     {piece && (
                       <span className={`janggi-piece ${piece.side} type-${piece.type.toLowerCase()}`}>
@@ -533,6 +565,62 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
               })}
             </div>
           </div>
+
+          <section className="janggi-captured-panel" aria-label="잡힌 기물">
+            <header>
+              <div>
+                <strong>잡힌 기물</strong>
+                <span>최근에 잡힌 말부터 확인할 수 있습니다</span>
+              </div>
+              {hasMoreCaptured && (
+                <button
+                  onClick={() => setShowAllCaptured((visible) => !visible)}
+                  aria-expanded={showAllCaptured}
+                >
+                  {showAllCaptured ? "최근만 보기" : "전체 보기"}
+                  <span aria-hidden="true">{showAllCaptured ? "⌃" : "⌄"}</span>
+                </button>
+              )}
+            </header>
+            <div className="janggi-captured-row">
+              <div className="janggi-captured-owner">
+                <span className="cho">楚</span>
+                <strong>내가 잃은 말</strong>
+              </div>
+              <div className="janggi-captured-pieces">
+                {visibleCapturedCho.length ? visibleCapturedCho.map((piece, index) => (
+                  <span
+                    key={`cho-${capturedCho.length - visibleCapturedCho.length + index}`}
+                    className={`captured-piece cho type-${piece.type.toLowerCase()}`}
+                    title={`초 ${PIECE_NAME[piece.type]}`}
+                    aria-label={`잡힌 초 ${PIECE_NAME[piece.type]}`}
+                  >
+                    {PIECE_LABEL.cho[piece.type]}
+                  </span>
+                )) : <small>아직 없음</small>}
+                {hiddenCapturedCho > 0 && <b>+{hiddenCapturedCho}</b>}
+              </div>
+            </div>
+            <div className="janggi-captured-row">
+              <div className="janggi-captured-owner">
+                <span className="han">漢</span>
+                <strong>AI가 잃은 말</strong>
+              </div>
+              <div className="janggi-captured-pieces">
+                {visibleCapturedHan.length ? visibleCapturedHan.map((piece, index) => (
+                  <span
+                    key={`han-${capturedHan.length - visibleCapturedHan.length + index}`}
+                    className={`captured-piece han type-${piece.type.toLowerCase()}`}
+                    title={`한 ${PIECE_NAME[piece.type]}`}
+                    aria-label={`잡힌 한 ${PIECE_NAME[piece.type]}`}
+                  >
+                    {PIECE_LABEL.han[piece.type]}
+                  </span>
+                )) : <small>아직 없음</small>}
+                {hiddenCapturedHan > 0 && <b>+{hiddenCapturedHan}</b>}
+              </div>
+            </div>
+          </section>
 
           <div className="game-actions janggi-actions">
             <button className="text-action" onClick={reset}>↻ 새 대국</button>
