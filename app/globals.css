@@ -1993,6 +1993,102 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
 .roll-button { color: #563244; background: #fff7ef; }
 .score-button { color: white; background: #c85761; }
 .dice-actions { width: min(70vw, 680px, 100%); }
+.dice-contestant {
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 15px;
+  background: rgba(20, 10, 16, .12);
+  transition: border-color .2s, background .2s;
+}
+.dice-contestant.active {
+  border-color: rgba(242, 183, 151, .72);
+  background: rgba(255,255,255,.055);
+}
+.dice-contestant-head {
+  margin-bottom: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #fff8f3;
+}
+.dice-contestant-head strong { font-size: 13px; }
+.dice-contestant-head span {
+  color: #d7bfc8;
+  font-size: 10px;
+  font-weight: 750;
+}
+.dice-contestant .combination-card { margin-top: 16px; }
+.dice-versus {
+  height: 34px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  color: #e8b39b;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.dice-versus::before,
+.dice-versus::after {
+  content: "";
+  width: calc(50% - 28px);
+  height: 1px;
+  position: absolute;
+  top: 50%;
+  background: rgba(255,255,255,.14);
+}
+.dice-versus::before { left: 0; }
+.dice-versus::after { right: 0; }
+.ai-dice-row button { cursor: default; }
+.ai-dice-row button.held {
+  border-color: #7fc3b1;
+  background: #e9fbf4;
+}
+.ai-dice-row button small { color: #587f76; }
+.dice-result-card {
+  margin-top: 18px;
+  padding: 17px 18px;
+  border: 1px solid rgba(242, 183, 151, .55);
+  border-radius: 13px;
+  color: white;
+  background: rgba(20, 10, 16, .28);
+}
+.dice-result-card > span {
+  display: block;
+  margin-bottom: 10px;
+  color: #d7bfc8;
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+}
+.dice-result-card > div {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+}
+.dice-result-card p { margin: 0; text-align: center; }
+.dice-result-card p small {
+  display: block;
+  color: #d7bfc8;
+  font-size: 10px;
+  font-weight: 750;
+}
+.dice-result-card p strong {
+  display: block;
+  margin-top: 2px;
+  color: #fff7ef;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 23px;
+}
+.dice-result-card b {
+  color: #f2b797;
+  font-size: 13px;
+  text-align: center;
+}
+.dice-next-button { grid-column: 1 / -1; }
 
 /* Checkers */
 .checkers-shell .game-info-panel {
@@ -2291,6 +2387,12 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
   .dice-row { gap: 6px; }
   .dice-row button { padding: 6px 2px; border-radius: 9px; }
   .dice-actions { width: min(calc(100vw - 28px), 580px); }
+  .dice-contestant { padding: 9px; }
+  .dice-contestant-head { margin-bottom: 10px; }
+  .dice-result-card { padding: 14px 10px; }
+  .dice-result-card > div { gap: 7px; }
+  .dice-result-card p strong { font-size: 20px; }
+  .dice-result-card b { font-size: 11px; }
 
   .janggi-score-card {
     width: 100%;

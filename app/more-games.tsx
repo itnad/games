@@ -576,82 +576,165 @@ function scoreDice(dice: number[]) {
   return { score: sum, name: "찬스" };
 }
 
-function aiDiceTurn() {
-  let dice = Array.from({ length: 5 }, randomDie);
-  for (let roll = 1; roll < 3; roll += 1) {
-    const counts = dice.reduce<Record<number, number>>((map, die) => {
-      map[die] = (map[die] ?? 0) + 1;
-      return map;
-    }, {});
-    const target = Number(Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]);
-    dice = dice.map((die) => die === target ? die : randomDie());
-  }
-  return dice;
+function chooseAiHeld(dice: number[]) {
+  const counts = dice.reduce<Record<number, number>>((map, die) => {
+    map[die] = (map[die] ?? 0) + 1;
+    return map;
+  }, {});
+  const target = Number(
+    Object.entries(counts).sort((a, b) => b[1] - a[1] || Number(b[0]) - Number(a[0]))[0][0],
+  );
+  return dice.map((die) => die === target);
 }
 
 const DIE_FACES = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+type DiceResult = ReturnType<typeof scoreDice>;
+type DicePhase = "player" | "ai" | "round-result" | "game-result";
 
 export function DiceDuelGame({ onExit }: ExitProps) {
   const [dice, setDice] = useState([1, 2, 3, 4, 5]);
   const [held, setHeld] = useState([false, false, false, false, false]);
   const [rolls, setRolls] = useState(0);
+  const [aiDice, setAiDice] = useState<number[] | null>(null);
+  const [aiHeld, setAiHeld] = useState([false, false, false, false, false]);
+  const [aiRolls, setAiRolls] = useState(0);
   const [round, setRound] = useState(1);
   const [playerScore, setPlayerScore] = useState(0);
   const [aiScore, setAiScore] = useState(0);
-  const [turn, setTurn] = useState<1 | 2>(1);
-  const [finished, setFinished] = useState(false);
+  const [phase, setPhase] = useState<DicePhase>("player");
+  const [playerResult, setPlayerResult] = useState<DiceResult | null>(null);
+  const [aiResult, setAiResult] = useState<DiceResult | null>(null);
   const [notice, setNotice] = useState("주사위를 굴려 시작하세요");
   const current = scoreDice(dice);
+  const aiCurrent = aiDice ? scoreDice(aiDice) : null;
+  const isPlayerTurn = phase === "player";
 
   const roll = () => {
-    if (turn !== 1 || rolls >= 3 || finished) return;
+    if (!isPlayerTurn || rolls >= 3) return;
     setDice((values) => values.map((value, index) => held[index] ? value : randomDie()));
     setRolls((value) => value + 1);
     setNotice("남길 주사위를 선택하거나 점수를 확정하세요");
   };
 
   const confirm = () => {
-    if (turn !== 1 || rolls === 0 || finished) return;
+    if (!isPlayerTurn || rolls === 0) return;
     const result = scoreDice(dice);
     setPlayerScore((value) => value + result.score);
-    setNotice(`${result.name} · ${result.score}점`);
-    setTurn(2);
+    setPlayerResult(result);
+    setNotice(`내 점수는 ${result.name} · ${result.score}점입니다`);
+    setPhase("ai");
   };
 
   useEffect(() => {
-    if (turn !== 2 || finished) return;
-    const timer = window.setTimeout(() => {
-      const aiDice = aiDiceTurn();
-      const result = scoreDice(aiDice);
+    if (phase !== "ai") return;
+    let cancelled = false;
+    const wait = (delay: number) => new Promise<void>((resolve) => {
+      window.setTimeout(resolve, delay);
+    });
+
+    const playAiTurn = async () => {
+      setAiDice(null);
+      setAiHeld([false, false, false, false, false]);
+      setAiRolls(0);
+      setNotice("AI가 주사위를 준비하고 있습니다");
+      await wait(550);
+      if (cancelled) return;
+
+      let values = Array.from({ length: 5 }, randomDie);
+      setAiDice(values);
+      setAiRolls(1);
+      setNotice("AI의 첫 번째 굴림");
+      await wait(900);
+      if (cancelled) return;
+
+      let kept = chooseAiHeld(values);
+      setAiHeld(kept);
+      const firstTarget = values[kept.findIndex(Boolean)];
+      setNotice(`AI가 ${firstTarget} 주사위 ${kept.filter(Boolean).length}개를 선택했습니다`);
+      await wait(900);
+      if (cancelled) return;
+
+      values = values.map((die, index) => kept[index] ? die : randomDie());
+      setAiDice(values);
+      setAiRolls(2);
+      setNotice("AI의 두 번째 굴림");
+      await wait(900);
+      if (cancelled) return;
+
+      kept = chooseAiHeld(values);
+      setAiHeld(kept);
+      const secondTarget = values[kept.findIndex(Boolean)];
+      setNotice(`AI가 ${secondTarget} 주사위 ${kept.filter(Boolean).length}개를 남기고 다시 굴립니다`);
+      await wait(900);
+      if (cancelled) return;
+
+      values = values.map((die, index) => kept[index] ? die : randomDie());
+      setAiDice(values);
+      setAiHeld([true, true, true, true, true]);
+      setAiRolls(3);
+      setNotice("AI의 마지막 굴림");
+      await wait(900);
+      if (cancelled) return;
+
+      const result = scoreDice(values);
+      setAiResult(result);
       setAiScore((value) => value + result.score);
       if (round >= 5) {
-        setFinished(true);
-        setNotice(`AI는 ${result.name}으로 ${result.score}점`);
+        setPhase("game-result");
+        setNotice(`AI는 ${result.name} · ${result.score}점입니다`);
       } else {
-        setRound((value) => value + 1);
-        setDice([1, 2, 3, 4, 5]);
-        setHeld([false, false, false, false, false]);
-        setRolls(0);
-        setTurn(1);
-        setNotice(`AI는 ${result.score}점 · 다음 라운드!`);
+        setPhase("round-result");
+        setNotice(`AI는 ${result.name} · ${result.score}점입니다`);
       }
-    }, 820);
-    return () => window.clearTimeout(timer);
-  }, [finished, round, turn]);
+    };
+
+    void playAiTurn();
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, round]);
+
+  const nextRound = () => {
+    if (phase !== "round-result") return;
+    setDice([1, 2, 3, 4, 5]);
+    setHeld([false, false, false, false, false]);
+    setRolls(0);
+    setAiDice(null);
+    setAiHeld([false, false, false, false, false]);
+    setAiRolls(0);
+    setPlayerResult(null);
+    setAiResult(null);
+    setRound((value) => value + 1);
+    setPhase("player");
+    setNotice("주사위를 굴려 시작하세요");
+  };
 
   const reset = () => {
     setDice([1, 2, 3, 4, 5]);
     setHeld([false, false, false, false, false]);
     setRolls(0);
+    setAiDice(null);
+    setAiHeld([false, false, false, false, false]);
+    setAiRolls(0);
     setRound(1);
     setPlayerScore(0);
     setAiScore(0);
-    setTurn(1);
-    setFinished(false);
+    setPlayerResult(null);
+    setAiResult(null);
+    setPhase("player");
     setNotice("주사위를 굴려 시작하세요");
   };
 
   const finalText = playerScore === aiScore ? "무승부예요" : playerScore > aiScore ? "승리했어요!" : "AI가 승리했어요";
+  const statusTitle = phase === "game-result"
+    ? finalText
+    : phase === "round-result"
+      ? `${round}라운드 결과`
+      : phase === "ai"
+        ? `AI ${aiRolls || 1}번째 굴림`
+        : rolls
+          ? current.name
+          : "내 차례";
 
   return (
     <main className="game-shell dice-shell">
@@ -662,43 +745,94 @@ export function DiceDuelGame({ onExit }: ExitProps) {
           title={<>행운은 굴리고<br />선택은 남기세요</>}
           description="세 번까지 굴릴 수 있습니다. 좋은 주사위를 고정해 최고의 조합을 만드세요."
         >
-          <SimpleScore player={playerScore} ai={aiScore} turn={turn} />
+          <SimpleScore player={playerScore} ai={aiScore} turn={phase === "ai" ? 2 : 1} />
         </InfoPanel>
         <div className="board-panel dice-panel">
           <div className="board-status" role="status">
             <span className="dice-status-icon">{round}</span>
-            <strong>{finished ? finalText : turn === 1 ? rolls ? current.name : "내 차례" : "AI가 굴리는 중…"}</strong>
-            <span>{finished ? `최종 ${playerScore} : ${aiScore}` : notice}</span>
+            <strong>{statusTitle}</strong>
+            <span>{phase === "game-result" ? `최종 점수 나 ${playerScore} : ${aiScore} AI` : notice}</span>
           </div>
           <div className="dice-table">
-            <div className="dice-row" aria-label="내 주사위">
-              {dice.map((die, index) => (
-                <button
-                  key={index}
-                  className={held[index] ? "held" : ""}
-                  onClick={() => setHeld((values) => values.map((value, i) => i === index ? !value : value))}
-                  disabled={turn !== 1 || rolls === 0 || finished}
-                  aria-label={`${die} 주사위${held[index] ? ", 고정됨" : ""}`}
-                >
-                  <span>{DIE_FACES[die]}</span>
-                  <small>{held[index] ? "KEEP" : "HOLD"}</small>
-                </button>
-              ))}
-            </div>
-            <div className="combination-card">
-              <span>현재 조합</span><strong>{rolls ? current.name : "—"}</strong><b>{rolls ? current.score : 0}점</b>
-            </div>
+            <section className={`dice-contestant ${isPlayerTurn ? "active" : ""}`}>
+              <header className="dice-contestant-head">
+                <strong>나의 주사위</strong>
+                <span>{rolls ? `${rolls} / 3번째 굴림` : "굴리기 전"}</span>
+              </header>
+              <div className="dice-row" aria-label="내 주사위">
+                {dice.map((die, index) => (
+                  <button
+                    key={index}
+                    className={held[index] ? "held" : ""}
+                    onClick={() => setHeld((values) => values.map((value, i) => i === index ? !value : value))}
+                    disabled={!isPlayerTurn || rolls === 0}
+                    aria-label={`${die} 주사위${held[index] ? ", 고정됨" : ""}`}
+                  >
+                    <span>{DIE_FACES[die]}</span>
+                    <small>{held[index] ? "KEEP" : "HOLD"}</small>
+                  </button>
+                ))}
+              </div>
+              <div className="combination-card">
+                <span>나의 조합</span><strong>{rolls ? current.name : "—"}</strong><b>{rolls ? current.score : 0}점</b>
+              </div>
+            </section>
+
+            <div className="dice-versus" aria-hidden="true"><span>VS</span></div>
+
+            <section className={`dice-contestant ai ${phase === "ai" ? "active" : ""}`}>
+              <header className="dice-contestant-head">
+                <strong>AI 주사위</strong>
+                <span>{aiRolls ? `${aiRolls} / 3번째 굴림` : phase === "ai" ? "준비 중" : "대기"}</span>
+              </header>
+              <div className="dice-row ai-dice-row" aria-label="AI 주사위">
+                {(aiDice ?? [0, 0, 0, 0, 0]).map((die, index) => (
+                  <button
+                    key={index}
+                    className={aiHeld[index] ? "held" : ""}
+                    disabled
+                    aria-label={die ? `AI의 ${die} 주사위${aiHeld[index] ? ", 선택됨" : ""}` : "아직 굴리지 않은 AI 주사위"}
+                  >
+                    <span>{die ? DIE_FACES[die] : "?"}</span>
+                    <small>{aiHeld[index] ? "KEEP" : aiRolls ? "ROLL" : "WAIT"}</small>
+                  </button>
+                ))}
+              </div>
+              <div className="combination-card">
+                <span>AI 조합</span><strong>{aiCurrent ? aiCurrent.name : "—"}</strong><b>{aiCurrent ? aiCurrent.score : 0}점</b>
+              </div>
+            </section>
+
+            {(phase === "round-result" || phase === "game-result") && playerResult && aiResult && (
+              <div className="dice-result-card" aria-live="polite">
+                <span>{phase === "game-result" ? "최종 결과" : `${round}라운드 비교`}</span>
+                <div>
+                  <p><small>나</small><strong>{phase === "game-result" ? playerScore : playerResult.score}점</strong></p>
+                  <b>{phase === "game-result" ? finalText : playerResult.score === aiResult.score ? "무승부" : playerResult.score > aiResult.score ? "라운드 승리" : "AI 라운드 승리"}</b>
+                  <p><small>AI</small><strong>{phase === "game-result" ? aiScore : aiResult.score}점</strong></p>
+                </div>
+              </div>
+            )}
+
             <div className="dice-controls">
-              <button className="roll-button" onClick={roll} disabled={turn !== 1 || rolls >= 3 || finished}>
-                {rolls === 0 ? "주사위 굴리기" : `다시 굴리기 · ${3 - rolls}회 남음`}
-              </button>
-              <button className="score-button" onClick={confirm} disabled={turn !== 1 || rolls === 0 || finished}>점수 확정</button>
+              {isPlayerTurn ? (
+                <>
+                  <button className="roll-button" onClick={roll} disabled={rolls >= 3}>
+                    {rolls === 0 ? "주사위 굴리기" : `다시 굴리기 · ${3 - rolls}회 남음`}
+                  </button>
+                  <button className="score-button" onClick={confirm} disabled={rolls === 0}>점수 확정</button>
+                </>
+              ) : phase === "round-result" ? (
+                <button className="score-button dice-next-button" onClick={nextRound}>다음 라운드</button>
+              ) : phase === "game-result" ? (
+                <button className="score-button dice-next-button" onClick={reset}>다음 게임</button>
+              ) : (
+                <button className="roll-button dice-next-button" disabled>AI가 선택하고 있습니다…</button>
+              )}
             </div>
           </div>
           <div className="game-actions dice-actions">
-            <button className="text-action" onClick={reset}>↻ 새 게임</button>
-            <span className="game-hint">다섯 주사위는 50점, 스트레이트는 40점</span>
-            {finished && <button className="primary-action" onClick={reset}>다시 플레이</button>}
+            <span className="game-hint">AI도 세 번 굴리며 선택한 주사위에는 KEEP이 표시됩니다</span>
           </div>
         </div>
       </section>
