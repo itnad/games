@@ -3427,9 +3427,42 @@ footer { font-size: 15px; }
   transform: translateY(-1px);
 }
 
+.wc-horse-row.move-option {
+  padding: 6px 8px;
+  border: 2px solid #168b64;
+  background: #f6fff9;
+  box-shadow:
+    inset 5px 0 0 #168b64,
+    0 0 0 3px rgba(22, 139, 100, .13);
+}
+
+.wc-horse-row.move-option:hover {
+  border-color: #087b54;
+  background: #effff5;
+  box-shadow:
+    inset 5px 0 0 #087b54,
+    0 0 0 4px rgba(22, 139, 100, .2);
+}
+
+.wc-horse-row.move-unavailable {
+  opacity: .43;
+  filter: grayscale(.35) saturate(.55);
+}
+
+.wc-horse-row.move-option .wc-runner {
+  box-shadow:
+    0 0 0 5px rgba(22, 139, 100, .22),
+    0 4px 10px rgba(24, 82, 61, .4);
+}
+
 .wc-horse-row.player-bet {
   border-color: #c8953b;
   background: #fffaf0;
+}
+
+.wc-horse-row.player-bet.move-option {
+  border-color: #168b64;
+  background: #f6fff9;
 }
 
 .wc-horse-row.finished { background: #eee9df; }
@@ -3488,6 +3521,11 @@ footer { font-size: 15px; }
 .wc-horse-name .mine { color: #7a5616; background: #f4dfac; }
 .wc-horse-name .ai { color: #6a445d; background: #eadbe5; }
 .wc-horse-name .pace { color: #176147; background: #d9eee5; }
+.wc-horse-name .move-ready {
+  color: #fff;
+  background: #168b64;
+  box-shadow: 0 2px 5px rgba(22, 139, 100, .2);
+}
 
 .wc-lane {
   position: relative;

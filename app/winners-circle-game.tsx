@@ -296,13 +296,15 @@ export function WinnersCircleGame({ onExit }: { onExit: () => void }) {
                     className={[
                       "wc-horse-row",
                       canBet || isAvailable ? "selectable" : "",
+                      phase === "player-choose" && isAvailable ? "move-option" : "",
+                      phase === "player-choose" && !isAvailable ? "move-unavailable" : "",
                       playerBet ? "player-bet" : "",
                       horse.finishedRank ? "finished" : "",
                     ].join(" ")}
                     style={rowStyle}
                     disabled={!canBet && !isAvailable}
                     onClick={() => phase === "betting" ? toggleBet(horse.id) : chooseHorse(horse.id)}
-                    aria-label={`${index + 1}번 ${horse.name}${playerBet ? `, ${playerBet.value}칩 베팅` : ""}`}
+                    aria-label={`${index + 1}번 ${horse.name}${playerBet ? `, ${playerBet.value}칩 베팅` : ""}${isAvailable ? ", 이동 선택 가능" : ""}`}
                   >
                     <span className="wc-gate">{index + 1}</span>
                     <span className="wc-horse-name">
@@ -311,6 +313,7 @@ export function WinnersCircleGame({ onExit }: { onExit: () => void }) {
                         {playerBet && <b className="mine">나 {playerBet.value}×</b>}
                         {revealAiBets && aiBet && <b className="ai">AI {aiBet.value}×</b>}
                         {horse.id === paceHorseId && <b className="pace">선두마</b>}
+                        {isAvailable && <b className="move-ready">선택 가능</b>}
                       </small>
                     </span>
                     <span className="wc-lane">
@@ -374,7 +377,7 @@ export function WinnersCircleGame({ onExit }: { onExit: () => void }) {
               {phase === "player-choose" && (
                 <div className="wc-choose-note">
                   <b>{WC_SYMBOLS.find((symbol) => symbol.id === lastRoll)?.icon}</b>
-                  밝게 표시된 말 중 하나를 선택하세요
+                  초록색 ‘선택 가능’ 말 중 하나를 선택하세요
                 </div>
               )}
               {(phase === "ai-roll" || phase === "ai-move") && (
