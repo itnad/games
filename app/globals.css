@@ -348,10 +348,15 @@ a:focus-visible {
   display: flex;
   gap: 9px;
   margin-bottom: 26px;
+  max-width: 100%;
 }
 
 .category-row button {
-  height: 34px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
   padding: 0 15px;
   border: 1px solid #dad7df;
   border-radius: 100px;
@@ -360,6 +365,8 @@ a:focus-visible {
   cursor: pointer;
   font-size: 12px;
   font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .category-row button:hover {
@@ -1431,7 +1438,13 @@ footer > span {
 
   .category-row {
     overflow-x: auto;
+    overscroll-behavior-inline: contain;
     scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .category-row::-webkit-scrollbar {
+    display: none;
   }
 
   .game-card {
