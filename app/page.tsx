@@ -102,7 +102,7 @@ const GAMES: GameDefinition[] = [
     title: "위너스 서클",
     subtitle: "베팅한 말을 결승선까지 이끄세요",
     category: "경주",
-    players: "AI 1:1",
+    players: "AI 2~6인",
     tone: "navy",
   },
 ];

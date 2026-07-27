@@ -10,9 +10,9 @@ export const WC_SYMBOLS = [
 ];
 
 export const WC_PAYOUTS = {
-  win: [0, 500, 350, 250, 200, 150, 100],
-  place: [0, 350, 250, 200, 150, 100, 100],
-  show: [0, 250, 200, 150, 100, 100, 50],
+  win: [0, 500, 350, 250, 200, 150, 100, 100, 50, 50, 50, 50, 50],
+  place: [0, 350, 250, 200, 150, 100, 100, 50, 50, 50, 50, 50, 50],
+  show: [0, 250, 200, 150, 100, 100, 50, 50, 50, 50, 50, 50, 50],
 };
 
 const HORSE_IDENTITIES = [
@@ -117,7 +117,7 @@ function betValue(bets, horseId) {
   return bets.find((bet) => bet.horseId === horseId)?.value ?? 0;
 }
 
-export function wcSettleRace(horses, playerBets, aiBets, paceHorseId, race) {
+export function wcSettleRaceMulti(horses, competitors, paceHorseId, race) {
   const podium = horses
     .filter((horse) => horse.finishedRank && horse.finishedRank <= 3)
     .sort((a, b) => a.finishedRank - b.finishedRank);
@@ -126,6 +126,7 @@ export function wcSettleRace(horses, playerBets, aiBets, paceHorseId, race) {
     .sort((a, b) => a.position - b.position)[0] ?? null;
   const payoutKeys = ["win", "place", "show"];
   const multiplier = race === 3 ? 2 : 1;
+  const allBets = competitors.flatMap((competitor) => competitor.bets);
 
   function calculate(bets) {
     let gross = 0;
@@ -134,7 +135,9 @@ export function wcSettleRace(horses, playerBets, aiBets, paceHorseId, race) {
     podium.forEach((horse, index) => {
       const value = betValue(bets, horse.id);
       if (!value) return;
-      const totalUnits = betValue(playerBets, horse.id) + betValue(aiBets, horse.id);
+      const totalUnits = allBets
+        .filter((bet) => bet.horseId === horse.id)
+        .reduce((sum, bet) => sum + bet.value, 0);
       const table = WC_PAYOUTS[payoutKeys[index]];
       const perUnit = table[Math.max(1, Math.min(totalUnits, table.length - 1))];
       let amount = perUnit * value;
@@ -156,16 +159,37 @@ export function wcSettleRace(horses, playerBets, aiBets, paceHorseId, race) {
     return { delta: (gross - penalty) * multiplier, lines };
   }
 
-  const player = calculate(playerBets);
-  const ai = calculate(aiBets);
   return {
     podium,
     lastHorse,
     multiplier,
-    playerDelta: player.delta,
-    aiDelta: ai.delta,
-    playerLines: player.lines,
-    aiLines: ai.lines,
+    results: competitors.map((competitor) => ({
+      id: competitor.id,
+      ...calculate(competitor.bets),
+    })),
+  };
+}
+
+export function wcSettleRace(horses, playerBets, aiBets, paceHorseId, race) {
+  const result = wcSettleRaceMulti(
+    horses,
+    [
+      { id: "player", bets: playerBets },
+      { id: "ai", bets: aiBets },
+    ],
+    paceHorseId,
+    race,
+  );
+  const player = result.results.find((entry) => entry.id === "player");
+  const ai = result.results.find((entry) => entry.id === "ai");
+  return {
+    podium: result.podium,
+    lastHorse: result.lastHorse,
+    multiplier: result.multiplier,
+    playerDelta: player?.delta ?? 0,
+    aiDelta: ai?.delta ?? 0,
+    playerLines: player?.lines ?? [],
+    aiLines: ai?.lines ?? [],
   };
 }
 

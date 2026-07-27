@@ -6,6 +6,7 @@ import {
   wcAvailableHorseIds,
   wcMoveHorse,
   wcSettleRace,
+  wcSettleRaceMulti,
 } from "../app/winners-circle-engine.js";
 
 async function render() {
@@ -92,4 +93,24 @@ test("runs Winner's Circle movement cycles and race settlement", () => {
   assert.equal(result.multiplier, 2);
   assert.equal(result.podium.length, 3);
   assert.ok(result.playerDelta > 0);
+});
+
+test("settles a six-player Winner's Circle race independently", () => {
+  const finished = createRaceHorses(2).map((horse, index) => ({
+    ...horse,
+    position: index < 3 ? 32 : index,
+    finishedRank: index < 3 ? index + 1 : null,
+  }));
+  const competitors = Array.from({ length: 6 }, (_, index) => ({
+    id: index === 0 ? "player" : `ai-${index}`,
+    bets: [
+      { horseId: index % 3, value: 2 },
+      { horseId: (index + 3) % 7, value: 1 },
+      { horseId: (index + 4) % 7, value: 1 },
+    ],
+  }));
+  const result = wcSettleRaceMulti(finished, competitors, 0, 1);
+  assert.equal(result.results.length, 6);
+  assert.ok(result.results.every((entry) => Number.isFinite(entry.delta)));
+  assert.equal(result.podium.length, 3);
 });
