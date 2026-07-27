@@ -49,6 +49,10 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /장기/);
   assert.match(html, /위너스 서클/);
   assert.match(html, /게임 이름 검색/);
+  assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
+  assert.match(html, /게임 추천 게시판/);
+  assert.match(html, /id="game-suggestion"/i);
+  assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
 });
 

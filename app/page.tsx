@@ -279,6 +279,202 @@ function EmptyState({ query }: { query: string }) {
   );
 }
 
+type GameSuggestion = {
+  id: number;
+  title: string;
+  completed: boolean;
+  createdAt: string;
+  completedAt: string | null;
+};
+
+function suggestionDate(value: string) {
+  const date = new Date(value.includes("T") ? value : `${value.replace(" ", "T")}Z`);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function sortSuggestions(items: GameSuggestion[]) {
+  return [...items].sort((a, b) => {
+    if (a.completed !== b.completed) return Number(a.completed) - Number(b.completed);
+    return b.id - a.id;
+  });
+}
+
+function SuggestionBoard() {
+  const [suggestions, setSuggestions] = useState<GameSuggestion[]>([]);
+  const [draft, setDraft] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [message, setMessage] = useState("");
+  const characterCount = Array.from(draft).length;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadSuggestions = async () => {
+      try {
+        const response = await fetch("/api/game-suggestions", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const payload = (await response.json()) as {
+          suggestions?: GameSuggestion[];
+          isAdmin?: boolean;
+          error?: string;
+        };
+        if (!response.ok) throw new Error(payload.error);
+        setSuggestions(sortSuggestions(payload.suggestions ?? []));
+        setIsAdmin(Boolean(payload.isAdmin));
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          setMessage(error instanceof Error && error.message ? error.message : "추천 게시판을 불러오지 못했습니다.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    };
+    void loadSuggestions();
+    return () => controller.abort();
+  }, []);
+
+  const submitSuggestion = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const title = draft.trim().replace(/\s+/g, " ");
+    if (!title || submitting) return;
+
+    setSubmitting(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/game-suggestions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      const payload = (await response.json()) as { suggestion?: GameSuggestion; error?: string };
+      if (!response.ok || !payload.suggestion) {
+        throw new Error(payload.error ?? "추천을 등록하지 못했습니다.");
+      }
+      setSuggestions((current) => sortSuggestions([payload.suggestion!, ...current]));
+      setDraft("");
+      setMessage("추천이 등록되었습니다. 좋은 의견 감사합니다!");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "추천을 등록하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const toggleCompleted = async (suggestion: GameSuggestion) => {
+    if (!isAdmin || updatingId !== null) return;
+    setUpdatingId(suggestion.id);
+    setMessage("");
+    try {
+      const response = await fetch("/api/game-suggestions", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: suggestion.id, completed: !suggestion.completed }),
+      });
+      const payload = (await response.json()) as { suggestion?: GameSuggestion; error?: string };
+      if (!response.ok || !payload.suggestion) {
+        throw new Error(payload.error ?? "완료 상태를 변경하지 못했습니다.");
+      }
+      setSuggestions((current) =>
+        sortSuggestions(current.map((item) => item.id === suggestion.id ? payload.suggestion! : item)),
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "완료 상태를 변경하지 못했습니다.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  return (
+    <section className="suggestion-section" id="game-suggestions">
+      <div className="suggestion-heading">
+        <span className="section-number">02</span>
+        <div>
+          <h2>다음 게임은?</h2>
+          <p>추가 되면 좋을 게임을 추천해주세요.</p>
+        </div>
+      </div>
+
+      <div className="suggestion-layout">
+        <form className="suggestion-form" onSubmit={submitSuggestion}>
+          <label htmlFor="game-suggestion">추천할 게임</label>
+          <div className="suggestion-input-row">
+            <input
+              id="game-suggestion"
+              value={draft}
+              onChange={(event) => setDraft(Array.from(event.target.value).slice(0, 50).join(""))}
+              placeholder="예: 카탄, 루미큐브, 스플렌더"
+              maxLength={50}
+              disabled={submitting}
+            />
+            <span className={characterCount === 50 ? "limit" : ""}>{characterCount}/50</span>
+          </div>
+          <button type="submit" disabled={!draft.trim() || submitting}>
+            {submitting ? "등록 중…" : "추천하기"}
+            <span aria-hidden="true">→</span>
+          </button>
+          <small>게임 이름이나 간단한 아이디어를 50자 이내로 남겨주세요.</small>
+          {message && <p className="suggestion-message" aria-live="polite">{message}</p>}
+        </form>
+
+        <div className="suggestion-board">
+          <header>
+            <div>
+              <strong>게임 추천 게시판</strong>
+              <span>{suggestions.length}개의 추천</span>
+            </div>
+            {isAdmin && <b className="admin-badge">관리자 체크 가능</b>}
+          </header>
+
+          {loading ? (
+            <div className="suggestion-empty">추천 목록을 불러오는 중…</div>
+          ) : suggestions.length === 0 ? (
+            <div className="suggestion-empty">
+              <span>✦</span>
+              첫 번째 게임을 추천해 주세요.
+            </div>
+          ) : (
+            <ul>
+              {suggestions.map((suggestion) => (
+                <li key={suggestion.id} className={suggestion.completed ? "completed" : ""}>
+                  {isAdmin ? (
+                    <label className="suggestion-check">
+                      <input
+                        type="checkbox"
+                        checked={suggestion.completed}
+                        disabled={updatingId === suggestion.id}
+                        onChange={() => void toggleCompleted(suggestion)}
+                        aria-label={`${suggestion.title} 게임 추가 완료 표시`}
+                      />
+                      <span aria-hidden="true">✓</span>
+                    </label>
+                  ) : (
+                    <span className="suggestion-status" aria-hidden="true">
+                      {suggestion.completed ? "✓" : "·"}
+                    </span>
+                  )}
+                  <div>
+                    <strong>{suggestion.title}</strong>
+                    <small>{suggestion.completed ? "게임 추가 완료" : "추천 검토 중"}</small>
+                  </div>
+                  <time dateTime={suggestion.createdAt}>{suggestionDate(suggestion.createdAt)}</time>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 const BOARD_SIZE = 15;
 type Stone = 0 | 1 | 2;
 type GomokuResult = 0 | 1 | 2 | 3;
@@ -978,19 +1174,22 @@ export default function Home() {
               <GameCard key={game.id} game={game} onPlay={setActiveGame} />
             ))}
             {!query && category === "전체" && (
-              <article className="coming-card">
+              <a className="coming-card" href="#game-suggestions">
                 <span className="plus-mark">+</span>
                 <div>
                   <strong>다음 게임은?</strong>
-                  <p>새로운 게임이 계속 추가됩니다.</p>
+                  <p>추가 되면 좋을 게임을 추천해주세요.</p>
                 </div>
-              </article>
+                <span className="suggestion-arrow" aria-hidden="true">↓</span>
+              </a>
             )}
           </div>
         ) : (
           <EmptyState query={query} />
         )}
       </section>
+
+      <SuggestionBoard />
 
       <footer>
         <div className="footer-brand"><BrandMark /> PLAYROOM</div>

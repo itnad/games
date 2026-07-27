@@ -600,6 +600,14 @@ a:focus-visible {
   border: 1px dashed #cbc7d1;
   border-radius: 13px;
   color: #6f6b77;
+  text-decoration: none;
+  transition: border-color .2s, background .2s, transform .2s;
+}
+
+.coming-card:hover {
+  border-color: #9c8ed0;
+  background: #f6f3ff;
+  transform: translateY(-2px);
 }
 
 .plus-mark {
@@ -622,6 +630,271 @@ a:focus-visible {
   color: #9a969f;
   font-size: 12px;
 }
+
+.suggestion-arrow {
+  margin-left: auto;
+  color: var(--violet);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.suggestion-section {
+  padding: 72px max(32px, calc((100vw - 1180px) / 2)) 82px;
+  background:
+    radial-gradient(circle at 88% 16%, rgba(115, 87, 214, .1), transparent 24%),
+    #efedf4;
+}
+
+.suggestion-heading {
+  margin-bottom: 29px;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.suggestion-heading h2 {
+  margin: 0;
+  font-size: 31px;
+  letter-spacing: -.045em;
+}
+
+.suggestion-heading p {
+  margin: 7px 0 0;
+  color: #797480;
+  font-size: 15px;
+}
+
+.suggestion-layout {
+  display: grid;
+  grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.suggestion-form,
+.suggestion-board {
+  border: 1px solid #dfd9e7;
+  border-radius: 16px;
+  box-shadow: 0 14px 36px rgba(43, 34, 58, .07);
+}
+
+.suggestion-form {
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  color: white;
+  background:
+    radial-gradient(circle at 100% 0, rgba(163, 136, 255, .27), transparent 34%),
+    #30283c;
+}
+
+.suggestion-form > label {
+  margin-bottom: 10px;
+  color: #e8e1ee;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.suggestion-input-row {
+  height: 56px;
+  padding: 0 14px 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(255,255,255,.17);
+  border-radius: 11px;
+  background: rgba(255,255,255,.1);
+}
+
+.suggestion-input-row:focus-within {
+  border-color: #bcaeff;
+  box-shadow: 0 0 0 4px rgba(188, 174, 255, .1);
+}
+
+.suggestion-input-row input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: white;
+  background: transparent;
+  font-size: 16px;
+}
+
+.suggestion-input-row input::placeholder { color: #a9a1b2; }
+.suggestion-input-row > span {
+  flex: 0 0 auto;
+  color: #a9a1b2;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+}
+.suggestion-input-row > span.limit { color: #ffb99e; }
+
+.suggestion-form > button {
+  min-height: 50px;
+  margin-top: 12px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 10px;
+  color: white;
+  background: var(--violet);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.suggestion-form > button:hover:not(:disabled) { filter: brightness(1.08); }
+.suggestion-form > button:disabled { cursor: default; opacity: .42; }
+.suggestion-form > button span { font-size: 20px; }
+
+.suggestion-form > small {
+  margin-top: 11px;
+  color: #aca4b4;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.suggestion-message {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #e9e1ee;
+  background: rgba(255,255,255,.08);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.suggestion-board {
+  overflow: hidden;
+  background: #fff;
+}
+
+.suggestion-board > header {
+  min-height: 72px;
+  padding: 15px 19px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid #eae5ed;
+}
+
+.suggestion-board > header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.suggestion-board > header strong { font-size: 16px; }
+.suggestion-board > header span { color: #8f8994; font-size: 12px; }
+.admin-badge {
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: #5f489e;
+  background: #eee9ff;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.suggestion-board ul {
+  max-height: 360px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.suggestion-board li {
+  min-height: 68px;
+  padding: 11px 18px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  border-bottom: 1px solid #eeeaf0;
+}
+
+.suggestion-board li:last-child { border-bottom: 0; }
+.suggestion-board li.completed { background: #f7f6f9; }
+.suggestion-board li > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.suggestion-board li > div strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.suggestion-board li.completed > div strong {
+  color: #88818d;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.suggestion-board li small { color: #9a949e; font-size: 11px; }
+.suggestion-board li.completed small { color: #5d9d79; font-weight: 750; }
+.suggestion-board time {
+  color: #aaa4ad;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+}
+
+.suggestion-check {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  position: relative;
+  cursor: pointer;
+}
+.suggestion-check input {
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  opacity: 0;
+}
+.suggestion-check span,
+.suggestion-status {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d6d0da;
+  border-radius: 50%;
+  color: #b1aab5;
+  background: white;
+  font-size: 13px;
+  font-weight: 900;
+}
+.suggestion-check input:checked + span,
+.suggestion-board li.completed .suggestion-status {
+  border-color: #59a47b;
+  color: white;
+  background: #59a47b;
+}
+.suggestion-check input:focus-visible + span {
+  outline: 3px solid rgba(115, 87, 214, .3);
+  outline-offset: 2px;
+}
+.suggestion-check input:disabled + span { opacity: .55; }
+
+.suggestion-empty {
+  min-height: 150px;
+  padding: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  color: #8d8791;
+  font-size: 13px;
+  text-align: center;
+}
+.suggestion-empty span { color: var(--violet); font-size: 22px; }
 
 .empty-state {
   padding: 60px 20px;
@@ -1805,6 +2078,47 @@ footer > span {
   .game-card h3 {
     margin-top: 25px;
   }
+
+  .coming-card {
+    padding: 20px 18px;
+    gap: 13px;
+  }
+
+  .plus-mark {
+    width: 39px;
+    height: 39px;
+    flex: 0 0 auto;
+  }
+
+  .suggestion-section {
+    padding: 52px 18px 62px;
+  }
+
+  .suggestion-heading {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .suggestion-heading h2 { font-size: 29px; }
+  .suggestion-heading p { font-size: 14px; line-height: 1.5; }
+
+  .suggestion-layout {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .suggestion-form { padding: 20px 17px; }
+  .suggestion-input-row { height: 53px; padding-inline: 12px; }
+  .suggestion-input-row input { font-size: 15px; }
+  .suggestion-board > header { min-height: 68px; padding: 13px 14px; }
+  .suggestion-board li {
+    min-height: 65px;
+    padding: 10px 13px;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 9px;
+  }
+  .suggestion-board li > div strong { font-size: 13px; }
+  .suggestion-board ul { max-height: 330px; }
 
   footer {
     padding: 32px 22px;
