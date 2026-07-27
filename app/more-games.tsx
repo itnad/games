@@ -768,7 +768,7 @@ export function DiceDuelGame({ onExit }: ExitProps) {
             </button>
           </div>
           <div className="dice-table">
-            <section className={`dice-contestant ai ${phase === "ai" ? "active" : ""}`}>
+            <section className={`dice-contestant ai ${phase === "ai" ? "active" : ""} ${phase === "player" ? "waiting" : ""}`}>
               <header className="dice-contestant-head">
                 <strong>AI 주사위</strong>
                 <span>{aiRolls ? `${aiRolls} / 3번째 굴림` : phase === "ai" ? "준비 중" : "대기"}</span>
@@ -832,6 +832,9 @@ export function DiceDuelGame({ onExit }: ExitProps) {
               {isPlayerTurn ? (
                 <>
                   <button className="roll-button" onClick={roll} disabled={rolls >= 3}>
+                    <span className="roll-die-icon" aria-hidden="true">
+                      <i /><i /><i />
+                    </span>
                     {rolls === 0 ? "주사위 굴리기" : `다시 굴리기 · ${3 - rolls}회 남음`}
                   </button>
                   <button className="score-button" onClick={confirm} disabled={rolls === 0}>점수 확정</button>
