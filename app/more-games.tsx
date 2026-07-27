@@ -574,6 +574,15 @@ function chooseAiHeld(dice: number[]) {
 const DIE_FACES = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 type DiceResult = ReturnType<typeof scoreDice>;
 type DicePhase = "player" | "ai" | "round-result" | "game-result";
+const DICE_SCORING_RULES = [
+  { name: "다섯 주사위", example: "같은 눈 5개", score: "50점" },
+  { name: "라지 스트레이트", example: "연속된 눈 5개", score: "40점" },
+  { name: "스몰 스트레이트", example: "연속된 눈 4개", score: "30점" },
+  { name: "풀하우스", example: "같은 눈 3개 + 2개", score: "25점" },
+  { name: "포카드", example: "같은 눈 4개", score: "5개 합계" },
+  { name: "트리플", example: "같은 눈 3개", score: "5개 합계" },
+  { name: "찬스", example: "페어·투페어·그 외", score: "5개 합계" },
+];
 
 export function DiceDuelGame({ onExit }: ExitProps) {
   const [dice, setDice] = useState([1, 2, 3, 4, 5]);
@@ -589,9 +598,19 @@ export function DiceDuelGame({ onExit }: ExitProps) {
   const [playerResult, setPlayerResult] = useState<DiceResult | null>(null);
   const [aiResult, setAiResult] = useState<DiceResult | null>(null);
   const [notice, setNotice] = useState("주사위를 굴려 시작하세요");
+  const [showRules, setShowRules] = useState(false);
   const current = scoreDice(dice);
   const aiCurrent = aiDice ? scoreDice(aiDice) : null;
   const isPlayerTurn = phase === "player";
+
+  useEffect(() => {
+    if (!showRules) return;
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowRules(false);
+    };
+    window.addEventListener("keydown", closeWithEscape);
+    return () => window.removeEventListener("keydown", closeWithEscape);
+  }, [showRules]);
 
   const roll = () => {
     if (!isPlayerTurn || rolls >= 3) return;
@@ -732,10 +751,21 @@ export function DiceDuelGame({ onExit }: ExitProps) {
           <SimpleScore player={playerScore} ai={aiScore} turn={phase === "ai" ? 2 : 1} />
         </InfoPanel>
         <div className="board-panel dice-panel">
-          <div className="board-status" role="status">
-            <span className="dice-status-icon">{round}</span>
-            <strong>{statusTitle}</strong>
-            <span>{phase === "game-result" ? `최종 점수 나 ${playerScore} : ${aiScore} AI` : notice}</span>
+          <div className="dice-status-row">
+            <div className="board-status" role="status">
+              <span className="dice-status-icon">{round}</span>
+              <strong>{statusTitle}</strong>
+              <span>{phase === "game-result" ? `최종 점수 나 ${playerScore} : ${aiScore} AI` : notice}</span>
+            </div>
+            <button
+              className="dice-rules-toggle"
+              onClick={() => setShowRules((visible) => !visible)}
+              aria-expanded={showRules}
+              aria-controls="dice-scoring-layer"
+            >
+              <span aria-hidden="true">ⓘ</span>
+              점수 규칙
+            </button>
           </div>
           <div className="dice-table">
             <section className={`dice-contestant ai ${phase === "ai" ? "active" : ""}`}>
@@ -820,6 +850,41 @@ export function DiceDuelGame({ onExit }: ExitProps) {
           </div>
         </div>
       </section>
+      {showRules && (
+        <div
+          className="dice-rules-layer"
+          id="dice-scoring-layer"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dice-rules-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShowRules(false);
+          }}
+        >
+          <div className="dice-rules-card">
+            <header>
+              <div>
+                <span>SCORING GUIDE</span>
+                <h2 id="dice-rules-title">주사위 조합 점수</h2>
+              </div>
+              <button onClick={() => setShowRules(false)} aria-label="점수 규칙 닫기" autoFocus>×</button>
+            </header>
+            <p>공식 야찌 하단 조합 점수를 사용하는 5라운드 자동 채점 방식입니다.</p>
+            <div className="dice-rules-list">
+              {DICE_SCORING_RULES.map((item) => (
+                <div key={item.name}>
+                  <span><strong>{item.name}</strong><small>{item.example}</small></span>
+                  <b>{item.score}</b>
+                </div>
+              ))}
+            </div>
+            <aside>
+              <strong>페어와 투페어는?</strong>
+              <span>별도 득점 조합이 아니므로 찬스로 계산해 주사위 5개의 눈을 모두 더합니다.</span>
+            </aside>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

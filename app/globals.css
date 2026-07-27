@@ -2081,6 +2081,38 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
 }
 .dice-shell .eyebrow { color: #da8a93; }
 .dice-status-icon { background: #c85761; font-family: var(--font-geist-mono), monospace; }
+.dice-status-row {
+  width: min(70vw, 680px, 100%);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.dice-status-row .board-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.dice-rules-toggle {
+  min-height: 38px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  border: 1px solid #d9d2db;
+  border-radius: 999px;
+  color: #664253;
+  background: #fffaf6;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+.dice-rules-toggle span {
+  color: #c85761;
+  font-size: 17px;
+}
 .dice-table {
   width: min(70vw, 680px, 100%);
   padding: clamp(25px, 4vw, 48px);
@@ -2248,6 +2280,112 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
   text-align: center;
 }
 .dice-next-button { grid-column: 1 / -1; }
+.dice-rules-layer {
+  padding: 22px;
+  display: grid;
+  place-items: center;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(25, 15, 22, .65);
+  backdrop-filter: blur(7px);
+}
+.dice-rules-card {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 44px);
+  overflow-y: auto;
+  padding: 27px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 20px;
+  color: #fff9f5;
+  background:
+    radial-gradient(circle at 85% 0, rgba(200, 87, 97, .22), transparent 30%),
+    #38232d;
+  box-shadow: 0 28px 80px rgba(17, 7, 13, .42);
+}
+.dice-rules-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.dice-rules-card header span {
+  color: #dc9ba2;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .14em;
+}
+.dice-rules-card h2 {
+  margin: 5px 0 0;
+  font-size: 27px;
+  letter-spacing: -.045em;
+}
+.dice-rules-card header button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 50%;
+  color: white;
+  background: rgba(255,255,255,.07);
+  cursor: pointer;
+  font-size: 25px;
+  line-height: 1;
+}
+.dice-rules-card > p {
+  margin: 11px 0 20px;
+  color: #cbb7c0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.dice-rules-list {
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 13px;
+}
+.dice-rules-list > div {
+  min-height: 58px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid rgba(255,255,255,.09);
+}
+.dice-rules-list > div:last-child { border-bottom: 0; }
+.dice-rules-list span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dice-rules-list strong { font-size: 15px; }
+.dice-rules-list small {
+  margin-top: 2px;
+  color: #b9a3ad;
+  font-size: 12px;
+}
+.dice-rules-list b {
+  flex: 0 0 auto;
+  color: #f2b797;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 15px;
+}
+.dice-rules-card aside {
+  margin-top: 15px;
+  padding: 13px 14px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  color: #eadde2;
+  background: rgba(255,255,255,.07);
+}
+.dice-rules-card aside strong { font-size: 13px; }
+.dice-rules-card aside span {
+  margin-top: 4px;
+  color: #cbb7c0;
+  font-size: 12px;
+  line-height: 1.55;
+}
 
 /* Checkers */
 .checkers-shell .game-info-panel {
@@ -2543,6 +2681,16 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
     padding: 25px 15px;
   }
 
+  .dice-status-row {
+    width: min(calc(100vw - 28px), 580px);
+  }
+
+  .dice-rules-toggle {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
   .dice-row { gap: 6px; }
   .dice-row button { padding: 6px 2px; border-radius: 9px; }
   .dice-actions { width: min(calc(100vw - 28px), 580px); }
@@ -2552,6 +2700,14 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
   .dice-result-card > div { gap: 7px; }
   .dice-result-card p strong { font-size: 20px; }
   .dice-result-card b { font-size: 11px; }
+  .dice-rules-layer { padding: 12px; }
+  .dice-rules-card {
+    max-height: calc(100vh - 24px);
+    padding: 21px 17px;
+    border-radius: 16px;
+  }
+  .dice-rules-card h2 { font-size: 24px; }
+  .dice-rules-list > div { min-height: 54px; padding: 9px 11px; }
 
   .janggi-score-card {
     width: 100%;
