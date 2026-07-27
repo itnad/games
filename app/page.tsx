@@ -9,6 +9,7 @@ import {
   ReversiGame,
 } from "./more-games";
 import { JanggiGame } from "./janggi-game";
+import { WinnersCircleGame } from "./winners-circle-game";
 
 type GameId =
   | "gomoku"
@@ -18,8 +19,9 @@ type GameId =
   | "battleship"
   | "dice"
   | "checkers"
-  | "janggi";
-type Category = "전체" | "전략" | "기억력" | "추리" | "주사위";
+  | "janggi"
+  | "winners-circle";
+type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
   id: GameId;
@@ -27,7 +29,7 @@ type GameDefinition = {
   subtitle: string;
   category: Exclude<Category, "전체">;
   players: string;
-  tone: "violet" | "orange" | "teal" | "gold" | "blue" | "red" | "green";
+  tone: "violet" | "orange" | "teal" | "gold" | "blue" | "red" | "green" | "navy";
 };
 
 const GAMES: GameDefinition[] = [
@@ -94,6 +96,14 @@ const GAMES: GameDefinition[] = [
     category: "전략",
     players: "AI 1:1",
     tone: "green",
+  },
+  {
+    id: "winners-circle",
+    title: "위너스 서클",
+    subtitle: "베팅한 말을 결승선까지 이끄세요",
+    category: "경주",
+    players: "AI 1:1",
+    tone: "navy",
   },
 ];
 
@@ -198,6 +208,21 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <span className="preview-piece small cho">包</span>
         </div>
         <span className="float-chip">9 × 10</span>
+      </div>
+    );
+  }
+
+  if (game.id === "winners-circle") {
+    return (
+      <div className="card-art winners-art" aria-hidden="true">
+        <div className="winner-preview-track">
+          <span className="preview-runner r1">♞</span>
+          <span className="preview-runner r2">♞</span>
+          <span className="preview-runner r3">♞</span>
+          <span className="preview-runner r4">♞</span>
+          <i className="preview-finish" />
+        </div>
+        <span className="float-chip">3 races</span>
       </div>
     );
   }
@@ -873,6 +898,9 @@ export default function Home() {
   if (activeGame === "janggi") {
     return <JanggiGame onExit={() => setActiveGame(null)} />;
   }
+  if (activeGame === "winners-circle") {
+    return <WinnersCircleGame onExit={() => setActiveGame(null)} />;
+  }
 
   return (
     <main className="hub-shell">
@@ -930,7 +958,7 @@ export default function Home() {
         </div>
 
         <div className="category-row" role="tablist" aria-label="게임 분류">
-          {(["전체", "전략", "기억력", "추리", "주사위"] as Category[]).map((item) => (
+          {(["전체", "전략", "기억력", "추리", "주사위", "경주"] as Category[]).map((item) => (
             <button
               key={item}
               role="tab"
