@@ -835,6 +835,7 @@ footer > span {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
+  column-gap: 14px;
 }
 
 .player-side {
@@ -883,6 +884,9 @@ footer > span {
 }
 
 .versus {
+  min-width: 38px;
+  display: grid;
+  place-items: center;
   color: #706a77;
   font-family: var(--font-geist-mono), monospace;
   font-size: 9px;
@@ -1099,6 +1103,9 @@ footer > span {
   position: absolute;
   inset: calc(100% / 30);
   z-index: 0;
+  box-sizing: border-box;
+  border-right: 1px solid rgba(67, 43, 24, 0.65);
+  border-bottom: 1px solid rgba(67, 43, 24, 0.65);
   pointer-events: none;
   background-image:
     linear-gradient(rgba(67, 43, 24, 0.65) 1px, transparent 1px),
@@ -1171,6 +1178,67 @@ footer > span {
 
 .gomoku-actions {
   flex-wrap: wrap;
+}
+
+.gomoku-rule-switch {
+  min-height: 46px;
+  padding: 5px 11px 5px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #d8d2df;
+  border-radius: 999px;
+  color: #514a57;
+  background: #fffdfa;
+  cursor: pointer;
+}
+
+.gomoku-switch-track {
+  width: 42px;
+  height: 24px;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #ded9e5;
+  transition: background .18s;
+}
+
+.gomoku-switch-track i {
+  width: 18px;
+  height: 18px;
+  display: block;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 2px 5px rgba(50, 39, 59, .24);
+  transition: transform .18s;
+}
+
+.gomoku-rule-switch[aria-checked="true"] .gomoku-switch-track {
+  background: var(--violet);
+}
+
+.gomoku-rule-switch[aria-checked="true"] .gomoku-switch-track i {
+  transform: translateX(18px);
+}
+
+.gomoku-switch-label {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.gomoku-switch-label small {
+  color: #8e8795;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.gomoku-switch-label strong {
+  margin-top: 2px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .text-action,
@@ -1509,6 +1577,19 @@ footer > span {
   .memory-score-card {
     margin-top: 16px;
     padding-top: 0;
+  }
+
+  .versus-card {
+    grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+    column-gap: 8px;
+  }
+
+  .versus-card .player-side:first-child {
+    justify-self: start;
+  }
+
+  .versus-card .player-side:last-child {
+    justify-self: end;
   }
 
   .avatar {

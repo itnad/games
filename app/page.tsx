@@ -438,13 +438,17 @@ function GomokuGame({ onExit }: { onExit: () => void }) {
   const [lastMove, setLastMove] = useState<number | null>(null);
   const [round, setRound] = useState(1);
   const [rule, setRule] = useState<GomokuRule | null>(null);
+  const [nextRule, setNextRule] = useState<GomokuRule | null>(null);
   const [started, setStarted] = useState(false);
 
   const reset = () => {
+    const selectedRule = nextRule ?? rule;
     setBoard(newBoard());
     setTurn(1);
     setWinner(0);
     setLastMove(null);
+    setRule(selectedRule);
+    setNextRule(selectedRule);
     setRound((value) => value + 1);
   };
 
@@ -455,16 +459,8 @@ function GomokuGame({ onExit }: { onExit: () => void }) {
     setWinner(0);
     setLastMove(null);
     setRound(1);
+    setNextRule(rule);
     setStarted(true);
-  };
-
-  const changeRule = () => {
-    setBoard(newBoard());
-    setTurn(1);
-    setWinner(0);
-    setLastMove(null);
-    setRound(1);
-    setStarted(false);
   };
 
   const playAt = (index: number) => {
@@ -606,8 +602,26 @@ function GomokuGame({ onExit }: { onExit: () => void }) {
                 </div>
               </div>
               <div className="game-actions gomoku-actions">
-                <button className="text-action" onClick={changeRule}>규칙 변경</button>
-                <span className="game-hint">마지막 돌에는 작은 점이 표시됩니다</span>
+                <button
+                  className="gomoku-rule-switch"
+                  type="button"
+                  role="switch"
+                  aria-checked={(nextRule ?? rule) === "freestyle"}
+                  aria-label={`다음 판 규칙: ${(nextRule ?? rule) === "exact" ? "정확히 5목" : "5목 이상"}. 누르면 규칙이 바뀝니다.`}
+                  onClick={() =>
+                    setNextRule((current) =>
+                      (current ?? rule) === "exact" ? "freestyle" : "exact",
+                    )
+                  }
+                >
+                  <span className="gomoku-switch-track" aria-hidden="true">
+                    <i />
+                  </span>
+                  <span className="gomoku-switch-label">
+                    <small>다음 판 규칙</small>
+                    <strong>{(nextRule ?? rule) === "exact" ? "정확히 5목" : "5목 이상"}</strong>
+                  </span>
+                </button>
                 {winner ? (
                   <button className="primary-action" onClick={reset}>다시 플레이</button>
                 ) : (
