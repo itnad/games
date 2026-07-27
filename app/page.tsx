@@ -257,11 +257,12 @@ function EmptyState({ query }: { query: string }) {
 const BOARD_SIZE = 15;
 type Stone = 0 | 1 | 2;
 type GomokuResult = 0 | 1 | 2 | 3;
+type GomokuRule = "exact" | "freestyle";
 
 const newBoard = (): Stone[] =>
   Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => 0 as Stone);
 
-function checkWinner(board: Stone[], index: number, player: Stone) {
+function checkWinner(board: Stone[], index: number, player: Stone, rule: GomokuRule) {
   const row = Math.floor(index / BOARD_SIZE);
   const col = index % BOARD_SIZE;
   const directions = [
@@ -288,7 +289,7 @@ function checkWinner(board: Stone[], index: number, player: Stone) {
         c += dc * sign;
       }
     }
-    if (count >= 5) return true;
+    if (rule === "exact" ? count === 5 : count >= 5) return true;
   }
   return false;
 }
@@ -336,7 +337,7 @@ function lineStrength(board: Stone[], index: number, player: Stone) {
   return score;
 }
 
-function pickAiMove(board: Stone[]) {
+function pickAiMove(board: Stone[], rule: GomokuRule) {
   const occupied = board.some(Boolean);
   if (!occupied) return Math.floor(BOARD_SIZE / 2) * BOARD_SIZE + 7;
 
@@ -368,12 +369,12 @@ function pickAiMove(board: Stone[]) {
   for (const candidate of candidates) {
     const test = [...board];
     test[candidate] = 2;
-    if (checkWinner(test, candidate, 2)) return candidate;
+    if (checkWinner(test, candidate, 2, rule)) return candidate;
   }
   for (const candidate of candidates) {
     const test = [...board];
     test[candidate] = 1;
-    if (checkWinner(test, candidate, 1)) return candidate;
+    if (checkWinner(test, candidate, 1, rule)) return candidate;
   }
 
   return candidates
@@ -436,6 +437,8 @@ function GomokuGame({ onExit }: { onExit: () => void }) {
   const [winner, setWinner] = useState<GomokuResult>(0);
   const [lastMove, setLastMove] = useState<number | null>(null);
   const [round, setRound] = useState(1);
+  const [rule, setRule] = useState<GomokuRule | null>(null);
+  const [started, setStarted] = useState(false);
 
   const reset = () => {
     setBoard(newBoard());
@@ -445,13 +448,32 @@ function GomokuGame({ onExit }: { onExit: () => void }) {
     setRound((value) => value + 1);
   };
 
+  const start = () => {
+    if (!rule) return;
+    setBoard(newBoard());
+    setTurn(1);
+    setWinner(0);
+    setLastMove(null);
+    setRound(1);
+    setStarted(true);
+  };
+
+  const changeRule = () => {
+    setBoard(newBoard());
+    setTurn(1);
+    setWinner(0);
+    setLastMove(null);
+    setRound(1);
+    setStarted(false);
+  };
+
   const playAt = (index: number) => {
-    if (board[index] !== 0 || turn !== 1 || winner) return;
+    if (!started || !rule || board[index] !== 0 || turn !== 1 || winner) return;
     const next = [...board];
     next[index] = 1;
     setBoard(next);
     setLastMove(index);
-    if (checkWinner(next, index, 1)) {
+    if (checkWinner(next, index, 1, rule)) {
       setWinner(1);
       return;
     }
@@ -463,19 +485,19 @@ function GomokuGame({ onExit }: { onExit: () => void }) {
   };
 
   useEffect(() => {
-    if (turn !== 2 || winner) return;
+    if (!started || !rule || turn !== 2 || winner) return;
     const timer = window.setTimeout(() => {
-      const move = pickAiMove(board);
+      const move = pickAiMove(board, rule);
       const next = [...board];
       next[move] = 2;
       setBoard(next);
       setLastMove(move);
-      if (checkWinner(next, move, 2)) setWinner(2);
+      if (checkWinner(next, move, 2, rule)) setWinner(2);
       else if (next.every(Boolean)) setWinner(3);
       else setTurn(1);
     }, 520);
     return () => window.clearTimeout(timer);
-  }, [board, turn, winner]);
+  }, [board, rule, started, turn, winner]);
 
   const status =
     winner === 1
@@ -494,19 +516,25 @@ function GomokuGame({ onExit }: { onExit: () => void }) {
       <section className="game-content">
         <div className="game-info-panel">
           <div>
-            <span className="eyebrow">ROUND {String(round).padStart(2, "0")}</span>
+            <span className="eyebrow">{started ? `ROUND ${String(round).padStart(2, "0")}` : "SELECT RULE"}</span>
             <h1>다섯 돌을<br />먼저 이으세요</h1>
-            <p>가로, 세로, 대각선 어느 방향이든 다섯 개를 연결하면 승리합니다.</p>
+            <p>
+              {!started
+                ? "대국을 시작하기 전에 장목을 인정할지 선택하세요."
+                : rule === "exact"
+                  ? "가로, 세로, 대각선으로 정확히 다섯 개를 연결해야 승리합니다."
+                  : "가로, 세로, 대각선으로 다섯 개 이상 연결하면 승리합니다."}
+            </p>
           </div>
           <ModeSwitch />
           <div className="versus-card">
-            <div className={`player-side ${turn === 1 && !winner ? "thinking" : ""}`}>
+            <div className={`player-side ${started && turn === 1 && !winner ? "thinking" : ""}`}>
               <span className="avatar user-avatar">나</span>
               <strong>플레이어</strong>
               <small>흑돌</small>
             </div>
             <span className="versus">VS</span>
-            <div className={`player-side ${turn === 2 && !winner ? "thinking" : ""}`}>
+            <div className={`player-side ${started && turn === 2 && !winner ? "thinking" : ""}`}>
               <span className="avatar ai-avatar">AI</span>
               <strong>모모</strong>
               <small>백돌</small>
@@ -514,39 +542,80 @@ function GomokuGame({ onExit }: { onExit: () => void }) {
           </div>
         </div>
         <div className="board-panel">
-          <div className="board-status" role="status">
-            <span className={`turn-stone ${turn === 1 ? "black" : "white"}`} />
-            <strong>{status}</strong>
-            <span>{winner ? "한 판 더 도전해 볼까요?" : turn === 1 ? "교차점을 선택하세요" : "잠시만 기다려 주세요"}</span>
-          </div>
-          <div className="gomoku-frame">
-            <div className="gomoku-board" role="grid" aria-label="15 곱하기 15 오목판">
-              {board.map((stone, index) => (
+          {!started ? (
+            <div className="gomoku-setup" aria-labelledby="gomoku-rule-title">
+              <span className="gomoku-setup-kicker">GAME RULES</span>
+              <h2 id="gomoku-rule-title">승리 규칙을 선택하세요</h2>
+              <p>선택한 규칙은 대국 화면에도 계속 표시됩니다.</p>
+              <div className="gomoku-rule-options" role="radiogroup" aria-label="오목 승리 규칙">
                 <button
-                  key={index}
-                  className={`gomoku-cell ${stone ? "placed" : ""}`}
-                  onClick={() => playAt(index)}
-                  disabled={stone !== 0 || turn !== 1 || Boolean(winner)}
-                  role="gridcell"
-                  aria-label={`${Math.floor(index / BOARD_SIZE) + 1}행 ${(index % BOARD_SIZE) + 1}열${stone === 1 ? " 흑돌" : stone === 2 ? " 백돌" : ""}`}
+                  className={rule === "exact" ? "selected" : ""}
+                  onClick={() => setRule("exact")}
+                  role="radio"
+                  aria-checked={rule === "exact"}
                 >
-                  {stone !== 0 && (
-                    <span
-                      className={`stone ${stone === 1 ? "black" : "white"} ${lastMove === index ? "last" : ""}`}
-                    />
-                  )}
+                  <span className="gomoku-rule-icon">5</span>
+                  <strong>정확히 5목</strong>
+                  <small>6목 이상의 장목은 승리가 아닙니다</small>
                 </button>
-              ))}
+                <button
+                  className={rule === "freestyle" ? "selected" : ""}
+                  onClick={() => setRule("freestyle")}
+                  role="radio"
+                  aria-checked={rule === "freestyle"}
+                >
+                  <span className="gomoku-rule-icon">5+</span>
+                  <strong>5목 이상</strong>
+                  <small>6목 이상의 장목도 승리로 인정합니다</small>
+                </button>
+              </div>
+              <button className="gomoku-start-button" onClick={start} disabled={!rule}>
+                {rule ? "선택한 규칙으로 시작" : "규칙을 선택해 주세요"}
+              </button>
             </div>
-          </div>
-          <div className="game-actions">
-            <button className="text-action" onClick={reset}>↻ 새 게임</button>
-            {winner ? (
-              <button className="primary-action" onClick={reset}>다시 플레이</button>
-            ) : (
-              <span className="game-hint">마지막 돌에는 작은 점이 표시됩니다</span>
-            )}
-          </div>
+          ) : (
+            <>
+              <div className="gomoku-status-row">
+                <div className="board-status" role="status">
+                  <span className={`turn-stone ${turn === 1 ? "black" : "white"}`} />
+                  <strong>{status}</strong>
+                  <span>{winner ? "한 판 더 도전해 볼까요?" : turn === 1 ? "교차점을 선택하세요" : "잠시만 기다려 주세요"}</span>
+                </div>
+                <span className="gomoku-rule-pill">
+                  {rule === "exact" ? "정확히 5목" : "5목 이상"}
+                </span>
+              </div>
+              <div className="gomoku-frame">
+                <div className="gomoku-board" role="grid" aria-label={`15 곱하기 15 오목판, ${rule === "exact" ? "정확히 5목" : "5목 이상"} 규칙`}>
+                  {board.map((stone, index) => (
+                    <button
+                      key={index}
+                      className={`gomoku-cell ${stone ? "placed" : ""}`}
+                      onClick={() => playAt(index)}
+                      disabled={stone !== 0 || turn !== 1 || Boolean(winner)}
+                      role="gridcell"
+                      aria-label={`${Math.floor(index / BOARD_SIZE) + 1}행 ${(index % BOARD_SIZE) + 1}열${stone === 1 ? " 흑돌" : stone === 2 ? " 백돌" : ""}`}
+                    >
+                      {stone !== 0 && (
+                        <span
+                          className={`stone ${stone === 1 ? "black" : "white"} ${lastMove === index ? "last" : ""}`}
+                        />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="game-actions gomoku-actions">
+                <button className="text-action" onClick={changeRule}>규칙 변경</button>
+                <span className="game-hint">마지막 돌에는 작은 점이 표시됩니다</span>
+                {winner ? (
+                  <button className="primary-action" onClick={reset}>다시 플레이</button>
+                ) : (
+                  <button className="text-action" onClick={reset}>↻ 새 게임</button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </section>
     </main>

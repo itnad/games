@@ -929,6 +929,143 @@ footer > span {
   background: radial-gradient(circle at 35% 28%, #fff, #d9d5dc 66%);
 }
 
+.gomoku-setup {
+  width: min(620px, 100%);
+  padding: clamp(28px, 5vw, 52px);
+  border: 1px solid #ded9e4;
+  border-radius: 20px;
+  background: #fffdfa;
+  box-shadow: 0 24px 54px rgba(48, 37, 63, .1);
+}
+
+.gomoku-setup-kicker {
+  color: var(--violet);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: .16em;
+}
+
+.gomoku-setup h2 {
+  margin: 10px 0 7px;
+  font-size: clamp(27px, 3.2vw, 38px);
+  letter-spacing: -.045em;
+}
+
+.gomoku-setup > p {
+  margin: 0;
+  color: #817b87;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.gomoku-rule-options {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.gomoku-rule-options button {
+  min-height: 174px;
+  padding: 21px 17px;
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  border: 2px solid #e1dde6;
+  border-radius: 15px;
+  color: #38313f;
+  background: white;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .18s, background .18s, transform .18s;
+}
+
+.gomoku-rule-options button:hover {
+  border-color: #a797dc;
+  transform: translateY(-2px);
+}
+
+.gomoku-rule-options button.selected {
+  border-color: var(--violet);
+  background: #f3efff;
+  box-shadow: 0 0 0 4px rgba(115, 87, 214, .1);
+}
+
+.gomoku-rule-icon {
+  min-width: 46px;
+  height: 46px;
+  margin-bottom: 18px;
+  padding: 0 8px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: #4a3b5b;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.gomoku-rule-options button.selected .gomoku-rule-icon {
+  background: var(--violet);
+}
+
+.gomoku-rule-options strong {
+  font-size: 19px;
+}
+
+.gomoku-rule-options small {
+  margin-top: 7px;
+  color: #7e7884;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.gomoku-start-button {
+  width: 100%;
+  min-height: 51px;
+  margin-top: 14px;
+  border: 0;
+  border-radius: 9px;
+  color: white;
+  background: var(--violet);
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.gomoku-start-button:disabled {
+  color: #96919c;
+  background: #e5e2e8;
+  cursor: default;
+}
+
+.gomoku-status-row {
+  width: min(70vh, 670px, 100%);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.gomoku-status-row .board-status {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.gomoku-rule-pill {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid #d8d1e7;
+  border-radius: 999px;
+  color: #58458f;
+  background: #eee9ff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .gomoku-frame {
   width: min(70vh, 670px, 100%);
   aspect-ratio: 1;
@@ -1023,6 +1160,10 @@ footer > span {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.gomoku-actions {
+  flex-wrap: wrap;
 }
 
 .text-action,
@@ -1383,6 +1524,24 @@ footer > span {
     min-height: 0;
     padding: 20px 14px 18px;
     justify-content: flex-start;
+  }
+
+  .gomoku-setup {
+    width: min(calc(100vw - 28px), 560px);
+    padding: 25px 20px;
+  }
+
+  .gomoku-setup h2 {
+    font-size: 28px;
+  }
+
+  .gomoku-status-row {
+    width: min(calc(100vw - 28px), 560px);
+  }
+
+  .gomoku-rule-pill {
+    padding: 6px 9px;
+    font-size: 13px;
   }
 
   .gomoku-frame {
