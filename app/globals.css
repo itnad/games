@@ -2174,7 +2174,16 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
   background: radial-gradient(circle at 20% 90%, rgba(203, 87, 99, 0.16), transparent 28%), #35242c;
 }
 .dice-shell .eyebrow { color: #da8a93; }
-.dice-status-icon { background: #c85761; font-family: var(--font-geist-mono), monospace; }
+.dice-status-icon {
+  width: auto;
+  min-width: 44px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #c85761;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 12px;
+  letter-spacing: .02em;
+}
 .dice-status-row {
   width: min(70vw, 680px, 100%);
   margin-bottom: 18px;

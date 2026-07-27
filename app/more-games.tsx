@@ -744,7 +744,7 @@ export function DiceDuelGame({ onExit }: ExitProps) {
       <ExtraTopbar title="주사위 대결" onExit={onExit} />
       <section className="game-content">
         <InfoPanel
-          eyebrow={`ROUND ${round} / 5`}
+          eyebrow={`ROUND ${round}/5`}
           title={<>행운은 굴리고<br />선택은 남기세요</>}
           description="세 번까지 굴릴 수 있습니다. 공식 야찌 하단 조합 점수로 대결하며 페어와 투페어는 찬스로 계산합니다."
         >
@@ -753,7 +753,7 @@ export function DiceDuelGame({ onExit }: ExitProps) {
         <div className="board-panel dice-panel">
           <div className="dice-status-row">
             <div className="board-status" role="status">
-              <span className="dice-status-icon">{round}</span>
+              <span className="dice-status-icon">{round}/5</span>
               <strong>{statusTitle}</strong>
               <span>{phase === "game-result" ? `최종 점수 나 ${playerScore} : ${aiScore} AI` : notice}</span>
             </div>
