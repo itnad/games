@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { scoreDice } from "./dice-scoring.js";
 
 type ExitProps = { onExit: () => void };
 
@@ -559,23 +560,6 @@ function randomDie() {
   return Math.floor(Math.random() * 6) + 1;
 }
 
-function scoreDice(dice: number[]) {
-  const counts = Object.values(dice.reduce<Record<number, number>>((map, die) => {
-    map[die] = (map[die] ?? 0) + 1;
-    return map;
-  }, {})).sort((a, b) => b - a);
-  const unique = [...new Set(dice)].sort((a, b) => a - b).join("");
-  const sum = dice.reduce((total, die) => total + die, 0);
-  if (counts[0] === 5) return { score: 50, name: "다섯 주사위!" };
-  if (unique === "12345" || unique === "23456") return { score: 40, name: "라지 스트레이트" };
-  if (counts[0] === 4) return { score: 30 + sum, name: "포카드" };
-  if (counts[0] === 3 && counts[1] === 2) return { score: 25, name: "풀하우스" };
-  if (unique.includes("1234") || unique.includes("2345") || unique.includes("3456")) return { score: 30, name: "스몰 스트레이트" };
-  if (counts[0] === 3) return { score: 20 + sum, name: "트리플" };
-  if (counts[0] === 2) return { score: 10 + sum, name: "페어" };
-  return { score: sum, name: "찬스" };
-}
-
 function chooseAiHeld(dice: number[]) {
   const counts = dice.reduce<Record<number, number>>((map, die) => {
     map[die] = (map[die] ?? 0) + 1;
@@ -743,7 +727,7 @@ export function DiceDuelGame({ onExit }: ExitProps) {
         <InfoPanel
           eyebrow={`ROUND ${round} / 5`}
           title={<>행운은 굴리고<br />선택은 남기세요</>}
-          description="세 번까지 굴릴 수 있습니다. 좋은 주사위를 고정해 최고의 조합을 만드세요."
+          description="세 번까지 굴릴 수 있습니다. 공식 야찌 하단 조합 점수로 대결하며 페어와 투페어는 찬스로 계산합니다."
         >
           <SimpleScore player={playerScore} ai={aiScore} turn={phase === "ai" ? 2 : 1} />
         </InfoPanel>
@@ -754,6 +738,31 @@ export function DiceDuelGame({ onExit }: ExitProps) {
             <span>{phase === "game-result" ? `최종 점수 나 ${playerScore} : ${aiScore} AI` : notice}</span>
           </div>
           <div className="dice-table">
+            <section className={`dice-contestant ai ${phase === "ai" ? "active" : ""}`}>
+              <header className="dice-contestant-head">
+                <strong>AI 주사위</strong>
+                <span>{aiRolls ? `${aiRolls} / 3번째 굴림` : phase === "ai" ? "준비 중" : "대기"}</span>
+              </header>
+              <div className="dice-row ai-dice-row" aria-label="AI 주사위">
+                {(aiDice ?? [0, 0, 0, 0, 0]).map((die, index) => (
+                  <button
+                    key={index}
+                    className={aiHeld[index] ? "held" : ""}
+                    disabled
+                    aria-label={die ? `AI의 ${die} 주사위${aiHeld[index] ? ", 선택됨" : ""}` : "아직 굴리지 않은 AI 주사위"}
+                  >
+                    <span>{die ? DIE_FACES[die] : "?"}</span>
+                    <small>{aiHeld[index] ? "KEEP" : aiRolls ? "ROLL" : "WAIT"}</small>
+                  </button>
+                ))}
+              </div>
+              <div className="combination-card">
+                <span>AI 조합</span><strong>{aiCurrent ? aiCurrent.name : "—"}</strong><b>{aiCurrent ? aiCurrent.score : 0}점</b>
+              </div>
+            </section>
+
+            <div className="dice-versus" aria-hidden="true"><span>VS</span></div>
+
             <section className={`dice-contestant ${isPlayerTurn ? "active" : ""}`}>
               <header className="dice-contestant-head">
                 <strong>나의 주사위</strong>
@@ -775,31 +784,6 @@ export function DiceDuelGame({ onExit }: ExitProps) {
               </div>
               <div className="combination-card">
                 <span>나의 조합</span><strong>{rolls ? current.name : "—"}</strong><b>{rolls ? current.score : 0}점</b>
-              </div>
-            </section>
-
-            <div className="dice-versus" aria-hidden="true"><span>VS</span></div>
-
-            <section className={`dice-contestant ai ${phase === "ai" ? "active" : ""}`}>
-              <header className="dice-contestant-head">
-                <strong>AI 주사위</strong>
-                <span>{aiRolls ? `${aiRolls} / 3번째 굴림` : phase === "ai" ? "준비 중" : "대기"}</span>
-              </header>
-              <div className="dice-row ai-dice-row" aria-label="AI 주사위">
-                {(aiDice ?? [0, 0, 0, 0, 0]).map((die, index) => (
-                  <button
-                    key={index}
-                    className={aiHeld[index] ? "held" : ""}
-                    disabled
-                    aria-label={die ? `AI의 ${die} 주사위${aiHeld[index] ? ", 선택됨" : ""}` : "아직 굴리지 않은 AI 주사위"}
-                  >
-                    <span>{die ? DIE_FACES[die] : "?"}</span>
-                    <small>{aiHeld[index] ? "KEEP" : aiRolls ? "ROLL" : "WAIT"}</small>
-                  </button>
-                ))}
-              </div>
-              <div className="combination-card">
-                <span>AI 조합</span><strong>{aiCurrent ? aiCurrent.name : "—"}</strong><b>{aiCurrent ? aiCurrent.score : 0}점</b>
               </div>
             </section>
 
@@ -832,7 +816,7 @@ export function DiceDuelGame({ onExit }: ExitProps) {
             </div>
           </div>
           <div className="game-actions dice-actions">
-            <span className="game-hint">AI도 세 번 굴리며 선택한 주사위에는 KEEP이 표시됩니다</span>
+            <span className="game-hint">페어·투페어는 찬스 합계 · 풀하우스 25점 · 스트레이트 30/40점</span>
           </div>
         </div>
       </section>
