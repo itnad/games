@@ -2414,8 +2414,10 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
 .sea-grid {
   aspect-ratio: 1;
   display: grid;
+  position: relative;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
+  overflow: hidden;
   border: 1px solid #73a9c0;
   background: #b8dce8;
 }
@@ -2425,6 +2427,8 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
   padding: 0;
   display: grid;
   place-items: center;
+  position: relative;
+  z-index: 2;
   border: 1px solid rgba(49, 126, 158, 0.31);
   color: #38657a;
   background: transparent;
@@ -2432,10 +2436,46 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
 }
 .sea-grid button:not(:disabled) { cursor: crosshair; }
 .sea-grid button:not(:disabled):hover { background: rgba(255,255,255,.4); }
-.sea-grid button.ship { background: #526c78; box-shadow: inset 0 0 0 3px #415966; }
+.sea-grid button.ship {
+  background: rgba(38, 100, 123, .08);
+  box-shadow: inset 0 0 0 1px rgba(29, 85, 108, .24);
+}
 .sea-grid button.miss { background: rgba(255,255,255,.5); }
-.sea-grid button.hit { color: white; background: #d45e55; box-shadow: inset 0 0 0 3px #b44b45; }
-.sea-grid button span { font-size: clamp(10px, 1.7vw, 19px); }
+.sea-grid button.hit { color: white; background: rgba(212, 94, 85, .76); box-shadow: inset 0 0 0 3px #b44b45; }
+.sea-grid button span {
+  position: relative;
+  z-index: 3;
+  font-size: clamp(10px, 1.7vw, 19px);
+  text-shadow: 0 1px 3px rgba(73, 28, 25, .55);
+}
+
+.submarine-token {
+  padding: 2px;
+  display: grid;
+  place-items: center;
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 3px rgba(19, 56, 72, .38));
+}
+
+.submarine-token img {
+  width: 96%;
+  height: auto;
+  display: block;
+}
+
+.submarine-token.vertical img {
+  width: 290%;
+  max-width: none;
+  transform: rotate(90deg);
+}
+
+.submarine-token.sunk {
+  opacity: .72;
+  filter: grayscale(.45) drop-shadow(0 2px 2px rgba(70, 36, 32, .32));
+}
+
 .fleet-actions { width: min(75vw, 790px, 100%); }
 
 /* Dice duel */

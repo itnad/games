@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { scoreDice } from "./dice-scoring.js";
 
 type ExitProps = { onExit: () => void };
@@ -594,8 +594,36 @@ function SeaGrid({
   disabled?: boolean;
   label: string;
 }) {
+  const visibleSubmarines = fleet.ships
+    .map((ship, shipIndex) => {
+      const start = ship[0];
+      const end = ship[ship.length - 1];
+      const horizontal = Math.floor(start / SEA_SIZE) === Math.floor(end / SEA_SIZE);
+      const row = Math.min(...ship.map((cell) => Math.floor(cell / SEA_SIZE)));
+      const col = Math.min(...ship.map((cell) => cell % SEA_SIZE));
+      const sunk = ship.every((cell) => shots.has(cell));
+      const style = {
+        left: `${(col / SEA_SIZE) * 100}%`,
+        top: `${(row / SEA_SIZE) * 100}%`,
+        width: `${((horizontal ? ship.length : 1) / SEA_SIZE) * 100}%`,
+        height: `${((horizontal ? 1 : ship.length) / SEA_SIZE) * 100}%`,
+      } as CSSProperties;
+      return { shipIndex, horizontal, sunk, style };
+    })
+    .filter((submarine) => !conceal || submarine.sunk);
+
   return (
     <div className="sea-grid" role="grid" aria-label={label}>
+      {visibleSubmarines.map((submarine) => (
+        <span
+          key={`submarine-${submarine.shipIndex}`}
+          className={`submarine-token ${submarine.horizontal ? "horizontal" : "vertical"} ${submarine.sunk ? "sunk" : ""}`}
+          style={submarine.style}
+          aria-hidden="true"
+        >
+          <img src="/submarine-sprite.png" alt="" />
+        </span>
+      ))}
       {Array.from({ length: 64 }, (_, index) => {
         const ship = fleet.cells.has(index);
         const shot = shots.has(index);
@@ -605,7 +633,7 @@ function SeaGrid({
             onClick={() => onShoot?.(index)}
             disabled={!onShoot || disabled || shot}
             className={`${!conceal && ship ? "ship" : ""} ${shot ? ship ? "hit" : "miss" : ""}`}
-            aria-label={`${Math.floor(index / 8) + 1}행 ${(index % 8) + 1}열${shot ? ship ? " 명중" : " 빗나감" : ""}`}
+            aria-label={`${Math.floor(index / 8) + 1}행 ${(index % 8) + 1}열${!conceal && ship ? " 내 잠수정" : ""}${shot ? ship ? " 명중" : " 빗나감" : ""}`}
             role="gridcell"
           >
             {shot && <span>{ship ? "×" : "•"}</span>}
