@@ -462,8 +462,8 @@ function GomokuGame({ onExit }: { onExit: () => void }) {
   const [winner, setWinner] = useState<GomokuResult>(0);
   const [lastMove, setLastMove] = useState<number | null>(null);
   const [round, setRound] = useState(1);
-  const [rule, setRule] = useState<GomokuRule | null>(null);
-  const [nextRule, setNextRule] = useState<GomokuRule | null>(null);
+  const [rule, setRule] = useState<GomokuRule | null>("freestyle");
+  const [nextRule, setNextRule] = useState<GomokuRule | null>("freestyle");
   const [started, setStarted] = useState(false);
 
   const reset = () => {

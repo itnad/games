@@ -2763,21 +2763,6 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
   box-shadow: 0 0 0 3px rgba(255, 244, 211, .2);
 }
 
-.janggi-board button.opponent-to .janggi-piece::after {
-  content: "";
-  width: 38%;
-  height: 38%;
-  position: absolute;
-  top: 31%;
-  left: 31%;
-  z-index: 1;
-  border: 2px solid rgba(139, 74, 63, .56);
-  border-radius: 50%;
-  background: rgba(255, 244, 211, .3);
-  box-shadow: 0 0 0 3px rgba(255, 244, 211, .24);
-  pointer-events: none;
-}
-
 .janggi-piece {
   width: 80%;
   height: 80%;
@@ -3139,12 +3124,12 @@ footer { font-size: 15px; }
 
 .janggi-piece.cho {
   color: #123f2e;
-  background: #f0dda9;
+  background: #e4cb8f;
 }
 
 .janggi-piece.han {
   color: #7d271f;
-  background: #f1dca9;
+  background: #e6cd91;
 }
 
 .janggi-piece.type-k {
