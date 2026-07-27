@@ -83,6 +83,130 @@ function SimpleScore({
   );
 }
 
+type LearningItem = {
+  title: string;
+  body: string;
+};
+
+type TutorialStep = LearningItem & {
+  visual: string;
+  note: string;
+};
+
+function GameLearningTools({
+  game,
+  theme,
+  rules,
+  tutorial,
+}: {
+  game: string;
+  theme: "reversi" | "mancala" | "checkers";
+  rules: LearningItem[];
+  tutorial: TutorialStep[];
+}) {
+  const [mode, setMode] = useState<"rules" | "tutorial" | null>(null);
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (!mode) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMode(null);
+      if (mode === "tutorial" && event.key === "ArrowRight") {
+        setStep((current) => Math.min(tutorial.length - 1, current + 1));
+      }
+      if (mode === "tutorial" && event.key === "ArrowLeft") {
+        setStep((current) => Math.max(0, current - 1));
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [mode, tutorial.length]);
+
+  const openTutorial = () => {
+    setStep(0);
+    setMode("tutorial");
+  };
+
+  const close = () => setMode(null);
+  const current = tutorial[step];
+
+  return (
+    <>
+      <div className={`learning-tools ${theme}`} aria-label={`${game} 도움말`}>
+        <button onClick={() => setMode("rules")}><span aria-hidden="true">ⓘ</span> 게임 방법</button>
+        <button onClick={openTutorial}><span aria-hidden="true">▷</span> 튜토리얼</button>
+      </div>
+
+      {mode && (
+        <div className="learning-backdrop" role="presentation" onClick={close}>
+          <section
+            className={`learning-modal ${theme}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`${theme}-learning-title`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button className="learning-close" onClick={close} aria-label="도움말 닫기">×</button>
+            <span className="learning-eyebrow">{mode === "rules" ? "HOW TO PLAY" : "QUICK TUTORIAL"}</span>
+            <h2 id={`${theme}-learning-title`}>
+              {game} {mode === "rules" ? "게임 방법" : "따라하기"}
+            </h2>
+
+            {mode === "rules" ? (
+              <>
+                <p className="learning-intro">핵심 규칙만 익히면 바로 AI와 대전할 수 있어요.</p>
+                <ol className="learning-rules">
+                  {rules.map((rule, index) => (
+                    <li key={rule.title}>
+                      <b>{index + 1}</b>
+                      <span><strong>{rule.title}</strong><small>{rule.body}</small></span>
+                    </li>
+                  ))}
+                </ol>
+                <button className="learning-primary" onClick={openTutorial}>튜토리얼 시작</button>
+              </>
+            ) : (
+              <div className="tutorial-content">
+                <div className="tutorial-progress" aria-label={`${tutorial.length}단계 중 ${step + 1}단계`}>
+                  {tutorial.map((item, index) => (
+                    <i key={item.title} className={index <= step ? "active" : ""} />
+                  ))}
+                </div>
+                <span className="tutorial-count">{step + 1} / {tutorial.length}</span>
+                <div className={`tutorial-visual ${theme}`} aria-hidden="true">
+                  <span>{current.visual}</span>
+                </div>
+                <h3>{current.title}</h3>
+                <p>{current.body}</p>
+                <aside><b>TIP</b>{current.note}</aside>
+                <div className="tutorial-actions">
+                  <button
+                    className="learning-secondary"
+                    onClick={() => setStep((currentStep) => Math.max(0, currentStep - 1))}
+                    disabled={step === 0}
+                  >
+                    이전
+                  </button>
+                  {step < tutorial.length - 1 ? (
+                    <button
+                      className="learning-primary"
+                      onClick={() => setStep((currentStep) => Math.min(tutorial.length - 1, currentStep + 1))}
+                    >
+                      다음
+                    </button>
+                  ) : (
+                    <button className="learning-primary" onClick={close}>판에서 연습하기</button>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* Reversi */
 type RevStone = 0 | 1 | 2;
 type RevMove = { index: number; flips: number[] };
@@ -91,6 +215,21 @@ const REV_DIRS = [
   [0, -1], [0, 1],
   [1, -1], [1, 0], [1, 1],
 ] as const;
+
+const REVERSI_RULES: LearningItem[] = [
+  { title: "내 돌 색", body: "플레이어는 흑돌이며 언제나 먼저 둡니다. AI는 백돌입니다." },
+  { title: "돌 놓기", body: "가로·세로·대각선으로 상대 돌을 내 돌 사이에 끼울 수 있는 빈칸에만 놓습니다." },
+  { title: "뒤집기", body: "새 돌과 기존 내 돌 사이에 갇힌 상대 돌은 한 줄씩 모두 내 색으로 뒤집힙니다." },
+  { title: "패스", body: "둘 수 있는 칸이 없으면 자동으로 차례를 넘깁니다. 두 사람 모두 둘 곳이 없으면 끝납니다." },
+  { title: "승리", body: "게임 종료 시 판 위에 자신의 색 돌이 더 많은 사람이 승리합니다." },
+];
+
+const REVERSI_TUTORIAL: TutorialStep[] = [
+  { visual: "● ○\n○ ●", title: "가운데 네 돌에서 시작", body: "플레이어는 검은 돌입니다. 중앙의 흑백 돌 네 개를 기준으로 첫 수를 찾아보세요.", note: "흑돌이 먼저 시작합니다." },
+  { visual: "● · ○ ●", title: "점이 있는 칸을 선택", body: "판에 작은 점으로 표시되는 칸만 현재 놓을 수 있는 자리입니다.", note: "상대 돌을 하나 이상 끼워야 유효한 수입니다." },
+  { visual: "● ○ ○ ●  →  ● ● ● ●", title: "사이에 낀 돌 뒤집기", body: "내 돌로 양끝을 막으면 그 사이의 백돌이 모두 흑돌로 바뀝니다.", note: "한 번에 여러 방향의 돌을 뒤집을 수도 있어요." },
+  { visual: "⌜  ●  ⌝", title: "모서리를 노리기", body: "모서리 돌은 다시 뒤집히지 않아 매우 강합니다. 마지막에는 돌 개수로 승패를 정합니다.", note: "가장자리보다 모서리를 먼저 확보해 보세요." },
+];
 
 function newReversiBoard(): RevStone[] {
   const board = Array.from({ length: 64 }, () => 0 as RevStone);
@@ -215,6 +354,7 @@ export function ReversiGame({ onExit }: ExitProps) {
           <SimpleScore player={black} ai={white} turn={turn} label="STONES" />
         </InfoPanel>
         <div className="board-panel">
+          <GameLearningTools game="리버시" theme="reversi" rules={REVERSI_RULES} tutorial={REVERSI_TUTORIAL} />
           <div className="board-status" role="status">
             <span className={`turn-stone ${turn === 1 ? "black" : "white"}`} />
             <strong>{resultText}</strong>
@@ -250,6 +390,21 @@ export function ReversiGame({ onExit }: ExitProps) {
 
 /* Mancala */
 type KalahResult = { pits: number[]; extra: boolean; finished: boolean };
+
+const MANCALA_RULES: LearningItem[] = [
+  { title: "내 영역", body: "아래쪽 여섯 구덩이와 오른쪽 큰 창고가 내 영역입니다. 각 구덩이는 돌 4개로 시작합니다." },
+  { title: "돌 뿌리기", body: "내 구덩이 하나를 골라 모든 돌을 꺼낸 뒤 반시계 방향으로 한 개씩 나눠 놓습니다." },
+  { title: "상대 창고 건너뛰기", body: "돌을 나눌 때 내 창고에는 넣지만 AI의 창고는 건너뜁니다." },
+  { title: "추가 턴과 잡기", body: "마지막 돌이 내 창고에 들어가면 한 번 더 둡니다. 내 빈 구덩이에 끝나면 맞은편 돌을 함께 잡습니다." },
+  { title: "승리", body: "어느 한쪽 여섯 구덩이가 모두 비면 남은 돌을 각자 창고로 옮기고, 더 많은 돌을 모은 쪽이 이깁니다." },
+];
+
+const MANCALA_TUTORIAL: TutorialStep[] = [
+  { visual: "AI  ○ ○ ○ ○ ○ ○\n내  ● ● ● ● ● ●  ▐", title: "아래쪽이 내 구덩이", body: "아래 여섯 구덩이 중 하나를 선택합니다. 오른쪽의 긴 구덩이는 내 창고입니다.", note: "숫자는 각 구덩이에 들어 있는 돌의 개수예요." },
+  { visual: "④  →  ① ① ① ①", title: "한 알씩 반시계 방향으로", body: "선택한 구덩이의 돌을 모두 꺼내 다음 칸부터 하나씩 놓습니다.", note: "AI 창고는 건너뛰고 계속 나눕니다." },
+  { visual: "●  ●  ●  →  ▐ +1턴", title: "내 창고에서 끝내기", body: "마지막 돌이 오른쪽 내 창고에 들어가면 AI에게 넘기지 않고 한 번 더 둡니다.", note: "추가 턴을 만들 수 있는 구덩이를 먼저 찾아보세요." },
+  { visual: "빈칸 ●  ⇄  ●●●", title: "맞은편 돌 잡기", body: "마지막 돌이 비어 있던 내 구덩이에 놓이면 맞은편 AI 돌과 마지막 돌을 내 창고로 가져옵니다.", note: "한쪽 구덩이가 모두 비면 게임이 끝납니다." },
+];
 
 function newMancalaBoard() {
   return [4, 4, 4, 4, 4, 4, 0, 4, 4, 4, 4, 4, 4, 0];
@@ -351,6 +506,7 @@ export function MancalaGame({ onExit }: ExitProps) {
           <SimpleScore player={pits[6]} ai={pits[13]} turn={turn} label="STONES" />
         </InfoPanel>
         <div className="board-panel">
+          <GameLearningTools game="만칼라" theme="mancala" rules={MANCALA_RULES} tutorial={MANCALA_TUTORIAL} />
           <div className="board-status" role="status">
             <span className="mancala-status-icon">•</span>
             <strong>{finished ? result : turn === 1 ? "내 차례" : "AI 차례"}</strong>
@@ -896,6 +1052,21 @@ export function DiceDuelGame({ onExit }: ExitProps) {
 type Checker = 0 | 1 | 2 | 3 | 4;
 type CheckerMove = { from: number; to: number; capture?: number };
 
+const CHECKERS_RULES: LearningItem[] = [
+  { title: "내 말과 이동", body: "플레이어는 산호색 말입니다. 어두운 칸 위에서 앞쪽 대각선으로 한 칸 이동합니다." },
+  { title: "말 잡기", body: "대각선 앞의 상대 말 너머가 비어 있으면 뛰어넘어 잡습니다. 잡을 수 있을 때는 반드시 잡아야 합니다." },
+  { title: "연속 점프", body: "잡은 뒤 같은 말로 다시 잡을 수 있으면 한 차례에 계속 점프합니다." },
+  { title: "킹", body: "상대편 끝줄에 도착한 말은 별이 표시된 킹이 되며 앞뒤 양방향으로 움직일 수 있습니다." },
+  { title: "승리", body: "상대 말을 모두 잡거나 상대가 움직일 수 없게 만들면 승리합니다." },
+];
+
+const CHECKERS_TUTORIAL: TutorialStep[] = [
+  { visual: "◆  ↖  ↗", title: "산호색 말을 선택", body: "내 말은 판 아래쪽에서 시작하며 앞쪽 대각선의 어두운 칸으로 움직입니다.", note: "밝은 칸에는 말이 이동하지 않습니다." },
+  { visual: "◆  →  ·", title: "표시된 목적지로 이동", body: "움직일 말을 누르면 갈 수 있는 칸에 작은 점이 표시됩니다. 원하는 점을 누르세요.", note: "다른 내 말을 누르면 선택을 바꿀 수 있어요." },
+  { visual: "◆  ◇  ·  →  ◆", title: "상대 말을 뛰어넘어 잡기", body: "상대 말 바로 너머의 빈칸으로 점프하면 그 말을 잡습니다. 가능한 점프가 있으면 일반 이동은 할 수 없습니다.", note: "이어 잡을 수 있으면 같은 말로 연속 점프합니다." },
+  { visual: "◆  →  ★", title: "끝줄에서 킹 되기", body: "상대편 끝줄에 닿으면 킹이 되어 앞뒤로 이동합니다. 상대의 모든 움직임을 막아 승리하세요.", note: "킹은 이동 범위가 아니라 이동 방향이 늘어납니다." },
+];
+
 function newCheckersBoard(): Checker[] {
   return Array.from({ length: 64 }, (_, index) => {
     const row = Math.floor(index / 8);
@@ -1056,6 +1227,7 @@ export function CheckersGame({ onExit }: ExitProps) {
           <SimpleScore player={playerCount} ai={aiCount} turn={turn} label="PIECES" />
         </InfoPanel>
         <div className="board-panel">
+          <GameLearningTools game="체커" theme="checkers" rules={CHECKERS_RULES} tutorial={CHECKERS_TUTORIAL} />
           <div className="board-status" role="status">
             <span className="checker-status-icon">◆</span>
             <strong>{winner ? winner === 1 ? "승리했어요!" : "AI가 승리했어요" : turn === 1 ? chainFrom !== null ? "연속 점프!" : "내 차례" : "AI가 생각 중…"}</strong>
