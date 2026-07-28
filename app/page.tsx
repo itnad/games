@@ -10,6 +10,13 @@ import {
 } from "./more-games";
 import { JanggiGame } from "./janggi-game";
 import { WinnersCircleGame } from "./winners-circle-game";
+import {
+  BackgammonGame,
+  ChineseCheckersGame,
+  DominoGame,
+  GonuGame,
+  NineMensMorrisGame,
+} from "./classic-games";
 
 type GameId =
   | "gomoku"
@@ -20,7 +27,12 @@ type GameId =
   | "dice"
   | "checkers"
   | "janggi"
-  | "winners-circle";
+  | "winners-circle"
+  | "nine-mens-morris"
+  | "gonu"
+  | "domino"
+  | "backgammon"
+  | "chinese-checkers";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -104,6 +116,46 @@ const GAMES: GameDefinition[] = [
     category: "경주",
     players: "AI 2~6인",
     tone: "navy",
+  },
+  {
+    id: "nine-mens-morris",
+    title: "나인 멘스 모리스",
+    subtitle: "세 말을 잇고 상대의 길을 막으세요",
+    category: "전략",
+    players: "AI 1:1",
+    tone: "violet",
+  },
+  {
+    id: "gonu",
+    title: "고누",
+    subtitle: "전통 말판에서 상대의 퇴로를 막으세요",
+    category: "전략",
+    players: "AI 1:1",
+    tone: "gold",
+  },
+  {
+    id: "domino",
+    title: "도미노",
+    subtitle: "같은 눈을 맞춰 패를 먼저 비우세요",
+    category: "전략",
+    players: "AI 1:1",
+    tone: "teal",
+  },
+  {
+    id: "backgammon",
+    title: "백개먼",
+    subtitle: "주사위를 읽고 모든 말을 귀환시키세요",
+    category: "주사위",
+    players: "AI 1:1",
+    tone: "red",
+  },
+  {
+    id: "chinese-checkers",
+    title: "차이니즈 체커",
+    subtitle: "연속 도약으로 별 모양 판을 건너세요",
+    category: "전략",
+    players: "AI 1:1",
+    tone: "blue",
   },
 ];
 
@@ -223,6 +275,22 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <i className="preview-finish" />
         </div>
         <span className="float-chip">3 races</span>
+      </div>
+    );
+  }
+
+  if (["nine-mens-morris", "gonu", "domino", "backgammon", "chinese-checkers"].includes(game.id)) {
+    const artwork = {
+      "nine-mens-morris": { symbol: "●━●━●", detail: "9 pieces", className: "morris" },
+      gonu: { symbol: "○╳●╳○", detail: "4 × 4", className: "gonu" },
+      domino: { symbol: "⚄│⚂  ⚁│⚅", detail: "28 tiles", className: "domino" },
+      backgammon: { symbol: "▲▼ ⚂⚄ ▲▼", detail: "24 points", className: "backgammon" },
+      "chinese-checkers": { symbol: "  ●\n● ● ●\n  ●", detail: "10 marbles", className: "chinese" },
+    }[game.id as "nine-mens-morris" | "gonu" | "domino" | "backgammon" | "chinese-checkers"];
+    return (
+      <div className={`card-art classic-card-art ${artwork.className}`} aria-hidden="true">
+        <span className="classic-card-symbol">{artwork.symbol}</span>
+        <span className="float-chip">{artwork.detail}</span>
       </div>
     );
   }
@@ -1096,6 +1164,21 @@ export default function Home() {
   }
   if (activeGame === "winners-circle") {
     return <WinnersCircleGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "nine-mens-morris") {
+    return <NineMensMorrisGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "gonu") {
+    return <GonuGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "domino") {
+    return <DominoGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "backgammon") {
+    return <BackgammonGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "chinese-checkers") {
+    return <ChineseCheckersGame onExit={() => setActiveGame(null)} />;
   }
 
   return (
