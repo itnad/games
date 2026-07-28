@@ -9,6 +9,13 @@ import {
   wcSettleRace,
   wcSettleRaceMulti,
 } from "../app/winners-circle-engine.js";
+import {
+  QWIXX_ROWS,
+  qwixxApplyMark,
+  qwixxCanMark,
+  qwixxCrossScore,
+  qwixxPlayerScore,
+} from "../app/qwixx-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -56,13 +63,31 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /차이니즈 체커/);
   assert.match(html, /다이아몬드 게임/);
   assert.match(html, /잉카 골드/);
-  assert.match(html, /열여섯 가지/);
+  assert.match(html, /큐윅스/);
+  assert.match(html, /열일곱 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
+});
+
+test("applies Qwixx row direction, locking, and official scoring", () => {
+  assert.deepEqual(QWIXX_ROWS.red, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  assert.deepEqual(QWIXX_ROWS.blue, [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2]);
+
+  let marks = { red: [], yellow: [], green: [], blue: [] };
+  assert.equal(qwixxCanMark(marks, "red", 5), true);
+  marks = qwixxApplyMark(marks, "red", 5);
+  assert.equal(qwixxCanMark(marks, "red", 4), false);
+  assert.equal(qwixxCanMark(marks, "red", 12), false);
+
+  marks = { ...marks, red: [0, 1, 2, 3, 4] };
+  assert.equal(qwixxCanMark(marks, "red", 12), true);
+  assert.equal(qwixxCrossScore(6), 21);
+  assert.equal(qwixxCrossScore(12), 78);
+  assert.equal(qwixxPlayerScore({ marks, locks: ["red"], penalties: 1 }), 16);
 });
 
 test("scores dice with official Yahtzee lower-section values", () => {

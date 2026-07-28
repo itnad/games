@@ -11,6 +11,7 @@ import {
 import { JanggiGame } from "./janggi-game";
 import { WinnersCircleGame } from "./winners-circle-game";
 import { IncanGoldGame } from "./incan-gold-game";
+import { QwixxGame } from "./qwixx-game";
 import {
   BackgammonGame,
   ChineseCheckersGame,
@@ -36,7 +37,8 @@ type GameId =
   | "backgammon"
   | "chinese-checkers"
   | "diamond"
-  | "incan-gold";
+  | "incan-gold"
+  | "qwixx";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -177,6 +179,14 @@ const GAMES: GameDefinition[] = [
     players: "AI 포함 3~8인",
     tone: "orange",
   },
+  {
+    id: "qwixx",
+    title: "큐윅스",
+    subtitle: "색깔 숫자 줄을 왼쪽부터 채워 높은 점수를 만드세요",
+    category: "주사위",
+    players: "AI 포함 2~5인",
+    tone: "red",
+  },
 ];
 
 const IconSearch = () => (
@@ -309,6 +319,21 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <i className="preview-danger">〰</i>
         </div>
         <span className="float-chip">5 expeditions</span>
+      </div>
+    );
+  }
+
+  if (game.id === "qwixx") {
+    return (
+      <div className="card-art qwixx-card-art" aria-hidden="true">
+        <div className="qwixx-preview-sheet">
+          <span className="red">2 3 4 5 6 7 8</span>
+          <span className="yellow">2 3 4 5 6 7 8</span>
+          <span className="green">12 11 10 9 8 7</span>
+          <span className="blue">12 11 10 9 8 7</span>
+          <i>⚃</i><i>⚅</i>
+        </div>
+        <span className="float-chip">2–5 players</span>
       </div>
     );
   }
@@ -1220,6 +1245,9 @@ export default function Home() {
   }
   if (activeGame === "incan-gold") {
     return <IncanGoldGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "qwixx") {
+    return <QwixxGame onExit={() => setActiveGame(null)} />;
   }
 
   return (
