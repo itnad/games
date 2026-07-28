@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import "./confrontation.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,21 +16,21 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://playroom-ai-boardgames.itnadcom.chatgpt.site"),
   title: "PLAYROOM — AI 보드게임 아지트",
-  description: "오목, 장기, 잉카 골드, 큐윅스, 나인 멘스 모리스, 고누, 도미노, 백개먼 등 열일곱 가지 게임을 AI와 즐기는 온라인 보드게임 플레이룸",
+  description: "오목, 장기, 잉카 골드, 큐윅스, 빛과 그림자의 대결 등 열여덟 가지 게임을 AI와 즐기는 온라인 보드게임 플레이룸",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
   },
   openGraph: {
     title: "PLAYROOM — AI 보드게임 아지트",
-    description: "열일곱 가지 보드게임을 AI와 바로 즐겨보세요.",
+    description: "열여덟 가지 보드게임을 AI와 바로 즐겨보세요.",
     type: "website",
     images: [{ url: "/og.png", width: 1536, height: 1024, alt: "PLAYROOM AI Board Game Club" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "PLAYROOM — AI 보드게임 아지트",
-    description: "열일곱 가지 보드게임을 AI와 바로 즐겨보세요.",
+    description: "열여덟 가지 보드게임을 AI와 바로 즐겨보세요.",
     images: ["/og.png"],
   },
 };

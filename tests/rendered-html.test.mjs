@@ -16,6 +16,13 @@ import {
   qwixxCrossScore,
   qwixxPlayerScore,
 } from "../app/qwixx-engine.js";
+import {
+  CONFRONTATION_CARDS,
+  confrontationMoveTargets,
+  confrontationResolveCombat,
+  confrontationWinner,
+  createConfrontationPieces,
+} from "../app/confrontation-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -64,13 +71,47 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /다이아몬드 게임/);
   assert.match(html, /잉카 골드/);
   assert.match(html, /큐윅스/);
-  assert.match(html, /열일곱 가지/);
+  assert.match(html, /빛과 그림자의 대결/);
+  assert.match(html, /열여덟 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
+});
+
+test("runs hidden confrontation movement, combat, and victory conditions", () => {
+  const pieces = createConfrontationPieces(() => 0.42);
+  assert.equal(pieces.length, 18);
+  assert.equal(pieces.filter((piece) => piece.side === "dawn").length, 9);
+  assert.equal(pieces.filter((piece) => piece.side === "shadow").length, 9);
+  assert.equal(CONFRONTATION_CARDS.length, 9);
+
+  const dawnFront = pieces.find((piece) => piece.side === "dawn" && piece.regionId !== "dawn-hold");
+  const targets = confrontationMoveTargets(dawnFront, pieces);
+  assert.ok(targets.length > 0);
+  assert.ok(targets.every((region) => region.level > 1));
+
+  const attacker = { id: "a", side: "dawn", strength: 4, ability: "brave" };
+  const defender = { id: "d", side: "shadow", strength: 5, ability: "none" };
+  const result = confrontationResolveCombat(
+    attacker,
+    defender,
+    CONFRONTATION_CARDS.find((card) => card.id === "power-3"),
+    CONFRONTATION_CARDS.find((card) => card.id === "power-1"),
+    "old-ford",
+  );
+  assert.equal(result.attackerTotal, 8);
+  assert.equal(result.defenderTotal, 6);
+  assert.deepEqual(result.defeated, ["d"]);
+
+  const bearer = pieces.find((piece) => piece.ability === "bearer");
+  const winningPieces = pieces.map((piece) =>
+    piece.id === bearer.id ? { ...piece, regionId: "shadow-hold" } : piece,
+  );
+  assert.equal(confrontationWinner(winningPieces), "dawn");
+  assert.equal(confrontationWinner(pieces.map((piece) => piece.id === bearer.id ? { ...piece, alive: false } : piece)), "shadow");
 });
 
 test("applies Qwixx row direction, locking, and official scoring", () => {

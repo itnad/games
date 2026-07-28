@@ -12,6 +12,7 @@ import { JanggiGame } from "./janggi-game";
 import { WinnersCircleGame } from "./winners-circle-game";
 import { IncanGoldGame } from "./incan-gold-game";
 import { QwixxGame } from "./qwixx-game";
+import { ConfrontationGame } from "./confrontation-game";
 import {
   BackgammonGame,
   ChineseCheckersGame,
@@ -38,7 +39,8 @@ type GameId =
   | "chinese-checkers"
   | "diamond"
   | "incan-gold"
-  | "qwixx";
+  | "qwixx"
+  | "confrontation";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -187,6 +189,14 @@ const GAMES: GameDefinition[] = [
     players: "AI 포함 2~5인",
     tone: "red",
   },
+  {
+    id: "confrontation",
+    title: "빛과 그림자의 대결",
+    subtitle: "정체를 숨긴 기물로 적진을 돌파하세요",
+    category: "전략",
+    players: "AI 1:1",
+    tone: "navy",
+  },
 ];
 
 const IconSearch = () => (
@@ -334,6 +344,23 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <i>⚃</i><i>⚅</i>
         </div>
         <span className="float-chip">2–5 players</span>
+      </div>
+    );
+  }
+
+  if (game.id === "confrontation") {
+    return (
+      <div className="card-art confrontation-card-art" aria-hidden="true">
+        <div className="confrontation-preview-map">
+          <span className="preview-faction dawn">✦</span>
+          <i className="preview-route one" />
+          <i className="preview-route two" />
+          <i className="preview-hidden h1">?</i>
+          <i className="preview-hidden h2">?</i>
+          <i className="preview-hidden h3">?</i>
+          <span className="preview-faction shadow">◆</span>
+        </div>
+        <span className="float-chip">9 vs 9</span>
       </div>
     );
   }
@@ -1248,6 +1275,9 @@ export default function Home() {
   }
   if (activeGame === "qwixx") {
     return <QwixxGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "confrontation") {
+    return <ConfrontationGame onExit={() => setActiveGame(null)} />;
   }
 
   return (
