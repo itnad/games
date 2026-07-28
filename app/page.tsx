@@ -13,6 +13,7 @@ import { WinnersCircleGame } from "./winners-circle-game";
 import {
   BackgammonGame,
   ChineseCheckersGame,
+  DiamondGame,
   DominoGame,
   GonuGame,
   NineMensMorrisGame,
@@ -32,7 +33,8 @@ type GameId =
   | "gonu"
   | "domino"
   | "backgammon"
-  | "chinese-checkers";
+  | "chinese-checkers"
+  | "diamond";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -157,6 +159,14 @@ const GAMES: GameDefinition[] = [
     players: "AI 1:1",
     tone: "blue",
   },
+  {
+    id: "diamond",
+    title: "다이아몬드 게임",
+    subtitle: "한국식 소형 별판을 2~3인이 건너세요",
+    category: "전략",
+    players: "AI 2~3인",
+    tone: "gold",
+  },
 ];
 
 const IconSearch = () => (
@@ -279,14 +289,15 @@ function GameArtwork({ game }: { game: GameDefinition }) {
     );
   }
 
-  if (["nine-mens-morris", "gonu", "domino", "backgammon", "chinese-checkers"].includes(game.id)) {
+  if (["nine-mens-morris", "gonu", "domino", "backgammon", "chinese-checkers", "diamond"].includes(game.id)) {
     const artwork = {
       "nine-mens-morris": { symbol: "●━●━●", detail: "9 pieces", className: "morris" },
       gonu: { symbol: "○╳●╳○", detail: "4 × 4", className: "gonu" },
       domino: { symbol: "⚄│⚂  ⚁│⚅", detail: "28 tiles", className: "domino" },
       backgammon: { symbol: "▲▼ ⚂⚄ ▲▼", detail: "24 points", className: "backgammon" },
       "chinese-checkers": { symbol: "  ●\n● ● ●\n  ●", detail: "10 marbles", className: "chinese" },
-    }[game.id as "nine-mens-morris" | "gonu" | "domino" | "backgammon" | "chinese-checkers"];
+      diamond: { symbol: "  ◆\n◆ ◆ ◆\n  ◆", detail: "73 holes", className: "diamond" },
+    }[game.id as "nine-mens-morris" | "gonu" | "domino" | "backgammon" | "chinese-checkers" | "diamond"];
     return (
       <div className={`card-art classic-card-art ${artwork.className}`} aria-hidden="true">
         <span className="classic-card-symbol">{artwork.symbol}</span>
@@ -1179,6 +1190,9 @@ export default function Home() {
   }
   if (activeGame === "chinese-checkers") {
     return <ChineseCheckersGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "diamond") {
+    return <DiamondGame onExit={() => setActiveGame(null)} />;
   }
 
   return (

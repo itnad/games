@@ -4719,6 +4719,7 @@ footer { font-size: 15px; }
 .classic-card-art.domino { background: linear-gradient(145deg, #217865, #153b36); }
 .classic-card-art.backgammon { background: linear-gradient(145deg, #9e3f4c, #4d2632); }
 .classic-card-art.chinese { background: linear-gradient(145deg, #2c6892, #18324f); }
+.classic-card-art.diamond { background: linear-gradient(145deg, #c38b2f, #6e441b); }
 
 .classic-card-symbol {
   position: relative;
@@ -4744,6 +4745,7 @@ footer { font-size: 15px; }
 .domino-shell { --classic-accent: #63b9a2; --classic-dark: #236858; --classic-soft: #ddf3ec; }
 .backgammon-shell { --classic-accent: #d9828d; --classic-dark: #8b3544; --classic-soft: #f8e2e3; }
 .chinese-checkers-shell { --classic-accent: #70abd1; --classic-dark: #2b658e; --classic-soft: #e0f0fa; }
+.diamond-shell { --classic-accent: #e1ad50; --classic-dark: #805320; --classic-soft: #faedd5; }
 .classic-shell .eyebrow { color: var(--classic-accent); }
 
 .classic-score {
@@ -5212,6 +5214,133 @@ footer { font-size: 15px; }
   box-shadow: 0 0 0 5px rgba(255,248,200,.56);
 }
 
+/* Korean Diamond Game */
+.diamond-board {
+  width: min(64vh, 590px, 100%);
+  aspect-ratio: 1;
+  position: relative;
+  overflow: hidden;
+  border: 8px solid #77502c;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255,255,255,.24), transparent 28%),
+    linear-gradient(145deg, #d9b16f, #c79049);
+  box-shadow: 0 23px 50px rgba(70,48,30,.2), inset 0 0 0 2px rgba(255,241,207,.46);
+}
+
+.diamond-board::before,
+.diamond-board::after {
+  content: "";
+  position: absolute;
+  inset: 16%;
+  border: 1px solid rgba(105,69,37,.18);
+  transform: rotate(30deg);
+  pointer-events: none;
+}
+
+.diamond-board::after {
+  inset: 27%;
+  border-radius: 50%;
+  transform: none;
+}
+
+.diamond-hole {
+  width: clamp(15px, 3.55%, 22px);
+  aspect-ratio: 1;
+  padding: 0;
+  position: absolute;
+  z-index: 2;
+  left: calc(8% + var(--dx) * .84);
+  top: calc(8% + var(--dy) * .84);
+  border: 2px solid rgba(100,65,35,.55);
+  border-radius: 50%;
+  background: #b77c42;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  box-shadow: inset 0 2px 3px rgba(75,43,21,.25);
+}
+
+.diamond-hole.camp-0,
+.diamond-hole.camp-3 { background: #8db7a2; }
+.diamond-hole.camp-1,
+.diamond-hole.camp-4 { background: #d7a05e; }
+.diamond-hole.camp-2,
+.diamond-hole.camp-5 { background: #8eaec7; }
+
+.diamond-hole.player,
+.diamond-hole.ai-one,
+.diamond-hole.ai-two {
+  width: clamp(21px, 4.8%, 30px);
+  border-color: rgba(255,255,255,.78);
+  box-shadow: 0 4px 7px rgba(67,41,22,.34);
+}
+
+.diamond-hole.player {
+  background: radial-gradient(circle at 34% 27%, #66c3a6, #176653 68%);
+}
+
+.diamond-hole.ai-one {
+  background: radial-gradient(circle at 34% 27%, #71b8e3, #285b88 68%);
+}
+
+.diamond-hole.ai-two {
+  background: radial-gradient(circle at 34% 27%, #ffd56b, #bd751f 68%);
+}
+
+.diamond-hole.selected {
+  outline: 5px solid rgba(255,255,255,.9);
+  filter: brightness(1.14);
+}
+
+.diamond-hole.destination {
+  border-color: #fff;
+  background: #fff2a8;
+  box-shadow: 0 0 0 5px rgba(255,249,205,.64), 0 4px 8px rgba(85,54,24,.22);
+}
+
+.diamond-hole-count {
+  position: absolute;
+  left: 50%;
+  bottom: 3.2%;
+  color: rgba(89,55,25,.58);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .16em;
+  transform: translateX(-50%);
+}
+
+.diamond-player-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diamond-player-count span {
+  margin-right: 2px;
+  color: #756d73;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.diamond-player-count button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d8d1c8;
+  border-radius: 999px;
+  color: #756d73;
+  background: rgba(255,255,255,.8);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.diamond-player-count button.active {
+  color: white;
+  border-color: var(--classic-dark);
+  background: var(--classic-dark);
+}
+
 @media (max-width: 700px) {
   .classic-score {
     width: min(320px, 100%);
@@ -5229,7 +5358,8 @@ footer { font-size: 15px; }
 
   .morris-board,
   .gonu-board,
-  .chinese-board { width: min(calc(100vw - 20px), 540px); border-width: 5px; }
+  .chinese-board,
+  .diamond-board { width: min(calc(100vw - 20px), 540px); border-width: 5px; }
   .domino-table {
     width: min(calc(100vw - 12px), 680px);
     min-height: 410px;
@@ -5255,6 +5385,7 @@ footer { font-size: 15px; }
   .bg-point.top .bg-number { top: -8px; }
   .bg-point.bottom .bg-number { bottom: -8px; }
   .classic-actions { flex-wrap: wrap; }
+  .diamond-player-count { width: 100%; justify-content: center; }
   .classic-actions .game-hint { order: 5; width: 100%; text-align: center; }
 }
 

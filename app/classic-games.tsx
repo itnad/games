@@ -1240,3 +1240,323 @@ export function ChineseCheckersGame({ onExit }: ExitProps) {
     </ClassicGameLayout>
   );
 }
+
+/* Korean Diamond Game */
+
+type DiamondPlayer = 1 | 2 | 3;
+type DiamondMode = 2 | 3;
+type DiamondHole = { id: string; q: number; r: number; x: number; y: number; camp: number | null };
+type DiamondMove = { from: string; to: string; hops: number };
+type DiamondState = {
+  board: Record<string, DiamondPlayer>;
+  turn: DiamondPlayer;
+  selected: string | null;
+  winner: 0 | DiamondPlayer;
+  moves: number;
+  mode: DiamondMode;
+};
+
+const DIAMOND_DIRECTIONS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]] as const;
+const DIAMOND_BASE_CAMP = [
+  [3, -2], [3, -1], [3, 0], [3, 1],
+  [4, -1], [4, 0], [4, 1],
+  [5, -1], [5, 0],
+  [6, 0],
+] as const;
+
+function rotateDiamondPoint(q: number, r: number, turns: number) {
+  let nextQ = q;
+  let nextR = r;
+  for (let index = 0; index < turns; index += 1) {
+    [nextQ, nextR] = [-nextR, nextQ + nextR];
+  }
+  return [nextQ, nextR] as const;
+}
+
+const DIAMOND_COORDINATES = (() => {
+  const points = new Map<string, { q: number; r: number; camp: number | null }>();
+  for (let q = -1; q <= 1; q += 1) {
+    for (let r = -1; r <= 1; r += 1) {
+      if (Math.max(Math.abs(q), Math.abs(r), Math.abs(-q - r)) <= 1) {
+        points.set(`${q}:${r}`, { q, r, camp: null });
+      }
+    }
+  }
+  for (let camp = 0; camp < 6; camp += 1) {
+    const [connectorQ, connectorR] = rotateDiamondPoint(2, 0, camp);
+    points.set(`${connectorQ}:${connectorR}`, { q: connectorQ, r: connectorR, camp: null });
+    DIAMOND_BASE_CAMP.forEach(([q, r]) => {
+      const [rotatedQ, rotatedR] = rotateDiamondPoint(q, r, camp);
+      points.set(`${rotatedQ}:${rotatedR}`, { q: rotatedQ, r: rotatedR, camp });
+    });
+  }
+  return [...points.values()];
+})();
+
+const DIAMOND_RAW_POINTS = DIAMOND_COORDINATES.map((point) => ({
+  ...point,
+  rawX: point.q + point.r / 2,
+  rawY: point.r * Math.sqrt(3) / 2,
+}));
+const DIAMOND_XS = DIAMOND_RAW_POINTS.map((point) => point.rawX);
+const DIAMOND_YS = DIAMOND_RAW_POINTS.map((point) => point.rawY);
+const DIAMOND_MIN_X = Math.min(...DIAMOND_XS);
+const DIAMOND_MAX_X = Math.max(...DIAMOND_XS);
+const DIAMOND_MIN_Y = Math.min(...DIAMOND_YS);
+const DIAMOND_MAX_Y = Math.max(...DIAMOND_YS);
+const DIAMOND_HOLES: DiamondHole[] = DIAMOND_RAW_POINTS.map((point) => ({
+  id: `${point.q}:${point.r}`,
+  q: point.q,
+  r: point.r,
+  x: ((point.rawX - DIAMOND_MIN_X) / (DIAMOND_MAX_X - DIAMOND_MIN_X)) * 100,
+  y: ((point.rawY - DIAMOND_MIN_Y) / (DIAMOND_MAX_Y - DIAMOND_MIN_Y)) * 100,
+  camp: point.camp,
+}));
+const DIAMOND_HOLE_IDS = new Set(DIAMOND_HOLES.map((hole) => hole.id));
+const DIAMOND_CAMPS = Array.from({ length: 6 }, (_, camp) =>
+  new Set(DIAMOND_HOLES.filter((hole) => hole.camp === camp).map((hole) => hole.id)),
+);
+const DIAMOND_STARTS: Record<DiamondMode, Record<DiamondPlayer, number | null>> = {
+  2: { 1: 0, 2: 3, 3: null },
+  3: { 1: 0, 2: 2, 3: 4 },
+};
+const DIAMOND_GOALS: Record<DiamondMode, Record<DiamondPlayer, number | null>> = {
+  2: { 1: 3, 2: 0, 3: null },
+  3: { 1: 3, 2: 5, 3: 1 },
+};
+
+function diamondNeighbors(id: string) {
+  const [q, r] = id.split(":").map(Number);
+  return DIAMOND_DIRECTIONS
+    .map(([dq, dr]) => `${q + dq}:${r + dr}`)
+    .filter((candidate) => DIAMOND_HOLE_IDS.has(candidate));
+}
+
+function diamondAllowedDestination(id: string, player: DiamondPlayer, mode: DiamondMode) {
+  const hole = DIAMOND_HOLES.find((candidate) => candidate.id === id);
+  if (!hole || hole.camp === null) return true;
+  return hole.camp === DIAMOND_STARTS[mode][player] || hole.camp === DIAMOND_GOALS[mode][player];
+}
+
+function diamondHopDestinations(
+  board: Record<string, DiamondPlayer>,
+  from: string,
+  player: DiamondPlayer,
+  mode: DiamondMode,
+) {
+  const visited = new Map<string, number>([[from, 0]]);
+  const queue = [from];
+  while (queue.length) {
+    const current = queue.shift()!;
+    const [q, r] = current.split(":").map(Number);
+    DIAMOND_DIRECTIONS.forEach(([dq, dr]) => {
+      const middle = `${q + dq}:${r + dr}`;
+      const landing = `${q + dq * 2}:${r + dr * 2}`;
+      if (
+        !DIAMOND_HOLE_IDS.has(landing)
+        || !board[middle]
+        || board[landing]
+        || visited.has(landing)
+        || !diamondAllowedDestination(landing, player, mode)
+      ) return;
+      visited.set(landing, (visited.get(current) ?? 0) + 1);
+      queue.push(landing);
+    });
+  }
+  visited.delete(from);
+  return visited;
+}
+
+function diamondMoves(board: Record<string, DiamondPlayer>, player: DiamondPlayer, mode: DiamondMode) {
+  const goalCamp = DIAMOND_GOALS[mode][player];
+  return Object.entries(board).flatMap(([from, piece]) => {
+    if (piece !== player) return [];
+    const isInGoal = goalCamp !== null && DIAMOND_CAMPS[goalCamp].has(from);
+    const steps = diamondNeighbors(from)
+      .filter((to) => !board[to] && diamondAllowedDestination(to, player, mode))
+      .filter((to) => !isInGoal || DIAMOND_CAMPS[goalCamp!].has(to))
+      .map((to) => ({ from, to, hops: 0 }));
+    const hops = [...diamondHopDestinations(board, from, player, mode)]
+      .filter(([to]) => !isInGoal || DIAMOND_CAMPS[goalCamp!].has(to))
+      .map(([to, count]) => ({ from, to, hops: count }));
+    return [...steps, ...hops];
+  });
+}
+
+function applyDiamondMove(board: Record<string, DiamondPlayer>, move: DiamondMove) {
+  const next = { ...board };
+  next[move.to] = next[move.from];
+  delete next[move.from];
+  return next;
+}
+
+function newDiamondState(mode: DiamondMode): DiamondState {
+  const board: Record<string, DiamondPlayer> = {};
+  ([1, 2, 3] as DiamondPlayer[]).forEach((player) => {
+    const camp = DIAMOND_STARTS[mode][player];
+    if (camp === null) return;
+    DIAMOND_CAMPS[camp].forEach((id) => { board[id] = player; });
+  });
+  return { board, turn: 1, selected: null, winner: 0, moves: 0, mode };
+}
+
+function diamondProgress(board: Record<string, DiamondPlayer>, player: DiamondPlayer, mode: DiamondMode) {
+  const goal = DIAMOND_GOALS[mode][player];
+  return goal === null ? 0 : [...DIAMOND_CAMPS[goal]].filter((id) => board[id] === player).length;
+}
+
+function diamondWinner(board: Record<string, DiamondPlayer>, mode: DiamondMode) {
+  const activePlayers: DiamondPlayer[] = mode === 2 ? [1, 2] : [1, 2, 3];
+  return activePlayers.find((player) => diamondProgress(board, player, mode) === 10) ?? 0;
+}
+
+function nextDiamondPlayer(player: DiamondPlayer, mode: DiamondMode): DiamondPlayer {
+  if (mode === 2) return player === 1 ? 2 : 1;
+  return player === 3 ? 1 : (player + 1) as DiamondPlayer;
+}
+
+function diamondGoalCenter(player: DiamondPlayer, mode: DiamondMode) {
+  const camp = DIAMOND_GOALS[mode][player]!;
+  const holes = DIAMOND_HOLES.filter((hole) => hole.camp === camp);
+  return {
+    q: holes.reduce((sum, hole) => sum + hole.q, 0) / holes.length,
+    r: holes.reduce((sum, hole) => sum + hole.r, 0) / holes.length,
+  };
+}
+
+function chooseDiamondMove(board: Record<string, DiamondPlayer>, player: DiamondPlayer, mode: DiamondMode) {
+  const goal = diamondGoalCenter(player, mode);
+  const distance = (id: string) => {
+    const [q, r] = id.split(":").map(Number);
+    return Math.abs(q - goal.q) + Math.abs(r - goal.r) + Math.abs((-q - r) - (-goal.q - goal.r));
+  };
+  return [...diamondMoves(board, player, mode)].sort((a, b) => {
+    const score = (move: DiamondMove) => {
+      const goalCamp = DIAMOND_GOALS[mode][player]!;
+      return (distance(move.from) - distance(move.to)) * 12
+        + (DIAMOND_CAMPS[goalCamp].has(move.to) ? 38 : 0)
+        + move.hops * 5
+        + Math.random();
+    };
+    return score(b) - score(a);
+  })[0];
+}
+
+export function DiamondGame({ onExit }: ExitProps) {
+  const [state, setState] = useState<DiamondState>(() => newDiamondState(2));
+  const playerMoves = useMemo(
+    () => diamondMoves(state.board, 1, state.mode),
+    [state.board, state.mode],
+  );
+
+  useEffect(() => {
+    if (state.turn === 1 || state.winner) return;
+    const timer = window.setTimeout(() => {
+      setState((current) => {
+        if (current.turn === 1 || current.winner) return current;
+        const move = chooseDiamondMove(current.board, current.turn, current.mode);
+        if (!move) return { ...current, turn: nextDiamondPlayer(current.turn, current.mode), selected: null };
+        const board = applyDiamondMove(current.board, move);
+        const winner = diamondWinner(board, current.mode);
+        return {
+          ...current,
+          board,
+          turn: winner ? current.turn : nextDiamondPlayer(current.turn, current.mode),
+          selected: null,
+          winner,
+          moves: current.moves + 1,
+        };
+      });
+    }, 520);
+    return () => window.clearTimeout(timer);
+  }, [state.turn, state.winner]);
+
+  const handleHole = (id: string) => {
+    setState((current) => {
+      if (current.turn !== 1 || current.winner) return current;
+      if (current.board[id] === 1) {
+        return { ...current, selected: current.selected === id ? null : id };
+      }
+      if (!current.selected) return current;
+      const move = diamondMoves(current.board, 1, current.mode)
+        .find((candidate) => candidate.from === current.selected && candidate.to === id);
+      if (!move) return current;
+      const board = applyDiamondMove(current.board, move);
+      const winner = diamondWinner(board, current.mode);
+      return {
+        ...current,
+        board,
+        turn: winner ? 1 : nextDiamondPlayer(1, current.mode),
+        selected: null,
+        winner,
+        moves: current.moves + 1,
+      };
+    });
+  };
+
+  const destinations = new Set(
+    state.selected ? playerMoves.filter((move) => move.from === state.selected).map((move) => move.to) : [],
+  );
+  const playerProgress = diamondProgress(state.board, 1, state.mode);
+  const aiAProgress = diamondProgress(state.board, 2, state.mode);
+  const aiBProgress = state.mode === 3 ? diamondProgress(state.board, 3, state.mode) : 0;
+  const status = state.winner
+    ? state.winner === 1 ? "다이아몬드 레이스에서 승리했어요!" : `${state.winner === 2 ? "AI 파랑" : "AI 노랑"}이 먼저 도착했어요`
+    : state.turn === 1 ? "움직일 초록색 말을 선택하세요"
+      : `${state.turn === 2 ? "AI 파랑" : "AI 노랑"}이 연속 점프를 찾는 중…`;
+
+  return (
+    <ClassicGameLayout
+      game="다이아몬드 게임"
+      theme="diamond"
+      eyebrow="KOREAN CLASSIC"
+      title={<>작은 별판을<br />빠르게 건너세요</>}
+      description="한국에서 즐겨 온 73칸 소형 다이아몬드 게임입니다. 2인 또는 3인을 고르면 나머지 자리는 AI가 맡습니다."
+      turn={state.turn === 1 ? 1 : 2}
+      playerScore={`${playerProgress} / 10`}
+      aiScore={state.mode === 2 ? `${aiAProgress} / 10` : `${aiAProgress} · ${aiBProgress}`}
+      status={status}
+      substatus={`${state.moves}수 진행 · ${state.mode}인 게임 · 밝은 점은 이동 가능한 목적지입니다`}
+      rules={[
+        "각자 말 열 개를 정반대편 삼각형으로 먼저 옮기면 승리합니다.",
+        "인접한 빈 구멍으로 한 칸 이동하거나, 바로 옆의 어떤 말이든 넘어 빈 구멍으로 점프합니다.",
+        "점프 뒤 다시 넘을 수 있다면 한 차례에 방향을 바꾸며 여러 번 연속 점프할 수 있습니다.",
+        "자신의 출발·도착 진영 외의 다른 색 진영에는 들어갈 수 없습니다.",
+        "2인은 나와 AI 한 명, 3인은 나와 AI 두 명이 차례대로 진행합니다.",
+      ]}
+      actions={<>
+        <div className="diamond-player-count" aria-label="참가 인원 선택">
+          <span>참가 인원</span>
+          {([2, 3] as DiamondMode[]).map((mode) => (
+            <button
+              key={mode}
+              className={state.mode === mode ? "active" : ""}
+              onClick={() => setState(newDiamondState(mode))}
+            >{mode}인</button>
+          ))}
+        </div>
+        <button className="text-action" onClick={() => setState(newDiamondState(state.mode))}>↻ 새 게임</button>
+        {state.winner > 0 && <button className="primary-action" onClick={() => setState(newDiamondState(state.mode))}>다시 플레이</button>}
+      </>}
+      onExit={onExit}
+    >
+      <div className="diamond-board" role="grid" aria-label={`73칸 다이아몬드 게임 ${state.mode}인 보드`}>
+        {DIAMOND_HOLES.map((hole) => {
+          const piece = state.board[hole.id] ?? 0;
+          const selectable = state.turn === 1 && !state.winner && (piece === 1 || destinations.has(hole.id));
+          return (
+            <button
+              key={hole.id}
+              className={`diamond-hole ${piece === 1 ? "player" : piece === 2 ? "ai-one" : piece === 3 ? "ai-two" : ""} ${state.selected === hole.id ? "selected" : ""} ${destinations.has(hole.id) ? "destination" : ""} ${hole.camp !== null ? `camp-${hole.camp}` : ""}`}
+              style={{ "--dx": `${hole.x}%`, "--dy": `${hole.y}%` } as CSSProperties}
+              onClick={() => handleHole(hole.id)}
+              disabled={!selectable}
+              aria-label={`${piece === 1 ? "내 말" : piece === 2 ? "AI 파랑 말" : piece === 3 ? "AI 노랑 말" : "빈 구멍"}`}
+            />
+          );
+        })}
+        <span className="diamond-hole-count">73 HOLES</span>
+      </div>
+    </ClassicGameLayout>
+  );
+}
