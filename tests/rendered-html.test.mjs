@@ -55,7 +55,8 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /백개먼/);
   assert.match(html, /차이니즈 체커/);
   assert.match(html, /다이아몬드 게임/);
-  assert.match(html, /열다섯 가지/);
+  assert.match(html, /잉카 골드/);
+  assert.match(html, /열여섯 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);

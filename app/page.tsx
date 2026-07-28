@@ -10,6 +10,7 @@ import {
 } from "./more-games";
 import { JanggiGame } from "./janggi-game";
 import { WinnersCircleGame } from "./winners-circle-game";
+import { IncanGoldGame } from "./incan-gold-game";
 import {
   BackgammonGame,
   ChineseCheckersGame,
@@ -34,7 +35,8 @@ type GameId =
   | "domino"
   | "backgammon"
   | "chinese-checkers"
-  | "diamond";
+  | "diamond"
+  | "incan-gold";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -167,6 +169,14 @@ const GAMES: GameDefinition[] = [
     players: "AI 2~3인",
     tone: "gold",
   },
+  {
+    id: "incan-gold",
+    title: "잉카 골드",
+    subtitle: "더 깊이 들어갈지 보물을 챙겨 돌아올지 결정하세요",
+    category: "전략",
+    players: "AI 포함 3~8인",
+    tone: "orange",
+  },
 ];
 
 const IconSearch = () => (
@@ -285,6 +295,20 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <i className="preview-finish" />
         </div>
         <span className="float-chip">3 races</span>
+      </div>
+    );
+  }
+
+  if (game.id === "incan-gold") {
+    return (
+      <div className="card-art incan-card-art" aria-hidden="true">
+        <div className="incan-preview-cave">
+          <span className="preview-gem one">◆</span>
+          <span className="preview-gem two">◆</span>
+          <span className="preview-relic">✦</span>
+          <i className="preview-danger">〰</i>
+        </div>
+        <span className="float-chip">5 expeditions</span>
       </div>
     );
   }
@@ -1193,6 +1217,9 @@ export default function Home() {
   }
   if (activeGame === "diamond") {
     return <DiamondGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "incan-gold") {
+    return <IncanGoldGame onExit={() => setActiveGame(null)} />;
   }
 
   return (
