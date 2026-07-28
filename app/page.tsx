@@ -13,6 +13,7 @@ import { WinnersCircleGame } from "./winners-circle-game";
 import { IncanGoldGame } from "./incan-gold-game";
 import { QwixxGame } from "./qwixx-game";
 import { ConfrontationGame } from "./confrontation-game";
+import { LoveLetterGame } from "./love-letter-game";
 import {
   BackgammonGame,
   ChineseCheckersGame,
@@ -40,7 +41,8 @@ type GameId =
   | "diamond"
   | "incan-gold"
   | "qwixx"
-  | "confrontation";
+  | "confrontation"
+  | "love-letter";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -196,6 +198,14 @@ const GAMES: GameDefinition[] = [
     category: "전략",
     players: "AI 1:1",
     tone: "navy",
+  },
+  {
+    id: "love-letter",
+    title: "러브레터",
+    subtitle: "한 장의 비밀로 상대의 편지를 추리하세요",
+    category: "추리",
+    players: "AI 포함 2~6인",
+    tone: "red",
   },
 ];
 
@@ -361,6 +371,20 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <span className="preview-faction shadow">◆</span>
         </div>
         <span className="float-chip">9 vs 9</span>
+      </div>
+    );
+  }
+
+  if (game.id === "love-letter") {
+    return (
+      <div className="card-art love-letter-card-art" aria-hidden="true">
+        <div className="love-preview-cards">
+          <i className="one"><b>1</b><span>⌕</span></i>
+          <i className="two"><b>4</b><span>♢</span></i>
+          <i className="three"><b>9</b><span>♥</span></i>
+        </div>
+        <span className="love-preview-seal">♥</span>
+        <span className="float-chip">2~6 players</span>
       </div>
     );
   }
@@ -1278,6 +1302,9 @@ export default function Home() {
   }
   if (activeGame === "confrontation") {
     return <ConfrontationGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "love-letter") {
+    return <LoveLetterGame onExit={() => setActiveGame(null)} />;
   }
 
   return (

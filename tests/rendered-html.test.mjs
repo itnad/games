@@ -23,6 +23,15 @@ import {
   confrontationWinner,
   createConfrontationPieces,
 } from "../app/confrontation-engine.js";
+import {
+  LOVE_LETTER_CARD_COUNTS,
+  loveLetterBuildDeck,
+  loveLetterFavorTarget,
+  loveLetterMustPlay,
+  loveLetterRoundWinners,
+  loveLetterSpyBonus,
+  loveLetterValidTargets,
+} from "../app/love-letter-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -72,13 +81,46 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /잉카 골드/);
   assert.match(html, /큐윅스/);
   assert.match(html, /빛과 그림자의 대결/);
-  assert.match(html, /열여덟 가지/);
+  assert.match(html, /러브레터/);
+  assert.match(html, /열아홉 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
+});
+
+test("runs the official 21-card Love Letter rules", () => {
+  const deck = loveLetterBuildDeck(() => 0.5);
+  assert.equal(deck.length, 21);
+  assert.deepEqual(
+    deck.reduce((counts, card) => ({ ...counts, [card.value]: (counts[card.value] ?? 0) + 1 }), {}),
+    LOVE_LETTER_CARD_COUNTS,
+  );
+  assert.equal(loveLetterFavorTarget(2), 6);
+  assert.equal(loveLetterFavorTarget(4), 4);
+  assert.equal(loveLetterFavorTarget(6), 3);
+
+  const countess = { uid: "countess", value: 8 };
+  assert.equal(loveLetterMustPlay([countess, { uid: "king", value: 7 }]), "countess");
+  assert.equal(loveLetterMustPlay([countess, { uid: "prince", value: 5 }]), "countess");
+  assert.equal(loveLetterMustPlay([countess, { uid: "guard", value: 1 }]), null);
+
+  const players = [
+    { id: 0, alive: true, protected: false, hand: [{ value: 5 }], discarded: [{ value: 0 }] },
+    { id: 1, alive: true, protected: true, hand: [{ value: 4 }], discarded: [] },
+    { id: 2, alive: true, protected: false, hand: [{ value: 5 }], discarded: [] },
+  ];
+  assert.deepEqual(loveLetterValidTargets(players, 0, 1), [2]);
+  assert.deepEqual(loveLetterValidTargets(players, 0, 5), [2, 0]);
+  assert.deepEqual(loveLetterRoundWinners(players), [0, 2]);
+  assert.equal(loveLetterSpyBonus(players), 0);
+
+  const sharedSpies = players.map((player) =>
+    player.id === 2 ? { ...player, discarded: [{ value: 0 }] } : player,
+  );
+  assert.equal(loveLetterSpyBonus(sharedSpies), null);
 });
 
 test("runs hidden confrontation movement, combat, and victory conditions", () => {
