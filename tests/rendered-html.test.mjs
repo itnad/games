@@ -98,6 +98,15 @@ import {
   wcJackNormalMoves,
   wcPoliceMoves,
 } from "../app/whitechapel-engine.js";
+import {
+  swBuildAgeDeck,
+  swCanBuildCard,
+  swChooseAiSelection,
+  swCreateGame,
+  swFinalRanking,
+  swResolveSelections,
+  swScorePlayer,
+} from "../app/seven-wonders-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -147,6 +156,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "sd-gundam-deluxe",
     "scotland-yard",
     "whitechapel",
+    "seven-wonders",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -213,13 +223,53 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /SD 간담 디럭스/);
   assert.match(html, /스코틀랜드 야드/);
   assert.match(html, /화이트채플/);
-  assert.match(html, /스물다섯 가지/);
+  assert.match(html, /7원더스/);
+  assert.match(html, /스물여섯 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
+});
+
+test("runs a complete 3-to-7 player Seven Wonders draft", () => {
+  for (const playerCount of [3, 4, 5, 6, 7]) {
+    for (const age of [1, 2, 3]) {
+      const deck = swBuildAgeDeck(age, playerCount, () => 0.42);
+      assert.equal(deck.length, playerCount * 7);
+      assert.equal(new Set(deck.map((card) => card.id)).size, deck.length);
+      if (age === 3) {
+        assert.equal(deck.filter((card) => card.color === "purple").length, playerCount + 2);
+      }
+    }
+
+    let game = swCreateGame(playerCount, "strategist", () => 0.37);
+    assert.equal(game.players.length, playerCount);
+    assert.ok(game.hands.every((hand) => hand.length === 7));
+    assert.ok(game.hands[0].some((card) => swCanBuildCard(game.players, 0, card)));
+    assert.equal(typeof swScorePlayer(game.players[0], game.players).total, "number");
+
+    let turns = 0;
+    while (game.phase !== "finished" && turns < 20) {
+      const choices = game.players.map((_, playerIndex) => {
+        const choice = swChooseAiSelection(game, playerIndex);
+        assert.ok(["build", "wonder", "discard"].includes(choice.action));
+        assert.ok(choice.cardIndex >= 0 && choice.cardIndex < game.hands[playerIndex].length);
+        return choice;
+      });
+      game = swResolveSelections(game, choices);
+      turns += 1;
+    }
+
+    assert.equal(turns, 18);
+    assert.equal(game.phase, "finished");
+    assert.equal(game.result.length, playerCount);
+    assert.deepEqual(game.result, swFinalRanking(game.players));
+    assert.ok(game.result.every((entry) => Number.isFinite(entry.score.total)));
+    assert.ok(game.players.every((player) => player.conflict.length <= 6));
+    assert.ok(game.players.flatMap((player) => player.conflict).every((token) => [-1, 1, 3, 5].includes(token)));
+  }
 });
 
 test("runs Scotland Yard hidden movement, tickets, and fair AI", () => {

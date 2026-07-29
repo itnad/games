@@ -20,6 +20,7 @@ import { EpicDuelsGame } from "./epic-duels-game";
 import { SdGundamDeluxeGame } from "./sd-gundam-deluxe-game";
 import { ScotlandYardGame } from "./scotland-yard-game";
 import { WhitechapelGame } from "./whitechapel-game";
+import { SevenWondersGame } from "./seven-wonders-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -55,7 +56,8 @@ type GameId =
   | "epic-duels"
   | "sd-gundam-deluxe"
   | "scotland-yard"
-  | "whitechapel";
+  | "whitechapel"
+  | "seven-wonders";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -123,6 +125,14 @@ const GAMES: GameDefinition[] = [
     category: "추리",
     players: "AI 1:1",
     tone: "navy",
+  },
+  {
+    id: "seven-wonders",
+    title: "7원더스",
+    subtitle: "카드를 드래프트해 찬란한 고대 문명을 완성하세요",
+    category: "전략",
+    players: "AI 포함 3~7인",
+    tone: "gold",
   },
   {
     id: "dice",
@@ -385,6 +395,21 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <span className="c">68</span>
         </div>
         <span className="float-chip">4 nights</span>
+      </div>
+    );
+  }
+
+  if (game.id === "seven-wonders") {
+    return (
+      <div className="card-art seven-wonders-card-art" aria-hidden="true">
+        <div className="seven-wonders-preview">
+          <span className="sun">✦</span>
+          <div className="temple"><i /><i /><i /><i /><b /></div>
+          <span className="age one">Ⅰ</span>
+          <span className="age two">Ⅱ</span>
+          <span className="age three">Ⅲ</span>
+        </div>
+        <span className="float-chip">3–7 civilizations</span>
       </div>
     );
   }
@@ -1423,6 +1448,9 @@ export default function Home() {
   }
   if (activeGame === "whitechapel") {
     return <GuidedGame gameId={activeGame}><WhitechapelGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "seven-wonders") {
+    return <GuidedGame gameId={activeGame}><SevenWondersGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "dice") {
     return <GuidedGame gameId={activeGame}><DiceDuelGame onExit={() => setActiveGame(null)} /></GuidedGame>;
