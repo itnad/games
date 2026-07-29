@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { chooseAiHeld, describeAiHeld, shouldAiStop } from "../app/dice-ai.js";
 import { scoreDice } from "../app/dice-scoring.js";
 import {
@@ -96,6 +97,63 @@ async function render() {
     },
   );
 }
+
+test("provides a complete objective and victory guide for every game", async () => {
+  const expectedGameIds = [
+    "gomoku",
+    "memory",
+    "reversi",
+    "mancala",
+    "battleship",
+    "dice",
+    "checkers",
+    "janggi",
+    "winners-circle",
+    "nine-mens-morris",
+    "gonu",
+    "domino",
+    "backgammon",
+    "chinese-checkers",
+    "diamond",
+    "incan-gold",
+    "qwixx",
+    "confrontation",
+    "love-letter",
+    "miniville",
+    "pick-picnic",
+    "epic-duels",
+    "sd-gundam-deluxe",
+  ];
+
+  assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
+  for (const [gameId, guide] of Object.entries(GAME_OBJECTIVES)) {
+    for (const field of ["title", "summary", "objective", "victory", "finish"]) {
+      assert.equal(
+        typeof guide[field],
+        "string",
+        `${gameId}의 ${field} 항목이 문자열이어야 합니다.`,
+      );
+      assert.ok(
+        guide[field].trim().length > 0,
+        `${gameId}의 ${field} 항목이 비어 있습니다.`,
+      );
+    }
+  }
+
+  const guideSource = await readFile(
+    new URL("../app/game-objective-guide.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(guideSource, /게임 목표/);
+  assert.match(guideSource, /승리 조건/);
+  assert.match(guideSource, /게임 종료 시점/);
+
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  assert.equal(
+    [...pageSource.matchAll(/<GuidedGame gameId=\{activeGame\}>/g)].length,
+    expectedGameIds.length,
+  );
+});
 
 test("server-renders the Playroom game library", async () => {
   const response = await render();

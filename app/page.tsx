@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   BattleshipGame,
   CheckersGame,
@@ -18,6 +18,7 @@ import { MinivilleGame } from "./miniville-game";
 import { PickPicnicGame } from "./pick-picnic-game";
 import { EpicDuelsGame } from "./epic-duels-game";
 import { SdGundamDeluxeGame } from "./sd-gundam-deluxe-game";
+import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
   ChineseCheckersGame,
@@ -261,6 +262,15 @@ function BrandMark() {
       <i />
       <i />
     </span>
+  );
+}
+
+function GuidedGame({ gameId, children }: { gameId: GameId; children: ReactNode }) {
+  return (
+    <>
+      <GameObjectiveGuide gameId={gameId} />
+      {children}
+    </>
   );
 }
 
@@ -1344,73 +1354,73 @@ export default function Home() {
   }, [category, query]);
 
   if (activeGame === "gomoku") {
-    return <GomokuGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><GomokuGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "memory") {
-    return <MemoryGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><MemoryGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "reversi") {
-    return <ReversiGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><ReversiGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "mancala") {
-    return <MancalaGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><MancalaGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "battleship") {
-    return <BattleshipGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><BattleshipGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "dice") {
-    return <DiceDuelGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><DiceDuelGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "checkers") {
-    return <CheckersGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><CheckersGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "janggi") {
-    return <JanggiGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><JanggiGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "winners-circle") {
-    return <WinnersCircleGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><WinnersCircleGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "nine-mens-morris") {
-    return <NineMensMorrisGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><NineMensMorrisGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "gonu") {
-    return <GonuGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><GonuGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "domino") {
-    return <DominoGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><DominoGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "backgammon") {
-    return <BackgammonGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><BackgammonGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "chinese-checkers") {
-    return <ChineseCheckersGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><ChineseCheckersGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "diamond") {
-    return <DiamondGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><DiamondGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "incan-gold") {
-    return <IncanGoldGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><IncanGoldGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "qwixx") {
-    return <QwixxGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><QwixxGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "confrontation") {
-    return <ConfrontationGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><ConfrontationGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "love-letter") {
-    return <LoveLetterGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><LoveLetterGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "miniville") {
-    return <MinivilleGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><MinivilleGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "pick-picnic") {
-    return <PickPicnicGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><PickPicnicGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "epic-duels") {
-    return <EpicDuelsGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><EpicDuelsGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "sd-gundam-deluxe") {
-    return <SdGundamDeluxeGame onExit={() => setActiveGame(null)} />;
+    return <GuidedGame gameId={activeGame}><SdGundamDeluxeGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
 
   return (
