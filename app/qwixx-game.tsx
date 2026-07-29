@@ -53,6 +53,169 @@ const PLAYER_STYLES = ["플레이어", "균형형", "안정형", "도전형", "�
 const PLAYER_ACCENTS = ["#7a53d6", "#d45951", "#4c8f77", "#d4a03f", "#4d78b8"];
 const DIE_FACES = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 
+type QwixxLearningItem = {
+  title: string;
+  body: string;
+};
+
+type QwixxTutorialStep = QwixxLearningItem & {
+  visual: string;
+  note: string;
+};
+
+const QWIXX_RULES: QwixxLearningItem[] = [
+  {
+    title: "네 색 줄의 방향",
+    body: "빨강·노랑은 2에서 12로, 초록·파랑은 12에서 2로 진행합니다. 모든 줄은 화면의 왼쪽에서 오른쪽으로만 체크합니다.",
+  },
+  {
+    title: "1단계 · 공용 합",
+    body: "매번 흰 주사위 두 개의 합을 만듭니다. 현재 선수뿐 아니라 모든 참가자가 원하는 한 색 줄에 이 숫자를 체크하거나 건너뜁니다.",
+  },
+  {
+    title: "2단계 · 개인 조합",
+    body: "현재 선수만 흰 주사위 하나와 색 주사위 하나를 더해, 그 색의 줄에 한 번 더 체크할 수 있습니다.",
+  },
+  {
+    title: "건너뛴 숫자",
+    body: "오른쪽 숫자를 먼저 체크하면 그 왼쪽 숫자에는 다시 돌아갈 수 없습니다. 큰 도약은 미래의 선택지를 줄입니다.",
+  },
+  {
+    title: "줄 잠금",
+    body: "한 줄에 마지막 숫자를 제외하고 최소 5개를 체크한 뒤 마지막 12 또는 2를 체크하면 자물쇠도 체크하고 해당 색 주사위를 제거합니다.",
+  },
+  {
+    title: "실패와 종료",
+    body: "현재 선수가 공용·개인 행동을 모두 사용하지 않으면 실패 1회로 −5점입니다. 두 줄이 잠기거나 누군가 실패 4회가 되면 끝납니다.",
+  },
+  {
+    title: "점수 계산",
+    body: "한 줄의 체크 수가 1·2·3·4·5·6개면 1·3·6·10·15·21점입니다. 잠금 표시도 체크 1개로 세며, 마지막에 실패 점수를 뺍니다.",
+  },
+];
+
+const QWIXX_TUTORIAL: QwixxTutorialStep[] = [
+  {
+    title: "줄의 진행 방향을 먼저 보세요",
+    body: "숫자 자체의 크기가 아니라 점수표에서 왼쪽에서 오른쪽으로 진행한다는 점이 핵심입니다.",
+    visual: "빨강·노랑  2  3  4  →  12\n초록·파랑 12 11 10  →   2",
+    note: "초록 10을 체크한 뒤에는 초록 11·12를 체크할 수 없습니다.",
+  },
+  {
+    title: "흰 주사위 합은 모두의 선택",
+    body: "예시에서 흰 주사위가 3과 4라면 공용 합은 7입니다. 차례와 관계없이 모든 참가자가 7 하나를 체크할 수 있습니다.",
+    visual: "⚂  +  ⚃  =  7\n모든 참가자 → 원하는 색 7",
+    note: "원하는 줄에 7을 쓸 수 없다면 불이익 없이 건너뛸 수 있습니다.",
+  },
+  {
+    title: "현재 선수는 한 번 더 조합합니다",
+    body: "현재 선수는 흰색 하나와 색 주사위를 더합니다. 흰색 4와 빨간색 5를 고르면 빨강 9를 체크합니다.",
+    visual: "흰색 ⚃  +  빨강 ⚄  =  9\n현재 선수 → 빨강 9",
+    note: "공용 행동과 개인 행동을 같은 색 줄에 연속으로 사용해도 됩니다.",
+  },
+  {
+    title: "멀리 건너뛰기 전에 생각하세요",
+    body: "빨강 7을 체크하면 그 왼쪽의 2부터 6까지는 닫힙니다. 당장 가능한 숫자보다 남을 칸의 가치도 살펴보세요.",
+    visual: "2  3  4  5  6  [7]  8  9\n×  ×  ×  ×  ×   ✓   →  →",
+    note: "초반에는 작은 간격으로 전진하면 다음 주사위 결과를 받아낼 가능성이 높습니다.",
+  },
+  {
+    title: "다섯 칸을 채운 뒤 잠그세요",
+    body: "마지막 숫자를 제외하고 5개 이상 체크했다면 끝 숫자와 자물쇠를 함께 체크할 수 있습니다.",
+    visual: "✓  ✓  ✓  ✓  ✓  …  12  🔒\n체크 5개 + 12 + 잠금",
+    note: "잠금에 성공하면 그 색 주사위가 빠지고, 잠금 표시도 줄 점수의 체크 1개로 계산됩니다.",
+  },
+  {
+    title: "체크 수를 삼각 점수로 바꿉니다",
+    body: "각 줄 점수를 더하고 실패마다 5점을 뺍니다. 예를 들어 체크 6개는 21점이고 실패 2회는 −10점입니다.",
+    visual: "1  3  6  10  15  21 …\n체크 6개 = 21점  |  실패 2회 = −10",
+    note: "한 줄만 무리하게 밀기보다 네 줄에서 꾸준히 체크 수를 늘리는 편이 안정적입니다.",
+  },
+];
+
+function QwixxLearningTools() {
+  const [mode, setMode] = useState<"rules" | "tutorial" | null>(null);
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    if (!mode) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMode(null);
+      if (mode === "tutorial" && event.key === "ArrowRight") {
+        setStep((current) => Math.min(QWIXX_TUTORIAL.length - 1, current + 1));
+      }
+      if (mode === "tutorial" && event.key === "ArrowLeft") {
+        setStep((current) => Math.max(0, current - 1));
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [mode]);
+
+  const openTutorial = () => {
+    setStep(0);
+    setMode("tutorial");
+  };
+  const current = QWIXX_TUTORIAL[step];
+
+  return (
+    <>
+      <div className="learning-tools qwixx" aria-label="큐윅스 도움말">
+        <button onClick={() => setMode("rules")}><span aria-hidden="true">ⓘ</span> 게임 방법</button>
+        <button onClick={openTutorial}><span aria-hidden="true">▷</span> 튜토리얼</button>
+      </div>
+      {mode && (
+        <div className="learning-backdrop" role="presentation" onClick={() => setMode(null)}>
+          <section
+            className="learning-modal qwixx"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="qwixx-learning-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button className="learning-close" onClick={() => setMode(null)} aria-label="도움말 닫기">×</button>
+            <span className="learning-eyebrow">{mode === "rules" ? "HOW TO PLAY" : "QUICK TUTORIAL"}</span>
+            <h2 id="qwixx-learning-title">큐윅스 {mode === "rules" ? "게임 방법" : "따라하기"}</h2>
+            {mode === "rules" ? (
+              <>
+                <p className="learning-intro">한 차례의 두 가지 선택부터 줄 잠금과 점수 계산까지 순서대로 확인하세요.</p>
+                <ol className="learning-rules">
+                  {QWIXX_RULES.map((rule, index) => (
+                    <li key={rule.title}>
+                      <b>{index + 1}</b>
+                      <span><strong>{rule.title}</strong><small>{rule.body}</small></span>
+                    </li>
+                  ))}
+                </ol>
+                <button className="learning-primary" onClick={openTutorial}>예시로 따라하기</button>
+              </>
+            ) : (
+              <div className="tutorial-content">
+                <div className="tutorial-progress" aria-label={`${QWIXX_TUTORIAL.length}단계 중 ${step + 1}단계`}>
+                  {QWIXX_TUTORIAL.map((item, index) => <i key={item.title} className={index <= step ? "active" : ""} />)}
+                </div>
+                <span className="tutorial-count">{step + 1} / {QWIXX_TUTORIAL.length}</span>
+                <div className="tutorial-visual qwixx" aria-hidden="true"><span>{current.visual}</span></div>
+                <h3>{current.title}</h3>
+                <p>{current.body}</p>
+                <aside><b>TIP</b>{current.note}</aside>
+                <div className="tutorial-actions">
+                  <button className="learning-secondary" onClick={() => setStep((value) => Math.max(0, value - 1))} disabled={step === 0}>이전</button>
+                  {step < QWIXX_TUTORIAL.length - 1 ? (
+                    <button className="learning-primary" onClick={() => setStep((value) => Math.min(QWIXX_TUTORIAL.length - 1, value + 1))}>다음</button>
+                  ) : (
+                    <button className="learning-primary" onClick={() => setMode(null)}>게임 시작하기</button>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+    </>
+  );
+}
+
 function emptyMarks(): Marks {
   return { red: [], yellow: [], green: [], blue: [] };
 }
@@ -529,6 +692,7 @@ export function QwixxGame({ onExit }: ExitProps) {
         </aside>
 
         <div className="board-panel qwixx-board-panel">
+          <QwixxLearningTools />
           {state.phase === "setup" ? (
             <section className="qwixx-welcome">
               <div className="qwixx-logo-dice" aria-hidden="true"><i>⚁</i><i>⚄</i><i>⚂</i></div>

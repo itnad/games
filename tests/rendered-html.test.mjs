@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { chooseAiHeld, describeAiHeld, shouldAiStop } from "../app/dice-ai.js";
 import { scoreDice } from "../app/dice-scoring.js";
@@ -172,6 +173,17 @@ test("runs SD Gundam Deluxe space and fortress manual rules", () => {
     0,
     "the +30 terrain bonus applies to the attacker",
   );
+});
+
+test("includes Qwixx game rules and a guided tutorial", async () => {
+  const source = await readFile(new URL("../app/qwixx-game.tsx", import.meta.url), "utf8");
+  assert.match(source, /게임 방법/);
+  assert.match(source, /튜토리얼/);
+  assert.match(source, /공용 합/);
+  assert.match(source, /개인 조합/);
+  assert.match(source, /줄 잠금/);
+  assert.match(source, /점수 계산/);
+  assert.match(source, /QWIXX_TUTORIAL\.length/);
 });
 
 test("builds all twelve 31-card Epic Duels teams and resolves combat", () => {

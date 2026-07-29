@@ -1238,6 +1238,19 @@ footer > span {
 .learning-modal.mancala { --learning-color: #a56f28; --learning-soft: #f8edda; --learning-dark: #483522; }
 .learning-tools.checkers,
 .learning-modal.checkers { --learning-color: #557d57; --learning-soft: #e9f0e6; --learning-dark: #293a2d; }
+.learning-tools.qwixx,
+.learning-modal.qwixx { --learning-color: #b84652; --learning-soft: #f6e7e7; --learning-dark: #3d2d34; }
+.learning-tools.qwixx { width: min(900px, 100%); }
+.learning-modal.qwixx .tutorial-progress { grid-template-columns: repeat(6, 1fr); }
+.learning-modal.qwixx .tutorial-visual {
+  background:
+    linear-gradient(90deg, rgba(201,73,83,.13) 0 25%, rgba(221,177,58,.15) 25% 50%, rgba(66,140,107,.13) 50% 75%, rgba(67,125,175,.13) 75%),
+    #fffaf5;
+}
+.learning-modal.qwixx .tutorial-visual span {
+  font-size: clamp(16px, 4.2vw, 25px);
+  letter-spacing: .025em;
+}
 
 .learning-backdrop {
   padding: 20px;
