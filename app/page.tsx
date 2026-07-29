@@ -19,6 +19,7 @@ import { PickPicnicGame } from "./pick-picnic-game";
 import { EpicDuelsGame } from "./epic-duels-game";
 import { SdGundamDeluxeGame } from "./sd-gundam-deluxe-game";
 import { ScotlandYardGame } from "./scotland-yard-game";
+import { WhitechapelGame } from "./whitechapel-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -53,7 +54,8 @@ type GameId =
   | "pick-picnic"
   | "epic-duels"
   | "sd-gundam-deluxe"
-  | "scotland-yard";
+  | "scotland-yard"
+  | "whitechapel";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -110,6 +112,14 @@ const GAMES: GameDefinition[] = [
     id: "scotland-yard",
     title: "스코틀랜드 야드",
     subtitle: "이동 티켓을 추리해 미스터 X의 도주로를 봉쇄하세요",
+    category: "추리",
+    players: "AI 1:1",
+    tone: "navy",
+  },
+  {
+    id: "whitechapel",
+    title: "화이트채플",
+    subtitle: "네 번의 밤 동안 단서를 수색해 숨은 범인을 체포하세요",
     category: "추리",
     players: "AI 1:1",
     tone: "navy",
@@ -361,6 +371,20 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <span className="c">71</span>
         </div>
         <span className="float-chip">22 rounds</span>
+      </div>
+    );
+  }
+
+  if (game.id === "whitechapel") {
+    return (
+      <div className="card-art whitechapel-card-art" aria-hidden="true">
+        <div className="whitechapel-preview">
+          <i className="x1" /><i className="x2" /><i className="x3" />
+          <span className="a">27</span>
+          <span className="b">?</span>
+          <span className="c">68</span>
+        </div>
+        <span className="float-chip">4 nights</span>
       </div>
     );
   }
@@ -1396,6 +1420,9 @@ export default function Home() {
   }
   if (activeGame === "scotland-yard") {
     return <GuidedGame gameId={activeGame}><ScotlandYardGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "whitechapel") {
+    return <GuidedGame gameId={activeGame}><WhitechapelGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "dice") {
     return <GuidedGame gameId={activeGame}><DiceDuelGame onExit={() => setActiveGame(null)} /></GuidedGame>;

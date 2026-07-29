@@ -85,6 +85,19 @@ import {
   syCreateInitialState,
   syLegalMoves,
 } from "../app/scotland-yard-engine.js";
+import {
+  WC_CROSSINGS,
+  WC_LOCATIONS,
+  WC_NIGHTS,
+  WC_STREET_LINKS,
+  wcAdjacentLocations,
+  wcAdvanceCandidates,
+  wcAlleyMoves,
+  wcChooseJackMove,
+  wcCreateGame,
+  wcJackNormalMoves,
+  wcPoliceMoves,
+} from "../app/whitechapel-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -133,6 +146,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "epic-duels",
     "sd-gundam-deluxe",
     "scotland-yard",
+    "whitechapel",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -198,7 +212,8 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /스타워즈 에픽 듀얼/);
   assert.match(html, /SD 간담 디럭스/);
   assert.match(html, /스코틀랜드 야드/);
-  assert.match(html, /스물네 가지/);
+  assert.match(html, /화이트채플/);
+  assert.match(html, /스물다섯 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
@@ -257,6 +272,52 @@ test("runs Scotland Yard hidden movement, tickets, and fair AI", () => {
   assert.ok(!state.detectives.some((piece) => piece.node === state.mrX.node));
   assert.equal(state.mrX.blackTickets, 5);
   assert.equal(state.mrX.doubleTickets, 2);
+});
+
+test("runs Whitechapel nights, dual map, clues, and hidden movement", () => {
+  assert.equal(WC_NIGHTS.length, 4);
+  assert.deepEqual(WC_NIGHTS.map((night) => night.kills), [1, 1, 2, 1]);
+  assert.ok(WC_NIGHTS.every((night) => night.maxMoves === 15));
+  assert.equal(WC_LOCATIONS.length, 84);
+  assert.equal(WC_CROSSINGS.length, 66);
+  assert.ok(WC_STREET_LINKS.length > WC_LOCATIONS.length);
+
+  const adjacent = wcAdjacentLocations("c1");
+  assert.ok(adjacent.length >= 2);
+  const normal = wcJackNormalMoves(adjacent[0], []);
+  assert.ok(normal.length > 0);
+  assert.ok(wcJackNormalMoves(adjacent[0], ["c1"]).length < normal.length);
+  assert.ok(wcAlleyMoves(adjacent[0]).length > 0);
+
+  const police = wcPoliceMoves("c1", [], 2);
+  assert.ok(police.some((move) => move.distance === 0));
+  assert.ok(police.some((move) => move.distance === 2));
+  assert.ok(police.every((move) => move.distance <= 2));
+
+  const candidates = wcAdvanceCandidates([adjacent[0]], "normal", []);
+  const coachCandidates = wcAdvanceCandidates([adjacent[0]], "coach", []);
+  assert.ok(candidates.length > 0);
+  assert.ok(coachCandidates.length > 0);
+
+  const game = wcCreateGame("inspector", () => 0.42);
+  assert.equal(game.night, 1);
+  assert.equal(game.phase, "patrol");
+  assert.equal(game.women.length, 8);
+  assert.equal(game.targets.length, 5);
+  assert.ok(game.targets.every((target) => game.women.includes(target)));
+
+  const move = wcChooseJackMove({
+    location: game.targets[0],
+    hideout: game.hideout,
+    policeCrossings: ["c1", "c11", "c22", "c44", "c66"],
+    coaches: 3,
+    alleys: 2,
+    movesUsed: 0,
+    difficulty: "inspector",
+    random: () => 0.42,
+  });
+  assert.ok(move);
+  assert.ok(["normal", "coach", "alley"].includes(move.type));
 });
 
 test("runs SD Gundam Deluxe space and fortress manual rules", () => {
