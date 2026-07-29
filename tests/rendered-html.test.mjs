@@ -43,6 +43,17 @@ import {
   minivilleResolveBaseIncome,
   minivilleWinner,
 } from "../app/miniville-engine.js";
+import {
+  PICK_PICNIC_YARDS,
+  pickPicnicCreateDeck,
+  pickPicnicCreateGame,
+  pickPicnicDuel,
+  pickPicnicGrainScore,
+  pickPicnicHandSize,
+  pickPicnicHumanConflicts,
+  pickPicnicPlayerScore,
+  pickPicnicResolveRound,
+} from "../app/pick-picnic-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -94,13 +105,75 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /빛과 그림자의 대결/);
   assert.match(html, /러브레터/);
   assert.match(html, /미니빌/);
-  assert.match(html, /스무 가지/);
+  assert.match(html, /픽 피크닉/);
+  assert.match(html, /스물한 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
+});
+
+test("runs Pick Picknic feeding, sharing, fox, and duel rules", () => {
+  const deck = pickPicnicCreateDeck(() => 0.42);
+  assert.equal(deck.length, 42);
+  assert.equal(deck.filter((card) => card.kind === "bird").length, 30);
+  assert.equal(deck.filter((card) => card.kind === "fox").length, 12);
+  assert.equal(pickPicnicHandSize(2), 6);
+  assert.equal(pickPicnicHandSize(4), 5);
+
+  const created = pickPicnicCreateGame(4, () => 0.42);
+  assert.equal(created.players.length, 4);
+  assert.ok(created.players.every((player) => player.hand.length === 5));
+  assert.equal(created.yards.length, 6);
+  assert.ok(created.yards.every((yard) => yard.grains.length === 1));
+  assert.equal(created.bag.length, 60);
+
+  const birdA = { uid: "a", yardId: "yellow", kind: "bird", value: 3, name: "닭" };
+  const birdB = { uid: "b", yardId: "yellow", kind: "bird", value: 5, name: "닭" };
+  const fox = { uid: "f", yardId: "yellow", kind: "fox", value: 4, name: "여우" };
+  const fleet = { uid: "m", yardId: "yellow", kind: "bird", value: -2, name: "겁쟁이 닭" };
+  const players = [
+    { id: 0, name: "나", hand: [birdA, fox], grains: { green: 0, blue: 0, gold: 0 }, captured: [] },
+    { id: 1, name: "AI", hand: [birdB, fleet], grains: { green: 0, blue: 0, gold: 0 }, captured: [] },
+  ];
+  const yards = PICK_PICNIC_YARDS.map((yard) => ({
+    ...yard,
+    grains: yard.id === "yellow" ? ["green", "blue", "gold"] : [],
+  }));
+  const base = { players, yards, deck: [], discard: [], bag: [], lastRound: false };
+
+  const birdPlays = [{ playerId: 0, card: birdA }, { playerId: 1, card: birdB }];
+  assert.deepEqual(pickPicnicHumanConflicts(birdPlays), ["yellow"]);
+  const shared = pickPicnicResolveRound(base, birdPlays, { yellow: "share" }, () => 0);
+  assert.equal(shared.yards[0].grains.length, 0);
+  assert.equal(
+    pickPicnicPlayerScore(shared.players[0]) + pickPicnicPlayerScore(shared.players[1]),
+    6,
+  );
+
+  const hunted = pickPicnicResolveRound(
+    base,
+    [{ playerId: 0, card: fox }, { playerId: 1, card: birdB }],
+    {},
+    () => 0,
+  );
+  assert.equal(hunted.players[0].captured[0].value, 5);
+  assert.equal(hunted.yards[0].grains.length, 3);
+
+  const fleetHunt = pickPicnicResolveRound(
+    base,
+    [{ playerId: 0, card: fox }, { playerId: 1, card: fleet }],
+    {},
+    () => 0,
+  );
+  assert.equal(fleetHunt.players[0].captured[0].value, -2);
+  assert.equal(fleetHunt.players[1].grains.green, 1);
+  assert.equal(pickPicnicGrainScore(fleetHunt.players[1].grains), 1);
+
+  const duel = pickPicnicDuel(birdPlays, () => 0);
+  assert.equal(duel.winner.playerId, 1);
 });
 
 test("runs Miniville income, construction, trade, and landmark rules", () => {
