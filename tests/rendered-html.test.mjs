@@ -54,6 +54,15 @@ import {
   pickPicnicPlayerScore,
   pickPicnicResolveRound,
 } from "../app/pick-picnic-engine.js";
+import {
+  EPIC_DUELS_MAPS,
+  EPIC_DUELS_TEAMS,
+  epicCreateDeck,
+  epicCreateMatch,
+  epicLineOfSight,
+  epicReachableCells,
+  epicResolveCombat,
+} from "../app/epic-duels-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -106,13 +115,69 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /러브레터/);
   assert.match(html, /미니빌/);
   assert.match(html, /픽 피크닉/);
-  assert.match(html, /스물한 가지/);
+  assert.match(html, /스타워즈 에픽 듀얼/);
+  assert.match(html, /스물두 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
+});
+
+test("builds all twelve 31-card Epic Duels teams and resolves combat", () => {
+  assert.equal(EPIC_DUELS_TEAMS.length, 12);
+  assert.equal(EPIC_DUELS_MAPS.length, 4);
+  for (const team of EPIC_DUELS_TEAMS) {
+    const deck = epicCreateDeck(team.id, () => 0.42);
+    assert.equal(deck.length, 31, `${team.id} deck`);
+    assert.equal(deck.filter((card) => card.type === "basic").length, 19);
+    assert.equal(deck.filter((card) => card.type !== "basic").length, 12);
+  }
+
+  const match = epicCreateMatch("luke", "vader", "geonosis", () => 0.42);
+  assert.equal(match.players[0].hand.length, 4);
+  assert.equal(match.players[1].hand.length, 4);
+  assert.equal(match.players[0].figures.length, 2);
+  assert.equal(match.players[1].figures.length, 3);
+
+  const reachable = epicReachableCells(match, "0-major", 3);
+  assert.ok(reachable.length > 0);
+  assert.ok(reachable.every(([row, column]) => row >= 0 && row <= 8 && column >= 0 && column <= 8));
+
+  const attacker = { hp: 17 };
+  const defender = { hp: 20 };
+  assert.deepEqual(
+    epicResolveCombat(
+      attacker,
+      defender,
+      { attack: 8, defense: null, effect: "none" },
+      { attack: 1, defense: 3, effect: "none" },
+      {},
+    ),
+    { attack: 8, defense: 3, damage: 5, reflected: 0 },
+  );
+  assert.equal(
+    epicResolveCombat(
+      attacker,
+      defender,
+      { attack: 3, defense: null, effect: "unblocked-twenty" },
+      null,
+      {},
+    ).damage,
+    20,
+  );
+
+  const rangedMatch = structuredClone(match);
+  rangedMatch.players[0].figures[1].pos = [4, 0];
+  rangedMatch.players[1].figures[0].pos = [4, 8];
+  assert.equal(epicLineOfSight(rangedMatch, rangedMatch.players[0].figures[1], rangedMatch.players[1].figures[0]), false);
+  rangedMatch.mapId = "kamino";
+  rangedMatch.players
+    .flatMap((player) => player.figures)
+    .filter((figure) => !["0-minor-0", "1-major"].includes(figure.id))
+    .forEach((figure, index) => { figure.pos = [0, index]; });
+  assert.equal(epicLineOfSight(rangedMatch, rangedMatch.players[0].figures[1], rangedMatch.players[1].figures[0]), true);
 });
 
 test("runs Pick Picknic feeding, sharing, fox, and duel rules", () => {

@@ -1,0 +1,239 @@
+.epic-shell {
+  --epic-ink: #e9edf8;
+  --epic-navy: #0d1220;
+  --epic-panel: #151d2e;
+  --epic-gold: #e3b85e;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 20% 12%, rgba(75, 114, 186, .18), transparent 34rem),
+    radial-gradient(circle at 85% 45%, rgba(153, 65, 92, .12), transparent 30rem),
+    #090d16;
+  color: var(--epic-ink);
+}
+
+.epic-topbar {
+  border-bottom: 1px solid #252d3e;
+  background: rgba(10, 14, 24, .96);
+  color: #f7f8fc;
+}
+.epic-topbar .brand-mark i { background: #e2b75d; }
+.epic-topbar .back-button,
+.epic-topbar .exit-button { color: #f5f6fb; border-color: #30394d; }
+.epic-shell .game-content { align-items: stretch; }
+.epic-info {
+  background:
+    linear-gradient(rgba(15, 22, 38, .92), rgba(15, 22, 38, .98)),
+    repeating-linear-gradient(135deg, transparent 0 18px, rgba(255,255,255,.02) 19px 20px);
+  color: #fff;
+}
+.epic-info .eyebrow { color: var(--epic-gold); }
+.epic-info h1 { color: #fff; }
+.epic-info p { color: #8f9aaf; }
+.epic-board-panel { background: transparent; padding-bottom: 64px; }
+
+.epic-side-note,
+.epic-side-status { margin-top: 34px; display: grid; gap: 8px; }
+.epic-side-note { padding: 16px; border: 1px solid #2c3549; border-radius: 14px; background: #11192a; }
+.epic-side-note span, .epic-side-note small { color: #818ba0; font-size: 11px; }
+.epic-side-note b { margin: 4px 0; color: #e8c475; }
+.epic-side-status div { padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #293247; border-radius: 12px; background: rgba(255,255,255,.035); }
+.epic-side-status span { color: #8d97aa; font-size: 11px; }
+.epic-side-status b { color: #edc874; font-size: 17px; }
+.epic-rules-button { width: 100%; margin-top: 13px; padding: 13px; border: 1px solid #313b50; border-radius: 12px; background: transparent; color: #dfe4ef; font-weight: 750; }
+
+.epic-setup {
+  padding: clamp(24px, 4vw, 48px);
+  border: 1px solid #232c3f;
+  border-radius: 25px;
+  background:
+    radial-gradient(circle at 88% 8%, rgba(78, 119, 197, .17), transparent 22rem),
+    linear-gradient(150deg, #141c2e, #0d1320);
+  box-shadow: 0 28px 80px rgba(0,0,0,.28);
+}
+.epic-setup-heading span,
+.epic-team-columns header span,
+.epic-map-picker header span { color: #d9b45f; font-size: 10px; font-weight: 900; letter-spacing: .18em; }
+.epic-setup-heading h2 { margin: 8px 0 10px; font-size: clamp(34px, 5vw, 54px); line-height: 1.04; letter-spacing: -.05em; }
+.epic-setup-heading p { max-width: 520px; margin: 0; color: #8793a9; line-height: 1.65; }
+.epic-team-columns { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.epic-team-columns section,
+.epic-map-picker { min-width: 0; padding: 16px; border: 1px solid #283247; border-radius: 17px; background: rgba(6, 10, 18, .42); }
+.epic-team-columns header,
+.epic-map-picker header { margin-bottom: 12px; display: flex; align-items: end; justify-content: space-between; }
+.epic-team-columns header strong,
+.epic-map-picker header strong { font-size: 18px; }
+.epic-team-columns section > div { max-height: 330px; display: grid; gap: 5px; overflow-y: auto; padding-right: 4px; }
+.epic-team-columns section > div::-webkit-scrollbar { width: 5px; }
+.epic-team-columns section > div::-webkit-scrollbar-thumb { border-radius: 9px; background: #384258; }
+.epic-team-columns section > div > button {
+  width: 100%;
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 9px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #182133;
+  color: #dce1ec;
+  text-align: left;
+}
+.epic-team-columns section > div > button:hover { background: #1d293d; }
+.epic-team-columns section > div > button.active { border-color: var(--team-color); background: color-mix(in srgb, var(--team-color) 17%, #172033); box-shadow: inset 3px 0 var(--team-color); }
+.epic-team-columns button > i { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: var(--team-color); color: #fff; font-style: normal; }
+.epic-team-columns button > span { min-width: 0; }
+.epic-team-columns button strong { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; }
+.epic-team-columns button small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #7e899f; font-size: 9px; }
+.epic-team-columns button > b { color: #e7c46e; font-size: 12px; }
+
+.epic-map-picker { margin-top: 14px; }
+.epic-map-picker > div { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.epic-map-picker button { min-width: 0; padding: 11px; display: flex; gap: 8px; align-items: center; border: 1px solid #303a4e; border-radius: 11px; background: #161f30; color: #d9dfeb; text-align: left; }
+.epic-map-picker button.active { border-color: #dfb85e; background: #2a2a2c; box-shadow: inset 0 -3px #dfb85e; }
+.epic-map-picker button i { font-size: 22px; color: #e0b965; font-style: normal; }
+.epic-map-picker button span { min-width: 0; }
+.epic-map-picker button strong, .epic-map-picker button small { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.epic-map-picker button strong { font-size: 10px; }
+.epic-map-picker button small { margin-top: 3px; color: #7f899d; font-size: 8px; }
+.epic-start-button { width: 100%; margin-top: 14px; padding: 16px 20px; display: flex; justify-content: space-between; border: 0; border-radius: 12px; background: linear-gradient(90deg, #b98a38, #e4bd65); color: #171817; font-size: 15px; font-weight: 900; box-shadow: 0 12px 25px rgba(185, 138, 56, .18); }
+
+.epic-versus { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 44px; }
+.epic-versus > em { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #687187; font-size: 11px; font-style: normal; font-weight: 900; }
+.epic-versus article { min-width: 0; padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; border: 1px solid #283247; border-top: 3px solid var(--team-color); border-radius: 13px; background: #121a2a; }
+.epic-versus article > span { color: #737f95; font-size: 9px; font-weight: 900; letter-spacing: .14em; }
+.epic-versus article > strong { grid-column: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; }
+.epic-versus article > div { grid-column: 1; display: flex; gap: 5px; margin-top: 8px; }
+.epic-versus article > div i { position: relative; width: 37px; height: 37px; display: grid; place-items: center; border: 2px solid var(--team-color); border-radius: 50%; color: #fff; background: #222c40; font-size: 10px; font-style: normal; font-weight: 900; }
+.epic-versus article > div i.dead { opacity: .25; filter: grayscale(1); }
+.epic-versus article > div small { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); padding: 1px 4px; border-radius: 5px; background: #090e18; color: #bbc4d4; font-size: 7px; white-space: nowrap; }
+.epic-versus article > b { grid-column: 2; grid-row: 2 / 4; align-self: center; color: #e6c36d; font-size: 13px; }
+
+.epic-turn-head { margin: 18px 0 12px; display: flex; justify-content: space-between; align-items: center; }
+.epic-turn-head > div:first-child span { color: #d9b45f; font-size: 9px; font-weight: 900; letter-spacing: .14em; }
+.epic-turn-head h2 { margin: 3px 0 0; font-size: 23px; }
+.epic-roll { width: 60px; height: 60px; display: grid; place-items: center; align-content: center; border: 1px solid #33405a; border-radius: 15px; background: #151f32; }
+.epic-roll b { color: #f1ca72; font-size: 25px; line-height: 1; }
+.epic-roll span { margin-top: 3px; color: #8490a6; font-size: 7px; font-weight: 900; }
+.epic-roll.all { border-color: #b8873d; box-shadow: 0 0 18px rgba(218, 178, 89, .15); }
+
+.epic-arena { position: relative; padding: 18px; border: 1px solid #303b51; border-radius: 20px; background: linear-gradient(135deg, #1b2639, #111928); box-shadow: inset 0 0 50px rgba(0,0,0,.3), 0 15px 40px rgba(0,0,0,.24); }
+.epic-arena::before { content: ""; position: absolute; inset: 9px; border: 1px solid rgba(231, 193, 106, .12); border-radius: 15px; pointer-events: none; }
+.epic-arena.kamino { background: linear-gradient(135deg, #203c51, #122331); }
+.epic-arena.geonosis { background: linear-gradient(135deg, #493125, #211b1b); }
+.epic-arena.carbon { background: linear-gradient(135deg, #1f3540, #171e28); }
+.epic-arena.throne { background: linear-gradient(135deg, #2c2338, #151522); }
+.epic-grid { position: relative; z-index: 1; aspect-ratio: 1; display: grid; grid-template-columns: repeat(9, 1fr); border: 1px solid rgba(255,255,255,.11); }
+.epic-grid > button { position: relative; min-width: 0; padding: 0; display: grid; place-items: center; border: solid rgba(255,255,255,.075); border-width: 0 1px 1px 0; background: rgba(255,255,255,.018); }
+.epic-grid > button:nth-child(9n) { border-right: 0; }
+.epic-grid > button:disabled { opacity: 1; }
+.epic-grid > button.reachable { background: rgba(83, 153, 202, .18); box-shadow: inset 0 0 0 2px rgba(104, 183, 234, .35); }
+.epic-grid > button.target { background: rgba(205, 72, 72, .22); animation: epicTarget 1.35s ease-in-out infinite; }
+@keyframes epicTarget { 50% { box-shadow: inset 0 0 0 3px rgba(255, 110, 92, .72); } }
+.epic-obstacle { width: 62%; height: 62%; display: grid; place-items: center; background: rgba(5, 8, 13, .45); color: #626d80; transform: rotate(45deg); font-size: 13px; }
+.epic-figure { position: absolute; z-index: 2; width: 72%; aspect-ratio: 1; display: grid; place-items: center; border: 3px solid var(--figure-color); border-radius: 50%; background: #e9edf3; color: #18202e; box-shadow: 0 5px 10px rgba(0,0,0,.4); }
+.epic-figure.side-1 { background: #242b39; color: #f1f3f7; }
+.epic-figure.selected { outline: 4px solid rgba(237, 197, 104, .55); transform: scale(1.08); }
+.epic-figure.stunned { filter: grayscale(.8); opacity: .7; }
+.epic-figure.stunned::after { content: "⊘"; position: absolute; inset: -5px; display: grid; place-items: center; border-radius: 50%; background: rgba(31,37,48,.54); color: #e9c66d; font-size: 18px; }
+.epic-figure b { font-size: clamp(7px, 1.4vw, 13px); }
+.epic-figure small { position: absolute; right: -3px; bottom: -4px; min-width: 18px; height: 18px; padding: 0 3px; display: grid; place-items: center; border-radius: 9px; background: #b74242; color: #fff; font-size: 8px; font-weight: 900; }
+
+.epic-move-actions { margin-top: 11px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #29354a; border-radius: 12px; background: #111a2a; }
+.epic-move-actions p { margin: 0; color: #8e99ae; font-size: 11px; }
+.epic-move-actions button { padding: 10px 12px; border: 0; border-radius: 9px; background: #d5ae57; color: #16191f; font-weight: 850; white-space: nowrap; }
+
+.epic-hand { margin-top: 13px; padding: 15px; border: 1px solid #2a354a; border-radius: 17px; background: #111a2a; }
+.epic-hand > header { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.epic-hand > header span { display: block; color: #d9b45f; font-size: 8px; font-weight: 900; letter-spacing: .15em; }
+.epic-hand > header strong { font-size: 18px; }
+.epic-hand > header div:last-child { display: flex; gap: 6px; }
+.epic-hand > header button { padding: 8px 10px; border: 1px solid #364158; border-radius: 8px; background: #1d283b; color: #dbe1ec; font-size: 10px; font-weight: 800; }
+.epic-hand > p { margin: 9px 0 5px; color: #78859b; font-size: 9px; }
+.epic-hand > div:last-child,
+.epic-defense > div { display: flex; gap: 8px; overflow-x: auto; padding: 8px 2px; }
+
+.epic-card { flex: 0 0 118px; min-height: 160px; padding: 11px 9px; display: flex; flex-direction: column; border: 1px solid #3d4960; border-top: 5px solid #6f7f9c; border-radius: 11px; background: linear-gradient(#f3f1e9, #d9d8d4); color: #20242c; text-align: left; box-shadow: 0 8px 15px rgba(0,0,0,.24); }
+.epic-card.power { border-top-color: #ca8d3e; }
+.epic-card.special { border-top-color: #765fb2; background: linear-gradient(#ede9f5, #d8d2e7); }
+.epic-card:hover { transform: translateY(-4px); }
+.epic-card:disabled { opacity: .4; transform: none; }
+.epic-card small { color: #7e7c75; font-size: 7px; font-weight: 900; letter-spacing: .12em; }
+.epic-card > strong { min-height: 30px; margin-top: 5px; font-size: 11px; line-height: 1.2; }
+.epic-card > div { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 7px; }
+.epic-card > div b { padding: 7px 3px; border-radius: 7px; background: #242c3a; color: #fff; font-size: 10px; text-align: center; }
+.epic-card > div b:first-child { background: #a74642; }
+.epic-card p { margin: auto 0 0; color: #565a61; font-size: 8px; line-height: 1.4; }
+.epic-special-mark { margin-top: 8px; padding: 6px; border-radius: 6px; background: #584487; color: #fff; font-size: 8px; font-weight: 900; text-align: center; }
+
+.epic-prompt,
+.epic-defense,
+.epic-result,
+.epic-log { margin-top: 13px; border: 1px solid #2a354a; border-radius: 16px; background: #111a2a; }
+.epic-prompt { padding: 15px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; }
+.epic-prompt > span { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: #513e25; color: #ebc46c; font-size: 21px; }
+.epic-prompt small, .epic-defense header > span, .epic-result small { color: #dcb75e; font-size: 8px; font-weight: 900; letter-spacing: .15em; }
+.epic-prompt h3, .epic-defense h3 { margin: 2px 0; }
+.epic-prompt p, .epic-defense p { margin: 0; color: #8792a8; font-size: 10px; }
+.epic-prompt button { padding: 9px 12px; border: 1px solid #39445a; border-radius: 8px; background: transparent; color: #d8deea; }
+.epic-defense { padding: 17px; box-shadow: inset 0 4px #b44c48; }
+.epic-defense > button { width: 100%; padding: 11px; border: 1px solid #445069; border-radius: 10px; background: #1c273a; color: #dfe4ee; font-weight: 800; }
+.epic-result { padding: 19px; display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+.epic-result > span { font-size: 48px; color: #e7c16a; }
+.epic-result h2 { margin: 3px 0; }
+.epic-result p { margin: 0; color: #828da2; font-size: 11px; }
+.epic-result button { padding: 12px; border: 0; border-radius: 9px; background: #dcb55e; color: #181a1f; font-weight: 850; }
+.epic-result button.secondary { background: #242f42; color: #dbe0ea; }
+.epic-log { padding: 13px; }
+.epic-log > strong { color: #d8b25c; font-size: 8px; letter-spacing: .14em; }
+.epic-log > div { margin-top: 7px; display: grid; gap: 4px; }
+.epic-log span { padding: 7px 8px; border-radius: 6px; background: rgba(255,255,255,.025); color: #8792a7; font-size: 9px; }
+
+.epic-modal-backdrop { position: fixed; inset: 0; z-index: 100; padding: 18px; display: grid; place-items: center; background: rgba(4,7,12,.8); backdrop-filter: blur(6px); }
+.epic-rules-modal { width: min(690px, 100%); max-height: 90vh; padding: 24px; overflow-y: auto; border: 1px solid #334057; border-radius: 22px; background: #111a2a; color: #e8ecf4; box-shadow: 0 28px 80px rgba(0,0,0,.45); }
+.epic-rules-modal > header { display: flex; justify-content: space-between; align-items: flex-start; }
+.epic-rules-modal > header span { color: #dcb75e; font-size: 9px; font-weight: 900; letter-spacing: .16em; }
+.epic-rules-modal h2 { margin: 4px 0 18px; }
+.epic-rules-modal > header button { width: 37px; height: 37px; border: 1px solid #39445a; border-radius: 50%; background: #1e293c; color: #fff; font-size: 21px; }
+.epic-rule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.epic-rule-grid article { padding: 13px; display: flex; gap: 10px; border-radius: 11px; background: #1a2436; }
+.epic-rule-grid article > b { flex: 0 0 25px; height: 25px; display: grid; place-items: center; border-radius: 7px; background: #b58b3e; color: #151821; }
+.epic-rule-grid strong { font-size: 12px; }
+.epic-rule-grid p { margin: 4px 0 0; color: #8d98ac; font-size: 10px; line-height: 1.5; }
+.epic-card-guide { margin-top: 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.epic-card-guide span { padding: 9px; border: 1px solid #303b50; border-radius: 8px; color: #9da7b9; font-size: 9px; text-align: center; }
+.epic-card-guide b { color: #e3bf69; }
+.epic-rule-note { padding: 11px; border-radius: 9px; background: #1a2436; color: #8f9aae; font-size: 10px; }
+.epic-modal-close { width: 100%; padding: 13px; border: 0; border-radius: 10px; background: #dcb55e; color: #181a1f; font-weight: 900; }
+
+.epic-duels-card-art { background: radial-gradient(circle at 50% 48%, rgba(213,178,89,.2), transparent 23%), linear-gradient(145deg, #18243b, #090d17); }
+.epic-preview-duel { position: absolute; inset: 28px; }
+.epic-preview-duel::before { content: ""; position: absolute; left: 50%; top: 8%; bottom: 10%; width: 2px; transform: rotate(20deg); background: linear-gradient(transparent, #dcb85e, transparent); box-shadow: 0 0 18px #dcb85e; }
+.epic-preview-duel span { position: absolute; width: 76px; height: 76px; display: grid; place-items: center; border: 3px solid; border-radius: 50%; background: #111a2a; color: #fff; font-size: 28px; font-style: normal; font-weight: 900; box-shadow: 0 10px 24px rgba(0,0,0,.32); }
+.epic-preview-duel .light { left: 15%; top: 28%; border-color: #55a5dc; }
+.epic-preview-duel .dark { right: 15%; bottom: 20%; border-color: #d8534f; }
+.epic-preview-duel i { position: absolute; left: 50%; top: 48%; transform: translate(-50%,-50%); color: #e8c36e; font-size: 23px; font-style: normal; font-weight: 900; }
+
+@media (max-width: 900px) {
+  .epic-map-picker > div { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 640px) {
+  .epic-board-panel { padding-left: 12px; padding-right: 12px; }
+  .epic-setup { padding: 22px 14px; border-radius: 18px; }
+  .epic-team-columns { grid-template-columns: 1fr; }
+  .epic-team-columns section > div { max-height: 245px; }
+  .epic-versus { gap: 22px; }
+  .epic-versus article { padding: 10px; }
+  .epic-versus article > div i { width: 31px; height: 31px; }
+  .epic-versus article > b { display: none; }
+  .epic-turn-head h2 { font-size: 18px; }
+  .epic-roll { width: 53px; height: 53px; }
+  .epic-arena { padding: 10px; border-radius: 14px; }
+  .epic-figure { border-width: 2px; }
+  .epic-figure small { min-width: 15px; height: 15px; font-size: 7px; }
+  .epic-move-actions { align-items: stretch; flex-direction: column; }
+  .epic-hand > header { align-items: flex-start; flex-direction: column; }
+  .epic-card { flex-basis: 108px; min-height: 151px; }
+  .epic-rule-grid { grid-template-columns: 1fr; }
+  .epic-card-guide { grid-template-columns: 1fr 1fr; }
+}

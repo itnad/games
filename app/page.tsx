@@ -16,6 +16,7 @@ import { ConfrontationGame } from "./confrontation-game";
 import { LoveLetterGame } from "./love-letter-game";
 import { MinivilleGame } from "./miniville-game";
 import { PickPicnicGame } from "./pick-picnic-game";
+import { EpicDuelsGame } from "./epic-duels-game";
 import {
   BackgammonGame,
   ChineseCheckersGame,
@@ -46,7 +47,8 @@ type GameId =
   | "confrontation"
   | "love-letter"
   | "miniville"
-  | "pick-picnic";
+  | "pick-picnic"
+  | "epic-duels";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -226,6 +228,14 @@ const GAMES: GameDefinition[] = [
     category: "전략",
     players: "AI 포함 2~6인",
     tone: "green",
+  },
+  {
+    id: "epic-duels",
+    title: "스타워즈 에픽 듀얼",
+    subtitle: "전설적인 캐릭터 팀을 이끌어 카드와 전술로 결투하세요",
+    category: "전략",
+    players: "AI 1:1",
+    tone: "navy",
   },
 ];
 
@@ -432,6 +442,19 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <i /><i /><i />
         </div>
         <span className="float-chip">2~6 players</span>
+      </div>
+    );
+  }
+
+  if (game.id === "epic-duels") {
+    return (
+      <div className="card-art epic-duels-card-art" aria-hidden="true">
+        <div className="epic-preview-duel">
+          <span className="light">✦</span>
+          <i>VS</i>
+          <span className="dark">◆</span>
+        </div>
+        <span className="float-chip">12 teams</span>
       </div>
     );
   }
@@ -1358,6 +1381,9 @@ export default function Home() {
   }
   if (activeGame === "pick-picnic") {
     return <PickPicnicGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "epic-duels") {
+    return <EpicDuelsGame onExit={() => setActiveGame(null)} />;
   }
 
   return (
