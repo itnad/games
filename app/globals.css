@@ -1251,6 +1251,37 @@ footer > span {
   font-size: clamp(16px, 4.2vw, 25px);
   letter-spacing: .025em;
 }
+.qwixx-learning-goal {
+  margin: 14px 0 16px;
+  padding: 16px;
+  border: 1px solid #e8c9cc;
+  border-left: 5px solid var(--learning-color);
+  border-radius: 14px;
+  background:
+    linear-gradient(110deg, rgba(201,73,83,.11), rgba(221,177,58,.08) 48%, rgba(67,125,175,.09)),
+    #fffdf9;
+}
+.qwixx-learning-goal span {
+  display: block;
+  color: var(--learning-color);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+.qwixx-learning-goal strong {
+  display: block;
+  margin-top: 5px;
+  color: #392f35;
+  font-size: 17px;
+  line-height: 1.35;
+}
+.qwixx-learning-goal p {
+  margin: 7px 0 0;
+  color: #756a70;
+  font-size: 12px;
+  line-height: 1.55;
+}
 
 .learning-backdrop {
   padding: 20px;

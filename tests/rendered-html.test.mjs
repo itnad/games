@@ -178,6 +178,8 @@ test("runs SD Gundam Deluxe space and fortress manual rules", () => {
 test("includes Qwixx game rules and a guided tutorial", async () => {
   const source = await readFile(new URL("../app/qwixx-game.tsx", import.meta.url), "utf8");
   assert.match(source, /게임 방법/);
+  assert.match(source, /게임 목표/);
+  assert.match(source, /최종 점수가 가장 높은 사람이 승리/);
   assert.match(source, /튜토리얼/);
   assert.match(source, /공용 합/);
   assert.match(source, /개인 조합/);

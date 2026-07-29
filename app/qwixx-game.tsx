@@ -65,6 +65,10 @@ type QwixxTutorialStep = QwixxLearningItem & {
 
 const QWIXX_RULES: QwixxLearningItem[] = [
   {
+    title: "게임 목표",
+    body: "네 색 줄에 숫자를 전략적으로 체크해 점수를 쌓으세요. 게임이 끝나면 네 줄의 점수 합계에서 실패 점수를 뺀 최종 점수가 가장 높은 사람이 승리합니다.",
+  },
+  {
     title: "네 색 줄의 방향",
     body: "빨강·노랑은 2에서 12로, 초록·파랑은 12에서 2로 진행합니다. 모든 줄은 화면의 왼쪽에서 오른쪽으로만 체크합니다.",
   },
@@ -178,7 +182,12 @@ function QwixxLearningTools() {
             <h2 id="qwixx-learning-title">큐윅스 {mode === "rules" ? "게임 방법" : "따라하기"}</h2>
             {mode === "rules" ? (
               <>
-                <p className="learning-intro">한 차례의 두 가지 선택부터 줄 잠금과 점수 계산까지 순서대로 확인하세요.</p>
+                <section className="qwixx-learning-goal" aria-label="큐윅스 게임 목표">
+                  <span>GAME GOAL</span>
+                  <strong>네 색 줄에서 가장 높은 최종 점수를 만드세요</strong>
+                  <p>숫자를 왼쪽에서 오른쪽으로 체크해 점수를 쌓고, 실패 감점을 줄이세요. 두 줄이 잠기거나 한 선수가 실패 4회에 도달하면 점수를 비교해 가장 높은 사람이 승리합니다.</p>
+                </section>
+                <p className="learning-intro">목표를 확인했다면 한 차례의 두 가지 선택부터 줄 잠금과 점수 계산까지 순서대로 살펴보세요.</p>
                 <ol className="learning-rules">
                   {QWIXX_RULES.map((rule, index) => (
                     <li key={rule.title}>
