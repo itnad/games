@@ -14,6 +14,7 @@ import { IncanGoldGame } from "./incan-gold-game";
 import { QwixxGame } from "./qwixx-game";
 import { ConfrontationGame } from "./confrontation-game";
 import { LoveLetterGame } from "./love-letter-game";
+import { MinivilleGame } from "./miniville-game";
 import {
   BackgammonGame,
   ChineseCheckersGame,
@@ -42,7 +43,8 @@ type GameId =
   | "incan-gold"
   | "qwixx"
   | "confrontation"
-  | "love-letter";
+  | "love-letter"
+  | "miniville";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -206,6 +208,14 @@ const GAMES: GameDefinition[] = [
     category: "추리",
     players: "AI 포함 2~6인",
     tone: "red",
+  },
+  {
+    id: "miniville",
+    title: "미니빌",
+    subtitle: "주사위 수입으로 나만의 작은 도시를 완성하세요",
+    category: "주사위",
+    players: "AI 포함 2~4인",
+    tone: "blue",
   },
 ];
 
@@ -385,6 +395,19 @@ function GameArtwork({ game }: { game: GameDefinition }) {
         </div>
         <span className="love-preview-seal">♥</span>
         <span className="float-chip">2~6 players</span>
+      </div>
+    );
+  }
+
+  if (game.id === "miniville") {
+    return (
+      <div className="card-art miniville-card-art" aria-hidden="true">
+        <div className="miniville-preview-town">
+          <i className="sun">☀</i>
+          <i className="building">▥</i>
+          <i className="tree">♣</i>
+        </div>
+        <span className="float-chip">2~4 players</span>
       </div>
     );
   }
@@ -1305,6 +1328,9 @@ export default function Home() {
   }
   if (activeGame === "love-letter") {
     return <LoveLetterGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "miniville") {
+    return <MinivilleGame onExit={() => setActiveGame(null)} />;
   }
 
   return (

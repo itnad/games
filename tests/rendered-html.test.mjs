@@ -32,6 +32,17 @@ import {
   loveLetterSpyBonus,
   loveLetterValidTargets,
 } from "../app/love-letter-engine.js";
+import {
+  MINIVILLE_ESTABLISHMENTS,
+  minivilleApplyTrade,
+  minivilleApplyTvStation,
+  minivilleBuildLandmark,
+  minivilleBuyEstablishment,
+  minivilleCreateMarket,
+  minivilleCreatePlayer,
+  minivilleResolveBaseIncome,
+  minivilleWinner,
+} from "../app/miniville-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -82,13 +93,64 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /큐윅스/);
   assert.match(html, /빛과 그림자의 대결/);
   assert.match(html, /러브레터/);
-  assert.match(html, /열아홉 가지/);
+  assert.match(html, /미니빌/);
+  assert.match(html, /스무 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
+});
+
+test("runs Miniville income, construction, trade, and landmark rules", () => {
+  assert.equal(MINIVILLE_ESTABLISHMENTS.length, 15);
+  const market = minivilleCreateMarket();
+  assert.equal(market.wheat, 6);
+  assert.equal(market.stadium, 4);
+
+  const player = minivilleCreatePlayer(0, "나");
+  const rival = {
+    ...minivilleCreatePlayer(1, "AI"),
+    cards: { wheat: 1, bakery: 1, cafe: 1 },
+  };
+  const income = minivilleResolveBaseIncome([player, rival], 0, 3);
+  assert.equal(income.players[0].coins, 3);
+  assert.equal(income.players[1].coins, 4);
+
+  const mallPlayer = { ...player, landmarks: ["mall"] };
+  const mallIncome = minivilleResolveBaseIncome([mallPlayer, minivilleCreatePlayer(1, "AI")], 0, 3);
+  assert.equal(mallIncome.players[0].coins, 5);
+
+  const factoryPlayer = {
+    ...player,
+    cards: { wheat: 1, bakery: 1, ranch: 2, "cheese-factory": 1 },
+  };
+  const factoryIncome = minivilleResolveBaseIncome([factoryPlayer, minivilleCreatePlayer(1, "AI")], 0, 7);
+  assert.equal(factoryIncome.players[0].coins, 9);
+
+  const richRival = { ...rival, coins: 8 };
+  const tv = minivilleApplyTvStation([player, richRival], 0, 1);
+  assert.equal(tv.paid, 5);
+  assert.equal(tv.players[0].coins, 8);
+  assert.equal(tv.players[1].coins, 3);
+
+  const traded = minivilleApplyTrade([player, rival], 0, 1, "wheat", "cafe");
+  assert.equal(traded[0].cards.wheat, 0);
+  assert.equal(traded[0].cards.cafe, 1);
+  assert.equal(traded[1].cards.wheat, 2);
+  assert.equal(traded[1].cards.cafe, 0);
+
+  const bought = minivilleBuyEstablishment([{ ...player, coins: 5 }], market, 0, "forest");
+  assert.equal(bought.bought, true);
+  assert.equal(bought.players[0].coins, 2);
+  assert.equal(bought.market.forest, 5);
+
+  let landmarkPlayers = [{ ...player, coins: 60 }];
+  for (const id of ["station", "mall", "amusement", "radio"]) {
+    landmarkPlayers = minivilleBuildLandmark(landmarkPlayers, 0, id).players;
+  }
+  assert.equal(minivilleWinner(landmarkPlayers), 0);
 });
 
 test("runs the official 21-card Love Letter rules", () => {
