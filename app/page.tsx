@@ -17,6 +17,7 @@ import { LoveLetterGame } from "./love-letter-game";
 import { MinivilleGame } from "./miniville-game";
 import { PickPicnicGame } from "./pick-picnic-game";
 import { EpicDuelsGame } from "./epic-duels-game";
+import { SdGundamDeluxeGame } from "./sd-gundam-deluxe-game";
 import {
   BackgammonGame,
   ChineseCheckersGame,
@@ -48,7 +49,8 @@ type GameId =
   | "love-letter"
   | "miniville"
   | "pick-picnic"
-  | "epic-duels";
+  | "epic-duels"
+  | "sd-gundam-deluxe";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -236,6 +238,14 @@ const GAMES: GameDefinition[] = [
     category: "전략",
     players: "AI 1:1",
     tone: "navy",
+  },
+  {
+    id: "sd-gundam-deluxe",
+    title: "SD 간담 디럭스",
+    subtitle: "우주 기지를 점령하거나 요새에서 SD 부대를 지휘하세요",
+    category: "전략",
+    players: "AI 포함 2~6인",
+    tone: "blue",
   },
 ];
 
@@ -455,6 +465,20 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <span className="dark">◆</span>
         </div>
         <span className="float-chip">12 teams</span>
+      </div>
+    );
+  }
+
+  if (game.id === "sd-gundam-deluxe") {
+    return (
+      <div className="card-art sd-deluxe-card-art" aria-hidden="true">
+        <div className="sd-preview-space">
+          <span className="one">G-1</span>
+          <span className="two">Z-2</span>
+          <span className="three">G-3</span>
+          <i /><i /><i />
+        </div>
+        <span className="float-chip">SIDE A · B</span>
       </div>
     );
   }
@@ -1384,6 +1408,9 @@ export default function Home() {
   }
   if (activeGame === "epic-duels") {
     return <EpicDuelsGame onExit={() => setActiveGame(null)} />;
+  }
+  if (activeGame === "sd-gundam-deluxe") {
+    return <SdGundamDeluxeGame onExit={() => setActiveGame(null)} />;
   }
 
   return (

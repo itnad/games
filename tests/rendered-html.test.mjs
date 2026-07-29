@@ -63,6 +63,17 @@ import {
   epicReachableCells,
   epicResolveCombat,
 } from "../app/epic-duels-engine.js";
+import {
+  SD_SPACE_BASES,
+  sdCaptureResult,
+  sdCreateBattleDeck,
+  sdCreateSpaceGame,
+  sdDuelResult,
+  sdFortressCannonCells,
+  sdFortressCreateGame,
+  sdFortressReachable,
+  sdFortressResolveBattle,
+} from "../app/sd-gundam-deluxe-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -116,13 +127,51 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /미니빌/);
   assert.match(html, /픽 피크닉/);
   assert.match(html, /스타워즈 에픽 듀얼/);
-  assert.match(html, /스물두 가지/);
+  assert.match(html, /SD 간담 디럭스/);
+  assert.match(html, /스물세 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
+});
+
+test("runs SD Gundam Deluxe space and fortress manual rules", () => {
+  const deck = sdCreateBattleDeck(() => 0.42);
+  assert.equal(deck.length, 36);
+  assert.equal(SD_SPACE_BASES.length, 10);
+
+  const space = sdCreateSpaceGame(6, () => 0.42);
+  assert.equal(space.players.length, 6);
+  assert.ok(space.players.every((player) => player.hand.length === 3));
+  assert.equal(space.deck.length, 18);
+
+  const base = { hp: 200 };
+  assert.deepEqual(
+    sdCaptureResult([{ hp: 120 }, { hp: 90 }], base),
+    { total: 210, success: true },
+  );
+  assert.equal(sdCaptureResult([{ hp: 100 }, { hp: 100 }], base).success, false);
+  assert.equal(sdDuelResult({ hp: 140 }, { hp: 120 }).winner, 0);
+  assert.equal(sdDuelResult({ hp: 140 }, { hp: 140 }).winner, null);
+
+  const fortress = sdFortressCreateGame(2, () => 0.42);
+  assert.equal(fortress.pieces.filter((piece) => piece.side === 0).length, 9);
+  assert.equal(fortress.pieces.filter((piece) => piece.side === 1).length, 9);
+  const fourPlayerFortress = sdFortressCreateGame(4, () => 0.42);
+  assert.equal(fourPlayerFortress.pieces.length, 36);
+  const reachable = sdFortressReachable(fortress, "0-0", 5);
+  assert.ok(reachable.length > 0);
+  assert.ok(reachable.every(([row, column]) => row >= 0 && row < 9 && column >= 0 && column < 9));
+
+  const cannon = sdFortressCannonCells([4, 0], "right", 8);
+  assert.deepEqual(cannon.at(-1), [4, 3], "the central obstacle stops the particle cannon");
+  assert.equal(
+    sdFortressResolveBattle({ hp: 100 }, { hp: 110 }, [7, 2], [0, 0]).winner,
+    0,
+    "the +30 terrain bonus applies to the attacker",
+  );
 });
 
 test("builds all twelve 31-card Epic Duels teams and resolves combat", () => {
