@@ -76,6 +76,15 @@ import {
   sdFortressReachable,
   sdFortressResolveBattle,
 } from "../app/sd-gundam-deluxe-engine.js";
+import {
+  SY_EDGES,
+  SY_NODES,
+  SY_REVEAL_MOVES,
+  syAdvanceCandidates,
+  syChooseMrXMove,
+  syCreateInitialState,
+  syLegalMoves,
+} from "../app/scotland-yard-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -123,6 +132,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "pick-picnic",
     "epic-duels",
     "sd-gundam-deluxe",
+    "scotland-yard",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -187,13 +197,66 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /픽 피크닉/);
   assert.match(html, /스타워즈 에픽 듀얼/);
   assert.match(html, /SD 간담 디럭스/);
-  assert.match(html, /스물세 가지/);
+  assert.match(html, /스코틀랜드 야드/);
+  assert.match(html, /스물네 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
+});
+
+test("runs Scotland Yard hidden movement, tickets, and fair AI", () => {
+  assert.equal(SY_NODES.length, 96);
+  assert.equal(new Set(SY_NODES.map((node) => node.id)).size, 96);
+  assert.deepEqual(SY_REVEAL_MOVES, [3, 8, 13, 18, 24]);
+  assert.ok(["taxi", "bus", "underground", "ferry"].every(
+    (transport) => SY_EDGES.some((edge) => edge.transport === transport),
+  ));
+
+  const detectiveMoves = syLegalMoves(37, {
+    tickets: { taxi: 11, bus: 8, underground: 4 },
+    occupied: [38],
+  });
+  assert.ok(detectiveMoves.every((move) => move.transport !== "ferry"));
+  assert.ok(detectiveMoves.every((move) => move.to !== 38));
+
+  const bobbyMoves = syLegalMoves(37, {
+    tickets: { taxi: 0, bus: 0, underground: 0 },
+    isBobby: true,
+  });
+  assert.ok(bobbyMoves.length > 0);
+  assert.ok(bobbyMoves.every((move) => move.transport !== "ferry"));
+
+  const mrXMoves = syLegalMoves(37, {
+    occupied: [],
+    isMrX: true,
+    blackTickets: 1,
+  });
+  assert.ok(mrXMoves.some((move) => move.transport === "ferry"));
+
+  const visibleCandidates = syAdvanceCandidates([37], "taxi");
+  const blackCandidates = syAdvanceCandidates([37], "black");
+  assert.ok(visibleCandidates.every((node) => blackCandidates.includes(node)));
+  assert.ok(blackCandidates.length > visibleCandidates.length);
+
+  const aiMove = syChooseMrXMove({
+    node: 43,
+    detectiveNodes: [1, 12, 85, 96],
+    difficulty: "inspector",
+    blackTickets: 5,
+    random: () => 0.42,
+  });
+  assert.ok(aiMove);
+  assert.ok(![1, 12, 85, 96].includes(aiMove.to));
+
+  const state = syCreateInitialState(() => 0.42);
+  assert.equal(state.detectives.length, 4);
+  assert.equal(new Set(state.detectives.map((piece) => piece.node)).size, 4);
+  assert.ok(!state.detectives.some((piece) => piece.node === state.mrX.node));
+  assert.equal(state.mrX.blackTickets, 5);
+  assert.equal(state.mrX.doubleTickets, 2);
 });
 
 test("runs SD Gundam Deluxe space and fortress manual rules", () => {
