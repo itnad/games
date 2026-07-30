@@ -124,6 +124,16 @@ import {
   tichuNextRound,
   tichuResolvePassing,
 } from "../app/tichu-engine.js";
+import {
+  CFE_DEALS,
+  CFE_INNER_TRACK,
+  cfeBorrow,
+  cfeChooseAiAction,
+  cfeCreateGame,
+  cfeFinancials,
+  cfeRepayLiability,
+  cfeResolvePending,
+} from "../app/cashflow-escape-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -176,6 +186,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "seven-wonders",
     "camel-up",
     "tichu",
+    "cashflow-escape",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -245,7 +256,8 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /7원더스/);
   assert.match(html, /카멜 업/);
   assert.match(html, /티츄/);
-  assert.match(html, /스물여덟 가지/);
+  assert.match(html, /현금흐름 탈출/);
+  assert.match(html, /스물아홉 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
@@ -369,6 +381,52 @@ test("runs Tichu combinations, team rounds, and a complete match", () => {
   assert.ok(game.round >= 1);
   assert.ok(rounds < 30);
   assert.ok(actions < 5000);
+});
+
+test("runs Cashflow Escape financial statements, debt, and 2-to-6 player journeys", () => {
+  assert.equal(CFE_INNER_TRACK.length, 24);
+  assert.ok(CFE_DEALS.some((deal) => deal.category === "realestate"));
+  assert.ok(CFE_DEALS.some((deal) => deal.category === "stock"));
+  assert.ok(CFE_DEALS.some((deal) => deal.category === "business"));
+
+  const financeGame = cfeCreateGame(2, "balanced", () => 0.3);
+  const before = cfeFinancials(financeGame.players[0]);
+  const debt = financeGame.players[0].liabilities.find((item) => item.balance <= financeGame.players[0].cash);
+  if (debt) {
+    const repaid = cfeRepayLiability(financeGame, 0, debt.id);
+    const after = cfeFinancials(repaid.players[0]);
+    assert.equal(after.totalExpenses, before.totalExpenses - debt.payment);
+    assert.equal(repaid.players[0].cash, financeGame.players[0].cash - debt.balance);
+  }
+  const borrowed = cfeBorrow(financeGame, 0, 100);
+  assert.equal(borrowed.players[0].bankLoan, 100);
+  assert.equal(cfeFinancials(borrowed.players[0]).totalExpenses, before.totalExpenses + 10);
+
+  const pending = cfeCreateGame(2, "balanced", () => 0.2);
+  pending.pending = { kind: "deal", playerId: 0, card: CFE_DEALS[0] };
+  pending.players[0].cash = CFE_DEALS[0].cost + 100;
+  const invested = cfeResolvePending(pending, 0, "buy");
+  assert.equal(invested.players[0].assets.length, 1);
+  assert.equal(cfeFinancials(invested.players[0]).passiveIncome, CFE_DEALS[0].income);
+
+  for (const playerCount of [2, 3, 4, 5, 6]) {
+    let seed = 9070 + playerCount;
+    const random = () => {
+      seed = (seed * 48271) % 2147483647;
+      return seed / 2147483647;
+    };
+    let game = cfeCreateGame(playerCount, "sharp", random);
+    let actions = 0;
+    while (game.phase !== "finished" && actions < 4000) {
+      game = cfeChooseAiAction(game, game.currentPlayer, random);
+      actions += 1;
+    }
+    assert.equal(game.phase, "finished", `${playerCount}인 게임이 완주되어야 합니다.`);
+    assert.ok(game.winner >= 0 && game.winner < playerCount);
+    assert.equal(game.standings.length, playerCount);
+    assert.ok(game.players.some((player) => player.stage === "growth"));
+    assert.ok(actions < 4000);
+  }
 });
 
 test("runs Scotland Yard hidden movement, tickets, and fair AI", () => {

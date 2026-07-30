@@ -23,6 +23,7 @@ import { WhitechapelGame } from "./whitechapel-game";
 import { SevenWondersGame } from "./seven-wonders-game";
 import { CamelUpGame } from "./camel-up-game";
 import { TichuGame } from "./tichu-game";
+import { CashflowEscapeGame } from "./cashflow-escape-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -61,7 +62,8 @@ type GameId =
   | "whitechapel"
   | "seven-wonders"
   | "camel-up"
-  | "tichu";
+  | "tichu"
+  | "cashflow-escape";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -185,6 +187,14 @@ const GAMES: GameDefinition[] = [
     category: "전략",
     players: "AI 포함 4인 팀전",
     tone: "red",
+  },
+  {
+    id: "cashflow-escape",
+    title: "현금흐름 탈출",
+    subtitle: "자산이 일하는 구조를 만들어 재무 자유에 도전하세요",
+    category: "전략",
+    players: "AI 포함 2~6인",
+    tone: "teal",
   },
   {
     id: "nine-mens-morris",
@@ -504,6 +514,19 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           </div>
         </div>
         <span className="float-chip">2 vs 2 teams</span>
+      </div>
+    );
+  }
+
+  if (game.id === "cashflow-escape") {
+    return (
+      <div className="card-art cashflow-escape-card-art" aria-hidden="true">
+        <div className="cashflow-escape-preview">
+          <i className="orbit one" /><i className="orbit two" />
+          <span className="won">₩</span>
+          <div className="flow"><i>INCOME</i><i>−</i><i>EXPENSE</i><i>= +45</i></div>
+        </div>
+        <span className="float-chip">2–6 investors</span>
       </div>
     );
   }
@@ -1523,6 +1546,9 @@ export default function Home() {
   }
   if (activeGame === "tichu") {
     return <GuidedGame gameId={activeGame}><TichuGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "cashflow-escape") {
+    return <GuidedGame gameId={activeGame}><CashflowEscapeGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "nine-mens-morris") {
     return <GuidedGame gameId={activeGame}><NineMensMorrisGame onExit={() => setActiveGame(null)} /></GuidedGame>;
