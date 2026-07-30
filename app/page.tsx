@@ -22,6 +22,7 @@ import { ScotlandYardGame } from "./scotland-yard-game";
 import { WhitechapelGame } from "./whitechapel-game";
 import { SevenWondersGame } from "./seven-wonders-game";
 import { CamelUpGame } from "./camel-up-game";
+import { TichuGame } from "./tichu-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -59,7 +60,8 @@ type GameId =
   | "scotland-yard"
   | "whitechapel"
   | "seven-wonders"
-  | "camel-up";
+  | "camel-up"
+  | "tichu";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -175,6 +177,14 @@ const GAMES: GameDefinition[] = [
     category: "경주",
     players: "AI 포함 3~8인",
     tone: "orange",
+  },
+  {
+    id: "tichu",
+    title: "티츄",
+    subtitle: "파트너와 호흡을 맞춰 손의 카드를 먼저 비우세요",
+    category: "전략",
+    players: "AI 포함 4인 팀전",
+    tone: "red",
   },
   {
     id: "nine-mens-morris",
@@ -477,6 +487,23 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           </div>
         </div>
         <span className="float-chip">3–8 bettors</span>
+      </div>
+    );
+  }
+
+  if (game.id === "tichu") {
+    return (
+      <div className="card-art tichu-card-art" aria-hidden="true">
+        <div className="tichu-preview">
+          <span className="seal">龍</span>
+          <div className="fan">
+            <i className="jade">A<small>◆</small></i>
+            <i className="sword">K<small>⚔</small></i>
+            <i className="pagoda">Q<small>♜</small></i>
+            <i className="star">J<small>★</small></i>
+          </div>
+        </div>
+        <span className="float-chip">2 vs 2 teams</span>
       </div>
     );
   }
@@ -1493,6 +1520,9 @@ export default function Home() {
   }
   if (activeGame === "camel-up") {
     return <GuidedGame gameId={activeGame}><CamelUpGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "tichu") {
+    return <GuidedGame gameId={activeGame}><TichuGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "nine-mens-morris") {
     return <GuidedGame gameId={activeGame}><NineMensMorrisGame onExit={() => setActiveGame(null)} /></GuidedGame>;

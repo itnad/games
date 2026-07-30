@@ -114,6 +114,16 @@ import {
   cuRanking,
   cuRollPyramid,
 } from "../app/camel-up-engine.js";
+import {
+  tichuBuildDeck,
+  tichuBomb,
+  tichuChooseAiAction,
+  tichuClassify,
+  tichuCompleteGrand,
+  tichuCreateGame,
+  tichuNextRound,
+  tichuResolvePassing,
+} from "../app/tichu-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -165,6 +175,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "whitechapel",
     "seven-wonders",
     "camel-up",
+    "tichu",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -233,7 +244,8 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /화이트채플/);
   assert.match(html, /7원더스/);
   assert.match(html, /카멜 업/);
-  assert.match(html, /스물일곱 가지/);
+  assert.match(html, /티츄/);
+  assert.match(html, /스물여덟 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
@@ -307,6 +319,56 @@ test("runs Camel Up stacking, pyramid legs, and 3-to-8 player races", () => {
   const afterRoll = cuRollPyramid(roll, 0, () => 0);
   assert.equal(afterRoll.revealed.length, 1);
   assert.equal(afterRoll.players[0].pyramidTickets, 1);
+});
+
+test("runs Tichu combinations, team rounds, and a complete match", () => {
+  const deck = tichuBuildDeck();
+  assert.equal(deck.length, 56);
+  assert.equal(new Set(deck.map((card) => card.id)).size, 56);
+  assert.equal(deck.filter((card) => card.special).length, 4);
+  assert.equal(deck.reduce((sum, card) => sum + card.points, 0), 100);
+
+  const cards = Object.fromEntries(deck.map((card) => [card.id, card]));
+  assert.equal(tichuClassify([cards["jade-8"], cards["sword-8"]]).type, "pair");
+  assert.equal(tichuClassify([cards["jade-7"], cards["sword-7"], cards["pagoda-7"], cards["star-7"]]).type, "bomb");
+  assert.equal(tichuClassify([cards["jade-3"], cards["jade-4"], cards["jade-5"], cards["jade-6"], cards["jade-7"]]).label, "스트레이트 플러시 폭탄");
+  assert.equal(tichuClassify([cards["jade-9"], cards["sword-9"], cards["pagoda-9"], cards["jade-4"], cards.phoenix]).type, "full-house");
+
+  const bombGame = tichuCreateGame("balanced", 500, () => 0.4);
+  bombGame.phase = "playing";
+  bombGame.currentPlayer = 1;
+  bombGame.currentCombo = tichuClassify([cards["jade-14"]]);
+  bombGame.table = [{ playerId: 1, cards: [cards["jade-14"]], combo: bombGame.currentCombo }];
+  bombGame.lastPlayer = 1;
+  bombGame.players[0].hand = [cards["jade-7"], cards["sword-7"], cards["pagoda-7"], cards["star-7"], cards["jade-2"]];
+  const bombed = tichuBomb(bombGame, 0, ["jade-7", "sword-7", "pagoda-7", "star-7"]);
+  assert.equal(bombed.currentCombo.type, "bomb");
+  assert.equal(bombed.lastPlayer, 0);
+  assert.equal(bombed.players[0].hand.length, 1);
+
+  let seed = 20260730;
+  const random = () => {
+    seed = (seed * 48271) % 2147483647;
+    return seed / 2147483647;
+  };
+  let game = tichuCreateGame("sharp", 500, random);
+  let actions = 0;
+  let rounds = 0;
+  while (game.phase !== "finished" && actions < 5000) {
+    if (game.phase === "grand") game = tichuCompleteGrand(game, false);
+    else if (game.phase === "passing") game = tichuResolvePassing(game, game.players[0].hand.slice(0, 3).map((card) => card.id));
+    else if (game.phase === "playing") game = tichuChooseAiAction(game, game.currentPlayer, random);
+    else if (game.phase === "round-end") {
+      rounds += 1;
+      game = tichuNextRound(game, random);
+    }
+    actions += 1;
+  }
+  assert.equal(game.phase, "finished");
+  assert.ok(game.scores.some((score) => score >= 500));
+  assert.ok(game.round >= 1);
+  assert.ok(rounds < 30);
+  assert.ok(actions < 5000);
 });
 
 test("runs Scotland Yard hidden movement, tickets, and fair AI", () => {
