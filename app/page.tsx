@@ -21,6 +21,7 @@ import { SdGundamDeluxeGame } from "./sd-gundam-deluxe-game";
 import { ScotlandYardGame } from "./scotland-yard-game";
 import { WhitechapelGame } from "./whitechapel-game";
 import { SevenWondersGame } from "./seven-wonders-game";
+import { CamelUpGame } from "./camel-up-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -57,7 +58,8 @@ type GameId =
   | "sd-gundam-deluxe"
   | "scotland-yard"
   | "whitechapel"
-  | "seven-wonders";
+  | "seven-wonders"
+  | "camel-up";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -165,6 +167,14 @@ const GAMES: GameDefinition[] = [
     category: "경주",
     players: "AI 2~6인",
     tone: "navy",
+  },
+  {
+    id: "camel-up",
+    title: "카멜 업",
+    subtitle: "쌓이고 뒤집히는 낙타 경주의 순위를 예측하세요",
+    category: "경주",
+    players: "AI 포함 3~8인",
+    tone: "orange",
   },
   {
     id: "nine-mens-morris",
@@ -450,6 +460,23 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <i className="preview-finish" />
         </div>
         <span className="float-chip">3 races</span>
+      </div>
+    );
+  }
+
+  if (game.id === "camel-up") {
+    return (
+      <div className="card-art camel-up-card-art" aria-hidden="true">
+        <div className="camel-up-preview">
+          <span className="sun">☀</span>
+          <span className="pyramid">△</span>
+          <div className="camel-stack">
+            <span className="preview-camel red">♞</span>
+            <span className="preview-camel yellow">♞</span>
+            <span className="preview-camel purple">♞</span>
+          </div>
+        </div>
+        <span className="float-chip">3–8 bettors</span>
       </div>
     );
   }
@@ -1463,6 +1490,9 @@ export default function Home() {
   }
   if (activeGame === "winners-circle") {
     return <GuidedGame gameId={activeGame}><WinnersCircleGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "camel-up") {
+    return <GuidedGame gameId={activeGame}><CamelUpGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "nine-mens-morris") {
     return <GuidedGame gameId={activeGame}><NineMensMorrisGame onExit={() => setActiveGame(null)} /></GuidedGame>;

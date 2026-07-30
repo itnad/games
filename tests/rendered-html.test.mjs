@@ -107,6 +107,13 @@ import {
   swResolveSelections,
   swScorePlayer,
 } from "../app/seven-wonders-engine.js";
+import {
+  cuChooseAiAction,
+  cuCreateGame,
+  cuMoveCamel,
+  cuRanking,
+  cuRollPyramid,
+} from "../app/camel-up-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -157,6 +164,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "scotland-yard",
     "whitechapel",
     "seven-wonders",
+    "camel-up",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -224,7 +232,8 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /스코틀랜드 야드/);
   assert.match(html, /화이트채플/);
   assert.match(html, /7원더스/);
-  assert.match(html, /스물여섯 가지/);
+  assert.match(html, /카멜 업/);
+  assert.match(html, /스물일곱 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
@@ -270,6 +279,34 @@ test("runs a complete 3-to-7 player Seven Wonders draft", () => {
     assert.ok(game.players.every((player) => player.conflict.length <= 6));
     assert.ok(game.players.flatMap((player) => player.conflict).every((token) => [-1, 1, 3, 5].includes(token)));
   }
+});
+
+test("runs Camel Up stacking, pyramid legs, and 3-to-8 player races", () => {
+  const stacked = cuCreateGame(3, "balanced", () => 0.2);
+  stacked.track = Object.fromEntries(Object.keys(stacked.track).map((position) => [position, []]));
+  stacked.track[2] = ["red", "yellow", "green"];
+  const moved = cuMoveCamel(stacked, "yellow", 2);
+  assert.deepEqual(moved.track[2], ["red"]);
+  assert.deepEqual(moved.track[4], ["yellow", "green"]);
+  assert.deepEqual(cuRanking(moved.track).slice(0, 3), ["green", "yellow", "red"]);
+
+  for (const playerCount of [3, 4, 5, 6, 7, 8]) {
+    let game = cuCreateGame(playerCount, "sharp", Math.random);
+    let turns = 0;
+    while (game.phase !== "finished" && turns < 500) {
+      game = cuChooseAiAction(game, game.currentPlayer, Math.random);
+      turns += 1;
+    }
+    assert.equal(game.phase, "finished");
+    assert.equal(game.standings.length, playerCount);
+    assert.ok(game.standings.every((player) => player.coins >= 0));
+    assert.ok(game.leg >= 1);
+  }
+
+  const roll = cuCreateGame(3, "balanced", () => 0.1);
+  const afterRoll = cuRollPyramid(roll, 0, () => 0);
+  assert.equal(afterRoll.revealed.length, 1);
+  assert.equal(afterRoll.players[0].pyramidTickets, 1);
 });
 
 test("runs Scotland Yard hidden movement, tickets, and fair AI", () => {
