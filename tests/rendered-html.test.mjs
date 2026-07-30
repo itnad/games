@@ -134,6 +134,15 @@ import {
   cfeRepayLiability,
   cfeResolvePending,
 } from "../app/cashflow-escape-engine.js";
+import {
+  baccaratCreateGame,
+  baccaratNextRound,
+  baccaratPayout,
+  baccaratPlayRound,
+  baccaratPoint,
+  baccaratResolveHands,
+  baccaratShouldBankerDraw,
+} from "../app/baccarat-engine.js";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -187,6 +196,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "camel-up",
     "tichu",
     "cashflow-escape",
+    "baccarat",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -257,7 +267,8 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /카멜 업/);
   assert.match(html, /티츄/);
   assert.match(html, /현금흐름 탈출/);
-  assert.match(html, /스물아홉 가지/);
+  assert.match(html, /바카라/);
+  assert.match(html, /서른 가지/);
   assert.match(html, /게임 이름 검색/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
@@ -427,6 +438,59 @@ test("runs Cashflow Escape financial statements, debt, and 2-to-6 player journey
     assert.ok(game.players.some((player) => player.stage === "growth"));
     assert.ok(actions < 4000);
   }
+});
+
+test("applies official commission Baccarat points, third-card table, and session settlement", () => {
+  const card = (value, id = String(value)) => ({ id, value, rank: id, suit: "spade", symbol: "♠", color: "black" });
+  assert.equal(baccaratPoint([card(7), card(8)]), 5);
+  assert.equal(baccaratPoint([card(10), card(9)]), 9);
+
+  assert.equal(baccaratShouldBankerDraw(2, 8), true);
+  assert.equal(baccaratShouldBankerDraw(3, 8), false);
+  assert.equal(baccaratShouldBankerDraw(3, 7), true);
+  assert.equal(baccaratShouldBankerDraw(4, 1), false);
+  assert.equal(baccaratShouldBankerDraw(4, 2), true);
+  assert.equal(baccaratShouldBankerDraw(5, 4), true);
+  assert.equal(baccaratShouldBankerDraw(6, 5), false);
+  assert.equal(baccaratShouldBankerDraw(6, 6), true);
+  assert.equal(baccaratShouldBankerDraw(7, 7), false);
+  assert.equal(baccaratShouldBankerDraw(5, null), true);
+  assert.equal(baccaratShouldBankerDraw(6, null), false);
+
+  const draws = [card(4, "player-third"), card(2, "banker-third")];
+  const resolved = baccaratResolveHands(
+    [card(2, "p1"), card(3, "p2")],
+    [card(2, "b1"), card(2, "b2")],
+    () => draws.shift(),
+  );
+  assert.equal(resolved.playerDrew, true);
+  assert.equal(resolved.bankerDrew, true);
+  assert.equal(resolved.playerTotal, 9);
+  assert.equal(resolved.bankerTotal, 6);
+  assert.equal(resolved.winner, "player");
+
+  let extraDraws = 0;
+  const natural = baccaratResolveHands(
+    [card(4, "np1"), card(4, "np2")],
+    [card(3, "nb1"), card(3, "nb2")],
+    () => { extraDraws += 1; return card(1); },
+  );
+  assert.equal(natural.natural, true);
+  assert.equal(extraDraws, 0);
+  assert.equal(baccaratPayout("player", "player", 100), 100);
+  assert.equal(baccaratPayout("banker", "banker", 100), 95);
+  assert.equal(baccaratPayout("tie", "tie", 100), 800);
+  assert.equal(baccaratPayout("player", "tie", 100), 0);
+
+  let game = baccaratCreateGame({ roundLimit: 10, startingChips: 1000 }, () => 0.42);
+  while (game.phase !== "finished") {
+    if (game.phase === "betting") game = baccaratPlayRound(game, "player", 10);
+    else game = baccaratNextRound(game);
+  }
+  assert.equal(game.history.length, 10);
+  assert.equal(game.round, 10);
+  assert.equal(game.stats.player + game.stats.banker + game.stats.tie, 10);
+  assert.ok(Number.isFinite(game.chips));
 });
 
 test("runs Scotland Yard hidden movement, tickets, and fair AI", () => {
