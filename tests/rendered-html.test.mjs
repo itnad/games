@@ -757,6 +757,16 @@ test("runs Pick Picknic feeding, sharing, fox, and duel rules", () => {
   assert.equal(duel.winner.playerId, 1);
 });
 
+test("labels Pick Picknic grain blocks with visible point values", async () => {
+  const source = await readFile(new URL("../app/pick-picnic-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/pick-picnic.css", import.meta.url), "utf8");
+  assert.match(source, /<b>\{grainInfo\.value\}<\/b>/);
+  assert.match(source, /먹이 블록 점수 안내/);
+  assert.match(source, /\{grain\.name\} <strong>\{grain\.value\}점<\/strong>/);
+  assert.match(styles, /\.picnic-grains i b/);
+  assert.match(styles, /\.picnic-inline-legend/);
+});
+
 test("runs Miniville income, construction, trade, and landmark rules", () => {
   assert.equal(MINIVILLE_ESTABLISHMENTS.length, 15);
   const market = minivilleCreateMarket();

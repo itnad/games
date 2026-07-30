@@ -57,13 +57,19 @@ function Topbar({ onExit }: { onExit: () => void }) {
 function GrainDots({ grains, compact = false }: { grains: string[]; compact?: boolean }) {
   return (
     <span className={`picnic-grains ${compact ? "compact" : ""}`} aria-label={`먹이 ${grains.length}개`}>
-      {grains.map((grain, index) => (
-        <i
-          key={`${grain}-${index}`}
-          className={grain}
-          title={`${PICK_PICNIC_GRAINS[grain as keyof typeof PICK_PICNIC_GRAINS].name} ${PICK_PICNIC_GRAINS[grain as keyof typeof PICK_PICNIC_GRAINS].value}점`}
-        />
-      ))}
+      {grains.map((grain, index) => {
+        const grainInfo = PICK_PICNIC_GRAINS[grain as keyof typeof PICK_PICNIC_GRAINS];
+        return (
+          <i
+            key={`${grain}-${index}`}
+            className={grain}
+            title={`${grainInfo.name} ${grainInfo.value}점`}
+            aria-label={`${grainInfo.name} 먹이 ${grainInfo.value}점`}
+          >
+            <b>{grainInfo.value}</b>
+          </i>
+        );
+      })}
       {!grains.length && <small>비어 있음</small>}
     </span>
   );
@@ -293,6 +299,11 @@ export function PickPicnicGame({ onExit }: { onExit: () => void }) {
                 }</h2></div>
                 <div className={`picnic-bag ${game.lastRound ? "last" : ""}`}><i /><span>{game.lastRound ? "마지막 라운드" : `먹이 ${bagTotal}개 남음`}</span></div>
               </header>
+              <div className="picnic-inline-legend" aria-label="먹이 블록 점수 안내">
+                {Object.entries(PICK_PICNIC_GRAINS).map(([id, grain]) => (
+                  <span key={id}><i className={id}><b>{grain.value}</b></i>{grain.name} <strong>{grain.value}점</strong></span>
+                ))}
+              </div>
 
               <section className="picnic-yards">
                 {game.yards.map((yard) => {

@@ -16,7 +16,7 @@
 .picnic-info { background: #244a3d; color: #fffdf4; }
 .picnic-info .eyebrow { color: #f2bd69; }
 .picnic-info h1 { color: #fffdf4; }
-.picnic-info p { color: rgba(255, 255, 255, .72); }
+.picnic-info p { color: rgba(255, 255, 255, .82); font-size: 17px; line-height: 1.75; }
 .picnic-board-panel { background: transparent; padding-bottom: 64px; }
 
 .picnic-side-facts,
@@ -37,10 +37,10 @@
   background: rgba(255, 255, 255, .055);
 }
 
-.picnic-side-facts span { font-size: 13px; color: rgba(255, 255, 255, .64); }
-.picnic-side-facts b { color: #fff; font-size: 14px; }
-.picnic-side-score span { font-size: 12px; color: rgba(255, 255, 255, .62); }
-.picnic-side-score strong { font-size: 21px; color: #f6c36e; }
+.picnic-side-facts span { font-size: 16px; color: rgba(255, 255, 255, .78); }
+.picnic-side-facts b { color: #fff; font-size: 17px; }
+.picnic-side-score span { font-size: 16px; color: rgba(255, 255, 255, .78); }
+.picnic-side-score strong { font-size: 27px; color: #f6c36e; }
 
 .picnic-rules-button {
   width: 100%;
@@ -50,7 +50,8 @@
   border-radius: 12px;
   background: transparent;
   color: #fff;
-  font-weight: 750;
+  font-size: 17px;
+  font-weight: 800;
 }
 
 .picnic-setup {
@@ -102,10 +103,10 @@
 .picnic-setup-visual .g2 { left: 119px; bottom: 23px; background: #70aeca; }
 .picnic-setup-visual .g3 { left: 146px; bottom: 37px; background: #78ae69; }
 
-.picnic-kicker { color: #d5633c; font-size: 11px; font-weight: 900; letter-spacing: .2em; }
+.picnic-kicker { color: #d5633c; font-size: 14px; font-weight: 900; letter-spacing: .16em; }
 .picnic-setup h2 { margin: 13px 0 10px; font-size: clamp(35px, 5vw, 54px); line-height: 1.08; letter-spacing: -.05em; }
 .picnic-setup h2 em { color: #df6e45; font-style: normal; }
-.picnic-setup > p { margin: 0; max-width: 440px; color: #797466; line-height: 1.7; }
+.picnic-setup > p { margin: 0; max-width: 520px; color: #686359; font-size: 18px; line-height: 1.75; }
 
 .picnic-player-picker {
   display: grid;
@@ -124,7 +125,7 @@
 }
 
 .picnic-player-picker button strong { display: block; font-size: 21px; }
-.picnic-player-picker button span { font-size: 11px; }
+.picnic-player-picker button span { font-size: 15px; }
 .picnic-player-picker button.active {
   border-color: #315f4b;
   background: #315f4b;
@@ -141,11 +142,11 @@
   border-radius: 15px;
   background: #e46f46;
   color: #fff;
-  font-size: 16px;
+  font-size: 19px;
   font-weight: 850;
   box-shadow: 0 10px 24px rgba(205, 90, 50, .22);
 }
-.picnic-setup > small { margin-top: 12px; color: #918b7f; }
+.picnic-setup > small { margin-top: 14px; color: #756f65; font-size: 15px; line-height: 1.55; }
 
 .picnic-score-strip {
   display: grid;
@@ -163,10 +164,10 @@
 }
 
 .picnic-score-strip article.human { border-color: #4b8169; box-shadow: inset 0 3px #4b8169; }
-.picnic-score-strip article span { display: block; color: #9b9387; font-size: 10px; font-weight: 850; letter-spacing: .08em; }
-.picnic-score-strip article strong { display: block; margin: 2px 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-.picnic-score-strip article b { color: #d7603c; font-size: 20px; }
-.picnic-score-strip article small { display: block; color: #918a7e; font-size: 10px; }
+.picnic-score-strip article span { display: block; color: #766f65; font-size: 14px; font-weight: 850; letter-spacing: .06em; }
+.picnic-score-strip article strong { display: block; margin: 3px 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 17px; }
+.picnic-score-strip article b { color: #c84f2d; font-size: 25px; }
+.picnic-score-strip article small { display: block; color: #746e64; font-size: 14px; line-height: 1.4; }
 
 .picnic-round-head {
   display: flex;
@@ -175,11 +176,46 @@
   gap: 16px;
   margin: 12px 0 18px;
 }
-.picnic-round-head > div:first-child span { color: #d6623d; font-size: 11px; font-weight: 900; letter-spacing: .16em; }
-.picnic-round-head h2 { margin: 3px 0 0; font-size: 26px; letter-spacing: -.04em; }
-.picnic-bag { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 999px; background: #ece5d9; color: #69645b; font-size: 11px; font-weight: 800; }
+.picnic-round-head > div:first-child span { color: #c94f2d; font-size: 14px; font-weight: 900; letter-spacing: .13em; }
+.picnic-round-head h2 { margin: 4px 0 0; font-size: 30px; letter-spacing: -.04em; }
+.picnic-bag { display: flex; align-items: center; gap: 8px; padding: 11px 15px; border-radius: 999px; background: #e8e0d3; color: #514d46; font-size: 15px; font-weight: 850; }
 .picnic-bag i { width: 14px; height: 17px; border-radius: 3px 3px 7px 7px; background: #9d7654; }
 .picnic-bag.last { background: #fee2d8; color: #b3482b; }
+
+.picnic-inline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -5px 0 18px;
+}
+.picnic-inline-legend > span {
+  min-height: 38px;
+  padding: 6px 12px 6px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #d9d1c4;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .84);
+  color: #5f5a51;
+  font-size: 14px;
+  font-weight: 750;
+}
+.picnic-inline-legend strong { color: #bd4c2e; font-size: 15px; }
+.picnic-inline-legend i {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #7eb86d;
+  color: #fff;
+  font-style: normal;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .12);
+}
+.picnic-inline-legend i.blue { background: #4f98c4; }
+.picnic-inline-legend i.gold { background: #e8b83e; color: #493800; }
+.picnic-inline-legend i b { font-size: 14px; line-height: 1; text-shadow: 0 1px 1px rgba(0, 0, 0, .22); }
 
 .picnic-yards {
   display: grid;
@@ -188,7 +224,7 @@
 }
 
 .picnic-yard {
-  min-height: 174px;
+  min-height: 202px;
   padding: 13px;
   border: 1px solid color-mix(in srgb, var(--yard-color) 45%, #ded7ca);
   border-top: 5px solid var(--yard-color);
@@ -201,33 +237,37 @@
 .picnic-yard > header { display: flex; align-items: center; gap: 8px; }
 .picnic-yard > header > span { font-size: 29px; }
 .picnic-yard > header div { min-width: 0; flex: 1; }
-.picnic-yard > header small { display: block; color: #9a9286; font-size: 9px; }
-.picnic-yard > header strong { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.picnic-yard > header b { color: #d15e3b; font-size: 13px; }
+.picnic-yard > header small { display: block; color: #766f65; font-size: 13px; }
+.picnic-yard > header strong { display: block; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.picnic-yard > header b { color: #c34d2c; font-size: 18px; }
 
 .picnic-grains { min-height: 31px; margin: 12px 0 9px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
 .picnic-grains i,
 .picnic-grain-guide i {
-  width: 17px;
-  height: 17px;
-  display: inline-block;
-  border-radius: 5px;
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 7px;
   background: #7eb86d;
   box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .1), 0 2px 3px rgba(0, 0, 0, .08);
 }
 .picnic-grains i.blue, .picnic-grain-guide i.blue { background: #67a9d0; }
-.picnic-grains i.gold, .picnic-grain-guide i.gold { background: #e8b83e; }
-.picnic-grains small { color: #b2aa9d; font-size: 10px; }
+.picnic-grains i.gold, .picnic-grain-guide i.gold { background: #e8b83e; color: #493800; }
+.picnic-grains i b { color: #fff; font-size: 14px; line-height: 1; font-style: normal; text-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+.picnic-grains i.gold b { color: #493800; text-shadow: none; }
+.picnic-grains small { color: #7e776d; font-size: 14px; }
 .picnic-grains.compact { min-height: 20px; margin: 5px 0; }
-.picnic-grains.compact i { width: 13px; height: 13px; border-radius: 4px; }
+.picnic-grains.compact i { width: 22px; height: 22px; border-radius: 6px; }
+.picnic-grains.compact i b { font-size: 12px; }
 
 .picnic-yard-plays { min-height: 54px; display: flex; gap: 4px; flex-wrap: wrap; }
 .picnic-yard-plays .picnic-animal-card { width: 49px; min-height: 61px; padding: 4px; border-radius: 7px; cursor: default; }
 .picnic-yard-plays .picnic-animal-card small,
 .picnic-yard-plays .picnic-animal-card strong { display: none; }
 .picnic-yard-plays .picnic-animal-card b { font-size: 23px; }
-.picnic-yard-plays .picnic-animal-card em { right: 3px; bottom: 3px; font-size: 10px; }
-.picnic-yard-plays .picnic-animal-card i { max-width: 43px; font-size: 8px; }
+.picnic-yard-plays .picnic-animal-card em { right: 3px; bottom: 3px; font-size: 12px; }
+.picnic-yard-plays .picnic-animal-card i { max-width: 43px; font-size: 11px; }
 
 .picnic-animal-card {
   position: relative;
@@ -245,9 +285,9 @@
 .picnic-animal-card:disabled { opacity: .42; }
 .picnic-animal-card.selected { opacity: 1; border-color: #e36d44; outline: 3px solid rgba(227, 109, 68, .2); transform: translateY(-6px); }
 .picnic-card-color { position: absolute; inset: 0 0 auto; height: 7px; background: var(--yard-color); }
-.picnic-animal-card small { display: block; margin-top: 2px; color: #989185; font-size: 9px; }
+.picnic-animal-card small { display: block; margin-top: 2px; color: #746e64; font-size: 12px; }
 .picnic-animal-card b { display: block; margin: 9px 0 3px; font-size: 40px; line-height: 1; font-style: normal; }
-.picnic-animal-card strong { display: block; font-size: 12px; }
+.picnic-animal-card strong { display: block; font-size: 15px; line-height: 1.3; }
 .picnic-animal-card em {
   position: absolute;
   right: 8px;
@@ -256,11 +296,11 @@
   border-radius: 7px;
   background: #f1ece3;
   color: #bf5333;
-  font-size: 12px;
+  font-size: 15px;
   font-style: normal;
   font-weight: 900;
 }
-.picnic-animal-card > i { display: block; color: #777065; font-size: 9px; font-style: normal; }
+.picnic-animal-card > i { display: block; color: #625d55; font-size: 12px; font-style: normal; }
 .picnic-animal-card.fox { background: #fff5eb; }
 
 .picnic-hand {
@@ -271,9 +311,9 @@
   color: #fff;
 }
 .picnic-hand > header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-.picnic-hand > header span { display: block; color: #f1b865; font-size: 9px; font-weight: 900; letter-spacing: .16em; }
-.picnic-hand > header strong { font-size: 19px; }
-.picnic-hand > header small { color: rgba(255, 255, 255, .6); font-size: 10px; text-align: right; }
+.picnic-hand > header span { display: block; color: #f1b865; font-size: 13px; font-weight: 900; letter-spacing: .14em; }
+.picnic-hand > header strong { font-size: 23px; }
+.picnic-hand > header small { max-width: 430px; color: rgba(255, 255, 255, .82); font-size: 14px; line-height: 1.5; text-align: right; }
 .picnic-hand > div { display: flex; gap: 10px; overflow-x: auto; padding: 8px 3px 4px; }
 .picnic-hand .picnic-animal-card { flex: 0 0 104px; }
 .picnic-reveal-button {
@@ -284,6 +324,7 @@
   border-radius: 13px;
   background: #ed7c4e;
   color: #fff;
+  font-size: 17px;
   font-weight: 850;
 }
 .picnic-reveal-button:disabled { background: rgba(255, 255, 255, .12); color: rgba(255, 255, 255, .4); }
@@ -299,12 +340,12 @@
 }
 .picnic-negotiation { display: grid; grid-template-columns: auto 1fr; gap: 14px; }
 .picnic-talk-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 50%; background: #f3dfc6; font-size: 24px; }
-.picnic-negotiation-copy > small { color: #d3633f; font-size: 10px; font-weight: 850; }
-.picnic-negotiation-copy h3 { margin: 4px 0 14px; font-size: 19px; }
+.picnic-negotiation-copy > small { color: #c64d2d; font-size: 14px; font-weight: 850; }
+.picnic-negotiation-copy h3 { margin: 5px 0 15px; font-size: 23px; }
 .picnic-offer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(95px, 1fr)); gap: 7px; }
 .picnic-offer-grid article { padding: 9px; border-radius: 10px; background: #f1eadf; }
 .picnic-offer-grid article.mine { box-shadow: inset 0 0 0 2px #4d806a; }
-.picnic-offer-grid strong, .picnic-offer-grid b { display: block; font-size: 11px; }
+.picnic-offer-grid strong, .picnic-offer-grid b { display: block; font-size: 15px; }
 .picnic-offer-grid b { color: #d45d3a; }
 .picnic-decision-buttons { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .picnic-decision-buttons button,
@@ -317,23 +358,24 @@
   font-weight: 850;
 }
 .picnic-decision-buttons button.duel { background: #df6a43; }
-.picnic-decision-buttons button span { display: block; margin-top: 3px; opacity: .68; font-size: 9px; }
+.picnic-decision-buttons button { font-size: 16px; }
+.picnic-decision-buttons button span { display: block; margin-top: 4px; opacity: .82; font-size: 13px; }
 
 .picnic-event-list { display: grid; gap: 7px; }
-.picnic-event-list p { margin: 0; padding: 10px 12px; display: flex; gap: 9px; align-items: flex-start; border-radius: 10px; background: #f2ece1; font-size: 12px; line-height: 1.45; }
-.picnic-event-list p span { flex: 0 0 21px; height: 21px; display: grid; place-items: center; border-radius: 50%; background: #d8c7ae; color: #fff; font-size: 9px; }
-.picnic-duel-note { margin-top: 10px; padding: 11px; border-radius: 10px; background: #fff1e9; color: #96523c; font-size: 10px; }
+.picnic-event-list p { margin: 0; padding: 13px 14px; display: flex; gap: 10px; align-items: flex-start; border-radius: 10px; background: #f2ece1; font-size: 16px; line-height: 1.55; }
+.picnic-event-list p span { flex: 0 0 25px; height: 25px; display: grid; place-items: center; border-radius: 50%; background: #c9b393; color: #fff; font-size: 13px; }
+.picnic-duel-note { margin-top: 10px; padding: 13px; border-radius: 10px; background: #fff1e9; color: #87442f; font-size: 14px; line-height: 1.5; }
 .picnic-duel-note b, .picnic-duel-note span { display: block; }
 .picnic-summary-actions { display: flex; gap: 8px; margin-top: 14px; }
 .picnic-summary-actions button { flex: 1; background: #df6a43; }
 .picnic-summary-actions button.secondary { background: #e9e1d5; color: #5f5a52; }
 .picnic-final { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
 .picnic-final > span { font-size: 52px; }
-.picnic-final small { color: #d35f3d; font-weight: 900; letter-spacing: .12em; }
+.picnic-final small { color: #c64e2e; font-size: 14px; font-weight: 900; letter-spacing: .1em; }
 .picnic-final h2 { margin: 3px 0; font-size: 28px; }
-.picnic-final p { margin: 0; color: #847d72; font-size: 12px; }
+.picnic-final p { margin: 0; color: #6f695f; font-size: 16px; }
 .picnic-final ol { grid-column: 1 / -1; list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
-.picnic-final li { display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #eee6da; }
+.picnic-final li { display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; background: #eee6da; font-size: 16px; }
 .picnic-final li b { color: #d45d3a; }
 .picnic-final li span { flex: 1; }
 
@@ -357,21 +399,22 @@
   box-shadow: 0 28px 80px rgba(0, 0, 0, .3);
 }
 .picnic-rules-modal > header { display: flex; justify-content: space-between; align-items: flex-start; }
-.picnic-rules-modal > header span { color: #d65f3c; font-size: 10px; font-weight: 900; letter-spacing: .16em; }
+.picnic-rules-modal > header span { color: #c84e2e; font-size: 13px; font-weight: 900; letter-spacing: .14em; }
 .picnic-rules-modal h2 { margin: 4px 0 20px; }
 .picnic-rules-modal > header button { width: 38px; height: 38px; border: 0; border-radius: 50%; background: #ece4d8; font-size: 23px; }
 .picnic-rule-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .picnic-rule-steps article { padding: 13px; display: flex; gap: 10px; border-radius: 12px; background: #f1eadf; }
 .picnic-rule-steps article > b { flex: 0 0 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; background: #47745f; color: #fff; }
-.picnic-rule-steps strong { font-size: 13px; }
-.picnic-rule-steps p { margin: 4px 0 0; color: #756f65; font-size: 11px; line-height: 1.5; }
+.picnic-rule-steps strong { font-size: 17px; }
+.picnic-rule-steps p { margin: 5px 0 0; color: #625d55; font-size: 15px; line-height: 1.6; }
 .picnic-special-rule { margin-top: 10px; padding: 14px; display: flex; gap: 12px; border-radius: 12px; background: #fff0e5; }
 .picnic-special-rule > span { font-size: 34px; }
-.picnic-special-rule p { margin: 4px 0 0; color: #806f62; font-size: 11px; line-height: 1.5; }
+.picnic-special-rule strong { font-size: 17px; }
+.picnic-special-rule p { margin: 5px 0 0; color: #6d5d52; font-size: 15px; line-height: 1.6; }
 .picnic-grain-guide { margin: 12px 0; display: flex; gap: 7px; flex-wrap: wrap; }
-.picnic-grain-guide span { padding: 8px 10px; display: flex; align-items: center; gap: 6px; border: 1px solid #ded5c8; border-radius: 999px; font-size: 11px; }
-.picnic-grain-guide i { width: 13px; height: 13px; }
-.picnic-modal-close { width: 100%; padding: 14px; border: 0; border-radius: 12px; background: #3d705a; color: #fff; font-weight: 850; }
+.picnic-grain-guide span { padding: 10px 13px; display: flex; align-items: center; gap: 7px; border: 1px solid #ded5c8; border-radius: 999px; font-size: 15px; }
+.picnic-grain-guide i { width: 20px; height: 20px; }
+.picnic-modal-close { width: 100%; padding: 15px; border: 0; border-radius: 12px; background: #3d705a; color: #fff; font-size: 17px; font-weight: 850; }
 
 .pick-picnic-card-art {
   background:
@@ -399,15 +442,19 @@
   .picnic-player-picker { gap: 5px; }
   .picnic-player-picker button { padding: 10px 4px; }
   .picnic-score-strip { display: flex; overflow-x: auto; padding-bottom: 3px; }
-  .picnic-score-strip article { flex: 0 0 120px; }
-  .picnic-round-head h2 { font-size: 21px; }
+  .picnic-score-strip article { flex: 0 0 150px; }
+  .picnic-round-head h2 { font-size: 25px; }
   .picnic-bag { padding: 7px 9px; }
   .picnic-yards { gap: 8px; }
-  .picnic-yard { min-height: 158px; padding: 10px; border-radius: 14px; }
+  .picnic-yard { min-height: 205px; padding: 10px; border-radius: 14px; }
   .picnic-yard > header > span { font-size: 24px; }
-  .picnic-yard > header strong { font-size: 11px; }
+  .picnic-yard > header small { font-size: 12px; }
+  .picnic-yard > header strong { font-size: 15px; }
+  .picnic-yard > header b { font-size: 16px; }
   .picnic-yard-plays .picnic-animal-card { width: 44px; }
   .picnic-hand { margin-left: -2px; margin-right: -2px; padding: 14px; }
+  .picnic-hand > header { display: block; }
+  .picnic-hand > header small { display: block; margin-top: 7px; text-align: left; }
   .picnic-negotiation { grid-template-columns: 1fr; }
   .picnic-talk-icon { display: none; }
   .picnic-decision-buttons { grid-column: 1; }
