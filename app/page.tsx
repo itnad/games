@@ -723,6 +723,91 @@ function GameCard({
   );
 }
 
+function ShelfGameCard({
+  game,
+  isFavorite,
+  onPlay,
+  onToggleFavorite,
+}: {
+  game: GameDefinition;
+  isFavorite: boolean;
+  onPlay: (id: GameId) => void;
+  onToggleFavorite: (id: GameId) => void;
+}) {
+  return (
+    <article className={`shelf-game-card ${game.tone}`}>
+      <button
+        className="shelf-favorite-button"
+        type="button"
+        onClick={() => onToggleFavorite(game.id)}
+        aria-label={`${game.title} ${isFavorite ? "즐겨찾기 해제" : "즐겨찾기 추가"}`}
+        aria-pressed={isFavorite}
+      >
+        <span aria-hidden="true">{isFavorite ? "★" : "☆"}</span>
+      </button>
+      <button className="shelf-game-play" type="button" onClick={() => onPlay(game.id)}>
+        <div className="shelf-game-art">
+          <GameArtwork game={game} />
+        </div>
+        <div className="shelf-game-copy">
+          <span className="shelf-game-category">{game.category}</span>
+          <h3>{game.title}</h3>
+          <p>{game.subtitle}</p>
+          <span className="shelf-game-players">
+            <span className="status-dot" /> {game.players}
+          </span>
+        </div>
+      </button>
+    </article>
+  );
+}
+
+function GameShelf({
+  title,
+  description,
+  games,
+  favorites,
+  onPlay,
+  onToggleFavorite,
+  onViewAll,
+}: {
+  title: string;
+  description?: string;
+  games: GameDefinition[];
+  favorites: GameId[];
+  onPlay: (id: GameId) => void;
+  onToggleFavorite: (id: GameId) => void;
+  onViewAll?: () => void;
+}) {
+  if (!games.length) return null;
+  return (
+    <section className="game-shelf" aria-label={title}>
+      <header className="game-shelf-heading">
+        <div>
+          <h3>{title}</h3>
+          {description && <p>{description}</p>}
+        </div>
+        {onViewAll && (
+          <button type="button" onClick={onViewAll}>
+            전체 보기 <span aria-hidden="true">→</span>
+          </button>
+        )}
+      </header>
+      <div className="game-shelf-track">
+        {games.map((game) => (
+          <ShelfGameCard
+            key={game.id}
+            game={game}
+            isFavorite={favorites.includes(game.id)}
+            onPlay={onPlay}
+            onToggleFavorite={onToggleFavorite}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function EmptyState({ query }: { query: string }) {
   return (
     <div className="empty-state">
@@ -1515,6 +1600,63 @@ export default function Home() {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [category, setCategory] = useState<Category>("전체");
   const [query, setQuery] = useState("");
+  const [favorites, setFavorites] = useState<GameId[]>([]);
+  const [recentIds, setRecentIds] = useState<GameId[]>([]);
+  const [finderOpen, setFinderOpen] = useState(false);
+
+  useEffect(() => {
+    const knownIds = new Set<GameId>(GAMES.map((game) => game.id));
+    const readGameIds = (key: string) => {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem(key) ?? "[]") as string[];
+        return saved.filter((id): id is GameId => knownIds.has(id as GameId));
+      } catch {
+        return [];
+      }
+    };
+    setFavorites(readGameIds("playroom-favorites"));
+    setRecentIds(readGameIds("playroom-recent-games"));
+  }, []);
+
+  useEffect(() => {
+    if (!finderOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFinderOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeWithEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeWithEscape);
+    };
+  }, [finderOpen]);
+
+  const launchGame = (id: GameId) => {
+    setRecentIds((current) => {
+      const next = [id, ...current.filter((item) => item !== id)].slice(0, 8);
+      window.localStorage.setItem("playroom-recent-games", JSON.stringify(next));
+      return next;
+    });
+    setFinderOpen(false);
+    setActiveGame(id);
+  };
+
+  const toggleFavorite = (id: GameId) => {
+    setFavorites((current) => {
+      const next = current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [id, ...current];
+      window.localStorage.setItem("playroom-favorites", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const openFinder = (nextCategory: Category = "전체") => {
+    setCategory(nextCategory);
+    setQuery("");
+    setFinderOpen(true);
+  };
 
   const filteredGames = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("ko");
@@ -1527,6 +1669,14 @@ export default function Home() {
           game.category.includes(normalized)),
     );
   }, [category, query]);
+
+  const recentGames = recentIds
+    .map((id) => GAMES.find((game) => game.id === id))
+    .filter((game): game is GameDefinition => Boolean(game));
+  const favoriteGames = favorites
+    .map((id) => GAMES.find((game) => game.id === id))
+    .filter((game): game is GameDefinition => Boolean(game));
+  const quickStartGames = recentGames.length ? recentGames : GAMES.slice(0, 6);
 
   if (activeGame === "gomoku") {
     return <GuidedGame gameId={activeGame}><GomokuGame onExit={() => setActiveGame(null)} /></GuidedGame>;
@@ -1641,6 +1791,9 @@ export default function Home() {
             <em>한 판</em> 어때요?
           </h1>
           <p>혼자여도 즐거운 보드게임 아지트.<br />원하는 게임을 골라 AI와 바로 시작하세요.</p>
+          <button className="hero-finder-button" type="button" onClick={() => openFinder()}>
+            게임 찾기 <span aria-hidden="true">→</span>
+          </button>
         </div>
         <div className="hero-orbit" aria-hidden="true">
           <span className="orbit-line one" />
@@ -1654,61 +1807,165 @@ export default function Home() {
       </section>
 
       <section className="library">
-        <div className="library-heading">
-          <div>
-            <span className="section-number">01</span>
-            <h2>게임 고르기</h2>
-          </div>
-          <label className="search-box">
-            <IconSearch />
-            <input
-              type="search"
-              placeholder="게임 이름 검색"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              aria-label="게임 이름 검색"
-            />
-            {query && (
-              <button onClick={() => setQuery("")} aria-label="검색어 지우기">×</button>
-            )}
-          </label>
-        </div>
-
-        <div className="category-row" role="tablist" aria-label="게임 분류">
-          {(["전체", "전략", "기억력", "추리", "주사위", "경주"] as Category[]).map((item) => (
-            <button
-              key={item}
-              role="tab"
-              aria-selected={category === item}
-              className={category === item ? "active" : ""}
-              onClick={() => setCategory(item)}
-            >
-              {item}
-              {item === "전체" && <span>{GAMES.length}</span>}
+        <div className="library-discovery">
+          <div className="library-heading">
+            <div>
+              <span className="section-number">01</span>
+              <h2>게임 고르기</h2>
+            </div>
+            <button className="game-finder-trigger" type="button" onClick={() => openFinder()}>
+              <IconSearch />
+              <span>이름·장르로 게임 찾기</span>
+              <b>{GAMES.length}</b>
             </button>
-          ))}
+          </div>
+
+          <div className="category-row home-category-row" aria-label="게임 분류">
+            {(["전체", "전략", "기억력", "추리", "주사위", "경주"] as Category[]).map((item) => (
+              <button key={item} type="button" onClick={() => openFinder(item)}>
+                {item}
+                <span>{item === "전체" ? GAMES.length : GAMES.filter((game) => game.category === item).length}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {filteredGames.length ? (
-          <div className="game-grid">
-            {filteredGames.map((game) => (
-              <GameCard key={game.id} game={game} onPlay={setActiveGame} />
-            ))}
-            {!query && category === "전체" && (
-              <a className="coming-card" href="#game-suggestions">
-                <span className="plus-mark">+</span>
-                <div>
-                  <strong>다음 게임은?</strong>
-                  <p>추가 되면 좋을 게임을 추천해주세요.</p>
-                </div>
-                <span className="suggestion-arrow" aria-hidden="true">↓</span>
-              </a>
-            )}
-          </div>
-        ) : (
-          <EmptyState query={query} />
-        )}
+        <div className="home-game-shelves">
+          <GameShelf
+            title={recentGames.length ? "최근 플레이" : "빠른 시작"}
+            description={recentGames.length ? "최근에 즐긴 게임을 바로 이어서 시작하세요." : "처음이라면 인기 게임부터 가볍게 시작해 보세요."}
+            games={quickStartGames}
+            favorites={favorites}
+            onPlay={launchGame}
+            onToggleFavorite={toggleFavorite}
+            onViewAll={() => openFinder()}
+          />
+
+          {favoriteGames.length > 0 && (
+            <GameShelf
+              title="즐겨찾기"
+              description="별표한 게임만 한곳에 모았습니다."
+              games={favoriteGames}
+              favorites={favorites}
+              onPlay={launchGame}
+              onToggleFavorite={toggleFavorite}
+              onViewAll={() => openFinder()}
+            />
+          )}
+
+          {(["전략", "기억력", "추리", "주사위", "경주"] as Exclude<Category, "전체">[]).map((item) => (
+            <GameShelf
+              key={item}
+              title={`${item} 게임`}
+              games={GAMES.filter((game) => game.category === item)}
+              favorites={favorites}
+              onPlay={launchGame}
+              onToggleFavorite={toggleFavorite}
+              onViewAll={() => openFinder(item)}
+            />
+          ))}
+
+          <a className="hub-suggestion-link" href="#game-suggestions">
+            <span className="plus-mark">+</span>
+            <div>
+              <strong>찾는 게임이 없나요?</strong>
+              <p>Playroom에 추가되면 좋을 게임을 추천해 주세요.</p>
+            </div>
+            <span className="suggestion-arrow" aria-hidden="true">↓</span>
+          </a>
+        </div>
       </section>
+
+      {finderOpen && (
+        <div className="game-finder-layer" role="dialog" aria-modal="true" aria-labelledby="game-finder-title">
+          <button
+            className="game-finder-backdrop"
+            type="button"
+            onClick={() => setFinderOpen(false)}
+            aria-label="게임 찾기 닫기"
+          />
+          <section className="game-finder-panel">
+            <header className="game-finder-header">
+              <div>
+                <span className="eyebrow">GAME FINDER</span>
+                <h2 id="game-finder-title">어떤 게임을 할까요?</h2>
+              </div>
+              <button className="game-finder-close" type="button" onClick={() => setFinderOpen(false)} aria-label="닫기">
+                ×
+              </button>
+            </header>
+
+            <label className="finder-search-box">
+              <IconSearch />
+              <input
+                autoFocus
+                type="search"
+                placeholder="게임 이름이나 장르를 입력하세요"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                aria-label="게임 이름이나 장르 검색"
+              />
+              {query && <button type="button" onClick={() => setQuery("")} aria-label="검색어 지우기">×</button>}
+            </label>
+
+            <div className="category-row finder-category-row" role="tablist" aria-label="게임 분류">
+              {(["전체", "전략", "기억력", "추리", "주사위", "경주"] as Category[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  role="tab"
+                  aria-selected={category === item}
+                  className={category === item ? "active" : ""}
+                  onClick={() => setCategory(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+
+            <div className="finder-result-heading">
+              <strong>{category === "전체" ? "전체 게임" : `${category} 게임`}</strong>
+              <span>{filteredGames.length}개</span>
+            </div>
+
+            {filteredGames.length ? (
+              <div className="finder-game-list">
+                {filteredGames.map((game) => (
+                  <article className={`finder-game-row ${game.tone}`} key={game.id}>
+                    <button className="finder-game-select" type="button" onClick={() => launchGame(game.id)}>
+                      <span className="finder-game-thumb" aria-hidden="true">{game.title.slice(0, 1)}</span>
+                      <span className="finder-game-copy">
+                        <span>
+                          <b>{game.title}</b>
+                          <em>{game.category}</em>
+                        </span>
+                        <small>{game.subtitle}</small>
+                        <small className="finder-game-player">{game.players}</small>
+                      </span>
+                      <span className="finder-play-arrow" aria-hidden="true">→</span>
+                    </button>
+                    <button
+                      className="finder-favorite-button"
+                      type="button"
+                      onClick={() => toggleFavorite(game.id)}
+                      aria-label={`${game.title} ${favorites.includes(game.id) ? "즐겨찾기 해제" : "즐겨찾기 추가"}`}
+                      aria-pressed={favorites.includes(game.id)}
+                    >
+                      <span aria-hidden="true">{favorites.includes(game.id) ? "★" : "☆"}</span>
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <EmptyState query={query} />
+            )}
+          </section>
+        </div>
+      )}
+
+      <button className="mobile-finder-button" type="button" onClick={() => openFinder()}>
+        <IconSearch /> 게임 찾기 <span>{GAMES.length}</span>
+      </button>
 
       <SuggestionBoard />
 
