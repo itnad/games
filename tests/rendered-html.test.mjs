@@ -197,6 +197,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "tichu",
     "cashflow-escape",
     "baccarat",
+    "clocktowers",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -284,8 +285,8 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /티츄/);
   assert.match(html, /현금흐름 탈출/);
   assert.match(html, /바카라/);
-  assert.match(html, /서른 가지/);
-  assert.match(html, /게임 이름 검색/);
+  assert.match(html, /서른한 가지/);
+  assert.match(html, /이름·장르로 게임 찾기/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);

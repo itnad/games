@@ -25,6 +25,7 @@ import { CamelUpGame } from "./camel-up-game";
 import { TichuGame } from "./tichu-game";
 import { CashflowEscapeGame } from "./cashflow-escape-game";
 import { BaccaratGame } from "./baccarat-game";
+import { ClocktowersGame } from "./clocktowers-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -65,7 +66,8 @@ type GameId =
   | "camel-up"
   | "tichu"
   | "cashflow-escape"
-  | "baccarat";
+  | "baccarat"
+  | "clocktowers";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
 
 type GameDefinition = {
@@ -293,6 +295,14 @@ const GAMES: GameDefinition[] = [
     category: "주사위",
     players: "AI 포함 2~4인",
     tone: "blue",
+  },
+  {
+    id: "clocktowers",
+    title: "시계탑",
+    subtitle: "층과 시계, 색 지붕을 조합해 도시의 탑을 완성하세요",
+    category: "전략",
+    players: "AI 포함 2~4인",
+    tone: "gold",
   },
   {
     id: "pick-picnic",
@@ -623,6 +633,19 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <i className="tree">♣</i>
         </div>
         <span className="float-chip">2~4 players</span>
+      </div>
+    );
+  }
+
+  if (game.id === "clocktowers") {
+    return (
+      <div className="card-art clocktowers-card-art" aria-hidden="true">
+        <div className="clocktowers-preview">
+          <span className="ct-preview-tower tall"><i /><b>Ⅻ</b><em>▥</em><em>▥</em></span>
+          <span className="ct-preview-tower short"><i /><b>Ⅻ</b><em>▥</em></span>
+          <span className="ct-preview-moon">☾</span>
+        </div>
+        <span className="float-chip">2–4 architects</span>
       </div>
     );
   }
@@ -1758,6 +1781,9 @@ export default function Home() {
   }
   if (activeGame === "miniville") {
     return <GuidedGame gameId={activeGame}><MinivilleGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "clocktowers") {
+    return <GuidedGame gameId={activeGame}><ClocktowersGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "pick-picnic") {
     return <GuidedGame gameId={activeGame}><PickPicnicGame onExit={() => setActiveGame(null)} /></GuidedGame>;
