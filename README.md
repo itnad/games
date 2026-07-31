@@ -27,6 +27,14 @@ This starter does not use `wrangler.jsonc`.
 - `examples/d1/` contains an optional D1 example surface
 - `drizzle.config.ts` supports local migration generation when needed
 
+## Game UI readability
+
+All playable games must be rendered through `GuidedGame`, which applies the
+shared typography floors in `app/game-readability.css`. Do not add visible text
+below 13px, except compact card, piece, or map labels which may use the explicit
+12px compact treatment. The complete Korean checklist is in
+`docs/game-ui-readability.md`.
+
 ## Workspace Auth Headers
 
 OpenAI workspace sites can read the current user's email from

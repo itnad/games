@@ -1,0 +1,153 @@
+/*
+ * PLAYROOM game typography contract
+ * ---------------------------------
+ * Every playable game is rendered inside .game-readability-scope by GuidedGame.
+ * Future games inherit these floors automatically:
+ *   body/instructions 15px · controls 15px · supporting text 13px
+ *   compact board/card labels 12px (explicit .game-compact-text only)
+ */
+
+.game-readability-scope {
+  --game-font-body: clamp(15px, 1.05vw, 17px);
+  --game-font-control: clamp(15px, 1vw, 17px);
+  --game-font-meta: clamp(13px, .9vw, 15px);
+  --game-font-compact: 12px;
+  --game-readable-line: 1.5;
+  display: contents;
+}
+
+.game-readability-scope :where(p, li, dd, dt, figcaption) {
+  font-size: var(--game-font-body) !important;
+  line-height: var(--game-readable-line) !important;
+}
+
+.game-readability-scope :where(
+  input,
+  select,
+  textarea,
+  label,
+  summary
+) {
+  font-size: var(--game-font-control) !important;
+  line-height: 1.35;
+}
+
+.game-readability-scope :where(
+  [class*="topbar"] button,
+  [class*="header"] > button,
+  [class*="-head"] button,
+  [class*="action"] button,
+  [class*="controls"] button,
+  [class*="toolbar"] button,
+  [class*="modal"] button,
+  [class*="setup"] button,
+  [class*="lobby"] button,
+  [class*="footer"] button,
+  [class*="tabs"] button,
+  button[class*="start"],
+  button[class*="exit"],
+  button[class*="back"],
+  button[class*="rule"],
+  button[class*="confirm"],
+  button[class*="next"],
+  button[class*="replay"],
+  button[class*="primary"],
+  button[class*="secondary"]
+) {
+  font-size: var(--game-font-control) !important;
+  line-height: 1.35;
+}
+
+.game-readability-scope :where(
+  small,
+  .eyebrow,
+  [class*="kicker"],
+  [class*="caption"],
+  [class*="helper"],
+  [class*="hint"],
+  [class*="note"],
+  [class*="meta"],
+  [class*="legend"],
+  [class*="badge"],
+  [class*="tag"],
+  [class*="chip"],
+  [class*="count"]
+) {
+  font-size: var(--game-font-meta) !important;
+  line-height: 1.45 !important;
+}
+
+.game-readability-scope :where(
+  [class*="topbar"] span,
+  [class*="topbar"] small,
+  [class*="header"] small,
+  [class*="-head"] small,
+  [class*="-head"] > span,
+  [class*="status"] small,
+  [class*="score"] small,
+  [class*="info"] small,
+  [class*="toolbar"] span,
+  [class*="toolbar"] label,
+  [class*="log"] span,
+  [class*="record"] small,
+  [class*="action"] small
+) {
+  font-size: var(--game-font-meta) !important;
+  line-height: 1.4 !important;
+}
+
+/* Compact physical components may opt in, but never below 12px. */
+.game-readability-scope :where(
+  .game-compact-text,
+  .game-compact-text *,
+  [data-compact-text="true"],
+  [data-compact-text="true"] *
+) {
+  font-size: var(--game-font-compact) !important;
+  line-height: 1.25 !important;
+}
+
+/* Existing compact card and board surfaces. */
+.game-readability-scope :where(
+  .ti-card,
+  .sw-card,
+  .epic-card,
+  .ll-card,
+  .sd-card,
+  .confrontation-card,
+  [class*="card"],
+  .picnic-yard-plays .picnic-animal-card,
+  .wc-map,
+  .sy-map,
+  .janggi-board,
+  .gomoku-board
+) :where(small, em, [class*="label"], [class*="name"]) {
+  font-size: var(--game-font-compact) !important;
+  line-height: 1.25 !important;
+}
+
+.game-readability-scope :where(.wc-map, .sy-map) :where(span, small, em) {
+  font-size: var(--game-font-compact) !important;
+  line-height: 1.2 !important;
+}
+
+/* Larger type must not be reduced by the shared floor. */
+.game-readability-scope :where(h1, h2, h3, h4, strong, b, em) {
+  text-wrap: pretty;
+}
+
+@media (max-width: 700px) {
+  .game-readability-scope {
+    --game-font-body: 16px;
+    --game-font-control: 16px;
+    --game-font-meta: 14px;
+    --game-readable-line: 1.55;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .game-readability-scope :where(p, small, [class*="hint"], [class*="note"], [class*="meta"]) {
+    opacity: 1 !important;
+    filter: none !important;
+  }
+}

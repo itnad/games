@@ -229,6 +229,22 @@ test("provides a complete objective and victory guide for every game", async () 
   );
 });
 
+test("applies the shared readable typography contract to every current and future game", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/game-readability.css", import.meta.url), "utf8");
+  const guide = await readFile(new URL("../docs/game-ui-readability.md", import.meta.url), "utf8");
+
+  assert.match(pageSource, /className="game-readability-scope"/);
+  assert.match(pageSource, /data-game-id=\{gameId\}/);
+  assert.match(layoutSource, /game-readability\.css/);
+  assert.match(styles, /--game-font-body:\s*clamp\(15px/);
+  assert.match(styles, /--game-font-control:\s*clamp\(15px/);
+  assert.match(styles, /--game-font-meta:\s*clamp\(13px/);
+  assert.match(styles, /--game-font-compact:\s*12px/);
+  assert.match(guide, /12px.*미만의 보이는 텍스트를 새로 추가하지 않는다/);
+});
+
 test("server-renders the Playroom game library", async () => {
   const response = await render();
   assert.equal(response.status, 200);

@@ -14,6 +14,7 @@ import "./camel-up.css";
 import "./tichu.css";
 import "./cashflow-escape.css";
 import "./baccarat.css";
+import "./game-readability.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
