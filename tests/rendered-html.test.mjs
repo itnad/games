@@ -476,15 +476,20 @@ test("uses asset income terminology throughout Cashflow Escape", async () => {
     readFile(new URL("../app/game-objectives.js", import.meta.url), "utf8"),
   ]);
   const copy = files.join("\n");
+  const legacyTerms = [
+    [49688, 46041, 49548, 46301],
+    [49688, 46041, 51201, 32, 49548, 46301],
+    [51088, 49328, 32, 49688, 51077],
+  ].map((codePoints) => String.fromCodePoint(...codePoints));
   assert.match(copy, /자산소득이 총지출 이상/);
-  assert.doesNotMatch(copy, /수동소득|수동적 소득|자산 수입/);
+  for (const legacyTerm of legacyTerms) assert.equal(copy.includes(legacyTerm), false);
   assert.doesNotMatch(files[0] + files[1], /passiveIncome|\bpassive\b/);
   assert.match(files[0], /확인하고 계속/);
   assert.match(files[0], /TURN HISTORY/);
 
   const migrated = cfeMigrateSavedGame({
-    lastEvent: "수동소득으로 지출을 덮으세요",
-    log: ["수동적 소득 증가", "자산 수입 확인"],
+    lastEvent: `${legacyTerms[0]}으로 지출을 덮으세요`,
+    log: [`${legacyTerms[1]} 증가`, `${legacyTerms[2]} 확인`],
     standings: [{ id: 0, passive: 120 }],
   });
   assert.equal(migrated.lastEvent, "자산소득으로 지출을 덮으세요");
