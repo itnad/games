@@ -7,6 +7,7 @@ type PieceType = "K" | "G" | "R" | "C" | "H" | "E" | "S";
 type Piece = { side: Side; type: PieceType };
 type Board = Array<Piece | null>;
 type Move = { from: number; to: number };
+type JanggiSetup = "inner" | "outer" | "left" | "right";
 
 const COLS = 9;
 const ROWS = 10;
@@ -38,20 +39,27 @@ const PIECE_NAME: Record<PieceType, string> = {
   S: "졸",
 };
 const CAPTURE_PREVIEW_COUNT = 4;
+const JANGGI_SETUPS: Record<JanggiSetup, { label: string; flank: PieceType[] }> = {
+  inner: { label: "안상 차림", flank: ["H", "E", "E", "H"] },
+  outer: { label: "바깥상 차림", flank: ["E", "H", "H", "E"] },
+  left: { label: "왼상 차림", flank: ["E", "H", "E", "H"] },
+  right: { label: "오른상 차림", flank: ["H", "E", "H", "E"] },
+};
 
 function makePiece(side: Side, type: PieceType): Piece {
   return { side, type };
 }
 
-function newJanggiBoard(): Board {
+function newJanggiBoard(choSetup: JanggiSetup = "inner", hanSetup: JanggiSetup = "inner"): Board {
   const board: Board = Array.from({ length: COLS * ROWS }, () => null);
-  const back: PieceType[] = ["R", "H", "E", "G", "G", "E", "H", "R"];
+  const choFlank = JANGGI_SETUPS[choSetup].flank;
+  const hanFlank = JANGGI_SETUPS[hanSetup].flank;
   const backCols = [0, 1, 2, 3, 5, 6, 7, 8];
 
-  back.forEach((type, index) => {
-    board[at(0, backCols[index])] = makePiece("han", type);
-    board[at(9, backCols[index])] = makePiece("cho", type);
-  });
+  const choBack: PieceType[] = ["R", choFlank[0], choFlank[1], "G", "G", choFlank[2], choFlank[3], "R"];
+  const hanBack: PieceType[] = ["R", hanFlank[0], hanFlank[1], "G", "G", hanFlank[2], hanFlank[3], "R"];
+  choBack.forEach((type, index) => { board[at(9, backCols[index])] = makePiece("cho", type); });
+  hanBack.forEach((type, index) => { board[at(0, backCols[index])] = makePiece("han", type); });
   board[at(1, 4)] = makePiece("han", "K");
   board[at(8, 4)] = makePiece("cho", "K");
   board[at(2, 1)] = makePiece("han", "C");
@@ -367,7 +375,10 @@ function JanggiTopbar({ onExit }: { onExit: () => void }) {
 }
 
 export function JanggiGame({ onExit }: { onExit: () => void }) {
-  const [board, setBoard] = useState<Board>(newJanggiBoard);
+  const [choSetup, setChoSetup] = useState<JanggiSetup>("inner");
+  const [hanSetup, setHanSetup] = useState<JanggiSetup>("inner");
+  const [started, setStarted] = useState(false);
+  const [board, setBoard] = useState<Board>(() => newJanggiBoard("inner", "inner"));
   const [turn, setTurn] = useState<Side>("cho");
   const [selected, setSelected] = useState<number | null>(null);
   const [winner, setWinner] = useState<Side | null>(null);
@@ -378,7 +389,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
   const [notice, setNotice] = useState("움직일 기물을 선택하세요");
   const [moveNumber, setMoveNumber] = useState(1);
 
-  const moves = useMemo(() => turn === "cho" && !winner ? legalMoves(board, "cho") : [], [board, turn, winner]);
+  const moves = useMemo(() => started && turn === "cho" && !winner ? legalMoves(board, "cho") : [], [board, started, turn, winner]);
   const selectedMoves = selected === null ? [] : moves.filter((move) => move.from === selected);
   const destinations = new Set(selectedMoves.map((move) => move.to));
   const choCount = board.filter((piece) => piece?.side === "cho").length;
@@ -399,7 +410,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
   const hasMoreCaptured = capturedCho.length > CAPTURE_PREVIEW_COUNT || capturedHan.length > CAPTURE_PREVIEW_COUNT;
 
   const play = (index: number) => {
-    if (turn !== "cho" || winner) return;
+    if (!started || turn !== "cho" || winner) return;
     const piece = board[index];
     if (piece?.side === "cho") {
       if (selected === index) {
@@ -439,7 +450,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
   };
 
   const pass = () => {
-    if (turn !== "cho" || winner || choChecked) return;
+    if (!started || turn !== "cho" || winner || choChecked) return;
     setSelected(null);
     setTurn("han");
     setMoveNumber((value) => value + 1);
@@ -447,7 +458,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
   };
 
   useEffect(() => {
-    if (turn !== "han" || winner) return;
+    if (!started || turn !== "han" || winner) return;
     const timer = window.setTimeout(() => {
       const aiMove = chooseAiMove(board);
       if (!aiMove) {
@@ -479,10 +490,21 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
       }
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [board, turn, winner]);
+  }, [board, started, turn, winner]);
+
+  const start = () => {
+    const setupKeys = Object.keys(JANGGI_SETUPS) as JanggiSetup[];
+    const nextHanSetup = setupKeys[Math.floor(Math.random() * setupKeys.length)];
+    setHanSetup(nextHanSetup);
+    setBoard(newJanggiBoard(choSetup, nextHanSetup));
+    setStarted(true);
+    setTurn("cho");
+    setNotice(`${JANGGI_SETUPS[choSetup].label}으로 대국을 시작합니다`);
+  };
 
   const reset = () => {
-    setBoard(newJanggiBoard());
+    setStarted(false);
+    setBoard(newJanggiBoard(choSetup, "inner"));
     setTurn("cho");
     setSelected(null);
     setWinner(null);
@@ -496,6 +518,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
 
   const status = winner
     ? winner === "cho" ? "초의 승리!" : "한의 승리"
+    : !started ? "차림을 선택하세요"
     : turn === "cho"
       ? choChecked ? "장군!" : "초 · 내 차례"
       : hanChecked ? "장군을 불렀어요" : "한 · AI 차례";
@@ -508,8 +531,23 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
           <div>
             <span className="eyebrow">KOREAN CHESS</span>
             <h1>궁을 지키고<br />외통을 만드세요</h1>
-            <p>초 진영으로 먼저 시작합니다. 기물의 길을 열고 상대 궁이 피할 수 없는 장군을 만드세요.</p>
+            <p>초 진영으로 먼저 시작합니다. 네 가지 마·상 차림 중 하나를 고른 뒤 상대 궁이 피할 수 없는 장군을 만드세요.</p>
           </div>
+          {!started && (
+            <fieldset className="janggi-setup-picker">
+              <legend>초의 마·상 차림</legend>
+              {(Object.entries(JANGGI_SETUPS) as [JanggiSetup, { label: string; flank: PieceType[] }][]).map(([id, setup]) => (
+                <button key={id} className={choSetup === id ? "active" : ""} onClick={() => {
+                  setChoSetup(id);
+                  setBoard(newJanggiBoard(id, "inner"));
+                }}>
+                  <strong>{setup.flank.map((piece) => PIECE_LABEL.cho[piece]).join(" · ")}</strong>
+                  <span>{setup.label}</span>
+                </button>
+              ))}
+              <button className="janggi-start-button" onClick={start}>이 차림으로 대국 시작</button>
+            </fieldset>
+          )}
           <div className="mode-switch" aria-label="대전 모드">
             <button className="active"><span className="bot-face">•ᴗ•</span>초급 AI</button>
             <button disabled><span>♙</span>친구 대전<small>준비 중</small></button>
@@ -518,13 +556,13 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
             <div className={turn === "cho" && !winner ? "active" : ""}>
               <span className="side-seal cho">楚</span>
               <strong>초 · 나</strong>
-              <small>기물 {choCount}</small>
+              <small>{started ? `기물 ${choCount}` : JANGGI_SETUPS[choSetup].label}</small>
             </div>
             <b>第 {moveNumber} 手</b>
             <div className={turn === "han" && !winner ? "active" : ""}>
               <span className="side-seal han">漢</span>
               <strong>한 · AI</strong>
-              <small>기물 {hanCount}</small>
+              <small>{started ? `${JANGGI_SETUPS[hanSetup].label} · 기물 ${hanCount}` : "차림 비공개"}</small>
             </div>
           </div>
         </div>
@@ -550,7 +588,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
                   <button
                     key={index}
                     onClick={() => play(index)}
-                    disabled={turn !== "cho" || Boolean(winner) || (!selectable && !destination)}
+                    disabled={!started || turn !== "cho" || Boolean(winner) || (!selectable && !destination)}
                     className={`${destination ? "destination" : ""} ${isSelected ? "selected" : ""} ${isOpponentFrom ? "opponent-from" : ""} ${isOpponentTo ? "opponent-to" : ""}`}
                     role="gridcell"
                     aria-label={`${rowOf(index) + 1}행 ${colOf(index) + 1}열${piece ? ` ${piece.side === "cho" ? "초" : "한"} ${PIECE_NAME[piece.type]}` : destination ? " 이동 가능" : ""}${isOpponentFrom ? " AI의 최근 출발 위치" : isOpponentTo ? " AI가 최근 움직인 말" : ""}`}
@@ -624,7 +662,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
 
           <div className="game-actions janggi-actions">
             <button className="text-action" onClick={reset}>↻ 새 대국</button>
-            <button className="pass-action" onClick={pass} disabled={turn !== "cho" || Boolean(winner) || choChecked}>한 수 쉼</button>
+            <button className="pass-action" onClick={pass} disabled={!started || turn !== "cho" || Boolean(winner) || choChecked}>한 수 쉼</button>
             <span className="game-hint">기물을 선택하면 이동할 수 있는 교차점이 표시됩니다</span>
             {winner && <button className="primary-action" onClick={reset}>다시 대국</button>}
           </div>

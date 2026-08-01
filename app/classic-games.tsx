@@ -347,6 +347,7 @@ export function NineMensMorrisGame({ onExit }: ExitProps) {
         "가로·세로로 세 말을 잇는 밀을 만들면 상대 말 하나를 제거합니다.",
         "배치가 끝나면 선을 따라 인접한 빈 교차점으로 한 칸 이동합니다.",
         "말이 세 개만 남으면 연결선과 관계없이 빈 교차점으로 이동할 수 있습니다.",
+        "상대 말을 두 개 이하로 줄이거나 상대가 합법적으로 움직일 수 없게 만들면 승리합니다.",
       ]}
       actions={<>
         <button className="text-action" onClick={() => setState(newMorrisState())}>↻ 새 게임</button>
@@ -499,7 +500,7 @@ export function GonuGame({ onExit }: ExitProps) {
       theme="gonu"
       eyebrow="KOREAN LINE GAME"
       title={<>한 칸씩 움직여<br />퇴로를 막으세요</>}
-      description="전통 고누의 막기 방식을 네 줄 말판에 담았습니다. 상대의 모든 이동로를 먼저 차단하세요."
+      description="지역마다 다른 전통 고누 가운데, 네 줄 말판에서 상대 이동로를 막는 변형입니다. 상대의 모든 이동로를 먼저 차단하세요."
       turn={state.turn}
       playerScore={`${playerMoves.length}길`}
       aiScore={`${gonuMoves(state.board, 2).length}길`}
@@ -639,6 +640,7 @@ function DominoPiece({ tile, compact = false }: { tile: { left: number; right: n
 
 export function DominoGame({ onExit }: ExitProps) {
   const [state, setState] = useState<DominoState>(() => newDominoState(7));
+  const [pendingTile, setPendingTile] = useState<DominoTile | null>(null);
 
   useEffect(() => {
     if (state.turn !== 2 || state.winner) return;
@@ -687,12 +689,19 @@ export function DominoGame({ onExit }: ExitProps) {
     return () => window.clearTimeout(timer);
   }, [state.turn, state.winner]);
 
-  const playTile = (tile: DominoTile) => {
+  const playTile = (tile: DominoTile, requestedSide?: "left" | "right") => {
+    const availableSides = dominoSides(tile, state.chain);
+    if (!requestedSide && availableSides.length > 1) {
+      setPendingTile(tile);
+      return;
+    }
     setState((current) => {
       if (current.turn !== 1 || current.winner) return current;
       const sides = dominoSides(tile, current.chain);
       if (!sides.length) return { ...current, note: "현재 양 끝 숫자와 맞는 패를 선택하세요" };
-      const side = sides.includes("right") ? "right" : "left";
+      const side = requestedSide && sides.includes(requestedSide)
+        ? requestedSide
+        : sides[0];
       const chain = placeDomino(current.chain, tile, side);
       const playerHand = current.playerHand.filter((candidate) => candidate.id !== tile.id);
       const winner: Winner = playerHand.length === 0 ? 1 : 0;
@@ -706,9 +715,11 @@ export function DominoGame({ onExit }: ExitProps) {
         note: winner ? "모든 패를 내려놓았습니다" : `${tile.a}-${tile.b} 패를 놓았습니다`,
       };
     });
+    setPendingTile(null);
   };
 
   const drawOrPass = () => {
+    setPendingTile(null);
     setState((current) => {
       if (current.turn !== 1 || current.winner) return current;
       const hasMove = current.playerHand.some((tile) => dominoSides(tile, current.chain).length);
@@ -734,7 +745,10 @@ export function DominoGame({ onExit }: ExitProps) {
     });
   };
 
-  const reset = () => setState(newDominoState(Date.now() % 233280));
+  const reset = () => {
+    setPendingTile(null);
+    setState(newDominoState(Date.now() % 233280));
+  };
   const [left, right] = dominoEnds(state.chain);
   const status = state.winner
     ? state.winner === 3 ? "같은 점수로 비겼어요" : state.winner === 1 ? "도미노 승리!" : "AI가 먼저 패를 비웠어요"
@@ -746,15 +760,16 @@ export function DominoGame({ onExit }: ExitProps) {
       theme="domino"
       eyebrow="MATCH THE PIPS"
       title={<>같은 눈을 맞춰<br />패를 비우세요</>}
-      description="양끝의 숫자와 같은 도미노를 이어 붙이세요. 손에 든 패를 먼저 모두 내려놓으면 승리합니다."
+      description="더블식스 28장을 쓰는 2인 드로우 도미노 변형입니다. 양끝의 숫자와 같은 도미노를 이어 붙여 손패를 먼저 비우세요."
       turn={state.turn}
       playerScore={`${state.playerHand.length}장`}
       aiScore={`${state.aiHand.length}장`}
       status={status}
       substatus={`${state.note} · 더미 ${state.boneyard.length}장`}
       rules={[
+        "이 게임은 더블식스 28장을 쓰고 각자 7장씩 받는 2인 드로우 도미노 규칙을 적용합니다.",
         "내 패에서 체인의 왼쪽 또는 오른쪽 끝 숫자와 같은 패를 선택합니다.",
-        "양쪽 모두 맞는 패는 자동으로 오른쪽에 놓이며, 한쪽만 맞으면 해당 방향에 놓입니다.",
+        "양쪽 끝 모두에 맞는 패는 왼쪽과 오른쪽 중 놓을 방향을 직접 선택합니다.",
         "놓을 수 있는 패가 없으면 더미에서 한 장씩 가져옵니다.",
         "패를 먼저 모두 놓으면 승리하며, 막히면 남은 눈의 합이 작은 쪽이 이깁니다.",
       ]}
@@ -791,6 +806,14 @@ export function DominoGame({ onExit }: ExitProps) {
             );
           })}
         </div>
+        {pendingTile && state.turn === 1 && !state.winner && (
+          <div className="domino-side-choice" role="group" aria-label={`${pendingTile.a}-${pendingTile.b} 놓을 방향`}>
+            <strong>{pendingTile.a}-{pendingTile.b} 패를 어느 쪽에 놓을까요?</strong>
+            <button type="button" onClick={() => playTile(pendingTile, "left")}>← 왼쪽 끝</button>
+            <button type="button" onClick={() => playTile(pendingTile, "right")}>오른쪽 끝 →</button>
+            <button type="button" className="text-action" onClick={() => setPendingTile(null)}>취소</button>
+          </div>
+        )}
       </div>
     </ClassicGameLayout>
   );
@@ -810,13 +833,14 @@ type BackgammonState = {
   selected: BgSource | null;
   winner: Winner;
   note: string;
+  opening: boolean;
 };
 
 function newBackgammonState(): BackgammonState {
   const board = Array(24).fill(0);
   board[23] = 2; board[12] = 5; board[7] = 3; board[5] = 5;
   board[0] = -2; board[11] = -5; board[16] = -3; board[18] = -5;
-  return { board, bar: [0, 0], off: [0, 0], turn: 1, dice: [], selected: null, winner: 0, note: "주사위를 굴려 시작하세요" };
+  return { board, bar: [0, 0], off: [0, 0], turn: 1, dice: [], selected: null, winner: 0, note: "각자 주사위 하나를 굴려 선수를 정하세요", opening: true };
 }
 
 function bgOwner(value: number): Player | 0 {
@@ -863,10 +887,6 @@ function bgMovesForDie(state: BackgammonState, player: Player, die: number): BgM
   return moves;
 }
 
-function bgLegalMoves(state: BackgammonState, player: Player) {
-  return state.dice.flatMap((die) => bgMovesForDie(state, player, die));
-}
-
 function applyBgMove(state: BackgammonState, player: Player, move: BgMove) {
   const board = [...state.board];
   const bar: [number, number] = [...state.bar];
@@ -891,6 +911,28 @@ function applyBgMove(state: BackgammonState, player: Player, move: BgMove) {
   return { ...state, board, bar, off, dice, selected: null };
 }
 
+function bgMoveSequences(state: BackgammonState, player: Player): BgMove[][] {
+  if (!state.dice.length) return [[]];
+  const candidates = [...new Set(state.dice)].flatMap((die) => bgMovesForDie(state, player, die));
+  if (!candidates.length) return [[]];
+  return candidates.flatMap((move) =>
+    bgMoveSequences(applyBgMove(state, player, move), player).map((rest) => [move, ...rest]),
+  );
+}
+
+function bgLegalMoves(state: BackgammonState, player: Player) {
+  const sequences = bgMoveSequences(state, player);
+  const maximumUses = Math.max(...sequences.map((sequence) => sequence.length));
+  let legalSequences = sequences.filter((sequence) => sequence.length === maximumUses && sequence.length > 0);
+  if (maximumUses === 1 && new Set(state.dice).size > 1) {
+    const highestPlayable = Math.max(...legalSequences.map((sequence) => sequence[0].die));
+    legalSequences = legalSequences.filter((sequence) => sequence[0].die === highestPlayable);
+  }
+  const unique = new Map<string, BgMove>();
+  legalSequences.forEach(([move]) => unique.set(`${move.from}:${move.to}:${move.die}`, move));
+  return [...unique.values()];
+}
+
 function rollBackgammonDice() {
   const first = 1 + Math.floor(Math.random() * 6);
   const second = 1 + Math.floor(Math.random() * 6);
@@ -910,7 +952,9 @@ export function BackgammonGame({ onExit }: ExitProps) {
     const timer = window.setTimeout(() => {
       setState((current) => {
         if (current.turn !== 2 || current.winner) return current;
-        let next: BackgammonState = { ...current, dice: rollBackgammonDice(), note: "AI가 주사위를 굴렸습니다" };
+        let next: BackgammonState = current.dice.length
+          ? { ...current, note: `AI가 선수를 정한 ${current.dice.join("·")}을 사용합니다` }
+          : { ...current, dice: rollBackgammonDice(), note: "AI가 주사위를 굴렸습니다" };
         let guard = 0;
         while (next.dice.length && guard < 4) {
           guard += 1;
@@ -949,6 +993,22 @@ export function BackgammonGame({ onExit }: ExitProps) {
   const roll = () => {
     setState((current) => {
       if (current.turn !== 1 || current.dice.length || current.winner) return current;
+      if (current.opening) {
+        let mine = 0;
+        let theirs = 0;
+        do {
+          mine = 1 + Math.floor(Math.random() * 6);
+          theirs = 1 + Math.floor(Math.random() * 6);
+        } while (mine === theirs);
+        const turn: Player = mine > theirs ? 1 : 2;
+        return {
+          ...current,
+          opening: false,
+          turn,
+          dice: [mine, theirs],
+          note: `선수 결정 나 ${mine} · AI ${theirs} — ${turn === 1 ? "내가" : "AI가"} 두 눈을 사용합니다`,
+        };
+      }
       const dice = rollBackgammonDice();
       return { ...current, dice, selected: current.bar[0] ? "bar" : null, note: `${dice[0]} · ${dice[1]} 주사위가 나왔습니다` };
     });
@@ -1024,17 +1084,20 @@ export function BackgammonGame({ onExit }: ExitProps) {
       status={status}
       substatus={`${state.note} · 바 나 ${state.bar[0]} / AI ${state.bar[1]}`}
       rules={[
+        "게임 시작에 각자 주사위 하나를 굴려 높은 쪽이 나온 두 눈을 모두 사용해 먼저 이동합니다. 동점이면 다시 굴립니다.",
         "플레이어는 24번에서 1번 방향으로, AI는 반대 방향으로 이동합니다.",
         "주사위 두 눈을 각각 한 번 사용하며 같은 눈이면 네 번 움직입니다.",
+        "가능하면 두 눈을 모두 사용해야 하며 하나만 쓸 수 있다면 더 높은 눈을 사용합니다.",
         "상대 말이 하나뿐인 포인트에 도착하면 그 말을 바로 보내고, 두 개 이상이면 들어갈 수 없습니다.",
         "내 모든 말이 마지막 여섯 칸에 모이면 주사위 눈에 맞춰 판 밖으로 내보낼 수 있습니다.",
+        "이 웹 버전은 단판 이동 규칙을 다루며 더블링 큐브와 매치 점수는 사용하지 않습니다.",
       ]}
       actions={<>
         <button className="text-action" onClick={reset}>↻ 새 게임</button>
         <div className="bg-dice" aria-label={`남은 주사위 ${state.dice.join(", ") || "없음"}`}>
           {state.dice.map((die, index) => <b key={`${die}-${index}`}>{die}</b>)}
         </div>
-        {!state.winner && state.turn === 1 && !state.dice.length && <button className="primary-action bg-roll" onClick={roll}>⚂ 주사위 굴리기</button>}
+        {!state.winner && state.turn === 1 && !state.dice.length && <button className="primary-action bg-roll" onClick={roll}>⚂ {state.opening ? "선수 정하기" : "주사위 굴리기"}</button>}
         {state.bar[0] > 0 && state.turn === 1 && state.dice.length > 0 && (
           <button className={`primary-action ${state.selected === "bar" ? "active" : ""}`} onClick={() => selectSource("bar")}>바에서 입장</button>
         )}

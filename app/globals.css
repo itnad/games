@@ -3595,8 +3595,8 @@ footer > span {
   aspect-ratio: 1;
   padding: 10px;
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: repeat(8, 1fr);
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(10, 1fr);
   border: 9px solid #c9b486;
   border-radius: 7px;
   background: #17705a;
@@ -4280,6 +4280,55 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 12px;
+}
+
+.janggi-setup-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.janggi-setup-picker legend {
+  grid-column: 1 / -1;
+  margin-bottom: 0.35rem;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.janggi-setup-picker button {
+  min-height: 4.25rem;
+  padding: 0.65rem;
+  border: 1px solid rgba(35, 58, 48, 0.18);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: inherit;
+}
+
+.janggi-setup-picker button strong,
+.janggi-setup-picker button span {
+  display: block;
+}
+
+.janggi-setup-picker button strong {
+  margin-bottom: 0.25rem;
+  font-size: 1.15rem;
+  font-weight: 950;
+}
+
+.janggi-setup-picker button.active {
+  border-color: #2f765f;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(47, 118, 95, 0.16);
+}
+
+.janggi-setup-picker .janggi-start-button {
+  grid-column: 1 / -1;
+  background: #173c31;
+  color: #fff;
+  font-weight: 900;
 }
 
 .janggi-score-card > div {
@@ -6876,6 +6925,34 @@ footer { font-size: 15px; }
   justify-content: center;
   gap: 8px;
   overflow-x: auto;
+}
+
+.domino-side-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.domino-side-choice strong {
+  flex-basis: 100%;
+  text-align: center;
+}
+
+.domino-side-choice button {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 0.75rem;
+  background: #fff;
+  font: inherit;
+  font-weight: 800;
 }
 
 .domino-back {

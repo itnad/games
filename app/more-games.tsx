@@ -3,6 +3,16 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { chooseAiHeld, describeAiHeld, shouldAiStop } from "./dice-ai.js";
 import { scoreDice } from "./dice-scoring.js";
+import {
+  BATTLESHIP_SEA_SIZE as SEA_SIZE,
+  BATTLESHIP_SHIP_LENGTHS,
+  applyCheckerMove,
+  battleshipRemainingShips as remainingShips,
+  checkerMoves,
+  checkerOwner,
+  checkersWinner,
+  createBattleshipFleet as createFleet,
+} from "./classic-rules-engine.js";
 
 type ExitProps = { onExit: () => void };
 
@@ -552,33 +562,19 @@ export function MancalaGame({ onExit }: ExitProps) {
 
 /* Battleship */
 type Fleet = { cells: Set<number>; ships: number[][] };
-const SEA_SIZE = 8;
 
-function createFleet(): Fleet {
-  const cells = new Set<number>();
-  const ships: number[][] = [];
-  for (const length of [3, 2, 2]) {
-    let placed = false;
-    while (!placed) {
-      const horizontal = Math.random() > 0.5;
-      const row = Math.floor(Math.random() * (horizontal ? SEA_SIZE : SEA_SIZE - length + 1));
-      const col = Math.floor(Math.random() * (horizontal ? SEA_SIZE - length + 1 : SEA_SIZE));
-      const ship = Array.from({ length }, (_, offset) =>
-        (row + (horizontal ? 0 : offset)) * SEA_SIZE + col + (horizontal ? offset : 0),
-      );
-      if (ship.every((cell) => !cells.has(cell))) {
-        ship.forEach((cell) => cells.add(cell));
-        ships.push(ship);
-        placed = true;
-      }
-    }
-  }
-  return { cells, ships };
-}
+const BATTLESHIP_RULES: LearningItem[] = [
+  { title: "정식 함대", body: "10×10 해역에 항공모함 5칸, 전함 4칸, 순양함 3칸, 잠수함 3칸, 구축함 2칸을 가로 또는 세로로 배치합니다." },
+  { title: "한 번의 공격", body: "차례마다 아직 공격하지 않은 좌표 하나를 지정합니다. 상대는 명중인지 빗나감인지 알리고 기록합니다." },
+  { title: "격침 확인", body: "함선의 모든 칸이 명중되면 해당 함선은 격침됩니다. 화면에서는 격침된 상대 함선의 모습도 공개됩니다." },
+  { title: "승리", body: "상대의 다섯 함선, 총 17개 선체 칸을 먼저 모두 명중시키면 즉시 승리합니다." },
+];
 
-function remainingShips(fleet: Fleet, shots: Set<number>) {
-  return fleet.ships.filter((ship) => !ship.every((cell) => shots.has(cell))).length;
-}
+const BATTLESHIP_TUTORIAL: TutorialStep[] = [
+  { visual: "A1  A2  A3\nB1  B2  B3", title: "좌표 하나를 선택", body: "상대 해역에서 아직 공격하지 않은 칸을 누르세요.", note: "한 차례에는 한 좌표만 공격합니다." },
+  { visual: "• 빗나감   × 명중", title: "공격 기록 읽기", body: "작은 점은 빗나감, 붉은 ×는 명중입니다. 명중 주변의 가로·세로 칸을 이어서 확인하세요.", note: "함선은 대각선으로 놓이지 않습니다." },
+  { visual: "■■■■■  ■■■■  ■■■  ■■■  ■■", title: "다섯 척의 길이를 기억", body: "남은 함선 길이를 고려하면 다음에 확인할 좌표를 더 효율적으로 고를 수 있습니다.", note: "모든 칸을 맞힌 함선은 격침됩니다." },
+];
 
 function SeaGrid({
   fleet,
@@ -625,7 +621,7 @@ function SeaGrid({
           <img src="/submarine-sprite.png" alt="" />
         </span>
       ))}
-      {Array.from({ length: 64 }, (_, index) => {
+      {Array.from({ length: SEA_SIZE * SEA_SIZE }, (_, index) => {
         const ship = fleet.cells.has(index);
         const shot = shots.has(index);
         return (
@@ -634,7 +630,7 @@ function SeaGrid({
             onClick={() => onShoot?.(index)}
             disabled={!onShoot || disabled || shot}
             className={`${!conceal && ship ? "ship" : ""} ${shot ? ship ? "hit" : "miss" : ""}`}
-            aria-label={`${Math.floor(index / 8) + 1}행 ${(index % 8) + 1}열${!conceal && ship ? " 내 잠수정" : ""}${shot ? ship ? " 명중" : " 빗나감" : ""}`}
+            aria-label={`${Math.floor(index / SEA_SIZE) + 1}행 ${(index % SEA_SIZE) + 1}열${!conceal && ship ? " 내 함선" : ""}${shot ? ship ? " 명중" : " 빗나감" : ""}`}
             role="gridcell"
           >
             {shot && <span>{ship ? "×" : "•"}</span>}
@@ -671,7 +667,7 @@ export function BattleshipGame({ onExit }: ExitProps) {
   useEffect(() => {
     if (turn !== 2 || winner) return;
     const timer = window.setTimeout(() => {
-      const available = Array.from({ length: 64 }, (_, index) => index).filter((index) => !aiShots.has(index));
+      const available = Array.from({ length: SEA_SIZE * SEA_SIZE }, (_, index) => index).filter((index) => !aiShots.has(index));
       const target = available[Math.floor(Math.random() * available.length)];
       const shots = new Set(aiShots).add(target);
       setAiShots(shots);
@@ -704,16 +700,17 @@ export function BattleshipGame({ onExit }: ExitProps) {
         <InfoPanel
           eyebrow="FIND THE FLEET"
           title={<>보이지 않는<br />함대를 찾아라</>}
-          description="상대 해역의 좌표를 공격해 숨어 있는 세 척의 함선을 먼저 격침하세요."
+          description="10×10 해역의 좌표를 공격해 숨어 있는 다섯 척의 함선을 먼저 격침하세요."
         >
           <SimpleScore
-            player={3 - remainingShips(enemyFleet, playerShots)}
-            ai={3 - remainingShips(playerFleet, aiShots)}
+            player={BATTLESHIP_SHIP_LENGTHS.length - remainingShips(enemyFleet, playerShots)}
+            ai={BATTLESHIP_SHIP_LENGTHS.length - remainingShips(playerFleet, aiShots)}
             turn={turn}
             label="SUNK"
           />
         </InfoPanel>
         <div className="board-panel sea-panel">
+          <GameLearningTools game="해전" theme="battleship" rules={BATTLESHIP_RULES} tutorial={BATTLESHIP_TUTORIAL} />
           <div className="board-status" role="status">
             <span className="sea-status-icon">⌖</span>
             <strong>{winner ? winner === 1 ? "승리했어요!" : "AI가 승리했어요" : turn === 1 ? "내 공격" : "AI의 공격"}</strong>
@@ -1084,7 +1081,7 @@ type CheckerMove = { from: number; to: number; capture?: number };
 const CHECKERS_RULES: LearningItem[] = [
   { title: "내 말과 이동", body: "플레이어는 산호색 말입니다. 어두운 칸 위에서 앞쪽 대각선으로 한 칸 이동합니다." },
   { title: "말 잡기", body: "대각선 앞의 상대 말 너머가 비어 있으면 뛰어넘어 잡습니다. 잡을 수 있을 때는 반드시 잡아야 합니다." },
-  { title: "연속 점프", body: "잡은 뒤 같은 말로 다시 잡을 수 있으면 한 차례에 계속 점프합니다." },
+  { title: "연속 점프", body: "잡은 뒤 같은 말로 다시 잡을 수 있으면 한 차례에 계속 점프합니다. 단, 일반 말이 끝줄에 도착해 킹이 되면 그 차례는 즉시 끝납니다." },
   { title: "킹", body: "상대편 끝줄에 도착한 말은 별이 표시된 킹이 되며 앞뒤 양방향으로 움직일 수 있습니다." },
   { title: "승리", body: "상대 말을 모두 잡거나 상대가 움직일 수 없게 만들면 승리합니다." },
 ];
@@ -1105,61 +1102,6 @@ function newCheckersBoard(): Checker[] {
     if (row > 4) return 1;
     return 0;
   }) as Checker[];
-}
-
-function checkerOwner(piece: Checker): 0 | 1 | 2 {
-  if (piece === 1 || piece === 3) return 1;
-  if (piece === 2 || piece === 4) return 2;
-  return 0;
-}
-
-function checkerMoves(board: Checker[], player: 1 | 2, onlyFrom?: number): CheckerMove[] {
-  const captures: CheckerMove[] = [];
-  const normals: CheckerMove[] = [];
-  board.forEach((piece, from) => {
-    if (checkerOwner(piece) !== player || (onlyFrom !== undefined && from !== onlyFrom)) return;
-    const row = Math.floor(from / 8);
-    const col = from % 8;
-    const rows = piece >= 3 ? [-1, 1] : player === 1 ? [-1] : [1];
-    for (const dr of rows) {
-      for (const dc of [-1, 1]) {
-        const r = row + dr;
-        const c = col + dc;
-        if (r < 0 || r >= 8 || c < 0 || c >= 8) continue;
-        const near = r * 8 + c;
-        if (board[near] === 0) {
-          normals.push({ from, to: near });
-        } else if (checkerOwner(board[near]) === (player === 1 ? 2 : 1)) {
-          const jumpR = row + dr * 2;
-          const jumpC = col + dc * 2;
-          if (jumpR >= 0 && jumpR < 8 && jumpC >= 0 && jumpC < 8 && board[jumpR * 8 + jumpC] === 0) {
-            captures.push({ from, to: jumpR * 8 + jumpC, capture: near });
-          }
-        }
-      }
-    }
-  });
-  return captures.length ? captures : normals;
-}
-
-function applyCheckerMove(board: Checker[], move: CheckerMove) {
-  const next = [...board];
-  let piece = next[move.from];
-  next[move.from] = 0;
-  if (move.capture !== undefined) next[move.capture] = 0;
-  const row = Math.floor(move.to / 8);
-  if (piece === 1 && row === 0) piece = 3;
-  if (piece === 2 && row === 7) piece = 4;
-  next[move.to] = piece;
-  return next;
-}
-
-function checkersWinner(board: Checker[]): 0 | 1 | 2 {
-  const playerPieces = board.filter((piece) => checkerOwner(piece) === 1).length;
-  const aiPieces = board.filter((piece) => checkerOwner(piece) === 2).length;
-  if (!playerPieces || !checkerMoves(board, 1).length) return 2;
-  if (!aiPieces || !checkerMoves(board, 2).length) return 1;
-  return 0;
 }
 
 export function CheckersGame({ onExit }: ExitProps) {
@@ -1185,9 +1127,10 @@ export function CheckersGame({ onExit }: ExitProps) {
       if (chainFrom === null) setSelected(null);
       return;
     }
-    const next = applyCheckerMove(board, move);
+    const result = applyCheckerMove(board, move);
+    const next = result.board as Checker[];
     setBoard(next);
-    if (move.capture !== undefined) {
+    if (move.capture !== undefined && !result.crowned) {
       const further = checkerMoves(next, 1, move.to).filter((candidate) => candidate.capture !== undefined);
       if (further.length) {
         setSelected(move.to);
@@ -1218,12 +1161,14 @@ export function CheckersGame({ onExit }: ExitProps) {
           (Math.floor(candidate.to / 8) === 7 ? 8 : 0) + Math.random();
         return value(b) - value(a);
       })[0];
-      next = applyCheckerMove(next, move);
-      while (move.capture !== undefined) {
+      let result = applyCheckerMove(next, move);
+      next = result.board as Checker[];
+      while (move.capture !== undefined && !result.crowned) {
         const more = checkerMoves(next, 2, move.to).filter((candidate) => candidate.capture !== undefined);
         if (!more.length) break;
         move = more[Math.floor(Math.random() * more.length)];
-        next = applyCheckerMove(next, move);
+        result = applyCheckerMove(next, move);
+        next = result.board as Checker[];
       }
       setBoard(next);
       const outcome = checkersWinner(next);

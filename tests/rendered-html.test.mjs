@@ -5,6 +5,14 @@ import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { chooseAiHeld, describeAiHeld, shouldAiStop } from "../app/dice-ai.js";
 import { scoreDice } from "../app/dice-scoring.js";
 import {
+  BATTLESHIP_SEA_SIZE,
+  BATTLESHIP_SHIP_LENGTHS,
+  applyCheckerMove,
+  battleshipRemainingShips,
+  checkerMoves,
+  createBattleshipFleet,
+} from "../app/classic-rules-engine.js";
+import {
   createRaceHorses,
   wcAvailableHorseIds,
   wcMoveHorse,
@@ -295,6 +303,69 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
+});
+
+test("uses official classic Battleship fleet and American checkers crowning", () => {
+  let seed = 4711;
+  const random = () => {
+    seed = (seed * 48271) % 2147483647;
+    return seed / 2147483647;
+  };
+  const fleet = createBattleshipFleet(random);
+  assert.equal(BATTLESHIP_SEA_SIZE, 10);
+  assert.deepEqual(fleet.ships.map((ship) => ship.length), BATTLESHIP_SHIP_LENGTHS);
+  assert.equal(fleet.cells.size, 17);
+  for (const ship of fleet.ships) {
+    const rows = new Set(ship.map((cell) => Math.floor(cell / BATTLESHIP_SEA_SIZE)));
+    const cols = new Set(ship.map((cell) => cell % BATTLESHIP_SEA_SIZE));
+    assert.ok(rows.size === 1 || cols.size === 1);
+  }
+  const sunkShots = new Set(fleet.ships[0]);
+  assert.equal(battleshipRemainingShips(fleet, sunkShots), 4);
+
+  const board = Array(64).fill(0);
+  board[17] = 1;
+  board[10] = 2;
+  board[12] = 2;
+  const firstJump = checkerMoves(board, 1).find((move) => move.from === 17 && move.to === 3);
+  assert.ok(firstJump);
+  const crowned = applyCheckerMove(board, firstJump);
+  assert.equal(crowned.crowned, true);
+  assert.equal(crowned.board[3], 3);
+  assert.ok(checkerMoves(crowned.board, 1, 3).some((move) => move.capture !== undefined));
+  assert.equal(crowned.crowned, true, "끝줄에서 킹이 된 순간에는 추가 잡기가 있어도 차례가 끝나야 합니다.");
+});
+
+test("documents audited classic variants and player choices", async () => {
+  const source = await readFile(new URL("../app/classic-games.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /상대 말을 두 개 이하로 줄이거나 상대가 합법적으로 움직일 수 없게 만들면 승리/);
+  assert.match(source, /지역마다 다른 전통 고누 가운데, 네 줄 말판/);
+  assert.match(source, /더블식스 28장을 쓰는 2인 드로우 도미노/);
+  assert.match(source, /패를 어느 쪽에 놓을까요/);
+  assert.match(source, /각자 주사위 하나를 굴려 선수를 정하세요/);
+  assert.match(source, /가능하면 두 눈을 모두 사용해야 하며/);
+  assert.match(source, /하나만 쓸 수 있다면 더 높은 눈을 사용/);
+  assert.match(source, /더블링 큐브와 매치 점수는 사용하지 않습니다/);
+});
+
+test("matches the official IELLO 2016 Diamant relic variant", async () => {
+  const source = await readFile(new URL("../app/incan-gold-game.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /\[1, 2, 3, 4, 5, 5, 7, 7, 9, 11, 11, 13, 14, 15, 17\]/);
+  assert.match(source, /\[5, 7, 8, 10, 12\]/);
+  assert.match(source, /IELLO 2016 규칙/);
+  assert.match(source, /총점이 같으면 해당 탐험가들이 공동 승리/);
+});
+
+test("offers all four standard Janggi horse-elephant setups", async () => {
+  const source = await readFile(new URL("../app/janggi-game.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /안상 차림/);
+  assert.match(source, /바깥상 차림/);
+  assert.match(source, /왼상 차림/);
+  assert.match(source, /오른상 차림/);
+  assert.match(source, /이 차림으로 대국 시작/);
 });
 
 test("runs a complete 3-to-7 player Seven Wonders draft", () => {
