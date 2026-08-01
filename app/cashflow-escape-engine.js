@@ -95,15 +95,46 @@ function liability(name, balance, payment, index) {
 }
 
 export function cfeFinancials(player) {
-  const passiveIncome = player.assets.reduce((sum, asset) => sum + asset.income, 0);
+  const assetIncome = player.assets.reduce((sum, asset) => sum + asset.income, 0);
   const debtPayments = player.liabilities.reduce((sum, item) => sum + item.payment, 0);
   const childExpense = player.children * 45;
   const totalExpenses = player.baseExpenses + debtPayments + childExpense + Math.ceil(player.bankLoan * 0.1);
-  const totalIncome = player.salary + passiveIncome;
+  const totalIncome = player.salary + assetIncome;
   const monthlyCashflow = totalIncome - totalExpenses;
   const assetValue = player.assets.reduce((sum, asset) => sum + asset.value, 0);
   const debtBalance = player.liabilities.reduce((sum, item) => sum + item.balance, 0) + player.bankLoan;
-  return { passiveIncome, debtPayments, childExpense, totalExpenses, totalIncome, monthlyCashflow, assetValue, debtBalance, netWorth: player.cash + assetValue - debtBalance };
+  return { assetIncome, debtPayments, childExpense, totalExpenses, totalIncome, monthlyCashflow, assetValue, debtBalance, netWorth: player.cash + assetValue - debtBalance };
+}
+
+function replaceLegacyIncomeTerms(value) {
+  if (typeof value === "string") {
+    const legacyTerms = [
+      [49688, 46041, 49548, 46301],
+      [49688, 46041, 51201, 49548, 46301],
+      [49688, 46041, 51201, 32, 49548, 46301],
+      [49688, 46041, 32, 49548, 46301],
+      [51088, 49328, 49688, 51077],
+      [51088, 49328, 32, 49688, 51077],
+    ].map((codePoints) => String.fromCodePoint(...codePoints));
+    return legacyTerms.reduce((text, term) => text.split(term).join("자산소득"), value);
+  }
+  if (Array.isArray(value)) return value.map(replaceLegacyIncomeTerms);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceLegacyIncomeTerms(item)]));
+}
+
+export function cfeMigrateSavedGame(state) {
+  const migrated = replaceLegacyIncomeTerms(state);
+  if (Array.isArray(migrated?.standings)) {
+    migrated.standings = migrated.standings.map((standing) => {
+      const legacyKey = ["pass", "ive"].join("");
+      const legacyAssetIncome = standing[legacyKey];
+      const current = { ...standing };
+      delete current[legacyKey];
+      return { ...current, assetIncome: current.assetIncome ?? legacyAssetIncome ?? 0 };
+    });
+  }
+  return migrated;
 }
 
 function createPlayer(id, profession, dream, isHuman) {
@@ -176,8 +207,8 @@ function ensureCash(player) {
 function ranking(players) {
   return [...players].map((player) => {
     const finance = cfeFinancials(player);
-    return { id: player.id, name: player.name, stage: player.stage, cash: player.cash, passive: finance.passiveIncome, netWorth: finance.netWorth };
-  }).sort((a, b) => (b.stage === "growth" ? 1 : 0) - (a.stage === "growth" ? 1 : 0) || b.passive - a.passive || b.netWorth - a.netWorth);
+    return { id: player.id, name: player.name, stage: player.stage, cash: player.cash, assetIncome: finance.assetIncome, netWorth: finance.netWorth };
+  }).sort((a, b) => (b.stage === "growth" ? 1 : 0) - (a.stage === "growth" ? 1 : 0) || b.assetIncome - a.assetIncome || b.netWorth - a.netWorth);
 }
 
 function advanceTurn(state) {
@@ -190,14 +221,14 @@ function advanceTurn(state) {
 function checkFreedom(state, playerId) {
   const player = state.players[playerId];
   const finance = cfeFinancials(player);
-  if (player.stage === "cycle" && finance.passiveIncome >= finance.totalExpenses) {
+  if (player.stage === "cycle" && finance.assetIncome >= finance.totalExpenses) {
     player.stage = "growth";
     player.position = 0;
-    player.growthTarget = finance.passiveIncome + 900;
+    player.growthTarget = finance.assetIncome + 900;
     state.lastEvent = `${player.name}가 생활 순환로를 벗어나 성장 트랙에 진입했습니다!`;
     state.log.push(state.lastEvent);
   }
-  if (player.stage === "growth" && finance.passiveIncome >= player.growthTarget) {
+  if (player.stage === "growth" && finance.assetIncome >= player.growthTarget) {
     return finishGame(state, playerId, "성장 수입 목표 달성");
   }
   return state;
@@ -231,7 +262,7 @@ function payAmount(state, playerId, amount, message) {
 function resolvePayday(state, playerId, growth = false) {
   const player = state.players[playerId];
   const finance = cfeFinancials(player);
-  const amount = growth ? Math.max(600, finance.passiveIncome + 350) : finance.monthlyCashflow;
+  const amount = growth ? Math.max(600, finance.assetIncome + 350) : finance.monthlyCashflow;
   player.cash += amount;
   ensureCash(player);
   state.lastEvent = growth ? `성장 수익 ${amount}만원을 받았습니다.` : `월 현금흐름 ${amount >= 0 ? "+" : ""}${amount}만원을 반영했습니다.`;

@@ -131,6 +131,7 @@ import {
   cfeChooseAiAction,
   cfeCreateGame,
   cfeFinancials,
+  cfeMigrateSavedGame,
   cfeRepayLiability,
   cfeResolvePending,
   cfeRoll,
@@ -436,7 +437,7 @@ test("runs Cashflow Escape financial statements, debt, and 2-to-6 player journey
   pending.players[0].cash = CFE_DEALS[0].cost + 100;
   const invested = cfeResolvePending(pending, 0, "buy");
   assert.equal(invested.players[0].assets.length, 1);
-  assert.equal(cfeFinancials(invested.players[0]).passiveIncome, CFE_DEALS[0].income);
+  assert.equal(cfeFinancials(invested.players[0]).assetIncome, CFE_DEALS[0].income);
   assert.match(invested.log.at(-1), /현금 -\d+만원 · 자산소득 \+\d+만원/);
 
   const marketGame = cfeCreateGame(2, "balanced", () => 0.2);
@@ -477,8 +478,19 @@ test("uses asset income terminology throughout Cashflow Escape", async () => {
   const copy = files.join("\n");
   assert.match(copy, /자산소득이 총지출 이상/);
   assert.doesNotMatch(copy, /수동소득|수동적 소득|자산 수입/);
+  assert.doesNotMatch(files[0] + files[1], /passiveIncome|\bpassive\b/);
   assert.match(files[0], /확인하고 계속/);
   assert.match(files[0], /TURN HISTORY/);
+
+  const migrated = cfeMigrateSavedGame({
+    lastEvent: "수동소득으로 지출을 덮으세요",
+    log: ["수동적 소득 증가", "자산 수입 확인"],
+    standings: [{ id: 0, passive: 120 }],
+  });
+  assert.equal(migrated.lastEvent, "자산소득으로 지출을 덮으세요");
+  assert.deepEqual(migrated.log, ["자산소득 증가", "자산소득 확인"]);
+  assert.equal(migrated.standings[0].assetIncome, 120);
+  assert.equal("passive" in migrated.standings[0], false);
 });
 
 test("applies official commission Baccarat points, third-card table, and session settlement", () => {
