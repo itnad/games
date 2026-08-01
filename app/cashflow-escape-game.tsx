@@ -39,6 +39,7 @@ type Game = {
   lastRoll: { playerId: number; values: number[]; used: number } | null;
   lastEvent: string; log: string[]; winner: number | null; standings: Standing[] | null;
 };
+type TurnReport = { playerId: number; playerName: string; lines: string[] };
 
 const SAVE_KEY = "playroom-cashflow-escape-save-v1";
 const RULES = [
@@ -62,6 +63,22 @@ const TUTORIAL = [
 function money(value: number) {
   const sign = value < 0 ? "-" : "";
   return `${sign}${Math.abs(Math.round(value)).toLocaleString("ko-KR")}만원`;
+}
+
+function buildTurnReport(previous: Game, next: Game, playerId: number): TurnReport {
+  const playerName = next.players[playerId]?.name || "참가자";
+  let start = previous.log.length;
+  if (previous.pending?.playerId === playerId) {
+    for (let index = previous.log.length - 1; index >= 0; index -= 1) {
+      const line = previous.log[index];
+      if (line.startsWith(`${playerName}:`) && line.includes("칸 이동 →")) {
+        start = index;
+        break;
+      }
+    }
+  }
+  const lines = next.log.slice(start).filter((line) => line.startsWith(`${playerName}:`)).slice(-5);
+  return { playerId, playerName, lines: lines.length ? lines : [`${playerName}: ${next.lastEvent}`] };
 }
 
 function Topbar({ onExit, onSave }: { onExit: () => void; onSave?: () => void }) {
@@ -104,6 +121,10 @@ function PendingCard({ game, onResolve, onBorrow }: { game: Game; onResolve: (ch
   return <div className="cfe-modal-bg"><section className="cfe-event-card vision"><small>LIFE VISION</small><span className="cfe-event-icon">{pending.dream?.icon}</span><h2>{pending.dream?.name}</h2><p>재무 자유 이후 선택한 인생 목표를 지금 실현할 수 있습니다.</p><div className="cfe-deal-numbers"><span><small>필요 현금</small><b>{money(pending.dream?.cost || 0)}</b></span><span><small>현재 현금</small><b>{money(player.cash)}</b></span><span><small>월 자산소득</small><b>{money(finance.passiveIncome)}</b></span></div><footer><button onClick={() => onResolve("skip")}>다음 기회</button><button className="primary" onClick={() => onResolve("buy")}>목표 실현</button></footer></section></div>;
 }
 
+function TurnResultCard({ report, onContinue }: { report: TurnReport; onContinue: () => void }) {
+  return <div className="cfe-modal-bg"><section className="cfe-event-card cfe-turn-result" role="dialog" aria-modal="true" aria-label={`${report.playerName}의 턴 결과`}><small>TURN RESULT</small><span className="cfe-event-icon">{report.playerId === 0 ? "나" : "AI"}</span><h2>{report.playerName}의 턴 결과</h2><p>이동부터 사건, 선택과 재무 변화를 순서대로 확인하세요.</p><ol>{report.lines.map((line, index) => <li key={`${line}-${index}`}><b>{index + 1}</b><span>{line.replace(`${report.playerName}: `, "")}</span></li>)}</ol><footer><button className="primary" onClick={onContinue}>확인하고 계속</button></footer></section></div>;
+}
+
 function Result({ game, onRestart, onExit }: { game: Game; onRestart: () => void; onExit: () => void }) {
   const standings = game.standings || cfeRanking(game);
   return <main className="cfe-shell"><Topbar onExit={onExit} /><section className="cfe-result"><span>FINANCIAL FREEDOM</span><h1>{game.winner === 0 ? "나만의 재무 자유를 완성했습니다!" : `${game.players[game.winner || 0].name}가 먼저 목표를 달성했습니다`}</h1><p>{game.lastEvent}</p><div>{standings.map((item, index) => <article className={item.id === 0 ? "human" : ""} key={item.id}><b>{index + 1}</b><span><strong>{item.name}</strong><small>{item.stage === "growth" ? "성장 트랙" : "생활 순환로"} · 순자산 {money(item.netWorth)}</small></span><em>자산소득 {money(item.passive)}</em></article>)}</div><footer><button onClick={onExit}>게임 목록</button><button className="primary" onClick={onRestart}>같은 설정으로 다시 시작</button></footer></section></main>;
@@ -116,32 +137,34 @@ export function CashflowEscapeGame({ onExit }: { onExit: () => void }) {
   const [guide, setGuide] = useState<"rules" | "tutorial" | null>(null);
   const [guideStep, setGuideStep] = useState(0);
   const [trackView, setTrackView] = useState<Stage | null>(null);
+  const [turnReport, setTurnReport] = useState<TurnReport | null>(null);
 
   const store = (next: Game) => { setGame(next); window.localStorage.setItem(SAVE_KEY, JSON.stringify(next)); };
-  const start = () => store(cfeCreateGame(playerCount, difficulty) as Game);
+  const start = () => { setTurnReport(null); store(cfeCreateGame(playerCount, difficulty) as Game); };
   const load = () => {
     const saved = window.localStorage.getItem(SAVE_KEY);
     if (!saved) return;
-    try { setGame(JSON.parse(saved) as Game); } catch { window.localStorage.removeItem(SAVE_KEY); }
+    try { setTurnReport(null); setGame(JSON.parse(saved) as Game); } catch { window.localStorage.removeItem(SAVE_KEY); }
   };
   const openGuide = (mode: "rules" | "tutorial") => { setGuide(mode); setGuideStep(0); };
 
   useEffect(() => {
-    if (!game || game.phase !== "playing" || game.currentPlayer === 0) return;
-    const timer = window.setTimeout(() => setGame((current) => {
-      if (!current) return current;
-      const next = cfeChooseAiAction(current, current.currentPlayer) as Game;
+    if (!game || turnReport || game.phase !== "playing" || game.currentPlayer === 0) return;
+    const timer = window.setTimeout(() => {
+      const actingPlayer = game.currentPlayer;
+      const next = cfeChooseAiAction(game, actingPlayer) as Game;
       window.localStorage.setItem(SAVE_KEY, JSON.stringify(next));
-      return next;
-    }), 650);
+      setGame(next);
+      if (!next.pending && next.log.length > game.log.length) setTurnReport(buildTurnReport(game, next, actingPlayer));
+    }, 650);
     return () => window.clearTimeout(timer);
-  }, [game]);
+  }, [game, turnReport]);
 
   if (!game) return <main className="cfe-shell"><Topbar onExit={onExit} /><section className="cfe-lobby"><div className="cfe-hero-copy"><small>A FINANCIAL LIFE SIMULATION</small><h1>월급을 모으는 삶에서<br /><em>자산이 일하는 삶으로</em></h1><p>직업마다 다른 재무제표에서 출발해 현금흐름을 읽고, 나만의 투자 원칙으로 생활 순환로를 탈출하세요.</p><div><button onClick={() => openGuide("rules")}>◎ 게임 방법</button><button onClick={() => openGuide("tutorial")}>▷ 튜토리얼</button></div><span>※ 모든 상품과 수치는 교육용으로 만든 가상 정보입니다.</span></div>
     <div className="cfe-hero-art" aria-hidden="true"><i className="orbit outer" /><i className="orbit inner" /><span className="won">₩</span><div className="cfe-hero-cards"><i><small>ASSET</small><b>+125</b><span>MONTHLY</span></i><i><small>EXPENSE</small><b>−80</b><span>MONTHLY</span></i><i><small>CASHFLOW</small><b>+45</b><span>MONTHLY</span></i></div></div>
     <aside className="cfe-setup"><small>NEW JOURNEY</small><h2>게임 설정</h2><fieldset><legend>참가 인원</legend><div className="cfe-count">{[2,3,4,5,6].map((count) => <button className={playerCount === count ? "active" : ""} onClick={() => setPlayerCount(count)} key={count}>{count}</button>)}</div><p>나 1명 + AI {playerCount - 1}명</p></fieldset><fieldset><legend>AI 투자 성향</legend>{[["casual","연습생","안전한 현금 여유를 중시합니다."],["balanced","분석가","수익률과 부채를 균형 있게 봅니다."],["sharp","투자가","현금흐름 개선 기회를 빠르게 잡습니다."]].map(([value,label,text]) => <label className={difficulty === value ? "active" : ""} key={value}><input type="radio" checked={difficulty === value} onChange={() => setDifficulty(value as Difficulty)} /><span><b>{label}</b><small>{text}</small></span></label>)}</fieldset><button className="cfe-start" onClick={start}>재무 여정 시작 <span>→</span></button><button className="cfe-load" onClick={load}>저장된 게임 불러오기</button></aside></section>{guide && <Guide mode={guide} step={guideStep} onStep={setGuideStep} onClose={() => setGuide(null)} />}</main>;
 
-  if (game.phase === "finished") return <Result game={game} onRestart={() => store(cfeCreateGame(playerCount, difficulty) as Game)} onExit={onExit} />;
+  if (game.phase === "finished") return <Result game={game} onRestart={() => { setTurnReport(null); store(cfeCreateGame(playerCount, difficulty) as Game); }} onExit={onExit} />;
 
   const player = game.players[0];
   const finance = cfeFinancials(player);
@@ -149,10 +172,19 @@ export function CashflowEscapeGame({ onExit }: { onExit: () => void }) {
   const track = view === "growth" ? CFE_GROWTH_TRACK : CFE_INNER_TRACK;
   const myTurn = game.currentPlayer === 0;
   const active = game.players[game.currentPlayer];
-  const resolve = (choice: string, option?: string) => store(cfeResolvePending(game, 0, choice, option) as Game);
+  const resolve = (choice: string, option?: string) => {
+    const next = cfeResolvePending(game, 0, choice, option) as Game;
+    store(next);
+    setTurnReport(buildTurnReport(game, next, 0));
+  };
+  const roll = () => {
+    const next = cfeRoll(game, 0) as Game;
+    store(next);
+    if (!next.pending) setTurnReport(buildTurnReport(game, next, 0));
+  };
   return <main className="cfe-shell"><Topbar onExit={onExit} onSave={() => window.localStorage.setItem(SAVE_KEY, JSON.stringify(game))} /><section className="cfe-game-head"><div><small>MONTH {game.turn}</small><h1>{myTurn ? game.pending ? "결정을 내려주세요" : "당신의 차례입니다" : `${active.name}가 재무제표를 검토하는 중…`}</h1></div><div className="cfe-head-stats"><span><small>현금</small><b>{money(player.cash)}</b></span><span><small>월 현금흐름</small><b className={finance.monthlyCashflow >= 0 ? "positive" : "negative"}>{finance.monthlyCashflow >= 0 ? "+" : ""}{money(finance.monthlyCashflow)}</b></span><span><small>현재 단계</small><b>{player.stage === "growth" ? "성장 트랙" : "생활 순환로"}</b></span></div></section>
     <section className="cfe-game-grid"><div className="cfe-board-column"><div className="cfe-track-tabs"><button className={view === "cycle" ? "active" : ""} onClick={() => setTrackView("cycle")}>생활 순환로</button><button className={view === "growth" ? "active" : ""} onClick={() => setTrackView("growth")}>성장 트랙</button><button onClick={() => openGuide("rules")}>ⓘ 규칙</button></div><section className={`cfe-track ${view}`}><header><div><small>{view === "growth" ? "GROWTH TRACK" : "LIFE CYCLE"}</small><h2>{view === "growth" ? "목적 있는 성장을 완성하세요" : "자산소득으로 지출을 덮으세요"}</h2></div><span>{view === "growth" ? "✦" : "₩"}</span></header><div className="cfe-track-grid">{track.map((space, index) => <article className={`${space} ${game.lastRoll?.playerId === 0 && player.stage === view && player.position === index ? "landed" : ""}`} key={`${space}-${index}`}><small>{index + 1}</small><b>{CFE_SPACE_LABELS[space]}</b><div>{game.players.filter((item) => item.stage === view && item.position === index).map((item) => <i className={item.id === 0 ? "human" : ""} title={item.name} key={item.id}>{item.id === 0 ? "나" : item.id}</i>)}</div></article>)}</div><footer><span>{game.lastRoll ? `${game.players[game.lastRoll.playerId].name} · ${game.lastRoll.values.join("·")} → ${game.lastRoll.used}칸` : "아직 주사위를 굴리지 않았습니다."}</span><strong>{game.lastEvent}</strong></footer></section>
-      <section className="cfe-turn-panel"><div><span className={myTurn ? "ready" : ""}>{myTurn ? "MY TURN" : "AI TURN"}</span><h2>{myTurn ? game.pending ? "투자 조건을 확인하세요" : "이번 달의 선택" : `${active.name} 차례`}</h2><p>{player.charityTurns ? `나눔 혜택 ${player.charityTurns}회 남음 · 주사위 두 개 중 높은 값 사용` : "주사위로 이동해 새로운 재무 사건을 만나세요."}</p></div><div className="cfe-turn-actions"><button disabled={!myTurn || Boolean(game.pending)} onClick={() => store(cfeBorrow(game, 0, 100) as Game)}>+100 대출</button>{player.bankLoan > 0 && <button disabled={!myTurn || Boolean(game.pending) || player.cash < 100} onClick={() => store(cfeRepayBank(game, 0, 100) as Game)}>100 상환</button>}<button className="roll" disabled={!myTurn || Boolean(game.pending)} onClick={() => store(cfeRoll(game, 0) as Game)}><span>⬡</span> 주사위 굴리기</button></div></section></div>
-      <div className="cfe-side-column"><FinanceStatement player={player} onRepay={(id) => store(cfeRepayLiability(game, 0, id) as Game)} /><section className="cfe-opponents"><header><small>OTHER PLAYERS</small><h2>다른 참가자</h2></header>{game.players.slice(1).map((item) => { const data = cfeFinancials(item); return <article className={game.currentPlayer === item.id ? "active" : ""} key={item.id}><span>AI</span><div><b>{item.name}</b><small>{item.profession.name} · {item.stage === "growth" ? "성장 트랙" : "생활 순환로"}</small><i><em style={{ width: `${Math.min(100, data.passiveIncome / Math.max(1, data.totalExpenses) * 100)}%` }} /></i></div><strong>{money(data.passiveIncome)}<small>자산소득</small></strong></article>})}</section><details className="cfe-log"><summary>최근 재무 기록</summary>{game.log.slice(-10).reverse().map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}</details></div></section>
-    {game.pending?.playerId === 0 && <PendingCard game={game} onResolve={resolve} onBorrow={() => store(cfeBorrow(game, 0, 100) as Game)} />}{guide && <Guide mode={guide} step={guideStep} onStep={setGuideStep} onClose={() => setGuide(null)} />}</main>;
+      <section className="cfe-turn-panel"><div><span className={myTurn ? "ready" : ""}>{myTurn ? "MY TURN" : "AI TURN"}</span><h2>{myTurn ? game.pending ? "투자 조건을 확인하세요" : "이번 달의 선택" : `${active.name} 차례`}</h2><p>{player.charityTurns ? `나눔 혜택 ${player.charityTurns}회 남음 · 주사위 두 개 중 높은 값 사용` : "주사위로 이동해 새로운 재무 사건을 만나세요."}</p></div><div className="cfe-turn-actions"><button disabled={!myTurn || Boolean(game.pending)} onClick={() => store(cfeBorrow(game, 0, 100) as Game)}>+100 대출</button>{player.bankLoan > 0 && <button disabled={!myTurn || Boolean(game.pending) || player.cash < 100} onClick={() => store(cfeRepayBank(game, 0, 100) as Game)}>100 상환</button>}<button className="roll" disabled={!myTurn || Boolean(game.pending)} onClick={roll}><span>⬡</span> 주사위 굴리기</button></div></section></div>
+      <div className="cfe-side-column"><FinanceStatement player={player} onRepay={(id) => store(cfeRepayLiability(game, 0, id) as Game)} /><section className="cfe-opponents"><header><small>OTHER PLAYERS</small><h2>다른 참가자</h2></header>{game.players.slice(1).map((item) => { const data = cfeFinancials(item); return <article className={game.currentPlayer === item.id ? "active" : ""} key={item.id}><span>AI</span><div><b>{item.name}</b><small>{item.profession.name} · {item.stage === "growth" ? "성장 트랙" : "생활 순환로"}</small><i><em style={{ width: `${Math.min(100, data.passiveIncome / Math.max(1, data.totalExpenses) * 100)}%` }} /></i></div><strong>{money(data.passiveIncome)}<small>자산소득</small></strong></article>})}</section><section className="cfe-log"><header><div><small>TURN HISTORY</small><h2>진행 기록</h2></div><span>최근 {Math.min(12, game.log.length)}개</span></header><div>{game.log.slice(-12).reverse().map((line, index) => <p key={`${line}-${index}`}>{line}</p>)}</div></section></div></section>
+    {game.pending?.playerId === 0 && <PendingCard game={game} onResolve={resolve} onBorrow={() => store(cfeBorrow(game, 0, 100) as Game)} />}{turnReport && !game.pending && <TurnResultCard report={turnReport} onContinue={() => setTurnReport(null)} />}{guide && <Guide mode={guide} step={guideStep} onStep={setGuideStep} onClose={() => setGuide(null)} />}</main>;
 }

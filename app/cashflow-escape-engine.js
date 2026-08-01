@@ -255,6 +255,7 @@ function resolveSpace(state, playerId, space) {
     }
     state.pending = { kind: "deal", playerId, card };
     state.lastEvent = `${card.name} 투자 기회를 검토합니다.`;
+    state.log.push(`${player.name}: 투자 기회 · ${card.name} — ${card.description}`);
   } else if (space === "life") {
     const event = drawCard(state, "life");
     payAmount(state, playerId, event.amount, `${event.name} · ${event.amount}만원 지출`);
@@ -273,6 +274,7 @@ function resolveSpace(state, playerId, space) {
   } else if (space === "charity") {
     state.pending = { kind: "charity", playerId, amount: 50 };
     state.lastEvent = "50만원을 나누면 다음 세 차례 동안 주사위 두 개 중 높은 값을 사용합니다.";
+    state.log.push(`${player.name}: 나눔 기회 · ${state.lastEvent}`);
   } else if (space === "give") {
     payAmount(state, playerId, Math.min(player.cash, 150), "사회 환원 · 150만원 기부");
   } else if (space === "tax") {
@@ -284,14 +286,16 @@ function resolveSpace(state, playerId, space) {
     if (assets.length) {
       state.pending = { kind: "market", playerId, card: market, assetIds: assets.map((asset) => asset.id) };
       state.lastEvent = market.description;
+      state.log.push(`${player.name}: 시장 변화 · ${market.name} — ${market.description}`);
     } else {
-      state.lastEvent = `${market.name} · 매각할 관련 자산이 없습니다.`;
+      state.lastEvent = `시장 변화 · ${market.name} — ${market.description} · 매각할 관련 자산이 없습니다.`;
       state.log.push(`${player.name}: ${state.lastEvent}`);
     }
   } else if (space === "vision") {
     if (player.cash >= player.dream.cost) {
       state.pending = { kind: "vision", playerId, dream: player.dream };
       state.lastEvent = `${player.dream.name}을(를) 실현할 수 있습니다.`;
+      state.log.push(`${player.name}: 인생 목표 기회 · ${state.lastEvent}`);
     } else {
       state.lastEvent = `${player.dream.name}까지 ${player.dream.cost - player.cash}만원이 더 필요합니다.`;
       state.log.push(`${player.name}: ${state.lastEvent}`);
@@ -338,11 +342,11 @@ export function cfeResolvePending(state, playerId, choice, option = null) {
       player.cash -= pending.card.cost;
       player.assets.push({ ...pending.card, acquiredTurn: next.turn });
       next.lastEvent = `${pending.card.name} 인수 · 자산소득 +${pending.card.income}만원`;
-      next.log.push(`${player.name}: ${next.lastEvent}`);
+      next.log.push(`${player.name}: 결정 · ${pending.card.name} 매입 · 현금 -${pending.card.cost}만원 · 자산소득 +${pending.card.income}만원`);
       checkFreedom(next, playerId);
     } else {
       next.lastEvent = choice === "buy" ? "현금이 부족해 투자하지 못했습니다." : `${pending.card.name} 투자를 넘겼습니다.`;
-      next.log.push(`${player.name}: ${next.lastEvent}`);
+      next.log.push(`${player.name}: 결정 · ${next.lastEvent}`);
     }
   } else if (pending.kind === "charity") {
     if (choice === "accept" && player.cash >= pending.amount) {
@@ -352,7 +356,7 @@ export function cfeResolvePending(state, playerId, choice, option = null) {
     } else {
       next.lastEvent = "이번에는 나눔을 쉬어갑니다.";
     }
-    next.log.push(`${player.name}: ${next.lastEvent}`);
+    next.log.push(`${player.name}: 결정 · ${next.lastEvent}${choice === "accept" ? ` · 현금 -${pending.amount}만원` : ""}`);
   } else if (pending.kind === "market") {
     const asset = player.assets.find((item) => item.id === option);
     if (choice === "sell" && asset) {
@@ -360,17 +364,18 @@ export function cfeResolvePending(state, playerId, choice, option = null) {
       player.cash += price;
       player.assets = player.assets.filter((item) => item !== asset);
       next.lastEvent = `${asset.name} 매각 · ${price}만원 확보`;
+      next.log.push(`${player.name}: 결정 · ${pending.card.name} 적용 · ${asset.name} 매각 · 현금 +${price}만원 · 자산소득 -${asset.income}만원`);
     } else {
       next.lastEvent = `${pending.card.name} 제안을 보류했습니다.`;
+      next.log.push(`${player.name}: 결정 · ${pending.card.name} 적용 · 매각하지 않고 자산을 보유합니다.`);
     }
-    next.log.push(`${player.name}: ${next.lastEvent}`);
   } else if (pending.kind === "vision") {
     if (choice === "buy" && player.cash >= pending.dream.cost) {
       player.cash -= pending.dream.cost;
       return finishGame(next, playerId, `인생 목표 ‘${pending.dream.name}’ 실현`);
     }
     next.lastEvent = "인생 목표 달성을 다음 기회로 미뤘습니다.";
-    next.log.push(`${player.name}: ${next.lastEvent}`);
+    next.log.push(`${player.name}: 결정 · ${next.lastEvent}`);
   }
 
   if (next.phase !== "finished") advanceTurn(next);

@@ -133,6 +133,7 @@ import {
   cfeFinancials,
   cfeRepayLiability,
   cfeResolvePending,
+  cfeRoll,
 } from "../app/cashflow-escape-engine.js";
 import {
   baccaratCreateGame,
@@ -436,6 +437,16 @@ test("runs Cashflow Escape financial statements, debt, and 2-to-6 player journey
   const invested = cfeResolvePending(pending, 0, "buy");
   assert.equal(invested.players[0].assets.length, 1);
   assert.equal(cfeFinancials(invested.players[0]).passiveIncome, CFE_DEALS[0].income);
+  assert.match(invested.log.at(-1), /현금 -\d+만원 · 자산소득 \+\d+만원/);
+
+  const marketGame = cfeCreateGame(2, "balanced", () => 0.2);
+  marketGame.players[0].assets = CFE_DEALS.map((deal) => ({ ...deal, acquiredTurn: 1 }));
+  marketGame.players[0].position = 9;
+  const arrivedAtMarket = cfeRoll(marketGame, 0, () => 0);
+  assert.equal(arrivedAtMarket.pending?.kind, "market");
+  assert.match(arrivedAtMarket.log.at(-1), /시장 변화 · .+ — .+/);
+  const sold = cfeResolvePending(arrivedAtMarket, 0, "sell", arrivedAtMarket.pending.assetIds[0]);
+  assert.match(sold.log.at(-1), /결정 · .+ 적용 · .+ 매각 · 현금 \+\d+만원 · 자산소득 -\d+만원/);
 
   for (const playerCount of [2, 3, 4, 5, 6]) {
     let seed = 9070 + playerCount;
@@ -466,6 +477,8 @@ test("uses asset income terminology throughout Cashflow Escape", async () => {
   const copy = files.join("\n");
   assert.match(copy, /자산소득이 총지출 이상/);
   assert.doesNotMatch(copy, /수동소득|수동적 소득|자산 수입/);
+  assert.match(files[0], /확인하고 계속/);
+  assert.match(files[0], /TURN HISTORY/);
 });
 
 test("applies official commission Baccarat points, third-card table, and session settlement", () => {
