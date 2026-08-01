@@ -129,7 +129,11 @@ import {
   tichuClassify,
   tichuCompleteGrand,
   tichuCreateGame,
+  tichuDeclare,
+  tichuGiveDragonTrick,
   tichuNextRound,
+  tichuPass,
+  tichuPlay,
   tichuResolvePassing,
 } from "../app/tichu-engine.js";
 import {
@@ -472,6 +476,7 @@ test("runs Tichu combinations, team rounds, and a complete match", () => {
     if (game.phase === "grand") game = tichuCompleteGrand(game, false);
     else if (game.phase === "passing") game = tichuResolvePassing(game, game.players[0].hand.slice(0, 3).map((card) => card.id));
     else if (game.phase === "playing") game = tichuChooseAiAction(game, game.currentPlayer, random);
+    else if (game.phase === "dragon-choice") game = tichuGiveDragonTrick(game, 1);
     else if (game.phase === "round-end") {
       rounds += 1;
       game = tichuNextRound(game, random);
@@ -483,6 +488,48 @@ test("runs Tichu combinations, team rounds, and a complete match", () => {
   assert.ok(game.round >= 1);
   assert.ok(rounds < 30);
   assert.ok(actions < 5000);
+});
+
+test("applies official Tichu declaration, Dragon, double-win, and tie rules", () => {
+  const deckById = Object.fromEntries(tichuBuildDeck().map((card) => [card.id, card]));
+  let passing = tichuCompleteGrand(tichuCreateGame("balanced", 1000, () => 0.37), false);
+  passing = tichuDeclare(passing, 0);
+  assert.equal(passing.phase, "passing");
+  assert.equal(passing.declarations[0].type, "tichu");
+
+  let dragon = tichuCompleteGrand(tichuCreateGame("balanced", 1000, () => 0.31), false);
+  dragon = tichuResolvePassing(dragon, dragon.players[0].hand.slice(0, 3).map((card) => card.id));
+  dragon.phase = "playing";
+  dragon.currentPlayer = 3;
+  dragon.table = [{
+    playerId: 0,
+    cards: [deckById.dragon],
+    combo: { type: "single", count: 1, strength: 16, label: "싱글" },
+  }];
+  dragon.currentCombo = dragon.table[0].combo;
+  dragon.lastPlayer = 0;
+  dragon.passes = [1, 2];
+  dragon = tichuPass(dragon, 3);
+  assert.equal(dragon.phase, "dragon-choice");
+  dragon = tichuGiveDragonTrick(dragon, 1);
+  assert.equal(dragon.phase, "playing");
+  assert.ok(dragon.players[1].tricks.some((card) => card.special === "dragon"));
+
+  let tied = tichuCompleteGrand(tichuCreateGame("balanced", 1000, () => 0.23), false);
+  tied = tichuResolvePassing(tied, tied.players[0].hand.slice(0, 3).map((card) => card.id));
+  tied.phase = "playing";
+  tied.scores = [800, 1000];
+  tied.finishOrder = [0];
+  tied.players[0].hand = [];
+  tied.players[2].hand = [deckById["jade-2"]];
+  tied.currentPlayer = 2;
+  tied.currentCombo = null;
+  tied.table = [];
+  tied.lastPlayer = null;
+  tied = tichuPlay(tied, 2, ["jade-2"]);
+  assert.equal(tied.roundResult.doubleVictory, true);
+  assert.deepEqual(tied.scores, [1000, 1000]);
+  assert.equal(tied.phase, "round-end");
 });
 
 test("runs Cashflow Escape financial statements, debt, and 2-to-6 player journeys", () => {

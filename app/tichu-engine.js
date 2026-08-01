@@ -67,6 +67,7 @@ function cloneState(state) {
     passes: [...state.passes],
     finishOrder: [...state.finishOrder],
     declarations: state.declarations.map((item) => ({ ...item })),
+    pendingDragon: state.pendingDragon ? { ...state.pendingDragon } : null,
     log: [...state.log],
   };
 }
@@ -108,6 +109,7 @@ function newRound(previous, random = Math.random) {
     finishOrder: [],
     wish: null,
     declarations: players.map(() => ({ type: null, success: null })),
+    pendingDragon: null,
     log: [`${(previous?.round || 0) + 1}라운드: 첫 8장을 확인합니다.`],
     roundResult: null,
     winner: null,
@@ -314,20 +316,29 @@ function nextActivePlayer(state, from, preferred = null) {
 }
 
 export function tichuDeclare(state, playerId, type = "tichu") {
-  if (state.phase !== "playing" || state.players[playerId].playedAny || state.declarations[playerId].type) return state;
+  if (!["passing", "playing"].includes(state.phase) || state.players[playerId].playedAny || state.declarations[playerId].type) return state;
   const next = cloneState(state);
   next.declarations[playerId] = { type, success: null };
   next.log.push(`${next.players[playerId].name}: 티츄 선언!`);
   return next;
 }
 
-function awardTrick(state, playerId) {
+function awardTrick(state, playerId, dragonTargetId = null) {
   const cards = state.table.flatMap((play) => play.cards);
-  state.players[playerId].tricks.push(...cards);
   const hadDragon = cards.some((card) => card.special === "dragon");
+  if (hadDragon && state.players[playerId].isHuman && dragonTargetId == null) {
+    state.phase = "dragon-choice";
+    state.pendingDragon = { winnerId: playerId, settleAfter: roundShouldEnd(state) };
+    state.log.push(`${state.players[playerId].name}: 용 트릭을 받을 상대를 선택하세요`);
+    return false;
+  }
+  state.players[playerId].tricks.push(...cards);
   if (hadDragon) {
     const opponents = state.players.filter((player) => player.team !== state.players[playerId].team);
-    const target = opponents.sort((a, b) => a.tricks.reduce((sum, card) => sum + card.points, 0) - b.tricks.reduce((sum, card) => sum + card.points, 0))[0];
+    const target = dragonTargetId == null
+      ? opponents.sort((a, b) => a.tricks.reduce((sum, card) => sum + card.points, 0) - b.tricks.reduce((sum, card) => sum + card.points, 0))[0]
+      : opponents.find((player) => player.id === dragonTargetId);
+    if (!target) return false;
     target.tricks.push(...cards);
     state.players[playerId].tricks.splice(state.players[playerId].tricks.length - cards.length, cards.length);
     state.log.push(`${state.players[playerId].name}: 용이 든 트릭을 ${target.name}에게 전달`);
@@ -337,6 +348,13 @@ function awardTrick(state, playerId) {
   state.lastPlayer = null;
   state.passes = [];
   state.currentPlayer = nextActivePlayer(state, playerId);
+  return true;
+}
+
+function roundShouldEnd(state) {
+  if (state.finishOrder.length >= 3) return true;
+  return state.finishOrder.length >= 2
+    && state.players[state.finishOrder[0]].team === state.players[state.finishOrder[1]].team;
 }
 
 function cardPoints(cards) {
@@ -355,7 +373,10 @@ function declarationPoints(state, team) {
 
 function settleRound(state) {
   const next = cloneState(state);
-  if (next.table.length && next.lastPlayer != null) awardTrick(next, next.lastPlayer);
+  if (next.table.length && next.lastPlayer != null && !awardTrick(next, next.lastPlayer)) {
+    if (next.pendingDragon) next.pendingDragon.settleAfter = true;
+    return next;
+  }
   const first = next.finishOrder[0];
   const last = next.players.find((player) => !next.finishOrder.includes(player.id))?.id ?? next.finishOrder.at(-1);
   const doubleVictory = next.finishOrder.length >= 2 && next.players[next.finishOrder[0]].team === next.players[next.finishOrder[1]].team;
@@ -382,7 +403,8 @@ function settleRound(state) {
     ...declaration,
     success: declaration.type ? playerId === first : null,
   }));
-  const reached = next.scores[0] >= next.targetScore || next.scores[1] >= next.targetScore;
+  const reached = (next.scores[0] >= next.targetScore || next.scores[1] >= next.targetScore)
+    && next.scores[0] !== next.scores[1];
   if (reached) {
     next.phase = "finished";
     next.winner = next.scores[0] === next.scores[1] ? null : next.scores[0] > next.scores[1] ? 0 : 1;
@@ -406,7 +428,7 @@ export function tichuPlay(state, playerId, cardIds, wish = null) {
     if (next.players[playerId].hand.length === 0 && !next.finishOrder.includes(playerId)) next.finishOrder.push(playerId);
     const partnerId = (playerId + 2) % 4;
     next.currentPlayer = next.players[partnerId].hand.length ? partnerId : nextActivePlayer(next, partnerId);
-    if (next.finishOrder.length === 3) return settleRound(next);
+    if (roundShouldEnd(next)) return settleRound(next);
     return next;
   }
 
@@ -432,7 +454,7 @@ export function tichuPlay(state, playerId, cardIds, wish = null) {
     next.finishOrder.push(playerId);
     next.log.push(`${next.players[playerId].name}: ${next.finishOrder.length}등으로 완주`);
   }
-  if (next.finishOrder.length === 3) return settleRound(next);
+  if (roundShouldEnd(next)) return settleRound(next);
   next.currentPlayer = nextActivePlayer(next, playerId);
   return next;
 }
@@ -459,7 +481,7 @@ export function tichuBomb(state, playerId, cardIds) {
     next.finishOrder.push(playerId);
     next.log.push(`${next.players[playerId].name}: ${next.finishOrder.length}등으로 완주`);
   }
-  if (next.finishOrder.length === 3) return settleRound(next);
+  if (roundShouldEnd(next)) return settleRound(next);
   next.currentPlayer = nextActivePlayer(next, playerId);
   return next;
 }
@@ -478,6 +500,20 @@ export function tichuPass(state, playerId) {
   }
   next.currentPlayer = nextActivePlayer(next, playerId);
   return next;
+}
+
+export function tichuGiveDragonTrick(state, targetId) {
+  if (state.phase !== "dragon-choice" || !state.pendingDragon) return state;
+  const winnerId = state.pendingDragon.winnerId;
+  const target = state.players[targetId];
+  if (!target || target.team === state.players[winnerId].team) return state;
+  const settleAfter = state.pendingDragon.settleAfter;
+  const next = cloneState(state);
+  next.phase = "playing";
+  next.pendingDragon = null;
+  if (!awardTrick(next, winnerId, targetId)) return state;
+  next.log.push(`나: 용 트릭을 ${next.players[targetId].name}에게 전달`);
+  return settleAfter ? settleRound(next) : next;
 }
 
 export function tichuChooseAiAction(state, playerId, random = Math.random) {

@@ -9,6 +9,7 @@ import {
   tichuCompleteGrand,
   tichuCreateGame,
   tichuDeclare,
+  tichuGiveDragonTrick,
   tichuLegalSelections,
   tichuNextRound,
   tichuPass,
@@ -30,11 +31,12 @@ type Player = {
 type Declaration = { type: "tichu" | "grand" | null; success: boolean | null };
 type Game = {
   difficulty: Difficulty; targetScore: number; scores: number[]; round: number;
-  players: Player[]; phase: "grand" | "passing" | "playing" | "round-end" | "finished";
+  players: Player[]; phase: "grand" | "passing" | "playing" | "dragon-choice" | "round-end" | "finished";
   currentPlayer: number; table: { playerId: number; cards: Card[]; combo: Combo }[];
   currentCombo: Combo | null; lastPlayer: number | null; passes: number[];
   finishOrder: number[]; wish: number | null; declarations: Declaration[];
   log: string[]; roundResult: { roundScores: number[]; doubleVictory: boolean; first: number; last: number } | null;
+  pendingDragon: { winnerId: number; settleAfter: boolean } | null;
   winner: number | null;
 };
 
@@ -43,7 +45,7 @@ const RULES = [
   ["카드 교환", "14장을 받은 뒤 왼쪽 상대, 파트너, 오른쪽 상대에게 한 장씩 건넵니다. 받은 카드는 세 장을 모두 보낸 뒤 확인합니다."],
   ["카드 조합", "싱글, 페어, 트리플, 풀하우스, 5장 이상의 스트레이트, 연속 페어를 낼 수 있습니다. 앞 조합과 같은 종류·장수의 더 높은 조합만 냅니다."],
   ["폭탄", "같은 숫자 네 장 또는 같은 무늬의 5장 이상 연속 카드는 폭탄입니다. 어떤 일반 조합도 이기며 더 강한 폭탄만 덮을 수 있습니다."],
-  ["특수 카드", "개는 선을 파트너에게 넘기고, 마작은 첫 선과 숫자 소원을 만들며, 봉황은 폭탄을 제외한 조합의 와일드입니다. 용은 가장 높은 싱글이지만 획득한 트릭을 상대에게 줍니다."],
+  ["특수 카드", "개는 선을 파트너에게 넘기고, 마작은 첫 선과 숫자 소원을 만들며, 봉황은 폭탄을 제외한 조합의 와일드입니다. 용으로 트릭을 이기면 두 상대 중 받을 사람을 직접 고릅니다."],
   ["티츄 선언", "첫 카드를 내기 전 티츄를 선언해 첫 완주에 성공하면 +100점, 실패하면 -100점입니다. 첫 8장만 본 그랜드 티츄는 ±200점입니다."],
   ["점수와 승리", "5는 5점, 10과 K는 10점, 용은 +25점, 봉황은 -25점입니다. 한 팀 두 명이 연속 1·2등이면 카드 점수 대신 200점을 얻습니다."],
 ];
@@ -173,6 +175,11 @@ export function TichuGame({ onExit }: { onExit: () => void }) {
 
   if (game.phase === "round-end" || game.phase === "finished") return <RoundResult game={game} onNext={() => setGame(tichuNextRound(game) as Game)} onExit={onExit} />;
 
+  if (game.phase === "dragon-choice") return <main className="ti-shell"><Topbar onExit={onExit} /><Scoreboard game={game} /><section className="ti-decision">
+    <small>DRAGON TRICK</small><h1>용의 트릭을 건넬 상대를 고르세요</h1><p>용으로 이긴 트릭은 용의 25점을 포함해 반드시 상대 팀 한 명에게 줍니다.</p>
+    <div className="ti-grand-actions">{game.players.filter((player) => player.team !== game.players[0].team).map((player) => <button className="danger" key={player.id} onClick={() => setGame(tichuGiveDragonTrick(game, player.id) as Game)}>{player.name}에게 주기</button>)}</div>
+  </section></main>;
+
   if (game.phase === "grand") return <main className="ti-shell"><Topbar onExit={onExit} /><Scoreboard game={game} /><section className="ti-decision">
     <small>GRAND TICHU WINDOW</small><h1>첫 8장을 확인하세요</h1><p>나머지 6장을 받기 전, 이번 라운드에 가장 먼저 완주할 자신이 있다면 그랜드 티츄를 선언할 수 있습니다.</p>
     <div className="ti-hand preview">{game.players[0].hand.map((card) => <CardFace card={card} key={card.id} />)}</div>
@@ -185,7 +192,7 @@ export function TichuGame({ onExit }: { onExit: () => void }) {
       <div><small>CARD EXCHANGE</small><h1>건넬 카드 3장을 고르세요</h1><p>선택한 순서대로 왼쪽 상대 · 파트너 · 오른쪽 상대에게 한 장씩 전달합니다.</p></div>
       <div className="ti-pass-targets">{recipientLabels.map((label, index) => <span className={selected[index] ? "filled" : ""} key={label}><b>{index + 1}</b>{label}<small>{selected[index] ? game.players[0].hand.find((card) => card.id === selected[index])?.name : "카드 선택"}</small></span>)}</div>
       <div className="ti-hand">{game.players[0].hand.map((card) => <CardFace card={card} selected={selected.includes(card.id)} onClick={() => selected.length < 3 || selected.includes(card.id) ? toggleCard(card.id) : undefined} key={card.id} />)}</div>
-      <button className="ti-confirm" disabled={selected.length !== 3} onClick={() => { setGame(tichuResolvePassing(game, selected) as Game); setSelected([]); }}>세 장 보내고 받은 카드 확인 <span>→</span></button>
+      <div className="ti-grand-actions"><button disabled={Boolean(game.declarations[0].type)} onClick={() => setGame(tichuDeclare(game, 0) as Game)}>교환 전에 티츄 선언 <b>±100</b></button><button className="ti-confirm" disabled={selected.length !== 3} onClick={() => { setGame(tichuResolvePassing(game, selected) as Game); setSelected([]); }}>세 장 보내고 받은 카드 확인 <span>→</span></button></div>
     </section></main>;
   }
 
@@ -202,7 +209,7 @@ export function TichuGame({ onExit }: { onExit: () => void }) {
       <div className="ti-turn-copy"><div><small>{myTurn ? "YOUR TURN" : "WAITING"}</small><h2>{myTurn ? selectedCombo ? `${selectedCombo.label} 선택` : "낼 카드를 선택하세요" : `${game.players[game.currentPlayer].name} 차례입니다`}</h2></div>{myDeclaration.type && <span>{myDeclaration.type === "grand" ? "GRAND TICHU" : "TICHU"} 선언 중</span>}</div>
       <div className="ti-hand">{game.players[0].hand.map((card) => <CardFace card={card} selected={selected.includes(card.id)} onClick={() => toggleCard(card.id)} key={card.id} />)}</div>
       {containsMahjong && <div className="ti-wish-picker"><span>마작 소원</span>{Array.from({ length: 13 }, (_, index) => index + 2).map((rank) => <button className={wish === rank ? "active" : ""} onClick={() => setWish(wish === rank ? null : rank)} key={rank}>{tichuRankLabel(rank)}</button>)}</div>}
-      <div className="ti-actions"><button disabled={!myTurn || game.players[0].playedAny || Boolean(myDeclaration.type)} onClick={() => setGame(tichuDeclare(game, 0) as Game)}>티츄 선언 <b>±100</b></button><button disabled={!myTurn || !game.currentCombo} onClick={() => { setGame(tichuPass(game, 0) as Game); setSelected([]); setWish(null); }}>패스</button><button className="primary" disabled={myTurn ? !canPlay : !canBomb} onClick={play}>{!myTurn && canBomb ? "폭탄 난입" : selectedCombo?.type === "bomb" ? "폭탄 내기" : "카드 내기"} <span>→</span></button></div>
+      <div className="ti-actions"><button disabled={game.players[0].playedAny || Boolean(myDeclaration.type)} onClick={() => setGame(tichuDeclare(game, 0) as Game)}>티츄 선언 <b>±100</b></button><button disabled={!myTurn || !game.currentCombo} onClick={() => { setGame(tichuPass(game, 0) as Game); setSelected([]); setWish(null); }}>패스</button><button className="primary" disabled={myTurn ? !canPlay : !canBomb} onClick={play}>{!myTurn && canBomb ? "폭탄 난입" : selectedCombo?.type === "bomb" ? "폭탄 내기" : "카드 내기"} <span>→</span></button></div>
     </section>
   </section><details className="ti-log"><summary>최근 진행 기록</summary>{game.log.slice(-10).reverse().map((line, index) => <span key={`${line}-${index}`}>{line}</span>)}</details>{guide && <Guide mode={guide} step={guideStep} onStep={setGuideStep} onClose={() => setGuide(null)} />}</main>;
 }
