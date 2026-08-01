@@ -457,6 +457,17 @@ test("runs Cashflow Escape financial statements, debt, and 2-to-6 player journey
   }
 });
 
+test("uses asset income terminology throughout Cashflow Escape", async () => {
+  const files = await Promise.all([
+    readFile(new URL("../app/cashflow-escape-game.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/cashflow-escape-engine.js", import.meta.url), "utf8"),
+    readFile(new URL("../app/game-objectives.js", import.meta.url), "utf8"),
+  ]);
+  const copy = files.join("\n");
+  assert.match(copy, /자산소득이 총지출 이상/);
+  assert.doesNotMatch(copy, /수동소득|수동적 소득|자산 수입/);
+});
+
 test("applies official commission Baccarat points, third-card table, and session settlement", () => {
   const card = (value, id = String(value)) => ({ id, value, rank: id, suit: "spade", symbol: "♠", color: "black" });
   assert.equal(baccaratPoint([card(7), card(8)]), 5);

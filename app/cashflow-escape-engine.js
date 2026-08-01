@@ -147,7 +147,7 @@ export function cfeCreateGame(playerCount = 4, difficulty = "balanced", random =
     cursors: { deal: 0, venture: 0, life: 0, market: 0 },
     lastRoll: null,
     lastEvent: "재무 자유를 향한 첫 달이 시작되었습니다.",
-    log: ["게임 시작 · 수동소득이 총지출 이상이 되도록 자산을 모으세요."],
+    log: ["게임 시작 · 자산소득이 총지출 이상이 되도록 자산을 모으세요."],
     winner: null,
     standings: null,
   };
@@ -337,7 +337,7 @@ export function cfeResolvePending(state, playerId, choice, option = null) {
     if (choice === "buy" && player.cash >= pending.card.cost) {
       player.cash -= pending.card.cost;
       player.assets.push({ ...pending.card, acquiredTurn: next.turn });
-      next.lastEvent = `${pending.card.name} 인수 · 수동소득 +${pending.card.income}만원`;
+      next.lastEvent = `${pending.card.name} 인수 · 자산소득 +${pending.card.income}만원`;
       next.log.push(`${player.name}: ${next.lastEvent}`);
       checkFreedom(next, playerId);
     } else {
