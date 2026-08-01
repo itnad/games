@@ -126,6 +126,7 @@ import {
 } from "../app/tichu-engine.js";
 import {
   CFE_DEALS,
+  CFE_GROWTH_TRACK,
   CFE_INNER_TRACK,
   cfeBorrow,
   cfeChooseAiAction,
@@ -421,6 +422,7 @@ test("runs Cashflow Escape financial statements, debt, and 2-to-6 player journey
 
   const financeGame = cfeCreateGame(2, "balanced", () => 0.3);
   const before = cfeFinancials(financeGame.players[0]);
+  assert.equal(financeGame.players[0].cash, financeGame.players[0].profession.savings + before.monthlyCashflow);
   const debt = financeGame.players[0].liabilities.find((item) => item.balance <= financeGame.players[0].cash);
   if (debt) {
     const repaid = cfeRepayLiability(financeGame, 0, debt.id);
@@ -441,8 +443,8 @@ test("runs Cashflow Escape financial statements, debt, and 2-to-6 player journey
   assert.match(invested.log.at(-1), /현금 -\d+만원 · 자산소득 \+\d+만원/);
 
   const marketGame = cfeCreateGame(2, "balanced", () => 0.2);
-  marketGame.players[0].assets = CFE_DEALS.map((deal) => ({ ...deal, acquiredTurn: 1 }));
-  marketGame.players[0].position = 9;
+  marketGame.players[0].assets = CFE_DEALS.map((deal) => ({ ...deal, income: 0, acquiredTurn: 1 }));
+  marketGame.players[0].position = 2;
   const arrivedAtMarket = cfeRoll(marketGame, 0, () => 0);
   assert.equal(arrivedAtMarket.pending?.kind, "market");
   assert.match(arrivedAtMarket.log.at(-1), /시장 변화 · .+ — .+/);
@@ -457,16 +459,126 @@ test("runs Cashflow Escape financial statements, debt, and 2-to-6 player journey
     };
     let game = cfeCreateGame(playerCount, "sharp", random);
     let actions = 0;
-    while (game.phase !== "finished" && actions < 4000) {
-      game = cfeChooseAiAction(game, game.currentPlayer, random);
+    while (game.phase !== "finished" && actions < 10000) {
+      if (game.pending && game.pending.playerId !== game.currentPlayer) {
+        const pendingPlayer = game.players[game.pending.playerId];
+        const choice = game.pending.kind === "opportunity" ? "small"
+          : game.pending.kind === "vision" && pendingPlayer.cash >= game.pending.dream.cost ? "buy"
+          : "skip";
+        game = cfeResolvePending(game, game.pending.playerId, choice);
+      } else {
+        game = cfeChooseAiAction(game, game.currentPlayer, random);
+      }
       actions += 1;
     }
     assert.equal(game.phase, "finished", `${playerCount}인 게임이 완주되어야 합니다.`);
     assert.ok(game.winner >= 0 && game.winner < playerCount);
     assert.equal(game.standings.length, playerCount);
     assert.ok(game.players.some((player) => player.stage === "growth"));
-    assert.ok(actions < 4000);
+    assert.ok(actions < 10000);
   }
+});
+
+test("matches official Cashflow movement, charity, downsize, and Fast Track rules", () => {
+  const opportunityGame = cfeCreateGame(2, "balanced", () => 0.2);
+  const opportunity = cfeRoll(opportunityGame, 0, () => 0);
+  assert.equal(opportunity.pending?.kind, "opportunity");
+  const smallDeal = cfeResolvePending(opportunity, 0, "small");
+  assert.equal(smallDeal.pending?.kind, "deal");
+  assert.equal(smallDeal.pending?.card.size, "small");
+
+  const charityGame = cfeCreateGame(2, "balanced", () => 0.2);
+  charityGame.players[0].position = 5;
+  const charity = cfeRoll(charityGame, 0, () => 0);
+  assert.equal(charity.pending?.kind, "charity");
+  assert.equal(charity.pending.amount, Math.ceil(cfeFinancials(charity.players[0]).totalIncome * 0.1));
+  const charityAccepted = cfeResolvePending(charity, 0, "accept");
+  charityAccepted.currentPlayer = 0;
+  charityAccepted.players[0].position = 6;
+  const rolls = [0, 0.5];
+  const twoDice = cfeRoll(charityAccepted, 0, () => rolls.shift(), 2);
+  assert.deepEqual(twoDice.lastRoll.values, [1, 4]);
+  assert.equal(twoDice.lastRoll.used, 5);
+  assert.equal(twoDice.players[0].charityTurns, 2);
+
+  const paydayGame = cfeCreateGame(2, "balanced", () => 0.2);
+  paydayGame.players[0].position = 22;
+  const paydayBefore = paydayGame.players[0].cash;
+  const paydayFlow = cfeFinancials(paydayGame.players[0]).monthlyCashflow;
+  const passedPayday = cfeRoll(paydayGame, 0, () => 0.2);
+  assert.equal(passedPayday.players[0].position, 0);
+  assert.equal(passedPayday.players[0].cash, paydayBefore + paydayFlow);
+
+  const downsizeGame = cfeCreateGame(2, "balanced", () => 0.2);
+  downsizeGame.players[0].position = 16;
+  downsizeGame.players[0].charityTurns = 2;
+  downsizeGame.players[0].cash = 5000;
+  const expenses = cfeFinancials(downsizeGame.players[0]).totalExpenses;
+  const downsized = cfeRoll(downsizeGame, 0, () => 0, 1);
+  assert.equal(downsized.players[0].cash, 5000 - expenses);
+  assert.equal(downsized.players[0].skipTurns, 2);
+  assert.equal(downsized.players[0].charityTurns, 0);
+
+  const fastGame = cfeCreateGame(2, "balanced", () => 0.2);
+  const player = fastGame.players[0];
+  const requiredIncome = cfeFinancials(player).totalExpenses + 1;
+  player.assets = [{ ...CFE_DEALS[0], income: requiredIncome, acquiredTurn: 1 }];
+  const fast = cfeRoll(fastGame, 0, () => 0);
+  assert.equal(fast.players[0].stage, "growth");
+  assert.equal(fast.lastRoll.values.length, 2);
+  assert.equal(fast.players[0].growthIncome, requiredIncome * 100);
+  assert.equal(fast.players[0].growthTarget, requiredIncome * 100 + 5000);
+  const loanAttempt = cfeBorrow(fast, 0, 100);
+  assert.equal(loanAttempt.players[0].bankLoan, fast.players[0].bankLoan);
+
+  const fastCharityGame = cfeCreateGame(2, "balanced", () => 0.2);
+  Object.assign(fastCharityGame.players[0], { stage: "growth", position: 0, cash: 20000, growthIncome: 1000, growthTarget: 6000 });
+  const fastCharity = cfeRoll(fastCharityGame, 0, () => 0);
+  assert.equal(CFE_GROWTH_TRACK[fastCharity.players[0].position], "charity-fast");
+  assert.equal(fastCharity.pending?.kind, "charity-fast");
+  const permanent = cfeResolvePending(fastCharity, 0, "accept");
+  assert.equal(permanent.players[0].growthCharity, true);
+  assert.equal(permanent.players[0].cash, 10000);
+});
+
+test("applies official Fast Track losses and bankruptcy outcomes", () => {
+  const growthAt = (position, cash = 1000) => {
+    const game = cfeCreateGame(2, "balanced", () => 0.2);
+    Object.assign(game.players[0], { stage: "growth", position, cash, growthIncome: 100, growthTarget: 5100 });
+    return game;
+  };
+  const lawsuit = cfeRoll(growthAt(4), 0, () => 0);
+  assert.equal(CFE_GROWTH_TRACK[lawsuit.players[0].position], "lawsuit");
+  assert.equal(lawsuit.players[0].cash, 500);
+  const tax = cfeRoll(growthAt(9), 0, () => 0);
+  assert.equal(CFE_GROWTH_TRACK[tax.players[0].position], "tax");
+  assert.equal(tax.players[0].cash, 500);
+  const divorce = cfeRoll(growthAt(11), 0, () => 0);
+  assert.equal(CFE_GROWTH_TRACK[divorce.players[0].position], "divorce");
+  assert.equal(divorce.players[0].cash, 0);
+
+  const recoveredGame = cfeCreateGame(2, "balanced", () => 0.2);
+  const recoveredPlayer = recoveredGame.players[0];
+  const openingFlow = cfeFinancials(recoveredPlayer).monthlyCashflow;
+  recoveredPlayer.position = 23;
+  recoveredPlayer.cash = 0;
+  recoveredPlayer.bankLoan = (openingFlow + 5) * 10;
+  recoveredPlayer.assets = [{ ...CFE_DEALS[0], cost: 200, value: 200, income: 0, acquiredTurn: 1 }];
+  const recovered = cfeRoll(recoveredGame, 0, () => 0);
+  assert.equal(recovered.players[0].eliminated, false);
+  assert.equal(recovered.players[0].skipTurns, 2);
+  assert.ok(cfeFinancials(recovered.players[0]).monthlyCashflow > 0);
+
+  const failedGame = cfeCreateGame(2, "balanced", () => 0.2);
+  const failedPlayer = failedGame.players[0];
+  failedPlayer.position = 23;
+  failedPlayer.cash = 0;
+  failedPlayer.bankLoan = (cfeFinancials(failedPlayer).monthlyCashflow + 100) * 10;
+  failedPlayer.assets = [];
+  const failed = cfeRoll(failedGame, 0, () => 0);
+  assert.equal(failed.players[0].eliminated, true);
+  assert.equal(failed.phase, "finished");
+  assert.equal(failed.winner, 1);
 });
 
 test("uses asset income terminology throughout Cashflow Escape", async () => {
@@ -481,7 +593,7 @@ test("uses asset income terminology throughout Cashflow Escape", async () => {
     [49688, 46041, 51201, 32, 49548, 46301],
     [51088, 49328, 32, 49688, 51077],
   ].map((codePoints) => String.fromCodePoint(...codePoints));
-  assert.match(copy, /자산소득이 총지출 이상/);
+  assert.match(copy, /자산소득이 총지출보다/);
   for (const legacyTerm of legacyTerms) assert.equal(copy.includes(legacyTerm), false);
   assert.doesNotMatch(files[0] + files[1], /passiveIncome|\bpassive\b/);
   assert.match(files[0], /확인하고 계속/);

@@ -17,23 +17,23 @@ export const CFE_DREAMS = [
 ];
 
 export const CFE_INNER_TRACK = [
-  "payday", "small", "life", "market", "payday", "small",
-  "charity", "life", "payday", "big", "market", "small",
-  "payday", "family", "life", "small", "payday", "downsize",
-  "market", "big", "payday", "small", "life", "market",
+  "payday", "opportunity", "life", "market", "payday", "opportunity",
+  "charity", "life", "payday", "opportunity", "market", "opportunity",
+  "payday", "family", "life", "opportunity", "payday", "downsize",
+  "market", "opportunity", "payday", "opportunity", "life", "market",
 ];
 
 export const CFE_GROWTH_TRACK = [
-  "growth-payday", "venture", "market", "vision", "growth-payday", "venture",
-  "give", "market", "growth-payday", "vision", "venture", "tax",
-  "growth-payday", "market", "venture", "vision",
+  "growth-payday", "venture", "charity-fast", "vision", "growth-payday", "venture",
+  "lawsuit", "venture", "growth-payday", "vision", "venture", "tax",
+  "growth-payday", "divorce", "venture", "vision",
 ];
 
 export const CFE_SPACE_LABELS = {
-  payday: "월급날", small: "작은 기회", big: "큰 기회", life: "생활 사건",
+  payday: "월급날", opportunity: "투자 기회", small: "작은 기회", big: "큰 기회", life: "생활 사건",
   market: "시장 변화", charity: "나눔", family: "가족 변화", downsize: "소득 공백",
   "growth-payday": "성장 수익", venture: "성장 투자", vision: "인생 목표",
-  give: "사회 환원", tax: "자산 조정",
+  "charity-fast": "성장 나눔", tax: "세무 조사", divorce: "이혼", lawsuit: "소송",
 };
 
 export const CFE_DEALS = [
@@ -125,6 +125,15 @@ function replaceLegacyIncomeTerms(value) {
 
 export function cfeMigrateSavedGame(state) {
   const migrated = replaceLegacyIncomeTerms(state);
+  if (Array.isArray(migrated?.players)) {
+    migrated.players = migrated.players.map((player) => ({
+      ...player,
+      eliminated: Boolean(player.eliminated),
+      growthCharity: Boolean(player.growthCharity),
+      growthIncome: player.growthIncome ?? (player.stage === "growth" ? cfeFinancials(player).assetIncome * 100 : 0),
+      growthTarget: player.growthTarget ?? null,
+    }));
+  }
   if (Array.isArray(migrated?.standings)) {
     migrated.standings = migrated.standings.map((standing) => {
       const legacyKey = ["pass", "ive"].join("");
@@ -138,6 +147,9 @@ export function cfeMigrateSavedGame(state) {
 }
 
 function createPlayer(id, profession, dream, isHuman) {
+  const debtPayments = profession.liabilities.reduce((sum, item) => sum + item[2], 0);
+  const baseExpenses = profession.expenses - debtPayments;
+  const openingCashflow = profession.salary - profession.expenses;
   return {
     id,
     name: isHuman ? "나" : `AI ${["", "민트", "블루", "로즈", "골드", "라임"][id]}`,
@@ -145,8 +157,8 @@ function createPlayer(id, profession, dream, isHuman) {
     profession,
     dream,
     salary: profession.salary,
-    cash: profession.savings,
-    baseExpenses: profession.expenses - profession.liabilities.reduce((sum, item) => sum + item[2], 0),
+    cash: profession.savings + openingCashflow,
+    baseExpenses,
     liabilities: profession.liabilities.map((item, index) => liability(item[0], item[1], item[2], index)),
     bankLoan: 0,
     assets: [],
@@ -154,6 +166,9 @@ function createPlayer(id, profession, dream, isHuman) {
     position: 0,
     stage: "cycle",
     growthTarget: null,
+    growthIncome: 0,
+    growthCharity: false,
+    eliminated: false,
     skipTurns: 0,
     charityTurns: 0,
     turns: 0,
@@ -198,39 +213,52 @@ function cloneState(state) {
 }
 
 function ensureCash(player) {
-  if (player.cash >= 0) return;
+  if (player.cash >= 0) return 0;
   const amount = Math.ceil(Math.abs(player.cash) / 100) * 100;
   player.cash += amount;
   player.bankLoan += amount;
+  return amount;
 }
 
 function ranking(players) {
   return [...players].map((player) => {
     const finance = cfeFinancials(player);
-    return { id: player.id, name: player.name, stage: player.stage, cash: player.cash, assetIncome: finance.assetIncome, netWorth: finance.netWorth };
-  }).sort((a, b) => (b.stage === "growth" ? 1 : 0) - (a.stage === "growth" ? 1 : 0) || b.assetIncome - a.assetIncome || b.netWorth - a.netWorth);
+    return { id: player.id, name: player.name, stage: player.stage, cash: player.cash, assetIncome: finance.assetIncome, netWorth: finance.netWorth, eliminated: player.eliminated };
+  }).sort((a, b) => Number(a.eliminated) - Number(b.eliminated) || (b.stage === "growth" ? 1 : 0) - (a.stage === "growth" ? 1 : 0) || b.assetIncome - a.assetIncome || b.netWorth - a.netWorth);
 }
 
 function advanceTurn(state) {
   if (state.phase === "finished" || state.pending) return state;
-  state.currentPlayer = (state.currentPlayer + 1) % state.playerCount;
-  if (state.currentPlayer === 0) state.turn += 1;
+  const activePlayers = state.players.filter((player) => !player.eliminated);
+  if (activePlayers.length === 1) return finishGame(state, activePlayers[0].id, "마지막 생존");
+  let nextPlayer = state.currentPlayer;
+  do {
+    nextPlayer = (nextPlayer + 1) % state.playerCount;
+    if (nextPlayer === 0) state.turn += 1;
+  } while (state.players[nextPlayer].eliminated);
+  state.currentPlayer = nextPlayer;
   return state;
 }
 
-function checkFreedom(state, playerId) {
+function enterFastTrack(state, playerId) {
   const player = state.players[playerId];
   const finance = cfeFinancials(player);
-  if (player.stage === "cycle" && finance.assetIncome >= finance.totalExpenses) {
+  if (player.stage === "cycle" && finance.assetIncome > finance.totalExpenses) {
     player.stage = "growth";
     player.position = 0;
-    player.growthTarget = finance.assetIncome + 900;
-    state.lastEvent = `${player.name}가 생활 순환로를 벗어나 성장 트랙에 진입했습니다!`;
-    state.log.push(state.lastEvent);
+    player.growthIncome = finance.assetIncome * 100;
+    player.growthTarget = player.growthIncome + 5000;
+    player.cash = player.growthIncome;
+    player.charityTurns = 0;
+    state.lastEvent = `${player.name}가 생활 순환로를 벗어났습니다. 성장 수입 ${player.growthIncome}만원으로 시작합니다.`;
+    state.log.push(`${player.name}: ${state.lastEvent}`);
   }
-  if (player.stage === "growth" && finance.assetIncome >= player.growthTarget) {
-    return finishGame(state, playerId, "성장 수입 목표 달성");
-  }
+  return state;
+}
+
+function checkGrowthVictory(state, playerId) {
+  const player = state.players[playerId];
+  if (player.stage === "growth" && player.growthIncome >= player.growthTarget) return finishGame(state, playerId, "성장 수입 목표 달성");
   return state;
 }
 
@@ -254,36 +282,111 @@ function drawCard(state, deckName) {
 function payAmount(state, playerId, amount, message) {
   const player = state.players[playerId];
   player.cash -= amount;
-  ensureCash(player);
-  state.lastEvent = message;
-  state.log.push(`${player.name}: ${message}`);
+  const borrowed = ensureCash(player);
+  state.lastEvent = `${message}${borrowed ? ` · 부족액 보전을 위해 ${borrowed}만원 대출` : ""}`;
+  state.log.push(`${player.name}: ${state.lastEvent}`);
+}
+
+function resolveBankruptcy(state, playerId) {
+  const player = state.players[playerId];
+  let liquidation = Math.max(0, player.cash);
+  const sold = [];
+  const assets = [...player.assets].sort((a, b) => a.income / Math.max(1, a.cost) - b.income / Math.max(1, b.cost));
+  while (cfeFinancials(player).monthlyCashflow <= 0 && (assets.length || player.liabilities.length || player.bankLoan)) {
+    const affordableDebt = [...player.liabilities]
+      .filter((item) => item.balance <= liquidation)
+      .sort((a, b) => b.payment / b.balance - a.payment / a.balance)[0];
+    if (affordableDebt) {
+      liquidation -= affordableDebt.balance;
+      player.liabilities = player.liabilities.filter((item) => item !== affordableDebt);
+      continue;
+    }
+    if (player.bankLoan >= 100 && liquidation >= 100) {
+      const units = Math.min(Math.floor(liquidation / 100) * 100, player.bankLoan);
+      liquidation -= units;
+      player.bankLoan -= units;
+      continue;
+    }
+    const asset = assets.shift();
+    if (!asset) break;
+    player.assets = player.assets.filter((item) => item !== asset);
+    const proceeds = Math.round(asset.cost * 0.5);
+    liquidation += proceeds;
+    sold.push(asset.name);
+  }
+  player.cash = liquidation;
+  player.charityTurns = 0;
+  const recovered = cfeFinancials(player).monthlyCashflow > 0;
+  if (recovered) {
+    player.skipTurns = Math.max(player.skipTurns, 2);
+    state.lastEvent = `파산 정리 완료 · ${sold.length}개 자산 매각 · 다음 두 차례를 쉽니다.`;
+  } else {
+    player.eliminated = true;
+    player.assets = [];
+    player.cash = 0;
+    state.lastEvent = "파산 · 자산과 부채를 정리해도 월 현금흐름이 회복되지 않아 게임에서 제외됩니다.";
+  }
+  state.log.push(`${player.name}: ${state.lastEvent}`);
+  return state;
 }
 
 function resolvePayday(state, playerId, growth = false) {
   const player = state.players[playerId];
   const finance = cfeFinancials(player);
-  const amount = growth ? Math.max(600, finance.assetIncome + 350) : finance.monthlyCashflow;
+  const amount = growth ? player.growthIncome : finance.monthlyCashflow;
+  if (!growth && amount < 0 && player.cash + amount < 0) return resolveBankruptcy(state, playerId);
   player.cash += amount;
-  ensureCash(player);
-  state.lastEvent = growth ? `성장 수익 ${amount}만원을 받았습니다.` : `월 현금흐름 ${amount >= 0 ? "+" : ""}${amount}만원을 반영했습니다.`;
+  state.lastEvent = growth ? `성장 수입 ${amount}만원을 받았습니다.` : `월 현금흐름 ${amount >= 0 ? "+" : ""}${amount}만원을 받았습니다.`;
   state.log.push(`${player.name}: ${state.lastEvent}`);
-  return checkFreedom(state, playerId);
+  return state;
+}
+
+function drawDealBySize(state, size) {
+  let card = drawCard(state, "deal");
+  let attempts = 0;
+  while (card.size !== size && attempts < state.dealDeck.length) {
+    card = drawCard(state, "deal");
+    attempts += 1;
+  }
+  return card;
+}
+
+function resolveMarketForAll(state, triggerPlayerId, market) {
+  for (const player of state.players) {
+    if (player.eliminated || player.stage !== "cycle") continue;
+    const assets = player.assets.filter((asset) => market.category === "any" || asset.category === market.category);
+    if (!assets.length) continue;
+    if (player.isHuman) {
+      state.pending = { kind: "market", playerId: player.id, triggerPlayerId, card: market, assetIds: assets.map((asset) => asset.id) };
+      state.lastEvent = `${market.name} · 보유한 관련 자산을 매각할지 선택하세요.`;
+      state.log.push(`${player.name}: 시장 변화 · ${market.name} — ${market.description}`);
+      return state;
+    }
+    const best = [...assets].sort((a, b) => b.value - a.value)[0];
+    if (market.multiplier >= 1.3) {
+      const price = Math.round(best.value * market.multiplier);
+      player.cash += price;
+      player.assets = player.assets.filter((asset) => asset !== best);
+      state.log.push(`${player.name}: 시장 변화 · ${market.name} 적용 · ${best.name} 매각 · 현금 +${price}만원 · 자산소득 -${best.income}만원`);
+    } else {
+      state.log.push(`${player.name}: 시장 변화 · ${market.name} 적용 · 관련 자산을 계속 보유합니다.`);
+    }
+  }
+  state.lastEvent = `${market.name} · 모든 참가자에게 시장 변화가 적용되었습니다.`;
+  state.log.push(`${state.players[triggerPlayerId].name}: ${state.lastEvent}`);
+  return state;
 }
 
 function resolveSpace(state, playerId, space) {
   const player = state.players[playerId];
   if (space === "payday" || space === "growth-payday") {
     resolvePayday(state, playerId, space === "growth-payday");
-  } else if (space === "small" || space === "big" || space === "venture") {
-    const deckName = space === "venture" ? "venture" : "deal";
-    let card = drawCard(state, deckName);
-    if (space !== "venture") {
-      let attempts = 0;
-      while (card.size !== space && attempts < state.dealDeck.length) {
-        card = drawCard(state, "deal");
-        attempts += 1;
-      }
-    }
+  } else if (space === "opportunity") {
+    state.pending = { kind: "opportunity", playerId };
+    state.lastEvent = "작은 기회와 큰 기회 중 확인할 투자 규모를 선택합니다.";
+    state.log.push(`${player.name}: 투자 기회 · 작은 기회 또는 큰 기회를 선택합니다.`);
+  } else if (space === "venture") {
+    const card = drawCard(state, "venture");
     state.pending = { kind: "deal", playerId, card };
     state.lastEvent = `${card.name} 투자 기회를 검토합니다.`;
     state.log.push(`${player.name}: 투자 기회 · ${card.name} — ${card.description}`);
@@ -299,65 +402,89 @@ function resolveSpace(state, playerId, space) {
       payAmount(state, playerId, 60, "가족 행사 · 60만원 지출");
     }
   } else if (space === "downsize") {
+    const amount = cfeFinancials(player).totalExpenses;
+    payAmount(state, playerId, amount, `구조조정 · 총지출 ${amount}만원 지불`);
     player.skipTurns = 2;
-    state.lastEvent = "소득 공백 발생 · 다음 두 차례를 쉽니다.";
-    state.log.push(`${player.name}: ${state.lastEvent}`);
+    player.charityTurns = 0;
+    state.lastEvent += " · 다음 두 차례를 쉬며 나눔 혜택도 종료됩니다.";
+    state.log[state.log.length - 1] = `${player.name}: ${state.lastEvent}`;
   } else if (space === "charity") {
-    state.pending = { kind: "charity", playerId, amount: 50 };
-    state.lastEvent = "50만원을 나누면 다음 세 차례 동안 주사위 두 개 중 높은 값을 사용합니다.";
+    const amount = Math.ceil(cfeFinancials(player).totalIncome * 0.1);
+    state.pending = { kind: "charity", playerId, amount };
+    state.lastEvent = `총수입의 10%인 ${amount}만원을 나누면 다음 세 차례에 주사위 1개 또는 2개를 선택할 수 있습니다.`;
     state.log.push(`${player.name}: 나눔 기회 · ${state.lastEvent}`);
-  } else if (space === "give") {
-    payAmount(state, playerId, Math.min(player.cash, 150), "사회 환원 · 150만원 기부");
+  } else if (space === "charity-fast") {
+    state.pending = { kind: "charity-fast", playerId, amount: 10000 };
+    state.lastEvent = "10,000만원을 기부하면 게임이 끝날 때까지 매 차례 주사위 1개·2개·3개 중 선택할 수 있습니다.";
+    state.log.push(`${player.name}: 성장 나눔 기회 · ${state.lastEvent}`);
   } else if (space === "tax") {
-    const amount = Math.max(50, Math.floor(player.cash * 0.1));
-    payAmount(state, playerId, amount, `자산 조정 비용 · ${amount}만원`);
+    const amount = Math.floor(player.cash * 0.5);
+    player.cash -= amount;
+    state.lastEvent = `세무 조사 · 보유 현금의 절반인 ${amount}만원을 잃었습니다.`;
+    state.log.push(`${player.name}: ${state.lastEvent}`);
+  } else if (space === "divorce") {
+    const amount = player.cash;
+    player.cash = 0;
+    state.lastEvent = `이혼 · 보유 현금 ${amount}만원을 모두 잃었습니다.`;
+    state.log.push(`${player.name}: ${state.lastEvent}`);
+  } else if (space === "lawsuit") {
+    const amount = Math.floor(player.cash * 0.5);
+    player.cash -= amount;
+    state.lastEvent = `소송 · 보유 현금의 절반인 ${amount}만원을 잃었습니다.`;
+    state.log.push(`${player.name}: ${state.lastEvent}`);
   } else if (space === "market") {
     const market = drawCard(state, "market");
-    const assets = player.assets.filter((asset) => market.category === "any" || asset.category === market.category);
-    if (assets.length) {
-      state.pending = { kind: "market", playerId, card: market, assetIds: assets.map((asset) => asset.id) };
-      state.lastEvent = market.description;
-      state.log.push(`${player.name}: 시장 변화 · ${market.name} — ${market.description}`);
-    } else {
-      state.lastEvent = `시장 변화 · ${market.name} — ${market.description} · 매각할 관련 자산이 없습니다.`;
-      state.log.push(`${player.name}: ${state.lastEvent}`);
-    }
+    resolveMarketForAll(state, playerId, market);
   } else if (space === "vision") {
-    if (player.cash >= player.dream.cost) {
-      state.pending = { kind: "vision", playerId, dream: player.dream };
-      state.lastEvent = `${player.dream.name}을(를) 실현할 수 있습니다.`;
+    const dream = CFE_DREAMS[(state.turn + playerId + player.position) % CFE_DREAMS.length];
+    if (player.cash >= dream.cost) {
+      state.pending = { kind: "vision", playerId, dream };
+      state.lastEvent = `${dream.name}을(를) 실현할 수 있습니다.${dream.id === player.dream.id ? " 내가 선택한 인생 목표입니다." : ""}`;
       state.log.push(`${player.name}: 인생 목표 기회 · ${state.lastEvent}`);
     } else {
-      state.lastEvent = `${player.dream.name}까지 ${player.dream.cost - player.cash}만원이 더 필요합니다.`;
+      state.lastEvent = `${dream.name}까지 ${dream.cost - player.cash}만원이 더 필요합니다.`;
       state.log.push(`${player.name}: ${state.lastEvent}`);
     }
   }
   if (!state.pending && state.phase !== "finished") {
-    checkFreedom(state, playerId);
     advanceTurn(state);
   }
   return state;
 }
 
-export function cfeRoll(state, playerId, random = Math.random) {
+export function cfeRoll(state, playerId, random = Math.random, diceCount = null) {
   if (state.phase !== "playing" || state.pending || state.currentPlayer !== playerId) return state;
   const next = cloneState(state);
+  enterFastTrack(next, playerId);
   const player = next.players[playerId];
+  if (player.eliminated) return advanceTurn(next);
   if (player.skipTurns > 0) {
     player.skipTurns -= 1;
     next.lastEvent = `${player.name}는 소득 공백으로 이번 차례를 쉽니다.`;
     next.log.push(next.lastEvent);
     return advanceTurn(next);
   }
-  const first = 1 + Math.floor(random() * 6);
-  const second = player.charityTurns > 0 ? 1 + Math.floor(random() * 6) : null;
-  const roll = second == null ? first : Math.max(first, second);
-  if (player.charityTurns > 0) player.charityTurns -= 1;
+  const allowedDice = player.stage === "growth"
+    ? (player.growthCharity ? [1, 2, 3] : [2])
+    : (player.charityTurns > 0 ? [1, 2] : [1]);
+  const selectedDice = allowedDice.includes(diceCount) ? diceCount : allowedDice[allowedDice.length - 1];
+  const values = Array.from({ length: selectedDice }, () => 1 + Math.floor(random() * 6));
+  const roll = values.reduce((sum, value) => sum + value, 0);
+  if (player.stage === "cycle" && player.charityTurns > 0) player.charityTurns -= 1;
   const track = player.stage === "growth" ? CFE_GROWTH_TRACK : CFE_INNER_TRACK;
-  player.position = (player.position + roll) % track.length;
+  for (let step = 1; step <= roll; step += 1) {
+    player.position = (player.position + 1) % track.length;
+    const crossed = track[player.position];
+    if (crossed === "payday" || crossed === "growth-payday") {
+      resolvePayday(next, playerId, crossed === "growth-payday");
+      if (player.eliminated || next.phase === "finished") break;
+    }
+  }
   player.turns += 1;
-  next.lastRoll = { playerId, values: second == null ? [first] : [first, second], used: roll };
-  next.log.push(`${player.name}: ${second == null ? first : `${first}·${second} 중 ${roll}`}칸 이동 → ${CFE_SPACE_LABELS[track[player.position]]}`);
+  next.lastRoll = { playerId, values, used: roll };
+  next.log.push(`${player.name}: 주사위 ${values.join("·")} 합계 ${roll}칸 이동 → ${CFE_SPACE_LABELS[track[player.position]]}`);
+  if (player.eliminated || next.phase === "finished") return advanceTurn(next);
+  if (track[player.position] === "payday" || track[player.position] === "growth-payday") return advanceTurn(next);
   return resolveSpace(next, playerId, track[player.position]);
 }
 
@@ -368,13 +495,27 @@ export function cfeResolvePending(state, playerId, choice, option = null) {
   const player = next.players[playerId];
   next.pending = null;
 
-  if (pending.kind === "deal") {
+  if (pending.kind === "opportunity") {
+    const size = choice === "big" ? "big" : "small";
+    const card = drawDealBySize(next, size);
+    next.pending = { kind: "deal", playerId, card };
+    next.lastEvent = `${size === "big" ? "큰 기회" : "작은 기회"} · ${card.name} 투자 조건을 확인합니다.`;
+    next.log.push(`${player.name}: 결정 · ${size === "big" ? "큰 기회" : "작은 기회"} 선택 · ${card.name}`);
+    return next;
+  } else if (pending.kind === "deal") {
     if (choice === "buy" && player.cash >= pending.card.cost) {
       player.cash -= pending.card.cost;
-      player.assets.push({ ...pending.card, acquiredTurn: next.turn });
-      next.lastEvent = `${pending.card.name} 인수 · 자산소득 +${pending.card.income}만원`;
-      next.log.push(`${player.name}: 결정 · ${pending.card.name} 매입 · 현금 -${pending.card.cost}만원 · 자산소득 +${pending.card.income}만원`);
-      checkFreedom(next, playerId);
+      if (player.stage === "growth") {
+        const increase = pending.card.income * 10;
+        player.growthIncome += increase;
+        next.lastEvent = `${pending.card.name} 인수 · 성장 수입 +${increase}만원`;
+        next.log.push(`${player.name}: 결정 · ${pending.card.name} 매입 · 현금 -${pending.card.cost}만원 · 성장 수입 +${increase}만원`);
+        checkGrowthVictory(next, playerId);
+      } else {
+        player.assets.push({ ...pending.card, acquiredTurn: next.turn });
+        next.lastEvent = `${pending.card.name} 인수 · 자산소득 +${pending.card.income}만원`;
+        next.log.push(`${player.name}: 결정 · ${pending.card.name} 매입 · 현금 -${pending.card.cost}만원 · 자산소득 +${pending.card.income}만원`);
+      }
     } else {
       next.lastEvent = choice === "buy" ? "현금이 부족해 투자하지 못했습니다." : `${pending.card.name} 투자를 넘겼습니다.`;
       next.log.push(`${player.name}: 결정 · ${next.lastEvent}`);
@@ -383,9 +524,18 @@ export function cfeResolvePending(state, playerId, choice, option = null) {
     if (choice === "accept" && player.cash >= pending.amount) {
       player.cash -= pending.amount;
       player.charityTurns = 3;
-      next.lastEvent = "나눔 완료 · 다음 세 차례에 유리한 주사위를 사용합니다.";
+      next.lastEvent = "나눔 완료 · 다음 세 차례에 주사위 1개 또는 2개를 선택하며, 2개를 고르면 합계를 사용합니다.";
     } else {
       next.lastEvent = "이번에는 나눔을 쉬어갑니다.";
+    }
+    next.log.push(`${player.name}: 결정 · ${next.lastEvent}${choice === "accept" ? ` · 현금 -${pending.amount}만원` : ""}`);
+  } else if (pending.kind === "charity-fast") {
+    if (choice === "accept" && player.cash >= pending.amount) {
+      player.cash -= pending.amount;
+      player.growthCharity = true;
+      next.lastEvent = "성장 나눔 완료 · 게임이 끝날 때까지 매 차례 주사위 1개·2개·3개 중 선택할 수 있습니다.";
+    } else {
+      next.lastEvent = "이번에는 성장 나눔에 참여하지 않습니다.";
     }
     next.log.push(`${player.name}: 결정 · ${next.lastEvent}${choice === "accept" ? ` · 현금 -${pending.amount}만원` : ""}`);
   } else if (pending.kind === "market") {
@@ -400,16 +550,36 @@ export function cfeResolvePending(state, playerId, choice, option = null) {
       next.lastEvent = `${pending.card.name} 제안을 보류했습니다.`;
       next.log.push(`${player.name}: 결정 · ${pending.card.name} 적용 · 매각하지 않고 자산을 보유합니다.`);
     }
+    for (const other of next.players) {
+      if (other.id === playerId || other.eliminated || other.stage !== "cycle") continue;
+      const assets = other.assets.filter((item) => pending.card.category === "any" || item.category === pending.card.category);
+      if (!assets.length) continue;
+      const best = [...assets].sort((a, b) => b.value - a.value)[0];
+      if (pending.card.multiplier >= 1.3) {
+        const price = Math.round(best.value * pending.card.multiplier);
+        other.cash += price;
+        other.assets = other.assets.filter((item) => item !== best);
+        next.log.push(`${other.name}: 시장 변화 · ${pending.card.name} 적용 · ${best.name} 매각 · 현금 +${price}만원 · 자산소득 -${best.income}만원`);
+      } else {
+        next.log.push(`${other.name}: 시장 변화 · ${pending.card.name} 적용 · 관련 자산을 계속 보유합니다.`);
+      }
+    }
   } else if (pending.kind === "vision") {
     if (choice === "buy" && player.cash >= pending.dream.cost) {
       player.cash -= pending.dream.cost;
-      return finishGame(next, playerId, `인생 목표 ‘${pending.dream.name}’ 실현`);
+      if (pending.dream.id === player.dream.id) return finishGame(next, playerId, `선택한 인생 목표 ‘${pending.dream.name}’ 실현`);
+      next.lastEvent = `인생 목표 ‘${pending.dream.name}’ 실현 · 선택한 목표는 아니므로 게임을 계속합니다.`;
+      next.log.push(`${player.name}: 결정 · ${next.lastEvent} · 현금 -${pending.dream.cost}만원`);
+    } else {
+      next.lastEvent = "인생 목표 달성을 다음 기회로 미뤘습니다.";
+      next.log.push(`${player.name}: 결정 · ${next.lastEvent}`);
     }
-    next.lastEvent = "인생 목표 달성을 다음 기회로 미뤘습니다.";
-    next.log.push(`${player.name}: 결정 · ${next.lastEvent}`);
   }
 
-  if (next.phase !== "finished") advanceTurn(next);
+  if (next.phase !== "finished") {
+    next.currentPlayer = pending.triggerPlayerId ?? next.currentPlayer;
+    advanceTurn(next);
+  }
   return next;
 }
 
@@ -417,6 +587,7 @@ export function cfeBorrow(state, playerId, amount = 100) {
   if (state.phase !== "playing" || state.currentPlayer !== playerId || amount <= 0) return state;
   const next = cloneState(state);
   const player = next.players[playerId];
+  if (player.stage === "growth" || player.eliminated) return state;
   player.cash += amount;
   player.bankLoan += amount;
   next.lastEvent = `운영자금 ${amount}만원 대출 · 월 상환 부담 ${Math.ceil(player.bankLoan * 0.1)}만원`;
@@ -428,6 +599,7 @@ export function cfeRepayBank(state, playerId, amount = 100) {
   if (state.phase !== "playing" || state.currentPlayer !== playerId || state.pending) return state;
   const next = cloneState(state);
   const player = next.players[playerId];
+  if (player.stage === "growth" || player.eliminated) return state;
   const payment = Math.min(amount, player.bankLoan, player.cash);
   if (payment <= 0) return state;
   player.cash -= payment;
@@ -441,13 +613,13 @@ export function cfeRepayLiability(state, playerId, liabilityId) {
   if (state.phase !== "playing" || state.currentPlayer !== playerId || state.pending) return state;
   const next = cloneState(state);
   const player = next.players[playerId];
+  if (player.stage === "growth" || player.eliminated) return state;
   const item = player.liabilities.find((candidate) => candidate.id === liabilityId);
   if (!item || player.cash < item.balance) return state;
   player.cash -= item.balance;
   player.liabilities = player.liabilities.filter((candidate) => candidate.id !== liabilityId);
   next.lastEvent = `${item.name} 완납 · 월지출 ${item.payment}만원 감소`;
   next.log.push(`${player.name}: ${next.lastEvent}`);
-  checkFreedom(next, playerId);
   return next;
 }
 
@@ -463,11 +635,18 @@ export function cfeChooseAiAction(state, playerId, random = Math.random) {
   if (state.phase !== "playing" || state.currentPlayer !== playerId) return state;
   const player = state.players[playerId];
   if (state.pending?.playerId === playerId) {
+    if (state.pending.kind === "opportunity") {
+      const chooseBig = player.cash >= 700 && state.difficulty !== "casual";
+      return cfeResolvePending(state, playerId, chooseBig ? "big" : "small");
+    }
     if (state.pending.kind === "deal") {
       return cfeResolvePending(state, playerId, aiShouldBuy(player, state.pending.card, state.difficulty) ? "buy" : "skip");
     }
     if (state.pending.kind === "charity") {
-      return cfeResolvePending(state, playerId, player.cash >= 300 ? "accept" : "skip");
+      return cfeResolvePending(state, playerId, player.cash >= state.pending.amount + 150 ? "accept" : "skip");
+    }
+    if (state.pending.kind === "charity-fast") {
+      return cfeResolvePending(state, playerId, player.cash >= state.pending.amount * 1.25 ? "accept" : "skip");
     }
     if (state.pending.kind === "market") {
       const assets = player.assets.filter((asset) => state.pending.assetIds.includes(asset.id));
@@ -482,7 +661,8 @@ export function cfeChooseAiAction(state, playerId, random = Math.random) {
   const payable = [...player.liabilities].sort((a, b) => b.payment / b.balance - a.payment / a.balance)[0];
   if (payable && player.cash > payable.balance + 350 && random() < 0.18) return cfeRepayLiability(state, playerId, payable.id);
   if (player.bankLoan >= 100 && player.cash >= 450 && random() < 0.15) return cfeRepayBank(state, playerId, 100);
-  return cfeRoll(state, playerId, random);
+  const diceCount = player.stage === "growth" ? (player.growthCharity ? 3 : 2) : (player.charityTurns > 0 ? 2 : 1);
+  return cfeRoll(state, playerId, random, diceCount);
 }
 
 export function cfeRanking(state) {
