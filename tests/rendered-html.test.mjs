@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { chooseAiHeld, describeAiHeld, shouldAiStop } from "../app/dice-ai.js";
@@ -64,7 +64,14 @@ import {
   pickPicnicPlayerScore,
   pickPicnicResolveRound,
 } from "../app/pick-picnic-engine.js";
-import { hasKoreanFinalConsonant, withKoreanSubject } from "../app/korean-particles.js";
+import {
+  hasKoreanFinalConsonant,
+  withKoreanAnd,
+  withKoreanDirection,
+  withKoreanObject,
+  withKoreanSubject,
+  withKoreanTopic,
+} from "../app/korean-particles.js";
 import {
   EPIC_DUELS_MAPS,
   EPIC_DUELS_TEAMS,
@@ -1121,6 +1128,35 @@ test("uses grammatically correct Korean subject particles in Pick Picnic events"
   };
   const result = pickPicnicResolveRound(game, [{ playerId: 0, card }], {}, () => 0);
   assert.equal(result.events[0], "꼬꼬 마당: 모모가 먹이 1개를 모두 먹었습니다.");
+});
+
+test("applies Korean particles to dynamic copy across every game", async () => {
+  assert.equal(withKoreanTopic("보람"), "보람은");
+  assert.equal(withKoreanTopic("모모"), "모모는");
+  assert.equal(withKoreanObject("용"), "용을");
+  assert.equal(withKoreanObject("여우"), "여우를");
+  assert.equal(withKoreanAnd("보람"), "보람과");
+  assert.equal(withKoreanAnd("모모"), "모모와");
+  assert.equal(withKoreanDirection("왼쪽"), "왼쪽으로");
+  assert.equal(withKoreanDirection("마을"), "마을로");
+  assert.equal(withKoreanDirection(1), "1로");
+  assert.equal(withKoreanDirection(3), "3으로");
+
+  const files = (await readdir(new URL("../app/", import.meta.url), { recursive: true }))
+    .filter((file) => /\.(?:js|jsx|ts|tsx)$/.test(file));
+  const rawParticlePatterns = [
+    /\$\{[^}\r\n]+\}(?:이\(가\)|을\(를\)|[이가은는을를과와]|(?:으)?로)(?=[^가-힣]|$)/g,
+    /\{[A-Za-z_$][^{}\r\n]*\}(?:이\(가\)|을\(를\)|[이가은는을를과와]|(?:으)?로)(?=[^가-힣]|$)/g,
+    /\b(?:name|label|title|role)\s*\+\s*["'](?:이\(가\)|을\(를\)|[이가은는을를과와]|(?:으)?로)/g,
+  ];
+  const violations = [];
+  for (const file of files) {
+    const source = await readFile(new URL(`../app/${file.replaceAll("\\", "/")}`, import.meta.url), "utf8");
+    for (const pattern of rawParticlePatterns) {
+      for (const match of source.matchAll(pattern)) violations.push(`${file}: ${match[0]}`);
+    }
+  }
+  assert.deepEqual(violations, []);
 });
 
 test("labels Pick Picknic grain blocks with visible point values", async () => {

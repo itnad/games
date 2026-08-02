@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useReducer, useState } from "react";
+import { withKoreanSubject } from "./korean-particles.js";
 
 type ExitProps = { onExit: () => void };
 type CardKind = "story" | "clock" | "roof";
@@ -205,7 +206,7 @@ function nextTurn(state: GameState): GameState {
         phase: player.isHuman ? "play" : "ai",
         selectedCardId: null,
         turn: state.turn + 1,
-        message: player.isHuman ? "손의 카드 한 장을 골라 탑에 놓거나 버리세요." : `${player.name}가 탑을 설계하고 있습니다…`,
+        message: player.isHuman ? "손의 카드 한 장을 골라 탑에 놓거나 버리세요." : `${withKoreanSubject(player.name)} 탑을 설계하고 있습니다…`,
       };
     }
   }
@@ -566,7 +567,7 @@ export function ClocktowersGame({ onExit }: ExitProps) {
         <div className="ct-result-layer" role="dialog" aria-modal="true" aria-labelledby="ct-result-title">
           <section>
             <span className="ct-kicker">CITY COMPLETE</span>
-            <h2 id="ct-result-title">{winners.length > 1 ? `${winners.map((player) => player.name).join(" · ")} 공동 승리` : ranking[0].isHuman ? "도시 최고의 건축가예요!" : `${ranking[0].name}가 승리했어요`}</h2>
+            <h2 id="ct-result-title">{winners.length > 1 ? `${winners.map((player) => player.name).join(" · ")} 공동 승리` : ranking[0].isHuman ? "도시 최고의 건축가예요!" : `${withKoreanSubject(ranking[0].name)} 승리했어요`}</h2>
             <p>완성하지 못한 탑은 점수에서 제외했습니다.</p>
             <ol>{ranking.map((player, index) => <li key={player.id}><b>{index + 1}</b><span>{player.name}<small>완성 {player.towers.filter(isComplete).length}개</small></span><strong>{playerScore(player)}점</strong></li>)}</ol>
             <div className="ct-score-legend"><span>동물 없음 5점</span><span>고양이만 4점</span><span>둘 다 3점</span><span>생쥐만 2점</span></div>

@@ -1,3 +1,5 @@
+import { withKoreanObject } from "./korean-particles.js";
+
 export const CONFRONTATION_SIDES = ["dawn", "shadow"];
 
 export const CONFRONTATION_LEVELS = [
@@ -73,7 +75,7 @@ export const CONFRONTATION_CARDS = [
     name: `힘 ${value}`,
     kind: "power",
     value,
-    text: `기물의 힘에 ${value}을 더합니다.`,
+    text: `기물의 힘에 ${withKoreanObject(value)} 더합니다.`,
   })),
   { id: "guard", name: "수호", kind: "guard", value: 0, text: "상대 숫자 카드의 보너스를 무효화합니다." },
   { id: "surge", name: "돌격", kind: "surge", value: 0, text: "공격 중이면 +3, 수비 중이면 +1을 얻습니다." },

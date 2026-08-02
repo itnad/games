@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { withKoreanAnd, withKoreanDirection, withKoreanObject, withKoreanSubject, withKoreanTopic } from "./korean-particles.js";
 import {
   SD_FORTRESS_BONUSES,
   SD_FORTRESS_CANNONS,
@@ -100,7 +101,7 @@ function endSpaceTurn(game: SpaceGame) {
   if (next === 0) game.turn += 1;
   if (game.players[next].skip) {
     game.players[next].skip = false;
-    game.log.unshift(`${game.players[next].name}은 대결 패배로 한 번 쉽니다.`);
+    game.log.unshift(`${withKoreanTopic(game.players[next].name)} 대결 패배로 한 번 쉽니다.`);
     next = (next + 1) % game.players.length;
     if (next === 0) game.turn += 1;
   }
@@ -125,7 +126,7 @@ function resolveAiSpaceTurn(game: SpaceGame) {
   const player = next.players[next.current];
   const roll = 1 + Math.floor(Math.random() * 6);
   player.position = (player.position + roll) % SD_SPACE_ROUTE_LENGTH;
-  next.log.unshift(`${player.name}이 ${roll}칸 이동했습니다.`);
+  next.log.unshift(`${withKoreanSubject(player.name)} ${roll}칸 이동했습니다.`);
   const kind = sdSpaceKind(player.position);
   const base = next.bases.find((item) => item.position === player.position);
   if (kind === "base" && base?.owner === null) {
@@ -136,20 +137,20 @@ function resolveAiSpaceTurn(game: SpaceGame) {
       next.discard.push(...cards);
       base.owner = player.id;
       player.bases.push(base.id);
-      next.log.unshift(`${player.name}이 ${base.name}을 점령했습니다.`);
+      next.log.unshift(`${withKoreanSubject(player.name)} ${withKoreanObject(base.name)} 점령했습니다.`);
       drawToThree(next, player);
     } else {
-      next.log.unshift(`${player.name}이 ${base.name} 공략을 보류했습니다.`);
+      next.log.unshift(`${withKoreanSubject(player.name)} ${base.name} 공략을 보류했습니다.`);
     }
   } else if (kind === "service") {
     drawToThree(next, player);
-    next.log.unshift(`${player.name}이 MS 정비소에서 손패를 보급했습니다.`);
+    next.log.unshift(`${withKoreanSubject(player.name)} MS 정비소에서 손패를 보급했습니다.`);
   } else if (kind === "event") {
     const draw = sdDrawCards(next.deck, next.discard, 1);
     next.deck = draw.deck;
     next.discard = draw.discard;
     if (draw.cards[0]) player.hand.push(draw.cards[0]);
-    next.log.unshift(`${player.name}이 작전 카드 효과로 전투 카드 1장을 얻었습니다.`);
+    next.log.unshift(`${withKoreanSubject(player.name)} 작전 카드 효과로 전투 카드 1장을 얻었습니다.`);
   } else if (kind === "duel") {
     const rivals = next.players.filter((item) => item.id !== player.id && item.position === player.position);
     const rival = rivals[0];
@@ -164,8 +165,8 @@ function resolveAiSpaceTurn(game: SpaceGame) {
       if (result.winner === 1) player.skip = true;
       next.log.unshift(
         result.winner === null
-          ? `${player.name}과 ${rival.name}의 대결이 무승부입니다.`
-          : `${result.winner === 0 ? player.name : rival.name}이 대결에서 이겼습니다.`,
+          ? `${withKoreanAnd(player.name)} ${rival.name}의 대결이 무승부입니다.`
+          : `${withKoreanSubject(result.winner === 0 ? player.name : rival.name)} 대결에서 이겼습니다.`,
       );
       drawToThree(next, player);
       drawToThree(next, rival);
@@ -352,7 +353,7 @@ function SpaceGameView({ playerCount, onReset }: { playerCount: number; onReset:
       }
       base.owner = 0;
       player.bases.push(base.id);
-      next.log.unshift(`${base.name}을 ${result.total} HP로 점령했습니다.`);
+      next.log.unshift(`${withKoreanObject(base.name)} ${result.total} HP로 점령했습니다.`);
     } else {
       const rival = next.players[pending.rivalId];
       const card = cards[0];
@@ -365,7 +366,7 @@ function SpaceGameView({ playerCount, onReset }: { playerCount: number; onReset:
       next.log.unshift(
         result.winner === null
           ? `${card.hp} 대 ${aiCard.hp}, 무승부입니다.`
-          : `${result.winner === 0 ? "내가" : rival.name + "이"} ${result.first} 대 ${result.second}로 승리했습니다.`,
+          : `${result.winner === 0 ? "내가" : withKoreanSubject(rival.name)} ${result.first} 대 ${withKoreanDirection(result.second)} 승리했습니다.`,
       );
       drawToThree(next, rival);
     }
@@ -389,7 +390,7 @@ function SpaceGameView({ playerCount, onReset }: { playerCount: number; onReset:
       {pending && (
         <section className="sd-card-action">
           <header>
-            <div><span>{pending.type === "base" ? "BASE ATTACK" : "PLAYER DUEL"}</span><strong>{pending.type === "base" ? `${currentBase?.name} · 필요 HP ${currentBase?.hp} 초과` : `${game.players[pending.rivalId].name}과 대결`}</strong></div>
+            <div><span>{pending.type === "base" ? "BASE ATTACK" : "PLAYER DUEL"}</span><strong>{pending.type === "base" ? `${currentBase?.name} · 필요 HP ${currentBase?.hp} 초과` : `${withKoreanAnd(game.players[pending.rivalId].name)} 대결`}</strong></div>
             <b>선택 {game.players[0].hand.filter((card) => selected.includes(card.id)).reduce((sum, card) => sum + card.hp, 0)} HP</b>
           </header>
           <div className="sd-card-row">
@@ -414,7 +415,7 @@ function SpaceGameView({ playerCount, onReset }: { playerCount: number; onReset:
       )}
       {winner && (
         <section className="sd-final">
-          <span>MISSION COMPLETE</span><h2>{winner.name}이 우주편에서 승리했습니다</h2>
+          <span>MISSION COMPLETE</span><h2>{withKoreanSubject(winner.name)} 우주편에서 승리했습니다</h2>
           <p>{winner.bases.length}개 기지 · {scorePlayer(game, winner)}점</p>
           <button onClick={onReset}>새 게임 설정</button>
         </section>
@@ -478,7 +479,7 @@ function battleOnCell(game: FortressGame, attacker: FortressPiece, defender: For
   game.log.unshift(
     result.winner === null
       ? "연속 무승부로 양쪽 말이 자리를 지켰습니다."
-      : `${result.attack} 대 ${result.defense}, ${result.winner === 0 ? "공격 말" : "방어 말"}이 이겼습니다.`,
+      : `${result.attack} 대 ${result.defense}, ${withKoreanSubject(result.winner === 0 ? "공격 말" : "방어 말")} 이겼습니다.`,
   );
   fortressWinCheck(game);
 }
@@ -512,7 +513,7 @@ function resolveAiFortress(game: FortressGame) {
     if (choice.enemy) battleOnCell(next, choice.piece, choice.enemy, choice.position);
     else choice.piece.position = choice.position;
   }
-  next.log.unshift(`AI ${side}가 룰렛 ${roll}로 ${moved.size}개 말을 움직였습니다.`);
+  next.log.unshift(`${withKoreanSubject(["AI", side].join(" "))} 룰렛 ${withKoreanDirection(roll)} ${moved.size}개 말을 움직였습니다.`);
   nextFortressSide(next);
   return next;
 }

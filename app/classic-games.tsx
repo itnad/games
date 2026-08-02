@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { withKoreanObject, withKoreanSubject } from "./korean-particles.js";
 
 type ExitProps = { onExit: () => void };
 type Player = 1 | 2;
@@ -953,7 +954,7 @@ export function BackgammonGame({ onExit }: ExitProps) {
       setState((current) => {
         if (current.turn !== 2 || current.winner) return current;
         let next: BackgammonState = current.dice.length
-          ? { ...current, note: `AI가 선수를 정한 ${current.dice.join("·")}을 사용합니다` }
+          ? { ...current, note: `AI가 선수를 정한 ${withKoreanObject(current.dice.join("·"))} 사용합니다` }
           : { ...current, dice: rollBackgammonDice(), note: "AI가 주사위를 굴렸습니다" };
         let guard = 0;
         while (next.dice.length && guard < 4) {
@@ -1564,9 +1565,9 @@ export function DiamondGame({ onExit }: ExitProps) {
   const aiAProgress = diamondProgress(state.board, 2, state.mode);
   const aiBProgress = state.mode === 3 ? diamondProgress(state.board, 3, state.mode) : 0;
   const status = state.winner
-    ? state.winner === 1 ? "다이아몬드 레이스에서 승리했어요!" : `${state.winner === 2 ? "AI 파랑" : "AI 노랑"}이 먼저 도착했어요`
+    ? state.winner === 1 ? "다이아몬드 레이스에서 승리했어요!" : `${withKoreanSubject(state.winner === 2 ? "AI 파랑" : "AI 노랑")} 먼저 도착했어요`
     : state.turn === 1 ? "움직일 초록색 말을 선택하세요"
-      : `${state.turn === 2 ? "AI 파랑" : "AI 노랑"}이 연속 점프를 찾는 중…`;
+      : `${withKoreanSubject(state.turn === 2 ? "AI 파랑" : "AI 노랑")} 연속 점프를 찾는 중…`;
 
   return (
     <ClassicGameLayout

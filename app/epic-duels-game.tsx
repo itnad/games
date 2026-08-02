@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { withKoreanObject } from "./korean-particles.js";
 import {
   EPIC_DUELS_MAPS,
   EPIC_DUELS_TEAMS,
@@ -330,7 +331,7 @@ export function EpicDuelsGame({ onExit }: { onExit: () => void }) {
     const discarded = removeCard(next.players[0], cardUid);
     if (!discarded) return;
     drawInto(next, 0, 1);
-    next.log.unshift(`${discarded.name}을 버리고 새 카드 한 장을 뽑았습니다.`);
+    next.log.unshift(`${withKoreanObject(discarded.name)} 버리고 새 카드 한 장을 뽑았습니다.`);
     finishHumanAction(next);
   }
 
@@ -592,7 +593,7 @@ export function EpicDuelsGame({ onExit }: { onExit: () => void }) {
           if (thrown) next.players[0].discard.push(thrown);
         }
       }
-      next.log.unshift(`${aiPlayer.team.major.name} 팀이 ${directSpecial.name}을 사용했습니다.`);
+      next.log.unshift(`${aiPlayer.team.major.name} 팀이 ${withKoreanObject(directSpecial.name)} 사용했습니다.`);
       killCheck(next);
       if (next.winner !== null) {
         setMatch(next);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { withKoreanSubject } from "./korean-particles.js";
 import {
   CU_CAMELS,
   CU_CRAZY_CAMELS,
@@ -145,7 +146,7 @@ function Result({ game, onRestart, onExit }: { game: CuGame; onRestart: () => vo
         <span>🏆</span><small>RACE COMPLETE</small>
         <h1>{shared
           ? `${winners.some((winner) => winner.id === 0) ? "당신을 포함한 " : ""}${winners.length}명 공동 우승`
-          : game.winner?.id === 0 ? "사막 최고의 예측가가 되었습니다!" : `${game.winner?.name}가 우승했습니다`}</h1>
+          : game.winner?.id === 0 ? "사막 최고의 예측가가 되었습니다!" : `${withKoreanSubject(game.winner?.name)} 우승했습니다`}</h1>
         <p>{camelName(ranking[0])} 우승 · {camelName(ranking[ranking.length - 1])} 최하위</p>
         <div className="cu-podium">
           {(game.standings ?? []).map((player: CuStanding, index: number) => <article className={player.id === 0 ? "human" : ""} key={player.id}><b>{winners.some((winner) => winner.id === player.id) ? 1 : index + 1}</b><div><strong>{player.name}</strong><small>{player.id === 0 ? "PLAYER" : "AI PLAYER"}</small></div><span>{player.coins} <em>EP</em></span></article>)}
@@ -241,7 +242,7 @@ export function CamelUpGame({ onExit }: { onExit: () => void }) {
         </div>
 
         <section className="cu-arena">
-          <div className="cu-arena-head"><div><small>SAHARA CIRCUIT</small><h2>{myTurn ? "당신의 차례입니다" : `${game.players[game.currentPlayer].name}가 결정하는 중…`}</h2></div><span>{game.lastRoll ? `${camelName(game.lastRoll.camel)} ${game.lastRoll.value}칸` : "경주 시작"}</span></div>
+          <div className="cu-arena-head"><div><small>SAHARA CIRCUIT</small><h2>{myTurn ? "당신의 차례입니다" : `${withKoreanSubject(game.players[game.currentPlayer].name)} 결정하는 중…`}</h2></div><span>{game.lastRoll ? `${camelName(game.lastRoll.camel)} ${game.lastRoll.value}칸` : "경주 시작"}</span></div>
           <div className="cu-track">
             {track.map((space: CuTrackSpace) => {
               const tileOwner = game.players.find((candidate: CuPlayer) => candidate.spectator?.position === space.position);

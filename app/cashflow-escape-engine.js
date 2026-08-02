@@ -1,3 +1,5 @@
+import { withKoreanDirection, withKoreanObject, withKoreanSubject, withKoreanTopic } from "./korean-particles.js";
+
 export const CFE_PROFESSIONS = [
   { id: "librarian", name: "공공도서관 사서", salary: 340, savings: 520, expenses: 250, liabilities: [["주택 대출", 2100, 75], ["학자금", 320, 20], ["신용 결제", 120, 15]] },
   { id: "developer", name: "앱 개발자", salary: 560, savings: 780, expenses: 430, liabilities: [["주택 대출", 3600, 120], ["학자금", 650, 35], ["자동차 할부", 720, 45]] },
@@ -250,7 +252,7 @@ function enterFastTrack(state, playerId) {
     player.growthTarget = player.growthIncome + 5000;
     player.cash = player.growthIncome;
     player.charityTurns = 0;
-    state.lastEvent = `${player.name}가 생활 순환로를 벗어났습니다. 성장 수입 ${player.growthIncome}만원으로 시작합니다.`;
+    state.lastEvent = `${withKoreanSubject(player.name)} 생활 순환로를 벗어났습니다. 성장 수입 ${player.growthIncome}만원으로 시작합니다.`;
     state.log.push(`${player.name}: ${state.lastEvent}`);
   }
   return state;
@@ -267,7 +269,7 @@ function finishGame(state, playerId, reason) {
   state.winner = playerId;
   state.standings = ranking(state.players);
   state.pending = null;
-  state.lastEvent = `${state.players[playerId].name}가 ${reason}으로 재무 여정을 완성했습니다.`;
+  state.lastEvent = `${withKoreanSubject(state.players[playerId].name)} ${withKoreanDirection(reason)} 재무 여정을 완성했습니다.`;
   state.log.push(state.lastEvent);
   return state;
 }
@@ -439,7 +441,7 @@ function resolveSpace(state, playerId, space) {
     const dream = CFE_DREAMS[(state.turn + playerId + player.position) % CFE_DREAMS.length];
     if (player.cash >= dream.cost) {
       state.pending = { kind: "vision", playerId, dream };
-      state.lastEvent = `${dream.name}을(를) 실현할 수 있습니다.${dream.id === player.dream.id ? " 내가 선택한 인생 목표입니다." : ""}`;
+      state.lastEvent = `${withKoreanObject(dream.name)} 실현할 수 있습니다.${dream.id === player.dream.id ? " 내가 선택한 인생 목표입니다." : ""}`;
       state.log.push(`${player.name}: 인생 목표 기회 · ${state.lastEvent}`);
     } else {
       state.lastEvent = `${dream.name}까지 ${dream.cost - player.cash}만원이 더 필요합니다.`;
@@ -460,7 +462,7 @@ export function cfeRoll(state, playerId, random = Math.random, diceCount = null)
   if (player.eliminated) return advanceTurn(next);
   if (player.skipTurns > 0) {
     player.skipTurns -= 1;
-    next.lastEvent = `${player.name}는 소득 공백으로 이번 차례를 쉽니다.`;
+    next.lastEvent = `${withKoreanTopic(player.name)} 소득 공백으로 이번 차례를 쉽니다.`;
     next.log.push(next.lastEvent);
     return advanceTurn(next);
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { withKoreanObject, withKoreanSubject } from "./korean-particles.js";
 import {
   QWIXX_COLORS,
   QWIXX_ROWS,
@@ -335,7 +336,7 @@ function winnerText(players: Player[]) {
     ? `${winners.map((player) => player.name).join("·")} 공동 승리`
     : winners[0].id === 0
       ? "큐윅스에서 승리했어요!"
-      : `${winners[0].name}가 승리했어요`;
+      : `${withKoreanSubject(winners[0].name)} 승리했어요`;
 }
 
 function endTurn(state: QwixxState, players: Player[], locked: Color[], actions: string[]) {
@@ -450,7 +451,7 @@ function applyCommonChoice(state: QwixxState, humanChoice: Color | null): QwixxS
     locked: result.locked,
     phase: "ai-resolving",
     activeUsedCommon,
-    message: `${state.players[state.activeIndex].name}가 개인 조합을 고릅니다`,
+    message: `${withKoreanSubject(state.players[state.activeIndex].name)} 개인 조합을 고릅니다`,
     detail: "AI의 두 번째 행동을 확인합니다",
     history: [...actions, ...state.history].slice(0, 8),
     actionId: state.actionId + 1,
@@ -568,7 +569,7 @@ export function QwixxGame({ onExit }: ExitProps) {
           dice,
           aiCommon,
           phase: "common",
-          message: `${current.players[current.activeIndex].name}가 ${commonValue}을 만들었어요`,
+          message: `${withKoreanSubject(current.players[current.activeIndex].name)} ${withKoreanObject(commonValue)} 만들었어요`,
           detail: "모든 참가자가 흰 주사위 합을 사용할 수 있습니다",
           actionId: current.actionId + 1,
         };

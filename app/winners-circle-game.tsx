@@ -1,6 +1,7 @@
 "use client";
 
 import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
+import { withKoreanObject, withKoreanSubject } from "./korean-particles.js";
 import {
   WC_BET_VALUES,
   WC_PACE_AT,
@@ -136,7 +137,7 @@ export function WinnersCircleGame({ onExit }: { onExit: () => void }) {
     "player-roll": "내 차례",
     "player-choose": "움직일 말 선택",
     "ai-roll": `${activeAi?.name ?? "AI"} 차례`,
-    "ai-move": `${activeAi?.name ?? "AI"}가 말을 고르는 중`,
+    "ai-move": `${withKoreanSubject(activeAi?.name ?? "AI")} 말을 고르는 중`,
     "race-result": `${race}경주 결과`,
     "game-result": "최종 결과",
   }[phase];
@@ -178,7 +179,7 @@ export function WinnersCircleGame({ onExit }: { onExit: () => void }) {
     setHorses(nextHorses);
     setUsedHorseIds(result.usedHorseIds);
     setPaceHorseId(result.paceHorseId);
-    setNotice(`${actorName}${actorId === "player" ? "가" : "이"} ${horse.name}을 ${result.moved}칸 이동했습니다`);
+    setNotice(`${withKoreanSubject(actorName)} ${withKoreanObject(horse.name)} ${result.moved}칸 이동했습니다`);
 
     if (nextHorses.filter((item) => item.finishedRank).length >= 3) {
       finishRace(nextHorses, result.paceHorseId);
@@ -293,7 +294,7 @@ export function WinnersCircleGame({ onExit }: { onExit: () => void }) {
       const symbol = wcRollSymbol() as SymbolId;
       const meta = WC_SYMBOLS.find((item) => item.id === symbol);
       setLastRoll(symbol);
-      setNotice(`${activeAi.name}이 ${meta?.label} 문양을 굴렸습니다`);
+      setNotice(`${withKoreanSubject(activeAi.name)} ${meta?.label} 문양을 굴렸습니다`);
       setPhase("ai-move");
     }, 520);
     return () => window.clearTimeout(timer);
@@ -328,7 +329,7 @@ export function WinnersCircleGame({ onExit }: { onExit: () => void }) {
     ? `${winners.map((entry) => entry.name).join(" · ")} 공동 1위`
     : winners[0]?.id === "player"
       ? "승리했습니다!"
-      : `${winners[0]?.name ?? "AI"}이 승리했습니다`;
+      : `${withKoreanSubject(winners[0]?.name ?? "AI")} 승리했습니다`;
 
   return (
     <main className="game-shell winners-shell">

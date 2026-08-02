@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { withKoreanDirection } from "./korean-particles.js";
 
 type Side = "cho" | "han";
 type PieceType = "K" | "G" | "R" | "C" | "H" | "E" | "S";
@@ -555,7 +556,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
     setLastActionWasPass(false);
     setStarted(true);
     setTurn("cho");
-    setNotice(`${JANGGI_SETUPS[choSetup].label}으로 대국을 시작합니다`);
+    setNotice(`${withKoreanDirection(JANGGI_SETUPS[choSetup].label)} 대국을 시작합니다`);
   };
 
   const reset = () => {

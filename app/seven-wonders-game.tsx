@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { withKoreanDirection } from "./korean-particles.js";
 import {
   SW_COLORS,
   SW_RESOURCE_LABELS,
@@ -298,7 +299,7 @@ export function SevenWondersGame({ onExit }: { onExit: () => void }) {
       setBusy(false);
       if (next.phase === "finished") setNotice("세 번째 시대가 끝났습니다.");
       else if (next.age !== previousAge) setNotice(`${previousAge}시대 군사 충돌 해결 · ${next.age}시대가 시작됩니다.`);
-      else setNotice(`${previousAge}시대 ${previousPick}/6 선택 완료 · 패가 ${previousAge === 2 ? "오른쪽" : "왼쪽"}으로 이동했습니다.`);
+      else setNotice(`${previousAge}시대 ${previousPick}/6 선택 완료 · 패가 ${withKoreanDirection(previousAge === 2 ? "오른쪽" : "왼쪽")} 이동했습니다.`);
     }, 560);
   };
 

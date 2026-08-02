@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { withKoreanTopic } from "./korean-particles.js";
 import {
   LOVE_LETTER_CARD_DEFS,
   loveLetterBuildDeck,
@@ -182,7 +183,7 @@ function finishRound(state: State, players: Player[], logEntry?: string): State 
     gameWinners,
     nextStarter: winners[0] ?? 0,
     message: gameWinners.length ? `${gameWinners.map((id) => updatedPlayers[id].name).join(", ")} 최종 승리` : `${winnerNames} 라운드 승리`,
-    detail: spyId === null ? "가장 높은 카드를 지킨 플레이어가 호감 토큰을 얻었습니다." : `${updatedPlayers[spyId].name}는 첩자 보너스 토큰도 얻었습니다.`,
+    detail: spyId === null ? "가장 높은 카드를 지킨 플레이어가 호감 토큰을 얻었습니다." : `${withKoreanTopic(updatedPlayers[spyId].name)} 첩자 보너스 토큰도 얻었습니다.`,
     log: logEntry ? [logEntry, ...state.log].slice(0, 12) : state.log,
     actionId: state.actionId + 1,
   };

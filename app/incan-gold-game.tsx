@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { withKoreanSubject } from "./korean-particles.js";
 
 type ExitProps = { onExit: () => void };
 type Hazard = "뱀" | "전갈" | "용암" | "낙석" | "가시";
@@ -240,7 +241,7 @@ function revealNext(state: GameState): GameState {
     { ...state, deck },
     players,
     path,
-    `${drawn.hazard}이 두 번째로 나타나 미보관 보석 ${lost}개를 잃었습니다`,
+    `${withKoreanSubject(drawn.hazard)} 두 번째로 나타나 미보관 보석 ${lost}개를 잃었습니다`,
     drawn.hazard,
     drawn.id,
   );
@@ -601,7 +602,7 @@ export function IncanGoldGame({ onExit }: ExitProps) {
                       ? `${winners.map((player) => player.name).join("·")} 공동 승리!`
                       : ranking[0]?.id === 0
                         ? "가장 많은 보물을 모았어요!"
-                        : `${ranking[0]?.name}가 승리했어요`}
+                        : `${withKoreanSubject(ranking[0]?.name)} 승리했어요`}
                   </h2>
                   <div>
                     {ranking.map((player, index) => (

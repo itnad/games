@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { withKoreanAnd, withKoreanSubject } from "./korean-particles.js";
 import {
   CONFRONTATION_CARDS,
   CONFRONTATION_LEVELS,
@@ -160,7 +161,7 @@ function prepareBattle(state: GameState, attackerId: string, defenderId: string)
     battle: { attackerId, defenderId, regionId: attacker.regionId, aiCardId },
     revealedIds: [attackerId, defenderId],
     selectedPieceId: null,
-    message: `${attacker.role}와 ${defender.role}의 대결`,
+    message: `${withKoreanAnd(attacker.role)} ${defender.role}의 대결`,
     detail: "AI는 이미 카드를 선택했습니다. 사용할 전투 카드를 고르세요.",
     actionId: state.actionId + 1,
   };
@@ -195,7 +196,7 @@ function finishTurn(state: GameState, pieces: Piece[], historyEntry?: string): G
       revealedIds: [],
       selectedPieceId: null,
       message: `${SIDE_LABEL[blockedWinner]}의 승리`,
-      detail: `${SIDE_LABEL[nextSide]}가 더 이상 전진할 수 없습니다.`,
+      detail: `${withKoreanSubject(SIDE_LABEL[nextSide])} 더 이상 전진할 수 없습니다.`,
       history: historyEntry ? [historyEntry, ...state.history].slice(0, 8) : state.history,
       actionId: state.actionId + 1,
     };
@@ -208,7 +209,7 @@ function finishTurn(state: GameState, pieces: Piece[], historyEntry?: string): G
     selectedPieceId: null,
     battle: null,
     revealedIds: [],
-    message: nextSide === state.humanSide ? "당신의 차례입니다" : `${SIDE_LABEL[nextSide]}가 움직입니다`,
+    message: nextSide === state.humanSide ? "당신의 차례입니다" : `${withKoreanSubject(SIDE_LABEL[nextSide])} 움직입니다`,
     detail: nextSide === state.humanSide ? "기물을 골라 전진 지역을 선택하세요." : "AI가 지형과 남은 전투 카드를 계산하고 있습니다.",
     history: historyEntry ? [historyEntry, ...state.history].slice(0, 8) : state.history,
     turn: state.turn + 1,

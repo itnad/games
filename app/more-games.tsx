@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { chooseAiHeld, describeAiHeld, shouldAiStop } from "./dice-ai.js";
 import { scoreDice } from "./dice-scoring.js";
+import { withKoreanObject } from "./korean-particles.js";
 import {
   BATTLESHIP_SEA_SIZE as SEA_SIZE,
   BATTLESHIP_SHIP_LENGTHS,
@@ -844,7 +845,7 @@ export function DiceDuelGame({ onExit }: ExitProps) {
 
       let kept = chooseAiHeld(values);
       setAiHeld(kept);
-      setNotice(`AI가 ${describeAiHeld(values, kept)}를 선택했습니다`);
+      setNotice(`AI가 ${withKoreanObject(describeAiHeld(values, kept))} 선택했습니다`);
       await wait(900);
       if (cancelled) return;
 
@@ -858,7 +859,7 @@ export function DiceDuelGame({ onExit }: ExitProps) {
 
       kept = chooseAiHeld(values);
       setAiHeld(kept);
-      setNotice(`AI가 ${describeAiHeld(values, kept)}를 남기고 다시 굴립니다`);
+      setNotice(`AI가 ${withKoreanObject(describeAiHeld(values, kept))} 남기고 다시 굴립니다`);
       await wait(900);
       if (cancelled) return;
 

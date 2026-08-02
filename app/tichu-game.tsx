@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { withKoreanSubject } from "./korean-particles.js";
 import {
   TICHU_SUITS,
   tichuBomb,
@@ -122,7 +123,7 @@ function RoundResult({ game, onNext, onExit }: { game: Game; onNext: () => void;
   return <main className="ti-shell"><Topbar onExit={onExit} /><Scoreboard game={game} /><section className="ti-result">
     <span>{final ? "🏆" : result.doubleVictory ? "✦ 200 ✦" : "ROUND COMPLETE"}</span>
     <h1>{final ? game.winner === 0 ? "우리 팀이 승리했습니다!" : game.winner === 1 ? "상대 팀이 승리했습니다" : "무승부입니다" : result.doubleVictory ? `${game.players[result.first].team === 0 ? "우리 팀" : "상대 팀"} 더블 승리` : `${game.round}라운드 정산`}</h1>
-    <p>{game.players[result.first].name}가 가장 먼저 카드를 비웠습니다.</p>
+    <p>{withKoreanSubject(game.players[result.first].name)} 가장 먼저 카드를 비웠습니다.</p>
     <div className="ti-round-score"><article><small>우리 팀</small><strong>+{result.roundScores[0]}</strong><span>누적 {game.scores[0]}점</span></article><b>:</b><article><small>상대 팀</small><strong>+{result.roundScores[1]}</strong><span>누적 {game.scores[1]}점</span></article></div>
     <div className="ti-result-actions"><button onClick={onExit}>게임 목록</button><button className="primary" onClick={final ? onExit : onNext}>{final ? "완료" : "다음 라운드"}</button></div>
   </section></main>;

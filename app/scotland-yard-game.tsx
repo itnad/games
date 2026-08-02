@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { withKoreanSubject } from "./korean-particles.js";
 import {
   SY_EDGES,
   SY_MAX_ROUNDS,
@@ -292,7 +293,7 @@ export function ScotlandYardGame({ onExit }: { onExit: () => void }) {
           winner: "detectives",
           selectedId: null,
           candidates: [to],
-          message: `${moving.name}이(가) ${to}번 역에서 미스터 X를 체포했습니다!`,
+          message: `${withKoreanSubject(moving.name)} ${to}번 역에서 미스터 X를 체포했습니다!`,
         };
       }
       const next = {

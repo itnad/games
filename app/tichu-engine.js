@@ -1,3 +1,5 @@
+import { withKoreanSubject } from "./korean-particles.js";
+
 export const TICHU_SUITS = [
   { id: "jade", name: "옥", symbol: "◆", color: "#299476" },
   { id: "sword", name: "검", symbol: "⚔", color: "#3975b7" },
@@ -169,7 +171,7 @@ export function tichuResolvePassing(state, humanCardIds) {
   });
   next.currentPlayer = next.players.find((player) => player.hand.some((card) => card.special === "mahjong"))?.id ?? 0;
   next.phase = "playing";
-  next.log.push(`카드 교환 완료 · ${next.players[next.currentPlayer].name}가 마작으로 시작합니다.`);
+  next.log.push(`카드 교환 완료 · ${withKoreanSubject(next.players[next.currentPlayer].name)} 마작으로 시작합니다.`);
   return next;
 }
 
