@@ -56,7 +56,7 @@ type Match = {
   players: DuelPlayer[];
   current: number;
   round: number;
-  winner: number | null;
+  winner: number | "draw" | null;
   log: string[];
 };
 type MoveRoll = { value: number; all: boolean };
@@ -66,7 +66,7 @@ type PendingCombat = {
   attackCardUid: string;
   attackerSide: number;
 };
-type Phase = "setup" | "move" | "action" | "target" | "defend" | "ai" | "game-over";
+type Phase = "setup" | "move" | "action" | "replace-draw" | "target" | "defend" | "ai" | "game-over";
 
 function BrandMark() {
   return <span className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></span>;
@@ -137,12 +137,23 @@ function removeCard(player: DuelPlayer, uid: string) {
 }
 
 function drawInto(match: Match, side: number, count: number) {
-  const result = epicDraw(match.players[side], count);
-  match.players[side] = result.player;
-  if (result.exhaustedTwice) {
-    const own = match.players[side].figures.find((figure) => figure.role === "major")!;
-    const rival = match.players[1 - side].figures.find((figure) => figure.role === "major")!;
-    match.winner = own.hp >= rival.hp ? side : 1 - side;
+  // Card effects and AI draws cannot open the human replacement picker. Keep
+  // the official ten-card limit by discarding before each forced draw.
+  for (let index = 0; index < count; index += 1) {
+    if (match.players[side].hand.length >= 10) {
+      const discarded = match.players[side].hand.shift();
+      if (discarded) match.players[side].discard.push(discarded);
+    }
+    const result = epicDraw(match.players[side], 1);
+    match.players[side] = result.player;
+    if (result.exhaustedTwice) {
+      const own = match.players[side].figures.find((figure) => figure.role === "major")!;
+      const rival = match.players[1 - side].figures.find((figure) => figure.role === "major")!;
+      const ownDamage = own.maxHp - own.hp;
+      const rivalDamage = rival.maxHp - rival.hp;
+      match.winner = ownDamage === rivalDamage ? "draw" : ownDamage < rivalDamage ? side : 1 - side;
+      break;
+    }
   }
 }
 
@@ -172,8 +183,9 @@ function nearestEmpty(match: Match, figure: Figure, toward: Figure | null, far =
 }
 
 function killCheck(match: Match) {
-  match.winner = epicWinner(match);
-  if (match.winner !== null) match.log.unshift(`${match.players[match.winner].team.major.name} 팀이 결투에서 승리했습니다.`);
+  if (match.winner === null) match.winner = epicWinner(match);
+  if (typeof match.winner === "number") match.log.unshift(`${match.players[match.winner].team.major.name} 팀이 결투에서 승리했습니다.`);
+  if (match.winner === "draw") match.log.unshift("양쪽 주인공이 받은 피해가 같아 무승부입니다.");
 }
 
 export function EpicDuelsGame({ onExit }: { onExit: () => void }) {
@@ -302,10 +314,23 @@ export function EpicDuelsGame({ onExit }: { onExit: () => void }) {
     if (next.players[0].blockDraw) {
       next.players[0].blockDraw = false;
       next.log.unshift("명상 효과로 이번 카드 뽑기가 막혔습니다.");
+    } else if (next.players[0].hand.length >= 10) {
+      setPhase("replace-draw");
+      return;
     } else {
       drawInto(next, 0, 1);
       next.log.unshift("카드 한 장을 뽑았습니다.");
     }
+    finishHumanAction(next);
+  }
+
+  function replaceAndDraw(cardUid: string) {
+    if (!match || phase !== "replace-draw") return;
+    const next = cloneMatch(match);
+    const discarded = removeCard(next.players[0], cardUid);
+    if (!discarded) return;
+    drawInto(next, 0, 1);
+    next.log.unshift(`${discarded.name}을 버리고 새 카드 한 장을 뽑았습니다.`);
     finishHumanAction(next);
   }
 
@@ -645,7 +670,7 @@ export function EpicDuelsGame({ onExit }: { onExit: () => void }) {
               </section>
 
               <header className="epic-turn-head">
-                <div><span>{activeMap.name}</span><h2>{phase === "move" ? "캐릭터를 이동하세요" : phase === "action" ? `행동을 선택하세요 · ${actions}회 남음` : phase === "target" ? "대상을 선택하세요" : phase === "defend" ? "공격을 방어하세요" : phase === "ai" ? "AI가 전술을 계산합니다" : "결투 종료"}</h2></div>
+                <div><span>{activeMap.name}</span><h2>{phase === "move" ? "캐릭터를 이동하세요" : phase === "action" ? `행동을 선택하세요 · ${actions}회 남음` : phase === "replace-draw" ? "버리고 교체할 카드 한 장을 고르세요" : phase === "target" ? "대상을 선택하세요" : phase === "defend" ? "공격을 방어하세요" : phase === "ai" ? "AI가 전술을 계산합니다" : "결투 종료"}</h2></div>
                 {moveRoll && phase === "move" && <div className={`epic-roll ${moveRoll.all ? "all" : ""}`}><b>{moveRoll.value}</b><span>{moveRoll.all ? "ALL MOVE" : "ONE MOVE"}</span></div>}
               </header>
 
@@ -665,11 +690,11 @@ export function EpicDuelsGame({ onExit }: { onExit: () => void }) {
 
               {phase === "move" && <div className="epic-move-actions"><p>{moveRoll?.all ? "살아 있는 캐릭터를 각각 한 번씩 이동할 수 있습니다." : "이동할 캐릭터 하나와 도착 칸을 선택하세요."}</p><button onClick={finishMovement}>이동 완료 · 행동 단계로</button></div>}
 
-              {phase === "action" && (
+              {(phase === "action" || phase === "replace-draw") && (
                 <section className="epic-hand">
-                  <header><div><span>YOUR HAND</span><strong>내 전투 카드</strong></div><div><button onClick={drawCard}>＋ 카드 뽑기</button><button onClick={() => setPhase("ai")}>턴 종료</button></div></header>
-                  <p>전장에서 공격할 캐릭터를 먼저 선택하면 해당 캐릭터의 사용 가능한 공격을 확인하기 쉽습니다.</p>
-                  <div>{player!.hand.map((card) => <CombatCard key={card.uid} card={card} onClick={() => chooseCard(card)} />)}</div>
+                  <header><div><span>YOUR HAND</span><strong>{phase === "replace-draw" ? "손패 제한 · 10장" : "내 전투 카드"}</strong></div><div>{phase === "action" ? <><button onClick={drawCard}>＋ 카드 뽑기</button><button onClick={() => setPhase("ai")}>턴 종료</button></> : <button onClick={() => setPhase("action")}>교체 취소</button>}</div></header>
+                  <p>{phase === "replace-draw" ? "공식 규칙에 따라 카드 한 장을 버린 뒤 새 카드 한 장을 뽑습니다." : "전장에서 공격할 캐릭터를 먼저 선택하면 해당 캐릭터의 사용 가능한 공격을 확인하기 쉽습니다."}</p>
+                  <div>{player!.hand.map((card) => <CombatCard key={card.uid} card={card} onClick={() => phase === "replace-draw" ? replaceAndDraw(card.uid) : chooseCard(card)} />)}</div>
                 </section>
               )}
 
@@ -686,7 +711,7 @@ export function EpicDuelsGame({ onExit }: { onExit: () => void }) {
               )}
 
               {phase === "game-over" && (
-                <section className="epic-result"><span>{match.winner === 0 ? "✦" : "◆"}</span><div><small>DUEL COMPLETE</small><h2>{match.players[match.winner ?? 0].team.major.name} 팀 승리</h2><p>상대 주인공의 체력이 모두 소진되었습니다.</p></div><button onClick={startGame}>같은 조합으로 다시 결투</button><button className="secondary" onClick={() => setPhase("setup")}>팀 다시 선택</button></section>
+                <section className="epic-result"><span>{match.winner === "draw" ? "◇" : match.winner === 0 ? "✦" : "◆"}</span><div><small>DUEL COMPLETE</small><h2>{match.winner === "draw" ? "무승부" : `${match.players[match.winner ?? 0].team.major.name} 팀 승리`}</h2><p>{match.winner === "draw" ? "두 번째 덱 소진 때 양쪽 주인공이 받은 피해가 같았습니다." : "상대 주인공의 체력이 모두 소진되었습니다."}</p></div><button onClick={startGame}>같은 조합으로 다시 결투</button><button className="secondary" onClick={() => setPhase("setup")}>팀 다시 선택</button></section>
               )}
 
               <section className="epic-log"><strong>BATTLE LOG</strong><div>{match.log.slice(0, 6).map((entry, index) => <span key={`${entry}-${index}`}>{entry}</span>)}</div></section>
@@ -700,13 +725,13 @@ export function EpicDuelsGame({ onExit }: { onExit: () => void }) {
           <section className="epic-rules-modal" role="dialog" aria-modal="true" aria-labelledby="epic-rules-title" onClick={(event) => event.stopPropagation()}>
             <header><div><span>HOW TO PLAY</span><h2 id="epic-rules-title">에픽 듀얼 게임 방법</h2></div><button onClick={() => setRulesOpen(false)}>×</button></header>
             <div className="epic-rule-grid">
-              <article><b>1</b><div><strong>이동 주사위</strong><p>숫자 면은 캐릭터 하나, ALL 면은 내 모든 캐릭터를 표시된 칸 수까지 이동시킵니다.</p></div></article>
+              <article><b>1</b><div><strong>이동 주사위</strong><p>3·4·5 면은 캐릭터 하나, ALL 2·3·4 면은 내 모든 캐릭터를 표시된 칸 수까지 이동시킵니다.</p></div></article>
               <article><b>2</b><div><strong>행동 두 번</strong><p>이동 후 카드 뽑기, 공격·특수 카드 사용, 쓰러진 동료 카드로 회복 중 두 행동을 합니다.</p></div></article>
               <article><b>3</b><div><strong>공격과 방어</strong><p>공격자는 카드를 내고 방어자는 같은 캐릭터의 카드를 선택합니다. 공격−방어 차이만큼 피해를 받습니다.</p></div></article>
               <article><b>4</b><div><strong>사거리</strong><p>근접 캐릭터는 인접한 적을, 원거리 캐릭터는 장애물과 다른 캐릭터에 막히지 않는 직선상의 적을 공격합니다.</p></div></article>
             </div>
             <div className="epic-card-guide"><span><b>A</b> 공격력</span><span><b>D</b> 방어력</span><span><b>★</b> 피해 완전 방어</span><span><b>손패</b> 남은 카드 수만큼</span></div>
-            <p className="epic-rule-note">각 팀의 덱은 기본 전투 카드 19장과 고유 능력 카드 12장, 총 31장입니다. 손패 제한은 10장입니다.</p>
+            <p className="epic-rule-note">각 팀의 덱은 기본 전투 카드 19장과 고유 능력 카드 12장, 총 31장입니다. 손패가 10장일 때 뽑기 행동을 하면 먼저 한 장을 버리고 교체합니다. 덱을 두 번 소진하면 주인공이 받은 피해가 적은 쪽이 이기며, 피해가 같으면 무승부입니다.</p>
             <button className="epic-modal-close" onClick={() => setRulesOpen(false)}>확인하고 계속하기</button>
           </section>
         </div>

@@ -238,13 +238,17 @@ function blankProduction(resource) {
 }
 
 export function swCreatePlayer(index, wonder, isHuman = false) {
+  const startingProduction = blankProduction(wonder.resource);
   return {
     id: index,
     name: isHuman ? "나" : `AI ${index}`,
     isHuman,
     wonder,
     coins: 3,
-    production: blankProduction(wonder.resource),
+    production: startingProduction,
+    // Official 2nd-edition trade rule: only a Wonder's printed starting
+    // resource and resources on brown/gray cards may be bought by neighbors.
+    tradeProduction: { ...startingProduction },
     cards: [],
     stages: [],
     military: 0,
@@ -310,8 +314,8 @@ export function swPaymentForCost(players, playerIndex, cost = {}) {
   const needs = removeOwnedNeeds(cost, player);
   const leftIndex = (playerIndex - 1 + players.length) % players.length;
   const rightIndex = (playerIndex + 1) % players.length;
-  const left = { ...players[leftIndex].production };
-  const right = { ...players[rightIndex].production };
+  const left = { ...(players[leftIndex].tradeProduction ?? players[leftIndex].production) };
+  const right = { ...(players[rightIndex].tradeProduction ?? players[rightIndex].production) };
   let best = null;
 
   function visit(index, paymentLeft, paymentRight) {
@@ -362,11 +366,16 @@ function countColors(player) {
   }, {});
 }
 
-function applyEffect(player, effect, players) {
-  const next = { ...player, production: { ...player.production } };
+function applyEffect(player, effect, players, tradeable = false) {
+  const next = {
+    ...player,
+    production: { ...player.production },
+    tradeProduction: { ...(player.tradeProduction ?? player.production) },
+  };
   if (effect.resources) {
     for (const [resource, count] of Object.entries(effect.resources)) {
       next.production[resource] = (next.production[resource] || 0) + count;
+      if (tradeable) next.tradeProduction[resource] = (next.tradeProduction[resource] || 0) + count;
     }
   }
   if (effect.military) next.military += effect.military;
@@ -400,6 +409,8 @@ function applyPayment(players, playerIndex, payment) {
 export function swResolveSelections(state, selections) {
   let players = state.players.map((player) => ({
     ...player,
+    production: { ...player.production },
+    tradeProduction: { ...(player.tradeProduction ?? player.production) },
     cards: [...player.cards],
     stages: [...player.stages],
     conflict: [...player.conflict],
@@ -438,7 +449,7 @@ export function swResolveSelections(state, selections) {
       }
       players = applyPayment(players, index, payment);
       players[index].stages.push({ ...stage, buriedCard: selection.card.name });
-      players[index] = applyEffect(players[index], stage, players);
+      players[index] = applyEffect(players[index], stage, players, false);
       players[index].log.push(`${stage.label} 완성`);
       continue;
     }
@@ -449,7 +460,12 @@ export function swResolveSelections(state, selections) {
     }
     players = applyPayment(players, index, payment);
     players[index].cards.push(selection.card);
-    players[index] = applyEffect(players[index], selection.card.effect, players);
+    players[index] = applyEffect(
+      players[index],
+      selection.card.effect,
+      players,
+      selection.card.color === "brown" || selection.card.color === "gray",
+    );
     players[index].log.push(`${selection.card.name} 건설`);
   }
 
@@ -554,6 +570,13 @@ export function swFinalRanking(players) {
   return players
     .map((player) => ({ playerId: player.id, name: player.name, city: player.wonder.city, score: swScorePlayer(player, players), coins: player.coins }))
     .sort((a, b) => b.score.total - a.score.total || b.coins - a.coins);
+}
+
+export function swWinningEntries(players) {
+  const ranking = swFinalRanking(players);
+  const first = ranking[0];
+  if (!first) return [];
+  return ranking.filter((entry) => entry.score.total === first.score.total && entry.coins === first.coins);
 }
 
 function estimateCardValue(state, playerIndex, selectedCard, difficulty) {

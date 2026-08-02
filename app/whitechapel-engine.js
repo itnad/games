@@ -142,12 +142,16 @@ export function wcPoliceMoves(start, occupied = [], maxDistance = 2) {
     const current = queue.shift();
     if (current.distance >= maxDistance) continue;
     for (const next of crossingAdjacency.get(current.id) ?? []) {
-      if (blocked.has(next) || result.has(next)) continue;
+      // Police may pass through one another; they simply may not finish on
+      // the same Crossing (revised rulebook, Police: Hunting the Monster).
+      if (result.has(next)) continue;
       result.set(next, current.distance + 1);
       queue.push({ id: next, distance: current.distance + 1 });
     }
   }
-  return [...result.entries()].map(([id, distance]) => ({ id, distance }));
+  return [...result.entries()]
+    .filter(([id]) => id === start || !blocked.has(id))
+    .map(([id, distance]) => ({ id, distance }));
 }
 
 export function wcLocationDistance(start, targets, policeCrossings = [], ignorePolice = false) {
@@ -268,9 +272,10 @@ function pickMany(values, count, random) {
   return result;
 }
 
-export function wcCreateNightSetup(night, existingHideout = null, random = Math.random) {
+export function wcCreateNightSetup(night, existingHideout = null, random = Math.random, previousCrimes = []) {
   const config = WC_NIGHTS[night - 1];
-  const women = pickMany(WC_VICTIM_SITES, config.women, random);
+  const forbidden = new Set(previousCrimes);
+  const women = pickMany(WC_VICTIM_SITES.filter((site) => !forbidden.has(site)), config.women, random);
   const targets = pickMany(women, config.marked, random);
   const hideout = existingHideout ?? WC_HIDEOUT_SITES[Math.floor(random() * WC_HIDEOUT_SITES.length)];
   const victims = [...targets]
@@ -347,7 +352,7 @@ export function wcBeginHunt(game) {
 
 export function wcPrepareNextNight(game, random = Math.random) {
   const night = game.night + 1;
-  const setup = wcCreateNightSetup(night, game.hideout, random);
+  const setup = wcCreateNightSetup(night, game.hideout, random, game.allCrimes);
   return {
     ...game,
     night,

@@ -32,6 +32,7 @@ type CuGame = {
   legTickets: Record<string, number[]>; winnerBets: object[]; loserBets: object[];
   currentPlayer: number; leg: number; phase: "race" | "finished";
   winner: CuStanding | null; standings?: CuStanding[];
+  winners?: CuStanding[];
   lastRoll: { die: string; camel: string; value: number } | null; log: string[];
 };
 type CuTrackSpace = { position: number; camels: string[] };
@@ -135,15 +136,19 @@ function ChoicePanel({
 
 function Result({ game, onRestart, onExit }: { game: CuGame; onRestart: () => void; onExit: () => void }) {
   const ranking = cuRanking(game.track);
+  const winners = game.winners ?? (game.winner ? [game.winner] : []);
+  const shared = winners.length > 1;
   return (
     <main className="cu-shell">
       <Topbar onExit={onExit} />
       <section className="cu-result">
         <span>🏆</span><small>RACE COMPLETE</small>
-        <h1>{game.winner?.id === 0 ? "사막 최고의 예측가가 되었습니다!" : `${game.winner?.name}가 우승했습니다`}</h1>
+        <h1>{shared
+          ? `${winners.some((winner) => winner.id === 0) ? "당신을 포함한 " : ""}${winners.length}명 공동 우승`
+          : game.winner?.id === 0 ? "사막 최고의 예측가가 되었습니다!" : `${game.winner?.name}가 우승했습니다`}</h1>
         <p>{camelName(ranking[0])} 우승 · {camelName(ranking[ranking.length - 1])} 최하위</p>
         <div className="cu-podium">
-          {(game.standings ?? []).map((player: CuStanding, index: number) => <article className={player.id === 0 ? "human" : ""} key={player.id}><b>{index + 1}</b><div><strong>{player.name}</strong><small>{player.id === 0 ? "PLAYER" : "AI PLAYER"}</small></div><span>{player.coins} <em>EP</em></span></article>)}
+          {(game.standings ?? []).map((player: CuStanding, index: number) => <article className={player.id === 0 ? "human" : ""} key={player.id}><b>{winners.some((winner) => winner.id === player.id) ? 1 : index + 1}</b><div><strong>{player.name}</strong><small>{player.id === 0 ? "PLAYER" : "AI PLAYER"}</small></div><span>{player.coins} <em>EP</em></span></article>)}
         </div>
         <div className="cu-result-actions"><button onClick={onExit}>게임 목록</button><button className="primary" onClick={onRestart}>같은 설정으로 다시 경주</button></div>
       </section>

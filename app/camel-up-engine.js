@@ -134,21 +134,6 @@ export function cuMoveCamel(state, camelId, distance) {
   return next;
 }
 
-function crazyCamelForRoll(state, faceColor) {
-  const carrying = CU_CRAZY_CAMELS.filter((camel) => {
-    const found = cuFindCamel(state.track, camel.id);
-    if (!found) return false;
-    return state.track[found.position].slice(found.level + 1).some((id) => CU_CAMELS.some((racer) => racer.id === id));
-  });
-  if (carrying.length === 1) return carrying[0].id;
-  const white = cuFindCamel(state.track, "white");
-  const black = cuFindCamel(state.track, "black");
-  if (white && black && white.position === black.position) {
-    return white.level > black.level ? "white" : "black";
-  }
-  return faceColor;
-}
-
 function finishCrossed(state) {
   return CU_CAMELS.some((camel) => (cuFindCamel(state.track, camel.id)?.position || 0) >= 17)
     || CU_CRAZY_CAMELS.some((camel) => (cuFindCamel(state.track, camel.id)?.position || 17) <= 0);
@@ -203,6 +188,7 @@ function finishGame(state) {
     .sort((a, b) => b.coins - a.coins);
   next.phase = "finished";
   next.winner = standings[0];
+  next.winners = standings.filter((entry) => entry.coins === standings[0]?.coins);
   next.standings = standings;
   next.log.push(`경주 종료! ${camelName(ranking[0])} 우승, ${camelName(ranking[ranking.length - 1])} 최하위`);
   return next;
@@ -235,7 +221,10 @@ export function cuRollPyramid(state, playerId, random = Math.random) {
   const die = next.dice.splice(dieIndex, 1)[0];
   const value = 1 + Math.floor(random() * 3);
   let camel = die;
-  if (die === "gray") camel = crazyCamelForRoll(next, random() < 0.5 ? "white" : "black");
+  // The gray die itself determines which crazy camel moves. Normal stack
+  // movement then carries every camel above that piece; being underneath a
+  // racing camel never changes the die's selected color.
+  if (die === "gray") camel = random() < 0.5 ? "white" : "black";
   next.players[playerId].pyramidTickets += 1;
   next.revealed.push({ die, camel, value });
   next.lastRoll = { die, camel, value };

@@ -72,7 +72,8 @@ const RULE_ROWS = [
   ["미스터 X", "항상 먼저 이동하며 실제 위치 대신 사용한 티켓만 공개합니다."],
   ["공개 시점", "이동 기록의 3·8·13·18·24번째 칸에서 도착 역을 공개합니다."],
   ["탐정 승리", "아무 탐정 말이나 미스터 X와 같은 역에 도착하거나 AI가 이동할 수 없으면 승리합니다."],
-  ["AI 승리", "22라운드까지 잡히지 않거나 탐정팀 전체가 이동할 수 없으면 승리합니다."],
+  ["AI 승리", "미스터 X가 이동 기록의 마지막인 24번째 이동 뒤에도 잡히지 않거나 탐정팀 전체가 이동할 수 없으면 승리합니다."],
+  ["구현 판본", "Ravensburger 클래식 규칙의 이동·티켓·공개·더블 무브·승패 구조를 적용하고, 지도와 역 연결은 모바일 AI 대전에 맞게 재구성했습니다."],
 ];
 
 function transportLabel(transport: Transport) {
@@ -249,13 +250,13 @@ export function ScotlandYardGame({ onExit }: { onExit: () => void }) {
     );
     if (next.movedIds.length < next.detectives.length && canAnyoneMove) return next;
 
-    if (next.round >= SY_MAX_ROUNDS) {
+    if (next.moveNumber >= SY_MAX_ROUNDS) {
       return {
         ...next,
         phase: "over" as const,
         winner: "mr-x" as const,
         selectedId: null,
-        message: "22라운드 동안 미스터 X를 잡지 못했습니다.",
+        message: "24번째 이동까지 미스터 X를 잡지 못했습니다.",
       };
     }
     return {
@@ -347,7 +348,7 @@ export function ScotlandYardGame({ onExit }: { onExit: () => void }) {
           <div className="sy-lobby-copy">
             <span className="sy-eyebrow">HIDDEN MOVEMENT · AI 대전</span>
             <h1>밤의 도시에서<br />미스터 X를 추적하세요</h1>
-            <p>네 명의 탐정팀을 지휘해 AI의 이동 티켓을 분석하고 22라운드 안에 포위망을 완성하세요.</p>
+            <p>네 명의 탐정팀을 지휘해 AI의 이동 티켓을 분석하고 24번째 이동 전에 포위망을 완성하세요.</p>
           </div>
           <div className="sy-lobby-map" aria-hidden="true">
             <i className="route route-one" />
@@ -356,7 +357,7 @@ export function ScotlandYardGame({ onExit }: { onExit: () => void }) {
             <span className="station s-one">18</span>
             <span className="station s-two">?</span>
             <span className="station s-three">71</span>
-            <b>CASE<br />NO. 22</b>
+            <b>CASE<br />NO. 24</b>
           </div>
           <div className="sy-setup-card">
             <div>
@@ -383,7 +384,7 @@ export function ScotlandYardGame({ onExit }: { onExit: () => void }) {
         <>
           <section className={`sy-case-status ${game.phase === "ai" ? "ai-turn" : ""}`}>
             <div>
-              <span className="sy-round">{game.round}/{SY_MAX_ROUNDS}</span>
+              <span className="sy-round">이동 {game.moveNumber}/{SY_MAX_ROUNDS}</span>
               <div>
                 <small>{game.phase === "ai" ? "AI 이동 중" : game.phase === "over" ? "사건 종료" : "탐정팀 차례"}</small>
                 <strong>{game.message}</strong>

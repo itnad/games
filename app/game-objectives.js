@@ -198,7 +198,7 @@ export const GAME_OBJECTIVES = {
     finish: "한쪽 주요 캐릭터가 쓰러지거나 덱 소진 판정이 발생했을 때",
   },
   "sd-gundam-deluxe": {
-    title: "SD 간담 디럭스",
+    title: "SD 건담 디럭스",
     icon: "G",
     accent: "#de535b",
     summary: "우주 기지 점령전과 요새 부대 전멸전 중 하나를 선택해 즐기는 두 가지 방식의 게임입니다.",

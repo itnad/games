@@ -50,6 +50,7 @@ const RULES = [
   ["단서 수색", "인접한 번호 장소를 차례로 확인합니다. 그날 밤 잭이 지나간 장소라면 단서가 공개되고 행동이 끝납니다."],
   ["체포", "인접한 번호 장소 하나를 지목합니다. 그곳이 잭의 현재 위치라면 경찰이 즉시 승리합니다."],
   ["특수 이동", "마차는 연속 두 장소를 지나며 봉쇄를 통과합니다. 골목은 같은 건물 블록 둘레의 다른 장소로 이동합니다."],
+  ["구현 판본", "Fantasy Flight Games 개정판의 4개 밤·15수·수색·체포·특수 이동을 적용했습니다. 195개 장소와 지옥 단계의 비밀 토큰 운영은 모바일 1인용 지도·자동 사건 준비로 압축한 웹 재구성판입니다."],
 ];
 
 function lineStyle(from: { x: number; y: number }, to: { x: number; y: number }) {
@@ -185,7 +186,7 @@ export function WhitechapelGame({ onExit }: { onExit: () => void }) {
       if (!current || !["police-move", "police-action"].includes(current.phase)) return current;
       const completed = current.phase === "police-move" ? current.movedPolice : current.actedPolice;
       if (completed.includes(id)) return current;
-      return { ...current, selectedPolice: current.selectedPolice === id ? null : id };
+      return { ...current, selectedPolice: current.selectedPolice === id ? null : id, searched: [] };
     });
   };
 
@@ -225,6 +226,9 @@ export function WhitechapelGame({ onExit }: { onExit: () => void }) {
     return {
       ...current,
       actedPolice,
+      // Negative searches are not persistent markers in the official game.
+      // Reset them so another officer or a later turn may inspect the place.
+      searched: [],
       selectedPolice: null,
       phase: actedPolice.length === current.police.length ? "jack" as const : current.phase,
       message: actedPolice.length === current.police.length ? "수사 행동 종료. 잭이 다시 움직입니다." : message,

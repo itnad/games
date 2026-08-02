@@ -155,6 +155,23 @@ function playerScore(player: Player) {
   return player.towers.reduce((sum, tower) => sum + towerPoints(tower), 0);
 }
 
+function highestMouseLevel(player: Player) {
+  let highest = 0;
+  for (const tower of player.towers.filter(isComplete)) {
+    let level = 0;
+    for (const story of tower.stories) {
+      level += story.floors ?? 0;
+      if (story.animal === "mouse") highest = Math.max(highest, level);
+    }
+    if (tower.clock?.animal === "mouse") highest = Math.max(highest, level + 1);
+  }
+  return highest;
+}
+
+function comparePlayers(a: Player, b: Player) {
+  return playerScore(b) - playerScore(a) || highestMouseLevel(b) - highestMouseLevel(a);
+}
+
 function validRoofHeight(tower: Tower, color: RoofColor, progress: RoofProgress) {
   const height = towerHeight(tower);
   return progress[color] === null ? height === 1 || height === 2 : height === progress[color];
@@ -410,7 +427,8 @@ export function ClocktowersGame({ onExit }: ExitProps) {
   const human = state.players[0];
   const active = state.players[state.activeIndex];
   const selectedCard = human?.hand.find((card) => card.id === state.selectedCardId) ?? null;
-  const ranking = useMemo(() => [...state.players].sort((a, b) => playerScore(b) - playerScore(a)), [state.players]);
+  const ranking = useMemo(() => [...state.players].sort(comparePlayers), [state.players]);
+  const winners = useMemo(() => ranking.filter((player) => playerScore(player) === playerScore(ranking[0]) && highestMouseLevel(player) === highestMouseLevel(ranking[0])), [ranking]);
 
   if (state.phase === "setup") {
     return (
@@ -548,7 +566,7 @@ export function ClocktowersGame({ onExit }: ExitProps) {
         <div className="ct-result-layer" role="dialog" aria-modal="true" aria-labelledby="ct-result-title">
           <section>
             <span className="ct-kicker">CITY COMPLETE</span>
-            <h2 id="ct-result-title">{ranking[0].isHuman ? "도시 최고의 건축가예요!" : `${ranking[0].name}가 승리했어요`}</h2>
+            <h2 id="ct-result-title">{winners.length > 1 ? `${winners.map((player) => player.name).join(" · ")} 공동 승리` : ranking[0].isHuman ? "도시 최고의 건축가예요!" : `${ranking[0].name}가 승리했어요`}</h2>
             <p>완성하지 못한 탑은 점수에서 제외했습니다.</p>
             <ol>{ranking.map((player, index) => <li key={player.id}><b>{index + 1}</b><span>{player.name}<small>완성 {player.towers.filter(isComplete).length}개</small></span><strong>{playerScore(player)}점</strong></li>)}</ol>
             <div className="ct-score-legend"><span>동물 없음 5점</span><span>고양이만 4점</span><span>둘 다 3점</span><span>생쥐만 2점</span></div>
@@ -577,7 +595,7 @@ function RulesLayer({ open, onClose }: { open: boolean; onClose: () => void }) {
           <article><b>4</b><h3>공개 더미에서 보충</h3><p>카드를 사용한 뒤 층·시계·지붕 중 공개된 맨 위 카드 한 장을 가져옵니다.</p></article>
         </div>
         <aside><strong>점수</strong><span>동물 없음 5점 · 고양이만 4점 · 고양이와 생쥐 3점 · 생쥐만 2점</span></aside>
-        <p className="ct-rules-note">모든 더미와 손패가 소진되면 종료합니다. 완성되지 않은 탑은 0점이며, 완성 탑의 총점이 가장 높은 건축가가 승리합니다.</p>
+        <p className="ct-rules-note">모든 더미와 손패가 소진되면 종료합니다. 완성되지 않은 탑은 0점이며, 완성 탑의 총점이 가장 높은 건축가가 승리합니다. 동점이면 완성 탑 안에서 가장 높은 위치에 생쥐를 둔 사람이 앞섭니다.</p>
         <button className="ct-rules-confirm" onClick={onClose}>확인하고 시작하기</button>
       </section>
     </div>

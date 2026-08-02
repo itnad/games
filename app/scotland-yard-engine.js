@@ -1,4 +1,6 @@
-export const SY_MAX_ROUNDS = 22;
+// The classic travel log ends on Mister X's 24th move. A double move fills
+// two log spaces, so victory is checked against moveNumber, not turn count.
+export const SY_MAX_ROUNDS = 24;
 export const SY_REVEAL_MOVES = Object.freeze([3, 8, 13, 18, 24]);
 
 export const SY_TRANSPORTS = Object.freeze({

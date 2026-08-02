@@ -70,6 +70,7 @@ import {
   epicCreateDeck,
   epicCreateMatch,
   epicLineOfSight,
+  epicMovementRoll,
   epicReachableCells,
   epicResolveCombat,
 } from "../app/epic-duels-engine.js";
@@ -86,6 +87,7 @@ import {
 } from "../app/sd-gundam-deluxe-engine.js";
 import {
   SY_EDGES,
+  SY_MAX_ROUNDS,
   SY_NODES,
   SY_REVEAL_MOVES,
   syAdvanceCandidates,
@@ -103,6 +105,7 @@ import {
   wcAlleyMoves,
   wcChooseJackMove,
   wcCreateGame,
+  wcCreateNightSetup,
   wcJackNormalMoves,
   wcPoliceMoves,
 } from "../app/whitechapel-engine.js";
@@ -112,7 +115,9 @@ import {
   swChooseAiSelection,
   swCreateGame,
   swFinalRanking,
+  swPaymentForCost,
   swResolveSelections,
+  swWinningEntries,
   swScorePlayer,
 } from "../app/seven-wonders-engine.js";
 import {
@@ -292,7 +297,7 @@ test("server-renders the Playroom game library", async () => {
   assert.match(html, /미니빌/);
   assert.match(html, /픽 피크닉/);
   assert.match(html, /스타워즈 에픽 듀얼/);
-  assert.match(html, /SD 간담 디럭스/);
+  assert.match(html, /SD 건담 디럭스/);
   assert.match(html, /스코틀랜드 야드/);
   assert.match(html, /화이트채플/);
   assert.match(html, /7원더스/);
@@ -411,6 +416,32 @@ test("runs a complete 3-to-7 player Seven Wonders draft", () => {
   }
 });
 
+test("applies official Seven Wonders trade sources and shared-victory tiebreak", () => {
+  const game = swCreateGame(3, "balanced", () => 0.37);
+  const [human, left, right] = game.players;
+  human.coins = 10;
+  human.production.wood = 0;
+  human.tradeProduction.wood = 0;
+  left.production.wood = 2;
+  left.tradeProduction.wood = 1;
+  right.production.wood = 0;
+  right.tradeProduction.wood = 0;
+
+  assert.ok(swPaymentForCost(game.players, 0, { wood: 1 }));
+  assert.equal(swPaymentForCost(game.players, 0, { wood: 2 }), null);
+
+  for (const player of game.players) {
+    player.cards = [];
+    player.stages = [];
+    player.conflict = [];
+    player.coins = 3;
+  }
+  const winners = swWinningEntries(game.players);
+  assert.equal(winners.length, 3);
+  game.players[1].coins = 4;
+  assert.deepEqual(swWinningEntries(game.players).map((entry) => entry.playerId), [1]);
+});
+
 test("runs Camel Up stacking, pyramid legs, and 3-to-8 player races", () => {
   const stacked = cuCreateGame(3, "balanced", () => 0.2);
   stacked.track = Object.fromEntries(Object.keys(stacked.track).map((position) => [position, []]));
@@ -419,6 +450,17 @@ test("runs Camel Up stacking, pyramid legs, and 3-to-8 player races", () => {
   assert.deepEqual(moved.track[2], ["red"]);
   assert.deepEqual(moved.track[4], ["yellow", "green"]);
   assert.deepEqual(cuRanking(moved.track).slice(0, 3), ["green", "yellow", "red"]);
+
+  const gray = cuCreateGame(3, "balanced", () => 0.2);
+  gray.track = Object.fromEntries(Object.keys(gray.track).map((position) => [position, []]));
+  gray.track[10] = ["black", "red"];
+  gray.track[14] = ["white"];
+  gray.dice = ["gray"];
+  gray.currentPlayer = 0;
+  const sequence = [0, 0, 0];
+  const grayMoved = cuRollPyramid(gray, 0, () => sequence.shift() ?? 0);
+  assert.deepEqual(grayMoved.track[10], ["black", "red"]);
+  assert.deepEqual(grayMoved.track[13], ["white"]);
 
   for (const playerCount of [3, 4, 5, 6, 7, 8]) {
     let game = cuCreateGame(playerCount, "sharp", Math.random);
@@ -782,6 +824,7 @@ test("applies official commission Baccarat points, third-card table, and session
 });
 
 test("runs Scotland Yard hidden movement, tickets, and fair AI", () => {
+  assert.equal(SY_MAX_ROUNDS, 24);
   assert.equal(SY_NODES.length, 96);
   assert.equal(new Set(SY_NODES.map((node) => node.id)).size, 96);
   assert.deepEqual(SY_REVEAL_MOVES, [3, 8, 13, 18, 24]);
@@ -852,6 +895,13 @@ test("runs Whitechapel nights, dual map, clues, and hidden movement", () => {
   assert.ok(police.some((move) => move.distance === 0));
   assert.ok(police.some((move) => move.distance === 2));
   assert.ok(police.every((move) => move.distance <= 2));
+
+  const throughOccupied = wcPoliceMoves("c1", ["c2"], 2);
+  assert.ok(!throughOccupied.some((move) => move.id === "c2"));
+  assert.ok(throughOccupied.some((move) => move.id === "c3" && move.distance === 2));
+
+  const laterNight = wcCreateNightSetup(2, 4, () => 0, [2, 7, 11]);
+  assert.ok(laterNight.women.every((site) => ![2, 7, 11].includes(site)));
 
   const candidates = wcAdvanceCandidates([adjacent[0]], "normal", []);
   const coachCandidates = wcAdvanceCandidates([adjacent[0]], "coach", []);
@@ -944,6 +994,14 @@ test("builds all twelve 31-card Epic Duels teams and resolves combat", () => {
   assert.equal(match.players[1].hand.length, 4);
   assert.equal(match.players[0].figures.length, 2);
   assert.equal(match.players[1].figures.length, 3);
+
+  assert.deepEqual(
+    Array.from({ length: 6 }, (_, index) => epicMovementRoll(() => (index + 0.1) / 6)),
+    [
+      { value: 3, all: false }, { value: 4, all: false }, { value: 5, all: false },
+      { value: 2, all: true }, { value: 3, all: true }, { value: 4, all: true },
+    ],
+  );
 
   const reachable = epicReachableCells(match, "0-major", 3);
   assert.ok(reachable.length > 0);

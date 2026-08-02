@@ -13,6 +13,7 @@ import {
   swCreateGame,
   swResolveSelections,
   swScorePlayer,
+  swWinningEntries,
 } from "./seven-wonders-engine.js";
 
 type Difficulty = "builder" | "balanced" | "strategist";
@@ -54,6 +55,7 @@ type SwPlayer = {
   coins: number;
   military: number;
   production: Record<string, number>;
+  tradeProduction: Record<string, number>;
   cards: SwCard[];
   stages: SwWonderStage[];
 };
@@ -74,17 +76,18 @@ const RULES = [
   ["게임 목표", "3시대 동안 카드를 드래프트해 문명을 발전시키고, 군사·과학·건축·상업·불가사의에서 가장 많은 승점을 모으세요."],
   ["동시 드래프트", "각 시대에 카드 7장을 받고 한 장을 고른 뒤 남은 패를 옆 사람에게 넘깁니다. 여섯 장을 사용하면 마지막 한 장은 버립니다."],
   ["카드 사용", "고른 카드는 비용을 내고 건설하거나, 뒤집어 다음 불가사의 단계에 사용하거나, 버리고 3코인을 받을 수 있습니다."],
-  ["자원 거래", "내 생산 자원이 부족하면 바로 왼쪽·오른쪽 문명의 자원을 구입합니다. 거래 대금은 해당 이웃에게 지급됩니다."],
+  ["자원 거래", "내 생산 자원이 부족하면 바로 왼쪽·오른쪽 문명의 시작 자원과 갈색·회색 카드 자원만 살 수 있습니다. 노란 카드와 불가사의가 만든 자원은 살 수 없으며, 거래 대금은 해당 이웃에게 지급됩니다."],
   ["군사 충돌", "각 시대 끝에 양옆 문명과 방패 수를 비교합니다. 승리 토큰은 시대에 따라 1·3·5점이고 패배는 -1점입니다."],
   ["과학 점수", "톱니·서판·컴퍼스는 같은 기호 개수의 제곱만큼 점수입니다. 세 종류 한 세트마다 7점을 추가합니다."],
-  ["최종 승리", "3시대가 끝나면 군사, 국고, 불가사의, 시민, 상업, 길드, 과학 점수를 합산해 가장 높은 문명이 승리합니다."],
+  ["최종 승리", "3시대가 끝나면 모든 점수를 합산합니다. 최고점이 같으면 남은 코인이 많은 문명이 이기고, 코인도 같으면 공동 승리합니다."],
+  ["구현 판본", "Repos 7원더스 2판의 턴·교역·군사·과학·동점 규칙을 적용했습니다. 카드 이름·효과와 불가사의 면은 모바일 AI 대전에 맞춘 웹 재구성판입니다."],
 ];
 
 const TUTORIAL = [
   ["문명을 선택하세요", "참가 인원과 AI 난이도를 정하면 각 참가자가 서로 다른 불가사의를 맡습니다. 내 시작 자원은 문명 보드에 표시됩니다."],
   ["손에서 한 장 고르기", "하단의 카드를 누르면 비용과 효과가 펼쳐집니다. 초반에는 여러 건물에 쓰이는 원자재와 제조품을 확보하는 것이 좋습니다."],
   ["세 가지 행동", "건설은 카드 효과를 얻고, 불가사의는 카드를 뒤집어 단계 보너스를 얻습니다. 어느 쪽도 어렵다면 폐기해 3코인을 받으세요."],
-  ["이웃과 거래하기", "건설 버튼에 필요한 거래 비용이 자동으로 계산됩니다. 지급한 코인은 왼쪽 또는 오른쪽 AI의 국고로 이동합니다."],
+  ["이웃과 거래하기", "건설 버튼에 필요한 거래 비용이 자동 계산됩니다. 이웃의 시작 자원과 갈색·회색 카드 자원만 구매할 수 있고, 지급한 코인은 해당 AI의 국고로 이동합니다."],
   ["패의 이동 방향", "1시대와 3시대에는 왼쪽, 2시대에는 오른쪽으로 패가 이동합니다. 방금 넘긴 강력한 카드를 이웃이 가져갈 수도 있습니다."],
   ["점수 계획 세우기", "화면 위 문명 요약에서 이웃의 방패·과학·색상별 건물 수를 확인하고, 내 전략을 집중하거나 필요한 카드를 견제하세요."],
 ];
@@ -208,6 +211,9 @@ function ResultBoard({ game, onRestart, onExit }: { game: SwGame; onRestart: () 
   ];
   const ranking = game.result ?? [];
   const winner = ranking[0];
+  const sharedWinners = swWinningEntries(game.players) as SwResult[];
+  const isSharedVictory = sharedWinners.length > 1;
+  const humanSharedWinner = sharedWinners.some((entry) => entry.playerId === 0);
   return (
     <main className="sw-shell sw-result-shell">
       <header className="sw-topbar">
@@ -218,13 +224,15 @@ function ResultBoard({ game, onRestart, onExit }: { game: SwGame; onRestart: () 
       <section className="sw-result">
         <span className="sw-result-crown">✦</span>
         <small>AGE III · FINAL SCORE</small>
-        <h1>{winner?.playerId === 0 ? "당신의 문명이 승리했습니다!" : `${winner?.name} · ${winner?.city} 승리`}</h1>
+        <h1>{isSharedVictory
+          ? `${humanSharedWinner ? "당신을 포함한 " : ""}${sharedWinners.length}개 문명 공동 승리`
+          : winner?.playerId === 0 ? "당신의 문명이 승리했습니다!" : `${winner?.name} · ${winner?.city} 승리`}</h1>
         <p>세 시대의 기록을 모두 합산했습니다.</p>
         <div className="sw-score-table">
           <div className="sw-score-head"><span>순위</span><span>문명</span>{categories.map(([, label]) => <span key={label}>{label}</span>)}<strong>합계</strong></div>
           {ranking.map((entry: SwResult, index: number) => (
             <div className={entry.playerId === 0 ? "human" : ""} key={entry.playerId}>
-              <span>{index + 1}</span>
+              <span>{sharedWinners.some((winnerEntry) => winnerEntry.playerId === entry.playerId) ? "1" : index + 1}</span>
               <span><b>{entry.name}</b><small>{entry.city}</small></span>
               {categories.map(([key]) => <span key={key}>{entry.score[key]}</span>)}
               <strong>{entry.score.total}</strong>

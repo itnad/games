@@ -387,8 +387,8 @@ export function epicValidTargets(match, attackerId) {
 
 export function epicMovementRoll(random = Math.random) {
   const faces = [
-    { value: 1, all: false }, { value: 2, all: false }, { value: 3, all: false },
-    { value: 4, all: true }, { value: 5, all: false }, { value: 6, all: true },
+    { value: 3, all: false }, { value: 4, all: false }, { value: 5, all: false },
+    { value: 2, all: true }, { value: 3, all: true }, { value: 4, all: true },
   ];
   return faces[Math.floor(random() * faces.length)];
 }

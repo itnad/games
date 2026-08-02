@@ -322,7 +322,7 @@ const GAMES: GameDefinition[] = [
   },
   {
     id: "sd-gundam-deluxe",
-    title: "SD 간담 디럭스",
+    title: "SD 건담 디럭스",
     subtitle: "우주 기지를 점령하거나 요새에서 SD 부대를 지휘하세요",
     category: "전략",
     players: "AI 포함 2~6인",
