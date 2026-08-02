@@ -64,6 +64,7 @@ import {
   pickPicnicPlayerScore,
   pickPicnicResolveRound,
 } from "../app/pick-picnic-engine.js";
+import { hasKoreanFinalConsonant, withKoreanSubject } from "../app/korean-particles.js";
 import {
   EPIC_DUELS_MAPS,
   EPIC_DUELS_TEAMS,
@@ -1101,6 +1102,25 @@ test("runs Pick Picknic feeding, sharing, fox, and duel rules", () => {
 
   const duel = pickPicnicDuel(birdPlays, () => 0);
   assert.equal(duel.winner.playerId, 1);
+});
+
+test("uses grammatically correct Korean subject particles in Pick Picnic events", () => {
+  assert.equal(hasKoreanFinalConsonant("보람"), true);
+  assert.equal(hasKoreanFinalConsonant("모모"), false);
+  assert.equal(withKoreanSubject("보람"), "보람이");
+  assert.equal(withKoreanSubject("모모"), "모모가");
+  assert.equal(withKoreanSubject("나"), "내가");
+  assert.equal(withKoreanSubject("AI"), "AI가");
+  assert.equal(withKoreanSubject("AI 1"), "AI 1이");
+
+  const card = { uid: "subject-card", yardId: "yellow", kind: "bird", value: 3, name: "닭" };
+  const game = {
+    players: [{ id: 0, name: "모모", hand: [card], grains: { green: 0, blue: 0, gold: 0 }, captured: [] }],
+    yards: PICK_PICNIC_YARDS.map((yard) => ({ ...yard, grains: yard.id === "yellow" ? ["green"] : [] })),
+    deck: [], discard: [], bag: [], lastRound: false,
+  };
+  const result = pickPicnicResolveRound(game, [{ playerId: 0, card }], {}, () => 0);
+  assert.equal(result.events[0], "꼬꼬 마당: 모모가 먹이 1개를 모두 먹었습니다.");
 });
 
 test("labels Pick Picknic grain blocks with visible point values", async () => {

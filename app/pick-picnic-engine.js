@@ -1,3 +1,5 @@
+import { withKoreanSubject } from "./korean-particles.js";
+
 export const PICK_PICNIC_YARDS = [
   { id: "yellow", name: "꼬꼬 마당", bird: "닭", icon: "🐔", color: "#efbf45" },
   { id: "blue", name: "뒤뚱 연못", bird: "오리", icon: "🦆", color: "#70b8d4" },
@@ -246,7 +248,7 @@ export function pickPicnicResolveRound(game, plays, decisions = {}, random = Mat
     if (contenders.length === 1) {
       const winner = contenders[0];
       giveGrains(players[winner.playerId], yard.grains);
-      events.push(`${yard.name}: ${players[winner.playerId].name}이 먹이 ${yard.grains.length}개를 모두 먹었습니다.`);
+      events.push(`${yard.name}: ${withKoreanSubject(players[winner.playerId].name)} 먹이 ${yard.grains.length}개를 모두 먹었습니다.`);
       yard.grains = [];
     } else {
       const mode = decisions[yard.id] ?? (random() < 0.55 ? "share" : "duel");
@@ -260,7 +262,7 @@ export function pickPicnicResolveRound(game, plays, decisions = {}, random = Mat
         giveGrains(players[duel.winner.playerId], yard.grains);
         const detail = summarizeDuel(duel, players);
         duels.push({ yardId: yard.id, detail, winnerId: duel.winner.playerId });
-        events.push(`${yard.name}: ${detail} · ${players[duel.winner.playerId].name}이 먹이를 차지했습니다.`);
+        events.push(`${yard.name}: ${detail} · ${withKoreanSubject(players[duel.winner.playerId].name)} 먹이를 차지했습니다.`);
         yard.grains = [];
       }
     }
