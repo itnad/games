@@ -1113,6 +1113,15 @@ test("labels Pick Picknic grain blocks with visible point values", async () => {
   assert.match(styles, /\.picnic-inline-legend/);
 });
 
+test("keeps Pick Picnic player scores horizontal on desktop and renders a font-independent goose", async () => {
+  const source = await readFile(new URL("../app/pick-picnic-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/pick-picnic.css", import.meta.url), "utf8");
+  assert.match(source, /className="picnic-score-strip" aria-label="참가자별 점수"/);
+  assert.match(source, /className=\{`\$\{className\} picnic-goose-icon`\}/);
+  assert.match(styles, /\.picnic-score-strip \{\s*width: 100%;/);
+  assert.match(styles, /\.picnic-goose-icon::before/);
+});
+
 test("runs Miniville income, construction, trade, and landmark rules", () => {
   assert.equal(MINIVILLE_ESTABLISHMENTS.length, 15);
   const market = minivilleCreateMarket();

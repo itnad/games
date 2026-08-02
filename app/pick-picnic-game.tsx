@@ -75,6 +75,19 @@ function GrainDots({ grains, compact = false }: { grains: string[]; compact?: bo
   );
 }
 
+function BirdIcon({ yard, className }: { yard: (typeof PICK_PICNIC_YARDS)[number]; className: string }) {
+  if (yard.id === "green") {
+    return (
+      <span className={`${className} picnic-goose-icon`} role="img" aria-label="거위">
+        <i aria-hidden="true" />
+        <b aria-hidden="true" />
+      </span>
+    );
+  }
+
+  return <span className={className} role="img" aria-label={yard.bird}>{yard.icon}</span>;
+}
+
 function AnimalCard({
   card,
   selected = false,
@@ -99,7 +112,11 @@ function AnimalCard({
     >
       <span className="picnic-card-color" />
       <small>{yard.name}</small>
-      <b>{card.kind === "fox" ? "🦊" : yard.icon}</b>
+      {card.kind === "fox" ? (
+        <span className="picnic-card-bird" role="img" aria-label="여우">🦊</span>
+      ) : (
+        <BirdIcon yard={yard} className="picnic-card-bird" />
+      )}
       <strong>{card.name}</strong>
       <em>{card.value > 0 ? `+${card.value}` : card.value}</em>
       {owner && <i>{owner}</i>}
@@ -279,7 +296,7 @@ export function PickPicnicGame({ onExit }: { onExit: () => void }) {
             </section>
           ) : game && (
             <>
-              <section className="picnic-score-strip">
+              <section className="picnic-score-strip" aria-label="참가자별 점수">
                 {game.players.map((player, index) => (
                   <article key={player.id} className={index === 0 ? "human" : ""}>
                     <span>{index === 0 ? "나" : `AI ${index}`}</span>
@@ -310,7 +327,7 @@ export function PickPicnicGame({ onExit }: { onExit: () => void }) {
                   const yardPlays = revealed ? plays.filter((entry) => entry.card.yardId === yard.id) : [];
                   return (
                     <article key={yard.id} className={`picnic-yard ${currentConflict === yard.id ? "conflict" : ""}`} style={{ "--yard-color": yard.color } as CSSProperties}>
-                      <header><span>{yard.icon}</span><div><small>{yard.bird}의 농장</small><strong>{yard.name}</strong></div><b>{pickPicnicGrainScore(grainCounts(yard.grains))}점</b></header>
+                      <header><BirdIcon yard={yard} className="picnic-yard-bird" /><div><small>{yard.bird}의 농장</small><strong>{yard.name}</strong></div><b>{pickPicnicGrainScore(grainCounts(yard.grains))}점</b></header>
                       <GrainDots grains={yard.grains} />
                       <div className="picnic-yard-plays">
                         {yardPlays.map((entry) => <AnimalCard key={entry.card.uid} card={entry.card} owner={game.players[entry.playerId].name} />)}
