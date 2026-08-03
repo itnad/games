@@ -226,6 +226,12 @@ test("provides a complete objective and victory guide for every game", async () 
     "cashflow-escape",
     "baccarat",
     "clocktowers",
+    "pocket-stack",
+    "color-chain",
+    "number-drop",
+    "dot-survivor",
+    "untangle",
+    "parking-escape",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -313,13 +319,36 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /티츄/);
   assert.match(html, /현금흐름 탈출/);
   assert.match(html, /바카라/);
-  assert.match(html, /서른한 가지/);
+  assert.match(html, /포켓 스택/);
+  assert.match(html, /컬러 체인/);
+  assert.match(html, /넘버 드롭/);
+  assert.match(html, /도트 서바이버/);
+  assert.match(html, /줄 풀기/);
+  assert.match(html, /주차 탈출/);
+  assert.match(html, /서른일곱 가지/);
   assert.match(html, /이름·장르로 게임 찾기/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
+});
+
+test("registers six responsive casual games with touch, keyboard, and saved records", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/casual-games.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/casual-games.css", import.meta.url), "utf8");
+
+  for (const id of ["pocket-stack", "color-chain", "number-drop", "dot-survivor", "untangle", "parking-escape"]) {
+    assert.match(pageSource, new RegExp(`activeGame === "${id}"`));
+    assert.match(pageSource, new RegExp(`id: "${id}"`));
+  }
+  assert.match(pageSource, /category: "캐주얼"/);
+  assert.match(source, /window\.localStorage/);
+  assert.match(source, /onPointerDown/);
+  assert.match(source, /ArrowLeft/);
+  assert.match(styles, /@media \(max-width: 700px\)/);
+  assert.match(styles, /touch-action: none/);
 });
 
 test("uses official classic Battleship fleet and American checkers crowning", () => {

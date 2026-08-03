@@ -26,6 +26,14 @@ import { TichuGame } from "./tichu-game";
 import { CashflowEscapeGame } from "./cashflow-escape-game";
 import { BaccaratGame } from "./baccarat-game";
 import { ClocktowersGame } from "./clocktowers-game";
+import {
+  ColorChainGame,
+  DotSurvivorGame,
+  NumberDropGame,
+  ParkingEscapeGame,
+  PocketStackGame,
+  UntangleGame,
+} from "./casual-games";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -67,8 +75,14 @@ type GameId =
   | "tichu"
   | "cashflow-escape"
   | "baccarat"
-  | "clocktowers";
-type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주";
+  | "clocktowers"
+  | "pocket-stack"
+  | "color-chain"
+  | "number-drop"
+  | "dot-survivor"
+  | "untangle"
+  | "parking-escape";
+type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주" | "캐주얼";
 
 type GameDefinition = {
   id: GameId;
@@ -327,6 +341,54 @@ const GAMES: GameDefinition[] = [
     category: "전략",
     players: "AI 포함 2~6인",
     tone: "blue",
+  },
+  {
+    id: "pocket-stack",
+    title: "포켓 스택",
+    subtitle: "흔들리는 블록을 정확히 맞춰 높이 쌓으세요",
+    category: "캐주얼",
+    players: "1인 기록 도전",
+    tone: "red",
+  },
+  {
+    id: "color-chain",
+    title: "컬러 체인",
+    subtitle: "같은 색 점을 길게 이어 한 번에 터뜨리세요",
+    category: "캐주얼",
+    players: "1인 기록 도전",
+    tone: "violet",
+  },
+  {
+    id: "number-drop",
+    title: "넘버 드롭",
+    subtitle: "같은 숫자를 합쳐 더 큰 타일을 만드세요",
+    category: "캐주얼",
+    players: "1인 기록 도전",
+    tone: "blue",
+  },
+  {
+    id: "dot-survivor",
+    title: "도트 서바이버",
+    subtitle: "몰려오는 점을 피해 60초를 버티세요",
+    category: "캐주얼",
+    players: "1인 생존 도전",
+    tone: "teal",
+  },
+  {
+    id: "untangle",
+    title: "줄 풀기",
+    subtitle: "점을 옮겨 얽힌 선의 교차를 없애세요",
+    category: "캐주얼",
+    players: "1인 퍼즐",
+    tone: "orange",
+  },
+  {
+    id: "parking-escape",
+    title: "주차 탈출",
+    subtitle: "차량을 밀어 빨간 차의 출구를 여세요",
+    category: "캐주얼",
+    players: "1인 퍼즐",
+    tone: "green",
   },
 ];
 
@@ -687,6 +749,24 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <i /><i /><i />
         </div>
         <span className="float-chip">SIDE A · B</span>
+      </div>
+    );
+  }
+
+  if (["pocket-stack", "color-chain", "number-drop", "dot-survivor", "untangle", "parking-escape"].includes(game.id)) {
+    const artwork = {
+      "pocket-stack": { symbol: "▰\n ▰\n  ▰", detail: "ONE TAP", className: "stack" },
+      "color-chain": { symbol: "● ●\n ● ● ●", detail: "CHAIN × 3", className: "chain" },
+      "number-drop": { symbol: "2  4\n  8", detail: "MERGE", className: "numbers" },
+      "dot-survivor": { symbol: "·  ◎  ·\n  ·   ·", detail: "60 SEC", className: "survivor" },
+      untangle: { symbol: "●╲╱●\n●╱╲●", detail: "0 CROSS", className: "knot" },
+      "parking-escape": { symbol: "▮ ▬\n▬  →", detail: "EXIT", className: "parking" },
+    }[game.id as "pocket-stack" | "color-chain" | "number-drop" | "dot-survivor" | "untangle" | "parking-escape"];
+    return (
+      <div className={`card-art casual-card-art ${artwork.className}`} aria-hidden="true">
+        <span>{artwork.symbol}</span>
+        <i />
+        <span className="float-chip">{artwork.detail}</span>
       </div>
     );
   }
@@ -1801,6 +1881,24 @@ export default function Home() {
   if (activeGame === "sd-gundam-deluxe") {
     return <GuidedGame gameId={activeGame}><SdGundamDeluxeGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
+  if (activeGame === "pocket-stack") {
+    return <GuidedGame gameId={activeGame}><PocketStackGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "color-chain") {
+    return <GuidedGame gameId={activeGame}><ColorChainGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "number-drop") {
+    return <GuidedGame gameId={activeGame}><NumberDropGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "dot-survivor") {
+    return <GuidedGame gameId={activeGame}><DotSurvivorGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "untangle") {
+    return <GuidedGame gameId={activeGame}><UntangleGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "parking-escape") {
+    return <GuidedGame gameId={activeGame}><ParkingEscapeGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
 
   return (
     <main className="hub-shell">
@@ -1854,7 +1952,7 @@ export default function Home() {
           </div>
 
           <div className="category-row home-category-row" aria-label="게임 분류">
-            {(["전체", "전략", "기억력", "추리", "주사위", "경주"] as Category[]).map((item) => (
+            {(["전체", "전략", "기억력", "추리", "주사위", "경주", "캐주얼"] as Category[]).map((item) => (
               <button key={item} type="button" onClick={() => openFinder(item)}>
                 {item}
                 <span>{item === "전체" ? GAMES.length : GAMES.filter((game) => game.category === item).length}</span>
@@ -1886,7 +1984,7 @@ export default function Home() {
             />
           )}
 
-          {(["전략", "기억력", "추리", "주사위", "경주"] as Exclude<Category, "전체">[]).map((item) => (
+          {(["전략", "기억력", "추리", "주사위", "경주", "캐주얼"] as Exclude<Category, "전체">[]).map((item) => (
             <GameShelf
               key={item}
               title={`${item} 게임`}
@@ -1942,7 +2040,7 @@ export default function Home() {
             </label>
 
             <div className="category-row finder-category-row" role="tablist" aria-label="게임 분류">
-              {(["전체", "전략", "기억력", "추리", "주사위", "경주"] as Category[]).map((item) => (
+              {(["전체", "전략", "기억력", "추리", "주사위", "경주", "캐주얼"] as Category[]).map((item) => (
                 <button
                   key={item}
                   type="button"
