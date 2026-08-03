@@ -73,6 +73,14 @@ import {
   withKoreanTopic,
 } from "../app/korean-particles.js";
 import {
+  PAPER_DUNGEON_CLASSES,
+  PAPER_DUNGEON_ENEMIES,
+  choosePaperDungeonReward,
+  createPaperDungeonRun,
+  isPaperDungeonSave,
+  resolvePaperDungeonAction,
+} from "../app/paper-dungeon-engine.js";
+import {
   EPIC_DUELS_MAPS,
   EPIC_DUELS_TEAMS,
   epicCreateDeck,
@@ -232,6 +240,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "dot-survivor",
     "untangle",
     "parking-escape",
+    "paper-dungeon",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -325,7 +334,8 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /도트 서바이버/);
   assert.match(html, /줄 풀기/);
   assert.match(html, /주차 탈출/);
-  assert.match(html, /서른일곱 가지/);
+  assert.match(html, /종이 던전/);
+  assert.match(html, /서른여덟 가지/);
   assert.match(html, /이름·장르로 게임 찾기/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
@@ -349,6 +359,43 @@ test("registers six responsive casual games with touch, keyboard, and saved reco
   assert.match(source, /ArrowLeft/);
   assert.match(styles, /@media \(max-width: 700px\)/);
   assert.match(styles, /touch-action: none/);
+});
+
+test("runs Paper Dungeon from class selection through the tenth-floor boss", async () => {
+  assert.equal(PAPER_DUNGEON_CLASSES.length, 3);
+  assert.equal(PAPER_DUNGEON_ENEMIES.length, 10);
+  assert.equal(PAPER_DUNGEON_ENEMIES[4].boss, true);
+  assert.equal(PAPER_DUNGEON_ENEMIES[9].boss, true);
+
+  let run = createPaperDungeonRun("scribe", "모모");
+  assert.equal(run.phase, "battle");
+  assert.equal(run.floor, 1);
+  assert.equal(run.player.name, "모모");
+  assert.match(run.logs[0], /모모가/);
+  assert.equal(isPaperDungeonSave(run), true);
+  run.player.attack = 500;
+
+  for (let floor = 1; floor <= 10; floor += 1) {
+    run = resolvePaperDungeonAction(run, "attack", () => 0.5);
+    if (floor < 10) {
+      assert.equal(run.phase, "reward");
+      assert.equal(run.rewards.length, 3);
+      run = choosePaperDungeonReward(run, "essence");
+      run.player.attack = 500;
+      assert.equal(run.floor, floor + 1);
+      assert.equal(run.phase, "battle");
+    }
+  }
+  assert.equal(run.phase, "victory");
+  assert.equal(run.floor, 10);
+  assert.equal(run.defeated, 10);
+
+  const source = await readFile(new URL("../app/paper-dungeon-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/paper-dungeon.css", import.meta.url), "utf8");
+  assert.match(source, /paperoid-paper-dungeon-save-v1/);
+  assert.match(source, /Arrow|keydown|KeyboardEvent/);
+  assert.match(source, /자동 저장된 원정/);
+  assert.match(styles, /@media \(max-width: 700px\)/);
 });
 
 test("uses official classic Battleship fleet and American checkers crowning", () => {

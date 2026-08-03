@@ -34,6 +34,7 @@ import {
   PocketStackGame,
   UntangleGame,
 } from "./casual-games";
+import { PaperDungeonGame } from "./paper-dungeon-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -81,8 +82,9 @@ type GameId =
   | "number-drop"
   | "dot-survivor"
   | "untangle"
-  | "parking-escape";
-type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주" | "캐주얼";
+  | "parking-escape"
+  | "paper-dungeon";
+type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주" | "캐주얼" | "RPG";
 
 type GameDefinition = {
   id: GameId;
@@ -389,6 +391,14 @@ const GAMES: GameDefinition[] = [
     category: "캐주얼",
     players: "1인 퍼즐",
     tone: "green",
+  },
+  {
+    id: "paper-dungeon",
+    title: "종이 던전",
+    subtitle: "직업을 고르고 열 장의 던전을 되찾으세요",
+    category: "RPG",
+    players: "1인 로그라이트",
+    tone: "navy",
   },
 ];
 
@@ -751,6 +761,10 @@ function GameArtwork({ game }: { game: GameDefinition }) {
         <span className="float-chip">SIDE A · B</span>
       </div>
     );
+  }
+
+  if (game.id === "paper-dungeon") {
+    return <div className="card-art casual-card-art rpg" aria-hidden="true"><span>Ⅹ</span><i /><span className="float-chip">10 CHAPTERS</span></div>;
   }
 
   if (["pocket-stack", "color-chain", "number-drop", "dot-survivor", "untangle", "parking-escape"].includes(game.id)) {
@@ -1899,6 +1913,9 @@ export default function Home() {
   if (activeGame === "parking-escape") {
     return <GuidedGame gameId={activeGame}><ParkingEscapeGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
+  if (activeGame === "paper-dungeon") {
+    return <GuidedGame gameId={activeGame}><PaperDungeonGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
 
   return (
     <main className="hub-shell">
@@ -1952,7 +1969,7 @@ export default function Home() {
           </div>
 
           <div className="category-row home-category-row" aria-label="게임 분류">
-            {(["전체", "전략", "기억력", "추리", "주사위", "경주", "캐주얼"] as Category[]).map((item) => (
+            {(["전체", "전략", "기억력", "추리", "주사위", "경주", "캐주얼", "RPG"] as Category[]).map((item) => (
               <button key={item} type="button" onClick={() => openFinder(item)}>
                 {item}
                 <span>{item === "전체" ? GAMES.length : GAMES.filter((game) => game.category === item).length}</span>
@@ -1984,7 +2001,7 @@ export default function Home() {
             />
           )}
 
-          {(["전략", "기억력", "추리", "주사위", "경주", "캐주얼"] as Exclude<Category, "전체">[]).map((item) => (
+          {(["전략", "기억력", "추리", "주사위", "경주", "캐주얼", "RPG"] as Exclude<Category, "전체">[]).map((item) => (
             <GameShelf
               key={item}
               title={`${item} 게임`}
@@ -2040,7 +2057,7 @@ export default function Home() {
             </label>
 
             <div className="category-row finder-category-row" role="tablist" aria-label="게임 분류">
-              {(["전체", "전략", "기억력", "추리", "주사위", "경주", "캐주얼"] as Category[]).map((item) => (
+              {(["전체", "전략", "기억력", "추리", "주사위", "경주", "캐주얼", "RPG"] as Category[]).map((item) => (
                 <button
                   key={item}
                   type="button"
