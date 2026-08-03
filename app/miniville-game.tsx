@@ -266,7 +266,7 @@ function MinivilleTopbar({ onExit }: { onExit: () => void }) {
   return (
     <header className="game-topbar mini-topbar">
       <button className="back-button" onClick={onExit} aria-label="게임 목록으로">←</button>
-      <div className="game-title-lockup"><span className="mini-mini-mark">▦</span><div><span>PLAYROOM</span><strong>미니빌</strong></div></div>
+      <div className="game-title-lockup"><span className="mini-mini-mark">▦</span><div><span>paperoid</span><strong>미니빌</strong></div></div>
       <button className="exit-button" onClick={onExit}>나가기</button>
     </header>
   );

@@ -29,21 +29,21 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://games.itnadcom.chatgpt.site"),
-  title: "PLAYROOM — AI 보드게임 아지트",
+  title: "paperoid — AI 보드게임 아지트",
   description: "오목, 장기, 시계탑, 7원더스, 카멜 업, 티츄, 바카라, 스코틀랜드 야드, 러브레터, 미니빌 등 서른한 가지 게임을 AI와 즐기는 온라인 보드게임 플레이룸",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
   },
   openGraph: {
-    title: "PLAYROOM — AI 보드게임 아지트",
+    title: "paperoid — AI 보드게임 아지트",
     description: "서른한 가지 보드게임을 AI와 바로 즐겨보세요.",
     type: "website",
-    images: [{ url: "/og.png", width: 1536, height: 1024, alt: "PLAYROOM AI Board Game Club" }],
+    images: [{ url: "/og.png", width: 1536, height: 1024, alt: "paperoid AI Board Game Club" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "PLAYROOM — AI 보드게임 아지트",
+    title: "paperoid — AI 보드게임 아지트",
     description: "서른한 가지 보드게임을 AI와 바로 즐겨보세요.",
     images: ["/og.png"],
   },

@@ -388,7 +388,7 @@ function ConfrontationTopbar({ onExit }: { onExit: () => void }) {
       <button className="back-button" onClick={onExit} aria-label="게임 목록으로">←</button>
       <div className="game-title-lockup">
         <span className="confront-mini-sigil" aria-hidden="true">✦</span>
-        <div><span>PLAYROOM</span><strong>빛과 그림자의 대결</strong></div>
+        <div><span>paperoid</span><strong>빛과 그림자의 대결</strong></div>
       </div>
       <button className="exit-button" onClick={onExit}>나가기</button>
     </header>
@@ -486,7 +486,7 @@ export function ConfrontationGame({ onExit }: { onExit: () => void }) {
               <div className="confront-emblem" aria-hidden="true"><i>✦</i><b>VS</b><i>◆</i></div>
               <span>ASYMMETRIC HIDDEN STRATEGY</span>
               <h2>빛과 그림자의 대결</h2>
-              <p>크니치아의 숨은 기물 대결 구조를 바탕으로, 독자적인 세계와 능력으로 다시 만든 Playroom 버전입니다.</p>
+              <p>크니치아의 숨은 기물 대결 구조를 바탕으로, 독자적인 세계와 능력으로 다시 만든 paperoid 버전입니다.</p>
               <div className="confront-setup-grid">
                 <fieldset>
                   <legend>나의 진영</legend>

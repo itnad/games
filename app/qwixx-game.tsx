@@ -468,7 +468,7 @@ function QwixxTopbar({ onExit }: ExitProps) {
       <button className="back-button" onClick={onExit} aria-label="게임 목록으로">←</button>
       <div className="game-title-lockup">
         <BrandMark />
-        <div><span>PLAYROOM</span><strong>큐윅스</strong></div>
+        <div><span>paperoid</span><strong>큐윅스</strong></div>
       </div>
       <button className="exit-button" onClick={onExit}>나가기</button>
     </header>

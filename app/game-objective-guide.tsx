@@ -38,7 +38,7 @@ export function GameObjectiveGuide({ gameId }: { gameId: string }) {
             <button className="game-objective-close" onClick={() => setOpen(false)} aria-label="게임 설명 닫기">×</button>
             <header>
               <i aria-hidden="true">{guide.icon}</i>
-              <div><span>PLAYROOM GAME GUIDE</span><h2 id="game-objective-title">{guide.title}</h2></div>
+              <div><span>paperoid GAME GUIDE</span><h2 id="game-objective-title">{guide.title}</h2></div>
             </header>
             <p className="game-objective-summary">{guide.summary}</p>
             <div className="game-objective-cards">

@@ -274,15 +274,15 @@ test("applies the shared readable typography contract to every current and futur
   assert.match(guide, /12px.*미만의 보이는 텍스트를 새로 추가하지 않는다/);
 });
 
-test("server-renders the Playroom game library", async () => {
+test("server-renders the paperoid game library", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
   assert.match(html, /<html lang="ko">/i);
-  assert.match(html, /<title>PLAYROOM — AI 보드게임 아지트<\/title>/i);
-  assert.match(html, /PLAYROOM/);
+  assert.match(html, /<title>paperoid — AI 보드게임 아지트<\/title>/i);
+  assert.match(html, /paperoid/);
   assert.match(html, /오목/);
   assert.match(html, /짝 맞추기/);
   assert.match(html, /리버시/);

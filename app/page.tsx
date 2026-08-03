@@ -1207,7 +1207,7 @@ function GameTopbar({
       <div className="game-title-lockup">
         <BrandMark />
         <div>
-          <span>PLAYROOM</span>
+          <span>paperoid</span>
           <strong>{title}</strong>
         </div>
       </div>
@@ -1637,8 +1637,15 @@ export default function Home() {
         return [];
       }
     };
-    setFavorites(readGameIds("playroom-favorites"));
-    setRecentIds(readGameIds("playroom-recent-games"));
+    const legacyPrefix = ["play", "room"].join("");
+    const favorites = readGameIds("paperoid-favorites");
+    const recent = readGameIds("paperoid-recent-games");
+    const migratedFavorites = favorites.length ? favorites : readGameIds(`${legacyPrefix}-favorites`);
+    const migratedRecent = recent.length ? recent : readGameIds(`${legacyPrefix}-recent-games`);
+    setFavorites(migratedFavorites);
+    setRecentIds(migratedRecent);
+    if (migratedFavorites.length) window.localStorage.setItem("paperoid-favorites", JSON.stringify(migratedFavorites));
+    if (migratedRecent.length) window.localStorage.setItem("paperoid-recent-games", JSON.stringify(migratedRecent));
   }, []);
 
   useEffect(() => {
@@ -1658,7 +1665,7 @@ export default function Home() {
   const launchGame = (id: GameId) => {
     setRecentIds((current) => {
       const next = [id, ...current.filter((item) => item !== id)].slice(0, 8);
-      window.localStorage.setItem("playroom-recent-games", JSON.stringify(next));
+      window.localStorage.setItem("paperoid-recent-games", JSON.stringify(next));
       return next;
     });
     setFinderOpen(false);
@@ -1670,7 +1677,7 @@ export default function Home() {
       const next = current.includes(id)
         ? current.filter((item) => item !== id)
         : [id, ...current];
-      window.localStorage.setItem("playroom-favorites", JSON.stringify(next));
+      window.localStorage.setItem("paperoid-favorites", JSON.stringify(next));
       return next;
     });
   };
@@ -1800,7 +1807,7 @@ export default function Home() {
       <header className="hub-header">
         <a className="brand" href="#" aria-label="플레이룸 홈">
           <BrandMark />
-          <span>PLAYROOM</span>
+          <span>paperoid</span>
         </a>
         <div className="header-note">
           <span className="status-dot" />
@@ -1895,7 +1902,7 @@ export default function Home() {
             <span className="plus-mark">+</span>
             <div>
               <strong>찾는 게임이 없나요?</strong>
-              <p>Playroom에 추가되면 좋을 게임을 추천해 주세요.</p>
+              <p>paperoid에 추가되면 좋을 게임을 추천해 주세요.</p>
             </div>
             <span className="suggestion-arrow" aria-hidden="true">↓</span>
           </a>
@@ -1996,7 +2003,7 @@ export default function Home() {
       <SuggestionBoard />
 
       <footer>
-        <div className="footer-brand"><BrandMark /> PLAYROOM</div>
+        <div className="footer-brand"><BrandMark /> paperoid</div>
         <p>오늘도 즐거운 한 판 되세요.</p>
         <span>AI BOARD GAME CLUB</span>
       </footer>

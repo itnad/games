@@ -338,7 +338,7 @@ export function ScotlandYardGame({ onExit }: { onExit: () => void }) {
       <header className="sy-topbar">
         <button className="sy-back" onClick={onExit} aria-label="게임 목록으로 돌아가기">←</button>
         <div className="sy-brand">
-          <span>PLAYROOM ORIGINAL</span>
+          <span>paperoid ORIGINAL</span>
           <strong>스코틀랜드 야드</strong>
         </div>
         <button className="sy-rules-button" onClick={() => setRulesOpen(true)}>게임 방법</button>

@@ -67,7 +67,7 @@ function GameTopbar({ onExit }: { onExit: () => void }) {
       <button className="back-button" onClick={onExit} aria-label="게임 목록으로 돌아가기">←</button>
       <div className="game-title-lockup">
         <BrandMark />
-        <div><span>PLAYROOM</span><strong>위너스 서클</strong></div>
+        <div><span>paperoid</span><strong>위너스 서클</strong></div>
       </div>
       <button className="exit-button" onClick={onExit}>나가기</button>
     </header>

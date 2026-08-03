@@ -48,7 +48,7 @@ function Topbar({ onExit }: { onExit: () => void }) {
   return (
     <header className="game-topbar picnic-topbar">
       <button className="back-button" onClick={onExit} aria-label="게임 목록으로">←</button>
-      <div className="game-title-lockup"><Mark /><div><span>PLAYROOM</span><strong>픽 피크닉</strong></div></div>
+      <div className="game-title-lockup"><Mark /><div><span>paperoid</span><strong>픽 피크닉</strong></div></div>
       <button className="exit-button" onClick={onExit}>나가기</button>
     </header>
   );

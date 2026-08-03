@@ -1,4 +1,4 @@
-# Playroom project conventions
+# paperoid project conventions
 
 ## Korean dynamic copy
 

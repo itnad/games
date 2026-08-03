@@ -17,7 +17,7 @@ function ClassicTopbar({ title, onExit }: { title: string; onExit: () => void })
       <button className="back-button" onClick={onExit} aria-label="게임 목록으로">←</button>
       <div className="game-title-lockup">
         <ClassicBrand />
-        <div><span>PLAYROOM</span><strong>{title}</strong></div>
+        <div><span>paperoid</span><strong>{title}</strong></div>
       </div>
       <button className="exit-button" onClick={onExit}>나가기</button>
     </header>

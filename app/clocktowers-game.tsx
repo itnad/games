@@ -436,7 +436,7 @@ export function ClocktowersGame({ onExit }: ExitProps) {
       <main className="ct-shell setup">
         <header className="ct-topbar">
           <button onClick={onExit} aria-label="게임 목록으로 돌아가기">←</button>
-          <div><span>PLAYROOM</span><strong>시계탑</strong></div>
+          <div><span>paperoid</span><strong>시계탑</strong></div>
           <button onClick={() => setRulesOpen(true)}>게임 방법</button>
         </header>
         <section className="ct-setup-card">
@@ -468,7 +468,7 @@ export function ClocktowersGame({ onExit }: ExitProps) {
     <main className="ct-shell">
       <header className="ct-topbar">
         <button onClick={onExit} aria-label="게임 목록으로 돌아가기">←</button>
-        <div><span>PLAYROOM</span><strong>시계탑</strong></div>
+        <div><span>paperoid</span><strong>시계탑</strong></div>
         <button onClick={() => setRulesOpen(true)}>게임 방법</button>
       </header>
 

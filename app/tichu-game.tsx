@@ -61,7 +61,7 @@ const TUTORIAL = [
 ];
 
 function Topbar({ onExit }: { onExit: () => void }) {
-  return <header className="ti-topbar"><button onClick={onExit} aria-label="게임 목록으로">←</button><div><small>PLAYROOM · PARTNERSHIP CARD GAME</small><strong>티츄</strong></div><button onClick={onExit}>나가기</button></header>;
+  return <header className="ti-topbar"><button onClick={onExit} aria-label="게임 목록으로">←</button><div><small>paperoid · PARTNERSHIP CARD GAME</small><strong>티츄</strong></div><button onClick={onExit}>나가기</button></header>;
 }
 
 function CardFace({ card, selected = false, compact = false, onClick }: { card: Card; selected?: boolean; compact?: boolean; onClick?: () => void }) {

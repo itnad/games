@@ -114,7 +114,7 @@ function GuideModal({
     <div className="sw-modal-backdrop" onClick={onClose}>
       <section className="sw-modal" role="dialog" aria-modal="true" aria-label={mode === "rules" ? "게임 방법" : "튜토리얼"} onClick={(event) => event.stopPropagation()}>
         <button className="sw-modal-close" onClick={onClose} aria-label="닫기">×</button>
-        <small>PLAYROOM GUIDE</small>
+        <small>paperoid GUIDE</small>
         <h2>{mode === "rules" ? "게임 방법" : "빠른 튜토리얼"}</h2>
         {mode === "rules" ? (
           <div className="sw-rule-list">
@@ -219,7 +219,7 @@ function ResultBoard({ game, onRestart, onExit }: { game: SwGame; onRestart: () 
     <main className="sw-shell sw-result-shell">
       <header className="sw-topbar">
         <button onClick={onExit} aria-label="게임 목록으로">←</button>
-        <div><small>PLAYROOM</small><strong>7원더스</strong></div>
+        <div><small>paperoid</small><strong>7원더스</strong></div>
         <button onClick={onExit}>나가기</button>
       </header>
       <section className="sw-result">
@@ -315,7 +315,7 @@ export function SevenWondersGame({ onExit }: { onExit: () => void }) {
       <main className="sw-shell">
         <header className="sw-topbar">
           <button onClick={onExit} aria-label="게임 목록으로">←</button>
-          <div><small>PLAYROOM</small><strong>7원더스</strong></div>
+          <div><small>paperoid</small><strong>7원더스</strong></div>
           <button onClick={onExit}>나가기</button>
         </header>
         <section className="sw-lobby">
@@ -373,7 +373,7 @@ export function SevenWondersGame({ onExit }: { onExit: () => void }) {
     <main className="sw-shell">
       <header className="sw-topbar sw-game-topbar">
         <button onClick={onExit} aria-label="게임 목록으로">←</button>
-        <div><small>PLAYROOM</small><strong>7원더스</strong></div>
+        <div><small>paperoid</small><strong>7원더스</strong></div>
         <div className="sw-age-display"><span>AGE</span><b>{["", "Ⅰ", "Ⅱ", "Ⅲ"][game.age]}</b><small>{game.pick}/6</small></div>
         <div className="sw-header-actions">
           <button onClick={() => openGuide("rules")}>게임 방법</button>

@@ -158,7 +158,7 @@ function Result({ game, onRestart, onExit }: { game: CuGame; onRestart: () => vo
 }
 
 function Topbar({ onExit }: { onExit: () => void }) {
-  return <header className="cu-topbar"><button onClick={onExit} aria-label="게임 목록으로">←</button><div><small>PLAYROOM</small><strong>카멜 업</strong></div><button onClick={onExit}>나가기</button></header>;
+  return <header className="cu-topbar"><button onClick={onExit} aria-label="게임 목록으로">←</button><div><small>paperoid</small><strong>카멜 업</strong></div><button onClick={onExit}>나가기</button></header>;
 }
 
 export function CamelUpGame({ onExit }: { onExit: () => void }) {

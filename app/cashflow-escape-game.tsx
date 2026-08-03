@@ -44,7 +44,8 @@ type Game = {
 };
 type TurnReport = { playerId: number; playerName: string; lines: string[] };
 
-const SAVE_KEY = "playroom-cashflow-escape-save-v1";
+const SAVE_KEY = "paperoid-cashflow-escape-save-v1";
+const LEGACY_SAVE_KEY = `${["play", "room"].join("")}-cashflow-escape-save-v1`;
 const RULES = [
   ["게임 목표와 승리", "생활 순환로에서 자산소득을 총지출보다 크게 만드세요. 다음 자기 차례 시작에 성장 트랙으로 이동하며, 선택한 인생 목표를 사거나 시작 성장 수입보다 5,000만원 높은 목표 수입을 달성하면 승리합니다."],
   ["준비와 월급날", "시작 현금은 저축액과 첫 월 현금흐름의 합계입니다. 생활 순환로에서는 주사위 1개를 굴리며, 월급날 칸을 지나거나 도착할 때마다 월 현금흐름을 받거나 지불합니다."],
@@ -88,7 +89,7 @@ function buildTurnReport(previous: Game, next: Game, playerId: number): TurnRepo
 }
 
 function Topbar({ onExit, onSave }: { onExit: () => void; onSave?: () => void }) {
-  return <header className="cfe-topbar"><button onClick={onExit} aria-label="게임 목록으로">←</button><div><small>PLAYROOM · FINANCIAL SIMULATION</small><strong>현금흐름 탈출</strong></div><div>{onSave && <button onClick={onSave}>저장</button>}<button onClick={onExit}>나가기</button></div></header>;
+  return <header className="cfe-topbar"><button onClick={onExit} aria-label="게임 목록으로">←</button><div><small>paperoid · FINANCIAL SIMULATION</small><strong>현금흐름 탈출</strong></div><div>{onSave && <button onClick={onSave}>저장</button>}<button onClick={onExit}>나가기</button></div></header>;
 }
 
 function Guide({ mode, step, onStep, onClose }: { mode: "rules" | "tutorial"; step: number; onStep: (step: number) => void; onClose: () => void }) {
@@ -156,9 +157,13 @@ export function CashflowEscapeGame({ onExit }: { onExit: () => void }) {
   const store = (next: Game) => { setGame(next); window.localStorage.setItem(SAVE_KEY, JSON.stringify(next)); };
   const start = () => { setTurnReport(null); store(cfeCreateGame(playerCount, difficulty) as Game); };
   const load = () => {
-    const saved = window.localStorage.getItem(SAVE_KEY);
+    const saved = window.localStorage.getItem(SAVE_KEY) ?? window.localStorage.getItem(LEGACY_SAVE_KEY);
     if (!saved) return;
-    try { setTurnReport(null); setGame(cfeMigrateSavedGame(JSON.parse(saved)) as Game); } catch { window.localStorage.removeItem(SAVE_KEY); }
+    try {
+      const migrated = cfeMigrateSavedGame(JSON.parse(saved)) as Game;
+      window.localStorage.setItem(SAVE_KEY, JSON.stringify(migrated));
+      setTurnReport(null); setGame(migrated);
+    } catch { window.localStorage.removeItem(SAVE_KEY); }
   };
   const openGuide = (mode: "rules" | "tutorial") => { setGuide(mode); setGuideStep(0); };
 

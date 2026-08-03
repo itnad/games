@@ -77,7 +77,7 @@ function Topbar({ onExit }: { onExit: () => void }) {
   return (
     <header className="game-topbar epic-topbar">
       <button className="back-button" onClick={onExit} aria-label="게임 목록으로">←</button>
-      <div className="game-title-lockup"><BrandMark /><div><span>PLAYROOM</span><strong>스타워즈 에픽 듀얼</strong></div></div>
+      <div className="game-title-lockup"><BrandMark /><div><span>paperoid</span><strong>스타워즈 에픽 듀얼</strong></div></div>
       <button className="exit-button" onClick={onExit}>나가기</button>
     </header>
   );

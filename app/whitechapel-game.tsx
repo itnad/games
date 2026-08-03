@@ -287,7 +287,7 @@ export function WhitechapelGame({ onExit }: { onExit: () => void }) {
     <main className="wc-shell">
       <header className="wc-header">
         <button onClick={onExit} aria-label="게임 목록으로 돌아가기">←</button>
-        <div><small>PLAYROOM · 1888 LONDON</small><strong>화이트채플</strong></div>
+        <div><small>paperoid · 1888 LONDON</small><strong>화이트채플</strong></div>
         <button onClick={() => setRulesOpen(true)}>게임 방법</button>
       </header>
 

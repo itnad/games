@@ -44,7 +44,7 @@ const TUTORIAL = [
 ];
 
 function Topbar({ onExit }: { onExit: () => void }) {
-  return <header className="bc-topbar"><button onClick={onExit} aria-label="게임 목록으로">←</button><div><small>PLAYROOM · TABLE CLASSIC</small><strong>바카라</strong></div><button onClick={onExit}>나가기</button></header>;
+  return <header className="bc-topbar"><button onClick={onExit} aria-label="게임 목록으로">←</button><div><small>paperoid · TABLE CLASSIC</small><strong>바카라</strong></div><button onClick={onExit}>나가기</button></header>;
 }
 
 function PlayingCard({ card, hidden = false, delay = 0 }: { card?: Card; hidden?: boolean; delay?: number }) {
@@ -122,7 +122,7 @@ export function BaccaratGame({ onExit }: { onExit: () => void }) {
   const bankerNote = last?.natural ? "내추럴 — 제3카드 없이 판정" : last?.bankerDrew ? "뱅커 제3카드 표에 따라 받음" : last ? "뱅커 제3카드 표에 따라 스탠드" : undefined;
   return <main className="bc-shell"><Topbar onExit={onExit} /><section className="bc-status"><div><small>ROUND</small><strong>{game.round}<i>/</i>{game.roundLimit}</strong></div><div className="bc-bankroll"><small>MY VIRTUAL CHIPS</small><strong>{game.chips.toLocaleString()}</strong></div><div className="bc-status-actions"><button onClick={() => setGuide("rules")}>ⓘ 규칙</button><button onClick={() => setGame(baccaratFinishGame(game) as BaccaratGameState)}>종료</button></div></section>
     <Roadmap history={game.history} />
-    <section className={`bc-table ${game.phase}`}><div className="bc-felt-label">PLAYROOM BACCARAT · AI DEALER</div>
+    <section className={`bc-table ${game.phase}`}><div className="bc-felt-label">paperoid BACCARAT · AI DEALER</div>
       <Hand label="뱅커" side="banker" cards={last?.bankerCards || []} total={fullyRevealed ? last?.bankerTotal : undefined} revealCount={revealCount} offset={last?.playerCards.length || 0} note={bankerNote} />
       <div className="bc-versus"><span>9</span><i>VS</i><span>9</span></div>
       <Hand label="플레이어" side="player" cards={last?.playerCards || []} total={fullyRevealed ? last?.playerTotal : undefined} revealCount={revealCount} offset={0} note={playerNote} />

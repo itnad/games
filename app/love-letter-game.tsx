@@ -425,7 +425,7 @@ function LoveLetterTopbar({ onExit }: { onExit: () => void }) {
   return (
     <header className="game-topbar love-topbar">
       <button className="back-button" onClick={onExit} aria-label="게임 목록으로">←</button>
-      <div className="game-title-lockup"><span className="love-mini-mark">♥</span><div><span>PLAYROOM</span><strong>러브레터</strong></div></div>
+      <div className="game-title-lockup"><span className="love-mini-mark">♥</span><div><span>paperoid</span><strong>러브레터</strong></div></div>
       <button className="exit-button" onClick={onExit}>나가기</button>
     </header>
   );
