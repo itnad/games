@@ -35,6 +35,7 @@ import {
   UntangleGame,
 } from "./casual-games";
 import { PaperDungeonGame } from "./paper-dungeon-game";
+import { TenSecondsGame } from "./ten-seconds-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -83,7 +84,8 @@ type GameId =
   | "dot-survivor"
   | "untangle"
   | "parking-escape"
-  | "paper-dungeon";
+  | "paper-dungeon"
+  | "ten-seconds";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주" | "캐주얼" | "RPG";
 
 type GameDefinition = {
@@ -399,6 +401,14 @@ const GAMES: GameDefinition[] = [
     category: "RPG",
     players: "1인 로그라이트",
     tone: "navy",
+  },
+  {
+    id: "ten-seconds",
+    title: "10.00",
+    subtitle: "시간 감각만으로 정확히 10초를 맞추세요",
+    category: "캐주얼",
+    players: "1인 기록 도전",
+    tone: "red",
   },
 ];
 
@@ -765,6 +775,10 @@ function GameArtwork({ game }: { game: GameDefinition }) {
 
   if (game.id === "paper-dungeon") {
     return <div className="card-art casual-card-art rpg" aria-hidden="true"><span>Ⅹ</span><i /><span className="float-chip">10 CHAPTERS</span></div>;
+  }
+
+  if (game.id === "ten-seconds") {
+    return <div className="card-art casual-card-art ten-seconds" aria-hidden="true"><span>10.00</span><i /><span className="float-chip">± 0.001</span></div>;
   }
 
   if (["pocket-stack", "color-chain", "number-drop", "dot-survivor", "untangle", "parking-escape"].includes(game.id)) {
@@ -1915,6 +1929,9 @@ export default function Home() {
   }
   if (activeGame === "paper-dungeon") {
     return <GuidedGame gameId={activeGame}><PaperDungeonGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "ten-seconds") {
+    return <GuidedGame gameId={activeGame}><TenSecondsGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
 
   return (

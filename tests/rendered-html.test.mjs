@@ -81,6 +81,12 @@ import {
   resolvePaperDungeonAction,
 } from "../app/paper-dungeon-engine.js";
 import {
+  TEN_SECONDS_TARGET_MS,
+  formatTenSeconds,
+  judgeTenSeconds,
+  summarizeTenSeconds,
+} from "../app/ten-seconds-engine.js";
+import {
   EPIC_DUELS_MAPS,
   EPIC_DUELS_TEAMS,
   epicCreateDeck,
@@ -241,6 +247,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "untangle",
     "parking-escape",
     "paper-dungeon",
+    "ten-seconds",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -335,7 +342,8 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /줄 풀기/);
   assert.match(html, /주차 탈출/);
   assert.match(html, /종이 던전/);
-  assert.match(html, /서른여덟 가지/);
+  assert.match(html, /10\.00/);
+  assert.match(html, /서른아홉 가지/);
   assert.match(html, /이름·장르로 게임 찾기/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
@@ -396,6 +404,36 @@ test("runs Paper Dungeon from class selection through the tenth-floor boss", asy
   assert.match(source, /Arrow|keydown|KeyboardEvent/);
   assert.match(source, /자동 저장된 원정/);
   assert.match(styles, /@media \(max-width: 700px\)/);
+});
+
+test("judges 10.00 with millisecond precision and supports a five-round challenge", async () => {
+  assert.equal(TEN_SECONDS_TARGET_MS, 10_000);
+  assert.deepEqual(judgeTenSeconds(10_000), {
+    elapsed: 10_000,
+    difference: 0,
+    absoluteError: 0,
+    score: 10_000,
+    rating: "완벽",
+  });
+  assert.equal(judgeTenSeconds(10_049).rating, "전설");
+  assert.equal(judgeTenSeconds(9_900).rating, "달인");
+  assert.equal(judgeTenSeconds(10_700).rating, "다시 도전");
+  assert.equal(formatTenSeconds(83, true), "+0.083초");
+  assert.equal(formatTenSeconds(-127, true), "−0.127초");
+
+  const summary = summarizeTenSeconds([9_950, 10_020, 10_100, 9_990, 10_040]);
+  assert.equal(summary.rounds, 5);
+  assert.equal(summary.averageError, 44);
+  assert.equal(summary.bestError, 10);
+
+  const source = await readFile(new URL("../app/ten-seconds-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/ten-seconds.css", import.meta.url), "utf8");
+  assert.match(source, /performance\.now\(\)/);
+  assert.match(source, /visibilitychange/);
+  assert.match(source, /event\.code !== "Space"/);
+  assert.match(source, /paperoid-ten-seconds-records-v1/);
+  assert.match(styles, /touch-action: manipulation/);
+  assert.match(styles, /@media \(max-width:700px\)/);
 });
 
 test("uses official classic Battleship fleet and American checkers crowning", () => {
