@@ -477,7 +477,16 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /onPointerCancel=\{pointerEnd\}/);
   assert.match(source, /onLostPointerCapture=\{pointerEnd\}/);
   assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
+  assert.match(source, /function drawMudflat\(/);
+  assert.match(source, /function drawCreatureSprite\(/);
+  assert.match(source, /function drawGatherer\(/);
+  assert.match(source, /creature\.type === "crab"/);
+  assert.match(source, /creature\.type === "mudfish"/);
+  assert.match(source, /creature\.type === "octopus"/);
+  assert.doesNotMatch(source, /const grid = 80/);
   assert.match(styles, /touch-action:none/);
+  assert.match(styles, /data-game-id="mudflat-survivor"/);
+  assert.doesNotMatch(styles, /\.ms-tools b\{display:none\}/);
 });
 
 test("uses official classic Battleship fleet and American checkers crowning", () => {

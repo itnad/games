@@ -14,12 +14,15 @@ import {
 type ExitProps = { onExit: () => void };
 type Screen = "setup" | "running" | "upgrade" | "paused" | "victory" | "defeat";
 type Point = { x: number; y: number };
-type Creature = Point & { id: number; type: string; name: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; xp: number; score: number; boss?: boolean; saltHit: number };
+type Creature = Point & { id: number; type: string; name: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number };
 type Pickup = Point & { id: number; xp: number };
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
+type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number };
+type FloatText = Point & { id: number; life: number; text: string; color: string };
 type Runtime = {
-  elapsed: number; player: Point & { hp: number; maxHp: number; speed: number; damageCooldown: number };
+  elapsed: number; player: Point & { hp: number; maxHp: number; speed: number; damageCooldown: number; facing: number; stride: number };
   creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; levels: Record<string, number>;
+  bursts: Burst[]; floatTexts: FloatText[];
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
   bossSpawned: boolean; spawnClock: number; hoeClock: number; netClock: number; hoeEffect: number; paused: boolean; ended: boolean;
 };
@@ -42,11 +45,232 @@ function formatClock(seconds: number) {
 function makeRuntime(characterId: string): Runtime {
   const character = CHARACTERS.find((item) => item.id === characterId) ?? CHARACTERS[0];
   return {
-    elapsed: 0, player: { x: 0, y: 0, hp: character.hp, maxHp: character.hp, speed: 155, damageCooldown: 0 },
-    creatures: [], pickups: [], projectiles: [], levels: { ...character.levels }, level: 1, xp: 0, nextXp: 8,
+    elapsed: 0, player: { x: 0, y: 0, hp: character.hp, maxHp: character.hp, speed: 155, damageCooldown: 0, facing: 0, stride: 0 },
+    creatures: [], pickups: [], projectiles: [], bursts: [], floatTexts: [], levels: { ...character.levels }, level: 1, xp: 0, nextXp: 8,
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, hoeClock: 0, netClock: 0,
     hoeEffect: 0, paused: false, ended: false,
   };
+}
+
+function roundedRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.roundRect(x, y, width, height, safeRadius);
+}
+
+function worldHash(x: number, y: number) {
+  const value = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function drawMudflat(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  player: Point,
+  tide: number,
+  elapsed: number,
+) {
+  const base = context.createLinearGradient(0, 0, 0, height);
+  base.addColorStop(0, `rgb(${122 - tide * 16},${107 + tide * 5},${77 + tide * 14})`);
+  base.addColorStop(.55, `rgb(${101 - tide * 10},${91 + tide * 7},${67 + tide * 15})`);
+  base.addColorStop(1, `rgb(${82 - tide * 7},${78 + tide * 12},${63 + tide * 21})`);
+  context.fillStyle = base;
+  context.fillRect(0, 0, width, height);
+
+  const tile = 138;
+  const minWorldX = Math.floor((player.x - width / 2) / tile) - 1;
+  const maxWorldX = Math.ceil((player.x + width / 2) / tile) + 1;
+  const minWorldY = Math.floor((player.y - height / 2) / tile) - 1;
+  const maxWorldY = Math.ceil((player.y + height / 2) / tile) + 1;
+  for (let worldY = minWorldY; worldY <= maxWorldY; worldY += 1) {
+    for (let worldX = minWorldX; worldX <= maxWorldX; worldX += 1) {
+      const hash = worldHash(worldX, worldY);
+      const screenX = width / 2 + worldX * tile - player.x + (hash - .5) * 62;
+      const screenY = height / 2 + worldY * tile - player.y + (worldHash(worldY, worldX) - .5) * 58;
+      if (hash > .54) {
+        context.save();
+        context.translate(screenX, screenY);
+        context.rotate((hash - .5) * 1.8);
+        const puddle = context.createRadialGradient(-12, -7, 2, 0, 0, 62);
+        puddle.addColorStop(0, `rgba(111,174,170,${.27 + tide * .12})`);
+        puddle.addColorStop(.65, `rgba(72,133,137,${.2 + tide * .1})`);
+        puddle.addColorStop(1, "rgba(43,91,99,0)");
+        context.fillStyle = puddle;
+        context.beginPath();
+        context.ellipse(0, 0, 67 + hash * 28, 25 + hash * 17, 0, 0, Math.PI * 2);
+        context.fill();
+        context.strokeStyle = "rgba(205,228,207,.13)";
+        context.lineWidth = 1.5;
+        for (let line = 0; line < 2; line += 1) {
+          context.beginPath();
+          context.ellipse(-13 + line * 18, -4 + line * 5, 21 + line * 8, 7 + line * 2, 0, Math.PI * .05, Math.PI * .92);
+          context.stroke();
+        }
+        context.restore();
+      } else if (hash < .2) {
+        context.fillStyle = "rgba(42,35,28,.26)";
+        context.beginPath();
+        context.arc(screenX, screenY, 3 + hash * 11, 0, Math.PI * 2);
+        context.fill();
+        context.strokeStyle = "rgba(224,197,145,.16)";
+        context.lineWidth = 1;
+        for (let mark = 0; mark < 3; mark += 1) {
+          context.beginPath();
+          context.moveTo(screenX + 7, screenY + mark * 5 - 5);
+          context.quadraticCurveTo(screenX + 19, screenY + mark * 4 - 9, screenX + 31, screenY + mark * 4 - 4);
+          context.stroke();
+        }
+      } else if (hash > .34 && hash < .41) {
+        context.strokeStyle = "rgba(67,92,65,.34)";
+        context.lineWidth = 2;
+        for (let blade = -1; blade <= 1; blade += 1) {
+          context.beginPath();
+          context.moveTo(screenX, screenY + 9);
+          context.quadraticCurveTo(screenX + blade * 6, screenY - 2, screenX + blade * 9, screenY - 13 - Math.abs(blade) * 3);
+          context.stroke();
+        }
+      }
+    }
+  }
+
+  context.strokeStyle = "rgba(232,207,153,.1)";
+  context.lineWidth = 2;
+  for (let row = 0; row < 5; row += 1) {
+    const y = ((row * 167 - player.y * .35) % (height + 80) + height + 80) % (height + 80) - 40;
+    context.beginPath();
+    for (let x = -20; x <= width + 20; x += 24) {
+      const waveY = y + Math.sin((x + player.x * .2) * .028 + row) * 5;
+      if (x === -20) context.moveTo(x, waveY); else context.lineTo(x, waveY);
+    }
+    context.stroke();
+  }
+
+  if (tide > .7) {
+    const waterTop = height - ((tide - .7) / .3) * height * .35;
+    const water = context.createLinearGradient(0, waterTop, 0, height);
+    water.addColorStop(0, "rgba(92,181,185,.08)");
+    water.addColorStop(1, "rgba(53,142,164,.35)");
+    context.fillStyle = water;
+    context.beginPath();
+    context.moveTo(0, height);
+    for (let x = 0; x <= width + 20; x += 20) {
+      context.lineTo(x, waterTop + Math.sin(x * .025 + elapsed * 1.6) * 7);
+    }
+    context.lineTo(width, height);
+    context.closePath();
+    context.fill();
+  }
+}
+
+function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creature, elapsed: number) {
+  const size = creature.size;
+  const wobble = Math.sin(elapsed * 5 + creature.phase) * .08;
+  context.save();
+  context.rotate(wobble);
+  context.fillStyle = "rgba(28,22,19,.28)";
+  context.beginPath();
+  context.ellipse(0, size * .72, size * 1.05, size * .38, 0, 0, Math.PI * 2);
+  context.fill();
+
+  if (creature.type === "crab" || creature.type === "king-crab") {
+    context.strokeStyle = creature.boss ? "#9f481d" : "#a94331";
+    context.lineWidth = Math.max(2, size * .12);
+    context.lineCap = "round";
+    for (const side of [-1, 1]) {
+      for (let leg = -1; leg <= 1; leg += 1) {
+        context.beginPath();
+        context.moveTo(side * size * .55, leg * size * .28);
+        context.lineTo(side * size * (1.03 + Math.abs(leg) * .12), leg * size * .56 + size * .28);
+        context.stroke();
+      }
+      context.beginPath();
+      context.moveTo(side * size * .48, -size * .24);
+      context.lineTo(side * size * 1.12, -size * .68);
+      context.stroke();
+      context.fillStyle = creature.color;
+      context.beginPath();
+      context.arc(side * size * 1.2, -size * .74, size * .34, 0, Math.PI * 2);
+      context.fill();
+      context.strokeStyle = creature.boss ? "#ffe08a" : "#f7b2a4";
+      context.lineWidth = 2;
+      context.stroke();
+    }
+    context.fillStyle = creature.hitFlash > 0 ? "#fff8e6" : creature.color;
+    context.beginPath();
+    context.ellipse(0, 0, size * 1.02, size * .68, 0, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = creature.boss ? "#ffe084" : "rgba(255,238,220,.7)";
+    context.lineWidth = creature.boss ? 4 : 2;
+    context.stroke();
+    for (const eyeX of [-.38, .38]) {
+      context.fillStyle = "#fff9eb";
+      context.beginPath(); context.arc(eyeX * size, -size * .56, size * .16, 0, Math.PI * 2); context.fill();
+      context.fillStyle = "#31251f";
+      context.beginPath(); context.arc(eyeX * size, -size * .57, size * .075, 0, Math.PI * 2); context.fill();
+    }
+    if (creature.boss) {
+      context.fillStyle = "#ffd65f";
+      context.beginPath();
+      context.moveTo(-size * .48, -size * .76); context.lineTo(-size * .25, -size * 1.25); context.lineTo(0, -size * .88);
+      context.lineTo(size * .27, -size * 1.28); context.lineTo(size * .5, -size * .75); context.closePath(); context.fill();
+    }
+  } else if (creature.type === "mudfish") {
+    context.fillStyle = creature.hitFlash > 0 ? "#effff7" : creature.color;
+    context.beginPath(); context.ellipse(0, 0, size * 1.32, size * .58, 0, 0, Math.PI * 2); context.fill();
+    context.beginPath(); context.moveTo(-size * 1.15, 0); context.lineTo(-size * 1.65, -size * .62); context.lineTo(-size * 1.55, size * .62); context.closePath(); context.fill();
+    context.fillStyle = "rgba(36,92,78,.45)";
+    context.beginPath(); context.moveTo(-size * .2, 0); context.lineTo(size * .28, -size * .72); context.lineTo(size * .6, 0); context.fill();
+    context.fillStyle = "#fff"; context.beginPath(); context.arc(size * .72, -size * .15, size * .16, 0, Math.PI * 2); context.fill();
+    context.fillStyle = "#23342e"; context.beginPath(); context.arc(size * .76, -size * .15, size * .08, 0, Math.PI * 2); context.fill();
+  } else if (creature.type === "whelk") {
+    context.fillStyle = creature.hitFlash > 0 ? "#fff7e9" : creature.color;
+    context.beginPath(); context.ellipse(0, size * .16, size * 1.05, size * .78, -.2, 0, Math.PI * 2); context.fill();
+    context.strokeStyle = "rgba(94,58,35,.55)"; context.lineWidth = 2.2;
+    context.beginPath(); context.arc(-size * .08, size * .08, size * .5, 0, Math.PI * 2); context.stroke();
+    context.beginPath(); context.arc(-size * .08, size * .08, size * .25, 0, Math.PI * 2); context.stroke();
+    context.fillStyle = "#b97e58"; roundedRect(context, -size * 1.18, size * .45, size * 1.2, size * .42, size * .2); context.fill();
+  } else if (creature.type === "octopus") {
+    context.strokeStyle = creature.hitFlash > 0 ? "#fff0fb" : creature.color; context.lineWidth = size * .3; context.lineCap = "round";
+    for (let tentacle = 0; tentacle < 5; tentacle += 1) {
+      const startX = (tentacle - 2) * size * .32;
+      context.beginPath(); context.moveTo(startX, size * .35); context.quadraticCurveTo(startX + Math.sin(elapsed * 4 + tentacle) * size * .35, size, startX + (tentacle - 2) * size * .16, size * 1.2); context.stroke();
+    }
+    context.fillStyle = creature.hitFlash > 0 ? "#fff0fb" : creature.color;
+    context.beginPath(); context.ellipse(0, -size * .12, size * .86, size * .9, 0, 0, Math.PI * 2); context.fill();
+    for (const eyeX of [-.27, .27]) { context.fillStyle = "#fff"; context.beginPath(); context.arc(eyeX * size, -size * .24, size * .14, 0, Math.PI * 2); context.fill(); context.fillStyle = "#352438"; context.beginPath(); context.arc(eyeX * size, -size * .22, size * .065, 0, Math.PI * 2); context.fill(); }
+  } else {
+    context.fillStyle = creature.hitFlash > 0 ? "#fff" : creature.color;
+    context.beginPath(); context.ellipse(0, size * .08, size * 1.06, size * .78, 0, Math.PI, Math.PI * 2); context.lineTo(size * 1.06, size * .28); context.quadraticCurveTo(0, size * .94, -size * 1.06, size * .28); context.closePath(); context.fill();
+    context.strokeStyle = "rgba(120,91,54,.48)"; context.lineWidth = 1.5;
+    for (let ridge = -2; ridge <= 2; ridge += 1) { context.beginPath(); context.moveTo(0, -size * .66); context.lineTo(ridge * size * .34, size * .4); context.stroke(); }
+    for (const eyeX of [-.28, .28]) { context.fillStyle = "#2d2925"; context.beginPath(); context.arc(eyeX * size, size * .1, size * .07, 0, Math.PI * 2); context.fill(); }
+  }
+  context.restore();
+}
+
+function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, player: Runtime["player"], characterId: string) {
+  const direction = Math.cos(player.facing) < 0 ? -1 : 1;
+  const bob = Math.sin(player.stride * 9) * 1.8;
+  context.save();
+  context.translate(x, y + bob);
+  context.scale(direction, 1);
+  context.fillStyle = "rgba(24,20,17,.3)";
+  context.beginPath(); context.ellipse(0, 22, 25, 9, 0, 0, Math.PI * 2); context.fill();
+  context.strokeStyle = "#273e40"; context.lineWidth = 7; context.lineCap = "round";
+  context.beginPath(); context.moveTo(-7, 10); context.lineTo(-10, 22 + Math.sin(player.stride * 9) * 3); context.stroke();
+  context.beginPath(); context.moveTo(7, 10); context.lineTo(11, 22 - Math.sin(player.stride * 9) * 3); context.stroke();
+  context.fillStyle = player.damageCooldown > 0 ? "#fff7e7" : characterId === "netter" ? "#4a8aa6" : characterId === "salter" ? "#ad7649" : "#e76e4e";
+  roundedRect(context, -16, -9, 32, 28, 11); context.fill();
+  context.fillStyle = "#f2bb86"; context.beginPath(); context.arc(0, -17, 12, 0, Math.PI * 2); context.fill();
+  context.fillStyle = "#3b3029"; context.beginPath(); context.arc(-4, -18, 1.5, 0, Math.PI * 2); context.arc(4, -18, 1.5, 0, Math.PI * 2); context.fill();
+  context.strokeStyle = "#6f3f2f"; context.lineWidth = 1.4; context.beginPath(); context.arc(0, -15, 4, .2, Math.PI - .2); context.stroke();
+  context.fillStyle = "#f5d87a"; context.beginPath(); context.ellipse(0, -28, 24, 6, 0, 0, Math.PI * 2); context.fill();
+  context.fillStyle = "#e8b950"; roundedRect(context, -13, -39, 26, 13, 5); context.fill();
+  context.fillStyle = "#41352c"; context.fillRect(-14, -30, 28, 3);
+  context.fillStyle = "#c58b49"; roundedRect(context, 13, -1, 15, 20, 5); context.fill();
+  context.strokeStyle = "#eed7a4"; context.lineWidth = 2; context.beginPath(); context.arc(20, 0, 9, Math.PI, Math.PI * 2); context.stroke();
+  context.restore();
 }
 
 export function MudflatSurvivorGame({ onExit }: ExitProps) {
@@ -117,7 +341,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.creatures.push({
         ...template, id: sequenceRef.current++, x: runtime.player.x + Math.cos(angle) * distance,
         y: runtime.player.y + Math.sin(angle) * distance, hp: template.hp * scale, maxHp: template.hp * scale,
-        speed: template.speed * (1 + runtime.elapsed / 750), saltHit: 0,
+        speed: template.speed * (1 + runtime.elapsed / 750), saltHit: 0, hitFlash: 0, phase: Math.random() * Math.PI * 2,
       });
     };
 
@@ -127,6 +351,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         for (const item of defeated) {
           runtime.caught += 1; runtime.catchScore += item.score;
           runtime.pickups.push({ id: sequenceRef.current++, x: item.x, y: item.y, xp: item.xp });
+          runtime.bursts.push({ id: sequenceRef.current++, x: item.x, y: item.y, life: .5, maxLife: .5, color: item.color, size: item.size });
+          runtime.floatTexts.push({ id: sequenceRef.current++, x: item.x, y: item.y - item.size, life: .8, text: `+${item.score}`, color: item.boss ? "#ffe174" : "#f9efd5" });
           if (item.boss) runtime.bossCaught = true;
         }
         runtime.creatures = runtime.creatures.filter((item) => item.hp > 0);
@@ -150,6 +376,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (inputLength > 1) { inputX /= inputLength; inputY /= inputLength; }
       const speed = runtime.player.speed * (1 + (runtime.levels.boots ?? 0) * .09);
       runtime.player.x += inputX * speed * dt; runtime.player.y += inputY * speed * dt;
+      if (Math.hypot(inputX, inputY) > .05) {
+        runtime.player.facing = Math.atan2(inputY, inputX);
+        runtime.player.stride += dt * Math.max(.35, Math.hypot(inputX, inputY));
+      }
 
       runtime.spawnClock -= dt;
       if (runtime.spawnClock <= 0 && runtime.creatures.length < 180) {
@@ -161,19 +391,20 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       for (const creature of runtime.creatures) {
         const dx = runtime.player.x - creature.x; const dy = runtime.player.y - creature.y; const distance = Math.hypot(dx, dy) || 1;
         creature.x += dx / distance * creature.speed * dt; creature.y += dy / distance * creature.speed * dt;
-        creature.saltHit = Math.max(0, creature.saltHit - dt);
+        creature.saltHit = Math.max(0, creature.saltHit - dt); creature.hitFlash = Math.max(0, creature.hitFlash - dt);
         if (distance < creature.size + 17) touching = true;
       }
       if (touching && runtime.player.damageCooldown <= 0) {
         runtime.player.hp = Math.max(0, runtime.player.hp - (7 + Math.floor(runtime.elapsed / 70)));
         runtime.player.damageCooldown = .52;
+        runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, life: .35, maxLife: .35, color: "#ff7868", size: 24 });
         if ("vibrate" in navigator) navigator.vibrate(22);
       }
 
       const hoeLevel = runtime.levels.hoe ?? 0;
       if (hoeLevel > 0 && runtime.hoeClock <= 0) {
         const radius = 78 + hoeLevel * 12;
-        for (const creature of runtime.creatures) if (Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= radius + creature.size) creature.hp -= 3 + hoeLevel * 2.3;
+        for (const creature of runtime.creatures) if (Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= radius + creature.size) { creature.hp -= 3 + hoeLevel * 2.3; creature.hitFlash = .1; }
         runtime.hoeClock = Math.max(.42, 1.02 - hoeLevel * .09); runtime.hoeEffect = .2;
       }
 
@@ -187,7 +418,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       for (const projectile of runtime.projectiles) {
         projectile.x += projectile.vx * dt; projectile.y += projectile.vy * dt; projectile.life -= dt;
         const hit = runtime.creatures.find((item) => Math.hypot(item.x - projectile.x, item.y - projectile.y) < item.size + 9);
-        if (hit) { hit.hp -= projectile.damage; projectile.life = 0; }
+        if (hit) { hit.hp -= projectile.damage; hit.hitFlash = .12; projectile.life = 0; }
       }
       runtime.projectiles = runtime.projectiles.filter((item) => item.life > 0);
 
@@ -198,7 +429,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const angle = runtime.elapsed * (1.8 + saltLevel * .08) + index / count * Math.PI * 2;
           const saltX = runtime.player.x + Math.cos(angle) * (66 + saltLevel * 3);
           const saltY = runtime.player.y + Math.sin(angle) * (66 + saltLevel * 3);
-          for (const creature of runtime.creatures) if (creature.saltHit <= 0 && Math.hypot(creature.x - saltX, creature.y - saltY) < creature.size + 10) { creature.hp -= 3 + saltLevel * 2; creature.saltHit = .22; }
+          for (const creature of runtime.creatures) if (creature.saltHit <= 0 && Math.hypot(creature.x - saltX, creature.y - saltY) < creature.size + 10) { creature.hp -= 3 + saltLevel * 2; creature.saltHit = .22; creature.hitFlash = .1; }
         }
       }
       damageAndCollect();
@@ -210,6 +441,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (distance < 22) { runtime.xp += pickup.xp; pickup.xp = 0; }
       }
       runtime.pickups = runtime.pickups.filter((item) => item.xp > 0);
+      for (const burst of runtime.bursts) burst.life -= dt;
+      runtime.bursts = runtime.bursts.filter((item) => item.life > 0);
+      for (const label of runtime.floatTexts) { label.life -= dt; label.y -= 28 * dt; }
+      runtime.floatTexts = runtime.floatTexts.filter((item) => item.life > 0);
       if (runtime.xp >= runtime.nextXp) {
         runtime.xp -= runtime.nextXp; runtime.level += 1; runtime.nextXp = Math.floor(runtime.nextXp * 1.24 + 4); runtime.paused = true;
         const nextChoices = mudflatUpgradeChoices(runtime.level, runtime.levels);
@@ -223,29 +458,67 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const draw = (width: number, height: number) => {
       context.clearRect(0, 0, width, height);
       const tide = Math.min(1, runtime.elapsed / MUDFLAT_RUN_SECONDS);
-      context.fillStyle = `rgb(${87 - tide * 16},${79 + tide * 13},${66 + tide * 20})`; context.fillRect(0, 0, width, height);
-      const grid = 80; const offsetX = ((-runtime.player.x % grid) + grid) % grid; const offsetY = ((-runtime.player.y % grid) + grid) % grid;
-      context.strokeStyle = "rgba(238,220,174,.08)"; context.lineWidth = 1;
-      for (let x = offsetX; x < width; x += grid) { context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke(); }
-      for (let y = offsetY; y < height; y += grid) { context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke(); }
-      context.fillStyle = "rgba(61,105,112,.14)";
-      for (let index = 0; index < 9; index += 1) { const x = (index * 173 + offsetX * .4) % (width + 120) - 60; const y = (index * 97 + offsetY * .5) % (height + 80) - 40; context.beginPath(); context.ellipse(x, y, 45 + index % 3 * 16, 18 + index % 2 * 8, index, 0, Math.PI * 2); context.fill(); }
+      drawMudflat(context, width, height, runtime.player, tide, runtime.elapsed);
       const screenPoint = (point: Point) => ({ x: width / 2 + point.x - runtime.player.x, y: height / 2 + point.y - runtime.player.y });
 
-      for (const pickup of runtime.pickups) { const point = screenPoint(pickup); context.fillStyle = "#7af0ca"; context.beginPath(); context.arc(point.x, point.y, 5 + Math.min(4, pickup.xp), 0, Math.PI * 2); context.fill(); context.strokeStyle = "#d9fff3"; context.stroke(); }
-      for (const projectile of runtime.projectiles) { const point = screenPoint(projectile); context.save(); context.translate(point.x, point.y); context.rotate(Math.atan2(projectile.vy, projectile.vx)); context.strokeStyle = "#f8e5b7"; context.lineWidth = 3; context.strokeRect(-8, -8, 16, 16); context.restore(); }
-      for (const creature of runtime.creatures) {
-        const point = screenPoint(creature); if (point.x < -70 || point.y < -70 || point.x > width + 70 || point.y > height + 70) continue;
-        context.save(); context.translate(point.x, point.y); context.fillStyle = "rgba(20,15,22,.25)"; context.beginPath(); context.ellipse(0, creature.size * .72, creature.size, creature.size * .38, 0, 0, Math.PI * 2); context.fill();
-        context.fillStyle = creature.color; context.beginPath(); context.arc(0, 0, creature.size, 0, Math.PI * 2); context.fill(); context.strokeStyle = creature.boss ? "#ffd772" : "rgba(255,255,255,.6)"; context.lineWidth = creature.boss ? 5 : 2; context.stroke();
-        context.fillStyle = "#2b2228"; context.font = `900 ${Math.max(15, creature.size * 1.05)}px system-ui`; context.textAlign = "center"; context.textBaseline = "middle"; context.fillText(creature.icon, 0, 1);
-        if (creature.boss) { context.fillStyle = "rgba(26,19,25,.8)"; context.fillRect(-44, -creature.size - 16, 88, 7); context.fillStyle = "#f2a849"; context.fillRect(-44, -creature.size - 16, 88 * Math.max(0, creature.hp / creature.maxHp), 7); }
+      for (const pickup of runtime.pickups) {
+        const point = screenPoint(pickup);
+        const pulse = 1 + Math.sin(runtime.elapsed * 7 + pickup.id) * .12;
+        context.save(); context.translate(point.x, point.y); context.scale(pulse, pulse);
+        context.fillStyle = "rgba(94,255,210,.16)"; context.beginPath(); context.arc(0, 0, 16, 0, Math.PI * 2); context.fill();
+        context.fillStyle = "#74e2bd"; context.beginPath(); context.moveTo(0, -8); context.lineTo(7, 0); context.lineTo(0, 9); context.lineTo(-7, 0); context.closePath(); context.fill();
+        context.strokeStyle = "#e7fff4"; context.lineWidth = 1.5; context.stroke(); context.restore();
+      }
+      for (const projectile of runtime.projectiles) {
+        const point = screenPoint(projectile);
+        context.save(); context.translate(point.x, point.y); context.rotate(Math.atan2(projectile.vy, projectile.vx));
+        context.strokeStyle = "#f7e5b8"; context.lineWidth = 2;
+        context.beginPath(); context.arc(0, 0, 11, 0, Math.PI * 2); context.stroke();
+        for (let line = -1; line <= 1; line += 1) { context.beginPath(); context.moveTo(-9, line * 5); context.lineTo(9, line * 5); context.moveTo(line * 5, -9); context.lineTo(line * 5, 9); context.stroke(); }
         context.restore();
       }
-      if ((runtime.levels.salt ?? 0) > 0) { const count = 1 + Math.floor((runtime.levels.salt ?? 0) / 2); for (let index = 0; index < count; index += 1) { const angle = runtime.elapsed * (1.8 + (runtime.levels.salt ?? 0) * .08) + index / count * Math.PI * 2; context.fillStyle = "#fff3bd"; context.beginPath(); context.arc(width / 2 + Math.cos(angle) * (66 + (runtime.levels.salt ?? 0) * 3), height / 2 + Math.sin(angle) * (66 + (runtime.levels.salt ?? 0) * 3), 8, 0, Math.PI * 2); context.fill(); } }
-      if (runtime.hoeEffect > 0) { context.strokeStyle = `rgba(255,225,146,${runtime.hoeEffect * 4})`; context.lineWidth = 7; context.beginPath(); context.arc(width / 2, height / 2, 78 + (runtime.levels.hoe ?? 0) * 12, -.25, Math.PI * 1.5); context.stroke(); }
-      context.save(); context.translate(width / 2, height / 2); context.fillStyle = runtime.player.damageCooldown > 0 ? "#fff" : "#f4c95d"; context.beginPath(); context.arc(0, 0, 19, 0, Math.PI * 2); context.fill(); context.strokeStyle = "#fff4c8"; context.lineWidth = 4; context.stroke(); context.fillStyle = "#34291f"; context.fillRect(-17, -16, 34, 8); context.fillStyle = "#f16b45"; context.fillRect(-9, 5, 18, 13); context.restore();
-      const waterHeight = Math.max(0, (tide - .72) / .28) * height * .28; if (waterHeight > 0) { context.fillStyle = "rgba(57,145,164,.22)"; context.fillRect(0, height - waterHeight, width, waterHeight); }
+      for (const creature of runtime.creatures) {
+        const point = screenPoint(creature); if (point.x < -70 || point.y < -70 || point.x > width + 70 || point.y > height + 70) continue;
+        context.save(); context.translate(point.x, point.y); drawCreatureSprite(context, creature, runtime.elapsed); context.restore();
+        if (creature.boss || creature.hp < creature.maxHp) {
+          const barWidth = creature.boss ? 104 : Math.max(28, creature.size * 2);
+          const barY = point.y - creature.size - (creature.boss ? 29 : 13);
+          context.fillStyle = "rgba(28,22,21,.64)"; roundedRect(context, point.x - barWidth / 2, barY, barWidth, creature.boss ? 9 : 5, 4); context.fill();
+          context.fillStyle = creature.boss ? "#ffd55f" : "#ff8a6f"; roundedRect(context, point.x - barWidth / 2 + 2, barY + 2, Math.max(0, (barWidth - 4) * creature.hp / creature.maxHp), creature.boss ? 5 : 1.5, 3); context.fill();
+          if (creature.boss) { context.fillStyle = "#fff4cf"; context.font = "800 12px system-ui"; context.textAlign = "center"; context.fillText("대왕 꽃게", point.x, barY - 6); }
+        }
+      }
+      for (const burst of runtime.bursts) {
+        const point = screenPoint(burst); const progress = 1 - burst.life / burst.maxLife;
+        context.save(); context.globalAlpha = Math.max(0, burst.life / burst.maxLife);
+        for (let particle = 0; particle < 8; particle += 1) {
+          const angle = particle / 8 * Math.PI * 2 + burst.id;
+          const distance = progress * (burst.size + 20);
+          context.fillStyle = burst.color; context.beginPath(); context.arc(point.x + Math.cos(angle) * distance, point.y + Math.sin(angle) * distance, 3 + (particle % 2), 0, Math.PI * 2); context.fill();
+        }
+        context.restore();
+      }
+      if ((runtime.levels.salt ?? 0) > 0) {
+        const count = 1 + Math.floor((runtime.levels.salt ?? 0) / 2);
+        for (let index = 0; index < count; index += 1) {
+          const angle = runtime.elapsed * (1.8 + (runtime.levels.salt ?? 0) * .08) + index / count * Math.PI * 2;
+          const saltX = width / 2 + Math.cos(angle) * (66 + (runtime.levels.salt ?? 0) * 3); const saltY = height / 2 + Math.sin(angle) * (66 + (runtime.levels.salt ?? 0) * 3);
+          context.fillStyle = "rgba(255,244,190,.18)"; context.beginPath(); context.arc(saltX, saltY, 15, 0, Math.PI * 2); context.fill();
+          context.fillStyle = "#fff1af"; context.save(); context.translate(saltX, saltY); context.rotate(angle); context.fillRect(-6, -6, 12, 12); context.restore();
+        }
+      }
+      if (runtime.hoeEffect > 0) {
+        const alpha = runtime.hoeEffect / .2;
+        const radius = 78 + (runtime.levels.hoe ?? 0) * 12;
+        context.strokeStyle = `rgba(255,221,132,${alpha * .8})`; context.lineWidth = 6 + alpha * 4;
+        context.beginPath(); context.arc(width / 2, height / 2, radius, -.18, Math.PI * 1.55); context.stroke();
+        context.strokeStyle = `rgba(255,251,224,${alpha * .6})`; context.lineWidth = 2; context.beginPath(); context.arc(width / 2, height / 2, radius + 7, 0, Math.PI * 1.35); context.stroke();
+      }
+      drawGatherer(context, width / 2, height / 2, runtime.player, characterId);
+      for (const label of runtime.floatTexts) {
+        const point = screenPoint(label); context.save(); context.globalAlpha = Math.min(1, label.life * 2.5);
+        context.font = "900 14px system-ui"; context.textAlign = "center"; context.lineWidth = 4; context.strokeStyle = "rgba(38,29,27,.72)"; context.strokeText(label.text, point.x, point.y); context.fillStyle = label.color; context.fillText(label.text, point.x, point.y); context.restore();
+      }
     };
 
     const loop = (now: number) => {
