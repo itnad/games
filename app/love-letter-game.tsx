@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { withKoreanTopic } from "./korean-particles.js";
+import {
+  withKoreanAnd,
+  withKoreanDirection,
+  withKoreanObject,
+  withKoreanSubject,
+  withKoreanTopic,
+} from "./korean-particles.js";
 import {
   LOVE_LETTER_CARD_DEFS,
   loveLetterBuildDeck,
@@ -28,6 +34,17 @@ type Player = {
 };
 type Pending = { card: Card; targetId: number | null };
 type Peek = { playerId: number; value: number } | null;
+type ActionTone = "info" | "safe" | "danger";
+type ActionLog = {
+  id: number;
+  actorId: number;
+  targetId: number | null;
+  cardValue: number;
+  title: string;
+  detail: string;
+  tone: ActionTone;
+  involvesHuman: boolean;
+};
 type State = {
   phase: Phase;
   theme: Theme;
@@ -45,7 +62,7 @@ type State = {
   gameWinners: number[];
   message: string;
   detail: string;
-  log: string[];
+  log: ActionLog[];
   actionId: number;
 };
 
@@ -155,6 +172,30 @@ function alivePlayers(players: Player[]) {
   return players.filter((player) => player.alive);
 }
 
+function actionLog(
+  state: State,
+  actorId: number,
+  card: Card,
+  targetId: number | null,
+  detail: string,
+  tone: ActionTone = "info",
+): ActionLog {
+  const actor = state.players[actorId];
+  const target = targetId === null ? null : state.players[targetId];
+  return {
+    id: state.actionId + 1,
+    actorId,
+    targetId,
+    cardValue: card.value,
+    title: target
+      ? `${withKoreanSubject(actor.name)} ${withKoreanObject(cardName(card, state.theme))} ${target.name}에게 사용했습니다.`
+      : `${withKoreanSubject(actor.name)} ${withKoreanObject(cardName(card, state.theme))} 사용했습니다.`,
+    detail,
+    tone,
+    involvesHuman: actorId === 0 || targetId === 0,
+  };
+}
+
 function eliminate(players: Player[], playerId: number) {
   return players.map((player) =>
     player.id === playerId
@@ -163,7 +204,7 @@ function eliminate(players: Player[], playerId: number) {
   );
 }
 
-function finishRound(state: State, players: Player[], logEntry?: string): State {
+function finishRound(state: State, players: Player[], logEntry?: ActionLog): State {
   const winners = loveLetterRoundWinners(players);
   const spyId = loveLetterSpyBonus(players);
   const updatedPlayers = players.map((player) => ({
@@ -197,7 +238,7 @@ function nextAliveIndex(players: Player[], currentIndex: number) {
   return currentIndex;
 }
 
-function advanceTurn(state: State, players: Player[], deck: Card[], setAside: Card | null, entry: string): State {
+function advanceTurn(state: State, players: Player[], deck: Card[], setAside: Card | null, entry: ActionLog): State {
   const log = [entry, ...state.log].slice(0, 12);
   if (alivePlayers(players).length <= 1 || deck.length === 0) {
     return finishRound({ ...state, deck, setAside, log }, players);
@@ -267,22 +308,43 @@ function applyTargetEffect(state: State, actorId: number, card: Card, targetId: 
   let setAside = state.setAside;
   const actor = players[actorId];
   const target = players[targetId];
-  let entry = `${actor.name} · ${cardName(card, state.theme)} → ${target.name}`;
+  let detail = `${withKoreanTopic(target.name)} 카드 효과를 받았습니다.`;
+  let tone: ActionTone = targetId === 0 ? "danger" : "info";
   let peek = state.peek;
 
   if (card.value === 1 && guardGuess !== undefined) {
     const correct = target.hand[0]?.value === guardGuess;
     if (correct) players = eliminate(players, targetId);
-    entry += ` · ${cardName(guardGuess, state.theme)} ${correct ? "적중" : "실패"}`;
+    detail = correct
+      ? `${target.name}의 손패를 ${withKoreanDirection(cardName(guardGuess, state.theme))} 정확히 추측했습니다. ${withKoreanSubject(target.name)} 탈락했습니다.`
+      : `${target.name}의 손패를 ${withKoreanDirection(cardName(guardGuess, state.theme))} 추측했지만 빗나갔습니다. ${withKoreanSubject(target.name)} 살아남았습니다.`;
+    tone = correct && targetId === 0 ? "danger" : actorId === 0 ? "safe" : "info";
   } else if (card.value === 2) {
     if (actorId === 0 && target.hand[0]) peek = { playerId: targetId, value: target.hand[0].value };
-    entry += actorId === 0 ? " · 손패 확인" : " · 비밀 확인";
+    if (actorId === 0 && target.hand[0]) {
+      detail = `${target.name}의 ${withKoreanObject(cardName(target.hand[0], state.theme))} 비밀로 확인했습니다.`;
+      tone = "safe";
+    } else if (targetId === 0 && target.hand[0]) {
+      detail = `${withKoreanSubject(actor.name)} 나의 ${withKoreanObject(cardName(target.hand[0], state.theme))} 확인했습니다. 상대가 내 손패를 알게 되었습니다.`;
+      tone = "danger";
+    } else {
+      detail = `${withKoreanSubject(actor.name)} ${target.name}의 손패를 비밀로 확인했습니다. 카드 내용은 공개되지 않습니다.`;
+    }
   } else if (card.value === 3) {
     const actorValue = players[actorId].hand[0]?.value ?? -1;
     const targetValue = players[targetId].hand[0]?.value ?? -1;
     if (actorValue < targetValue) players = eliminate(players, actorId);
     else if (targetValue < actorValue) players = eliminate(players, targetId);
-    entry += actorValue === targetValue ? " · 무승부" : ` · ${actorValue < targetValue ? actor.name : target.name} 탈락`;
+    const loser = actorValue < targetValue ? actor : target;
+    if (actorValue === targetValue) {
+      detail = `${withKoreanSubject(actor.name)} ${withKoreanAnd(target.name)} 손패를 비교했지만 숫자가 같아 아무도 탈락하지 않았습니다.`;
+      tone = actorId === 0 || targetId === 0 ? "safe" : "info";
+    } else if (actorId === 0 || targetId === 0) {
+      detail = `${actor.name}의 ${cardName(actorValue, state.theme)}(${actorValue})와 ${target.name}의 ${cardName(targetValue, state.theme)}(${targetValue})를 비교했습니다. ${withKoreanSubject(loser.name)} 낮은 카드로 탈락했습니다.`;
+      tone = loser.id === 0 ? "danger" : "safe";
+    } else {
+      detail = `두 사람이 손패를 비공개로 비교했습니다. ${withKoreanSubject(loser.name)} 낮은 카드로 탈락했습니다.`;
+    }
   } else if (card.value === 5) {
     const discarded = target.hand[0];
     players = players.map((player) =>
@@ -290,14 +352,18 @@ function applyTargetEffect(state: State, actorId: number, card: Card, targetId: 
     );
     if (discarded?.value === 9) {
       players = eliminate(players, targetId);
-      entry += " · 최고 카드가 버려져 탈락";
+      detail = `${target.name}의 ${withKoreanSubject(cardName(discarded, state.theme))} 버려졌습니다. 최고 카드를 버린 효과로 ${withKoreanSubject(target.name)} 즉시 탈락했습니다.`;
+      tone = targetId === 0 ? "danger" : actorId === 0 ? "safe" : "info";
     } else {
       const replacement = deck.shift() ?? setAside;
       if (deck.length === 0 && replacement === setAside) setAside = null;
       players = players.map((player) =>
         player.id === targetId && player.alive && replacement ? { ...player, hand: [replacement] } : player,
       );
-      entry += " · 손패 교체";
+      detail = discarded
+        ? `${target.name}의 ${withKoreanSubject(cardName(discarded, state.theme))} 버려졌고 새 카드 1장을 받았습니다.`
+        : `${withKoreanSubject(target.name)} 새 카드 1장을 받았습니다.`;
+      tone = targetId === 0 ? "danger" : actorId === 0 ? "safe" : "info";
     }
   } else if (card.value === 7) {
     const actorHand = players[actorId].hand;
@@ -305,10 +371,17 @@ function applyTargetEffect(state: State, actorId: number, card: Card, targetId: 
     players = players.map((player) =>
       player.id === actorId ? { ...player, hand: targetHand } : player.id === targetId ? { ...player, hand: actorHand } : player,
     );
-    entry += " · 손패 교환";
+    detail = `${withKoreanSubject(actor.name)} ${withKoreanAnd(target.name)} 손패를 서로 바꿨습니다.`;
+    tone = actorId === 0 || targetId === 0 ? "safe" : "info";
   }
 
-  return advanceTurn({ ...state, peek }, players, deck, setAside, entry);
+  return advanceTurn(
+    { ...state, peek },
+    players,
+    deck,
+    setAside,
+    actionLog(state, actorId, card, targetId, detail, tone),
+  );
 }
 
 function resolvePlayedCard(state: State, actorId: number, card: Card, ai = false): State {
@@ -316,21 +389,40 @@ function resolvePlayedCard(state: State, actorId: number, card: Card, ai = false
     player.id === actorId ? discardFromHand(player, card) : player,
   );
   const actor = players[actorId];
-  const entry = `${actor.name} · ${cardName(card, state.theme)}`;
 
   if (card.value === 9) {
     players = eliminate(players, actorId);
-    return advanceTurn(state, players, state.deck, state.setAside, `${entry} · 즉시 탈락`);
+    return advanceTurn(
+      state,
+      players,
+      state.deck,
+      state.setAside,
+      actionLog(state, actorId, card, null, `${withKoreanSubject(actor.name)} 공주를 버린 효과로 즉시 탈락했습니다.`, actorId === 0 ? "danger" : "info"),
+    );
   }
   if (card.value === 4) {
     players = players.map((player) => player.id === actorId ? { ...player, protected: true } : player);
-    return advanceTurn(state, players, state.deck, state.setAside, `${entry} · 다음 차례까지 보호`);
+    return advanceTurn(
+      state,
+      players,
+      state.deck,
+      state.setAside,
+      actionLog(state, actorId, card, null, `${withKoreanSubject(actor.name)} 다음 자기 차례가 시작될 때까지 다른 카드 효과로부터 보호됩니다.`, actorId === 0 ? "safe" : "info"),
+    );
   }
   if (card.value === 6) {
     const deck = [...state.deck];
     const extras = deck.splice(0, Math.min(2, deck.length));
     players = players.map((player) => player.id === actorId ? { ...player, hand: [...player.hand, ...extras] } : player);
-    if (!extras.length) return advanceTurn(state, players, deck, state.setAside, `${entry} · 덱이 비어 효과 없음`);
+    if (!extras.length) {
+      return advanceTurn(
+        state,
+        players,
+        deck,
+        state.setAside,
+        actionLog(state, actorId, card, null, "덱에 뽑을 카드가 없어 추가 효과가 발생하지 않았습니다."),
+      );
+    }
     if (!ai) {
       return {
         ...state,
@@ -340,7 +432,7 @@ function resolvePlayedCard(state: State, actorId: number, card: Card, ai = false
         pending: { card, targetId: null },
         message: "한 장을 선택해 남기세요",
         detail: "선택하지 않은 카드는 덱 아래로 돌아갑니다.",
-        log: [entry, ...state.log].slice(0, 12),
+        log: state.log,
         actionId: state.actionId + 1,
       };
     }
@@ -348,15 +440,37 @@ function resolvePlayedCard(state: State, actorId: number, card: Card, ai = false
     const keep = [...aiHand].sort((a, b) => b.value - a.value)[0];
     const bottom = aiHand.filter((held) => held.uid !== keep.uid);
     players = players.map((player) => player.id === actorId ? { ...player, hand: [keep] } : player);
-    return advanceTurn(state, players, [...deck, ...bottom], state.setAside, `${entry} · 카드 재정리`);
+    return advanceTurn(
+      state,
+      players,
+      [...deck, ...bottom],
+      state.setAside,
+      actionLog(state, actorId, card, null, `${withKoreanSubject(actor.name)} 세 장 중 한 장을 남기고 나머지를 덱 아래로 돌려보냈습니다.`),
+    );
   }
   if ([1, 2, 3, 5, 7].includes(card.value)) {
     const targets = loveLetterValidTargets(players, actorId, card.value) as number[];
-    if (!targets.length) return advanceTurn(state, players, state.deck, state.setAside, `${entry} · 선택 가능한 대상 없음`);
+    if (!targets.length) {
+      return advanceTurn(
+        state,
+        players,
+        state.deck,
+        state.setAside,
+        actionLog(state, actorId, card, null, "보호받지 않는 대상이 없어 카드 효과가 발생하지 않았습니다."),
+      );
+    }
     const nextState = { ...state, players };
     if (ai) {
       const targetId = chooseAiTarget(nextState, card.value, actorId);
-      if (targetId === null) return advanceTurn(nextState, players, state.deck, state.setAside, entry);
+      if (targetId === null) {
+        return advanceTurn(
+          nextState,
+          players,
+          state.deck,
+          state.setAside,
+          actionLog(state, actorId, card, null, "선택 가능한 대상이 없어 카드 효과가 발생하지 않았습니다."),
+        );
+      }
       const guess = card.value === 1 ? aiGuardGuess(nextState, players[actorId]) : undefined;
       return applyTargetEffect(nextState, actorId, card, targetId, guess);
     }
@@ -369,7 +483,13 @@ function resolvePlayedCard(state: State, actorId: number, card: Card, ai = false
       actionId: state.actionId + 1,
     };
   }
-  return advanceTurn(state, players, state.deck, state.setAside, entry);
+  return advanceTurn(
+    state,
+    players,
+    state.deck,
+    state.setAside,
+    actionLog(state, actorId, card, null, "공개 즉시 효과는 없습니다."),
+  );
 }
 
 function LetterCard({
@@ -456,6 +576,7 @@ export function LoveLetterGame({ onExit }: { onExit: () => void }) {
     [state.pending, state.players],
   );
   const favorTarget = loveLetterFavorTarget(state.totalPlayers);
+  const latestAction = state.log[0];
 
   function start() {
     const players = makePlayers(totalPlayers, theme);
@@ -495,7 +616,14 @@ export function LoveLetterGame({ onExit }: { onExit: () => void }) {
       const keep = human.hand.find((card) => card.uid === uid)!;
       const bottom = human.hand.filter((card) => card.uid !== uid);
       const players = current.players.map((player) => player.id === 0 ? { ...player, hand: [keep] } : player);
-      return advanceTurn(current, players, [...current.deck, ...bottom], current.setAside, `나 · ${cardName(6, current.theme)} 카드 재정리`);
+      const playedCard = current.pending?.card ?? { uid: "chancellor-resolved", value: 6 };
+      return advanceTurn(
+        current,
+        players,
+        [...current.deck, ...bottom],
+        current.setAside,
+        actionLog(current, 0, playedCard, null, "세 장 중 한 장을 남기고 나머지를 덱 아래로 돌려보냈습니다.", "safe"),
+      );
     });
   }
 
@@ -551,6 +679,27 @@ export function LoveLetterGame({ onExit }: { onExit: () => void }) {
                 <div><strong>{state.message}</strong><small>{state.detail}</small></div>
                 <button onClick={() => setRulesOpen(true)}>규칙</button>
               </section>
+
+              {latestAction && (
+                <section
+                  className={`love-latest-action ${latestAction.tone} ${latestAction.involvesHuman ? "involves-human" : ""}`}
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  <header>
+                    <span>방금 일어난 일</span>
+                    {latestAction.involvesHuman && <b>나와 관련된 행동</b>}
+                  </header>
+                  <div className="love-action-card" aria-hidden="true">
+                    <strong>{latestAction.cardValue}</strong>
+                    <span>{cardName(latestAction.cardValue, state.theme)}</span>
+                  </div>
+                  <div>
+                    <strong>{latestAction.title}</strong>
+                    <p>{latestAction.detail}</p>
+                  </div>
+                </section>
+              )}
 
               <section className="love-opponents" aria-label="AI 참가자">
                 {state.players.slice(1).map((player) => <OpponentCard key={player.id} player={player} active={state.currentIndex === player.id && state.phase === "ai"} theme={state.theme} reveal={state.phase === "round-over" || state.phase === "game-over"} />)}
@@ -628,8 +777,18 @@ export function LoveLetterGame({ onExit }: { onExit: () => void }) {
               )}
 
               <section className="love-log">
-                <strong>공개 기록</strong>
-                <div>{state.log.length ? state.log.slice(0,6).map((entry,index) => <span key={`${entry}-${index}`}>{entry}</span>) : <span>아직 사용된 카드가 없습니다.</span>}</div>
+                <header><strong>행동 기록</strong><span>최근 {Math.min(state.log.length, 8)}개</span></header>
+                {state.log.length ? (
+                  <ol>
+                    {state.log.slice(0, 8).map((entry) => (
+                      <li key={entry.id} className={`${entry.tone} ${entry.involvesHuman ? "involves-human" : ""}`}>
+                        <div className="love-log-card"><b>{entry.cardValue}</b><span>{cardName(entry.cardValue, state.theme)}</span></div>
+                        <div><strong>{entry.title}</strong><p>{entry.detail}</p></div>
+                        {entry.involvesHuman && <small>나</small>}
+                      </li>
+                    ))}
+                  </ol>
+                ) : <p className="love-log-empty">아직 사용된 카드가 없습니다.</p>}
               </section>
             </>
           )}

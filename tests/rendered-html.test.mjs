@@ -1418,6 +1418,22 @@ test("runs the official 21-card Love Letter rules", () => {
   assert.equal(loveLetterSpyBonus(sharedSpies), null);
 });
 
+test("explains every Love Letter action and highlights events involving the player", async () => {
+  const source = await readFile(new URL("../app/love-letter-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/love-letter.css", import.meta.url), "utf8");
+
+  assert.match(source, /type ActionLog = \{/);
+  assert.match(source, /withKoreanSubject\(actor\.name\)/);
+  assert.match(source, /withKoreanObject\(cardName\(card, state\.theme\)\)/);
+  assert.match(source, /방금 일어난 일/);
+  assert.match(source, /나와 관련된 행동/);
+  assert.match(source, /행동 기록/);
+  assert.match(source, /정확히 추측했습니다/);
+  assert.match(source, /최고 카드를 버린 효과/);
+  assert.match(styles, /\.love-latest-action\.danger/);
+  assert.match(styles, /\.love-log li\.involves-human/);
+});
+
 test("runs hidden confrontation movement, combat, and victory conditions", () => {
   const pieces = createConfrontationPieces(() => 0.42);
   assert.equal(pieces.length, 18);

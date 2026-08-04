@@ -109,7 +109,7 @@
 }
 .love-fan-note { margin-top: 9px; display: block; color: #aaa19a; font-size: 7px; text-align: center; }
 
-.love-status,.love-opponents,.love-table,.love-peek,.love-choice-panel,.love-human-area,.love-result,.love-log { width: min(930px,100%); margin-inline: auto; }
+.love-status,.love-latest-action,.love-opponents,.love-table,.love-peek,.love-choice-panel,.love-human-area,.love-result,.love-log { width: min(930px,100%); margin-inline: auto; }
 .love-status {
   margin-bottom: 10px; padding: 10px 13px; display: grid; grid-template-columns: 37px 1fr auto;
   align-items: center; gap: 10px; border: 1px solid #e1d7cf; border-radius: 14px; background: rgba(255,255,255,.88);
@@ -118,8 +118,28 @@
 .cookie .love-status > span { color: #8d512a; background: #f1bd64; box-shadow: inset 0 0 0 5px #ffd990; }
 .love-status > div { min-width: 0; display: flex; flex-direction: column; }
 .love-status strong { overflow: hidden; color: #42383d; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-.love-status small { margin-top: 2px; overflow: hidden; color: #9a908a; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-.love-status button { padding: 8px 10px; border: 1px solid #dfd5cd; border-radius: 8px; color: #726761; background: white; cursor: pointer; font-size: 9px; font-weight: 850; }
+.love-status small { margin-top: 2px; overflow: hidden; color: #817770; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.love-status button { padding: 8px 10px; border: 1px solid #dfd5cd; border-radius: 8px; color: #726761; background: white; cursor: pointer; font-size: 12px; font-weight: 850; }
+.love-latest-action {
+  margin-bottom: 10px; padding: 14px 15px; display: grid; grid-template-columns: 76px 1fr; gap: 11px 14px;
+  border: 1px solid #dbcfc7; border-left: 5px solid #9b8b84; border-radius: 15px; background: rgba(255,255,255,.94);
+  box-shadow: 0 8px 22px rgba(70,41,49,.07);
+}
+.love-latest-action.safe { border-left-color: #3b856c; background: #f6fcf8; }
+.love-latest-action.danger { border-left-color: #b73f4e; background: #fff7f7; }
+.love-latest-action.involves-human { box-shadow: 0 0 0 2px color-mix(in srgb,var(--love) 14%,transparent),0 9px 24px rgba(70,41,49,.09); }
+.love-latest-action > header { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 10px; }
+.love-latest-action > header span { color: #746761; font-size: 12px; font-weight: 900; letter-spacing: .04em; }
+.love-latest-action > header b { padding: 5px 8px; border-radius: 999px; color: white; background: var(--love); font-size: 12px; }
+.love-action-card {
+  min-height: 62px; padding: 8px; display: grid; place-items: center; align-content: center; border: 1px solid #d8c8bc;
+  border-radius: 10px; color: var(--love); background: #fffaf3; text-align: center;
+}
+.love-action-card strong { font-family: Georgia,serif; font-size: 24px; line-height: 1; }
+.love-action-card span { margin-top: 4px; font-size: 12px; font-weight: 850; }
+.love-latest-action > div:last-child { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.love-latest-action > div:last-child > strong { color: #42383d; font-size: 15px; line-height: 1.45; }
+.love-latest-action > div:last-child p { margin: 5px 0 0; color: #766b66; font-size: 13px; line-height: 1.55; }
 .love-opponents { margin-bottom: 10px; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 6px; }
 .letter-opponent {
   min-width: 0; padding: 9px; display: grid; grid-template-columns: 30px 1fr auto; gap: 6px;
@@ -253,10 +273,26 @@
 .love-result p { margin: 0; color: #958a84; font-size: 8px; }
 .love-result button { padding: 10px 12px; border: 0; border-radius: 9px; color: white; background: var(--love); cursor: pointer; font-size: 9px; font-weight: 850; }
 .love-result button.secondary { border: 1px solid #ddd1c8; color: #70645f; background: white; }
-.love-log { margin-top: 10px; padding: 13px 15px; border-top: 1px solid #dfd5ce; }
-.love-log > strong { color: #55494e; font-size: 9px; }
-.love-log > div { margin-top: 6px; display: grid; grid-template-columns: repeat(2,1fr); gap: 4px 12px; }
-.love-log span { overflow: hidden; color: #998d87; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.love-log { margin-top: 10px; padding: 15px; border: 1px solid #dfd5ce; border-radius: 16px; background: rgba(255,255,255,.72); }
+.love-log > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.love-log > header strong { color: #55494e; font-size: 14px; }
+.love-log > header span { color: #938780; font-size: 12px; }
+.love-log ol { margin: 10px 0 0; padding: 0; display: grid; gap: 7px; list-style: none; }
+.love-log li {
+  padding: 10px; display: grid; grid-template-columns: 58px 1fr auto; align-items: center; gap: 10px;
+  border: 1px solid #e4dbd4; border-radius: 12px; background: #fffdf9;
+}
+.love-log li.involves-human { border-color: color-mix(in srgb,var(--love) 42%,#e4dbd4); background: #fff9f7; }
+.love-log li.danger { border-left: 4px solid #b73f4e; }
+.love-log li.safe { border-left: 4px solid #3b856c; }
+.love-log-card { min-width: 0; display: grid; justify-items: center; color: var(--love); }
+.love-log-card b { font-family: Georgia,serif; font-size: 18px; line-height: 1; }
+.love-log-card span { max-width: 56px; margin-top: 3px; overflow: hidden; font-size: 12px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.love-log li > div:nth-child(2) { min-width: 0; }
+.love-log li > div:nth-child(2) strong { display: block; color: #493f43; font-size: 13px; line-height: 1.4; }
+.love-log li > div:nth-child(2) p { margin: 3px 0 0; color: #81756f; font-size: 12px; line-height: 1.5; }
+.love-log li > small { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: white; background: var(--love); font-size: 12px; font-weight: 900; }
+.love-log-empty { margin: 12px 0 0; color: #8f837d; font-size: 13px; }
 
 .love-modal-backdrop {
   padding: 20px; display: grid; place-items: center; position: fixed; inset: 0; z-index: 100;
@@ -300,7 +336,9 @@
   .letter-card { width: min(43vw,145px); min-height: 190px; padding: 11px 9px; }
   .love-result { grid-template-columns: 38px 1fr; }
   .love-result button { width: 100%; }
-  .love-log > div { grid-template-columns: 1fr; }
+  .love-latest-action { grid-template-columns: 64px 1fr; padding: 12px; }
+  .love-log li { grid-template-columns: 48px 1fr auto; padding: 9px 8px; gap: 8px; }
+  .love-log-card span { max-width: 48px; }
   .love-rule-summary { grid-template-columns: 1fr; }
   .love-card-reference { grid-template-columns: 1fr; }
   .love-modal-backdrop { padding: 11px; }
