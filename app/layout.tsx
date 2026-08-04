@@ -19,6 +19,7 @@ import "./game-readability.css";
 import "./casual-games.css";
 import "./paper-dungeon.css";
 import "./ten-seconds.css";
+import "./mudflat-survivor.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,21 +34,21 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://games.itnadcom.chatgpt.site"),
   title: "paperoid — AI 보드게임 아지트",
-  description: "오목, 장기, 시계탑, 포켓 스택, 종이 던전, 10.00 등 서른아홉 가지 보드게임·캐주얼 게임·RPG를 즐기는 paperoid 게임 아지트",
+  description: "오목, 장기, 시계탑, 종이 던전, 10.00, 갯벌 한탕 등 마흔 가지 보드게임·캐주얼 게임·RPG를 즐기는 paperoid 게임 아지트",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
   },
   openGraph: {
     title: "paperoid — AI 보드게임 아지트",
-    description: "서른아홉 가지 보드게임과 캐주얼 게임, 턴제 RPG를 바로 즐겨보세요.",
+    description: "마흔 가지 보드게임과 캐주얼 게임, RPG를 바로 즐겨보세요.",
     type: "website",
     images: [{ url: "/og.png", width: 1536, height: 1024, alt: "paperoid AI Board Game Club" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "paperoid — AI 보드게임 아지트",
-    description: "서른아홉 가지 보드게임과 캐주얼 게임, 턴제 RPG를 바로 즐겨보세요.",
+    description: "마흔 가지 보드게임과 캐주얼 게임, RPG를 바로 즐겨보세요.",
     images: ["/og.png"],
   },
 };

@@ -87,6 +87,16 @@ import {
   summarizeTenSeconds,
 } from "../app/ten-seconds-engine.js";
 import {
+  MUDFLAT_CREATURES,
+  MUDFLAT_JOYSTICK_RADIUS,
+  MUDFLAT_RUN_SECONDS,
+  mudflatCreatureForTime,
+  mudflatFinalScore,
+  mudflatJoystickVector,
+  mudflatSpawnInterval,
+  mudflatUpgradeChoices,
+} from "../app/mudflat-survivor-engine.js";
+import {
   EPIC_DUELS_MAPS,
   EPIC_DUELS_TEAMS,
   epicCreateDeck,
@@ -248,6 +258,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "parking-escape",
     "paper-dungeon",
     "ten-seconds",
+    "mudflat-survivor",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -343,7 +354,8 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /주차 탈출/);
   assert.match(html, /종이 던전/);
   assert.match(html, /10\.00/);
-  assert.match(html, /서른아홉 가지/);
+  assert.match(html, /갯벌 한탕/);
+  assert.match(html, /마흔 가지/);
   assert.match(html, /이름·장르로 게임 찾기/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);
@@ -434,6 +446,38 @@ test("judges 10.00 with millisecond precision and supports a five-round challeng
   assert.match(source, /paperoid-ten-seconds-records-v1/);
   assert.match(styles, /touch-action: manipulation/);
   assert.match(styles, /@media \(max-width:700px\)/);
+});
+
+test("uses an invisible relative-drag joystick for Mudflat Survivor", async () => {
+  assert.equal(MUDFLAT_RUN_SECONDS, 240);
+  assert.equal(MUDFLAT_JOYSTICK_RADIUS, 72);
+  assert.ok(MUDFLAT_CREATURES.length >= 6);
+  assert.equal(MUDFLAT_CREATURES.at(-1).boss, true);
+
+  assert.deepEqual(mudflatJoystickVector(2, 2), { x: 0, y: 0, strength: 0 });
+  const horizontal = mudflatJoystickVector(72, 0);
+  assert.equal(horizontal.x, 1);
+  assert.equal(horizontal.y, 0);
+  assert.equal(horizontal.strength, 1);
+  const diagonal = mudflatJoystickVector(100, 100);
+  assert.ok(Math.abs(diagonal.x - Math.SQRT1_2) < 0.0001);
+  assert.ok(Math.abs(diagonal.y - Math.SQRT1_2) < 0.0001);
+  assert.equal(diagonal.strength, 1);
+
+  assert.equal(mudflatCreatureForTime(0, 0.99).id, "clam");
+  assert.notEqual(mudflatCreatureForTime(130, 0.99).id, "clam");
+  assert.ok(mudflatSpawnInterval(200) < mudflatSpawnInterval(0));
+  assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
+  assert.ok(mudflatFinalScore({ catchScore: 1000, caught: 50, elapsed: 240, bossCaught: true }) > 4000);
+
+  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
+  assert.match(source, /event\.clientX - joystick\.originX/);
+  assert.match(source, /event\.clientY - joystick\.originY/);
+  assert.match(source, /onPointerCancel=\{pointerEnd\}/);
+  assert.match(source, /onLostPointerCapture=\{pointerEnd\}/);
+  assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
+  assert.match(styles, /touch-action:none/);
 });
 
 test("uses official classic Battleship fleet and American checkers crowning", () => {

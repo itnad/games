@@ -36,6 +36,7 @@ import {
 } from "./casual-games";
 import { PaperDungeonGame } from "./paper-dungeon-game";
 import { TenSecondsGame } from "./ten-seconds-game";
+import { MudflatSurvivorGame } from "./mudflat-survivor-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -85,7 +86,8 @@ type GameId =
   | "untangle"
   | "parking-escape"
   | "paper-dungeon"
-  | "ten-seconds";
+  | "ten-seconds"
+  | "mudflat-survivor";
 type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주" | "캐주얼" | "RPG";
 
 type GameDefinition = {
@@ -409,6 +411,14 @@ const GAMES: GameDefinition[] = [
     category: "캐주얼",
     players: "1인 기록 도전",
     tone: "red",
+  },
+  {
+    id: "mudflat-survivor",
+    title: "갯벌 한탕",
+    subtitle: "밀물이 오기 전 자동 도구로 해산물을 채집하세요",
+    category: "캐주얼",
+    players: "1인 생존 채집",
+    tone: "teal",
   },
 ];
 
@@ -779,6 +789,10 @@ function GameArtwork({ game }: { game: GameDefinition }) {
 
   if (game.id === "ten-seconds") {
     return <div className="card-art casual-card-art ten-seconds" aria-hidden="true"><span>10.00</span><i /><span className="float-chip">± 0.001</span></div>;
+  }
+
+  if (game.id === "mudflat-survivor") {
+    return <div className="card-art casual-card-art mudflat" aria-hidden="true"><span>갯벌 한탕</span><i /><span className="float-chip">4 MIN TIDE</span></div>;
   }
 
   if (["pocket-stack", "color-chain", "number-drop", "dot-survivor", "untangle", "parking-escape"].includes(game.id)) {
@@ -1932,6 +1946,9 @@ export default function Home() {
   }
   if (activeGame === "ten-seconds") {
     return <GuidedGame gameId={activeGame}><TenSecondsGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "mudflat-survivor") {
+    return <GuidedGame gameId={activeGame}><MudflatSurvivorGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
 
   return (
