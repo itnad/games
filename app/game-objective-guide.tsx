@@ -3,7 +3,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { GAME_OBJECTIVES } from "./game-objectives.js";
 
-export function GameObjectiveGuide({ gameId }: { gameId: string }) {
+export function GameObjectiveGuide({ gameId, inline = false }: { gameId: string; inline?: boolean }) {
   const [open, setOpen] = useState(false);
   const guide = GAME_OBJECTIVES[gameId as keyof typeof GAME_OBJECTIVES];
 
@@ -21,7 +21,7 @@ export function GameObjectiveGuide({ gameId }: { gameId: string }) {
 
   return (
     <>
-      <button className="game-objective-trigger" style={style} onClick={() => setOpen(true)}>
+      <button className={`game-objective-trigger${inline ? " inline" : ""}`} style={style} onClick={() => setOpen(true)}>
         <span aria-hidden="true">◎</span>
         <span><small>GOAL &amp; WIN</small><strong>게임 설명</strong></span>
       </button>

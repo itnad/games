@@ -440,7 +440,7 @@ function BrandMark() {
 function GuidedGame({ gameId, children }: { gameId: GameId; children: ReactNode }) {
   return (
     <div className="game-readability-scope" data-game-id={gameId}>
-      <GameObjectiveGuide gameId={gameId} />
+      {gameId !== "janggi" && <GameObjectiveGuide gameId={gameId} />}
       {children}
     </div>
   );
