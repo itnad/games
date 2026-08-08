@@ -396,6 +396,15 @@ test("server-renders the paperoid game library", async () => {
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
 });
 
+test("keeps the home introduction compact on mobile", async () => {
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.hero \{[\s\S]*?min-height: 168px/);
+  assert.match(styles, /\.hero h1 br \{ display: none; \}/);
+  assert.match(styles, /\.hero p \{\s*display: none;/);
+  assert.match(styles, /\.hero-finder-button \{[\s\S]*?min-height: 38px/);
+});
+
 test("registers six responsive casual games with touch, keyboard, and saved records", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const source = await readFile(new URL("../app/casual-games.tsx", import.meta.url), "utf8");
