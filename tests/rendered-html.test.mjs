@@ -832,6 +832,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawRotatingTongs\(/);
   assert.match(source, /function drawHarpoonSprite\(/);
   assert.match(source, /function drawRockHookBar\(/);
+  assert.match(source, /function drawDipNetSlam\(/);
+  assert.match(source, /runtime\.netSlams\.push/);
+  assert.match(source, /progress >= \.54/);
+  assert.match(source, /netSlam\.radius \+ creature\.size/);
   assert.match(source, /runtime\.harpoons/);
   assert.match(source, /hitIds: new Set<number>\(\)/);
   assert.doesNotMatch(source, /function drawRockSkewer\(/);

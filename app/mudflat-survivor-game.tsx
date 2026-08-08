@@ -35,6 +35,7 @@ type Creature = Point & { id: number; type: string; name: string; icon: string; 
 type Pickup = Point & { id: number; xp: number };
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
+type NetSlamEffect = Point & { id: number; life: number; maxLife: number; damage: number; radius: number; targetId: number; area: boolean; hit: boolean };
 type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number };
 type FloatText = Point & { id: number; life: number; text: string; color: string };
 type Rock = Point & { id: number; radius: number; tone: number };
@@ -43,7 +44,7 @@ type Runtime = {
   mode: GameMode;
   stage: number;
   elapsed: number; player: Point & { hp: number; maxHp: number; speed: number; damageCooldown: number; facing: number; stride: number };
-  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; rocks: Rock[]; levels: CountMap; equipment: CountMap; basket: CountMap;
+  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; rocks: Rock[]; levels: CountMap; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
   bossSpawned: boolean; spawnClock: number; rockSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; paused: boolean; ended: boolean;
@@ -100,7 +101,7 @@ function makeRuntime(campaign: Campaign): Runtime {
   return {
     mode: campaign.mode, stage: campaign.stage,
     elapsed: 0, player: { x: 0, y: 0, hp: campaign.hp, maxHp: campaign.maxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0 },
-    creatures: [], pickups: [], projectiles: [], harpoons: [], rocks: [], bursts: [], floatTexts: [], levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
+    creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], rocks: [], bursts: [], floatTexts: [], levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, rockSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0,
     hoeEffect: 0, rockFlipEffect: null, paused: false, ended: false,
   };
@@ -476,6 +477,77 @@ function drawRockHookBar(context: CanvasRenderingContext2D, origin: Point, targe
   }
 }
 
+function drawDipNetSlam(context: CanvasRenderingContext2D, origin: Point, target: Point, effect: NetSlamEffect) {
+  const progress = 1 - effect.life / effect.maxLife;
+  const dx = target.x - origin.x;
+  const dy = target.y - origin.y;
+  const distance = Math.max(1, Math.hypot(dx, dy));
+  const ux = dx / distance;
+  const uy = dy / distance;
+  const px = -uy;
+  const py = ux;
+  const swingProgress = progress < .62 ? 1 - (1 - progress / .62) ** 3 : 1;
+  const retract = progress < .82 ? 0 : Math.min(1, (progress - .82) / .18);
+  const behindX = origin.x - ux * 34 - px * 18;
+  const behindY = origin.y - uy * 34 - py * 18;
+  const arc = Math.sin(swingProgress * Math.PI) * Math.min(58, distance * .22);
+  const hoopX = behindX + (target.x - behindX) * swingProgress + px * arc;
+  const hoopY = behindY + (target.y - behindY) * swingProgress + py * arc - Math.sin(swingProgress * Math.PI) * 18;
+  const drawX = hoopX + (behindX - hoopX) * retract;
+  const drawY = hoopY + (behindY - hoopY) * retract;
+  const handleAngle = Math.atan2(drawY - origin.y, drawX - origin.x);
+  const impact = progress >= .54 && progress <= .86;
+  const fade = Math.min(1, progress * 8, (1 - progress) * 7);
+
+  context.save();
+  context.globalAlpha = fade;
+  context.lineCap = "round";
+  context.strokeStyle = "rgba(24,28,27,.36)";
+  context.lineWidth = 10;
+  context.beginPath(); context.moveTo(origin.x - ux * 18, origin.y - uy * 18 + 5); context.lineTo(drawX, drawY + 5); context.stroke();
+  context.strokeStyle = "#476f69";
+  context.lineWidth = 6;
+  context.beginPath(); context.moveTo(origin.x - ux * 20, origin.y - uy * 20); context.lineTo(drawX, drawY); context.stroke();
+  context.strokeStyle = "#a8d1c5";
+  context.lineWidth = 1.5;
+  context.beginPath(); context.moveTo(origin.x - ux * 16, origin.y - uy * 16 - 2); context.lineTo(drawX, drawY - 2); context.stroke();
+  context.fillStyle = "#8c5737";
+  context.save(); context.translate(origin.x - ux * 18, origin.y - uy * 18); context.rotate(handleAngle); roundedRect(context, -8, -7, 24, 14, 5); context.fill(); context.restore();
+
+  const hoopRadius = Math.min(36, Math.max(25, effect.radius * .58));
+  context.translate(drawX, drawY);
+  context.rotate(handleAngle + Math.PI / 2);
+  context.fillStyle = impact ? "rgba(157,225,206,.22)" : "rgba(157,225,206,.12)";
+  context.strokeStyle = impact ? "#e7fff4" : "#b7e4d6";
+  context.lineWidth = impact ? 5 : 4;
+  context.beginPath(); context.ellipse(0, 0, hoopRadius, hoopRadius * (impact ? .72 : .42), 0, 0, Math.PI * 2); context.fill(); context.stroke();
+  context.strokeStyle = "rgba(225,255,246,.55)";
+  context.lineWidth = 1.3;
+  for (let line = -2; line <= 2; line += 1) {
+    const offset = line * hoopRadius * .28;
+    context.beginPath(); context.moveTo(-hoopRadius * .82, offset * .62); context.lineTo(hoopRadius * .82, -offset * .62); context.stroke();
+    context.beginPath(); context.moveTo(offset, -hoopRadius * .48); context.lineTo(-offset, hoopRadius * .48); context.stroke();
+  }
+  context.restore();
+
+  if (impact) {
+    const impactProgress = Math.min(1, Math.max(0, (progress - .54) / .32));
+    context.save();
+    context.globalAlpha = (1 - impactProgress) * .78;
+    context.fillStyle = "rgba(102,194,169,.13)";
+    context.strokeStyle = "#a9ead5";
+    context.lineWidth = 3;
+    context.beginPath(); context.arc(target.x, target.y, effect.radius * (.74 + impactProgress * .26), 0, Math.PI * 2); context.fill(); context.stroke();
+    for (let chip = 0; chip < 7; chip += 1) {
+      const angle = chip / 7 * Math.PI * 2 + effect.id;
+      const spread = effect.radius * (.5 + impactProgress * .46);
+      context.fillStyle = "#b99a70";
+      context.beginPath(); context.arc(target.x + Math.cos(angle) * spread, target.y + Math.sin(angle) * spread * .55, 2.5, 0, Math.PI * 2); context.fill();
+    }
+    context.restore();
+  }
+}
+
 export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const runtimeRef = useRef<Runtime | null>(null);
@@ -712,22 +784,35 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const netLevel = runtime.levels.net ?? 0;
       if (netLevel > 0 && runtime.netClock <= 0 && runtime.creatures.length) {
         const target = runtime.creatures.reduce((nearest, item) => Math.hypot(item.x - runtime.player.x, item.y - runtime.player.y) < Math.hypot(nearest.x - runtime.player.x, nearest.y - runtime.player.y) ? item : nearest);
-        const dx = target.x - runtime.player.x; const dy = target.y - runtime.player.y; const distance = Math.hypot(dx, dy) || 1;
-        runtime.projectiles.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, vx: dx / distance * 430, vy: dy / distance * 430, damage: (6 + netLevel * 4) * toolPower, life: 1.5 });
+        runtime.netSlams.push({
+          id: sequenceRef.current++, x: target.x, y: target.y, targetId: target.id,
+          damage: (6 + netLevel * 4) * toolPower,
+          radius: runtime.mode === "normal" ? 42 + netLevel * 8 : 30,
+          area: runtime.mode === "normal", hit: false, life: .62, maxLife: .62,
+        });
         runtime.netClock = Math.max(.48, 1.5 - netLevel * .14);
       }
-      for (const projectile of runtime.projectiles) {
-        projectile.x += projectile.vx * dt; projectile.y += projectile.vy * dt; projectile.life -= dt;
-        const hit = runtime.creatures.find((item) => Math.hypot(item.x - projectile.x, item.y - projectile.y) < item.size + 9);
-        if (hit) {
-          if (runtime.mode === "normal") {
-            const netRadius = 42 + (runtime.levels.net ?? 0) * 8;
-            for (const creature of runtime.creatures) if (Math.hypot(creature.x - hit.x, creature.y - hit.y) <= netRadius + creature.size) { creature.hp -= projectile.damage; creature.hitFlash = .12; }
-          } else { hit.hp -= projectile.damage; hit.hitFlash = .12; }
-          projectile.life = 0;
+      for (const netSlam of runtime.netSlams) {
+        const trackedTarget = runtime.creatures.find((item) => item.id === netSlam.targetId);
+        const progressBefore = 1 - netSlam.life / netSlam.maxLife;
+        if (trackedTarget && !netSlam.hit && progressBefore < .54) { netSlam.x = trackedTarget.x; netSlam.y = trackedTarget.y; }
+        netSlam.life -= dt;
+        const progress = 1 - netSlam.life / netSlam.maxLife;
+        if (!netSlam.hit && progress >= .54) {
+          if (netSlam.area) {
+            for (const creature of runtime.creatures) {
+              if (Math.hypot(creature.x - netSlam.x, creature.y - netSlam.y) <= netSlam.radius + creature.size) {
+                creature.hp -= netSlam.damage; creature.hitFlash = .16;
+              }
+            }
+          } else if (trackedTarget) {
+            trackedTarget.hp -= netSlam.damage; trackedTarget.hitFlash = .16;
+          }
+          netSlam.hit = true;
+          runtime.bursts.push({ id: sequenceRef.current++, x: netSlam.x, y: netSlam.y, life: .34, maxLife: .34, color: "#8fdac5", size: netSlam.radius });
         }
       }
-      runtime.projectiles = runtime.projectiles.filter((item) => item.life > 0);
+      runtime.netSlams = runtime.netSlams.filter((item) => item.life > 0);
 
       const harpoonLevel = runtime.levels.harpoon ?? 0;
       if (runtime.mode === "normal" && harpoonLevel > 0 && runtime.harpoonClock <= 0) {
@@ -867,6 +952,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           context.fillStyle = creature.boss ? "#ffd55f" : "#ff8a6f"; roundedRect(context, point.x - barWidth / 2 + 2, barY + 2, Math.max(0, (barWidth - 4) * creature.hp / creature.maxHp), creature.boss ? 5 : 1.5, 3); context.fill();
           if (creature.boss) { context.fillStyle = "#fff4cf"; context.font = "800 12px system-ui"; context.textAlign = "center"; context.fillText("대왕 꽃게", point.x, barY - 6); }
         }
+      }
+      for (const netSlam of runtime.netSlams) {
+        const point = screenPoint(netSlam);
+        drawDipNetSlam(context, { x: width / 2, y: height / 2 }, point, netSlam);
       }
       for (const burst of runtime.bursts) {
         const point = screenPoint(burst); const progress = 1 - burst.life / burst.maxLife;
