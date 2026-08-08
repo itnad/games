@@ -558,8 +558,10 @@ test("separates traditional classics from the strategy category", async () => {
 });
 
 test("keeps the home introduction compact on mobile", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
+  assert.match(pageSource, /잠깐의 여유,\{\" \"\}/);
   assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.hero \{[\s\S]*?min-height: 168px/);
   assert.match(styles, /\.hero h1 br \{ display: none; \}/);
   assert.match(styles, /\.hero p \{\s*display: none;/);

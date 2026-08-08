@@ -2087,7 +2087,7 @@ export default function Home() {
         <div className="hero-copy">
           <span className="eyebrow">YOUR NEXT MOVE</span>
           <h1>
-            잠깐의 여유,
+            잠깐의 여유,{" "}
             <br />
             <em>한 판</em> 어때요?
           </h1>
