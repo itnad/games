@@ -2188,7 +2188,9 @@ export default function Home() {
                 {filteredGames.map((game) => (
                   <article className={`finder-game-row ${game.tone}`} key={game.id}>
                     <button className="finder-game-select" type="button" onClick={() => launchGame(game.id)}>
-                      <span className="finder-game-thumb" aria-hidden="true">{game.title.slice(0, 1)}</span>
+                      <span className="finder-game-thumb" aria-hidden="true">
+                        <GameArtwork game={game} />
+                      </span>
                       <span className="finder-game-copy">
                         <span>
                           <b>{game.title}</b>

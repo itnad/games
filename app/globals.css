@@ -5610,22 +5610,25 @@ footer { font-size: 15px; }
 .finder-game-thumb {
   width: 62px;
   height: 62px;
-  display: grid;
-  place-items: center;
+  flex: 0 0 auto;
+  position: relative;
+  overflow: hidden;
   border-radius: 13px;
-  color: #fff;
   background: linear-gradient(145deg, #6e52ca, #3f2d79);
-  font-size: 25px;
-  font-weight: 900;
 }
 
-.finder-game-row.orange .finder-game-thumb { background: linear-gradient(145deg, #f28b61, #bd4734); }
-.finder-game-row.teal .finder-game-thumb { background: linear-gradient(145deg, #4fa99d, #23675f); }
-.finder-game-row.gold .finder-game-thumb { background: linear-gradient(145deg, #dab05a, #90651f); }
-.finder-game-row.blue .finder-game-thumb { background: linear-gradient(145deg, #5da2c9, #245c7e); }
-.finder-game-row.red .finder-game-thumb { background: linear-gradient(145deg, #d96b76, #8d3440); }
-.finder-game-row.green .finder-game-thumb { background: linear-gradient(145deg, #69a273, #315d39); }
-.finder-game-row.navy .finder-game-thumb { background: linear-gradient(145deg, #566b9a, #263455); }
+.finder-game-thumb .card-art {
+  width: 260px;
+  height: 390px;
+  min-height: 390px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(.24);
+  transform-origin: center;
+}
+
+.finder-game-thumb .float-chip { display: none; }
 
 .finder-game-copy {
   min-width: 0;

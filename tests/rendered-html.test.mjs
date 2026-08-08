@@ -485,8 +485,11 @@ test("opens the game finder with visible categories and without summoning the ke
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.doesNotMatch(pageSource, /<input\s+[\s\S]*?autoFocus[\s\S]*?type="search"/);
+  assert.match(pageSource, /className="finder-game-thumb"[\s\S]*?<GameArtwork game=\{game\} \/>/);
+  assert.doesNotMatch(pageSource, /finder-game-thumb"[^>]*>\{game\.title\.slice/);
   assert.match(styles, /\.finder-category-row\s*\{[\s\S]*?flex:\s*0 0 auto;/);
   assert.match(styles, /\.finder-game-list\s*\{[\s\S]*?flex:\s*1 1 auto;[\s\S]*?overflow-y:\s*auto;/);
+  assert.match(styles, /\.finder-game-thumb \.card-art\s*\{[\s\S]*?transform:\s*translate\(-50%, -50%\) scale\(\.24\);/);
 });
 
 test("registers six responsive casual games with touch, keyboard, and saved records", async () => {
