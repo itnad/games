@@ -4373,9 +4373,81 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
 
 .janggi-setup-picker .janggi-start-button {
   grid-column: 1 / -1;
-  background: #173c31;
+  justify-self: center;
+  width: min(100%, 17rem);
+  min-height: 3.65rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 0.65rem;
+  padding: 0.55rem 0.8rem 0.6rem 1rem;
+  border: 2px solid #9fe0c3;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #19765b, #0e4939);
   color: #fff;
   font-weight: 900;
+  box-shadow: 0 0 0 4px rgba(120, 222, 181, .16), 0 10px 24px rgba(4, 28, 20, .34);
+  animation: janggi-start-glow 2.4s ease-in-out infinite;
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+
+.janggi-setup-picker .janggi-start-button:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 5px rgba(120, 222, 181, .23), 0 14px 28px rgba(4, 28, 20, .4);
+}
+
+.janggi-setup-picker .janggi-start-button:active {
+  transform: translateY(1px) scale(.98);
+}
+
+.janggi-setup-picker .janggi-start-button:focus-visible {
+  outline: 3px solid #fff7bf;
+  outline-offset: 4px;
+}
+
+.janggi-setup-picker .janggi-start-button .janggi-start-cue {
+  grid-column: 1 / -1;
+  margin-bottom: 0.12rem;
+  color: #c9f5df;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: .015em;
+  line-height: 1.15;
+  text-align: left;
+}
+
+.janggi-setup-picker .janggi-start-button strong {
+  margin: 0;
+  color: #fff;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.janggi-setup-picker .janggi-start-button .janggi-start-arrow {
+  grid-column: 2;
+  grid-row: 2;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f7d47d;
+  color: #173c31;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+@keyframes janggi-start-glow {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(120, 222, 181, .13), 0 10px 24px rgba(4, 28, 20, .34); }
+  50% { box-shadow: 0 0 0 7px rgba(120, 222, 181, .25), 0 12px 28px rgba(4, 28, 20, .42); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .janggi-setup-picker .janggi-start-button { animation: none; }
 }
 
 .janggi-score-card > div {

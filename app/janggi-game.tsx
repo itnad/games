@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import { withKoreanDirection } from "./korean-particles.js";
 
@@ -48,6 +48,12 @@ const JANGGI_SETUPS: Record<JanggiSetup, { label: string; flank: PieceType[] }> 
   left: { label: "왼상 차림", flank: ["E", "H", "E", "H"] },
   right: { label: "오른상 차림", flank: ["H", "E", "H", "E"] },
 };
+
+function randomJanggiSetup(previous: JanggiSetup | null) {
+  const setupKeys = Object.keys(JANGGI_SETUPS) as JanggiSetup[];
+  const candidates = previous ? setupKeys.filter((setup) => setup !== previous) : setupKeys;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
 
 function makePiece(side: Side, type: PieceType): Piece {
   return { side, type };
@@ -410,6 +416,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
   const [moveNumber, setMoveNumber] = useState(1);
   const [lastActionWasPass, setLastActionWasPass] = useState(false);
   const [positionHistory, setPositionHistory] = useState<string[]>(() => [boardSignature(newJanggiBoard("inner", "inner"), "cho")]);
+  const previousHanSetup = useRef<JanggiSetup | null>(null);
 
   const moves = useMemo(() => started && turn === "cho" && !winner ? legalMoves(board, "cho") : [], [board, started, turn, winner]);
   const selectedMoves = selected === null ? [] : moves.filter((move) => move.from === selected);
@@ -549,8 +556,8 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
   }, [board, started, turn, winner]);
 
   const start = () => {
-    const setupKeys = Object.keys(JANGGI_SETUPS) as JanggiSetup[];
-    const nextHanSetup = setupKeys[Math.floor(Math.random() * setupKeys.length)];
+    const nextHanSetup = randomJanggiSetup(previousHanSetup.current);
+    previousHanSetup.current = nextHanSetup;
     setHanSetup(nextHanSetup);
     setBoard(newJanggiBoard(choSetup, nextHanSetup));
     setPositionHistory([boardSignature(newJanggiBoard(choSetup, nextHanSetup), "cho")]);
@@ -608,7 +615,11 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
                   <span>{setup.label}</span>
                 </button>
               ))}
-              <button className="janggi-start-button" onClick={start}>이 차림으로 대국 시작</button>
+              <button className="janggi-start-button" onClick={start}>
+                <span className="janggi-start-cue">차림 선택 완료 · AI 차림 무작위</span>
+                <strong>이 차림으로 대국 시작</strong>
+                <span className="janggi-start-arrow" aria-hidden="true">→</span>
+              </button>
             </fieldset>
           )}
           <div className="mode-switch" aria-label="대전 모드">

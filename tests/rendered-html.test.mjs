@@ -584,6 +584,16 @@ test("offers all four standard Janggi horse-elephant setups", async () => {
   assert.match(source, /이 차림으로 대국 시작/);
 });
 
+test("makes Janggi start action prominent and varies the AI setup", async () => {
+  const source = await readFile(new URL("../app/janggi-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(source, /className="janggi-start-button"[\s\S]*?차림 선택 완료 · AI 차림 무작위[\s\S]*?이 차림으로 대국 시작/);
+  assert.match(source, /setupKeys\.filter\(\(setup\) => setup !== previous\)/);
+  assert.match(source, /randomJanggiSetup\(previousHanSetup\.current\)/);
+  assert.match(styles, /\.janggi-setup-picker \.janggi-start-button[\s\S]*?animation: janggi-start-glow/);
+});
+
 test("runs a complete 3-to-7 player Seven Wonders draft", () => {
   for (const playerCount of [3, 4, 5, 6, 7]) {
     for (const age of [1, 2, 3]) {
