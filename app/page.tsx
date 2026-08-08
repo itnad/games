@@ -88,10 +88,10 @@ type GameId =
   | "paper-dungeon"
   | "ten-seconds"
   | "mudflat-survivor";
-type Category = "전체" | "전략" | "고전게임" | "기억력" | "추리" | "주사위" | "경주" | "캐주얼" | "RPG";
+type Category = "전체" | "전략" | "고전게임" | "기억력" | "추리" | "주사위" | "경주" | "터치류" | "RPG";
 
-const CATEGORIES: Category[] = ["전체", "전략", "고전게임", "기억력", "추리", "주사위", "경주", "캐주얼", "RPG"];
-const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "고전게임", "기억력", "추리", "주사위", "경주", "캐주얼", "RPG"];
+const CATEGORIES: Category[] = ["전체", "전략", "고전게임", "기억력", "추리", "주사위", "경주", "터치류", "RPG"];
+const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "고전게임", "기억력", "추리", "주사위", "경주", "터치류", "RPG"];
 
 type GameDefinition = {
   id: GameId;
@@ -355,7 +355,7 @@ const GAMES: GameDefinition[] = [
     id: "pocket-stack",
     title: "포켓 스택",
     subtitle: "흔들리는 블록을 정확히 맞춰 높이 쌓으세요",
-    category: "캐주얼",
+    category: "터치류",
     players: "1인 기록 도전",
     tone: "red",
   },
@@ -363,7 +363,7 @@ const GAMES: GameDefinition[] = [
     id: "color-chain",
     title: "컬러 체인",
     subtitle: "같은 색 점을 길게 이어 한 번에 터뜨리세요",
-    category: "캐주얼",
+    category: "터치류",
     players: "1인 기록 도전",
     tone: "violet",
   },
@@ -371,7 +371,7 @@ const GAMES: GameDefinition[] = [
     id: "number-drop",
     title: "넘버 드롭",
     subtitle: "같은 숫자를 합쳐 더 큰 타일을 만드세요",
-    category: "캐주얼",
+    category: "터치류",
     players: "1인 기록 도전",
     tone: "blue",
   },
@@ -379,7 +379,7 @@ const GAMES: GameDefinition[] = [
     id: "dot-survivor",
     title: "도트 서바이버",
     subtitle: "몰려오는 점을 피해 60초를 버티세요",
-    category: "캐주얼",
+    category: "터치류",
     players: "1인 생존 도전",
     tone: "teal",
   },
@@ -387,7 +387,7 @@ const GAMES: GameDefinition[] = [
     id: "untangle",
     title: "줄 풀기",
     subtitle: "점을 옮겨 얽힌 선의 교차를 없애세요",
-    category: "캐주얼",
+    category: "터치류",
     players: "1인 퍼즐",
     tone: "orange",
   },
@@ -395,7 +395,7 @@ const GAMES: GameDefinition[] = [
     id: "parking-escape",
     title: "주차 탈출",
     subtitle: "차량을 밀어 빨간 차의 출구를 여세요",
-    category: "캐주얼",
+    category: "터치류",
     players: "1인 퍼즐",
     tone: "green",
   },
@@ -411,7 +411,7 @@ const GAMES: GameDefinition[] = [
     id: "ten-seconds",
     title: "10.00",
     subtitle: "시간 감각만으로 정확히 10초를 맞추세요",
-    category: "캐주얼",
+    category: "터치류",
     players: "1인 기록 도전",
     tone: "red",
   },
@@ -419,7 +419,7 @@ const GAMES: GameDefinition[] = [
     id: "mudflat-survivor",
     title: "갯벌 한탕",
     subtitle: "밀물이 오기 전 자동 도구로 해산물을 채집하세요",
-    category: "캐주얼",
+    category: "터치류",
     players: "1인 생존 채집",
     tone: "teal",
   },
