@@ -696,6 +696,20 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       });
     };
 
+    const damageCreature = (creature: Creature, damage: number, color = "#ffd29a", hitFlash = .12) => {
+      const safeDamage = Math.max(0, Number(damage) || 0);
+      if (safeDamage <= 0 || creature.hp <= 0) return;
+      creature.hp -= safeDamage;
+      creature.hitFlash = Math.max(creature.hitFlash, hitFlash);
+      const roundedDamage = Math.round(safeDamage * 10) / 10;
+      const damageText = Number.isInteger(roundedDamage) ? `-${roundedDamage}` : `-${roundedDamage.toFixed(1)}`;
+      const horizontalJitter = (sequenceRef.current % 3 - 1) * 9;
+      runtime.floatTexts.push({
+        id: sequenceRef.current++, x: creature.x + horizontalJitter, y: creature.y - creature.size - 4,
+        life: .62, text: damageText, color,
+      });
+    };
+
     const damageAndCollect = () => {
       const defeated = runtime.creatures.filter((item) => item.hp <= 0);
       if (defeated.length) {
@@ -704,7 +718,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           runtime.basket[item.type] = (runtime.basket[item.type] ?? 0) + 1;
           runtime.pickups.push({ id: sequenceRef.current++, x: item.x, y: item.y, xp: item.xp });
           runtime.bursts.push({ id: sequenceRef.current++, x: item.x, y: item.y, life: .5, maxLife: .5, color: item.color, size: item.size });
-          runtime.floatTexts.push({ id: sequenceRef.current++, x: item.x, y: item.y - item.size, life: .8, text: `+${item.score}`, color: item.boss ? "#ffe174" : "#f9efd5" });
           if (item.boss) runtime.bossCaught = true;
         }
         runtime.creatures = runtime.creatures.filter((item) => item.hp > 0);
@@ -777,7 +790,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const toolPower = 1 + (runtime.equipment.gloves ?? 0) * .12;
       if (hoeLevel > 0 && runtime.hoeClock <= 0) {
         const radius = 78 + hoeLevel * 12;
-        for (const creature of runtime.creatures) if (Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= radius + creature.size) { creature.hp -= (3 + hoeLevel * 2.3) * toolPower; creature.hitFlash = .1; }
+        for (const creature of runtime.creatures) if (Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= radius + creature.size) damageCreature(creature, (3 + hoeLevel * 2.3) * toolPower, "#ffe0a6", .1);
         runtime.hoeClock = Math.max(.42, 1.02 - hoeLevel * .09); runtime.hoeEffect = .2;
       }
 
@@ -802,11 +815,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           if (netSlam.area) {
             for (const creature of runtime.creatures) {
               if (Math.hypot(creature.x - netSlam.x, creature.y - netSlam.y) <= netSlam.radius + creature.size) {
-                creature.hp -= netSlam.damage; creature.hitFlash = .16;
+                damageCreature(creature, netSlam.damage, "#a9ead5", .16);
               }
             }
           } else if (trackedTarget) {
-            trackedTarget.hp -= netSlam.damage; trackedTarget.hitFlash = .16;
+            damageCreature(trackedTarget, netSlam.damage, "#a9ead5", .16);
           }
           netSlam.hit = true;
           runtime.bursts.push({ id: sequenceRef.current++, x: netSlam.x, y: netSlam.y, life: .34, maxLife: .34, color: "#8fdac5", size: netSlam.radius });
@@ -841,8 +854,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         for (const creature of runtime.creatures) {
           if (harpoon.hitIds.has(creature.id)) continue;
           if (distanceToSegment(creature, previousPosition, harpoon) <= creature.size + 7) {
-            creature.hp -= harpoon.damage;
-            creature.hitFlash = .16;
+            damageCreature(creature, harpoon.damage, "#ffc49b", .16);
             harpoon.hitIds.add(creature.id);
           }
         }
@@ -856,7 +868,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const angle = runtime.elapsed * (1.8 + saltLevel * .08) + index / count * Math.PI * 2;
           const saltX = runtime.player.x + Math.cos(angle) * (66 + saltLevel * 3);
           const saltY = runtime.player.y + Math.sin(angle) * (66 + saltLevel * 3);
-          for (const creature of runtime.creatures) if (creature.saltHit <= 0 && Math.hypot(creature.x - saltX, creature.y - saltY) < creature.size + 10) { creature.hp -= (3 + saltLevel * 2) * toolPower; creature.saltHit = .22; creature.hitFlash = .1; }
+          for (const creature of runtime.creatures) if (creature.saltHit <= 0 && Math.hypot(creature.x - saltX, creature.y - saltY) < creature.size + 10) { damageCreature(creature, (3 + saltLevel * 2) * toolPower, "#fff1af", .1); creature.saltHit = .22; }
         }
       }
 
@@ -868,7 +880,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const tipY = runtime.player.y + Math.sin(angle) * tong.reach;
         for (const creature of runtime.creatures) {
           if (creature.saltHit <= 0 && Math.hypot(creature.x - tipX, creature.y - tipY) < creature.size + 10) {
-            creature.hp -= tong.power * toolPower; creature.saltHit = .22; creature.hitFlash = .1;
+            damageCreature(creature, tong.power * toolPower, "#ffd29a", .1); creature.saltHit = .22;
           }
         }
 
