@@ -488,10 +488,10 @@ function GameArtwork({ game }: { game: GameDefinition }) {
 
   if (game.id === "memory") return (
     <div className="card-art memory-art" aria-hidden="true">
-      <span className="memory-tile tile-a"><i className="memory-character character-moon-jelly" /></span>
-      <span className="memory-tile tile-b"><i className="memory-character character-lantern-owl" /></span>
-      <span className="memory-tile tile-c"><i className="memory-character character-moon-jelly" /></span>
-      <span className="memory-tile tile-d"><i className="memory-character character-paper-dragon" /></span>
+      <span className="memory-tile tile-a"><img className="memory-character" src={memoryCharacterImage("moon-jelly")} alt="" /></span>
+      <span className="memory-tile tile-b"><img className="memory-character" src={memoryCharacterImage("lantern-owl")} alt="" /></span>
+      <span className="memory-tile tile-c"><img className="memory-character" src={memoryCharacterImage("moon-jelly")} alt="" /></span>
+      <span className="memory-tile tile-d"><img className="memory-character" src={memoryCharacterImage("paper-dragon")} alt="" /></span>
       <span className="float-chip">8 pairs</span>
     </div>
   );
@@ -1585,6 +1585,10 @@ function memoryCharacterLabel(id: string) {
   return MEMORY_CHARACTERS.find(([characterId]) => characterId === id)?.[1] ?? "신비한 친구";
 }
 
+function memoryCharacterImage(id: string) {
+  return `/memory-characters/${id}.png`;
+}
+
 type MemoryCard = {
   id: number;
   symbol: string;
@@ -1762,7 +1766,14 @@ function MemoryGame({ onExit }: { onExit: () => void }) {
                 >
                   <span className="card-inner">
                     <span className="card-back"><BrandMark /></span>
-                    <span className="card-front"><span className={`memory-character character-${card.symbol}`} aria-hidden="true" /></span>
+                    <span className="card-front">
+                      <img
+                        className="memory-character"
+                        src={memoryCharacterImage(card.symbol)}
+                        alt=""
+                        aria-hidden="true"
+                      />
+                    </span>
                   </span>
                 </button>
               );

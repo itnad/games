@@ -504,6 +504,8 @@ a:focus-visible {
 .memory-tile .memory-character {
   width: 100%;
   height: 100%;
+  object-fit: contain;
+  object-position: center;
 }
 
 .tile-a { left: 34px; top: 43px; rotate: -11deg; }
@@ -2330,21 +2332,10 @@ footer > span {
   height: calc(100% - 10px);
   display: block;
   border-radius: 10px;
-  background-image: url("/memory-character-atlas.png");
-  background-repeat: no-repeat;
-  background-size: var(--memory-atlas-scale, 500%) auto;
-  background-position: var(--memory-atlas-x, 50%) var(--memory-atlas-y, 50%);
+  object-fit: contain;
+  object-position: center;
   background-color: #03091e;
 }
-
-.character-moon-jelly { --memory-atlas-x: 2%; --memory-atlas-y: 22%; }
-.character-teapot-snail { --memory-atlas-scale: 440%; --memory-atlas-x: 34%; --memory-atlas-y: 19%; }
-.character-lantern-owl { --memory-atlas-x: 65%; --memory-atlas-y: 22%; }
-.character-coral-cat { --memory-atlas-x: 95%; --memory-atlas-y: 20%; }
-.character-paper-dragon { --memory-atlas-x: 3%; --memory-atlas-y: 84%; }
-.character-star-moth { --memory-atlas-x: 34%; --memory-atlas-y: 81%; }
-.character-mushroom-diver { --memory-atlas-scale: 520%; --memory-atlas-x: 64%; --memory-atlas-y: 81%; }
-.character-cloud-whale { --memory-atlas-scale: 440%; --memory-atlas-x: 97%; --memory-atlas-y: 85%; }
 
 .memory-card.matched .card-front {
   border-color: #e7ad9c;

@@ -331,21 +331,32 @@ test("provides a complete objective and victory guide for every game", async () 
   );
 });
 
-test("uses the original Paperoid character atlas in the memory game", async () => {
+test("uses independently centered Paperoid character images in the memory game", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  const atlas = await readFile(new URL("../public/memory-character-atlas.png", import.meta.url));
+  const characterIds = [
+    "moon-jelly",
+    "teapot-snail",
+    "lantern-owl",
+    "coral-cat",
+    "paper-dragon",
+    "star-moth",
+    "mushroom-diver",
+    "cloud-whale",
+  ];
 
-  assert.equal(atlas.subarray(1, 4).toString(), "PNG");
-  assert.ok(atlas.length > 100_000);
+  for (const id of characterIds) {
+    const image = await readFile(new URL(`../public/memory-characters/${id}.png`, import.meta.url));
+    assert.equal(image.subarray(1, 4).toString(), "PNG");
+    assert.ok(image.length > 100_000);
+  }
   assert.match(pageSource, /\["moon-jelly", "달빛 해파리"\]/);
   assert.match(pageSource, /\["cloud-whale", "구름 아기고래"\]/);
   assert.match(pageSource, /memoryCharacterLabel\(card\.symbol\)/);
-  assert.match(styles, /background-image: url\("\/memory-character-atlas\.png"\)/);
-  assert.match(styles, /background-size: var\(--memory-atlas-scale, 500%\) auto/);
-  assert.match(styles, /background-position: var\(--memory-atlas-x, 50%\) var\(--memory-atlas-y, 50%\)/);
-  assert.match(styles, /\.character-mushroom-diver \{ --memory-atlas-scale: 520%; --memory-atlas-x: 64%; --memory-atlas-y: 81%; \}/);
-  assert.match(styles, /\.character-cloud-whale \{ --memory-atlas-scale: 440%; --memory-atlas-x: 97%; --memory-atlas-y: 85%; \}/);
+  assert.match(pageSource, /return `\/memory-characters\/\$\{id\}\.png`/);
+  assert.match(pageSource, /<img\s+className="memory-character"/);
+  assert.match(styles, /\.memory-character \{[\s\S]*object-fit: contain;[\s\S]*object-position: center;/);
+  assert.doesNotMatch(styles, /memory-character-atlas\.png|--memory-atlas-/);
 });
 
 test("applies the shared readable typography contract to every current and future game", async () => {
