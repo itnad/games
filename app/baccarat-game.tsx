@@ -27,10 +27,10 @@ type BaccaratGameState = {
 const RULES = [
   ["게임 목표", "플레이어와 뱅커 중 9에 더 가까운 쪽, 또는 같은 점수인 타이를 예측합니다. 10라운드 뒤 시작 칩보다 많은 가상 칩을 보유하면 챌린지에 성공합니다."],
   ["카드 점수", "A는 1점, 2~9는 표시 숫자, 10·J·Q·K는 0점입니다. 카드 합이 10 이상이면 일의 자리만 사용하므로 7과 8은 5점입니다."],
-  ["처음 네 장", "플레이어와 뱅커가 두 장씩 받습니다. 어느 한쪽이라도 처음 두 장 합계가 8 또는 9이면 내추럴로 즉시 비교합니다."],
+  ["처음 네 장", "플레이어 핸드와 뱅커 핸드에 카드가 두 장씩 놓입니다. 어느 한쪽이라도 처음 두 장 합계가 8 또는 9이면 내추럴로 즉시 비교하고, 어느 쪽도 제3카드를 받지 않습니다."],
   ["플레이어 제3카드", "내추럴이 아니면 플레이어는 0~5점에서 한 장을 더 받고 6~7점에서 멈춥니다."],
-  ["뱅커 제3카드", "플레이어가 멈추면 뱅커는 0~5점에서 받습니다. 플레이어가 받았다면 뱅커 점수와 그 제3카드에 정해진 공식 표를 자동 적용합니다."],
-  ["가상 칩 정산", "플레이어 적중은 1:1, 뱅커 적중은 5% 커미션을 제외한 0.95:1, 타이 적중은 8:1입니다. 타이 때 플레이어·뱅커 선택은 원금을 돌려받습니다."],
+  ["뱅커 제3카드", "플레이어가 멈추면 뱅커는 0~5점에서 받고 6~7점에서 멈춥니다. 플레이어가 제3카드를 받으면 뱅커는 0~2점에서 항상 받고, 3점은 플레이어 제3카드가 8이 아닐 때, 4점은 2~7일 때, 5점은 4~7일 때, 6점은 6~7일 때만 받으며 7점에서는 멈춥니다."],
+  ["가상 칩 정산", "플레이어 적중 수익은 1:1, 뱅커 적중 수익은 5% 커미션을 뺀 0.95:1, 타이 적중 수익은 이 게임이 채택한 8:1입니다. 타이가 나오면 플레이어·뱅커 선택은 승패 없이 원금을 그대로 유지합니다."],
   ["안내", "이 게임은 규칙 학습용 가상 칩 게임이며 실제 화폐, 결제, 환전 또는 보상을 제공하지 않습니다."],
 ];
 
@@ -48,7 +48,7 @@ function Topbar({ onExit }: { onExit: () => void }) {
 }
 
 function PlayingCard({ card, hidden = false, delay = 0 }: { card?: Card; hidden?: boolean; delay?: number }) {
-  if (!card || hidden) return <div className="bc-card back" style={{ "--delay": `${delay}ms` } as React.CSSProperties}><span>PLAY</span><i>◆</i><small>ROOM</small></div>;
+  if (!card || hidden) return <div className="bc-card back" aria-label="뒷면 카드" style={{ "--delay": `${delay}ms` } as React.CSSProperties}><span>PAP</span><i>◆</i><small>EROID</small></div>;
   return <div className={`bc-card face ${card.color}`} style={{ "--delay": `${delay}ms` } as React.CSSProperties}><span>{card.rank}</span><i>{card.symbol}</i><small>{card.rank}</small></div>;
 }
 
@@ -123,6 +123,7 @@ export function BaccaratGame({ onExit }: { onExit: () => void }) {
   return <main className="bc-shell"><Topbar onExit={onExit} /><section className="bc-status"><div><small>ROUND</small><strong>{game.round}<i>/</i>{game.roundLimit}</strong></div><div className="bc-bankroll"><small>MY VIRTUAL CHIPS</small><strong>{game.chips.toLocaleString()}</strong></div><div className="bc-status-actions"><button onClick={() => setGuide("rules")}>ⓘ 규칙</button><button onClick={() => setGame(baccaratFinishGame(game) as BaccaratGameState)}>종료</button></div></section>
     <Roadmap history={game.history} />
     <section className={`bc-table ${game.phase}`}><div className="bc-felt-label">paperoid BACCARAT · AI DEALER</div>
+      {game.phase === "betting" && <div className="bc-card-reveal-notice" role="status"><i aria-hidden="true">◇</i><span><b>카드는 아직 공개되지 않았습니다</b>베팅을 확정하면 플레이어와 뱅커의 카드가 공개됩니다.</span></div>}
       <Hand label="뱅커" side="banker" cards={last?.bankerCards || []} total={fullyRevealed ? last?.bankerTotal : undefined} revealCount={revealCount} offset={last?.playerCards.length || 0} note={bankerNote} />
       <div className="bc-versus"><span>9</span><i>VS</i><span>9</span></div>
       <Hand label="플레이어" side="player" cards={last?.playerCards || []} total={fullyRevealed ? last?.playerTotal : undefined} revealCount={revealCount} offset={0} note={playerNote} />

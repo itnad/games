@@ -1103,6 +1103,12 @@ test("keeps Baccarat tutorial navigation on one horizontal row", async () => {
   const source = await readFile(new URL("../app/baccarat-game.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/baccarat.css", import.meta.url), "utf8");
 
+  assert.match(source, /카드는 아직 공개되지 않았습니다/);
+  assert.match(source, /베팅을 확정하면 플레이어와 뱅커의 카드가 공개됩니다/);
+  assert.match(source, /aria-label="뒷면 카드"/);
+  assert.match(source, /0~2점에서 항상 받고/);
+  assert.match(source, /타이 적중 수익은 이 게임이 채택한 8:1/);
+  assert.match(styles, /\.bc-card-reveal-notice\{/);
   assert.match(source, /className="bc-tutorial-nav"/);
   assert.match(styles, /\.bc-tutorial \.bc-tutorial-nav\{[^}]*display:grid;[^}]*grid-template-columns:1fr 1fr;/);
   assert.match(styles, /\.bc-tutorial-nav button:first-child\{justify-self:start\}/);
