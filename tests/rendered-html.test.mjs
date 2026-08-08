@@ -116,6 +116,7 @@ import {
   mudflatCreatureForTime,
   mudflatFinalScore,
   mudflatJoystickVector,
+  mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
   mudflatSpawnInterval,
   mudflatTongStats,
@@ -776,9 +777,16 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(generalChoices.every((choice) => ["basket", "tongs", "boots", "snack", "rocker", "net"].includes(choice.id)));
   assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
   assert.equal(mudflatTongStats(2).power, mudflatTongStats(1).power * 1.5);
-  assert.equal(mudflatRockTurnerStats(1).xpChance, 0.2);
-  assert.equal(mudflatRockTurnerStats(2).xpChance, 0.3);
+  assert.equal(mudflatRockTurnerStats(1).creatureChance, 0.2);
+  assert.equal(mudflatRockTurnerStats(2).creatureChance, 0.3);
   assert.equal(mudflatRockTurnerStats(2).activationsPerSecond, 1.3);
+  assert.equal(mudflatRockCreatureForRoll(0).type, "whelk");
+  assert.equal(mudflatRockCreatureForRoll(0.3999).type, "whelk");
+  assert.equal(mudflatRockCreatureForRoll(0.4).type, "clam");
+  assert.equal(mudflatRockCreatureForRoll(0.6999).type, "clam");
+  assert.equal(mudflatRockCreatureForRoll(0.7).type, "shrimp");
+  assert.equal(mudflatRockCreatureForRoll(0.8999).type, "shrimp");
+  assert.equal(mudflatRockCreatureForRoll(0.9).type, "octopus");
   assert.ok(mudflatFinalScore({ catchScore: 1000, caught: 50, elapsed: 240, bossCaught: true }) > 4000);
 
   const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
@@ -792,6 +800,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawCreatureSprite\(/);
   assert.match(source, /function drawGatherer\(/);
   assert.match(source, /function drawRotatingTongs\(/);
+  assert.match(source, /function drawRockSkewer\(/);
+  assert.match(source, /movement === "wander"/);
+  assert.match(source, /movement === "flee"/);
+  assert.doesNotMatch(source, /stats\.xpChance/);
   assert.match(source, /runtime\.rocks/);
   assert.match(source, /갯벌 초보/);
   assert.match(source, /어린이 모드/);

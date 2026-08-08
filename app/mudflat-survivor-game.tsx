@@ -7,6 +7,7 @@ import {
   mudflatCreatureForTime,
   mudflatFinalScore,
   mudflatJoystickVector,
+  mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
   mudflatSpawnInterval,
   mudflatTongStats,
@@ -17,13 +18,14 @@ type ExitProps = { onExit: () => void };
 type Screen = "setup" | "running" | "upgrade" | "paused" | "victory" | "defeat";
 type GameMode = "kids" | "normal";
 type Point = { x: number; y: number };
-type Creature = Point & { id: number; type: string; name: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number };
+type CreatureMovement = "chase" | "still" | "wander" | "flee";
+type Creature = Point & { id: number; type: string; name: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number; movement: CreatureMovement; movementAngle: number; movementClock: number };
 type Pickup = Point & { id: number; xp: number };
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number };
 type FloatText = Point & { id: number; life: number; text: string; color: string };
 type Rock = Point & { id: number; radius: number; tone: number };
-type RockFlipEffect = Point & { life: number; maxLife: number };
+type RockFlipEffect = Point & { originX: number; originY: number; life: number; maxLife: number };
 type Runtime = {
   mode: GameMode;
   elapsed: number; player: Point & { hp: number; maxHp: number; speed: number; damageCooldown: number; facing: number; stride: number };
@@ -240,6 +242,21 @@ function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creatur
       context.moveTo(-size * .48, -size * .76); context.lineTo(-size * .25, -size * 1.25); context.lineTo(0, -size * .88);
       context.lineTo(size * .27, -size * 1.28); context.lineTo(size * .5, -size * .75); context.closePath(); context.fill();
     }
+  } else if (creature.type === "shrimp") {
+    context.strokeStyle = creature.hitFlash > 0 ? "#fff8f1" : creature.color;
+    context.lineWidth = Math.max(2, size * .18);
+    context.lineCap = "round";
+    context.beginPath();
+    context.arc(-size * .08, 0, size * .83, -.9, Math.PI * .92);
+    context.stroke();
+    context.fillStyle = creature.hitFlash > 0 ? "#fff8f1" : creature.color;
+    context.beginPath(); context.ellipse(size * .55, -size * .17, size * .48, size * .34, -.2, 0, Math.PI * 2); context.fill();
+    context.beginPath(); context.moveTo(-size * .73, size * .4); context.lineTo(-size * 1.22, size * .08); context.lineTo(-size * 1.05, size * .7); context.closePath(); context.fill();
+    context.strokeStyle = "rgba(91,52,43,.68)"; context.lineWidth = 1.3;
+    for (let segment = -1; segment <= 2; segment += 1) { context.beginPath(); context.moveTo(segment * size * .28, -size * .45); context.lineTo(segment * size * .18, size * .5); context.stroke(); }
+    context.strokeStyle = creature.color; context.lineWidth = 1.2;
+    context.beginPath(); context.moveTo(size * .82, -size * .34); context.quadraticCurveTo(size * 1.42, -size * .78, size * 1.66, -size * .3); context.stroke();
+    context.fillStyle = "#2b2421"; context.beginPath(); context.arc(size * .75, -size * .31, size * .07, 0, Math.PI * 2); context.fill();
   } else if (creature.type === "mudfish") {
     context.fillStyle = creature.hitFlash > 0 ? "#effff7" : creature.color;
     context.beginPath(); context.ellipse(0, 0, size * 1.32, size * .58, 0, 0, Math.PI * 2); context.fill();
@@ -331,6 +348,56 @@ function drawRotatingTongs(context: CanvasRenderingContext2D, x: number, y: numb
   context.restore();
 }
 
+function drawRockSkewer(context: CanvasRenderingContext2D, origin: Point, target: Point, effect: RockFlipEffect) {
+  const progress = 1 - effect.life / effect.maxLife;
+  const dx = target.x - origin.x;
+  const dy = target.y - origin.y;
+  const distance = Math.max(1, Math.hypot(dx, dy));
+  const angle = Math.atan2(dy, dx);
+  const extension = progress < .42 ? progress / .42 : 1;
+  const pry = progress < .42 ? 0 : Math.sin(Math.min(1, (progress - .42) / .58) * Math.PI) * .16;
+  const visibleLength = Math.max(30, distance * (.48 + extension * .52));
+
+  context.save();
+  context.translate(origin.x, origin.y);
+  context.rotate(angle - pry);
+  context.lineCap = "round";
+  context.strokeStyle = "rgba(28,22,18,.38)";
+  context.lineWidth = 9;
+  context.beginPath(); context.moveTo(10, 6); context.lineTo(visibleLength - 7, 6); context.stroke();
+  context.strokeStyle = "#85552f";
+  context.lineWidth = 6;
+  context.beginPath(); context.moveTo(9, 0); context.lineTo(Math.max(18, visibleLength - 31), 0); context.stroke();
+  context.strokeStyle = "#d0a066";
+  context.lineWidth = 1.5;
+  context.beginPath(); context.moveTo(12, -1.8); context.lineTo(Math.max(18, visibleLength - 33), -1.8); context.stroke();
+  context.strokeStyle = "#aeb3ae";
+  context.lineWidth = 4;
+  context.beginPath(); context.moveTo(Math.max(18, visibleLength - 34), 0); context.lineTo(visibleLength + 4, 0); context.stroke();
+  context.fillStyle = "#dbe0d9";
+  context.beginPath(); context.moveTo(visibleLength + 10, 0); context.lineTo(visibleLength - 1, -4); context.lineTo(visibleLength - 1, 4); context.closePath(); context.fill();
+  context.fillStyle = "#5d3824";
+  roundedRect(context, 3, -7, 16, 14, 5); context.fill();
+  context.restore();
+
+  if (progress > .36) {
+    const mudProgress = Math.min(1, (progress - .36) / .64);
+    context.save();
+    context.globalAlpha = Math.max(0, 1 - mudProgress * .72);
+    context.strokeStyle = "#c7a06d";
+    context.lineWidth = 3;
+    for (let chip = 0; chip < 5; chip += 1) {
+      const chipAngle = -Math.PI * .92 + chip * .38;
+      const chipDistance = 9 + mudProgress * (12 + chip * 3);
+      context.beginPath();
+      context.moveTo(target.x + Math.cos(chipAngle) * 5, target.y + Math.sin(chipAngle) * 5);
+      context.quadraticCurveTo(target.x + Math.cos(chipAngle) * chipDistance, target.y - 8 - chip * 2, target.x + Math.cos(chipAngle) * (chipDistance + 7), target.y + Math.sin(chipAngle) * chipDistance);
+      context.stroke();
+    }
+    context.restore();
+  }
+}
+
 export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const runtimeRef = useRef<Runtime | null>(null);
@@ -403,7 +470,35 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         ...template, id: sequenceRef.current++, x: runtime.player.x + Math.cos(angle) * distance,
         y: runtime.player.y + Math.sin(angle) * distance, hp: template.hp * scale, maxHp: template.hp * scale,
         speed: template.speed * (1 + runtime.elapsed / 750) * (runtime.mode === "normal" ? 1.12 : 1), saltHit: 0, hitFlash: 0, phase: Math.random() * Math.PI * 2,
+        movement: "chase", movementAngle: angle + Math.PI, movementClock: 1,
       });
+    };
+
+    const revealRockCreature = (rock: Rock) => {
+      const finding = mudflatRockCreatureForRoll(Math.random());
+      const template = MUDFLAT_CREATURES.find((item) => item.id === finding.type);
+      if (!template) return;
+      const crabSpeed = MUDFLAT_CREATURES.find((item) => item.id === "crab")?.speed ?? 34;
+      const revealAngle = Math.random() * Math.PI * 2;
+      const offset = Math.max(8, rock.radius * .38);
+      runtime.creatures.push({
+        ...template,
+        id: sequenceRef.current++,
+        name: finding.name,
+        x: rock.x + Math.cos(revealAngle) * offset,
+        y: rock.y + Math.sin(revealAngle) * offset,
+        hp: template.hp,
+        maxHp: template.hp,
+        speed: finding.type === "shrimp" ? crabSpeed * (1 + runtime.elapsed / 750) * 1.12 : template.speed,
+        saltHit: 0,
+        hitFlash: .18,
+        phase: Math.random() * Math.PI * 2,
+        movement: finding.movement as CreatureMovement,
+        movementAngle: revealAngle,
+        movementClock: 1,
+      });
+      runtime.bursts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y, life: .62, maxLife: .62, color: template.color, size: rock.radius + 5 });
+      runtime.floatTexts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y - 20, life: 1.05, text: `${finding.name} 발견!`, color: "#fff0a8" });
     };
 
     const spawnRock = (width: number, height: number) => {
@@ -472,7 +567,16 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       let touching = false;
       for (const creature of runtime.creatures) {
         const dx = runtime.player.x - creature.x; const dy = runtime.player.y - creature.y; const distance = Math.hypot(dx, dy) || 1;
-        creature.x += dx / distance * creature.speed * dt; creature.y += dy / distance * creature.speed * dt;
+        if (creature.movement === "chase") {
+          creature.x += dx / distance * creature.speed * dt; creature.y += dy / distance * creature.speed * dt;
+        } else if (creature.movement === "wander") {
+          creature.movementClock -= dt;
+          if (creature.movementClock <= 0) { creature.movementAngle = Math.random() * Math.PI * 2; creature.movementClock += 1; }
+          creature.x += Math.cos(creature.movementAngle) * creature.speed * dt;
+          creature.y += Math.sin(creature.movementAngle) * creature.speed * dt;
+        } else if (creature.movement === "flee") {
+          creature.x -= dx / distance * creature.speed * dt; creature.y -= dy / distance * creature.speed * dt;
+        }
         creature.saltHit = Math.max(0, creature.saltHit - dt); creature.hitFlash = Math.max(0, creature.hitFlash - dt);
         if (distance < creature.size + 17) touching = true;
       }
@@ -543,14 +647,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           if (target) {
             const stats = mudflatRockTurnerStats(rockerLevel);
             runtime.rocks = runtime.rocks.filter((rock) => rock.id !== target.id);
-            runtime.rockFlipEffect = { x: target.x, y: target.y, life: .45, maxLife: .45 };
+            runtime.rockFlipEffect = { x: target.x, y: target.y, originX: runtime.player.x, originY: runtime.player.y, life: .58, maxLife: .58 };
             runtime.rockTurnClock = stats.interval;
-            runtime.bursts.push({ id: sequenceRef.current++, x: target.x, y: target.y, life: .45, maxLife: .45, color: "#d5c39f", size: target.radius });
-            if (Math.random() < stats.xpChance) {
-              const earnedXp = 3;
-              runtime.xp += earnedXp;
-              runtime.floatTexts.push({ id: sequenceRef.current++, x: target.x, y: target.y - 18, life: .9, text: `경험치 +${earnedXp}`, color: "#8ff2c9" });
-            }
+            runtime.bursts.push({ id: sequenceRef.current++, x: target.x, y: target.y, life: .5, maxLife: .5, color: "#b89569", size: target.radius });
+            if (Math.random() < stats.creatureChance) revealRockCreature(target);
+            else runtime.floatTexts.push({ id: sequenceRef.current++, x: target.x, y: target.y - 16, life: .75, text: "빈 돌", color: "#d8c6a8" });
           } else runtime.rockTurnClock = .12;
         }
       }
@@ -640,10 +741,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
       if (runtime.rockFlipEffect) {
         const point = screenPoint(runtime.rockFlipEffect);
-        const alpha = runtime.rockFlipEffect.life / runtime.rockFlipEffect.maxLife;
-        context.save(); context.globalAlpha = alpha; context.strokeStyle = "#f7d58c"; context.lineWidth = 7; context.lineCap = "round";
-        context.beginPath(); context.moveTo(width / 2 + 8, height / 2 - 4); context.lineTo(point.x, point.y); context.stroke();
-        context.fillStyle = "#dc7b4e"; context.beginPath(); context.arc(point.x, point.y, 9 + (1 - alpha) * 8, 0, Math.PI * 2); context.fill(); context.restore();
+        const origin = screenPoint({ x: runtime.rockFlipEffect.originX, y: runtime.rockFlipEffect.originY });
+        drawRockSkewer(context, origin, point, runtime.rockFlipEffect);
       }
       if (runtime.hoeEffect > 0) {
         const alpha = runtime.hoeEffect / .2;

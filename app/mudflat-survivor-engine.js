@@ -4,10 +4,18 @@ export const MUDFLAT_JOYSTICK_RADIUS = 72;
 export const MUDFLAT_CREATURES = [
   { id: "clam", name: "바지락", icon: "◒", color: "#eee0bd", hp: 2, speed: 24, size: 13, xp: 1, score: 8, unlock: 0 },
   { id: "crab", name: "칠게", icon: "♋", color: "#ef6d52", hp: 4, speed: 34, size: 15, xp: 2, score: 15, unlock: 18 },
+  { id: "shrimp", name: "새우", icon: "⌁", color: "#eda584", hp: 5, speed: 34, size: 14, xp: 3, score: 22, unlock: Infinity },
   { id: "mudfish", name: "망둥어", icon: "⌁", color: "#8fc7b1", hp: 7, speed: 47, size: 14, xp: 3, score: 24, unlock: 45 },
   { id: "whelk", name: "소라", icon: "@", color: "#c99a68", hp: 12, speed: 23, size: 18, xp: 4, score: 38, unlock: 78 },
   { id: "octopus", name: "낙지", icon: "✣", color: "#b878a8", hp: 18, speed: 38, size: 20, xp: 6, score: 60, unlock: 120 },
   { id: "king-crab", name: "대왕 꽃게", icon: "♛", color: "#f0a33b", hp: 420, speed: 28, size: 43, xp: 80, score: 1800, unlock: 200, boss: true },
+];
+
+export const MUDFLAT_ROCK_FINDINGS = [
+  { type: "whelk", name: "소라", movement: "still", chance: 0.4 },
+  { type: "clam", name: "조개", movement: "still", chance: 0.3 },
+  { type: "shrimp", name: "새우", movement: "wander", chance: 0.2 },
+  { type: "octopus", name: "낙지", movement: "flee", chance: 0.1 },
 ];
 
 export const MUDFLAT_UPGRADES = [
@@ -63,13 +71,23 @@ export function mudflatTongStats(level = 1) {
 
 export function mudflatRockTurnerStats(level = 0) {
   const safeLevel = Math.max(0, Math.floor(level));
-  if (safeLevel === 0) return { interval: Infinity, activationsPerSecond: 0, xpChance: 0 };
+  if (safeLevel === 0) return { interval: Infinity, activationsPerSecond: 0, creatureChance: 0 };
   const activationsPerSecond = 1.3 ** (safeLevel - 1);
   return {
     interval: 1 / activationsPerSecond,
     activationsPerSecond,
-    xpChance: Math.min(1, Math.round((0.2 + (safeLevel - 1) * 0.1) * 100) / 100),
+    creatureChance: Math.min(1, Math.round((0.2 + (safeLevel - 1) * 0.1) * 100) / 100),
   };
+}
+
+export function mudflatRockCreatureForRoll(roll = 0) {
+  const safeRoll = Math.max(0, Math.min(0.999999, Number.isFinite(roll) ? roll : 0));
+  let accumulated = 0;
+  for (const finding of MUDFLAT_ROCK_FINDINGS) {
+    accumulated += finding.chance;
+    if (safeRoll < accumulated) return finding;
+  }
+  return MUDFLAT_ROCK_FINDINGS.at(-1);
 }
 
 export function mudflatFinalScore({ catchScore = 0, caught = 0, elapsed = 0, bossCaught = false }) {
