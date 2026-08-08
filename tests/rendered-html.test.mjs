@@ -119,6 +119,7 @@ import {
   mudflatEquipmentPrice,
   mudflatCreatureForTime,
   mudflatFinalScore,
+  mudflatHarpoonStats,
   mudflatJoystickVector,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
@@ -776,14 +777,18 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(mudflatSpawnInterval(200) < mudflatSpawnInterval(0));
   assert.ok(mudflatSpawnInterval(0, "normal") < mudflatSpawnInterval(0, "kids"));
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
-  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["넓은 바구니", "집게 숙련도", "갯벌 장화", "든든한 간식", "돌뒤집게", "뜰채"]);
+  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["넓은 바구니", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집게", "뜰채"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "rocker").description, "돌 밑에 숨어있는 해산물을 찾아낼 수 있습니다.");
   const generalChoices = mudflatUpgradeChoices(2, {}, "normal");
   assert.equal(generalChoices.length, 3);
-  assert.ok(generalChoices.every((choice) => ["basket", "tongs", "boots", "snack", "rocker", "net"].includes(choice.id)));
+  assert.ok(generalChoices.every((choice) => ["basket", "tongs", "harpoon", "boots", "snack", "rocker", "net"].includes(choice.id)));
   assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
   assert.equal(mudflatTongStats(2).power, mudflatTongStats(1).power * 1.5);
+  assert.equal(mudflatHarpoonStats(1, 1000).range, 700);
+  assert.equal(mudflatHarpoonStats(1, 1000).damage, 30);
+  assert.equal(mudflatHarpoonStats(2, 1000).range, 840);
+  assert.equal(mudflatHarpoonStats(2, 1000).damage, 45);
   assert.equal(mudflatRockTurnerStats(1).creatureChance, 0.2);
   assert.equal(mudflatRockTurnerStats(2).creatureChance, 0.3);
   assert.equal(mudflatRockTurnerStats(2).activationsPerSecond, 1.3);
@@ -816,7 +821,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawCreatureSprite\(/);
   assert.match(source, /function drawGatherer\(/);
   assert.match(source, /function drawRotatingTongs\(/);
-  assert.match(source, /function drawRockSkewer\(/);
+  assert.match(source, /function drawHarpoonSprite\(/);
+  assert.match(source, /function drawRockHookBar\(/);
+  assert.match(source, /runtime\.harpoons/);
+  assert.match(source, /hitIds: new Set<number>\(\)/);
+  assert.doesNotMatch(source, /function drawRockSkewer\(/);
   assert.match(source, /movement === "wander"/);
   assert.match(source, /movement === "flee"/);
   assert.doesNotMatch(source, /stats\.xpChance/);

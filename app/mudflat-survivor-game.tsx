@@ -12,6 +12,7 @@ import {
   mudflatEquipmentPrice,
   mudflatCreatureForTime,
   mudflatFinalScore,
+  mudflatHarpoonStats,
   mudflatJoystickVector,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
@@ -32,6 +33,7 @@ type CreatureMovement = "chase" | "still" | "wander" | "flee";
 type Creature = Point & { id: number; type: string; name: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number; movement: CreatureMovement; movementAngle: number; movementClock: number };
 type Pickup = Point & { id: number; xp: number };
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
+type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
 type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number };
 type FloatText = Point & { id: number; life: number; text: string; color: string };
 type Rock = Point & { id: number; radius: number; tone: number };
@@ -40,10 +42,10 @@ type Runtime = {
   mode: GameMode;
   stage: number;
   elapsed: number; player: Point & { hp: number; maxHp: number; speed: number; damageCooldown: number; facing: number; stride: number };
-  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; rocks: Rock[]; levels: CountMap; equipment: CountMap; basket: CountMap;
+  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; rocks: Rock[]; levels: CountMap; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
-  bossSpawned: boolean; spawnClock: number; rockSpawnClock: number; rockTurnClock: number; hoeClock: number; netClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; paused: boolean; ended: boolean;
+  bossSpawned: boolean; spawnClock: number; rockSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
 type Campaign = {
@@ -59,7 +61,7 @@ const CHARACTERS = [
   { id: "salter", icon: "✦", name: "소금장인 소금", description: "주위를 도는 왕소금을 사용합니다.", levels: { hoe: 1, net: 0, salt: 2, boots: 0, basket: 0, stamina: 0 }, hp: 105 },
 ];
 
-const GENERAL_CHARACTER = { id: "beginner", name: "갯벌 초보", levels: { tongs: 1, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0 }, hp: 92 };
+const GENERAL_CHARACTER = { id: "beginner", name: "갯벌 초보", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0 }, hp: 92 };
 const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, score: 0, levels: {}, basket: {}, bossCaught: false };
 
 function MudflatBrand() {
@@ -97,8 +99,8 @@ function makeRuntime(campaign: Campaign): Runtime {
   return {
     mode: campaign.mode, stage: campaign.stage,
     elapsed: 0, player: { x: 0, y: 0, hp: campaign.hp, maxHp: campaign.maxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0 },
-    creatures: [], pickups: [], projectiles: [], rocks: [], bursts: [], floatTexts: [], levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
-    caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, rockSpawnClock: 0, rockTurnClock: 0, hoeClock: 0, netClock: 0,
+    creatures: [], pickups: [], projectiles: [], harpoons: [], rocks: [], bursts: [], floatTexts: [], levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
+    caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, rockSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0,
     hoeEffect: 0, rockFlipEffect: null, paused: false, ended: false,
   };
 }
@@ -385,45 +387,83 @@ function drawRotatingTongs(context: CanvasRenderingContext2D, x: number, y: numb
   context.restore();
 }
 
-function drawRockSkewer(context: CanvasRenderingContext2D, origin: Point, target: Point, effect: RockFlipEffect) {
+function distanceToSegment(point: Point, start: Point, end: Point) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const ratio = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+  return Math.hypot(point.x - (start.x + dx * ratio), point.y - (start.y + dy * ratio));
+}
+
+function drawHarpoonSprite(context: CanvasRenderingContext2D, x: number, y: number, angle: number) {
+  context.save();
+  context.translate(x, y);
+  context.rotate(angle);
+  context.lineCap = "round";
+  context.strokeStyle = "rgba(28,22,18,.4)";
+  context.lineWidth = 8;
+  context.beginPath(); context.moveTo(-30, 5); context.lineTo(13, 5); context.stroke();
+  context.strokeStyle = "#85552f";
+  context.lineWidth = 6;
+  context.beginPath(); context.moveTo(-31, 0); context.lineTo(12, 0); context.stroke();
+  context.strokeStyle = "#d0a066";
+  context.lineWidth = 1.5;
+  context.beginPath(); context.moveTo(-28, -1.8); context.lineTo(11, -1.8); context.stroke();
+  context.strokeStyle = "#aeb3ae";
+  context.lineWidth = 4;
+  context.beginPath(); context.moveTo(9, 0); context.lineTo(27, 0); context.stroke();
+  context.fillStyle = "#e5e8df";
+  context.beginPath(); context.moveTo(35, 0); context.lineTo(22, -6); context.lineTo(22, 6); context.closePath(); context.fill();
+  context.fillStyle = "#5d3824";
+  roundedRect(context, -35, -7, 12, 14, 4); context.fill();
+  context.restore();
+}
+
+function drawRockHookBar(context: CanvasRenderingContext2D, origin: Point, target: Point, effect: RockFlipEffect) {
   const progress = 1 - effect.life / effect.maxLife;
   const dx = target.x - origin.x;
   const dy = target.y - origin.y;
   const distance = Math.max(1, Math.hypot(dx, dy));
   const angle = Math.atan2(dy, dx);
-  const extension = progress < .42 ? progress / .42 : 1;
-  const pry = progress < .42 ? 0 : Math.sin(Math.min(1, (progress - .42) / .58) * Math.PI) * .16;
-  const visibleLength = Math.max(30, distance * (.48 + extension * .52));
+  const extend = progress < .48 ? Math.min(1, progress / .48) : progress < .7 ? 1 : Math.max(0, 1 - (progress - .7) / .3);
+  const eased = 1 - (1 - extend) ** 3;
+  const behind = -30;
+  const visibleLength = behind + (distance - behind) * eased;
+  const impact = progress >= .42 && progress <= .72 ? Math.sin((progress - .42) / .3 * Math.PI) : 0;
 
   context.save();
   context.translate(origin.x, origin.y);
-  context.rotate(angle - pry);
+  context.rotate(angle - impact * .18);
+  context.globalAlpha = Math.min(1, progress * 8, (1 - progress) * 7);
   context.lineCap = "round";
   context.strokeStyle = "rgba(28,22,18,.38)";
-  context.lineWidth = 9;
-  context.beginPath(); context.moveTo(10, 6); context.lineTo(visibleLength - 7, 6); context.stroke();
-  context.strokeStyle = "#85552f";
+  context.lineWidth = 8;
+  context.beginPath(); context.moveTo(-17, 5); context.lineTo(visibleLength, 5); context.stroke();
+  context.strokeStyle = "#666b67";
   context.lineWidth = 6;
-  context.beginPath(); context.moveTo(9, 0); context.lineTo(Math.max(18, visibleLength - 31), 0); context.stroke();
-  context.strokeStyle = "#d0a066";
-  context.lineWidth = 1.5;
-  context.beginPath(); context.moveTo(12, -1.8); context.lineTo(Math.max(18, visibleLength - 33), -1.8); context.stroke();
-  context.strokeStyle = "#aeb3ae";
-  context.lineWidth = 4;
-  context.beginPath(); context.moveTo(Math.max(18, visibleLength - 34), 0); context.lineTo(visibleLength + 4, 0); context.stroke();
-  context.fillStyle = "#dbe0d9";
-  context.beginPath(); context.moveTo(visibleLength + 10, 0); context.lineTo(visibleLength - 1, -4); context.lineTo(visibleLength - 1, 4); context.closePath(); context.fill();
-  context.fillStyle = "#5d3824";
-  roundedRect(context, 3, -7, 16, 14, 5); context.fill();
+  context.beginPath(); context.moveTo(-18, 0); context.lineTo(visibleLength, 0); context.stroke();
+  context.strokeStyle = "#c9d0c8";
+  context.lineWidth = 1.7;
+  context.beginPath(); context.moveTo(-15, -2); context.lineTo(visibleLength - 1, -2); context.stroke();
+  context.strokeStyle = "#454b48";
+  context.lineWidth = 5;
+  context.beginPath();
+  context.moveTo(visibleLength - 1, 0);
+  context.quadraticCurveTo(visibleLength + 13, 4, visibleLength + 8, 17);
+  context.quadraticCurveTo(visibleLength + 4, 25, visibleLength - 5, 18);
+  context.stroke();
+  context.fillStyle = "#7b4e31";
+  roundedRect(context, -24, -7, 18, 14, 5); context.fill();
   context.restore();
 
-  if (progress > .36) {
-    const mudProgress = Math.min(1, (progress - .36) / .64);
+  if (progress > .42 && progress < .86) {
+    const mudProgress = Math.min(1, (progress - .42) / .44);
     context.save();
-    context.globalAlpha = Math.max(0, 1 - mudProgress * .72);
+    context.globalAlpha = Math.max(0, 1 - mudProgress);
     context.strokeStyle = "#c7a06d";
     context.lineWidth = 3;
-    for (let chip = 0; chip < 5; chip += 1) {
+    for (let chip = 0; chip < 6; chip += 1) {
       const chipAngle = -Math.PI * .92 + chip * .38;
       const chipDistance = 9 + mudProgress * (12 + chip * 3);
       context.beginPath();
@@ -602,7 +642,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (runtime.paused || runtime.ended) return;
       runtime.elapsed += dt;
       runtime.player.damageCooldown = Math.max(0, runtime.player.damageCooldown - dt);
-      runtime.hoeClock -= dt; runtime.netClock -= dt; runtime.rockTurnClock -= dt; runtime.hoeEffect = Math.max(0, runtime.hoeEffect - dt);
+      runtime.hoeClock -= dt; runtime.netClock -= dt; runtime.rockTurnClock -= dt; runtime.harpoonClock -= dt; runtime.hoeEffect = Math.max(0, runtime.hoeEffect - dt);
       if (runtime.rockFlipEffect) {
         runtime.rockFlipEffect.life -= dt;
         if (runtime.rockFlipEffect.life <= 0) runtime.rockFlipEffect = null;
@@ -687,6 +727,41 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
       }
       runtime.projectiles = runtime.projectiles.filter((item) => item.life > 0);
+
+      const harpoonLevel = runtime.levels.harpoon ?? 0;
+      if (runtime.mode === "normal" && harpoonLevel > 0 && runtime.harpoonClock <= 0) {
+        const target = runtime.creatures.reduce<Creature | null>((nearest, item) => {
+          if (!nearest) return item;
+          return Math.hypot(item.x - runtime.player.x, item.y - runtime.player.y) < Math.hypot(nearest.x - runtime.player.x, nearest.y - runtime.player.y) ? item : nearest;
+        }, null);
+        if (target) {
+          const stats = mudflatHarpoonStats(harpoonLevel, width);
+          const dx = target.x - runtime.player.x; const dy = target.y - runtime.player.y; const distance = Math.hypot(dx, dy) || 1;
+          const angle = Math.atan2(dy, dx);
+          runtime.harpoons.push({
+            id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y,
+            vx: dx / distance * stats.speed, vy: dy / distance * stats.speed,
+            damage: stats.damage * toolPower, distance: 0, maxDistance: stats.range, angle, hitIds: new Set<number>(),
+          });
+          runtime.harpoonClock = stats.interval;
+        } else runtime.harpoonClock = .15;
+      }
+      for (const harpoon of runtime.harpoons) {
+        const previousPosition = { x: harpoon.x, y: harpoon.y };
+        const step = Math.min(Math.hypot(harpoon.vx, harpoon.vy) * dt, Math.max(0, harpoon.maxDistance - harpoon.distance));
+        harpoon.x += Math.cos(harpoon.angle) * step;
+        harpoon.y += Math.sin(harpoon.angle) * step;
+        harpoon.distance += step;
+        for (const creature of runtime.creatures) {
+          if (harpoon.hitIds.has(creature.id)) continue;
+          if (distanceToSegment(creature, previousPosition, harpoon) <= creature.size + 7) {
+            creature.hp -= harpoon.damage;
+            creature.hitFlash = .16;
+            harpoon.hitIds.add(creature.id);
+          }
+        }
+      }
+      runtime.harpoons = runtime.harpoons.filter((item) => item.distance < item.maxDistance);
 
       const saltLevel = runtime.levels.salt ?? 0;
       if (saltLevel > 0) {
@@ -777,6 +852,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         for (let line = -1; line <= 1; line += 1) { context.beginPath(); context.moveTo(-9, line * 5); context.lineTo(9, line * 5); context.moveTo(line * 5, -9); context.lineTo(line * 5, 9); context.stroke(); }
         context.restore();
       }
+      for (const harpoon of runtime.harpoons) {
+        const point = screenPoint(harpoon);
+        drawHarpoonSprite(context, point.x, point.y, harpoon.angle);
+      }
       for (const creature of runtime.creatures) {
         const point = screenPoint(creature); if (point.x < -70 || point.y < -70 || point.x > width + 70 || point.y > height + 70) continue;
         context.save(); context.translate(point.x, point.y); drawCreatureSprite(context, creature, runtime.elapsed); context.restore();
@@ -814,7 +893,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (runtime.rockFlipEffect) {
         const point = screenPoint(runtime.rockFlipEffect);
         const origin = screenPoint({ x: runtime.rockFlipEffect.originX, y: runtime.rockFlipEffect.originY });
-        drawRockSkewer(context, origin, point, runtime.rockFlipEffect);
+        drawRockHookBar(context, origin, point, runtime.rockFlipEffect);
       }
       if (runtime.hoeEffect > 0) {
         const alpha = runtime.hoeEffect / .2;
@@ -949,5 +1028,5 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
   const hpWidth = Math.max(0, hud.hp / hud.maxHp * 100);
   const xpWidth = Math.max(0, hud.xp / hud.nextXp * 100);
-  return <main className="ms-shell ms-game"><header className="ms-game-head"><button onClick={onExit} aria-label="게임 목록으로">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {hud.mode === "normal" ? "NORMAL" : "KIDS"}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label="해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다." /><div className="ms-hud-bars"><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.ceil(hud.hp)} / {hud.maxHp}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div></div><div className="ms-caught"><small>한 바구니</small><b>{hud.caught}</b><span>마리</span></div><div className="ms-touch-hint">아무 곳이나 누르고 드래그</div></section><section className="ms-tools">{hud.mode === "normal" ? <><span><i>⌁</i><b>집게</b><em>Lv.{hud.levels.tongs ?? 1}</em></span><span><i>◇</i><b>뜰채</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>◆</i><b>돌뒤집게</b><em>Lv.{hud.levels.rocker ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>바구니</b><em>Lv.{hud.levels.basket ?? 0}</em></span></> : <><span><i>⌁</i><b>호미</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>뜰채</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>왕소금</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>바구니</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{screen === "upgrade" && <div className="ms-layer"><section><small>LEVEL {hud.level}</small><h2>새 채집 기술을 고르세요</h2><p>선택하는 동안 갯벌의 시간은 멈춥니다.</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div></section></div>}{screen === "paused" && <div className="ms-layer pause"><section><small>PAUSED</small><h2>잠시 쉬어갈까요?</h2><p>게임 시간과 해산물 움직임이 모두 멈춰 있습니다.</p><button className="ms-primary" onClick={resume}>계속 채집하기</button><button className="ms-quit" onClick={reset}>이번 채집 끝내기</button></section></div>}</main>;
+  return <main className="ms-shell ms-game"><header className="ms-game-head"><button onClick={onExit} aria-label="게임 목록으로">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {hud.mode === "normal" ? "NORMAL" : "KIDS"}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label="해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다." /><div className="ms-hud-bars"><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.ceil(hud.hp)} / {hud.maxHp}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div></div><div className="ms-caught"><small>한 바구니</small><b>{hud.caught}</b><span>마리</span></div><div className="ms-touch-hint">아무 곳이나 누르고 드래그</div></section><section className="ms-tools">{hud.mode === "normal" ? <><span><i>⌁</i><b>집게</b><em>Lv.{hud.levels.tongs ?? 1}</em></span><span><i>➶</i><b>작살</b><em>Lv.{hud.levels.harpoon ?? 0}</em></span><span><i>◇</i><b>뜰채</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>◆</i><b>돌뒤집게</b><em>Lv.{hud.levels.rocker ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>바구니</b><em>Lv.{hud.levels.basket ?? 0}</em></span></> : <><span><i>⌁</i><b>호미</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>뜰채</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>왕소금</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>바구니</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{screen === "upgrade" && <div className="ms-layer"><section><small>LEVEL {hud.level}</small><h2>새 채집 기술을 고르세요</h2><p>선택하는 동안 갯벌의 시간은 멈춥니다.</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div></section></div>}{screen === "paused" && <div className="ms-layer pause"><section><small>PAUSED</small><h2>잠시 쉬어갈까요?</h2><p>게임 시간과 해산물 움직임이 모두 멈춰 있습니다.</p><button className="ms-primary" onClick={resume}>계속 채집하기</button><button className="ms-quit" onClick={reset}>이번 채집 끝내기</button></section></div>}</main>;
 }

@@ -53,6 +53,7 @@ export const MUDFLAT_UPGRADES = [
 export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "basket", icon: "◉", name: "넓은 바구니", description: "경험치와 보상을 끌어당기는 범위가 넓어집니다.", max: 6 },
   { id: "tongs", icon: "⌁", name: "집게 숙련도", description: "집게를 쓰는 방식과 파워가 상승합니다.", max: 6 },
+  { id: "harpoon", icon: "➶", name: "작살던지기", description: "가장 가까운 해산물을 향해 여러 대상을 관통하는 작살을 던집니다.", max: 6 },
   { id: "boots", icon: "≫", name: "갯벌 장화", description: "내구도가 강하고 더 빠르게 이동합니다.", max: 6 },
   { id: "snack", icon: "♥", name: "든든한 간식", description: "최대 체력 상승 및 현재 체력을 회복합니다.", max: 6 },
   { id: "rocker", icon: "◆", name: "돌뒤집게", description: "돌 밑에 숨어있는 해산물을 찾아낼 수 있습니다.", max: 6 },
@@ -90,6 +91,17 @@ export function mudflatTongStats(level = 1) {
   const safeLevel = Math.max(1, Math.floor(level));
   const multiplier = 1.5 ** (safeLevel - 1);
   return { rotationSpeed: 1.55 * multiplier, power: 5.5 * multiplier, reach: 84 };
+}
+
+export function mudflatHarpoonStats(level = 0, viewportWidth = 0) {
+  const safeLevel = Math.max(0, Math.floor(level));
+  if (safeLevel === 0) return { range: 0, damage: 0, speed: 760, interval: Infinity };
+  return {
+    range: Math.max(0, viewportWidth) * 0.7 * 1.2 ** (safeLevel - 1),
+    damage: 30 * 1.5 ** (safeLevel - 1),
+    speed: 760,
+    interval: 2.2,
+  };
 }
 
 export function mudflatRockTurnerStats(level = 0) {
