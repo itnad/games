@@ -19,17 +19,18 @@
   display: grid;
   grid-template-columns: minmax(80px, 1fr) auto minmax(80px, 1fr);
   align-items: center;
+  color: #17202b;
   border-bottom: 1px solid #1c27321a;
   background: #fffdf9e8;
   backdrop-filter: blur(12px);
 }
 
 .cg-topbar > button { border: 0; background: transparent; color: inherit; font: inherit; font-weight: 800; cursor: pointer; }
-.cg-topbar > button:first-child { justify-self: start; width: 46px; height: 46px; border: 1px solid #23303d29; border-radius: 50%; font-size: 24px; }
+.cg-topbar > button:first-child { justify-self: start; width: 46px; height: 46px; border: 1px solid #23303d35; border-radius: 50%; color: #17202b; background: #fff; box-shadow: 0 5px 14px #16202b12; font-size: 24px; }
 .cg-topbar > button:last-child { justify-self: end; }
 .cg-topbar > div { display: grid; justify-items: center; gap: 2px; }
 .cg-brand { color: #767684; font-size: 12px; font-weight: 800; letter-spacing: .19em; }
-.cg-topbar strong { display: flex; align-items: center; gap: 8px; font-size: 21px; }
+.cg-topbar strong { display: flex; align-items: center; gap: 8px; color: #17202b; font-size: 21px; }
 .cg-topbar strong i { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 9px; color: white; background: var(--cg-accent); font-style: normal; font-size: 15px; }
 
 .cg-head {

@@ -513,6 +513,10 @@ test("registers six responsive casual games with touch, keyboard, and saved reco
   assert.match(styles, /touch-action: none/);
   assert.match(styles, /\.parking-board\s*\{[\s\S]*?width:\s*calc\(100% - 48px\)/);
   assert.match(styles, /\.parking-exit\s*\{[\s\S]*?width:\s*48px/);
+  assert.match(source, /className="cg-brand">paperoid<\/span>/);
+  assert.doesNotMatch(source, /paperoid · CASUAL/);
+  assert.match(styles, /\.cg-topbar\s*\{[\s\S]*?color:\s*#17202b/);
+  assert.match(styles, /\.cg-topbar > button:first-child\s*\{[\s\S]*?background:\s*#fff/);
 });
 
 test("provides 50 ordered and valid Parking Escape levels", () => {
