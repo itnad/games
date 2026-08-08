@@ -437,6 +437,7 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "camel-up",
   "winners-circle",
   "mudflat-survivor",
+  "paper-dungeon",
 ]);
 
 const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
@@ -459,7 +460,7 @@ function BrandMark() {
 function GuidedGame({ gameId, children }: { gameId: GameId; children: ReactNode }) {
   return (
     <div className="game-readability-scope" data-game-id={gameId}>
-      {gameId !== "janggi" && <GameObjectiveGuide gameId={gameId} />}
+      <GameObjectiveGuide gameId={gameId} />
       {children}
     </div>
   );

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GameObjectiveGuide } from "./game-objective-guide";
 import { withKoreanDirection } from "./korean-particles.js";
 
 type Side = "cho" | "han";
@@ -599,9 +598,6 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
             <span className="eyebrow">KOREAN CHESS</span>
             <h1>궁을 지키고<br />외통을 만드세요</h1>
             <p>초 진영으로 먼저 시작합니다. 친선 승부제를 적용해 외통은 승리, 빅장 청구·동일 국면 3회·연속 한 수 쉼은 무승부로 처리합니다.</p>
-          </div>
-          <div className="janggi-guide-row">
-            <GameObjectiveGuide gameId="janggi" inline />
           </div>
           {!started && (
             <fieldset className="janggi-setup-picker">

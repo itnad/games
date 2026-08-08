@@ -235,6 +235,7 @@ test("hides unverified games by default and reveals them from the footer phrase"
     "camel-up",
     "winners-circle",
     "mudflat-survivor",
+    "paper-dungeon",
   ];
 
   for (const id of hiddenIds) {
@@ -243,6 +244,17 @@ test("hides unverified games by default and reveals them from the footer phrase"
   assert.match(pageSource, /className="footer-game-visibility-toggle"[\s\S]*?>\s*즐거운\s*<\/button>/);
   assert.match(pageSource, /showAllGames \? GAMES : GAMES\.filter/);
   assert.match(pageSource, /paperoid-show-all-games/);
+});
+
+test("uses the game guide as a normal topbar action instead of a duplicate exit action", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const janggiSource = await readFile(new URL("../app/janggi-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(pageSource, /<GameObjectiveGuide gameId=\{gameId\} \/>/);
+  assert.doesNotMatch(janggiSource, /GameObjectiveGuide/);
+  assert.match(styles, /\.game-objective-trigger\s*\{[\s\S]*?position:\s*absolute;/);
+  assert.match(styles, /\.game-readability-scope \.exit-button\s*\{\s*display:\s*none;/);
 });
 
 test("provides a complete objective and victory guide for every game", async () => {

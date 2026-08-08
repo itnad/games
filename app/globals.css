@@ -975,24 +975,28 @@ footer > span {
   background: #f3f1ed;
 }
 
+.game-readability-scope {
+  min-height: 100vh;
+  position: relative;
+}
+
 .game-objective-trigger {
-  min-width: 132px;
-  min-height: 45px;
-  padding: 7px 13px;
+  min-width: auto;
+  min-height: 40px;
+  padding: 5px 12px 5px 7px;
   display: flex;
   align-items: center;
-  gap: 9px;
-  position: fixed;
-  top: 84px;
-  right: 18px;
-  z-index: 78;
+  gap: 8px;
+  position: absolute;
+  top: 16px;
+  right: 32px;
+  z-index: 90;
   border: 1px solid color-mix(in srgb, var(--objective-accent) 34%, #d9d5d1);
-  border-radius: 999px;
+  border-radius: 10px;
   color: #332e34;
-  background: rgba(255, 253, 249, .94);
+  background: #fffdf9;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(34, 27, 31, .13);
-  backdrop-filter: blur(12px);
+  box-shadow: none;
 }
 
 .game-objective-trigger > span:first-child {
@@ -1015,24 +1019,18 @@ footer > span {
 }
 
 .game-objective-trigger small {
-  color: var(--objective-accent);
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 7px;
-  font-weight: 900;
-  letter-spacing: .11em;
+  display: none;
 }
 
 .game-objective-trigger strong {
-  margin-top: 1px;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .game-objective-trigger:hover,
 .game-objective-trigger:focus-visible {
   outline: none;
   border-color: var(--objective-accent);
-  box-shadow: 0 10px 27px color-mix(in srgb, var(--objective-accent) 22%, transparent);
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--objective-accent) 7%, #fffdf9);
 }
 
 .game-objective-trigger.inline {
@@ -1235,12 +1233,11 @@ footer > span {
     min-width: auto;
     min-height: 40px;
     padding: 5px 10px 5px 6px;
-    top: 81px;
-    right: 9px;
+    top: 16px;
+    right: 20px;
   }
   .game-objective-trigger > span:first-child { width: 28px; height: 28px; }
-  .game-objective-trigger small { display: none; }
-  .game-objective-trigger strong { font-size: 11px; }
+  .game-objective-trigger strong { font-size: 13px; }
   .game-objective-backdrop { padding: 10px; }
   .game-objective-modal {
     max-height: calc(100dvh - 20px);
@@ -1323,6 +1320,43 @@ footer > span {
   color: #6e6874;
   font-size: 12px;
   font-weight: 650;
+}
+
+.game-readability-scope .exit-button {
+  display: none;
+}
+
+.game-readability-scope :is(.bc-topbar, .cu-topbar, .cg-topbar, .ti-topbar) > button:last-child,
+.game-readability-scope .cfe-topbar > div:last-child > button:last-child,
+.game-readability-scope .sw-topbar > button:last-child,
+.game-readability-scope .sw-header-actions,
+.game-readability-scope .ct-topbar > button:last-child,
+.game-readability-scope .sy-rules-button {
+  display: none;
+}
+
+.game-readability-scope .cfe-topbar > div:last-child,
+.game-readability-scope .pd-topbar > span,
+.game-readability-scope .ts-topbar > button:last-child,
+.game-readability-scope .ms-topbar > span {
+  margin-right: 116px;
+}
+
+.game-readability-scope[data-game-id="ten-seconds"] .game-objective-trigger {
+  right: 88px;
+}
+
+@media (max-width: 640px) {
+  .game-readability-scope .cfe-topbar > div:last-child,
+  .game-readability-scope .pd-topbar > span,
+  .game-readability-scope .ts-topbar > button:last-child,
+  .game-readability-scope .ms-topbar > span {
+    margin-right: 102px;
+  }
+
+  .game-readability-scope[data-game-id="ten-seconds"] .game-objective-trigger {
+    right: 72px;
+  }
 }
 
 .game-content {
