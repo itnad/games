@@ -255,6 +255,9 @@ test("uses the game guide as a normal topbar action instead of a duplicate exit 
   assert.doesNotMatch(janggiSource, /GameObjectiveGuide/);
   assert.match(styles, /\.game-objective-trigger\s*\{[\s\S]*?position:\s*absolute;/);
   assert.match(styles, /\.game-readability-scope \.exit-button\s*\{\s*display:\s*none;/);
+  assert.match(styles, /\.game-readability-scope \.game-topbar\s*\{[\s\S]*?grid-template-columns:\s*48px minmax\(0, 1fr\) 128px;/);
+  assert.match(styles, /\.game-title-lockup strong\s*\{[\s\S]*?text-overflow:\s*ellipsis;[\s\S]*?white-space:\s*nowrap;/);
+  assert.match(pageSource, /<strong title=\{title\}>\{title\}<\/strong>/);
 });
 
 test("provides a complete objective and victory guide for every game", async () => {

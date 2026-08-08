@@ -31,7 +31,7 @@ function ExtraTopbar({ title, onExit }: { title: string; onExit: () => void }) {
       <button className="back-button" onClick={onExit} aria-label="게임 목록으로">←</button>
       <div className="game-title-lockup">
         <MiniBrand />
-        <div><span>paperoid</span><strong>{title}</strong></div>
+        <div><span>paperoid</span><strong title={title}>{title}</strong></div>
       </div>
       <button className="exit-button" onClick={onExit}>나가기</button>
     </header>

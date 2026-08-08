@@ -1343,7 +1343,7 @@ function GameTopbar({
         <BrandMark />
         <div>
           <span>paperoid</span>
-          <strong>{title}</strong>
+          <strong title={title}>{title}</strong>
         </div>
       </div>
       <button className="exit-button" onClick={onExit}>
