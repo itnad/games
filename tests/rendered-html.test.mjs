@@ -429,10 +429,12 @@ test("server-renders the paperoid game library", async () => {
   }
   assert.match(html, /모든 게임 표시/);
   assert.match(html, /이름·장르로 게임 찾기/);
-  assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
+  assert.match(html, /사용자 의견 :/);
+  assert.match(html, /개선안 또는 추가 되면 좋을 게임을 의견 남겨주세요/);
   assert.match(html, /게임 추천 게시판/);
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
+  assert.doesNotMatch(html, /예: 카탄, 루미큐브, 스플렌더/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
 });
 

@@ -1108,8 +1108,8 @@ function SuggestionBoard() {
       <div className="suggestion-heading">
         <span className="section-number">02</span>
         <div>
-          <h2>다음 게임은?</h2>
-          <p>추가 되면 좋을 게임을 추천해주세요.</p>
+          <h2>사용자 의견 :</h2>
+          <p>개선안 또는 추가 되면 좋을 게임을 의견 남겨주세요</p>
         </div>
       </div>
 
@@ -1121,7 +1121,7 @@ function SuggestionBoard() {
               id="game-suggestion"
               value={draft}
               onChange={(event) => setDraft(Array.from(event.target.value).slice(0, 50).join(""))}
-              placeholder="예: 카탄, 루미큐브, 스플렌더"
+              placeholder=""
               maxLength={50}
               disabled={submitting}
             />
