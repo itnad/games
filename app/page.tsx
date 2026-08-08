@@ -1805,6 +1805,18 @@ export default function Home() {
     };
   }, [finderOpen]);
 
+  useEffect(() => {
+    if (!activeGame) return;
+    const scrollGameToTop = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    scrollGameToTop();
+    const frame = window.requestAnimationFrame(scrollGameToTop);
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeGame]);
+
   const launchGame = (id: GameId) => {
     setRecentIds((current) => {
       const next = [id, ...current.filter((item) => item !== id)].slice(0, 8);

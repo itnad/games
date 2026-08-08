@@ -5859,7 +5859,11 @@ footer { font-size: 15px; }
 }
 
 .janggi-board button.opponent-to .janggi-piece {
-  background: #bd9565;
+  background: #d9ba85;
+  box-shadow:
+    inset 0 0 0 2px rgba(125, 70, 42, .28),
+    0 0 0 3px rgba(255, 246, 215, .3),
+    0 5px 9px rgba(60, 36, 18, .22);
 }
 
 .janggi-piece.type-k {

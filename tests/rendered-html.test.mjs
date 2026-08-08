@@ -603,6 +603,15 @@ test("makes Janggi start action prominent and varies the AI setup", async () => 
   assert.match(styles, /\.janggi-setup-picker \.janggi-start-button[\s\S]*?animation: janggi-start-glow/);
 });
 
+test("starts every game at the top and keeps the latest Janggi AI piece distinct", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(pageSource, /if \(!activeGame\) return;[\s\S]*?window\.scrollTo\(\{ top: 0, left: 0, behavior: "auto" \}\)/);
+  assert.match(pageSource, /window\.requestAnimationFrame\(scrollGameToTop\)/);
+  assert.match(styles, /\.janggi-board button\.opponent-to \.janggi-piece \{[\s\S]*?background: #d9ba85/);
+});
+
 test("runs a complete 3-to-7 player Seven Wonders draft", () => {
   for (const playerCount of [3, 4, 5, 6, 7]) {
     for (const age of [1, 2, 3]) {
