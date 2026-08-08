@@ -21,6 +21,7 @@ import "./paper-dungeon.css";
 import "./ten-seconds.css";
 import "./mudflat-survivor.css";
 import "./tetris.css";
+import "./chess.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

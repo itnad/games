@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
+import {
+  applyChessMove,
+  chessGameStatus,
+  chessLegalMoves,
+  chooseChessAiMove,
+  createChessState,
+} from "../app/chess-engine.js";
 import { chooseAiHeld, describeAiHeld, shouldAiStop } from "../app/dice-ai.js";
 import { scoreDice } from "../app/dice-scoring.js";
 import { PARKING_LEVELS } from "../app/parking-levels.js";
@@ -232,6 +239,63 @@ async function render() {
   );
 }
 
+test("implements legal chess movement, special moves, and game-ending checks", () => {
+  const coordinates = (square) => ({ x: square.charCodeAt(0) - 97, y: 8 - Number(square[1]) });
+  const play = (state, from, to, promotion = "q") => {
+    const start = coordinates(from);
+    const end = coordinates(to);
+    const move = chessLegalMoves(state).find((candidate) =>
+      candidate.from.x === start.x && candidate.from.y === start.y
+      && candidate.to.x === end.x && candidate.to.y === end.y,
+    );
+    assert.ok(move, `${from}→${to}는 합법적인 수여야 합니다.`);
+    return applyChessMove(state, move, promotion);
+  };
+
+  const initial = createChessState();
+  assert.equal(initial.board.flat().filter(Boolean).length, 32);
+  assert.equal(chessLegalMoves(initial).length, 20);
+
+  let mate = play(initial, "f2", "f3");
+  mate = play(mate, "e7", "e5");
+  mate = play(mate, "g2", "g4");
+  mate = play(mate, "d8", "h4");
+  assert.deepEqual(chessGameStatus(mate), { phase: "checkmate", check: true, winner: "b" });
+
+  let enPassant = play(createChessState(), "e2", "e4");
+  enPassant = play(enPassant, "a7", "a6");
+  enPassant = play(enPassant, "e4", "e5");
+  enPassant = play(enPassant, "d7", "d5");
+  const epMove = chessLegalMoves(enPassant).find((move) => move.enPassant);
+  assert.ok(epMove, "앙파상 수가 생성되어야 합니다.");
+  enPassant = applyChessMove(enPassant, epMove);
+  assert.equal(enPassant.board[3][3], null);
+  assert.equal(enPassant.board[2][3]?.type, "p");
+
+  const castling = createChessState();
+  castling.board = Array.from({ length: 8 }, () => Array(8).fill(null));
+  castling.board[7][4] = { color: "w", type: "k", moved: false };
+  castling.board[7][7] = { color: "w", type: "r", moved: false };
+  castling.board[0][4] = { color: "b", type: "k", moved: false };
+  assert.ok(chessLegalMoves(castling).some((move) => move.castle === "king"));
+
+  const promotion = createChessState();
+  promotion.board = Array.from({ length: 8 }, () => Array(8).fill(null));
+  promotion.board[7][4] = { color: "w", type: "k", moved: false };
+  promotion.board[0][4] = { color: "b", type: "k", moved: false };
+  promotion.board[1][0] = { color: "w", type: "p", moved: true };
+  const promoted = play(promotion, "a7", "a8", "n");
+  assert.equal(promoted.board[0][0]?.type, "n");
+
+  const afterE4 = play(createChessState(), "e2", "e4");
+  const aiMove = chooseChessAiMove(afterE4, () => 0);
+  assert.ok(aiMove);
+  assert.ok(chessLegalMoves(afterE4).some((move) =>
+    move.from.x === aiMove.from.x && move.from.y === aiMove.from.y
+    && move.to.x === aiMove.to.x && move.to.y === aiMove.to.y,
+  ));
+});
+
 test("hides unverified games by default and reveals them from the footer phrase", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const hiddenIds = [
@@ -288,6 +352,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "battleship",
     "dice",
     "checkers",
+    "chess",
     "janggi",
     "winners-circle",
     "nine-mens-morris",
@@ -414,6 +479,7 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /해전/);
   assert.match(html, /주사위 대결 Yahtzee/);
   assert.match(html, /체커/);
+  assert.match(html, /체스/);
   assert.match(html, /장기/);
   assert.match(html, /도미노/);
   assert.match(html, /백개먼/);
@@ -472,6 +538,7 @@ test("separates traditional classics from the strategy category", async () => {
     "reversi",
     "mancala",
     "checkers",
+    "chess",
     "janggi",
     "nine-mens-morris",
     "gonu",

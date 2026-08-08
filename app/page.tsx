@@ -38,6 +38,7 @@ import { PaperDungeonGame } from "./paper-dungeon-game";
 import { TenSecondsGame } from "./ten-seconds-game";
 import { MudflatSurvivorGame } from "./mudflat-survivor-game";
 import { TetrisGame } from "./tetris-game";
+import { ChessGame } from "./chess-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -56,6 +57,7 @@ type GameId =
   | "battleship"
   | "dice"
   | "checkers"
+  | "chess"
   | "janggi"
   | "winners-circle"
   | "nine-mens-morris"
@@ -184,6 +186,14 @@ const GAMES: GameDefinition[] = [
     category: "고전게임",
     players: "AI 1:1",
     tone: "green",
+  },
+  {
+    id: "chess",
+    title: "체스",
+    subtitle: "기물의 역할을 살려 상대 킹을 체크메이트하세요",
+    category: "고전게임",
+    players: "AI 1:1",
+    tone: "navy",
   },
   {
     id: "janggi",
@@ -615,6 +625,20 @@ function GameArtwork({ game }: { game: GameDefinition }) {
           <span className="preview-piece small cho">包</span>
         </div>
         <span className="float-chip">9 × 10</span>
+      </div>
+    );
+  }
+
+  if (game.id === "chess") {
+    return (
+      <div className="card-art chess-card-art" aria-hidden="true">
+        <div className="chess-card-preview">
+          <span className="black-king">♚</span>
+          <span className="white-queen">♕</span>
+          <span className="white-knight">♘</span>
+          <i /><i /><i /><i />
+        </div>
+        <span className="float-chip">8 × 8</span>
       </div>
     );
   }
@@ -1948,6 +1972,9 @@ export default function Home() {
   }
   if (activeGame === "checkers") {
     return <GuidedGame gameId={activeGame}><CheckersGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "chess") {
+    return <GuidedGame gameId={activeGame}><ChessGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
   if (activeGame === "janggi") {
     return <GuidedGame gameId={activeGame}><JanggiGame onExit={() => setActiveGame(null)} /></GuidedGame>;
