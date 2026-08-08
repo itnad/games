@@ -19,6 +19,15 @@ export const MUDFLAT_UPGRADES = [
   { id: "stamina", icon: "♥", name: "든든한 간식", description: "최대 체력과 현재 체력을 회복합니다.", max: 5 },
 ];
 
+export const MUDFLAT_GENERAL_UPGRADES = [
+  { id: "basket", icon: "◉", name: "넓은 바구니", description: "경험치와 보상을 끌어당기는 범위가 넓어집니다.", max: 6 },
+  { id: "tongs", icon: "⌁", name: "집게 숙련도", description: "집게를 쓰는 방식과 파워가 상승합니다.", max: 6 },
+  { id: "boots", icon: "≫", name: "갯벌 장화", description: "내구도가 강하고 더 빠르게 이동합니다.", max: 6 },
+  { id: "snack", icon: "♥", name: "든든한 간식", description: "최대 체력 상승 및 현재 체력을 회복합니다.", max: 6 },
+  { id: "rocker", icon: "◆", name: "돌뒤집게", description: "돌 밑에 숨어있는 해산물을 찾아낼 수 있습니다.", max: 6 },
+  { id: "net", icon: "◇", name: "뜰채", description: "넓은 범위의 채집이 가능합니다.", max: 6 },
+];
+
 export function mudflatJoystickVector(deltaX, deltaY, radius = MUDFLAT_JOYSTICK_RADIUS, deadzone = 5) {
   const length = Math.hypot(deltaX, deltaY);
   if (!Number.isFinite(length) || length <= deadzone) return { x: 0, y: 0, strength: 0 };
@@ -27,8 +36,9 @@ export function mudflatJoystickVector(deltaX, deltaY, radius = MUDFLAT_JOYSTICK_
   return { x: deltaX / length * strength, y: deltaY / length * strength, strength };
 }
 
-export function mudflatSpawnInterval(elapsedSeconds) {
-  return Math.max(0.14, 0.62 - Math.max(0, elapsedSeconds) * 0.002);
+export function mudflatSpawnInterval(elapsedSeconds, mode = "kids") {
+  const base = Math.max(0.14, 0.62 - Math.max(0, elapsedSeconds) * 0.002);
+  return mode === "normal" ? Math.max(0.11, base * 0.82) : base;
 }
 
 export function mudflatCreatureForTime(elapsedSeconds, roll = 0) {
@@ -37,11 +47,29 @@ export function mudflatCreatureForTime(elapsedSeconds, roll = 0) {
   return available[Math.max(0, index)];
 }
 
-export function mudflatUpgradeChoices(level, levels = {}) {
-  const available = MUDFLAT_UPGRADES.filter((item) => (levels[item.id] ?? 0) < item.max);
+export function mudflatUpgradeChoices(level, levels = {}, mode = "kids") {
+  const upgrades = mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
+  const available = upgrades.filter((item) => (levels[item.id] ?? 0) < item.max);
   if (available.length <= 3) return available;
   const start = (Math.max(1, level) * 2 + Math.floor(level / 3)) % available.length;
   return Array.from({ length: 3 }, (_, index) => available[(start + index * 2) % available.length]);
+}
+
+export function mudflatTongStats(level = 1) {
+  const safeLevel = Math.max(1, Math.floor(level));
+  const multiplier = 1.5 ** (safeLevel - 1);
+  return { rotationSpeed: 1.55 * multiplier, power: 5.5 * multiplier, reach: 84 };
+}
+
+export function mudflatRockTurnerStats(level = 0) {
+  const safeLevel = Math.max(0, Math.floor(level));
+  if (safeLevel === 0) return { interval: Infinity, activationsPerSecond: 0, xpChance: 0 };
+  const activationsPerSecond = 1.3 ** (safeLevel - 1);
+  return {
+    interval: 1 / activationsPerSecond,
+    activationsPerSecond,
+    xpChance: Math.min(1, Math.round((0.2 + (safeLevel - 1) * 0.1) * 100) / 100),
+  };
 }
 
 export function mudflatFinalScore({ catchScore = 0, caught = 0, elapsed = 0, bossCaught = false }) {

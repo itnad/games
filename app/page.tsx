@@ -429,8 +429,8 @@ const GAMES: GameDefinition[] = [
   },
   {
     id: "mudflat-survivor",
-    title: "갯벌 한탕",
-    subtitle: "밀물이 오기 전 자동 도구로 해산물을 채집하세요",
+    title: "해루질럿",
+    subtitle: "어린이·일반 모드에서 밀물 전 해산물을 채집하세요",
     category: "터치류",
     players: "1인 생존 채집",
     tone: "teal",
@@ -854,7 +854,7 @@ function GameArtwork({ game }: { game: GameDefinition }) {
   }
 
   if (game.id === "mudflat-survivor") {
-    return <div className="card-art casual-card-art mudflat" aria-hidden="true"><span>갯벌 한탕</span><i /><span className="float-chip">4 MIN TIDE</span></div>;
+    return <div className="card-art casual-card-art mudflat" aria-hidden="true"><span>해루질럿</span><i /><span className="float-chip">2 MODES</span></div>;
   }
 
   if (game.id === "tetris") {

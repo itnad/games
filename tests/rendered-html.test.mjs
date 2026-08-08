@@ -110,12 +110,15 @@ import {
 } from "../app/ten-seconds-engine.js";
 import {
   MUDFLAT_CREATURES,
+  MUDFLAT_GENERAL_UPGRADES,
   MUDFLAT_JOYSTICK_RADIUS,
   MUDFLAT_RUN_SECONDS,
   mudflatCreatureForTime,
   mudflatFinalScore,
   mudflatJoystickVector,
+  mudflatRockTurnerStats,
   mudflatSpawnInterval,
+  mudflatTongStats,
   mudflatUpgradeChoices,
 } from "../app/mudflat-survivor-engine.js";
 import {
@@ -516,7 +519,7 @@ test("server-renders the paperoid game library", async () => {
     "카멜 업",
     "티츄",
     "현금흐름 탈출",
-    "갯벌 한탕",
+    "해루질럿",
     "테트리스",
   ]) {
     assert.doesNotMatch(html, new RegExp(hiddenTitle));
@@ -763,7 +766,19 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatCreatureForTime(0, 0.99).id, "clam");
   assert.notEqual(mudflatCreatureForTime(130, 0.99).id, "clam");
   assert.ok(mudflatSpawnInterval(200) < mudflatSpawnInterval(0));
+  assert.ok(mudflatSpawnInterval(0, "normal") < mudflatSpawnInterval(0, "kids"));
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
+  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["넓은 바구니", "집게 숙련도", "갯벌 장화", "든든한 간식", "돌뒤집게", "뜰채"]);
+  assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
+  assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "rocker").description, "돌 밑에 숨어있는 해산물을 찾아낼 수 있습니다.");
+  const generalChoices = mudflatUpgradeChoices(2, {}, "normal");
+  assert.equal(generalChoices.length, 3);
+  assert.ok(generalChoices.every((choice) => ["basket", "tongs", "boots", "snack", "rocker", "net"].includes(choice.id)));
+  assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
+  assert.equal(mudflatTongStats(2).power, mudflatTongStats(1).power * 1.5);
+  assert.equal(mudflatRockTurnerStats(1).xpChance, 0.2);
+  assert.equal(mudflatRockTurnerStats(2).xpChance, 0.3);
+  assert.equal(mudflatRockTurnerStats(2).activationsPerSecond, 1.3);
   assert.ok(mudflatFinalScore({ catchScore: 1000, caught: 50, elapsed: 240, bossCaught: true }) > 4000);
 
   const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
@@ -776,6 +791,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawMudflat\(/);
   assert.match(source, /function drawCreatureSprite\(/);
   assert.match(source, /function drawGatherer\(/);
+  assert.match(source, /function drawRotatingTongs\(/);
+  assert.match(source, /runtime\.rocks/);
+  assert.match(source, /갯벌 초보/);
+  assert.match(source, /어린이 모드/);
+  assert.match(source, /일반 모드/);
   assert.match(source, /creature\.type === "crab"/);
   assert.match(source, /creature\.type === "mudfish"/);
   assert.match(source, /creature\.type === "octopus"/);
