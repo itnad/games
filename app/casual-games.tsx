@@ -5,7 +5,7 @@ import { PARKING_LEVELS } from "./parking-levels";
 
 type ExitProps = { onExit: () => void };
 
-function CasualHeader({ title, icon, onExit }: ExitProps & { title: string; icon: string }) {
+export function CasualHeader({ title, icon, onExit }: ExitProps & { title: string; icon: string }) {
   return <header className="cg-topbar"><button onClick={onExit} aria-label="게임 목록으로">←</button><div><span className="cg-brand">paperoid</span><strong><i>{icon}</i>{title}</strong></div><button onClick={onExit}>나가기</button></header>;
 }
 

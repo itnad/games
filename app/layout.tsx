@@ -20,6 +20,7 @@ import "./casual-games.css";
 import "./paper-dungeon.css";
 import "./ten-seconds.css";
 import "./mudflat-survivor.css";
+import "./tetris.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

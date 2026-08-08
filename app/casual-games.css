@@ -11,7 +11,7 @@
 .casual-card-art { position: relative; display: grid; place-items: center; overflow: hidden; background: linear-gradient(145deg,#1e2635,#39445a); }
 .casual-card-art > span:first-child { position: relative; z-index: 2; white-space: pre; color: #fff; font: 900 clamp(27px,5vw,52px)/1.1 var(--font-geist-mono),monospace; text-align: center; text-shadow: 0 8px 24px #0005; }
 .casual-card-art > i { position: absolute; width: 230px; aspect-ratio: 1; border-radius: 50%; background: #ffffff10; box-shadow: 0 0 0 38px #ffffff08,0 0 0 78px #ffffff05; }
-.casual-card-art.stack { background: linear-gradient(145deg,#f05b62,#f4a05e); }.casual-card-art.chain { background: linear-gradient(145deg,#4e3b9b,#9b63db); }.casual-card-art.numbers { background: linear-gradient(145deg,#126487,#37a9c7); }.casual-card-art.survivor { background: linear-gradient(145deg,#07191f,#0b8e75); }.casual-card-art.knot { background: linear-gradient(145deg,#802c60,#d05b8e); }.casual-card-art.parking { background: linear-gradient(145deg,#394453,#6b7b86); }
+.casual-card-art.stack { background: linear-gradient(145deg,#f05b62,#f4a05e); }.casual-card-art.chain { background: linear-gradient(145deg,#4e3b9b,#9b63db); }.casual-card-art.numbers { background: linear-gradient(145deg,#126487,#37a9c7); }.casual-card-art.survivor { background: linear-gradient(145deg,#07191f,#0b8e75); }.casual-card-art.knot { background: linear-gradient(145deg,#802c60,#d05b8e); }.casual-card-art.parking { background: linear-gradient(145deg,#394453,#6b7b86); }.casual-card-art.tetris { background:linear-gradient(145deg,#30245f,#8a5ce7); }
 
 .cg-topbar {
   min-height: 82px;

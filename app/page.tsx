@@ -37,6 +37,7 @@ import {
 import { PaperDungeonGame } from "./paper-dungeon-game";
 import { TenSecondsGame } from "./ten-seconds-game";
 import { MudflatSurvivorGame } from "./mudflat-survivor-game";
+import { TetrisGame } from "./tetris-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import {
   BackgammonGame,
@@ -87,7 +88,8 @@ type GameId =
   | "parking-escape"
   | "paper-dungeon"
   | "ten-seconds"
-  | "mudflat-survivor";
+  | "mudflat-survivor"
+  | "tetris";
 type Category = "전체" | "전략" | "고전게임" | "기억력" | "추리" | "퍼즐류" | "주사위" | "경주" | "터치류" | "RPG";
 
 const CATEGORIES: Category[] = ["전체", "전략", "고전게임", "기억력", "추리", "퍼즐류", "주사위", "경주", "터치류", "RPG"];
@@ -423,6 +425,14 @@ const GAMES: GameDefinition[] = [
     players: "1인 생존 채집",
     tone: "teal",
   },
+  {
+    id: "tetris",
+    title: "테트리스",
+    subtitle: "블록을 쌓아 가로줄을 완성하고 지우세요",
+    category: "터치류",
+    players: "1인 기록 도전",
+    tone: "violet",
+  },
 ];
 
 const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
@@ -445,6 +455,7 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "winners-circle",
   "mudflat-survivor",
   "paper-dungeon",
+  "tetris",
 ]);
 
 const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
@@ -820,6 +831,10 @@ function GameArtwork({ game }: { game: GameDefinition }) {
 
   if (game.id === "mudflat-survivor") {
     return <div className="card-art casual-card-art mudflat" aria-hidden="true"><span>갯벌 한탕</span><i /><span className="float-chip">4 MIN TIDE</span></div>;
+  }
+
+  if (game.id === "tetris") {
+    return <div className="card-art casual-card-art tetris" aria-hidden="true"><span>▆\n ▆▆\n  ▆</span><i /><span className="float-chip">10 × 20</span></div>;
   }
 
   if (["pocket-stack", "color-chain", "number-drop", "dot-survivor", "untangle", "parking-escape"].includes(game.id)) {
@@ -2023,6 +2038,9 @@ export default function Home() {
   }
   if (activeGame === "mudflat-survivor") {
     return <GuidedGame gameId={activeGame}><MudflatSurvivorGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+  }
+  if (activeGame === "tetris") {
+    return <GuidedGame gameId={activeGame}><TetrisGame onExit={() => setActiveGame(null)} /></GuidedGame>;
   }
 
   return (

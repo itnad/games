@@ -6,6 +6,19 @@ import { chooseAiHeld, describeAiHeld, shouldAiStop } from "../app/dice-ai.js";
 import { scoreDice } from "../app/dice-scoring.js";
 import { PARKING_LEVELS } from "../app/parking-levels.js";
 import {
+  TETRIS_HEIGHT,
+  TETRIS_TYPES,
+  TETRIS_WIDTH,
+  canPlaceTetrisPiece,
+  clearTetrisLines,
+  createTetrisBoard,
+  lockTetrisPiece,
+  shuffleTetrisBag,
+  tetrisDropDelay,
+  tetrisLineScore,
+  tetrisShape,
+} from "../app/tetris-engine.js";
+import {
   BATTLESHIP_SEA_SIZE,
   BATTLESHIP_SHIP_LENGTHS,
   applyCheckerMove,
@@ -241,6 +254,7 @@ test("hides unverified games by default and reveals them from the footer phrase"
     "winners-circle",
     "mudflat-survivor",
     "paper-dungeon",
+    "tetris",
   ];
 
   for (const id of hiddenIds) {
@@ -307,6 +321,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "paper-dungeon",
     "ten-seconds",
     "mudflat-survivor",
+    "tetris",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -433,6 +448,7 @@ test("server-renders the paperoid game library", async () => {
     "티츄",
     "현금흐름 탈출",
     "갯벌 한탕",
+    "테트리스",
   ]) {
     assert.doesNotMatch(html, new RegExp(hiddenTitle));
   }
@@ -546,6 +562,34 @@ test("provides 50 ordered and valid Parking Escape levels", () => {
   assert.ok(PARKING_LEVELS[0].minMoves < PARKING_LEVELS[24].minMoves);
   assert.ok(PARKING_LEVELS[24].minMoves <= PARKING_LEVELS[25].minMoves);
   assert.ok(PARKING_LEVELS[25].minMoves < PARKING_LEVELS[49].minMoves);
+});
+
+test("runs a private touch-friendly Tetris with seven-bag scoring and speed levels", async () => {
+  assert.equal(TETRIS_WIDTH, 10);
+  assert.equal(TETRIS_HEIGHT, 20);
+  assert.equal(new Set(TETRIS_TYPES).size, 7);
+  assert.equal(new Set(shuffleTetrisBag(() => 0.42)).size, 7);
+  assert.ok(TETRIS_TYPES.every((type) => tetrisShape(type, 0).length === 4));
+  assert.equal(tetrisLineScore(4, 2), 1600);
+  assert.ok(tetrisDropDelay(8) < tetrisDropDelay(1));
+
+  const board = createTetrisBoard();
+  const piece = { type: "O", x: 4, y: 18, rotation: 0 };
+  assert.equal(canPlaceTetrisPiece(board, piece), true);
+  const locked = lockTetrisPiece(board, piece);
+  assert.equal(locked[18][4], "O");
+  const fullBoard = locked.map((row, index) => index === 19 ? Array(10).fill("I") : row);
+  assert.equal(clearTetrisLines(fullBoard).cleared, 1);
+
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../app/tetris-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/tetris.css", import.meta.url), "utf8");
+  assert.match(pageSource, /id: "tetris",[\s\S]*?category: "터치류"/);
+  assert.match(pageSource, /DEFAULT_HIDDEN_GAME_IDS[\s\S]*?"tetris"/);
+  assert.match(source, /ArrowLeft/);
+  assert.match(source, /onClick=\{rotate\}/);
+  assert.match(source, /paperoid-tetris-best/);
+  assert.match(styles, /touch-action:manipulation/);
 });
 
 test("moves Dot Survivor with relative drag instead of tap teleportation", async () => {
