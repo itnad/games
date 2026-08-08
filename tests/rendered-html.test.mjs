@@ -846,8 +846,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /runtime\.netSlams\.push/);
   assert.match(source, /progress >= \.54/);
   assert.match(source, /netSlam\.radius \+ creature\.size/);
-  assert.match(source, /const damageCreature = \(creature: Creature, damage: number/);
+  assert.match(source, /const DAMAGE_TEXT_COLOR = "#ffd29a"/);
+  assert.match(source, /const damageCreature = \(creature: Creature, damage: number, hitFlash = \.12\)/);
   assert.match(source, /text: damageText/);
+  assert.match(source, /color: DAMAGE_TEXT_COLOR/);
+  assert.doesNotMatch(source, /damageCreature\([^\n]+#[0-9a-fA-F]{6}/);
   assert.doesNotMatch(source, /text: `\+\$\{item\.score\}`/);
   assert.match(source, /runtime\.harpoons/);
   assert.match(source, /hitIds: new Set<number>\(\)/);
