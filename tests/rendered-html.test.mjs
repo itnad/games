@@ -124,6 +124,7 @@ import {
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
   mudflatSeafoodSaleValue,
+  mudflatSettleCatch,
   mudflatSpawnInterval,
   mudflatStageStats,
   mudflatTongStats,
@@ -804,6 +805,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(MUDFLAT_RECOVERY_FOODS.length, 3);
   assert.equal(mudflatSeafoodSaleValue("clam", 10, 0), 40);
   assert.equal(mudflatSeafoodSaleValue("clam", 10, 2), 46);
+  const settledCatch = mudflatSettleCatch({ crab: 2 }, { clam: 3, octopus: 1 }, 4, 0);
+  assert.deepEqual(settledCatch.inventory, { crab: 2, clam: 3, octopus: 1 });
+  assert.equal(settledCatch.catchCount, 4);
+  assert.equal(settledCatch.value, 48);
+  const recoveredCatch = mudflatSettleCatch({}, { clam: 1 }, 3, 0);
+  assert.deepEqual(recoveredCatch.inventory, { clam: 3 });
+  assert.equal(recoveredCatch.recoveredCount, 2);
+  assert.equal(recoveredCatch.value, 12);
   assert.equal(mudflatEquipmentPrice("gloves", 1), 160);
   assert.equal(mudflatTrainingPrice(2), 160);
   assert.ok(mudflatStageStats(3).creatureHpMultiplier > mudflatStageStats(2).creatureHpMultiplier);
@@ -830,6 +839,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /movement === "flee"/);
   assert.doesNotMatch(source, /stats\.xpChance/);
   assert.match(source, /CATCH MARKET/);
+  assert.match(source, /ms-camp-quick-sale/);
   assert.match(source, /EQUIPMENT SHOP/);
   assert.match(source, /RECOVERY FOOD/);
   assert.match(source, /SKILL TRAINING/);

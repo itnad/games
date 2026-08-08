@@ -144,6 +144,30 @@ export function mudflatSeafoodSaleValue(type, count = 1, coolerLevel = 0) {
   return Math.floor(market.price * safeCount * saleMultiplier);
 }
 
+export function mudflatSettleCatch(inventory = {}, basket = {}, caught = 0, coolerLevel = 0) {
+  const knownTypes = new Set(MUDFLAT_SEAFOOD_MARKET.map((item) => item.type));
+  const normalizedInventory = {};
+  const haul = {};
+  for (const [type, count] of Object.entries(inventory ?? {})) {
+    if (!knownTypes.has(type)) continue;
+    const safeCount = Math.max(0, Math.floor(Number(count) || 0));
+    if (safeCount > 0) normalizedInventory[type] = safeCount;
+  }
+  for (const [type, count] of Object.entries(basket ?? {})) {
+    if (!knownTypes.has(type)) continue;
+    const safeCount = Math.max(0, Math.floor(Number(count) || 0));
+    if (safeCount > 0) haul[type] = safeCount;
+  }
+  const recordedCount = Object.values(haul).reduce((sum, count) => sum + count, 0);
+  const expectedCount = Math.max(recordedCount, Math.max(0, Math.floor(Number(caught) || 0)));
+  const recoveredCount = Math.max(0, expectedCount - recordedCount);
+  if (recoveredCount > 0) haul.clam = (haul.clam ?? 0) + recoveredCount;
+  const nextInventory = { ...normalizedInventory };
+  for (const [type, count] of Object.entries(haul)) nextInventory[type] = (nextInventory[type] ?? 0) + count;
+  const value = Object.entries(haul).reduce((sum, [type, count]) => sum + mudflatSeafoodSaleValue(type, count, coolerLevel), 0);
+  return { inventory: nextInventory, haul, catchCount: expectedCount, recoveredCount, value };
+}
+
 export function mudflatEquipmentPrice(id, currentLevel = 0) {
   const equipment = MUDFLAT_SHOP_EQUIPMENT.find((item) => item.id === id);
   if (!equipment) return Infinity;
