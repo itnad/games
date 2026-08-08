@@ -1171,13 +1171,45 @@ function chineseHopDestinations(board: Record<string, number>, from: string) {
   return [...visited];
 }
 
-function chineseMoves(board: Record<string, number>, player: Player): ChineseMove[] {
+function chineseRawMoves(board: Record<string, number>, player: Player): ChineseMove[] {
   return Object.entries(board).flatMap(([from, piece]) => {
     if (piece !== player) return [];
     const steps = chineseNeighbors(from).filter((to) => !board[to]).map((to) => ({ from, to, hops: 0 }));
     const hops = chineseHopDestinations(board, from).map((to) => ({ from, to, hops: 1 }));
     return [...steps, ...hops];
   });
+}
+
+function chineseOwnCamp(player: Player) {
+  return player === 1 ? CHINESE_BOTTOM : CHINESE_TOP;
+}
+
+function chineseEvacuationRequired(board: Record<string, number>, player: Player) {
+  const ownCamp = chineseOwnCamp(player);
+  const opponent: Player = player === 1 ? 2 : 1;
+  return [...ownCamp].some((id) => board[id] === player)
+    && [...ownCamp].some((id) => board[id] === opponent);
+}
+
+function chineseMoves(board: Record<string, number>, player: Player): ChineseMove[] {
+  const ownCamp = chineseOwnCamp(player);
+  const moves = chineseRawMoves(board, player)
+    // A marble that has vacated its starting triangle cannot return to spoil the opponent's goal.
+    .filter((move) => ownCamp.has(move.from) || !ownCamp.has(move.to));
+
+  if (!chineseEvacuationRequired(board, player)) return moves;
+
+  const campMoves = moves.filter((move) => ownCamp.has(move.from));
+  const exits = campMoves.filter((move) => !ownCamp.has(move.to));
+  if (exits.length) return exits;
+
+  // If no immediate exit exists, require a move toward the board centre so the blocker cannot stall.
+  const forwardMoves = campMoves.filter((move) => {
+    const fromRow = Number(move.from.split(":")[0]);
+    const toRow = Number(move.to.split(":")[0]);
+    return player === 1 ? toRow < fromRow : toRow > fromRow;
+  });
+  return forwardMoves.length ? forwardMoves : campMoves.length ? campMoves : moves;
 }
 
 function applyChineseMove(board: Record<string, number>, move: ChineseMove) {
@@ -1214,6 +1246,8 @@ function chooseChineseMove(board: Record<string, number>) {
 export function ChineseCheckersGame({ onExit }: ExitProps) {
   const [state, setState] = useState<ChineseState>(newChineseState);
   const playerMoves = useMemo(() => chineseMoves(state.board, 1), [state.board]);
+  const playerMustEvacuate = chineseEvacuationRequired(state.board, 1);
+  const aiMustEvacuate = chineseEvacuationRequired(state.board, 2);
 
   useEffect(() => {
     if (state.turn !== 2 || state.winner) return;
@@ -1258,7 +1292,9 @@ export function ChineseCheckersGame({ onExit }: ExitProps) {
   const aiGoal = [...CHINESE_BOTTOM].filter((id) => state.board[id] === 2).length;
   const status = state.winner
     ? state.winner === 1 ? "모든 말을 옮겨 승리했어요!" : "AI가 먼저 반대편에 도착했어요"
-    : state.turn === 2 ? "AI가 도약 경로를 찾는 중…" : "움직일 말을 선택하세요";
+    : state.turn === 2
+      ? aiMustEvacuate ? "AI가 목표 진영을 비우는 중…" : "AI가 도약 경로를 찾는 중…"
+      : playerMustEvacuate ? "강조된 말을 먼저 진영 밖으로 옮기세요" : "움직일 말을 선택하세요";
 
   return (
     <ClassicGameLayout
@@ -1276,6 +1312,7 @@ export function ChineseCheckersGame({ onExit }: ExitProps) {
         "플레이어는 아래쪽 청록색 말, AI는 위쪽 산호색 말로 시작합니다.",
         "인접한 빈 구멍으로 한 칸 이동하거나, 바로 옆 말 하나를 넘어 빈 구멍으로 도약합니다.",
         "도약 뒤 다시 넘을 수 있으면 한 차례에 여러 번 이어서 도약할 수 있습니다.",
+        "상대 말이 내 시작 진영에 들어오면 그곳에 남은 내 말부터 밖으로 움직여야 하며, 나온 말은 다시 들어갈 수 없습니다.",
         "내 말 열 개를 모두 반대편 삼각형에 먼저 채우면 승리합니다.",
       ]}
       actions={<>
@@ -1288,11 +1325,14 @@ export function ChineseCheckersGame({ onExit }: ExitProps) {
       <div className="chinese-board" role="grid" aria-label="차이니즈 체커 별 모양 보드">
         {CHINESE_HOLES.map((hole) => {
           const piece = state.board[hole.id] ?? 0;
-          const selectable = state.turn === 1 && !state.winner && (piece === 1 || destinations.has(hole.id));
+          const hasLegalMove = playerMoves.some((move) => move.from === hole.id);
+          const mustEvacuate = playerMustEvacuate && piece === 1 && hasLegalMove && CHINESE_BOTTOM.has(hole.id);
+          const selectable = state.turn === 1 && !state.winner
+            && ((piece === 1 && hasLegalMove) || destinations.has(hole.id));
           return (
             <button
               key={hole.id}
-              className={`chinese-hole ${piece === 1 ? "player" : piece === 2 ? "ai" : ""} ${state.selected === hole.id ? "selected" : ""} ${destinations.has(hole.id) ? "destination" : ""} ${CHINESE_TOP.has(hole.id) ? "top-goal" : CHINESE_BOTTOM.has(hole.id) ? "bottom-goal" : ""}`}
+              className={`chinese-hole ${piece === 1 ? "player" : piece === 2 ? "ai" : ""} ${state.selected === hole.id ? "selected" : ""} ${destinations.has(hole.id) ? "destination" : ""} ${mustEvacuate ? "must-evacuate" : ""} ${CHINESE_TOP.has(hole.id) ? "top-goal" : CHINESE_BOTTOM.has(hole.id) ? "bottom-goal" : ""}`}
               style={{ "--cx": hole.x, "--cy": hole.row } as CSSProperties}
               onClick={() => handleHole(hole.id)}
               disabled={!selectable}

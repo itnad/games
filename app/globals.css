@@ -7490,6 +7490,17 @@ footer { font-size: 15px; }
 .chinese-hole.player { background: radial-gradient(circle at 35% 28%, #58b49b, #176653 68%); }
 .chinese-hole.ai { background: radial-gradient(circle at 35% 28%, #ed8d78, #963d37 68%); }
 .chinese-hole.selected { outline: 5px solid rgba(255,255,255,.84); }
+.chinese-hole.must-evacuate {
+  outline: 4px solid rgba(255, 245, 196, .96);
+  box-shadow: 0 0 0 7px rgba(224, 137, 55, .42), 0 3px 6px rgba(65,42,26,.32);
+  animation: chinese-evacuation-pulse 1.45s ease-in-out infinite;
+}
+
+@keyframes chinese-evacuation-pulse {
+  50% {
+    box-shadow: 0 0 0 11px rgba(224, 137, 55, .16), 0 3px 6px rgba(65,42,26,.32);
+  }
+}
 .chinese-hole.destination {
   border-color: #fffbe3;
   background: #f8e18b;
