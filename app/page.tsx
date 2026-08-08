@@ -427,6 +427,7 @@ const GAMES: GameDefinition[] = [
 
 const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "mancala",
+  "gonu",
   "seven-wonders",
   "tichu",
   "cashflow-escape",
