@@ -408,6 +408,29 @@ test("server-renders the paperoid game library", async () => {
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
 });
 
+test("separates traditional classics from the strategy category", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const classicGames = [
+    "gomoku",
+    "reversi",
+    "mancala",
+    "checkers",
+    "janggi",
+    "nine-mens-morris",
+    "gonu",
+    "domino",
+    "chinese-checkers",
+    "diamond",
+  ];
+
+  assert.match(pageSource, /type Category = [^;]*"고전게임"/);
+  assert.match(pageSource, /const CATEGORIES:[\s\S]*?"고전게임"/);
+  for (const id of classicGames) {
+    assert.match(pageSource, new RegExp(`id: "${id}",[\\s\\S]*?category: "고전게임"`));
+  }
+  assert.match(pageSource, /title=\{item === "고전게임" \? item : `\$\{item\} 게임`\}/);
+});
+
 test("keeps the home introduction compact on mobile", async () => {
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 

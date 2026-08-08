@@ -88,7 +88,10 @@ type GameId =
   | "paper-dungeon"
   | "ten-seconds"
   | "mudflat-survivor";
-type Category = "전체" | "전략" | "기억력" | "추리" | "주사위" | "경주" | "캐주얼" | "RPG";
+type Category = "전체" | "전략" | "고전게임" | "기억력" | "추리" | "주사위" | "경주" | "캐주얼" | "RPG";
+
+const CATEGORIES: Category[] = ["전체", "전략", "고전게임", "기억력", "추리", "주사위", "경주", "캐주얼", "RPG"];
+const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "고전게임", "기억력", "추리", "주사위", "경주", "캐주얼", "RPG"];
 
 type GameDefinition = {
   id: GameId;
@@ -104,7 +107,7 @@ const GAMES: GameDefinition[] = [
     id: "gomoku",
     title: "오목",
     subtitle: "다섯 돌을 먼저 이으세요",
-    category: "전략",
+    category: "고전게임",
     players: "AI 1:1",
     tone: "violet",
   },
@@ -120,7 +123,7 @@ const GAMES: GameDefinition[] = [
     id: "reversi",
     title: "리버시",
     subtitle: "상대의 돌을 뒤집어 판을 채우세요",
-    category: "전략",
+    category: "고전게임",
     players: "AI 1:1",
     tone: "teal",
   },
@@ -128,7 +131,7 @@ const GAMES: GameDefinition[] = [
     id: "mancala",
     title: "만칼라",
     subtitle: "돌을 나누어 보물창고를 채우세요",
-    category: "전략",
+    category: "고전게임",
     players: "AI 1:1",
     tone: "gold",
   },
@@ -176,7 +179,7 @@ const GAMES: GameDefinition[] = [
     id: "checkers",
     title: "체커",
     subtitle: "대각선 전진과 점프로 상대 말을 잡으세요",
-    category: "전략",
+    category: "고전게임",
     players: "AI 1:1",
     tone: "green",
   },
@@ -184,7 +187,7 @@ const GAMES: GameDefinition[] = [
     id: "janggi",
     title: "장기",
     subtitle: "궁을 지키며 한 수 앞을 내다보세요",
-    category: "전략",
+    category: "고전게임",
     players: "AI 1:1",
     tone: "green",
   },
@@ -232,7 +235,7 @@ const GAMES: GameDefinition[] = [
     id: "nine-mens-morris",
     title: "나인 멘스 모리스",
     subtitle: "세 말을 잇고 상대의 길을 막으세요",
-    category: "전략",
+    category: "고전게임",
     players: "AI 1:1",
     tone: "violet",
   },
@@ -240,7 +243,7 @@ const GAMES: GameDefinition[] = [
     id: "gonu",
     title: "고누",
     subtitle: "전통 말판에서 상대의 퇴로를 막으세요",
-    category: "전략",
+    category: "고전게임",
     players: "AI 1:1",
     tone: "gold",
   },
@@ -248,7 +251,7 @@ const GAMES: GameDefinition[] = [
     id: "domino",
     title: "도미노",
     subtitle: "같은 눈을 맞춰 패를 먼저 비우세요",
-    category: "전략",
+    category: "고전게임",
     players: "AI 1:1",
     tone: "teal",
   },
@@ -264,7 +267,7 @@ const GAMES: GameDefinition[] = [
     id: "chinese-checkers",
     title: "차이니즈 체커",
     subtitle: "연속 도약으로 별 모양 판을 건너세요",
-    category: "전략",
+    category: "고전게임",
     players: "AI 1:1",
     tone: "blue",
   },
@@ -272,7 +275,7 @@ const GAMES: GameDefinition[] = [
     id: "diamond",
     title: "다이아몬드 게임",
     subtitle: "한국식 소형 별판을 2~3인이 건너세요",
-    category: "전략",
+    category: "고전게임",
     players: "AI 2~3인",
     tone: "gold",
   },
@@ -2054,7 +2057,7 @@ export default function Home() {
           </div>
 
           <div className="category-row home-category-row" aria-label="게임 분류">
-            {(["전체", "전략", "기억력", "추리", "주사위", "경주", "캐주얼", "RPG"] as Category[]).map((item) => (
+            {CATEGORIES.map((item) => (
               <button key={item} type="button" onClick={() => openFinder(item)}>
                 {item}
                 <span>{item === "전체" ? availableGames.length : availableGames.filter((game) => game.category === item).length}</span>
@@ -2086,10 +2089,10 @@ export default function Home() {
             />
           )}
 
-          {(["전략", "기억력", "추리", "주사위", "경주", "캐주얼", "RPG"] as Exclude<Category, "전체">[]).map((item) => (
+          {GAME_CATEGORIES.map((item) => (
             <GameShelf
               key={item}
-              title={`${item} 게임`}
+              title={item === "고전게임" ? item : `${item} 게임`}
               games={availableGames.filter((game) => game.category === item)}
               favorites={favorites}
               onPlay={launchGame}
@@ -2142,7 +2145,7 @@ export default function Home() {
             </label>
 
             <div className="category-row finder-category-row" role="tablist" aria-label="게임 분류">
-              {(["전체", "전략", "기억력", "추리", "주사위", "경주", "캐주얼", "RPG"] as Category[]).map((item) => (
+              {CATEGORIES.map((item) => (
                 <button
                   key={item}
                   type="button"
