@@ -221,6 +221,7 @@ async function render() {
 test("hides unverified games by default and reveals them from the footer phrase", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const hiddenIds = [
+    "mancala",
     "seven-wonders",
     "tichu",
     "cashflow-escape",
@@ -391,7 +392,6 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /오목/);
   assert.match(html, /짝 맞추기/);
   assert.match(html, /리버시/);
-  assert.match(html, /만칼라/);
   assert.match(html, /해전/);
   assert.match(html, /주사위 대결/);
   assert.match(html, /체커/);
@@ -415,6 +415,7 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /종이 던전/);
   assert.match(html, /10\.00/);
   for (const hiddenTitle of [
+    "만칼라",
     "위너스 서클",
     "빛과 그림자의 대결",
     "미니빌",
