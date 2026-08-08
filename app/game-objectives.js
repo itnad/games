@@ -135,7 +135,7 @@ export const GAME_OBJECTIVES = {
     finish: "어느 한 참가자의 말 열 개가 모두 목표 진영에 도착했을 때",
   },
   "incan-gold": {
-    title: "잉카 골드",
+    title: "잉카의 다이아몬드",
     icon: "◆",
     accent: "#c76b3c",
     summary: "위험을 감수하고 유적 깊숙이 들어갈지 보석을 챙겨 돌아올지 결정하는 탐험 게임입니다.",

@@ -278,7 +278,7 @@ const GAMES: GameDefinition[] = [
   },
   {
     id: "incan-gold",
-    title: "잉카 골드",
+    title: "잉카의 다이아몬드",
     subtitle: "더 깊이 들어갈지 보물을 챙겨 돌아올지 결정하세요",
     category: "전략",
     players: "AI 포함 3~8인",

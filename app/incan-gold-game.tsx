@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type Ref } from "react";
 import { withKoreanSubject } from "./korean-particles.js";
 
 type ExitProps = { onExit: () => void };
@@ -355,7 +355,7 @@ function GameTopbar({ onExit }: ExitProps) {
       <button className="back-button" onClick={onExit} aria-label="게임 목록으로">←</button>
       <div className="game-title-lockup">
         <BrandMark />
-        <div><span>paperoid</span><strong>잉카 골드</strong></div>
+        <div><span>paperoid</span><strong>잉카의 다이아몬드</strong></div>
       </div>
       <button className="exit-button" onClick={onExit}>나가기</button>
     </header>
@@ -371,10 +371,12 @@ function ChoiceBadge({ choice }: { choice?: Choice }) {
   );
 }
 
-function CardView({ card, latest }: { card: ExpeditionCard; latest: boolean }) {
+function CardView({ card, latest, cardRef }: { card: ExpeditionCard; latest: boolean; cardRef?: Ref<HTMLElement> }) {
+  const latestLabel = latest ? <span className="latest-card-label">NEW</span> : null;
   if (card.type === "treasure") {
     return (
-      <article className={`cave-card treasure ${latest ? "latest" : ""}`}>
+      <article ref={cardRef} className={`cave-card treasure ${latest ? "latest" : ""}`} tabIndex={latest ? -1 : undefined} aria-current={latest ? "step" : undefined}>
+        {latestLabel}
         <span className="card-kind">GEMS</span>
         <strong>{card.value}</strong>
         <i aria-hidden="true">◆</i>
@@ -384,7 +386,8 @@ function CardView({ card, latest }: { card: ExpeditionCard; latest: boolean }) {
   }
   if (card.type === "hazard") {
     return (
-      <article className={`cave-card hazard ${latest ? "latest" : ""}`}>
+      <article ref={cardRef} className={`cave-card hazard ${latest ? "latest" : ""}`} tabIndex={latest ? -1 : undefined} aria-current={latest ? "step" : undefined}>
+        {latestLabel}
         <span className="card-kind">DANGER</span>
         <strong aria-hidden="true">{HAZARD_ICONS[card.hazard]}</strong>
         <b>{card.hazard}</b>
@@ -392,7 +395,8 @@ function CardView({ card, latest }: { card: ExpeditionCard; latest: boolean }) {
     );
   }
   return (
-    <article className={`cave-card relic ${latest ? "latest" : ""}`}>
+    <article ref={cardRef} className={`cave-card relic ${latest ? "latest" : ""}`} tabIndex={latest ? -1 : undefined} aria-current={latest ? "step" : undefined}>
+      {latestLabel}
       <span className="card-kind">RELIC</span>
       <strong>{card.value}</strong>
       <i aria-hidden="true">✦</i>
@@ -404,6 +408,17 @@ function CardView({ card, latest }: { card: ExpeditionCard; latest: boolean }) {
 export function IncanGoldGame({ onExit }: ExitProps) {
   const [totalPlayers, setTotalPlayers] = useState(4);
   const [state, setState] = useState<GameState>(() => emptyState(4));
+  const latestCardRef = useRef<HTMLElement | null>(null);
+  const latestCardId = state.path.at(-1)?.id ?? null;
+
+  useEffect(() => {
+    if (!latestCardId) return;
+    const frame = window.requestAnimationFrame(() => {
+      latestCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      latestCardRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [latestCardId, state.round]);
 
   useEffect(() => {
     if (state.phase !== "resolving") return;
@@ -583,13 +598,18 @@ export function IncanGoldGame({ onExit }: ExitProps) {
                 ))}
               </div>
 
-              <section className="cave-path" aria-label="공개된 동굴 길">
+              <section className="cave-path" aria-label="공개된 동굴 길" aria-live="polite">
                 <div className="cave-entrance">
                   <span>입구</span>
                   <small>{state.round}/5</small>
                 </div>
                 {state.path.map((card, index) => (
-                  <CardView key={`${card.id}-${index}`} card={card} latest={index === state.path.length - 1} />
+                  <CardView
+                    key={`${card.id}-${index}`}
+                    card={card}
+                    latest={index === state.path.length - 1}
+                    cardRef={index === state.path.length - 1 ? latestCardRef : undefined}
+                  />
                 ))}
                 {!state.path.length && <p>동굴 카드를 공개하는 중입니다…</p>}
               </section>

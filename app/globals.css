@@ -3122,9 +3122,34 @@ footer > span {
 }
 .cave-card:nth-of-type(3n) { --card-turn: 1deg; }
 .cave-card:nth-of-type(3n + 1) { --card-turn: -1deg; }
-.cave-card.latest { animation: incan-card-arrive .42s ease both; }
+.cave-card.latest {
+  z-index: 2;
+  border-color: #ffe5a0;
+  outline: 3px solid rgba(255, 211, 111, .46);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 1px rgba(255, 244, 206, .5), 0 10px 28px rgba(255, 190, 75, .38);
+  animation: incan-card-arrive .52s ease both, incan-latest-glow 1.8s ease-in-out .52s 2;
+}
+.cave-card.latest:focus { outline-color: #fff0b7; }
+.latest-card-label {
+  padding: 3px 7px;
+  position: absolute;
+  top: -11px;
+  right: -8px;
+  border: 2px solid #4d3029;
+  border-radius: 999px;
+  color: #3d281f;
+  background: #ffd66e;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .28);
+  font-size: 8px;
+  font-weight: 950;
+  letter-spacing: .08em;
+}
 @keyframes incan-card-arrive {
   from { opacity: 0; transform: translateX(22px) rotate(4deg) scale(.92); }
+}
+@keyframes incan-latest-glow {
+  50% { filter: brightness(1.13); box-shadow: 0 0 0 3px rgba(255, 221, 135, .28), 0 12px 34px rgba(255, 190, 75, .55); }
 }
 .cave-card.treasure { color: #4c2c2d; background: linear-gradient(150deg, #f5d98e, #cd923f); }
 .cave-card.hazard { color: #f0d4c3; background: linear-gradient(150deg, #863e33, #44262a); }

@@ -370,7 +370,7 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /백개먼/);
   assert.match(html, /차이니즈 체커/);
   assert.match(html, /다이아몬드 게임/);
-  assert.match(html, /잉카 골드/);
+  assert.match(html, /잉카의 다이아몬드/);
   assert.match(html, /큐윅스/);
   assert.match(html, /러브레터/);
   assert.match(html, /바카라/);
@@ -588,11 +588,17 @@ test("documents audited classic variants and player choices", async () => {
 
 test("matches the official IELLO 2016 Diamant relic variant", async () => {
   const source = await readFile(new URL("../app/incan-gold-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
+  assert.match(source, /잉카의 다이아몬드/);
   assert.match(source, /\[1, 2, 3, 4, 5, 5, 7, 7, 9, 11, 11, 13, 14, 15, 17\]/);
   assert.match(source, /\[5, 7, 8, 10, 12\]/);
   assert.match(source, /IELLO 2016 규칙/);
   assert.match(source, /총점이 같으면 해당 탐험가들이 공동 승리/);
+  assert.match(source, /scrollIntoView\(\{ behavior: "smooth", block: "nearest", inline: "center" \}\)/);
+  assert.match(source, /aria-current=\{latest \? "step" : undefined\}/);
+  assert.match(source, /latest-card-label/);
+  assert.match(styles, /\.cave-card\.latest[\s\S]*?incan-latest-glow/);
 });
 
 test("offers all four standard Janggi horse-elephant setups", async () => {
