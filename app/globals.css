@@ -953,6 +953,22 @@ footer > span {
   letter-spacing: 0.12em;
 }
 
+.footer-game-visibility-toggle {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.footer-game-visibility-toggle:focus-visible {
+  outline: 2px solid #b8a8d7;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
 /* Shared game view */
 .game-shell {
   min-height: 100vh;

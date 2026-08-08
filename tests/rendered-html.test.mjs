@@ -117,6 +117,7 @@ import {
   sdFortressReachable,
   sdFortressResolveBattle,
 } from "../app/sd-gundam-deluxe-engine.js";
+
 import {
   SY_EDGES,
   SY_MAX_ROUNDS,
@@ -216,6 +217,33 @@ async function render() {
     },
   );
 }
+
+test("hides unverified games by default and reveals them from the footer phrase", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const hiddenIds = [
+    "seven-wonders",
+    "tichu",
+    "cashflow-escape",
+    "confrontation",
+    "clocktowers",
+    "pick-picnic",
+    "epic-duels",
+    "sd-gundam-deluxe",
+    "scotland-yard",
+    "whitechapel",
+    "miniville",
+    "camel-up",
+    "winners-circle",
+    "mudflat-survivor",
+  ];
+
+  for (const id of hiddenIds) {
+    assert.match(pageSource, new RegExp(`DEFAULT_HIDDEN_GAME_IDS[\\s\\S]*?"${id}"`));
+  }
+  assert.match(pageSource, /className="footer-game-visibility-toggle"[\s\S]*?>\s*즐거운\s*<\/button>/);
+  assert.match(pageSource, /showAllGames \? GAMES : GAMES\.filter/);
+  assert.match(pageSource, /paperoid-show-all-games/);
+});
 
 test("provides a complete objective and victory guide for every game", async () => {
   const expectedGameIds = [
@@ -324,7 +352,6 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /주사위 대결/);
   assert.match(html, /체커/);
   assert.match(html, /장기/);
-  assert.match(html, /위너스 서클/);
   assert.match(html, /나인 멘스 모리스/);
   assert.match(html, /고누/);
   assert.match(html, /도미노/);
@@ -333,18 +360,7 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /다이아몬드 게임/);
   assert.match(html, /잉카 골드/);
   assert.match(html, /큐윅스/);
-  assert.match(html, /빛과 그림자의 대결/);
   assert.match(html, /러브레터/);
-  assert.match(html, /미니빌/);
-  assert.match(html, /픽 피크닉/);
-  assert.match(html, /스타워즈 에픽 듀얼/);
-  assert.match(html, /SD 건담 디럭스/);
-  assert.match(html, /스코틀랜드 야드/);
-  assert.match(html, /화이트채플/);
-  assert.match(html, /7원더스/);
-  assert.match(html, /카멜 업/);
-  assert.match(html, /티츄/);
-  assert.match(html, /현금흐름 탈출/);
   assert.match(html, /바카라/);
   assert.match(html, /포켓 스택/);
   assert.match(html, /컬러 체인/);
@@ -354,8 +370,24 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /주차 탈출/);
   assert.match(html, /종이 던전/);
   assert.match(html, /10\.00/);
-  assert.match(html, /갯벌 한탕/);
-  assert.match(html, /마흔 가지/);
+  for (const hiddenTitle of [
+    "위너스 서클",
+    "빛과 그림자의 대결",
+    "미니빌",
+    "픽 피크닉",
+    "스타워즈 에픽 듀얼",
+    "SD 건담 디럭스",
+    "스코틀랜드 야드",
+    "화이트채플",
+    "7원더스",
+    "카멜 업",
+    "티츄",
+    "현금흐름 탈출",
+    "갯벌 한탕",
+  ]) {
+    assert.doesNotMatch(html, new RegExp(hiddenTitle));
+  }
+  assert.match(html, /모든 게임 표시/);
   assert.match(html, /이름·장르로 게임 찾기/);
   assert.match(html, /추가 되면 좋을 게임을 추천해주세요/);
   assert.match(html, /게임 추천 게시판/);

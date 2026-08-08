@@ -422,6 +422,25 @@ const GAMES: GameDefinition[] = [
   },
 ];
 
+const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
+  "seven-wonders",
+  "tichu",
+  "cashflow-escape",
+  "confrontation",
+  "clocktowers",
+  "pick-picnic",
+  "epic-duels",
+  "sd-gundam-deluxe",
+  "scotland-yard",
+  "whitechapel",
+  "miniville",
+  "camel-up",
+  "winners-circle",
+  "mudflat-survivor",
+]);
+
+const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
+
 const IconSearch = () => (
   <span className="search-icon" aria-hidden="true" />
 );
@@ -1748,6 +1767,7 @@ export default function Home() {
   const [favorites, setFavorites] = useState<GameId[]>([]);
   const [recentIds, setRecentIds] = useState<GameId[]>([]);
   const [finderOpen, setFinderOpen] = useState(false);
+  const [showAllGames, setShowAllGames] = useState(false);
 
   useEffect(() => {
     const knownIds = new Set<GameId>(GAMES.map((game) => game.id));
@@ -1766,6 +1786,7 @@ export default function Home() {
     const migratedRecent = recent.length ? recent : readGameIds(`${legacyPrefix}-recent-games`);
     setFavorites(migratedFavorites);
     setRecentIds(migratedRecent);
+    setShowAllGames(window.localStorage.getItem(SHOW_ALL_GAMES_STORAGE_KEY) === "true");
     if (migratedFavorites.length) window.localStorage.setItem("paperoid-favorites", JSON.stringify(migratedFavorites));
     if (migratedRecent.length) window.localStorage.setItem("paperoid-recent-games", JSON.stringify(migratedRecent));
   }, []);
@@ -1810,9 +1831,26 @@ export default function Home() {
     setFinderOpen(true);
   };
 
+  const toggleAllGames = () => {
+    setShowAllGames((current) => {
+      const next = !current;
+      if (next) {
+        window.localStorage.setItem(SHOW_ALL_GAMES_STORAGE_KEY, "true");
+      } else {
+        window.localStorage.removeItem(SHOW_ALL_GAMES_STORAGE_KEY);
+      }
+      return next;
+    });
+  };
+
+  const availableGames = useMemo(
+    () => showAllGames ? GAMES : GAMES.filter((game) => !DEFAULT_HIDDEN_GAME_IDS.has(game.id)),
+    [showAllGames],
+  );
+
   const filteredGames = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("ko");
-    return GAMES.filter(
+    return availableGames.filter(
       (game) =>
         (category === "전체" || game.category === category) &&
         (!normalized ||
@@ -1820,15 +1858,15 @@ export default function Home() {
           game.subtitle.toLocaleLowerCase("ko").includes(normalized) ||
           game.category.includes(normalized)),
     );
-  }, [category, query]);
+  }, [availableGames, category, query]);
 
   const recentGames = recentIds
-    .map((id) => GAMES.find((game) => game.id === id))
+    .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => Boolean(game));
   const favoriteGames = favorites
-    .map((id) => GAMES.find((game) => game.id === id))
+    .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => Boolean(game));
-  const quickStartGames = recentGames.length ? recentGames : GAMES.slice(0, 6);
+  const quickStartGames = recentGames.length ? recentGames : availableGames.slice(0, 6);
 
   if (activeGame === "gomoku") {
     return <GuidedGame gameId={activeGame}><GomokuGame onExit={() => setActiveGame(null)} /></GuidedGame>;
@@ -1998,7 +2036,7 @@ export default function Home() {
             <button className="game-finder-trigger" type="button" onClick={() => openFinder()}>
               <IconSearch />
               <span>이름·장르로 게임 찾기</span>
-              <b>{GAMES.length}</b>
+              <b>{availableGames.length}</b>
             </button>
           </div>
 
@@ -2006,7 +2044,7 @@ export default function Home() {
             {(["전체", "전략", "기억력", "추리", "주사위", "경주", "캐주얼", "RPG"] as Category[]).map((item) => (
               <button key={item} type="button" onClick={() => openFinder(item)}>
                 {item}
-                <span>{item === "전체" ? GAMES.length : GAMES.filter((game) => game.category === item).length}</span>
+                <span>{item === "전체" ? availableGames.length : availableGames.filter((game) => game.category === item).length}</span>
               </button>
             ))}
           </div>
@@ -2039,7 +2077,7 @@ export default function Home() {
             <GameShelf
               key={item}
               title={`${item} 게임`}
-              games={GAMES.filter((game) => game.category === item)}
+              games={availableGames.filter((game) => game.category === item)}
               favorites={favorites}
               onPlay={launchGame}
               onToggleFavorite={toggleFavorite}
@@ -2146,14 +2184,26 @@ export default function Home() {
       )}
 
       <button className="mobile-finder-button" type="button" onClick={() => openFinder()}>
-        <IconSearch /> 게임 찾기 <span>{GAMES.length}</span>
+        <IconSearch /> 게임 찾기 <span>{availableGames.length}</span>
       </button>
 
       <SuggestionBoard />
 
       <footer>
         <div className="footer-brand"><BrandMark /> paperoid</div>
-        <p>오늘도 즐거운 한 판 되세요.</p>
+        <p>
+          오늘도{" "}
+          <button
+            className="footer-game-visibility-toggle"
+            type="button"
+            onClick={toggleAllGames}
+            aria-label={showAllGames ? "검증 완료 게임만 표시" : "모든 게임 표시"}
+            aria-pressed={showAllGames}
+          >
+            즐거운
+          </button>{" "}
+          한 판 되세요.
+        </p>
         <span>AI BOARD GAME CLUB</span>
       </footer>
     </main>
