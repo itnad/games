@@ -931,7 +931,7 @@ export function DiceDuelGame({ onExit }: ExitProps) {
 
   return (
     <main className="game-shell dice-shell">
-      <ExtraTopbar title="주사위 대결" onExit={onExit} />
+      <ExtraTopbar title="주사위 대결 Yahtzee" onExit={onExit} />
       <section className="game-content">
         <InfoPanel
           eyebrow={`ROUND ${round}/5`}

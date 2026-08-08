@@ -45,7 +45,7 @@ export const GAME_OBJECTIVES = {
     finish: "한쪽 함대의 모든 선체 칸이 공격에 맞았을 때",
   },
   dice: {
-    title: "주사위 대결",
+    title: "주사위 대결 Yahtzee",
     icon: "⚄",
     accent: "#c9525e",
     summary: "세 번의 굴림 안에서 좋은 조합을 남겨 라운드 점수를 쌓는 게임입니다.",

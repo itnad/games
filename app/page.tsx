@@ -169,7 +169,7 @@ const GAMES: GameDefinition[] = [
   },
   {
     id: "dice",
-    title: "주사위 대결",
+    title: "주사위 대결 Yahtzee",
     subtitle: "최적의 주사위를 남겨 높은 점수를 만드세요",
     category: "주사위",
     players: "AI 1:1",
@@ -428,6 +428,8 @@ const GAMES: GameDefinition[] = [
 const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "mancala",
   "gonu",
+  "nine-mens-morris",
+  "diamond",
   "seven-wonders",
   "tichu",
   "cashflow-escape",

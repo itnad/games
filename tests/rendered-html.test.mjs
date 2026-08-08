@@ -223,6 +223,8 @@ test("hides unverified games by default and reveals them from the footer phrase"
   const hiddenIds = [
     "mancala",
     "gonu",
+    "nine-mens-morris",
+    "diamond",
     "seven-wonders",
     "tichu",
     "cashflow-escape",
@@ -394,14 +396,12 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /짝 맞추기/);
   assert.match(html, /리버시/);
   assert.match(html, /해전/);
-  assert.match(html, /주사위 대결/);
+  assert.match(html, /주사위 대결 Yahtzee/);
   assert.match(html, /체커/);
   assert.match(html, /장기/);
-  assert.match(html, /나인 멘스 모리스/);
   assert.match(html, /도미노/);
   assert.match(html, /백개먼/);
   assert.match(html, /차이니즈 체커/);
-  assert.match(html, /다이아몬드 게임/);
   assert.match(html, /잉카의 다이아몬드/);
   assert.match(html, /큐윅스/);
   assert.match(html, /러브레터/);
@@ -417,6 +417,8 @@ test("server-renders the paperoid game library", async () => {
   for (const hiddenTitle of [
     "만칼라",
     "고누",
+    "나인 멘스 모리스",
+    "다이아몬드 게임",
     "위너스 서클",
     "빛과 그림자의 대결",
     "미니빌",
