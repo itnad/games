@@ -632,8 +632,13 @@ test("uses official classic Battleship fleet and American checkers crowning", as
   const battleshipSource = await readFile(new URL("../app/more-games.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(battleshipSource, /style=\{\{ "--sea-size": SEA_SIZE \} as CSSProperties\}/);
+  assert.match(battleshipSource, /theme: "reversi" \| "mancala" \| "checkers" \| "battleship"/);
+  assert.match(battleshipSource, /명중한 방향을 추리하세요/);
+  assert.match(battleshipSource, /다섯 척을 모두 격침하세요/);
   assert.match(styles, /grid-template-columns: repeat\(var\(--sea-size\), minmax\(0, 1fr\)\)/);
   assert.match(styles, /grid-template-rows: repeat\(var\(--sea-size\), minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.learning-modal\.battleship \{ --learning-color: #277da3; --learning-soft: #e3f3f8; --learning-dark: #173f52; \}/);
+  assert.match(styles, /\.learning-modal\.battleship \.tutorial-visual/);
   assert.doesNotMatch(styles, /\.sea-grid button\.ship/);
   assert.doesNotMatch(battleshipSource, /className=\{`\$\{!conceal && ship \? "ship"/);
 

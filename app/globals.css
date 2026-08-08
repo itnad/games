@@ -1577,6 +1577,8 @@ footer > span {
 .learning-modal.mancala { --learning-color: #a56f28; --learning-soft: #f8edda; --learning-dark: #483522; }
 .learning-tools.checkers,
 .learning-modal.checkers { --learning-color: #557d57; --learning-soft: #e9f0e6; --learning-dark: #293a2d; }
+.learning-tools.battleship,
+.learning-modal.battleship { --learning-color: #277da3; --learning-soft: #e3f3f8; --learning-dark: #173f52; }
 .learning-tools.qwixx,
 .learning-modal.qwixx { --learning-color: #b84652; --learning-soft: #f6e7e7; --learning-dark: #3d2d34; }
 .learning-tools.qwixx { width: min(900px, 100%); }
@@ -1634,6 +1636,9 @@ footer > span {
 }
 
 .learning-modal {
+  --learning-color: #5f6c75;
+  --learning-soft: #edf2f4;
+  --learning-dark: #273841;
   width: min(540px, 100%);
   max-height: calc(100dvh - 40px);
   overflow-y: auto;
@@ -1645,6 +1650,41 @@ footer > span {
     radial-gradient(circle at 95% 0, color-mix(in srgb, var(--learning-color) 17%, transparent), transparent 32%),
     #fbfaf7;
   box-shadow: 0 30px 90px rgba(18, 14, 12, .38);
+}
+
+.learning-modal.battleship {
+  border: 1px solid #b9dbe8;
+  background:
+    radial-gradient(circle at 95% 0, rgba(39, 125, 163, .16), transparent 34%),
+    linear-gradient(180deg, #fbfeff, #f2f9fb);
+}
+
+.learning-modal.battleship .learning-rules {
+  border-color: #c9e1e9;
+  background: rgba(255, 255, 255, .76);
+}
+
+.learning-modal.battleship .learning-rules li {
+  border-color: #d8e9ef;
+}
+
+.learning-modal.battleship .tutorial-visual {
+  border-color: #a9d2e1;
+  background:
+    linear-gradient(rgba(60, 139, 171, .12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(60, 139, 171, .12) 1px, transparent 1px),
+    linear-gradient(145deg, rgba(255,255,255,.82), transparent),
+    #dceff5;
+  background-size: 28px 28px, 28px 28px, auto, auto;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.65);
+}
+
+.learning-modal.battleship .tutorial-visual span {
+  color: #153f52;
+  font-size: clamp(17px, 4.5vw, 25px);
+  line-height: 1.5;
+  letter-spacing: .035em;
+  text-shadow: 0 1px 0 rgba(255,255,255,.9);
 }
 
 .learning-close {
