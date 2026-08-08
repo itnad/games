@@ -4,6 +4,7 @@ import test from "node:test";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { chooseAiHeld, describeAiHeld, shouldAiStop } from "../app/dice-ai.js";
 import { scoreDice } from "../app/dice-scoring.js";
+import { PARKING_LEVELS } from "../app/parking-levels.js";
 import {
   BATTLESHIP_SEA_SIZE,
   BATTLESHIP_SHIP_LENGTHS,
@@ -512,6 +513,35 @@ test("registers six responsive casual games with touch, keyboard, and saved reco
   assert.match(styles, /touch-action: none/);
   assert.match(styles, /\.parking-board\s*\{[\s\S]*?width:\s*calc\(100% - 48px\)/);
   assert.match(styles, /\.parking-exit\s*\{[\s\S]*?width:\s*48px/);
+});
+
+test("provides 50 ordered and valid Parking Escape levels", () => {
+  assert.equal(PARKING_LEVELS.length, 50);
+  assert.equal(PARKING_LEVELS.filter((level) => level.difficulty === "초급").length, 5);
+  assert.equal(PARKING_LEVELS.filter((level) => level.difficulty === "중급").length, 20);
+  assert.equal(PARKING_LEVELS.filter((level) => level.difficulty === "고급").length, 25);
+
+  for (const [index, level] of PARKING_LEVELS.entries()) {
+    assert.equal(level.number, index + 1);
+    assert.ok(level.minMoves > 0);
+    assert.equal(level.cars[0].id, "T");
+    assert.equal(level.cars[0].axis, "h");
+    assert.equal(level.cars[0].y, 2);
+    const occupied = new Set();
+    for (const car of level.cars) {
+      for (let step = 0; step < car.len; step += 1) {
+        const x = car.x + (car.axis === "h" ? step : 0);
+        const y = car.y + (car.axis === "v" ? step : 0);
+        assert.ok(x >= 0 && x < 6 && y >= 0 && y < 6, `level ${level.number} has an out-of-bounds car`);
+        assert.ok(!occupied.has(`${x},${y}`), `level ${level.number} has overlapping cars`);
+        occupied.add(`${x},${y}`);
+      }
+    }
+  }
+
+  assert.ok(PARKING_LEVELS[0].minMoves < PARKING_LEVELS[24].minMoves);
+  assert.ok(PARKING_LEVELS[24].minMoves <= PARKING_LEVELS[25].minMoves);
+  assert.ok(PARKING_LEVELS[25].minMoves < PARKING_LEVELS[49].minMoves);
 });
 
 test("moves Dot Survivor with relative drag instead of tap teleportation", async () => {

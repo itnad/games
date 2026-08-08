@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { PARKING_LEVELS } from "./parking-levels";
 
 type ExitProps = { onExit: () => void };
 
@@ -225,30 +226,102 @@ export function UntangleGame({ onExit }: ExitProps) {
 }
 
 type Car = { id: string; x: number; y: number; len: number; axis: "h" | "v"; target?: boolean; color: string };
-const PARKING_START: Car[] = [
-  { id: "T", x: 0, y: 2, len: 2, axis: "h", target: true, color: "red" },
-  { id: "A", x: 2, y: 0, len: 3, axis: "v", color: "blue" },
-  { id: "B", x: 1, y: 4, len: 2, axis: "h", color: "gold" },
-  { id: "C", x: 4, y: 1, len: 2, axis: "v", color: "green" },
-  { id: "D", x: 3, y: 0, len: 2, axis: "h", color: "violet" },
-];
+type ParkingDifficulty = "초급" | "중급" | "고급";
+
+const cloneParkingCars = (index: number): Car[] => PARKING_LEVELS[index].cars.map((car) => ({
+  ...car,
+  axis: car.axis as "h" | "v",
+}));
 
 export function ParkingEscapeGame({ onExit }: ExitProps) {
-  const [cars, setCars] = useState(PARKING_START);
+  const [levelIndex, setLevelIndex] = useState(0);
+  const [levelGroup, setLevelGroup] = useState<ParkingDifficulty>("초급");
+  const [cars, setCars] = useState<Car[]>(() => cloneParkingCars(0));
   const [selected, setSelected] = useState("T");
   const [moves, setMoves] = useState(0);
   const [won, setWon] = useState(false);
-  const best = useBestScore("paperoid-parking-escape-best", won ? moves : 0, true);
+  const [unlocked, setUnlocked] = useState(1);
+  const [records, setRecords] = useState<Record<number, number>>({});
+  const level = PARKING_LEVELS[levelIndex];
+  const best = records[level.number] ?? 0;
+  const visibleLevels = PARKING_LEVELS.filter((item) => item.difficulty === levelGroup);
+
+  useEffect(() => {
+    const savedUnlocked = Number(window.localStorage.getItem("paperoid-parking-unlocked") ?? 1);
+    const savedRecords = JSON.parse(window.localStorage.getItem("paperoid-parking-records") ?? "{}");
+    setUnlocked(Math.max(1, Math.min(PARKING_LEVELS.length, savedUnlocked)));
+    setRecords(savedRecords);
+  }, []);
+
+  const startLevel = (index: number) => {
+    if (index + 1 > unlocked) return;
+    setLevelIndex(index);
+    setLevelGroup(PARKING_LEVELS[index].difficulty as ParkingDifficulty);
+    setCars(cloneParkingCars(index));
+    setSelected("T");
+    setMoves(0);
+    setWon(false);
+  };
+
   const move = (delta: number) => {
     if (won) return; const car = cars.find((item) => item.id === selected)!;
-    if (car.target && delta > 0 && car.x + car.len === 6) { setMoves((value) => value + 1); setWon(true); return; }
+    if (car.target && delta > 0 && car.x + car.len === 6) {
+      const finalMoves = moves + 1;
+      const nextRecords = { ...records, [level.number]: best ? Math.min(best, finalMoves) : finalMoves };
+      const nextUnlocked = Math.min(PARKING_LEVELS.length, Math.max(unlocked, level.number + 1));
+      setMoves(finalMoves);
+      setWon(true);
+      setRecords(nextRecords);
+      setUnlocked(nextUnlocked);
+      window.localStorage.setItem("paperoid-parking-records", JSON.stringify(nextRecords));
+      window.localStorage.setItem("paperoid-parking-unlocked", String(nextUnlocked));
+      return;
+    }
     const next = { ...car, x: car.axis === "h" ? car.x + delta : car.x, y: car.axis === "v" ? car.y + delta : car.y };
     if (next.x < 0 || next.y < 0 || next.x + (next.axis === "h" ? next.len : 1) > 6 || next.y + (next.axis === "v" ? next.len : 1) > 6) return;
     const occupied = cars.some((other) => other.id !== car.id && Array.from({ length: other.len }, (_, index) => [other.x + (other.axis === "h" ? index : 0), other.y + (other.axis === "v" ? index : 0)]).some(([x, y]) => Array.from({ length: next.len }, (_, index) => [next.x + (next.axis === "h" ? index : 0), next.y + (next.axis === "v" ? index : 0)]).some(([nx, ny]) => nx === x && ny === y)));
     if (occupied) return;
     setCars((current) => current.map((item) => item.id === car.id ? next : item)); setMoves((value) => value + 1);
   };
-  const reset = () => { setCars(PARKING_START); setSelected("T"); setMoves(0); setWon(false); };
+  const reset = () => startLevel(levelIndex);
+  const nextLevel = () => startLevel(level.number < PARKING_LEVELS.length ? levelIndex + 1 : 0);
   const current = cars.find((car) => car.id === selected)!;
-  return <main className="cg-shell parking-theme"><CasualHeader title="주차 탈출" icon="▣" onExit={onExit} /><section className="cg-head"><div><small>SLIDE · CLEAR · ESCAPE</small><h1>차량을 움직여<br />빨간 차의 길을 여세요</h1><p>차량은 향한 방향으로만 움직입니다. 빨간 차를 오른쪽 출구로 빼내세요.</p></div><CasualStats score={moves} best={best} label="이동" bestLabel="최소 이동" /></section><section className="parking-wrap"><div className="parking-board"><i className="parking-exit">EXIT</i>{Array.from({ length: 36 }, (_, index) => <span key={index} />)}{cars.map((car) => <button key={car.id} className={`${car.color} ${car.target ? "target" : ""} ${selected === car.id ? "selected" : ""}`} style={{ left: `${car.x / 6 * 100}%`, top: `${car.y / 6 * 100}%`, width: `${(car.axis === "h" ? car.len : 1) / 6 * 100}%`, height: `${(car.axis === "v" ? car.len : 1) / 6 * 100}%` }} onClick={() => setSelected(car.id)} aria-label={`${car.id} 차량 선택`}><i /><b>{car.target ? "나가기" : car.id}</b></button>)}{won && <div className="parking-win">탈출 성공!</div>}</div><div className="parking-control"><span><b>{current.id}</b> 차량 선택됨</span><div><button onClick={() => move(-1)}>{current.axis === "h" ? "←" : "↑"}</button><button onClick={() => move(1)}>{current.axis === "h" ? "→" : "↓"}</button></div></div></section><button className="cg-main-button" onClick={reset}>{won ? "새 퍼즐" : "다시 시작"}</button></main>;
+  return (
+    <main className="cg-shell parking-theme">
+      <CasualHeader title="주차 탈출" icon="▣" onExit={onExit} />
+      <section className="cg-head">
+        <div><small>SLIDE · CLEAR · ESCAPE</small><h1>차량을 움직여<br />빨간 차의 길을 여세요</h1><p>차량은 향한 방향으로만 움직입니다. 빨간 차를 오른쪽 출구로 빼내세요.</p></div>
+        <CasualStats score={moves} best={best} label="이동" bestLabel="이 레벨 기록" />
+      </section>
+      <section className="parking-levels" aria-label="주차 탈출 레벨 선택">
+        <div className="parking-level-summary">
+          <span>LEVEL <b>{String(level.number).padStart(2, "0")}</b></span>
+          <strong className={`difficulty-${level.difficulty}`}>{level.difficulty}</strong>
+          <span>최소 <b>{level.minMoves}</b>수</span>
+        </div>
+        <div className="parking-difficulty-tabs" role="tablist" aria-label="난이도 선택">
+          {(["초급", "중급", "고급"] as ParkingDifficulty[]).map((difficulty) => (
+            <button key={difficulty} type="button" role="tab" aria-selected={levelGroup === difficulty} className={levelGroup === difficulty ? "active" : ""} onClick={() => setLevelGroup(difficulty)}>{difficulty}</button>
+          ))}
+        </div>
+        <div className="parking-level-list">
+          {visibleLevels.map((item) => {
+            const index = item.number - 1;
+            const locked = item.number > unlocked;
+            return <button key={item.number} type="button" disabled={locked} className={level.number === item.number ? "active" : ""} onClick={() => startLevel(index)} aria-label={`${item.difficulty} ${item.number}레벨${locked ? " 잠김" : ""}`}><b>{item.number}</b><span>{locked ? "잠김" : records[item.number] ? `${records[item.number]}수` : `${item.minMoves}수`}</span></button>;
+          })}
+        </div>
+      </section>
+      <section className="parking-wrap">
+        <div className="parking-board">
+          <i className="parking-exit">EXIT</i>
+          {Array.from({ length: 36 }, (_, index) => <span key={index} />)}
+          {cars.map((car) => <button key={car.id} className={`${car.color} ${car.target ? "target" : ""} ${selected === car.id ? "selected" : ""}`} style={{ left: `${car.x / 6 * 100}%`, top: `${car.y / 6 * 100}%`, width: `${(car.axis === "h" ? car.len : 1) / 6 * 100}%`, height: `${(car.axis === "v" ? car.len : 1) / 6 * 100}%` }} onClick={() => setSelected(car.id)} aria-label={`${car.id} 차량 선택`}><i /><b>{car.target ? "나가기" : car.id}</b></button>)}
+          {won && <div className="parking-win"><b>탈출 성공!</b><span>{moves}수 · 기준 {level.minMoves}수</span></div>}
+        </div>
+        <div className="parking-control"><span><b>{current.id}</b> 차량 선택됨</span><div><button onClick={() => move(-1)} aria-label="선택 차량 뒤로 이동">{current.axis === "h" ? "←" : "↑"}</button><button onClick={() => move(1)} aria-label="선택 차량 앞으로 이동">{current.axis === "h" ? "→" : "↓"}</button></div></div>
+      </section>
+      <button className="cg-main-button" onClick={won ? nextLevel : reset}>{won ? level.number < PARKING_LEVELS.length ? "다음 레벨" : "처음부터" : "이 레벨 다시 시작"}</button>
+    </main>
+  );
 }
