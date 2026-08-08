@@ -3753,8 +3753,8 @@ footer > span {
   aspect-ratio: 1;
   padding: 10px;
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  grid-template-rows: repeat(10, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr));
   border: 9px solid #c9b486;
   border-radius: 7px;
   background: #17705a;

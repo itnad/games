@@ -658,6 +658,15 @@ test("uses official classic Battleship fleet and American checkers crowning", as
   assert.equal(crowned.crowned, true, "끝줄에서 킹이 된 순간에는 추가 잡기가 있어도 차례가 끝나야 합니다.");
 });
 
+test("renders the 64-cell Reversi board as a complete 8 by 8 grid", async () => {
+  const gameSource = await readFile(new URL("../app/more-games.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(gameSource, /Array\.from\(\{ length: 64 \}/);
+  assert.match(gameSource, /aria-label="8 곱하기 8 리버시 판"/);
+  assert.match(styles, /\.reversi-board\s*\{[\s\S]*?grid-template-columns:\s*repeat\(8, minmax\(0, 1fr\)\);[\s\S]*?grid-template-rows:\s*repeat\(8, minmax\(0, 1fr\)\);/);
+});
+
 test("documents audited classic variants and player choices", async () => {
   const source = await readFile(new URL("../app/classic-games.tsx", import.meta.url), "utf8");
 
