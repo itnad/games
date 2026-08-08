@@ -1195,6 +1195,13 @@ test("keeps Baccarat tutorial navigation on one horizontal row", async () => {
   assert.match(styles, /\.bc-tutorial-nav button:last-child\{justify-self:end\}/);
 });
 
+test("uses the shared Paperoid brand copy in the Baccarat topbar", async () => {
+  const source = await readFile(new URL("../app/baccarat-game.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /<small>paperoid<\/small><strong>바카라<\/strong>/);
+  assert.doesNotMatch(source, /TABLE CLASSIC/);
+});
+
 test("runs Scotland Yard hidden movement, tickets, and fair AI", () => {
   assert.equal(SY_MAX_ROUNDS, 24);
   assert.equal(SY_NODES.length, 96);

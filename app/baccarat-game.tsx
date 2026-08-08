@@ -44,7 +44,7 @@ const TUTORIAL = [
 ];
 
 function Topbar({ onExit }: { onExit: () => void }) {
-  return <header className="bc-topbar"><button onClick={onExit} aria-label="게임 목록으로">←</button><div><small>paperoid · TABLE CLASSIC</small><strong>바카라</strong></div><button onClick={onExit}>나가기</button></header>;
+  return <header className="bc-topbar"><button onClick={onExit} aria-label="게임 목록으로">←</button><div><small>paperoid</small><strong>바카라</strong></div><button onClick={onExit}>나가기</button></header>;
 }
 
 function PlayingCard({ card, hidden = false, delay = 0 }: { card?: Card; hidden?: boolean; delay?: number }) {
