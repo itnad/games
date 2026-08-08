@@ -88,10 +88,10 @@ type GameId =
   | "paper-dungeon"
   | "ten-seconds"
   | "mudflat-survivor";
-type Category = "전체" | "전략" | "고전게임" | "기억력" | "추리" | "주사위" | "경주" | "터치류" | "RPG";
+type Category = "전체" | "전략" | "고전게임" | "기억력" | "추리" | "퍼즐류" | "주사위" | "경주" | "터치류" | "RPG";
 
-const CATEGORIES: Category[] = ["전체", "전략", "고전게임", "기억력", "추리", "주사위", "경주", "터치류", "RPG"];
-const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "고전게임", "기억력", "추리", "주사위", "경주", "터치류", "RPG"];
+const CATEGORIES: Category[] = ["전체", "전략", "고전게임", "기억력", "추리", "퍼즐류", "주사위", "경주", "터치류", "RPG"];
+const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "고전게임", "기억력", "추리", "퍼즐류", "주사위", "경주", "터치류", "RPG"];
 
 type GameDefinition = {
   id: GameId;
@@ -395,7 +395,7 @@ const GAMES: GameDefinition[] = [
     id: "parking-escape",
     title: "주차 탈출",
     subtitle: "차량을 밀어 빨간 차의 출구를 여세요",
-    category: "터치류",
+    category: "퍼즐류",
     players: "1인 퍼즐",
     tone: "green",
   },

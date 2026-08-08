@@ -502,12 +502,16 @@ test("registers six responsive casual games with touch, keyboard, and saved reco
     assert.match(pageSource, new RegExp(`id: "${id}"`));
   }
   assert.match(pageSource, /category: "터치류"/);
+  assert.match(pageSource, /type Category = [^;]*"퍼즐류"/);
+  assert.match(pageSource, /id: "parking-escape",[\s\S]*?category: "퍼즐류"/);
   assert.doesNotMatch(pageSource, /category: "캐주얼"/);
   assert.match(source, /window\.localStorage/);
   assert.match(source, /onPointerDown/);
   assert.match(source, /ArrowLeft/);
   assert.match(styles, /@media \(max-width: 700px\)/);
   assert.match(styles, /touch-action: none/);
+  assert.match(styles, /\.parking-board\s*\{[\s\S]*?width:\s*calc\(100% - 48px\)/);
+  assert.match(styles, /\.parking-exit\s*\{[\s\S]*?width:\s*48px/);
 });
 
 test("moves Dot Survivor with relative drag instead of tap teleportation", async () => {
