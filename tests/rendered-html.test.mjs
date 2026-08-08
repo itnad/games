@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
+import { distributeRemainingGemsAcrossCards } from "../app/incan-gold-gems.js";
 import {
   applyChessMove,
   chessGameStatus,
@@ -862,7 +863,21 @@ test("matches the official IELLO 2016 Diamant relic variant", async () => {
   assert.match(source, /scrollIntoView\(\{ behavior: "smooth", block: "nearest", inline: "center" \}\)/);
   assert.match(source, /aria-current=\{latest \? "step" : undefined\}/);
   assert.match(source, /latest-card-label/);
+  assert.match(source, /남은 보석 \{card\.remaining\}/);
+  assert.match(source, /카드 위 보석/);
+  assert.doesNotMatch(source, /길에 \{card\.remaining\}|길의 보석|redistributeTrail/);
   assert.match(styles, /\.cave-card\.latest[\s\S]*?incan-latest-glow/);
+  assert.match(styles, /\.cave-card > small \{[\s\S]*?font-size: 12px;[\s\S]*?white-space: nowrap;/);
+
+  const cards = [
+    { id: "a", type: "treasure", remaining: 3 },
+    { id: "b", type: "hazard", hazard: "뱀" },
+    { id: "c", type: "treasure", remaining: 2 },
+    { id: "d", type: "treasure", remaining: 1 },
+  ];
+  const distributed = distributeRemainingGemsAcrossCards(cards, 4);
+  assert.deepEqual(distributed.filter((card) => card.type === "treasure").map((card) => card.remaining), [2, 1, 1]);
+  assert.equal(distributed.reduce((sum, card) => sum + (card.type === "treasure" ? card.remaining : 0), 0), 4);
 });
 
 test("offers all four standard Janggi horse-elephant setups", async () => {

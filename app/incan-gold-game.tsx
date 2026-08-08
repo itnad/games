@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Ref } from "react";
 import { withKoreanSubject } from "./korean-particles.js";
+import { distributeRemainingGemsAcrossCards } from "./incan-gold-gems.js";
 
 type ExitProps = { onExit: () => void };
 type Hazard = "뱀" | "전갈" | "용암" | "낙석" | "가시";
@@ -199,7 +200,7 @@ function revealNext(state: GameState): GameState {
       phase: "decision",
       choices: {},
       message: `${drawn.value}개의 보석을 발견했어요`,
-      detail: `탐험가마다 ${share}개씩 나누고 ${remaining}개는 길에 남았습니다`,
+      detail: `탐험가마다 ${share}개씩 나누고 ${remaining}개는 이 카드 위에 남았습니다`,
       bustedHazard: null,
     };
   }
@@ -247,18 +248,6 @@ function revealNext(state: GameState): GameState {
   );
 }
 
-function redistributeTrail(path: ExpeditionCard[], remaining: number) {
-  let placed = false;
-  return path.map((card) => {
-    if (card.type !== "treasure") return card;
-    if (!placed && remaining > 0) {
-      placed = true;
-      return { ...card, remaining };
-    }
-    return { ...card, remaining: 0 };
-  });
-}
-
 function resolveDeparture(state: GameState): GameState {
   const leavers = state.players.filter(
     (player) => player.active && state.choices[player.id] === "leave",
@@ -270,7 +259,7 @@ function resolveDeparture(state: GameState): GameState {
   const foundRelics = soloLeaver === null
     ? []
     : state.path.flatMap((card) => card.type === "relic" ? [card.value] : []);
-  let path = redistributeTrail(state.path, remainder);
+  let path = distributeRemainingGemsAcrossCards(state.path, remainder) as ExpeditionCard[];
   if (soloLeaver !== null) path = path.filter((card) => card.type !== "relic");
 
   const players = state.players.map((player) => {
@@ -306,7 +295,7 @@ function resolveDeparture(state: GameState): GameState {
       ? `${leavers.map((player) => player.name).join("·")} 귀환`
       : "모두 더 깊이 들어갑니다",
     detail: leavers.length
-      ? `귀환자마다 길의 보석 ${share}개를 추가로 확보했습니다`
+      ? `귀환자마다 카드 위 보석 ${share}개를 추가로 확보했습니다`
       : "다음 탐험 카드를 공개합니다",
     actionId: state.actionId + 1,
   });
@@ -380,7 +369,7 @@ function CardView({ card, latest, cardRef }: { card: ExpeditionCard; latest: boo
         <span className="card-kind">GEMS</span>
         <strong>{card.value}</strong>
         <i aria-hidden="true">◆</i>
-        {card.remaining > 0 && <small>길에 {card.remaining}</small>}
+        {card.remaining > 0 && <small>남은 보석 {card.remaining}</small>}
       </article>
     );
   }
@@ -514,7 +503,7 @@ export function IncanGoldGame({ onExit }: ExitProps) {
           ) : (
             <div className="incan-progress">
               <div><span>ROUND</span><strong>{state.round}/5</strong></div>
-              <div><span>길의 보석</span><strong>{trailGems(state.path)}</strong></div>
+              <div><span>카드 위 보석</span><strong>{trailGems(state.path)}</strong></div>
               <div><span>공개 유물</span><strong>{pathRelics.length}</strong></div>
             </div>
           )}
@@ -554,10 +543,10 @@ export function IncanGoldGame({ onExit }: ExitProps) {
                 <details className="incan-rules">
                   <summary>ⓘ 규칙</summary>
                   <div>
-                    <p><b>보석</b> 현재 동굴에 남은 사람끼리 나누며 나머지는 길에 둡니다.</p>
-                    <p><b>귀환</b> 손의 보석과 길의 몫을 보관함에 넣어 안전하게 만듭니다.</p>
+                    <p><b>보석</b> 현재 동굴에 남은 사람끼리 나누며 나머지는 해당 보석 카드 위에 둡니다.</p>
+                    <p><b>귀환</b> 손의 보석과 카드 위 보석에서 나눈 몫을 보관함에 넣어 안전하게 만듭니다.</p>
                     <p><b>위험</b> 같은 종류가 두 번째 나오면 남아 있던 사람은 손의 보석을 잃습니다.</p>
-                    <p><b>유물 변형</b> IELLO 2016 규칙의 5·7·8·10·12점 유물을 사용하며, 혼자 귀환한 경우에만 길의 유물을 모두 획득합니다.</p>
+                    <p><b>유물 변형</b> IELLO 2016 규칙의 5·7·8·10·12점 유물을 사용하며, 혼자 귀환한 경우에만 공개된 유물을 모두 획득합니다.</p>
                     <p><b>동점</b> 5번째 탐험 뒤 총점이 같으면 해당 탐험가들이 공동 승리합니다.</p>
                   </div>
                 </details>

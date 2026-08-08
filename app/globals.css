@@ -3252,8 +3252,9 @@ footer > span {
   border-radius: 999px;
   color: #683c2d;
   background: rgba(255,255,255,.48);
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 850;
+  white-space: nowrap;
 }
 
 .incan-actions {
