@@ -13,3 +13,14 @@
 @media(max-width:850px){.ms-character-grid{grid-template-columns:1fr!important}.ms-mode-picker{grid-template-columns:1fr!important}.ms-character-grid button{min-height:92px}}
 @media(max-width:600px){.ms-mode-picker button,.ms-character-grid button{padding:13px!important}.ms-general-profile{padding:14px}.ms-general-profile>i{width:54px!important;height:54px!important}}
 @media(prefers-reduced-motion:reduce){.ms-shell *,.ms-shell *::before,.ms-shell *::after{animation:none!important;transition-duration:.01ms!important}}
+
+/* Match the shared paperoid header on setup and result screens. */
+.ms-shell .ms-topbar.game-topbar{height:72px;min-height:72px;padding:0 32px;grid-template-columns:48px minmax(0,1fr) 128px;column-gap:8px;background:rgba(250,249,247,.94)}
+.ms-shell .ms-topbar .back-button{width:38px;height:38px;border:1px solid #d8d4de;border-radius:50%;color:#57515e;background:transparent;font-size:19px}
+.ms-shell .ms-topbar .game-title-lockup{display:flex;justify-self:center;justify-items:initial}
+.ms-shell .ms-topbar .game-title-lockup .brand-mark{color:var(--ms-coral)}
+.ms-shell .ms-topbar .game-title-lockup div{display:flex;justify-items:initial}
+.ms-shell .ms-topbar .game-title-lockup span{color:#8a8490;font-size:11px;letter-spacing:.15em}
+.ms-shell .ms-topbar .game-title-lockup strong{font-size:20px}
+.game-readability-scope:has(.ms-topbar) .game-objective-trigger{right:20px}
+@media(max-width:640px){.ms-shell .ms-topbar.game-topbar{height:62px;min-height:62px;padding:0 16px;grid-template-columns:44px minmax(0,1fr) 116px;column-gap:6px}.ms-shell .ms-topbar .back-button{width:38px;height:38px}.game-readability-scope:has(.ms-topbar) .game-objective-trigger{right:20px}}

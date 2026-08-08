@@ -796,6 +796,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /갯벌 초보/);
   assert.match(source, /어린이 모드/);
   assert.match(source, /일반 모드/);
+  assert.match(source, /function MudflatTopbar/);
+  assert.match(source, /className="game-topbar ms-topbar"/);
+  assert.doesNotMatch(source, /paperoid · MUDFLAT ACTION/);
   assert.match(source, /creature\.type === "crab"/);
   assert.match(source, /creature\.type === "mudfish"/);
   assert.match(source, /creature\.type === "octopus"/);
