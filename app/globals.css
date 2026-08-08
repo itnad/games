@@ -846,12 +846,6 @@ a:focus-visible {
 }
 .suggestion-board li small { color: #9a949e; font-size: 11px; }
 .suggestion-board li.completed small { color: #5d9d79; font-weight: 750; }
-.suggestion-board time {
-  color: #aaa4ad;
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 10px;
-}
-
 .suggestion-check {
   width: 28px;
   height: 28px;

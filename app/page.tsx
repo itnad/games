@@ -998,15 +998,6 @@ type GameSuggestion = {
   completedAt: string | null;
 };
 
-function suggestionDate(value: string) {
-  const date = new Date(value.includes("T") ? value : `${value.replace(" ", "T")}Z`);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-}
-
 function sortSuggestions(items: GameSuggestion[]) {
   return [...items].sort((a, b) => {
     if (a.completed !== b.completed) return Number(a.completed) - Number(b.completed);
@@ -1175,7 +1166,6 @@ function SuggestionBoard() {
                     <strong>{suggestion.title}</strong>
                     <small>{suggestion.completed ? "게임 추가 완료" : "추천 검토 중"}</small>
                   </div>
-                  <time dateTime={suggestion.createdAt}>{suggestionDate(suggestion.createdAt)}</time>
                 </li>
               ))}
             </ul>

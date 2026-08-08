@@ -376,6 +376,7 @@ test("applies the shared readable typography contract to every current and futur
 });
 
 test("server-renders the paperoid game library", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
@@ -435,6 +436,7 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /id="game-suggestion"/i);
   assert.match(html, /maxlength="50"/i);
   assert.doesNotMatch(html, /예: 카탄, 루미큐브, 스플렌더/);
+  assert.doesNotMatch(pageSource, /suggestionDate|<time dateTime=\{suggestion\.createdAt\}/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
 });
 
