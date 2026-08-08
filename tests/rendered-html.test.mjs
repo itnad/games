@@ -331,6 +331,20 @@ test("provides a complete objective and victory guide for every game", async () 
   );
 });
 
+test("uses the original Paperoid character atlas in the memory game", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const atlas = await readFile(new URL("../public/memory-character-atlas.png", import.meta.url));
+
+  assert.equal(atlas.subarray(1, 4).toString(), "PNG");
+  assert.ok(atlas.length > 100_000);
+  assert.match(pageSource, /\["moon-jelly", "달빛 해파리"\]/);
+  assert.match(pageSource, /\["cloud-whale", "구름 아기고래"\]/);
+  assert.match(pageSource, /memoryCharacterLabel\(card\.symbol\)/);
+  assert.match(styles, /background-image: url\("\/memory-character-atlas\.png"\)/);
+  assert.match(styles, /\.character-cloud-whale \{ background-position: 100% 100%; \}/);
+});
+
 test("applies the shared readable typography contract to every current and future game", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");

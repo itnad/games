@@ -488,10 +488,10 @@ function GameArtwork({ game }: { game: GameDefinition }) {
 
   if (game.id === "memory") return (
     <div className="card-art memory-art" aria-hidden="true">
-      <span className="memory-tile tile-a">☀</span>
-      <span className="memory-tile tile-b">✿</span>
-      <span className="memory-tile tile-c">☀</span>
-      <span className="memory-tile tile-d">✦</span>
+      <span className="memory-tile tile-a"><i className="memory-character character-moon-jelly" /></span>
+      <span className="memory-tile tile-b"><i className="memory-character character-lantern-owl" /></span>
+      <span className="memory-tile tile-c"><i className="memory-character character-moon-jelly" /></span>
+      <span className="memory-tile tile-d"><i className="memory-character character-paper-dragon" /></span>
       <span className="float-chip">8 pairs</span>
     </div>
   );
@@ -1568,7 +1568,22 @@ function GomokuGame({ onExit }: { onExit: () => void }) {
   );
 }
 
-const MEMORY_SYMBOLS = ["☀", "✿", "◆", "☂", "♬", "☾", "★", "♣"];
+const MEMORY_CHARACTERS = [
+  ["moon-jelly", "달빛 해파리"],
+  ["teapot-snail", "주전자 달팽이"],
+  ["lantern-owl", "등불 부엉이"],
+  ["coral-cat", "산호 고양이"],
+  ["paper-dragon", "종이 아기용"],
+  ["star-moth", "별날개 나방"],
+  ["mushroom-diver", "버섯 잠수부"],
+  ["cloud-whale", "구름 아기고래"],
+] as const;
+
+const MEMORY_SYMBOLS = MEMORY_CHARACTERS.map(([id]) => id);
+
+function memoryCharacterLabel(id: string) {
+  return MEMORY_CHARACTERS.find(([characterId]) => characterId === id)?.[1] ?? "신비한 친구";
+}
 
 type MemoryCard = {
   id: number;
@@ -1742,12 +1757,12 @@ function MemoryGame({ onExit }: { onExit: () => void }) {
                   className={`memory-card ${open ? "open" : ""} ${card.matched ? "matched" : ""}`}
                   onClick={() => chooseCard(index)}
                   disabled={turn !== "player" || busy.current || card.matched}
-                  aria-label={open ? `${card.symbol} 카드${card.matched ? ", 짝 맞춤" : ""}` : "뒤집힌 카드"}
+                  aria-label={open ? `${memoryCharacterLabel(card.symbol)} 카드${card.matched ? ", 짝 맞춤" : ""}` : "뒤집힌 카드"}
                   role="gridcell"
                 >
                   <span className="card-inner">
                     <span className="card-back"><BrandMark /></span>
-                    <span className="card-front">{card.symbol}</span>
+                    <span className="card-front"><span className={`memory-character character-${card.symbol}`} aria-hidden="true" /></span>
                   </span>
                 </button>
               );
