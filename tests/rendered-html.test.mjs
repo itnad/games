@@ -1099,6 +1099,16 @@ test("applies official commission Baccarat points, third-card table, and session
   assert.ok(Number.isFinite(game.chips));
 });
 
+test("keeps Baccarat tutorial navigation on one horizontal row", async () => {
+  const source = await readFile(new URL("../app/baccarat-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/baccarat.css", import.meta.url), "utf8");
+
+  assert.match(source, /className="bc-tutorial-nav"/);
+  assert.match(styles, /\.bc-tutorial \.bc-tutorial-nav\{[^}]*display:grid;[^}]*grid-template-columns:1fr 1fr;/);
+  assert.match(styles, /\.bc-tutorial-nav button:first-child\{justify-self:start\}/);
+  assert.match(styles, /\.bc-tutorial-nav button:last-child\{justify-self:end\}/);
+});
+
 test("runs Scotland Yard hidden movement, tickets, and fair AI", () => {
   assert.equal(SY_MAX_ROUNDS, 24);
   assert.equal(SY_NODES.length, 96);

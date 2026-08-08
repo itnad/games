@@ -58,7 +58,7 @@ function Guide({ mode, step, onStep, onClose }: { mode: "rules" | "tutorial"; st
     <button className="bc-close" onClick={onClose} aria-label="닫기">×</button>
     <small>BACCARAT GUIDE</small><h2>{mode === "rules" ? "게임 방법" : "빠른 튜토리얼"}</h2>
     {mode === "rules" ? <div className="bc-rule-list">{RULES.map(([title, text], index) => <article key={title}><b>{index + 1}</b><div><h3>{title}</h3><p>{text}</p></div></article>)}</div> :
-      <div className="bc-tutorial"><div className="bc-tutorial-mark">{step + 1}</div><p>{step + 1} / {TUTORIAL.length}</p><h3>{item[0]}</h3><div className="bc-tutorial-visual">{["P", "50", "♠", "9", "P·B·T", "10"][step]}</div><p>{item[1]}</p><footer><button disabled={step === 0} onClick={() => onStep(step - 1)}>이전</button>{step < TUTORIAL.length - 1 ? <button className="primary" onClick={() => onStep(step + 1)}>다음</button> : <button className="primary" onClick={onClose}>시작하기</button>}</footer></div>}
+      <div className="bc-tutorial"><div className="bc-tutorial-mark">{step + 1}</div><p>{step + 1} / {TUTORIAL.length}</p><h3>{item[0]}</h3><div className="bc-tutorial-visual">{["P", "50", "♠", "9", "P·B·T", "10"][step]}</div><p>{item[1]}</p><footer className="bc-tutorial-nav"><button disabled={step === 0} onClick={() => onStep(step - 1)}>이전</button>{step < TUTORIAL.length - 1 ? <button className="primary" onClick={() => onStep(step + 1)}>다음</button> : <button className="primary" onClick={onClose}>시작하기</button>}</footer></div>}
   </section></div>;
 }
 
