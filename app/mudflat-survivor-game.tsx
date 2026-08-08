@@ -14,6 +14,7 @@ import {
   mudflatFinalScore,
   mudflatHarpoonStats,
   mudflatJoystickVector,
+  mudflatNetStats,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
   mudflatSeafoodSaleValue,
@@ -797,10 +798,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const netLevel = runtime.levels.net ?? 0;
       if (netLevel > 0 && runtime.netClock <= 0 && runtime.creatures.length) {
         const target = runtime.creatures.reduce((nearest, item) => Math.hypot(item.x - runtime.player.x, item.y - runtime.player.y) < Math.hypot(nearest.x - runtime.player.x, nearest.y - runtime.player.y) ? item : nearest);
+        const netStats = mudflatNetStats(netLevel);
         runtime.netSlams.push({
           id: sequenceRef.current++, x: target.x, y: target.y, targetId: target.id,
           damage: (6 + netLevel * 4) * toolPower,
-          radius: runtime.mode === "normal" ? 42 + netLevel * 8 : 30,
+          radius: runtime.mode === "normal" ? netStats.range : 30,
           area: runtime.mode === "normal", hit: false, life: .62, maxLife: .62,
         });
         runtime.netClock = Math.max(.48, 1.5 - netLevel * .14);
@@ -834,7 +836,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           return Math.hypot(item.x - runtime.player.x, item.y - runtime.player.y) < Math.hypot(nearest.x - runtime.player.x, nearest.y - runtime.player.y) ? item : nearest;
         }, null);
         if (target) {
-          const stats = mudflatHarpoonStats(harpoonLevel, width);
+          const stats = mudflatHarpoonStats(harpoonLevel, netLevel);
           const dx = target.x - runtime.player.x; const dy = target.y - runtime.player.y; const distance = Math.hypot(dx, dy) || 1;
           const angle = Math.atan2(dy, dx);
           runtime.harpoons.push({

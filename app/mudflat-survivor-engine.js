@@ -93,13 +93,21 @@ export function mudflatTongStats(level = 1) {
   return { rotationSpeed: 1.55 * multiplier, power: 5.5 * multiplier, reach: 84 };
 }
 
-export function mudflatHarpoonStats(level = 0, viewportWidth = 0) {
+export function mudflatNetStats(level = 0) {
+  const safeLevel = Math.max(0, Math.min(6, Math.floor(level)));
+  if (safeLevel === 0) return { range: 0 };
+  const tongRange = mudflatTongStats(1).reach;
+  return { range: tongRange * (1 + (safeLevel - 1) / 5) };
+}
+
+export function mudflatHarpoonStats(level = 0, netLevel = 1) {
   const safeLevel = Math.max(0, Math.floor(level));
-  if (safeLevel === 0) return { range: 0, damage: 0, speed: 760, interval: Infinity };
+  if (safeLevel === 0) return { range: 0, damage: 0, speed: 304, interval: Infinity };
+  const referenceNetRange = mudflatNetStats(Math.max(1, netLevel)).range;
   return {
-    range: Math.max(0, viewportWidth) * 0.7 * 1.2 ** (safeLevel - 1),
+    range: referenceNetRange * (safeLevel + 1),
     damage: 30 * 1.5 ** (safeLevel - 1),
-    speed: 760,
+    speed: 304,
     interval: 2.2,
   };
 }

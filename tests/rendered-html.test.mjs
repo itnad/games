@@ -121,6 +121,7 @@ import {
   mudflatFinalScore,
   mudflatHarpoonStats,
   mudflatJoystickVector,
+  mudflatNetStats,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
   mudflatSeafoodSaleValue,
@@ -786,10 +787,19 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(generalChoices.every((choice) => ["basket", "tongs", "harpoon", "boots", "snack", "rocker", "net"].includes(choice.id)));
   assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
   assert.equal(mudflatTongStats(2).power, mudflatTongStats(1).power * 1.5);
-  assert.equal(mudflatHarpoonStats(1, 1000).range, 700);
-  assert.equal(mudflatHarpoonStats(1, 1000).damage, 30);
-  assert.equal(mudflatHarpoonStats(2, 1000).range, 840);
-  assert.equal(mudflatHarpoonStats(2, 1000).damage, 45);
+  assert.equal(mudflatNetStats(1).range, mudflatTongStats(1).reach);
+  assert.equal(mudflatNetStats(2).range, mudflatTongStats(1).reach * 1.2);
+  assert.equal(mudflatNetStats(3).range, mudflatTongStats(1).reach * 1.4);
+  assert.equal(mudflatNetStats(4).range, mudflatTongStats(1).reach * 1.6);
+  assert.equal(mudflatNetStats(5).range, mudflatTongStats(1).reach * 1.8);
+  assert.equal(mudflatNetStats(6).range, mudflatTongStats(1).reach * 2);
+  assert.equal(mudflatHarpoonStats(1, 1).range, mudflatNetStats(1).range * 2);
+  assert.equal(mudflatHarpoonStats(2, 2).range, mudflatNetStats(2).range * 3);
+  assert.equal(mudflatHarpoonStats(3, 3).range, mudflatNetStats(3).range * 4);
+  assert.equal(mudflatHarpoonStats(4, 4).range, mudflatNetStats(4).range * 5);
+  assert.equal(mudflatHarpoonStats(1, 1).damage, 30);
+  assert.equal(mudflatHarpoonStats(2, 2).damage, 45);
+  assert.equal(mudflatHarpoonStats(1, 1).speed, 760 * 0.4);
   assert.equal(mudflatRockTurnerStats(1).creatureChance, 0.2);
   assert.equal(mudflatRockTurnerStats(2).creatureChance, 0.3);
   assert.equal(mudflatRockTurnerStats(2).activationsPerSecond, 1.3);
