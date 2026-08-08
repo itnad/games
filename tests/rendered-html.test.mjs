@@ -611,7 +611,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.doesNotMatch(styles, /\.ms-tools b\{display:none\}/);
 });
 
-test("uses official classic Battleship fleet and American checkers crowning", () => {
+test("uses official classic Battleship fleet and American checkers crowning", async () => {
   let seed = 4711;
   const random = () => {
     seed = (seed * 48271) % 2147483647;
@@ -628,6 +628,14 @@ test("uses official classic Battleship fleet and American checkers crowning", ()
   }
   const sunkShots = new Set(fleet.ships[0]);
   assert.equal(battleshipRemainingShips(fleet, sunkShots), 4);
+
+  const battleshipSource = await readFile(new URL("../app/more-games.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(battleshipSource, /style=\{\{ "--sea-size": SEA_SIZE \} as CSSProperties\}/);
+  assert.match(styles, /grid-template-columns: repeat\(var\(--sea-size\), minmax\(0, 1fr\)\)/);
+  assert.match(styles, /grid-template-rows: repeat\(var\(--sea-size\), minmax\(0, 1fr\)\)/);
+  assert.doesNotMatch(styles, /\.sea-grid button\.ship/);
+  assert.doesNotMatch(battleshipSource, /className=\{`\$\{!conceal && ship \? "ship"/);
 
   const board = Array(64).fill(0);
   board[17] = 1;

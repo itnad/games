@@ -611,7 +611,12 @@ function SeaGrid({
     .filter((submarine) => !conceal || submarine.sunk);
 
   return (
-    <div className="sea-grid" role="grid" aria-label={label}>
+    <div
+      className="sea-grid"
+      style={{ "--sea-size": SEA_SIZE } as CSSProperties}
+      role="grid"
+      aria-label={label}
+    >
       {visibleSubmarines.map((submarine) => (
         <span
           key={`submarine-${submarine.shipIndex}`}
@@ -630,7 +635,7 @@ function SeaGrid({
             key={index}
             onClick={() => onShoot?.(index)}
             disabled={!onShoot || disabled || shot}
-            className={`${!conceal && ship ? "ship" : ""} ${shot ? ship ? "hit" : "miss" : ""}`}
+            className={shot ? ship ? "hit" : "miss" : ""}
             aria-label={`${Math.floor(index / SEA_SIZE) + 1}행 ${(index % SEA_SIZE) + 1}열${!conceal && ship ? " 내 함선" : ""}${shot ? ship ? " 명중" : " 빗나감" : ""}`}
             role="gridcell"
           >
