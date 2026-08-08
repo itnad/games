@@ -342,7 +342,10 @@ test("uses the original Paperoid character atlas in the memory game", async () =
   assert.match(pageSource, /\["cloud-whale", "구름 아기고래"\]/);
   assert.match(pageSource, /memoryCharacterLabel\(card\.symbol\)/);
   assert.match(styles, /background-image: url\("\/memory-character-atlas\.png"\)/);
-  assert.match(styles, /\.character-cloud-whale \{ background-position: 100% 100%; \}/);
+  assert.match(styles, /background-size: var\(--memory-atlas-scale, 500%\) auto/);
+  assert.match(styles, /background-position: var\(--memory-atlas-x, 50%\) var\(--memory-atlas-y, 50%\)/);
+  assert.match(styles, /\.character-mushroom-diver \{ --memory-atlas-scale: 520%; --memory-atlas-x: 64%; --memory-atlas-y: 81%; \}/);
+  assert.match(styles, /\.character-cloud-whale \{ --memory-atlas-scale: 440%; --memory-atlas-x: 97%; --memory-atlas-y: 85%; \}/);
 });
 
 test("applies the shared readable typography contract to every current and future game", async () => {

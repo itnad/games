@@ -2332,18 +2332,19 @@ footer > span {
   border-radius: 10px;
   background-image: url("/memory-character-atlas.png");
   background-repeat: no-repeat;
-  background-size: 400% 200%;
+  background-size: var(--memory-atlas-scale, 500%) auto;
+  background-position: var(--memory-atlas-x, 50%) var(--memory-atlas-y, 50%);
   background-color: #03091e;
 }
 
-.character-moon-jelly { background-position: 0% 0%; }
-.character-teapot-snail { background-position: 33.333% 0%; }
-.character-lantern-owl { background-position: 66.667% 0%; }
-.character-coral-cat { background-position: 100% 0%; }
-.character-paper-dragon { background-position: 0% 100%; }
-.character-star-moth { background-position: 33.333% 100%; }
-.character-mushroom-diver { background-position: 66.667% 100%; }
-.character-cloud-whale { background-position: 100% 100%; }
+.character-moon-jelly { --memory-atlas-x: 2%; --memory-atlas-y: 22%; }
+.character-teapot-snail { --memory-atlas-scale: 440%; --memory-atlas-x: 34%; --memory-atlas-y: 19%; }
+.character-lantern-owl { --memory-atlas-x: 65%; --memory-atlas-y: 22%; }
+.character-coral-cat { --memory-atlas-x: 95%; --memory-atlas-y: 20%; }
+.character-paper-dragon { --memory-atlas-x: 3%; --memory-atlas-y: 84%; }
+.character-star-moth { --memory-atlas-x: 34%; --memory-atlas-y: 81%; }
+.character-mushroom-diver { --memory-atlas-scale: 520%; --memory-atlas-x: 64%; --memory-atlas-y: 81%; }
+.character-cloud-whale { --memory-atlas-scale: 440%; --memory-atlas-x: 97%; --memory-atlas-y: 85%; }
 
 .memory-card.matched .card-front {
   border-color: #e7ad9c;
