@@ -18,6 +18,29 @@ export const MUDFLAT_ROCK_FINDINGS = [
   { type: "octopus", name: "낙지", movement: "flee", chance: 0.1 },
 ];
 
+export const MUDFLAT_SEAFOOD_MARKET = [
+  { type: "clam", name: "조개", icon: "◒", price: 4 },
+  { type: "crab", name: "칠게", icon: "♋", price: 8 },
+  { type: "shrimp", name: "새우", icon: "⌁", price: 12 },
+  { type: "mudfish", name: "망둥어", icon: "◇", price: 15 },
+  { type: "whelk", name: "소라", icon: "@", price: 22 },
+  { type: "octopus", name: "낙지", icon: "✣", price: 36 },
+  { type: "king-crab", name: "대왕 꽃게", icon: "♛", price: 240 },
+];
+
+export const MUDFLAT_SHOP_EQUIPMENT = [
+  { id: "gloves", icon: "⌁", name: "미끄럼 방지 장갑", description: "모든 채집 도구의 위력이 12% 증가합니다.", basePrice: 90, priceStep: 70, max: 4 },
+  { id: "waders", icon: "≫", name: "강화 갯벌 장화", description: "이동 속도가 5% 증가하고 최대 체력이 8 늘어납니다.", basePrice: 110, priceStep: 80, max: 4 },
+  { id: "cooler", icon: "▣", name: "보냉 바구니", description: "해산물 판매가가 8% 오르고 수집 범위가 넓어집니다.", basePrice: 100, priceStep: 75, max: 4 },
+  { id: "vest", icon: "♥", name: "부력 작업 조끼", description: "최대 체력이 15 늘어납니다.", basePrice: 130, priceStep: 95, max: 3 },
+];
+
+export const MUDFLAT_RECOVERY_FOODS = [
+  { id: "fishcake", icon: "♨", name: "따뜻한 어묵국", description: "체력을 35 회복합니다.", price: 35, heal: 35 },
+  { id: "riceball", icon: "●", name: "든든한 주먹밥", description: "체력을 70 회복합니다.", price: 65, heal: 70 },
+  { id: "porridge", icon: "◉", name: "해물죽 한 그릇", description: "체력을 모두 회복합니다.", price: 110, heal: Infinity },
+];
+
 export const MUDFLAT_UPGRADES = [
   { id: "hoe", icon: "⌁", name: "호미질", description: "채집 범위와 위력이 커집니다.", max: 6 },
   { id: "net", icon: "◇", name: "자동 뜰채", description: "가까운 해산물에게 그물을 던집니다.", max: 6 },
@@ -88,6 +111,35 @@ export function mudflatRockCreatureForRoll(roll = 0) {
     if (safeRoll < accumulated) return finding;
   }
   return MUDFLAT_ROCK_FINDINGS.at(-1);
+}
+
+export function mudflatStageStats(stage = 1) {
+  const safeStage = Math.max(1, Math.floor(stage));
+  return {
+    creatureHpMultiplier: 1 + (safeStage - 1) * 0.18,
+    creatureSpeedMultiplier: 1 + (safeStage - 1) * 0.05,
+    spawnIntervalMultiplier: Math.max(0.58, 1 - (safeStage - 1) * 0.045),
+    contactDamageBonus: (safeStage - 1) * 2,
+    rockLimit: Math.min(32, 20 + (safeStage - 1) * 2),
+  };
+}
+
+export function mudflatSeafoodSaleValue(type, count = 1, coolerLevel = 0) {
+  const market = MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === type);
+  const safeCount = Math.max(0, Math.floor(count));
+  if (!market || safeCount === 0) return 0;
+  const saleMultiplier = 1 + Math.max(0, Math.floor(coolerLevel)) * 0.08;
+  return Math.floor(market.price * safeCount * saleMultiplier);
+}
+
+export function mudflatEquipmentPrice(id, currentLevel = 0) {
+  const equipment = MUDFLAT_SHOP_EQUIPMENT.find((item) => item.id === id);
+  if (!equipment) return Infinity;
+  return equipment.basePrice + Math.max(0, Math.floor(currentLevel)) * equipment.priceStep;
+}
+
+export function mudflatTrainingPrice(currentLevel = 0) {
+  return 70 + Math.max(0, Math.floor(currentLevel)) * 45;
 }
 
 export function mudflatFinalScore({ catchScore = 0, caught = 0, elapsed = 0, bossCaught = false }) {

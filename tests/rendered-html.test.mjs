@@ -112,14 +112,21 @@ import {
   MUDFLAT_CREATURES,
   MUDFLAT_GENERAL_UPGRADES,
   MUDFLAT_JOYSTICK_RADIUS,
+  MUDFLAT_RECOVERY_FOODS,
   MUDFLAT_RUN_SECONDS,
+  MUDFLAT_SEAFOOD_MARKET,
+  MUDFLAT_SHOP_EQUIPMENT,
+  mudflatEquipmentPrice,
   mudflatCreatureForTime,
   mudflatFinalScore,
   mudflatJoystickVector,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
+  mudflatSeafoodSaleValue,
   mudflatSpawnInterval,
+  mudflatStageStats,
   mudflatTongStats,
+  mudflatTrainingPrice,
   mudflatUpgradeChoices,
 } from "../app/mudflat-survivor-engine.js";
 import {
@@ -787,6 +794,15 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatRockCreatureForRoll(0.7).type, "shrimp");
   assert.equal(mudflatRockCreatureForRoll(0.8999).type, "shrimp");
   assert.equal(mudflatRockCreatureForRoll(0.9).type, "octopus");
+  assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "octopus").price, 36);
+  assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 4);
+  assert.equal(MUDFLAT_RECOVERY_FOODS.length, 3);
+  assert.equal(mudflatSeafoodSaleValue("clam", 10, 0), 40);
+  assert.equal(mudflatSeafoodSaleValue("clam", 10, 2), 46);
+  assert.equal(mudflatEquipmentPrice("gloves", 1), 160);
+  assert.equal(mudflatTrainingPrice(2), 160);
+  assert.ok(mudflatStageStats(3).creatureHpMultiplier > mudflatStageStats(2).creatureHpMultiplier);
+  assert.ok(mudflatStageStats(3).spawnIntervalMultiplier < mudflatStageStats(2).spawnIntervalMultiplier);
   assert.ok(mudflatFinalScore({ catchScore: 1000, caught: 50, elapsed: 240, bossCaught: true }) > 4000);
 
   const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
@@ -804,6 +820,12 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /movement === "wander"/);
   assert.match(source, /movement === "flee"/);
   assert.doesNotMatch(source, /stats\.xpChance/);
+  assert.match(source, /CATCH MARKET/);
+  assert.match(source, /EQUIPMENT SHOP/);
+  assert.match(source, /RECOVERY FOOD/);
+  assert.match(source, /SKILL TRAINING/);
+  assert.match(source, /paperoid-mudflat-survivor-campaign-v1/);
+  assert.match(source, /runtime\.basket\[item\.type\]/);
   assert.match(source, /runtime\.rocks/);
   assert.match(source, /갯벌 초보/);
   assert.match(source, /어린이 모드/);
