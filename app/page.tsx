@@ -1129,7 +1129,7 @@ function SuggestionBoard() {
         <div className="suggestion-board">
           <header>
             <div>
-              <strong>게임 추천 게시판</strong>
+              <strong>사용자 의견 게시판</strong>
               <span>{suggestions.length}개의 추천</span>
             </div>
             {isAdmin && <b className="admin-badge">관리자 체크 가능</b>}
