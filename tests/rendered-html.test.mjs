@@ -1481,8 +1481,15 @@ test("explains every Love Letter action and highlights events involving the play
   assert.match(source, /행동 기록/);
   assert.match(source, /정확히 추측했습니다/);
   assert.match(source, /최고 카드를 버린 효과/);
+  assert.match(source, /eliminatedIds: number\[\]/);
+  assert.match(source, /패배 원인/);
+  assert.match(source, /덱 소진 · 최종 손패 비교/);
+  assert.match(source, /결정적 행동/);
+  assert.match(source, /라운드 최종 상태/);
   assert.match(styles, /\.love-latest-action\.danger/);
   assert.match(styles, /\.love-log li\.involves-human/);
+  assert.match(styles, /\.love-result-cause\.loss/);
+  assert.match(styles, /\.love-final-hands/);
 });
 
 test("runs hidden confrontation movement, combat, and victory conditions", () => {

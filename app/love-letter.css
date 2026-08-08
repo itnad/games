@@ -264,15 +264,40 @@
 .love-my-discards { min-height: 17px; display: flex; justify-content: center; gap: 3px; }
 
 .love-result {
-  margin-top: 10px; padding: 15px; display: grid; grid-template-columns: 42px 1fr auto auto; align-items: center; gap: 10px;
+  margin-top: 10px; padding: 15px; display: grid; grid-template-columns: 42px 1fr; align-items: center; gap: 10px;
   border: 1px solid #d7c7bd; border-radius: 16px; background: #fffaf4; box-shadow: 0 13px 30px rgba(78,43,54,.1);
 }
 .love-result > span { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: #f6d696; background: var(--love); font-size: 16px; }
-.love-result > div small { color: #aa8471; font-size: 7px; font-weight: 900; letter-spacing: .12em; }
+.love-result-heading small { color: #aa8471; font-size: 12px; font-weight: 900; letter-spacing: .12em; }
 .love-result h2 { margin: 1px 0; color: #493c42; font-size: 15px; }
-.love-result p { margin: 0; color: #958a84; font-size: 8px; }
+.love-result-heading p { margin: 0; color: #776d68; font-size: 13px; line-height: 1.45; }
 .love-result button { padding: 10px 12px; border: 0; border-radius: 9px; color: white; background: var(--love); cursor: pointer; font-size: 9px; font-weight: 850; }
 .love-result button.secondary { border: 1px solid #ddd1c8; color: #70645f; background: white; }
+.love-result-cause {
+  grid-column: 1 / -1; padding: 14px; border: 1px solid #e0d3ca; border-left: 5px solid #428268;
+  border-radius: 13px; background: #fffdf9;
+}
+.love-result-cause.loss { border-left-color: #b74051; background: #fff8f7; }
+.love-result-cause.shared-win { border-left-color: #a88037; background: #fffaf0; }
+.love-result-cause > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.love-result-cause > header span { color: var(--love); font-size: 13px; font-weight: 950; }
+.love-result-cause > header strong { color: #54464c; font-size: 14px; }
+.love-result-cause > p { margin: 8px 0 0; color: #62575b; font-size: 14px; font-weight: 700; line-height: 1.55; }
+.love-decisive-action { margin-top: 11px; padding: 11px 12px; border-radius: 10px; background: #f1e9e4; }
+.love-decisive-action small { display: block; margin-bottom: 3px; color: #a15d69; font-size: 12px; font-weight: 900; }
+.love-decisive-action strong { display: block; color: #493f43; font-size: 14px; line-height: 1.4; }
+.love-decisive-action p { margin: 3px 0 0; color: #71666a; font-size: 13px; line-height: 1.5; }
+.love-final-hands { margin-top: 11px; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 7px; }
+.love-final-hands > div { min-width: 0; padding: 9px 10px; display: grid; gap: 2px; border: 1px solid #e5dbd4; border-radius: 9px; background: white; }
+.love-final-hands > div.human { box-shadow: inset 3px 0 0 var(--love); }
+.love-final-hands > div.winner { border-color: #99c8b3; background: #f1faf5; }
+.love-final-hands > div.out { opacity: .66; background: #f1eeeb; }
+.love-final-hands span { color: #7d716c; font-size: 12px; font-weight: 800; }
+.love-final-hands strong { overflow: hidden; color: #443a3e; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.love-final-hands strong b { color: var(--love); font-size: 16px; }
+.love-final-hands small { color: #31765c; font-size: 12px; font-weight: 900; }
+.love-result-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
+.love-result-actions button { min-height: 42px; font-size: 13px; }
 .love-log { margin-top: 10px; padding: 15px; border: 1px solid #dfd5ce; border-radius: 16px; background: rgba(255,255,255,.72); }
 .love-log > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .love-log > header strong { color: #55494e; font-size: 14px; }
@@ -335,6 +360,9 @@
   .love-hand { min-height: 195px; gap: 6px; }
   .letter-card { width: min(43vw,145px); min-height: 190px; padding: 11px 9px; }
   .love-result { grid-template-columns: 38px 1fr; }
+  .love-result-cause > header { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .love-final-hands { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .love-result-actions { display: grid; grid-template-columns: 1fr; }
   .love-result button { width: 100%; }
   .love-latest-action { grid-template-columns: 64px 1fr; padding: 12px; }
   .love-log li { grid-template-columns: 48px 1fr auto; padding: 9px 8px; gap: 8px; }

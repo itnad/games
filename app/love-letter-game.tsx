@@ -44,6 +44,16 @@ type ActionLog = {
   detail: string;
   tone: ActionTone;
   involvesHuman: boolean;
+  eliminatedIds: number[];
+};
+type RoundResolution = {
+  outcome: "win" | "shared-win" | "loss";
+  label: string;
+  reason: string;
+  summary: string;
+  actionTitle: string | null;
+  actionDetail: string | null;
+  players: Array<{ id: number; name: string; alive: boolean; winner: boolean; cardValue: number | null }>;
 };
 type State = {
   phase: Phase;
@@ -64,6 +74,7 @@ type State = {
   detail: string;
   log: ActionLog[];
   actionId: number;
+  roundResolution: RoundResolution | null;
 };
 
 const AI_NAMES = ["로즈", "테오", "미라", "루카", "노아"];
@@ -141,6 +152,7 @@ function newRound(players: Player[], theme: Theme, totalPlayers: number, round: 
     gameWinners: [],
     log: [],
     actionId: round,
+    roundResolution: null,
   };
   return activeDraw(base, starter);
 }
@@ -165,6 +177,7 @@ function setupState(): State {
     detail: "AI 참가자는 선택한 인원에 맞춰 자동으로 참여합니다.",
     log: [],
     actionId: 0,
+    roundResolution: null,
   };
 }
 
@@ -179,6 +192,7 @@ function actionLog(
   targetId: number | null,
   detail: string,
   tone: ActionTone = "info",
+  eliminatedIds: number[] = [],
 ): ActionLog {
   const actor = state.players[actorId];
   const target = targetId === null ? null : state.players[targetId];
@@ -193,6 +207,7 @@ function actionLog(
     detail,
     tone,
     involvesHuman: actorId === 0 || targetId === 0,
+    eliminatedIds,
   };
 }
 
@@ -204,8 +219,57 @@ function eliminate(players: Player[], playerId: number) {
   );
 }
 
+function describeRoundResolution(state: State, players: Player[], winners: number[]): RoundResolution {
+  const survivors = alivePlayers(players);
+  const showdown = survivors.length > 1 && state.deck.length === 0;
+  const humanWon = winners.includes(0);
+  const outcome = humanWon ? (winners.length > 1 ? "shared-win" : "win") : "loss";
+  const winnerNames = winners.map((id) => players[id].name).join("·");
+  const humanElimination = state.log.find((entry) => entry.eliminatedIds.includes(0));
+  const decisiveAction = showdown ? null : humanWon ? state.log[0] ?? null : humanElimination ?? state.log[0] ?? null;
+  const revealedHands = survivors
+    .map((player) => ({ player, value: player.hand[0]?.value ?? -1 }))
+    .sort((left, right) => right.value - left.value);
+  const handSummary = revealedHands
+    .map(({ player, value }) => `${player.name} ${cardName(value, state.theme)}(${value})`)
+    .join(" · ");
+
+  let summary: string;
+  if (showdown) {
+    const outcomeText = outcome === "win"
+      ? "내 카드가 가장 높아 승리했습니다."
+      : outcome === "shared-win"
+        ? "내 카드가 최고 카드와 같아 공동 승리했습니다."
+        : "내 카드가 최고 카드보다 낮아 패배했습니다.";
+    summary = `덱이 모두 소진되었습니다. 최종 손패는 ${handSummary}였고, ${outcomeText}`;
+  } else if (humanWon) {
+    summary = winners.length > 1
+      ? `${withKoreanSubject(winnerNames)} 마지막까지 살아남아 공동 승리했습니다.`
+      : "다른 참가자가 모두 탈락해 내가 마지막 생존자가 되었습니다.";
+  } else {
+    summary = `내가 카드 효과로 탈락했습니다. 이후 ${withKoreanSubject(winnerNames)} 마지막 생존자가 되어 라운드가 끝났습니다.`;
+  }
+
+  return {
+    outcome,
+    label: outcome === "loss" ? "패배 원인" : outcome === "shared-win" ? "공동 승리 원인" : "승리 원인",
+    reason: showdown ? "덱 소진 · 최종 손패 비교" : "카드 효과 · 마지막 생존자",
+    summary,
+    actionTitle: decisiveAction?.title ?? null,
+    actionDetail: decisiveAction?.detail ?? null,
+    players: players.map((player) => ({
+      id: player.id,
+      name: player.name,
+      alive: player.alive,
+      winner: winners.includes(player.id),
+      cardValue: player.alive ? player.hand[0]?.value ?? null : null,
+    })),
+  };
+}
+
 function finishRound(state: State, players: Player[], logEntry?: ActionLog): State {
   const winners = loveLetterRoundWinners(players);
+  const roundResolution = describeRoundResolution(state, players, winners);
   const spyId = loveLetterSpyBonus(players);
   const updatedPlayers = players.map((player) => ({
     ...player,
@@ -214,6 +278,8 @@ function finishRound(state: State, players: Player[], logEntry?: ActionLog): Sta
   const target = loveLetterFavorTarget(state.totalPlayers);
   const gameWinners = updatedPlayers.filter((player) => player.favors >= target).map((player) => player.id);
   const winnerNames = winners.map((id) => updatedPlayers[id].name).join(", ");
+  const tokenDetail = `${withKoreanSubject(winnerNames)} 라운드 승리로 호감 토큰을 얻었습니다.`;
+  const bonusDetail = spyId === null ? "" : ` ${withKoreanTopic(updatedPlayers[spyId].name)} 첩자 보너스 토큰도 얻었습니다.`;
   return {
     ...state,
     players: updatedPlayers,
@@ -224,9 +290,10 @@ function finishRound(state: State, players: Player[], logEntry?: ActionLog): Sta
     gameWinners,
     nextStarter: winners[0] ?? 0,
     message: gameWinners.length ? `${gameWinners.map((id) => updatedPlayers[id].name).join(", ")} 최종 승리` : `${winnerNames} 라운드 승리`,
-    detail: spyId === null ? "가장 높은 카드를 지킨 플레이어가 호감 토큰을 얻었습니다." : `${withKoreanTopic(updatedPlayers[spyId].name)} 첩자 보너스 토큰도 얻었습니다.`,
+    detail: `${tokenDetail}${bonusDetail}`,
     log: logEntry ? [logEntry, ...state.log].slice(0, 12) : state.log,
     actionId: state.actionId + 1,
+    roundResolution,
   };
 }
 
@@ -311,10 +378,14 @@ function applyTargetEffect(state: State, actorId: number, card: Card, targetId: 
   let detail = `${withKoreanTopic(target.name)} 카드 효과를 받았습니다.`;
   let tone: ActionTone = targetId === 0 ? "danger" : "info";
   let peek = state.peek;
+  let eliminatedIds: number[] = [];
 
   if (card.value === 1 && guardGuess !== undefined) {
     const correct = target.hand[0]?.value === guardGuess;
-    if (correct) players = eliminate(players, targetId);
+    if (correct) {
+      players = eliminate(players, targetId);
+      eliminatedIds = [targetId];
+    }
     detail = correct
       ? `${target.name}의 손패를 ${withKoreanDirection(cardName(guardGuess, state.theme))} 정확히 추측했습니다. ${withKoreanSubject(target.name)} 탈락했습니다.`
       : `${target.name}의 손패를 ${withKoreanDirection(cardName(guardGuess, state.theme))} 추측했지만 빗나갔습니다. ${withKoreanSubject(target.name)} 살아남았습니다.`;
@@ -333,8 +404,13 @@ function applyTargetEffect(state: State, actorId: number, card: Card, targetId: 
   } else if (card.value === 3) {
     const actorValue = players[actorId].hand[0]?.value ?? -1;
     const targetValue = players[targetId].hand[0]?.value ?? -1;
-    if (actorValue < targetValue) players = eliminate(players, actorId);
-    else if (targetValue < actorValue) players = eliminate(players, targetId);
+    if (actorValue < targetValue) {
+      players = eliminate(players, actorId);
+      eliminatedIds = [actorId];
+    } else if (targetValue < actorValue) {
+      players = eliminate(players, targetId);
+      eliminatedIds = [targetId];
+    }
     const loser = actorValue < targetValue ? actor : target;
     if (actorValue === targetValue) {
       detail = `${withKoreanSubject(actor.name)} ${withKoreanAnd(target.name)} 손패를 비교했지만 숫자가 같아 아무도 탈락하지 않았습니다.`;
@@ -352,6 +428,7 @@ function applyTargetEffect(state: State, actorId: number, card: Card, targetId: 
     );
     if (discarded?.value === 9) {
       players = eliminate(players, targetId);
+      eliminatedIds = [targetId];
       detail = `${target.name}의 ${withKoreanSubject(cardName(discarded, state.theme))} 버려졌습니다. 최고 카드를 버린 효과로 ${withKoreanSubject(target.name)} 즉시 탈락했습니다.`;
       tone = targetId === 0 ? "danger" : actorId === 0 ? "safe" : "info";
     } else {
@@ -380,7 +457,7 @@ function applyTargetEffect(state: State, actorId: number, card: Card, targetId: 
     players,
     deck,
     setAside,
-    actionLog(state, actorId, card, targetId, detail, tone),
+    actionLog(state, actorId, card, targetId, detail, tone, eliminatedIds),
   );
 }
 
@@ -397,7 +474,7 @@ function resolvePlayedCard(state: State, actorId: number, card: Card, ai = false
       players,
       state.deck,
       state.setAside,
-      actionLog(state, actorId, card, null, `${withKoreanSubject(actor.name)} 공주를 버린 효과로 즉시 탈락했습니다.`, actorId === 0 ? "danger" : "info"),
+      actionLog(state, actorId, card, null, `${withKoreanSubject(actor.name)} 공주를 버린 효과로 즉시 탈락했습니다.`, actorId === 0 ? "danger" : "info", [actorId]),
     );
   }
   if (card.value === 4) {
@@ -770,9 +847,33 @@ export function LoveLetterGame({ onExit }: { onExit: () => void }) {
               {(state.phase === "round-over" || state.phase === "game-over") && (
                 <section className={`love-result ${state.phase}`}>
                   <span>{state.theme === "cookie" ? "●" : "♥"}</span>
-                  <div><small>{state.phase === "game-over" ? "FINAL FAVOR" : `ROUND ${state.round} COMPLETE`}</small><h2>{state.message}</h2><p>{state.detail}</p></div>
-                  {state.phase === "round-over" ? <button onClick={nextRound}>다음 라운드</button> : <button onClick={() => { const players = makePlayers(state.totalPlayers, state.theme); setState(newRound(players, state.theme, state.totalPlayers, 1, 0)); }}>같은 설정으로 다시 플레이</button>}
-                  <button className="secondary" onClick={() => setState(setupState())}>설정으로</button>
+                  <div className="love-result-heading"><small>{state.phase === "game-over" ? "FINAL FAVOR" : `ROUND ${state.round} COMPLETE`}</small><h2>{state.message}</h2><p>{state.detail}</p></div>
+                  {state.roundResolution && (
+                    <article className={`love-result-cause ${state.roundResolution.outcome}`}>
+                      <header><span>{state.roundResolution.label}</span><strong>{state.roundResolution.reason}</strong></header>
+                      <p>{state.roundResolution.summary}</p>
+                      {state.roundResolution.actionTitle && state.roundResolution.actionDetail && (
+                        <div className="love-decisive-action">
+                          <small>결정적 행동</small>
+                          <strong>{state.roundResolution.actionTitle}</strong>
+                          <p>{state.roundResolution.actionDetail}</p>
+                        </div>
+                      )}
+                      <div className="love-final-hands" aria-label="라운드 최종 상태">
+                        {state.roundResolution.players.map((player) => (
+                          <div key={player.id} className={`${player.id === 0 ? "human" : ""} ${player.winner ? "winner" : ""} ${!player.alive ? "out" : ""}`}>
+                            <span>{player.name}</span>
+                            {player.cardValue === null ? <strong>탈락</strong> : <strong>{cardName(player.cardValue, state.theme)} <b>{player.cardValue}</b></strong>}
+                            {player.winner && <small>라운드 승자</small>}
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  )}
+                  <div className="love-result-actions">
+                    {state.phase === "round-over" ? <button onClick={nextRound}>다음 라운드</button> : <button onClick={() => { const players = makePlayers(state.totalPlayers, state.theme); setState(newRound(players, state.theme, state.totalPlayers, 1, 0)); }}>같은 설정으로 다시 플레이</button>}
+                    <button className="secondary" onClick={() => setState(setupState())}>설정으로</button>
+                  </div>
                 </section>
               )}
 
