@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { withKoreanDirection } from "./korean-particles.js";
 import {
+  SW_AI_STRATEGIES,
   SW_COLORS,
   SW_RESOURCE_LABELS,
   SW_RESOURCES,
@@ -17,7 +18,7 @@ import {
   swWinningEntries,
 } from "./seven-wonders-engine.js";
 
-type Difficulty = "builder" | "balanced" | "strategist";
+type AiStrategy = "builder" | "balanced" | "strategist";
 type SelectionAction = "build" | "wonder" | "discard";
 type SwEffect = {
   resources?: Record<string, number>;
@@ -52,6 +53,7 @@ type SwWonder = {
 type SwPlayer = {
   id: number;
   name: string;
+  strategy?: AiStrategy | null;
   wonder: SwWonder;
   coins: number;
   military: number;
@@ -81,11 +83,11 @@ const RULES = [
   ["군사 충돌", "각 시대 끝에 양옆 문명과 방패 수를 비교합니다. 승리 토큰은 시대에 따라 1·3·5점이고 패배는 -1점입니다."],
   ["과학 점수", "톱니·서판·컴퍼스는 같은 기호 개수의 제곱만큼 점수입니다. 세 종류 한 세트마다 7점을 추가합니다."],
   ["최종 승리", "3시대가 끝나면 모든 점수를 합산합니다. 최고점이 같으면 남은 코인이 많은 문명이 이기고, 코인도 같으면 공동 승리합니다."],
-  ["구현 판본", "Repos 7원더스 2판의 턴·교역·군사·과학·동점 규칙을 적용했습니다. 카드 이름·효과와 불가사의 면은 모바일 AI 대전에 맞춘 웹 재구성판입니다."],
+  ["구현 판본", "Repos 2판의 턴·교역·군사·과학·동점 규칙을 적용했습니다. 카드 이름·효과와 불가사의 면은 모바일 AI 대전에 맞춘 웹 재구성판입니다."],
 ];
 
 const TUTORIAL = [
-  ["문명을 선택하세요", "참가 인원과 AI 난이도를 정하면 각 참가자가 서로 다른 불가사의를 맡습니다. 내 시작 자원은 문명 보드에 표시됩니다."],
+  ["문명을 선택하세요", "참가 인원을 정하면 각 참가자가 서로 다른 불가사의를 맡고, AI에는 건축가·집정관·전략가 성향이 고르게 배정됩니다. 내 시작 자원은 문명 보드에 표시됩니다."],
   ["손에서 한 장 고르기", "하단의 카드를 누르면 비용과 효과가 펼쳐집니다. 초반에는 여러 건물에 쓰이는 원자재와 제조품을 확보하는 것이 좋습니다."],
   ["세 가지 행동", "건설은 카드 효과를 얻고, 불가사의는 카드를 뒤집어 단계 보너스를 얻습니다. 어느 쪽도 어렵다면 폐기해 3코인을 받으세요."],
   ["이웃과 거래하기", "건설 버튼에 필요한 거래 비용이 자동 계산됩니다. 이웃의 시작 자원과 갈색·회색 카드 자원만 구매할 수 있고, 지급한 코인은 해당 AI의 국고로 이동합니다."],
@@ -178,6 +180,11 @@ function CivilizationCard({ player, players, active = false }: { player: SwPlaye
         <WonderMark wonder={player.wonder} compact />
         <span className="sw-coin">● {player.coins}</span>
       </header>
+      {player.strategy && (
+        <span className={`sw-ai-personality ${player.strategy}`} title={SW_AI_STRATEGIES[player.strategy].description}>
+          AI 성향 · {SW_AI_STRATEGIES[player.strategy].label}
+        </span>
+      )}
       <div className="sw-civ-stats">
         <span title="방패"><b>⚔</b>{player.military}</span>
         <span title="현재 예상 점수"><b>★</b>{score.total}</span>
@@ -219,7 +226,7 @@ function ResultBoard({ game, onRestart, onExit }: { game: SwGame; onRestart: () 
     <main className="sw-shell sw-result-shell">
       <header className="sw-topbar">
         <button onClick={onExit} aria-label="게임 목록으로">←</button>
-        <div><small>paperoid</small><strong>7원더스</strong></div>
+        <div><small>paperoid</small><strong>7대 문명</strong></div>
         <button onClick={onExit}>나가기</button>
       </header>
       <section className="sw-result">
@@ -251,7 +258,6 @@ function ResultBoard({ game, onRestart, onExit }: { game: SwGame; onRestart: () 
 
 export function SevenWondersGame({ onExit }: { onExit: () => void }) {
   const [playerCount, setPlayerCount] = useState(3);
-  const [difficulty, setDifficulty] = useState<Difficulty>("balanced");
   const [game, setGame] = useState<SwGame | null>(null);
   const [selectedCard, setSelectedCard] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -260,13 +266,13 @@ export function SevenWondersGame({ onExit }: { onExit: () => void }) {
   const [notice, setNotice] = useState("");
 
   const startGame = () => {
-    setGame(swCreateGame(playerCount, difficulty) as SwGame);
+    setGame(swCreateGame(playerCount) as SwGame);
     setSelectedCard(null);
     setNotice("첫 번째 시대가 시작되었습니다. 손에서 카드 한 장을 고르세요.");
   };
 
   const restart = () => {
-    setGame(swCreateGame(playerCount, difficulty) as SwGame);
+    setGame(swCreateGame(playerCount) as SwGame);
     setSelectedCard(null);
     setNotice("새로운 문명들이 첫 번째 시대를 시작합니다.");
   };
@@ -315,7 +321,7 @@ export function SevenWondersGame({ onExit }: { onExit: () => void }) {
       <main className="sw-shell">
         <header className="sw-topbar">
           <button onClick={onExit} aria-label="게임 목록으로">←</button>
-          <div><small>paperoid</small><strong>7원더스</strong></div>
+          <div><small>paperoid</small><strong>7대 문명</strong></div>
           <button onClick={onExit}>나가기</button>
         </header>
         <section className="sw-lobby">
@@ -345,19 +351,15 @@ export function SevenWondersGame({ onExit }: { onExit: () => void }) {
               </div>
               <p>나 1명 + AI {playerCount - 1}명</p>
             </fieldset>
-            <fieldset>
-              <legend>AI 전략</legend>
-              {[
-                ["builder", "건축가", "자원과 즉시 점수를 우선합니다."],
-                ["balanced", "집정관", "문명 전체를 균형 있게 발전시킵니다."],
-                ["strategist", "전략가", "이웃의 군사·과학 전략까지 견제합니다."],
-              ].map(([value, label, help]) => (
-                <label key={value} className={difficulty === value ? "active" : ""}>
-                  <input type="radio" checked={difficulty === value} onChange={() => setDifficulty(value as Difficulty)} />
-                  <span><b>{label}</b><small>{help}</small></span>
-                </label>
-              ))}
-            </fieldset>
+            <section className="sw-auto-strategy" aria-label="AI 성향 자동 배정">
+              <div><small>AI PERSONALITY</small><b>성향을 균형 있게 자동 배정합니다</b></div>
+              <p>건축가·집정관·전략가가 참가 인원에 맞춰 고르게 배정되며, 새 대국마다 담당 문명이 달라집니다.</p>
+              <div className="sw-strategy-tags">
+                {(Object.keys(SW_AI_STRATEGIES) as AiStrategy[]).map((strategy) => (
+                  <span key={strategy}>{SW_AI_STRATEGIES[strategy].label}</span>
+                ))}
+              </div>
+            </section>
             <button className="sw-start-button" onClick={startGame}>문명 건설 시작 <span>→</span></button>
           </aside>
         </section>
@@ -373,7 +375,7 @@ export function SevenWondersGame({ onExit }: { onExit: () => void }) {
     <main className="sw-shell">
       <header className="sw-topbar sw-game-topbar">
         <button onClick={onExit} aria-label="게임 목록으로">←</button>
-        <div><small>paperoid</small><strong>7원더스</strong></div>
+        <div><small>paperoid</small><strong>7대 문명</strong></div>
         <div className="sw-age-display"><span>AGE</span><b>{["", "Ⅰ", "Ⅱ", "Ⅲ"][game.age]}</b><small>{game.pick}/6</small></div>
         <div className="sw-header-actions">
           <button onClick={() => openGuide("rules")}>게임 방법</button>

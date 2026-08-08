@@ -164,10 +164,12 @@ import {
   wcPoliceMoves,
 } from "../app/whitechapel-engine.js";
 import {
+  SW_AI_STRATEGIES,
   swBuildAgeDeck,
   swCanBuildCard,
   swChooseAiSelection,
   swCreateGame,
+  swAssignAiStrategies,
   swFinalRanking,
   swPaymentForCost,
   swResolveSelections,
@@ -509,7 +511,7 @@ test("server-renders the paperoid game library", async () => {
     "SD 건담 디럭스",
     "스코틀랜드 야드",
     "화이트채플",
-    "7원더스",
+    "7대 문명",
     "카멜 업",
     "티츄",
     "현금흐름 탈출",
@@ -890,6 +892,26 @@ test("starts every game at the top and keeps the latest Janggi AI piece distinct
   assert.match(styles, /\.janggi-board button\.opponent-to \.janggi-piece \{[\s\S]*?background: #d9ba85/);
 });
 
+test("balances distinct AI personalities automatically in Seven Civilizations", async () => {
+  const strategyIds = Object.keys(SW_AI_STRATEGIES);
+  for (const playerCount of [3, 4, 5, 6, 7]) {
+    const strategies = swAssignAiStrategies(playerCount, () => 0.37);
+    assert.equal(strategies.length, playerCount - 1);
+    assert.ok(strategies.every((strategy) => strategyIds.includes(strategy)));
+    const counts = strategyIds.map((strategy) => strategies.filter((entry) => entry === strategy).length);
+    assert.ok(Math.max(...counts) - Math.min(...counts) <= 1);
+
+    const game = swCreateGame(playerCount, () => 0.37);
+    assert.deepEqual(game.players.slice(1).map((player) => player.strategy), game.aiStrategies);
+  }
+
+  const source = await readFile(new URL("../app/seven-wonders-game.tsx", import.meta.url), "utf8");
+  assert.match(source, /성향을 균형 있게 자동 배정합니다/);
+  assert.match(source, /AI 성향 · \{SW_AI_STRATEGIES\[player\.strategy\]\.label\}/);
+  assert.doesNotMatch(source, /<legend>AI 전략<\/legend>|setDifficulty/);
+  assert.equal((source.match(/<strong>7대 문명<\/strong>/g) ?? []).length, 3);
+});
+
 test("runs a complete 3-to-7 player Seven Wonders draft", () => {
   for (const playerCount of [3, 4, 5, 6, 7]) {
     for (const age of [1, 2, 3]) {
@@ -901,7 +923,7 @@ test("runs a complete 3-to-7 player Seven Wonders draft", () => {
       }
     }
 
-    let game = swCreateGame(playerCount, "strategist", () => 0.37);
+    let game = swCreateGame(playerCount, () => 0.37);
     assert.equal(game.players.length, playerCount);
     assert.ok(game.hands.every((hand) => hand.length === 7));
     assert.ok(game.hands[0].some((card) => swCanBuildCard(game.players, 0, card)));
@@ -930,7 +952,7 @@ test("runs a complete 3-to-7 player Seven Wonders draft", () => {
 });
 
 test("applies official Seven Wonders trade sources and shared-victory tiebreak", () => {
-  const game = swCreateGame(3, "balanced", () => 0.37);
+  const game = swCreateGame(3, () => 0.37);
   const [human, left, right] = game.players;
   human.coins = 10;
   human.production.wood = 0;

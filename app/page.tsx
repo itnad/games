@@ -165,7 +165,7 @@ const GAMES: GameDefinition[] = [
   },
   {
     id: "seven-wonders",
-    title: "7원더스",
+    title: "7대 문명",
     subtitle: "카드를 드래프트해 찬란한 고대 문명을 완성하세요",
     category: "전략",
     players: "AI 포함 3~7인",

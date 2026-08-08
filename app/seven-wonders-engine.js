@@ -20,6 +20,12 @@ export const SW_COLORS = {
   purple: "길드",
 };
 
+export const SW_AI_STRATEGIES = {
+  builder: { label: "건축가", description: "자원과 즉시 점수를 우선합니다." },
+  balanced: { label: "집정관", description: "문명 전체를 균형 있게 발전시킵니다." },
+  strategist: { label: "전략가", description: "이웃의 군사·과학 전략을 견제합니다." },
+};
+
 const WONDERS = [
   {
     id: "giza",
@@ -243,6 +249,7 @@ export function swCreatePlayer(index, wonder, isHuman = false) {
     id: index,
     name: isHuman ? "나" : `AI ${index}`,
     isHuman,
+    strategy: null,
     wonder,
     coins: 3,
     production: startingProduction,
@@ -260,14 +267,21 @@ export function swCreatePlayer(index, wonder, isHuman = false) {
   };
 }
 
-export function swCreateGame(playerCount = 3, difficulty = "balanced", random = Math.random) {
+export function swAssignAiStrategies(playerCount = 3, random = Math.random) {
+  const strategyOrder = shuffled(Object.keys(SW_AI_STRATEGIES), random);
+  return Array.from({ length: Math.max(0, playerCount - 1) }, (_, index) => strategyOrder[index % strategyOrder.length]);
+}
+
+export function swCreateGame(playerCount = 3, random = Math.random) {
   const wonders = shuffled(WONDERS, random).slice(0, playerCount);
   const players = wonders.map((wonder, index) => swCreatePlayer(index, wonder, index === 0));
+  const aiStrategies = swAssignAiStrategies(playerCount, random);
+  players.slice(1).forEach((player, index) => { player.strategy = aiStrategies[index]; });
   const deck = swBuildAgeDeck(1, playerCount, random);
   const hands = players.map((_, index) => deck.slice(index * 7, index * 7 + 7));
   return {
     playerCount,
-    difficulty,
+    aiStrategies,
     players,
     hands,
     age: 1,
@@ -579,7 +593,7 @@ export function swWinningEntries(players) {
   return ranking.filter((entry) => entry.score.total === first.score.total && entry.coins === first.coins);
 }
 
-function estimateCardValue(state, playerIndex, selectedCard, difficulty) {
+function estimateCardValue(state, playerIndex, selectedCard, strategy) {
   const player = state.players[playerIndex];
   const effect = selectedCard.effect;
   const payment = swCanBuildCard(state.players, playerIndex, selectedCard);
@@ -594,20 +608,25 @@ function estimateCardValue(state, playerIndex, selectedCard, difficulty) {
   if (effect.pointsPerColor || effect.guild) value += 5;
   value += (effect.coins || 0) * 0.55;
   value -= payment.total * 0.7;
-  if (difficulty === "strategist") {
+  if (strategy === "builder") {
+    value += (effect.points || 0) * 0.8;
+    value += Object.values(effect.resources || {}).reduce((sum, count) => sum + count, 0) * (state.age === 1 ? 2.5 : 1);
+    if (["brown", "gray", "blue", "yellow"].includes(selectedCard.color)) value += 1.4;
+  } else if (strategy === "strategist") {
     const left = state.players[(playerIndex - 1 + state.players.length) % state.players.length];
     const right = state.players[(playerIndex + 1) % state.players.length];
     if (effect.military && player.military <= Math.max(left.military, right.military)) value += 4;
     if (effect.science && [left, right].some((item) => item.cards.filter((built) => built.effect.science === effect.science).length >= 2)) value += 2;
   }
-  return value + Math.random() * (difficulty === "builder" ? 4 : 1.2);
+  return value + Math.random() * (strategy === "builder" ? 4 : 1.2);
 }
 
 export function swChooseAiSelection(state, playerIndex) {
   const hand = state.hands[playerIndex];
+  const strategy = state.players[playerIndex].strategy || "balanced";
   const scored = hand.map((selectedCard, cardIndex) => ({
     cardIndex,
-    value: estimateCardValue(state, playerIndex, selectedCard, state.difficulty),
+    value: estimateCardValue(state, playerIndex, selectedCard, strategy),
   })).sort((a, b) => b.value - a.value);
   if (scored[0]?.value > -20) return { cardIndex: scored[0].cardIndex, action: "build" };
 

@@ -225,7 +225,7 @@ export const GAME_OBJECTIVES = {
     finish: "범인을 체포하거나 한밤의 15수 제한을 넘겼을 때, 또는 범인이 네 번째 밤까지 은신처 귀환에 성공했을 때",
   },
   "seven-wonders": {
-    title: "7원더스",
+    title: "7대 문명",
     icon: "△",
     accent: "#cf9843",
     summary: "세 시대 동안 카드를 동시에 선택해 자원 생산, 건축, 과학, 군사와 불가사의를 발전시키는 문명 드래프트 게임입니다.",
