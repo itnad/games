@@ -471,6 +471,19 @@ test("registers six responsive casual games with touch, keyboard, and saved reco
   assert.match(styles, /touch-action: none/);
 });
 
+test("moves Dot Survivor with relative drag instead of tap teleportation", async () => {
+  const source = await readFile(new URL("../app/casual-games.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /originX: event\.clientX, originY: event\.clientY/);
+  assert.match(source, /event\.clientX - dragRef\.current\.originX/);
+  assert.match(source, /pointerInputRef\.current = \{ x: 0, y: 0 \}/);
+  assert.match(source, /onPointerUp=\{pointerEnd\}/);
+  assert.match(source, /onPointerCancel=\{pointerEnd\}/);
+  assert.match(source, /onLostPointerCapture=\{pointerEnd\}/);
+  assert.doesNotMatch(source, /onPointerDown=\{move\} onPointerMove=\{move\}/);
+  assert.match(source, /한 번의 터치로 순간이동하지 않습니다/);
+});
+
 test("runs Paper Dungeon from class selection through the tenth-floor boss", async () => {
   assert.equal(PAPER_DUNGEON_CLASSES.length, 3);
   assert.equal(PAPER_DUNGEON_ENEMIES.length, 10);

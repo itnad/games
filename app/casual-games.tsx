@@ -125,6 +125,9 @@ export function NumberDropGame({ onExit }: ExitProps) {
 }
 
 type Enemy = { id: number; x: number; y: number; speed: number };
+const DOT_SURVIVOR_DRAG_RADIUS = 72;
+const DOT_SURVIVOR_PLAYER_SPEED = 1.35;
+
 export function DotSurvivorGame({ onExit }: ExitProps) {
   const [player, setPlayer] = useState({ x: 50, y: 70 });
   const playerRef = useRef(player); playerRef.current = player;
@@ -134,6 +137,9 @@ export function DotSurvivorGame({ onExit }: ExitProps) {
   const [over, setOver] = useState(false);
   const idRef = useRef(0);
   const elapsedRef = useRef(0);
+  const dragRef = useRef({ pointerId: -1, originX: 0, originY: 0 });
+  const pointerInputRef = useRef({ x: 0, y: 0 });
+  const pressedKeysRef = useRef(new Set<string>());
   const seconds = Math.floor(elapsed / 1000);
   const best = useBestScore("paperoid-dot-survivor-best", seconds);
   useEffect(() => {
@@ -141,24 +147,62 @@ export function DotSurvivorGame({ onExit }: ExitProps) {
     const timer = window.setInterval(() => {
       elapsedRef.current += 60;
       setElapsed(elapsedRef.current);
+      const keys = pressedKeysRef.current;
+      const keyboardX = (keys.has("ArrowRight") ? 1 : 0) - (keys.has("ArrowLeft") ? 1 : 0);
+      const keyboardY = (keys.has("ArrowDown") ? 1 : 0) - (keys.has("ArrowUp") ? 1 : 0);
+      let inputX = pointerInputRef.current.x + keyboardX;
+      let inputY = pointerInputRef.current.y + keyboardY;
+      const inputLength = Math.hypot(inputX, inputY);
+      if (inputLength > 1) { inputX /= inputLength; inputY /= inputLength; }
+      const currentPlayer = playerRef.current;
+      const nextPlayer = {
+        x: Math.max(3, Math.min(97, currentPlayer.x + inputX * DOT_SURVIVOR_PLAYER_SPEED)),
+        y: Math.max(3, Math.min(97, currentPlayer.y + inputY * DOT_SURVIVOR_PLAYER_SPEED)),
+      };
+      if (nextPlayer.x !== currentPlayer.x || nextPlayer.y !== currentPlayer.y) {
+        playerRef.current = nextPlayer;
+        setPlayer(nextPlayer);
+      }
       setEnemies((current) => {
-        const p = playerRef.current;
+        const p = nextPlayer;
         const moved = current.map((enemy) => { const dx = p.x - enemy.x, dy = p.y - enemy.y, length = Math.hypot(dx, dy) || 1; return { ...enemy, x: enemy.x + dx / length * enemy.speed, y: enemy.y + dy / length * enemy.speed }; });
-        if (moved.some((enemy) => Math.hypot(enemy.x - p.x, enemy.y - p.y) < 5)) { setRunning(false); setOver(true); }
+        if (moved.some((enemy) => Math.hypot(enemy.x - p.x, enemy.y - p.y) < 5)) { pointerInputRef.current = { x: 0, y: 0 }; setRunning(false); setOver(true); }
         if (moved.length < Math.min(22, 3 + Math.floor(elapsedRef.current / 2200)) && Math.random() < .25) { const side = idRef.current % 4; const position = (idRef.current * 37) % 100; moved.push({ id: idRef.current++, x: side === 0 ? 0 : side === 1 ? 100 : position, y: side === 2 ? 0 : side === 3 ? 100 : position, speed: .45 + Math.min(.65, elapsedRef.current / 35000) }); }
         return moved.filter((enemy) => enemy.x > -10 && enemy.x < 110 && enemy.y > -10 && enemy.y < 110);
       });
-      if (elapsedRef.current >= 60000) { setRunning(false); setOver(true); }
+      if (elapsedRef.current >= 60000) { pointerInputRef.current = { x: 0, y: 0 }; setRunning(false); setOver(true); }
     }, 60);
     return () => window.clearInterval(timer);
   }, [running]);
   useEffect(() => {
-    const key = (event: KeyboardEvent) => { if (!running) return; const amount = 4; if (event.key === "ArrowLeft") setPlayer((p) => ({ ...p, x: Math.max(3, p.x - amount) })); if (event.key === "ArrowRight") setPlayer((p) => ({ ...p, x: Math.min(97, p.x + amount) })); if (event.key === "ArrowUp") setPlayer((p) => ({ ...p, y: Math.max(3, p.y - amount) })); if (event.key === "ArrowDown") setPlayer((p) => ({ ...p, y: Math.min(97, p.y + amount) })); };
-    window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key);
+    const keyDown = (event: KeyboardEvent) => { if (!running || !event.key.startsWith("Arrow")) return; event.preventDefault(); pressedKeysRef.current.add(event.key); };
+    const keyUp = (event: KeyboardEvent) => { pressedKeysRef.current.delete(event.key); };
+    const clearKeys = () => pressedKeysRef.current.clear();
+    window.addEventListener("keydown", keyDown); window.addEventListener("keyup", keyUp); window.addEventListener("blur", clearKeys);
+    return () => { window.removeEventListener("keydown", keyDown); window.removeEventListener("keyup", keyUp); window.removeEventListener("blur", clearKeys); clearKeys(); };
   }, [running]);
-  const move = (event: ReactPointerEvent<HTMLElement>) => { if (!running) return; const rect = event.currentTarget.getBoundingClientRect(); setPlayer({ x: Math.max(3, Math.min(97, (event.clientX - rect.left) / rect.width * 100)), y: Math.max(3, Math.min(97, (event.clientY - rect.top) / rect.height * 100)) }); };
-  const start = () => { setPlayer({ x: 50, y: 70 }); setEnemies([]); setElapsed(0); elapsedRef.current = 0; setOver(false); setRunning(true); idRef.current = 0; };
-  return <main className="cg-shell survivor-theme"><CasualHeader title="도트 서바이버" icon="◎" onExit={onExit} /><section className="cg-head"><div><small>ONE FINGER · 60 SECONDS</small><h1>몰려오는 점을 피해<br />끝까지 살아남으세요</h1><p>손가락을 끌거나 방향키로 밝은 점을 움직이세요. 시간이 갈수록 적이 빨라집니다.</p></div><CasualStats score={seconds} best={best} label="생존 시간" bestLabel="최장 시간" /></section><section className="survivor-arena" onPointerDown={move} onPointerMove={move}><div className="survivor-grid" /><i className="survivor-player" style={{ left: `${player.x}%`, top: `${player.y}%` }} />{enemies.map((enemy) => <i key={enemy.id} className="survivor-enemy" style={{ left: `${enemy.x}%`, top: `${enemy.y}%` }} />)}{!running && <div className="survivor-overlay"><b>{over ? `${seconds}초 생존` : "READY?"}</b><span>목표 60초</span></div>}</section><button className="cg-main-button" onClick={start}>{running ? `${Math.max(0, 60 - seconds)}초 남음` : over ? "다시 도전" : "생존 시작"}</button></main>;
+  const pointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!running) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { pointerId: event.pointerId, originX: event.clientX, originY: event.clientY };
+    pointerInputRef.current = { x: 0, y: 0 };
+  };
+  const pointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!running || dragRef.current.pointerId !== event.pointerId) return;
+    const dx = event.clientX - dragRef.current.originX;
+    const dy = event.clientY - dragRef.current.originY;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 6) { pointerInputRef.current = { x: 0, y: 0 }; return; }
+    const strength = Math.min(1, (distance - 6) / (DOT_SURVIVOR_DRAG_RADIUS - 6));
+    pointerInputRef.current = { x: dx / distance * strength, y: dy / distance * strength };
+  };
+  const pointerEnd = (event: ReactPointerEvent<HTMLElement>) => {
+    if (dragRef.current.pointerId !== event.pointerId) return;
+    dragRef.current.pointerId = -1;
+    pointerInputRef.current = { x: 0, y: 0 };
+  };
+  const start = () => { const initial = { x: 50, y: 70 }; setPlayer(initial); playerRef.current = initial; setEnemies([]); setElapsed(0); elapsedRef.current = 0; dragRef.current.pointerId = -1; pointerInputRef.current = { x: 0, y: 0 }; pressedKeysRef.current.clear(); setOver(false); setRunning(true); idRef.current = 0; };
+  return <main className="cg-shell survivor-theme"><CasualHeader title="도트 서바이버" icon="◎" onExit={onExit} /><section className="cg-head"><div><small>ONE FINGER · 60 SECONDS</small><h1>몰려오는 점을 피해<br />끝까지 살아남으세요</h1><p>화면 아무 곳을 누른 뒤 이동할 방향으로 끌어보세요. 손을 떼면 멈추며, 한 번의 터치로 순간이동하지 않습니다.</p></div><CasualStats score={seconds} best={best} label="생존 시간" bestLabel="최장 시간" /></section><section className="survivor-arena" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd}><div className="survivor-grid" /><i className="survivor-player" style={{ left: `${player.x}%`, top: `${player.y}%` }} />{enemies.map((enemy) => <i key={enemy.id} className="survivor-enemy" style={{ left: `${enemy.x}%`, top: `${enemy.y}%` }} />)}{!running && <div className="survivor-overlay"><b>{over ? `${seconds}초 생존` : "READY?"}</b><span>목표 60초</span></div>}</section><button className="cg-main-button" onClick={start}>{running ? `${Math.max(0, 60 - seconds)}초 남음` : over ? "다시 도전" : "생존 시작"}</button></main>;
 }
 
 type KnotNode = { x: number; y: number };
