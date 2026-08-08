@@ -476,6 +476,15 @@ test("keeps the home introduction compact on mobile", async () => {
   assert.match(styles, /\.hero-finder-button \{[\s\S]*?min-height: 38px/);
 });
 
+test("opens the game finder with visible categories and without summoning the keyboard", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.doesNotMatch(pageSource, /<input\s+[\s\S]*?autoFocus[\s\S]*?type="search"/);
+  assert.match(styles, /\.finder-category-row\s*\{[\s\S]*?flex:\s*0 0 auto;/);
+  assert.match(styles, /\.finder-game-list\s*\{[\s\S]*?flex:\s*1 1 auto;[\s\S]*?overflow-y:\s*auto;/);
+});
+
 test("registers six responsive casual games with touch, keyboard, and saved records", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const source = await readFile(new URL("../app/casual-games.tsx", import.meta.url), "utf8");

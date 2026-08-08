@@ -2150,7 +2150,6 @@ export default function Home() {
             <label className="finder-search-box">
               <IconSearch />
               <input
-                autoFocus
                 type="search"
                 placeholder="게임 이름이나 장르를 입력하세요"
                 value={query}

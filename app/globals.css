@@ -5472,6 +5472,7 @@ footer { font-size: 15px; }
 }
 
 .game-finder-header {
+  flex: 0 0 auto;
   margin-bottom: 22px;
   display: flex;
   align-items: flex-start;
@@ -5504,6 +5505,7 @@ footer { font-size: 15px; }
 }
 
 .finder-search-box {
+  flex: 0 0 auto;
   min-height: 58px;
   padding: 0 18px;
   display: flex;
@@ -5540,6 +5542,7 @@ footer { font-size: 15px; }
 }
 
 .finder-category-row {
+  flex: 0 0 auto;
   margin: 17px 0 20px;
   overflow-x: auto;
   scrollbar-width: none;
@@ -5550,6 +5553,7 @@ footer { font-size: 15px; }
 }
 
 .finder-result-heading {
+  flex: 0 0 auto;
   margin-bottom: 11px;
   display: flex;
   align-items: center;
@@ -5564,8 +5568,10 @@ footer { font-size: 15px; }
 }
 
 .finder-game-list {
+  flex: 1 1 auto;
   min-height: 0;
   display: grid;
+  align-content: start;
   gap: 10px;
   overflow-y: auto;
   overscroll-behavior: contain;
