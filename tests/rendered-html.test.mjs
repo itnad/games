@@ -608,8 +608,8 @@ test("registers six responsive casual games with touch, keyboard, and saved reco
     assert.match(pageSource, new RegExp(`id: "${id}"`));
   }
   assert.match(pageSource, /category: "터치류"/);
-  assert.match(pageSource, /type Category = [^;]*"퍼즐류"/);
-  assert.match(pageSource, /id: "parking-escape",[\s\S]*?category: "퍼즐류"/);
+  assert.match(pageSource, /type Category = [^;]*"퍼즐"/);
+  assert.match(pageSource, /id: "parking-escape",[\s\S]*?category: "퍼즐"/);
   assert.doesNotMatch(pageSource, /category: "캐주얼"/);
   assert.match(source, /window\.localStorage/);
   assert.match(source, /onPointerDown/);

@@ -92,10 +92,10 @@ type GameId =
   | "ten-seconds"
   | "mudflat-survivor"
   | "tetris";
-type Category = "전체" | "전략" | "고전게임" | "기억력" | "추리" | "퍼즐류" | "주사위" | "경주" | "터치류" | "RPG";
+type Category = "전체" | "전략" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
 
-const CATEGORIES: Category[] = ["전체", "전략", "고전게임", "기억력", "추리", "퍼즐류", "주사위", "경주", "터치류", "RPG"];
-const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "고전게임", "기억력", "추리", "퍼즐류", "주사위", "경주", "터치류", "RPG"];
+const CATEGORIES: Category[] = ["전체", "전략", "고전게임", "기억력", "추리", "퍼즐", "주사위", "경주", "터치류", "RPG"];
+const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "고전게임", "기억력", "추리", "퍼즐", "주사위", "경주", "터치류", "RPG"];
 
 type GameDefinition = {
   id: GameId;
@@ -407,7 +407,7 @@ const GAMES: GameDefinition[] = [
     id: "parking-escape",
     title: "주차 탈출",
     subtitle: "차량을 밀어 빨간 차의 출구를 여세요",
-    category: "퍼즐류",
+    category: "퍼즐",
     players: "1인 퍼즐",
     tone: "green",
   },
