@@ -792,6 +792,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   const generalChoices = mudflatUpgradeChoices(2, {}, "normal");
   assert.equal(generalChoices.length, 3);
   assert.ok(generalChoices.every((choice) => ["basket", "tongs", "harpoon", "boots", "snack", "rocker", "net", "digging"].includes(choice.id)));
+  assert.equal(new Set(generalChoices.map((choice) => choice.id)).size, 3);
+  const cappedChoices = mudflatUpgradeChoices(4, { tongs: 1, digging: 1, harpoon: 1, net: 1, rocker: 1, boots: 1 }, "normal", () => .5);
+  assert.ok(cappedChoices.every((choice) => ["tongs", "digging", "harpoon", "net", "rocker", "boots"].includes(choice.id)));
   assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
   assert.equal(mudflatTongStats(2).power, mudflatTongStats(1).power * 1.5);
   assert.equal(mudflatNetStats(1).range, mudflatTongStats(1).reach);
@@ -873,8 +876,12 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /text: damageText/);
   assert.match(source, /color: DAMAGE_TEXT_COLOR/);
   assert.match(source, /const playerDamage = baseDamage \+ stageStats\.contactDamageBonus/);
-  assert.match(source, /text: `-\$\{playerDamage\}`/);
-  assert.match(source, /color: "#ff8b7a"/);
+  assert.match(source, /kind: "playerDamage"/);
+  assert.match(source, /const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f"/);
+  assert.match(source, /function isInsideDipNetArea\(/);
+  assert.match(source, /const rerollUpgradeChoices/);
+  assert.match(source, /최대 체력 20%/);
+  assert.match(source, /GENERAL_SKILL_ORDER/);
   assert.doesNotMatch(source, /damageCreature\([^\n]+#[0-9a-fA-F]{6}/);
   assert.doesNotMatch(source, /text: `\+\$\{item\.score\}`/);
   assert.match(source, /runtime\.harpoons/);

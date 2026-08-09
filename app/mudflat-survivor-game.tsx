@@ -39,7 +39,7 @@ type Projectile = Point & { id: number; vx: number; vy: number; damage: number; 
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
 type NetSlamEffect = Point & { id: number; life: number; maxLife: number; damage: number; radius: number; headDepth: number; range: number; angle: number; targetId: number; area: boolean; hit: boolean };
 type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number };
-type FloatText = Point & { id: number; life: number; text: string; color: string };
+type FloatText = Point & { id: number; life: number; text: string; color: string; kind?: "playerDamage" };
 type Rock = Point & { id: number; radius: number; tone: number };
 type ClamHole = Point & { id: number; radius: number; progress: number };
 type ClamReveal = Point & { id: number; life: number; maxLife: number; pearl: boolean };
@@ -62,6 +62,7 @@ type Campaign = {
 const BEST_KEY = "paperoid-mudflat-survivor-best-v1";
 const CAMPAIGN_KEY = "paperoid-mudflat-survivor-campaign-v1";
 const DAMAGE_TEXT_COLOR = "#ffd29a";
+const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
 const CHARACTERS = [
   { id: "digger", icon: "⌁", name: "호미꾼 하루", description: "넓은 호미질로 시작합니다.", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
   { id: "netter", icon: "◇", name: "그물잡이 모아", description: "자동 뜰채를 빠르게 던집니다.", levels: { hoe: 1, net: 2, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 },
@@ -69,6 +70,8 @@ const CHARACTERS = [
 ];
 
 const GENERAL_CHARACTER = { id: "beginner", name: "갯벌 초보", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 92 };
+const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "boots", "snack", "basket"];
+const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집게", boots: "장화", snack: "간식", basket: "바구니" };
 const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, score: 0, levels: {}, basket: {}, bossCaught: false };
 
 function MudflatBrand() {
@@ -872,7 +875,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         runtime.player.hp = Math.max(0, runtime.player.hp - playerDamage);
         runtime.player.damageCooldown = .52;
         runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, life: .35, maxLife: .35, color: "#ff7868", size: 24 });
-        runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y - 28, life: .72, text: `-${playerDamage}`, color: "#ff8b7a" });
+        runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .72, text: `-${playerDamage}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
         if ("vibrate" in navigator) navigator.vibrate(22);
       }
 
@@ -1160,7 +1163,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (diggingHole) drawClamDigging(context, { x: width / 2, y: height / 2 }, screenPoint(diggingHole), diggingHole.progress / 2);
       for (const label of runtime.floatTexts) {
         const point = screenPoint(label); context.save(); context.globalAlpha = Math.min(1, label.life * 2.5);
-        context.font = "900 14px system-ui"; context.textAlign = "center"; context.lineWidth = 4; context.strokeStyle = "rgba(38,29,27,.72)"; context.strokeText(label.text, point.x, point.y); context.fillStyle = label.color; context.fillText(label.text, point.x, point.y); context.restore();
+        const isPlayerDamage = label.kind === "playerDamage";
+        context.font = isPlayerDamage ? "900 25px system-ui" : "900 14px system-ui"; context.textAlign = "center"; context.lineWidth = isPlayerDamage ? 6 : 4; context.strokeStyle = isPlayerDamage ? "rgba(42,14,18,.9)" : "rgba(38,29,27,.72)"; context.strokeText(label.text, point.x, point.y); context.fillStyle = label.color; context.fillText(label.text, point.x, point.y); context.restore();
       }
     };
 
@@ -1207,6 +1211,15 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (id === "boots" && runtime.mode === "normal") { runtime.player.maxHp += 10; runtime.player.hp = Math.min(runtime.player.maxHp, runtime.player.hp + 10); }
     setChoices([]); runtime.paused = false; snapshot(runtime); setScreen("running");
   };
+  const rerollUpgradeChoices = () => {
+    const runtime = runtimeRef.current; if (!runtime) return;
+    const cost = Math.ceil(runtime.player.maxHp * .2);
+    if (runtime.player.hp <= cost) return;
+    runtime.player.hp -= cost;
+    runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .72, text: `-${cost}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
+    setChoices(mudflatUpgradeChoices(runtime.level, runtime.levels, runtime.mode)); snapshot(runtime);
+    if ("vibrate" in navigator) navigator.vibrate(18);
+  };
   const sellSeafood = (type: string, sellAllOfType = false) => {
     const current = campaignRef.current; if (!current) return;
     const held = current.inventory[type] ?? 0; const quantity = sellAllOfType ? held : Math.min(1, held);
@@ -1250,6 +1263,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const upgrades = current.mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
     const skill = upgrades.find((entry) => entry.id === id); if (!skill) return;
     const level = current.levels[id] ?? 0; const price = mudflatTrainingPrice(level);
+    const normalOwnedSkillCount = MUDFLAT_GENERAL_UPGRADES.filter((skill) => (current.levels[skill.id] ?? 0) > 0).length;
+    if (current.mode === "normal" && level === 0 && normalOwnedSkillCount >= 6) { setCampNotice("보유 기술은 최대 6개까지만 선택할 수 있습니다."); return; }
     if (level >= skill.max) { setCampNotice("이미 최고 레벨에 도달한 기술입니다."); return; }
     if (current.coins < price) { setCampNotice("기술 훈련에 필요한 코인이 부족합니다."); return; }
     const levels = { ...current.levels, [id]: level + 1 };
@@ -1283,5 +1298,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
   const hpWidth = Math.max(0, hud.hp / hud.maxHp * 100);
   const xpWidth = Math.max(0, hud.xp / hud.nextXp * 100);
-  return <main className="ms-shell ms-game"><header className="ms-game-head"><button onClick={onExit} aria-label="게임 목록으로">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {hud.mode === "normal" ? "NORMAL" : "KIDS"}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label="해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다." /><div className="ms-hud-bars"><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.ceil(hud.hp)} / {hud.maxHp}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div></div><div className="ms-caught"><small>한 바구니</small><b>{hud.caught}</b><span>마리</span></div><div className="ms-touch-hint">아무 곳이나 누르고 드래그</div></section><section className="ms-tools">{hud.mode === "normal" ? <><span><i>⌁</i><b>집게</b><em>Lv.{hud.levels.tongs ?? 1}</em></span><span><i>➶</i><b>작살</b><em>Lv.{hud.levels.harpoon ?? 0}</em></span><span><i>◇</i><b>뜰채</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>◆</i><b>돌뒤집게</b><em>Lv.{hud.levels.rocker ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>바구니</b><em>Lv.{hud.levels.basket ?? 0}</em></span></> : <><span><i>⌁</i><b>호미</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>뜰채</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>왕소금</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>바구니</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{screen === "upgrade" && <div className="ms-layer"><section><small>LEVEL {hud.level}</small><h2>새 채집 기술을 고르세요</h2><p>선택하는 동안 갯벌의 시간은 멈춥니다.</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div></section></div>}{screen === "paused" && <div className="ms-layer pause"><section><small>PAUSED</small><h2>잠시 쉬어갈까요?</h2><p>게임 시간과 해산물 움직임이 모두 멈춰 있습니다.</p><button className="ms-primary" onClick={resume}>계속 채집하기</button><button className="ms-quit" onClick={reset}>이번 채집 끝내기</button></section></div>}</main>;
+  const normalSkills = GENERAL_SKILL_ORDER.map((id) => MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === id)).filter((skill): skill is (typeof MUDFLAT_GENERAL_UPGRADES)[number] => Boolean(skill && (hud.levels[skill.id] ?? 0) > 0)).slice(0, 6);
+  const rerollCost = Math.ceil(hud.maxHp * .2);
+  const canReroll = hud.hp > rerollCost;
+  return <main className="ms-shell ms-game"><header className="ms-game-head"><button onClick={onExit} aria-label="게임 목록으로">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {hud.mode === "normal" ? "NORMAL" : "KIDS"}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label="해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다." /><div className="ms-hud-bars"><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.ceil(hud.hp)} / {hud.maxHp}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div></div><div className="ms-caught"><small>한 바구니</small><b>{hud.caught}</b><span>마리</span></div><div className="ms-touch-hint">아무 곳이나 누르고 드래그</div></section><section className="ms-tools">{hud.mode === "normal" ? normalSkills.map((skill) => <span key={skill.id}><i>{skill.icon}</i><b>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name}</b><em>Lv.{hud.levels[skill.id] ?? 0}</em></span>) : <><span><i>⌁</i><b>호미</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>뜰채</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>왕소금</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>바구니</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{screen === "upgrade" && <div className="ms-layer"><section><small>LEVEL {hud.level}</small><h2>새 채집 기술을 고르세요</h2><p>선택하는 동안 갯벌의 시간은 멈춥니다.</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div><button type="button" className="ms-reroll" disabled={!canReroll} onClick={rerollUpgradeChoices}>새로고침 · 최대 체력 20% ({rerollCost}) 사용</button><small className="ms-skill-slots">일반 모드 보유 기술 {normalSkills.length} / 6 · 집게와 호미질은 기본 기술입니다.</small></section></div>}{screen === "paused" && <div className="ms-layer pause"><section><small>PAUSED</small><h2>잠시 쉬어갈까요?</h2><p>게임 시간과 해산물 움직임이 모두 멈춰 있습니다.</p><button className="ms-primary" onClick={resume}>계속 채집하기</button><button className="ms-quit" onClick={reset}>이번 채집 끝내기</button></section></div>}</main>;
 }

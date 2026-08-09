@@ -128,12 +128,21 @@ export function mudflatClamRewardForRoll(level = 1, roll = 0) {
   return MUDFLAT_CLAM_GRADES.at(-1);
 }
 
-export function mudflatUpgradeChoices(level, levels = {}, mode = "kids") {
+export function mudflatUpgradeChoices(_level, levels = {}, mode = "kids", random = Math.random) {
   const upgrades = mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
-  const available = upgrades.filter((item) => (levels[item.id] ?? 0) < item.max);
+  const ownedSkillCount = upgrades.filter((item) => (levels[item.id] ?? 0) > 0).length;
+  const hasOpenSkillSlot = mode !== "normal" || ownedSkillCount < 6;
+  const available = upgrades.filter((item) => {
+    const currentLevel = levels[item.id] ?? 0;
+    return currentLevel < item.max && (hasOpenSkillSlot || currentLevel > 0);
+  });
   if (available.length <= 3) return available;
-  const start = (Math.max(1, level) * 2 + Math.floor(level / 3)) % available.length;
-  return Array.from({ length: 3 }, (_, index) => available[(start + index * 2) % available.length]);
+  const shuffled = [...available];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.min(index, Math.max(0, Math.floor(random() * (index + 1))));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled.slice(0, 3);
 }
 
 export function mudflatTongStats(level = 1) {
