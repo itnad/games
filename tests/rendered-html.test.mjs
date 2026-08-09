@@ -858,6 +858,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /event\.clientY - joystick\.originY/);
   assert.match(source, /onPointerCancel=\{pointerEnd\}/);
   assert.match(source, /onLostPointerCapture=\{pointerEnd\}/);
+  assert.match(source, /const resetMovementInput = useCallback/);
+  assert.match(source, /joystickRef\.current = \{ pointerId: -1, originX: 0, originY: 0, x: 0, y: 0 \}/);
+  assert.match(source, /keysRef\.current\.clear\(\)/);
+  assert.match(source, /const resume = \(\) => \{ const runtime = runtimeRef\.current; if \(!runtime\) return; resetMovementInput\(\); runtime\.paused = false/);
   assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
   assert.match(source, /function drawMudflat\(/);
   assert.match(source, /function drawCreatureSprite\(/);

@@ -634,6 +634,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [best, setBest] = useState(0);
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [savedCampaign, setSavedCampaign] = useState<Campaign | null>(null);
+
+  // A captured pointer can survive a browser/app pause. Never let that stale
+  // drag resume the gatherer: every running entry requires fresh input.
+  const resetMovementInput = useCallback(() => {
+    joystickRef.current = { pointerId: -1, originX: 0, originY: 0, x: 0, y: 0 };
+    keysRef.current.clear();
+  }, []);
   const [campNotice, setCampNotice] = useState("잡아온 해산물을 판매하고 다음 출정을 준비하세요.");
 
   useEffect(() => { setBest(Number(window.localStorage.getItem(BEST_KEY) ?? 0)); setSavedCampaign(readSavedCampaign()); }, []);
@@ -656,7 +663,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const nextCampaign = createCampaign(characterId, mode);
     storeCampaign(nextCampaign);
     const runtime = makeRuntime(nextCampaign);
-    runtimeRef.current = runtime; snapshot(runtime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
+    resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
   };
 
   const continueCampaign = () => {
@@ -1182,10 +1189,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   useEffect(() => {
     const down = (event: KeyboardEvent) => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) { event.preventDefault(); keysRef.current.add(event.code); } };
     const up = (event: KeyboardEvent) => keysRef.current.delete(event.code);
-    const visibility = () => { const runtime = runtimeRef.current; if (document.hidden && runtime && !runtime.ended && !runtime.paused) { runtime.paused = true; joystickRef.current.x = 0; joystickRef.current.y = 0; setScreen("paused"); } };
+    const visibility = () => { const runtime = runtimeRef.current; if (document.hidden && runtime && !runtime.ended && !runtime.paused) { runtime.paused = true; resetMovementInput(); setScreen("paused"); } };
     window.addEventListener("keydown", down); window.addEventListener("keyup", up); document.addEventListener("visibilitychange", visibility);
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); document.removeEventListener("visibilitychange", visibility); };
-  }, []);
+  }, [resetMovementInput]);
 
   const pointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (screen !== "running") return;
@@ -1201,15 +1208,15 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (joystickRef.current.pointerId !== event.pointerId) return;
     joystickRef.current = { pointerId: -1, originX: 0, originY: 0, x: 0, y: 0 };
   };
-  const pause = () => { const runtime = runtimeRef.current; if (!runtime || runtime.ended || runtime.paused) return; runtime.paused = true; joystickRef.current.x = 0; joystickRef.current.y = 0; setScreen("paused"); };
-  const resume = () => { const runtime = runtimeRef.current; if (!runtime) return; runtime.paused = false; setScreen("running"); };
+  const pause = () => { const runtime = runtimeRef.current; if (!runtime || runtime.ended || runtime.paused) return; runtime.paused = true; resetMovementInput(); setScreen("paused"); };
+  const resume = () => { const runtime = runtimeRef.current; if (!runtime) return; resetMovementInput(); runtime.paused = false; setScreen("running"); };
   const chooseUpgrade = (id: string) => {
     const runtime = runtimeRef.current; if (!runtime) return;
     runtime.levels[id] = (runtime.levels[id] ?? 0) + 1;
     if (id === "stamina") { runtime.player.maxHp += 18; runtime.player.hp = Math.min(runtime.player.maxHp, runtime.player.hp + 35); }
     if (id === "snack") { runtime.player.maxHp += 20; runtime.player.hp = Math.min(runtime.player.maxHp, runtime.player.hp + 42); }
     if (id === "boots" && runtime.mode === "normal") { runtime.player.maxHp += 10; runtime.player.hp = Math.min(runtime.player.maxHp, runtime.player.hp + 10); }
-    setChoices([]); runtime.paused = false; snapshot(runtime); setScreen("running");
+    resetMovementInput(); setChoices([]); runtime.paused = false; snapshot(runtime); setScreen("running");
   };
   const rerollUpgradeChoices = () => {
     const runtime = runtimeRef.current; if (!runtime) return;
@@ -1278,9 +1285,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const startNextStage = () => {
     const current = campaignRef.current; if (!current) return;
     const runtime = makeRuntime(current);
-    runtimeRef.current = runtime; snapshot(runtime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
+    resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
   };
-  const reset = () => { runtimeRef.current = null; campaignRef.current = null; joystickRef.current.x = 0; joystickRef.current.y = 0; setCampaign(null); setHud({ ...emptyHud, mode }); setChoices([]); setScreen("setup"); };
+  const reset = () => { runtimeRef.current = null; campaignRef.current = null; resetMovementInput(); setCampaign(null); setHud({ ...emptyHud, mode }); setChoices([]); setScreen("setup"); };
   const clearCampaign = () => { window.localStorage.removeItem(CAMPAIGN_KEY); setSavedCampaign(null); reset(); };
 
   if (screen === "setup") return <main className="ms-shell ms-setup"><MudflatTopbar onExit={onExit} /><section className="ms-setup-hero"><div className="ms-sun">☀</div><small>THE TIDE IS COMING</small><h1>밀물 전에<br /><em>한 바구니!</em></h1><p>화면 아무 곳이나 누른 뒤 가고 싶은 방향으로 드래그하세요.<br />도구는 자동으로 움직이고, 손을 떼면 바로 멈춥니다.</p><div className="ms-control-demo" aria-hidden="true"><span>TOUCH</span><i>●</i><b>→</b><em>상대 거리만큼 이동</em></div></section><section className="ms-character-select"><header><span>01</span><div><b>난이도와 채집꾼 선택</b><small>4분 출정 후 정비소에서 다음 갯벌을 준비합니다</small></div></header>{savedCampaign && <button type="button" className="ms-continue" onClick={continueCampaign}><span><small>SAVED EXPEDITION</small><b>{savedCampaign.stage}단계 정비소에서 이어하기</b><em>{savedCampaign.coins.toLocaleString()}코인 · LV.{savedCampaign.level}</em></span><strong>→</strong></button>}<div className="ms-mode-picker"><button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => setMode("kids")}><i>☀</i><span><b>어린이 모드</b><small>기존 난이도와 세 명의 채집꾼</small></span></button><button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => setMode("normal")}><i>◆</i><span><b>일반 모드</b><small>강한 해산물·돌 장애물·전용 기술</small></span></button></div>{mode === "kids" ? <><h2 className="ms-selection-title">채집꾼을 선택하세요</h2><div className="ms-character-grid">{CHARACTERS.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.id === "digger" ? "호미 Lv.2" : item.id === "netter" ? "뜰채 Lv.2" : "왕소금 Lv.2"}</em></button>)}</div></> : <div className="ms-general-profile"><i>⌁</i><span><small>STARTING GATHERER</small><b>갯벌 초보</b><em>집게 숙련도 Lv.1 · 체력 92 · 돌 장애물 등장</em></span></div>}<button className="ms-primary" type="button" onClick={begin}>{mode === "normal" ? "새 일반 원정 시작" : "새 어린이 원정 시작"} <span>→</span></button><p>스테이지마다 4분 동안 진행됩니다. 귀환 후 해산물을 팔아 장비와 회복 음식을 마련할 수 있습니다.</p></section></main>;
