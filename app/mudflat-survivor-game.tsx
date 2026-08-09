@@ -56,7 +56,7 @@ type Runtime = {
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
 type Campaign = {
   version: 1; mode: GameMode; characterId: string; stage: number; coins: number; hp: number; maxHp: number;
-  level: number; xp: number; nextXp: number; levels: CountMap; equipment: CountMap; inventory: CountMap; totalScore: number;
+  level: number; xp: number; nextXp: number; levels: CountMap; equipment: CountMap; inventory: CountMap; totalScore: number; lastBossCaught: boolean;
 };
 
 const BEST_KEY = "paperoid-mudflat-survivor-best-v1";
@@ -101,7 +101,7 @@ function createCampaign(characterId: string, mode: GameMode): Campaign {
   return {
     version: 1, mode, characterId, stage: 1, coins: 0, hp: character.hp, maxHp: character.hp,
     level: 1, xp: 0, nextXp: mode === "normal" ? 10 : 8, levels: { ...character.levels },
-    equipment: { gloves: 0, waders: 0, cooler: 0, vest: 0 }, inventory: {}, totalScore: 0,
+    equipment: { gloves: 0, waders: 0, cooler: 0, vest: 0 }, inventory: {}, totalScore: 0, lastBossCaught: false,
   };
 }
 
@@ -123,7 +123,7 @@ function readSavedCampaign(): Campaign | null {
       version: 1, mode: value.mode, characterId: String(value.characterId ?? "digger"), stage: Math.max(1, Math.floor(value.stage ?? 1)),
       coins: Math.max(0, Math.floor(value.coins ?? 0)), hp: Math.max(1, Number(value.hp ?? 1)), maxHp: Math.max(1, Number(value.maxHp ?? 1)),
       level: Math.max(1, Math.floor(value.level ?? 1)), xp: Math.max(0, Math.floor(value.xp ?? 0)), nextXp: Math.max(1, Math.floor(value.nextXp ?? 8)),
-      levels: { ...value.levels }, equipment: { ...value.equipment }, inventory: { ...value.inventory }, totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)),
+      levels: { ...value.levels }, equipment: { ...value.equipment }, inventory: { ...value.inventory }, totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught),
     };
   } catch { return null; }
 }
@@ -669,7 +669,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const continueCampaign = () => {
     if (!savedCampaign) return;
     setMode(savedCampaign.mode); setCharacterId(savedCampaign.characterId); storeCampaign(savedCampaign);
-    setCampNotice(`${savedCampaign.stage}단계 출정을 준비하세요.`); setScreen("camp");
+    setCampNotice(`${savedCampaign.stage - 1}단계 정산 · 대왕 박하지 ${savedCampaign.lastBossCaught ? "포획" : "미포획"}. 다음 출정을 준비하세요.`); setScreen("camp");
   };
 
   const endRun = useCallback((runtime: Runtime) => {
@@ -696,10 +696,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const next: Campaign = {
       ...current, stage: runtime.stage + 1, hp: Math.max(1, runtime.player.hp), maxHp: runtime.player.maxHp,
       level: runtime.level, xp: runtime.xp, nextXp: runtime.nextXp, levels: { ...runtime.levels }, inventory: settlement.inventory,
-      totalScore: current.totalScore + score,
+      totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught,
     };
     const recoveryNotice = settlement.recoveredCount > 0 ? ` · 누락된 ${settlement.recoveredCount}마리 정산 복구` : "";
-    storeCampaign(next); setCampNotice(`${runtime.stage}단계에서 ${settlement.catchCount}마리를 잡았습니다. 예상 판매액 ${settlement.value}코인${recoveryNotice}`); setScreen("camp");
+    storeCampaign(next); setCampNotice(`${runtime.stage}단계에서 ${settlement.catchCount}마리를 잡았습니다. 예상 판매액 ${settlement.value}코인${recoveryNotice} · 대왕 박하지 ${runtime.bossCaught ? "포획" : "미포획"}`); setScreen("camp");
   }, [best, characterId, snapshot, storeCampaign]);
 
   useEffect(() => {

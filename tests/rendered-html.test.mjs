@@ -868,6 +868,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /onClick=\{reset\}>처음부터 새 원정/);
   assert.doesNotMatch(source, /onClick=\{\(\) => setScreen\("camp"\)\}>정비소에서 재도전/);
   assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
+  assert.match(source, /totalScore: number; lastBossCaught: boolean/);
+  assert.match(source, /lastBossCaught: runtime\.bossCaught/);
+  assert.match(source, /대왕 박하지 \$\{runtime\.bossCaught \? "포획" : "미포획"\}/);
+  assert.match(source, /대왕 박하지 \$\{savedCampaign\.lastBossCaught \? "포획" : "미포획"\}/);
   assert.match(styles, /\.ms-layer button:not\(:disabled\)\{-webkit-tap-highlight-color:transparent;touch-action:manipulation/);
   assert.match(styles, /\.ms-layer section>div button:not\(:disabled\):active\{transform:translateY\(1px\) scale\(\.982\)/);
   assert.match(styles, /\.ms-layer\.pause \.ms-primary:not\(:disabled\):active/);
