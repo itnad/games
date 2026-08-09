@@ -37,7 +37,7 @@ type Creature = Point & { id: number; type: string; name: string; family?: strin
 type Pickup = Point & { id: number; xp: number };
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
-type NetSlamEffect = Point & { id: number; life: number; maxLife: number; damage: number; radius: number; targetId: number; area: boolean; hit: boolean };
+type NetSlamEffect = Point & { id: number; life: number; maxLife: number; damage: number; radius: number; headDepth: number; range: number; angle: number; targetId: number; area: boolean; hit: boolean };
 type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number };
 type FloatText = Point & { id: number; life: number; text: string; color: string };
 type Rock = Point & { id: number; radius: number; tone: number };
@@ -411,13 +411,17 @@ function drawClamHole(context: CanvasRenderingContext2D, hole: ClamHole) {
 function drawClamDigging(context: CanvasRenderingContext2D, origin: Point, target: Point, progress: number) {
   const angle = Math.atan2(target.y - origin.y, target.x - origin.x);
   const strike = Math.sin((progress * 4 % 1) * Math.PI);
+  // Keep the hoe close to the gatherer: a short grip and an immediately
+  // visible hoe head read more naturally than a long pole across the field.
+  const gripLength = 24;
+  const headX = gripLength + 3;
   context.save(); context.translate(origin.x, origin.y); context.rotate(angle - .85 + strike * 1.15);
   context.strokeStyle = "rgba(28,23,20,.35)"; context.lineWidth = 8; context.lineCap = "round";
-  context.beginPath(); context.moveTo(8, 6); context.lineTo(67, 6); context.stroke();
+  context.beginPath(); context.moveTo(8, 6); context.lineTo(gripLength, 6); context.stroke();
   context.strokeStyle = "#d7b270"; context.lineWidth = 5;
-  context.beginPath(); context.moveTo(8, 0); context.lineTo(67, 0); context.stroke();
+  context.beginPath(); context.moveTo(8, 0); context.lineTo(gripLength, 0); context.stroke();
   context.strokeStyle = "#64706c"; context.lineWidth = 7;
-  context.beginPath(); context.moveTo(64, -10); context.lineTo(72, 9); context.stroke();
+  context.beginPath(); context.moveTo(headX, -10); context.lineTo(headX + 8, 9); context.stroke();
   context.restore();
 }
 
@@ -443,6 +447,17 @@ function distanceToSegment(point: Point, start: Point, end: Point) {
   if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
   const ratio = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
   return Math.hypot(point.x - (start.x + dx * ratio), point.y - (start.y + dy * ratio));
+}
+
+function isInsideDipNetArea(creature: Point & { size: number }, netSlam: NetSlamEffect) {
+  const dx = creature.x - netSlam.x;
+  const dy = creature.y - netSlam.y;
+  const forward = dx * Math.cos(netSlam.angle) + dy * Math.sin(netSlam.angle);
+  const lateral = -dx * Math.sin(netSlam.angle) + dy * Math.cos(netSlam.angle);
+  const halfWidth = netSlam.radius + creature.size;
+  const depth = netSlam.headDepth + creature.size;
+  if (halfWidth <= 0 || depth <= 0) return false;
+  return (lateral * lateral) / (halfWidth * halfWidth) + (forward * forward) / (depth * depth) <= 1;
 }
 
 function drawHarpoonSprite(context: CanvasRenderingContext2D, x: number, y: number, angle: number) {
@@ -561,13 +576,14 @@ function drawDipNetSlam(context: CanvasRenderingContext2D, origin: Point, target
   context.fillStyle = "#8c5737";
   context.save(); context.translate(origin.x - ux * 18, origin.y - uy * 18); context.rotate(handleAngle); roundedRect(context, -8, -7, 24, 14, 5); context.fill(); context.restore();
 
-  const hoopRadius = Math.min(36, Math.max(25, effect.radius * .58));
+  const hoopRadius = Math.max(16, effect.radius);
+  const hoopDepth = Math.max(12, effect.headDepth);
   context.translate(drawX, drawY);
   context.rotate(handleAngle + Math.PI / 2);
   context.fillStyle = impact ? "rgba(157,225,206,.22)" : "rgba(157,225,206,.12)";
   context.strokeStyle = impact ? "#e7fff4" : "#b7e4d6";
   context.lineWidth = impact ? 5 : 4;
-  context.beginPath(); context.ellipse(0, 0, hoopRadius, hoopRadius * (impact ? .72 : .42), 0, 0, Math.PI * 2); context.fill(); context.stroke();
+  context.beginPath(); context.ellipse(0, 0, hoopRadius, hoopDepth * (impact ? 1 : .72), 0, 0, Math.PI * 2); context.fill(); context.stroke();
   context.strokeStyle = "rgba(225,255,246,.55)";
   context.lineWidth = 1.3;
   for (let line = -2; line <= 2; line += 1) {
@@ -584,10 +600,14 @@ function drawDipNetSlam(context: CanvasRenderingContext2D, origin: Point, target
     context.fillStyle = "rgba(102,194,169,.13)";
     context.strokeStyle = "#a9ead5";
     context.lineWidth = 3;
-    context.beginPath(); context.arc(target.x, target.y, effect.radius * (.74 + impactProgress * .26), 0, Math.PI * 2); context.fill(); context.stroke();
+    context.save();
+    context.translate(target.x, target.y);
+    context.rotate(effect.angle + Math.PI / 2);
+    context.beginPath(); context.ellipse(0, 0, effect.radius * (.82 + impactProgress * .18), effect.headDepth * (.82 + impactProgress * .18), 0, 0, Math.PI * 2); context.fill(); context.stroke();
+    context.restore();
     for (let chip = 0; chip < 7; chip += 1) {
       const angle = chip / 7 * Math.PI * 2 + effect.id;
-      const spread = effect.radius * (.5 + impactProgress * .46);
+      const spread = Math.max(effect.radius, effect.headDepth) * (.5 + impactProgress * .46);
       context.fillStyle = "#b99a70";
       context.beginPath(); context.arc(target.x + Math.cos(angle) * spread, target.y + Math.sin(angle) * spread * .55, 2.5, 0, Math.PI * 2); context.fill();
     }
@@ -892,10 +912,17 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (netLevel > 0 && runtime.netClock <= 0 && runtime.creatures.length) {
         const target = runtime.creatures.reduce((nearest, item) => Math.hypot(item.x - runtime.player.x, item.y - runtime.player.y) < Math.hypot(nearest.x - runtime.player.x, nearest.y - runtime.player.y) ? item : nearest);
         const netStats = mudflatNetStats(netLevel);
+        const targetDx = target.x - runtime.player.x; const targetDy = target.y - runtime.player.y;
+        const targetDistance = Math.hypot(targetDx, targetDy) || 1;
+        const angle = Math.atan2(targetDy, targetDx);
+        const impactDistance = runtime.mode === "normal" ? Math.min(targetDistance, netStats.range) : targetDistance;
         runtime.netSlams.push({
-          id: sequenceRef.current++, x: target.x, y: target.y, targetId: target.id,
+          id: sequenceRef.current++, x: runtime.player.x + Math.cos(angle) * impactDistance, y: runtime.player.y + Math.sin(angle) * impactDistance, targetId: target.id,
           damage: (6 + netLevel * 4) * toolPower,
-          radius: runtime.mode === "normal" ? netStats.range : 30,
+          radius: runtime.mode === "normal" ? netStats.radius : 30,
+          headDepth: runtime.mode === "normal" ? netStats.headDepth : 20,
+          range: runtime.mode === "normal" ? netStats.range : targetDistance,
+          angle,
           area: runtime.mode === "normal", hit: false, life: .62, maxLife: .62,
         });
         runtime.netClock = Math.max(.48, 1.5 - netLevel * .14);
@@ -903,13 +930,20 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       for (const netSlam of runtime.netSlams) {
         const trackedTarget = runtime.creatures.find((item) => item.id === netSlam.targetId);
         const progressBefore = 1 - netSlam.life / netSlam.maxLife;
-        if (trackedTarget && !netSlam.hit && progressBefore < .54) { netSlam.x = trackedTarget.x; netSlam.y = trackedTarget.y; }
+        if (trackedTarget && !netSlam.hit && progressBefore < .54) {
+          const dx = trackedTarget.x - runtime.player.x; const dy = trackedTarget.y - runtime.player.y;
+          const distance = Math.hypot(dx, dy) || 1;
+          netSlam.angle = Math.atan2(dy, dx);
+          const impactDistance = netSlam.area ? Math.min(distance, netSlam.range) : distance;
+          netSlam.x = runtime.player.x + Math.cos(netSlam.angle) * impactDistance;
+          netSlam.y = runtime.player.y + Math.sin(netSlam.angle) * impactDistance;
+        }
         netSlam.life -= dt;
         const progress = 1 - netSlam.life / netSlam.maxLife;
         if (!netSlam.hit && progress >= .54) {
           if (netSlam.area) {
             for (const creature of runtime.creatures) {
-              if (Math.hypot(creature.x - netSlam.x, creature.y - netSlam.y) <= netSlam.radius + creature.size) {
+              if (isInsideDipNetArea(creature, netSlam)) {
                 damageCreature(creature, netSlam.damage, .16);
               }
             }

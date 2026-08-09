@@ -144,9 +144,21 @@ export function mudflatTongStats(level = 1) {
 
 export function mudflatNetStats(level = 0) {
   const safeLevel = Math.max(0, Math.min(6, Math.floor(level)));
-  if (safeLevel === 0) return { range: 0 };
+  if (safeLevel === 0) return { range: 0, radius: 0, width: 0, headDepth: 0, scale: 0 };
   const tongRange = mudflatTongStats(1).reach;
-  return { range: tongRange * (1 + (safeLevel - 1) / 5) };
+  // The net grows in five equal steps: level 1 is the tong reach and level 6
+  // is exactly twice that reach.  `radius`/`headDepth` describe the visible
+  // oval net head, so the damage area can use the same shape rather than a
+  // large circular splash around the target.
+  const scale = 1 + (safeLevel - 1) / 5;
+  const radius = tongRange * 0.43 * scale;
+  return {
+    range: tongRange * scale,
+    radius,
+    width: radius * 2,
+    headDepth: tongRange * 0.28 * scale,
+    scale,
+  };
 }
 
 export function mudflatHarpoonStats(level = 0, netLevel = 1) {

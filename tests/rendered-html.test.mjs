@@ -800,6 +800,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatNetStats(4).range, mudflatTongStats(1).reach * 1.6);
   assert.equal(mudflatNetStats(5).range, mudflatTongStats(1).reach * 1.8);
   assert.equal(mudflatNetStats(6).range, mudflatTongStats(1).reach * 2);
+  assert.equal(mudflatNetStats(6).radius, mudflatNetStats(1).radius * 2);
+  assert.equal(mudflatNetStats(6).headDepth, mudflatNetStats(1).headDepth * 2);
+  assert.ok(mudflatNetStats(1).radius < mudflatNetStats(1).range);
   assert.equal(mudflatHarpoonStats(1, 1).range, mudflatNetStats(1).range * 2);
   assert.equal(mudflatHarpoonStats(2, 2).range, mudflatNetStats(2).range * 3);
   assert.equal(mudflatHarpoonStats(3, 3).range, mudflatNetStats(3).range * 4);
@@ -862,7 +865,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawDipNetSlam\(/);
   assert.match(source, /runtime\.netSlams\.push/);
   assert.match(source, /progress >= \.54/);
-  assert.match(source, /netSlam\.radius \+ creature\.size/);
+  assert.match(source, /function isInsideDipNetArea\(/);
+  assert.match(source, /isInsideDipNetArea\(creature, netSlam\)/);
+  assert.match(source, /const gripLength = 24/);
   assert.match(source, /const DAMAGE_TEXT_COLOR = "#ffd29a"/);
   assert.match(source, /const damageCreature = \(creature: Creature, damage: number, hitFlash = \.12\)/);
   assert.match(source, /text: damageText/);
