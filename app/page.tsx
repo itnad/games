@@ -1849,9 +1849,37 @@ export default function Home() {
     const migratedRecent = recent.length ? recent : readGameIds(`${legacyPrefix}-recent-games`);
     setFavorites(migratedFavorites);
     setRecentIds(migratedRecent);
-    setShowAllGames(window.localStorage.getItem(SHOW_ALL_GAMES_STORAGE_KEY) === "true");
+    // A reload always begins from the public, top-left home view.  Keep play
+    // history and favourites, but do not restore a previously opened secret
+    // catalogue or browser scroll position.
+    setCategory("전체");
+    setQuery("");
+    setFinderOpen(false);
+    setShowAllGames(false);
+    window.localStorage.removeItem(SHOW_ALL_GAMES_STORAGE_KEY);
     if (migratedFavorites.length) window.localStorage.setItem("paperoid-favorites", JSON.stringify(migratedFavorites));
     if (migratedRecent.length) window.localStorage.setItem("paperoid-recent-games", JSON.stringify(migratedRecent));
+  }, []);
+
+  useEffect(() => {
+    const previousRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    const resetHomeView = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      document.querySelectorAll<HTMLElement>(".game-shelf-track").forEach((track) => { track.scrollLeft = 0; });
+    };
+    resetHomeView();
+    const frame = window.requestAnimationFrame(resetHomeView);
+    const timer = window.setTimeout(resetHomeView, 120);
+    window.addEventListener("pageshow", resetHomeView);
+    return () => {
+      window.history.scrollRestoration = previousRestoration;
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+      window.removeEventListener("pageshow", resetHomeView);
+    };
   }, []);
 
   useEffect(() => {
@@ -2133,6 +2161,7 @@ export default function Home() {
 
         <div className="home-game-shelves">
           <GameShelf
+            key={recentGames.length ? "recent-games" : "quick-start-games"}
             title={recentGames.length ? "최근 플레이" : "빠른 시작"}
             description={recentGames.length ? "최근에 즐긴 게임을 바로 이어서 시작하세요." : "처음이라면 인기 게임부터 가볍게 시작해 보세요."}
             games={quickStartGames}

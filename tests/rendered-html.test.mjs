@@ -1046,6 +1046,18 @@ test("starts every game at the top and keeps the latest Janggi AI piece distinct
   assert.match(styles, /\.janggi-board button\.opponent-to \.janggi-piece \{[\s\S]*?background: #d9ba85/);
 });
 
+test("resets the home view and game shelves after a browser refresh", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+
+  assert.match(pageSource, /window\.history\.scrollRestoration = "manual"/);
+  assert.match(pageSource, /document\.querySelectorAll<HTMLElement>\("\.game-shelf-track"\)/);
+  assert.match(pageSource, /track\.scrollLeft = 0/);
+  assert.match(pageSource, /window\.addEventListener\("pageshow", resetHomeView\)/);
+  assert.match(pageSource, /setShowAllGames\(false\)/);
+  assert.match(pageSource, /window\.localStorage\.removeItem\(SHOW_ALL_GAMES_STORAGE_KEY\)/);
+  assert.match(pageSource, /key=\{recentGames\.length \? "recent-games" : "quick-start-games"\}/);
+});
+
 test("balances distinct AI personalities automatically in Seven Civilizations", async () => {
   const strategyIds = Object.keys(SW_AI_STRATEGIES);
   for (const playerCount of [3, 4, 5, 6, 7]) {
