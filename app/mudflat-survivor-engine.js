@@ -2,30 +2,62 @@ export const MUDFLAT_RUN_SECONDS = 240;
 export const MUDFLAT_JOYSTICK_RADIUS = 72;
 
 export const MUDFLAT_CREATURES = [
-  { id: "clam", name: "바지락", icon: "◒", color: "#eee0bd", hp: 2, speed: 24, size: 13, xp: 1, score: 8, unlock: 0 },
-  { id: "crab", name: "칠게", icon: "♋", color: "#ef6d52", hp: 4, speed: 34, size: 15, xp: 2, score: 15, unlock: 18 },
-  { id: "shrimp", name: "새우", icon: "⌁", color: "#eda584", hp: 5, speed: 34, size: 14, xp: 3, score: 22, unlock: Infinity },
-  { id: "mudfish", name: "망둥어", icon: "⌁", color: "#8fc7b1", hp: 7, speed: 47, size: 14, xp: 3, score: 24, unlock: 45 },
-  { id: "whelk", name: "소라", icon: "@", color: "#c99a68", hp: 12, speed: 23, size: 18, xp: 4, score: 38, unlock: 78 },
-  { id: "octopus", name: "낙지", icon: "✣", color: "#b878a8", hp: 18, speed: 38, size: 20, xp: 6, score: 60, unlock: 120 },
-  { id: "king-crab", name: "대왕 꽃게", icon: "♛", color: "#f0a33b", hp: 420, speed: 28, size: 43, xp: 80, score: 1800, unlock: 200, boss: true },
+  { id: "small-crab", name: "작은게", family: "crab", icon: "♋", color: "#d6a177", hp: 2, speed: 25, size: 11, xp: 1, score: 6, unlock: 0 },
+  { id: "crab", name: "칠게", family: "crab", icon: "♋", color: "#ef6d52", hp: 4, speed: 34, size: 13, xp: 2, score: 15, unlock: 15 },
+  { id: "shore-crab", name: "방게", family: "crab", icon: "♋", color: "#bd8058", hp: 7, speed: 38, size: 15, xp: 3, score: 24, unlock: 40 },
+  { id: "fiddler-crab", name: "농게", family: "crab", icon: "♋", color: "#e3a449", hp: 12, speed: 43, size: 17, xp: 4, score: 38, unlock: 70 },
+  { id: "blue-crab", name: "민꽃게", family: "crab", icon: "♋", color: "#6bafa7", hp: 20, speed: 46, size: 20, xp: 6, score: 62, unlock: 105 },
+  { id: "purple-crab", name: "보라돌이", family: "crab", icon: "♋", color: "#a66cb0", hp: 36, speed: 40, size: 24, xp: 10, score: 110, unlock: 150 },
+  { id: "shrimp", name: "새우", family: "seafood", sprite: "/mudflat-creatures/shrimp.png", icon: "⌁", color: "#eda584", hp: 5, speed: 34, size: 14, xp: 3, score: 22, unlock: 32, movement: "wander" },
+  { id: "whelk", name: "소라", family: "seafood", sprite: "/mudflat-creatures/whelk.png", icon: "@", color: "#c99a68", hp: 14, speed: 0, size: 18, xp: 5, score: 45, unlock: 65, movement: "still", requiresHeadlamp: true },
+  { id: "octopus", name: "낙지", family: "seafood", sprite: "/mudflat-creatures/octopus.png", icon: "✣", color: "#c9cdd0", hp: 22, speed: 38, size: 20, xp: 8, score: 75, unlock: 110, movement: "flee" },
+  { id: "golbaengi", name: "골뱅이", family: "seafood", sprite: "/mudflat-creatures/golbaengi.png", icon: "@", color: "#6f9c8e", hp: 16, speed: 0, size: 19, xp: 6, score: 52, unlock: 90, movement: "still", requiresHeadlamp: true },
+  { id: "flounder", name: "광어", family: "seafood", sprite: "/mudflat-creatures/flounder.png", icon: "◇", color: "#a59369", hp: 30, speed: 52, size: 22, xp: 10, score: 95, unlock: 145, movement: "flee" },
+  { id: "king-crab", name: "대왕 박하지", family: "crab", icon: "♛", color: "#f0a33b", hp: 420, speed: 28, size: 43, xp: 80, score: 1800, unlock: 200, boss: true },
 ];
 
 export const MUDFLAT_ROCK_FINDINGS = [
-  { type: "whelk", name: "소라", movement: "still", chance: 0.4 },
-  { type: "clam", name: "조개", movement: "still", chance: 0.3 },
-  { type: "shrimp", name: "새우", movement: "wander", chance: 0.2 },
-  { type: "octopus", name: "낙지", movement: "flee", chance: 0.1 },
+  { type: "shrimp", name: "새우", movement: "wander", chance: 0.5 },
+  { type: "small-crab", name: "작은게", movement: "chase", chance: 0.3 },
+  { type: "octopus", name: "낙지", movement: "flee", chance: 0.15 },
+  { type: "flounder", name: "광어", movement: "flee", chance: 0.05 },
+];
+
+export const MUDFLAT_CLAM_GRADES = [
+  { id: "small-clam", name: "작은조개", xp: 1, score: 5, price: 3 },
+  { id: "clam", name: "바지락", xp: 2, score: 9, price: 5 },
+  { id: "dongjuk", name: "동죽", xp: 3, score: 16, price: 9 },
+  { id: "hard-clam", name: "백합", xp: 5, score: 28, price: 16 },
+  { id: "ark-shell", name: "피조개", xp: 7, score: 42, price: 24 },
+  { id: "razor-clam", name: "맛조개", xp: 9, score: 62, price: 34 },
+];
+
+export const MUDFLAT_PEARL = { id: "pearl", name: "진주", xp: 30, score: 500, price: 300 };
+
+const MUDFLAT_CLAM_WEIGHTS = [
+  [6, 3, 1, 0, 0, 0],
+  [5, 2, 1, 1, 1, 0],
+  [3, 2, 2, 1, 1, 1],
+  [1, 2, 2, 2, 2, 1],
+  [1, 1, 2, 2, 2, 2],
+  [0, 1, 2, 3, 2, 2],
 ];
 
 export const MUDFLAT_SEAFOOD_MARKET = [
-  { type: "clam", name: "조개", icon: "◒", price: 4 },
+  { type: "small-crab", name: "작은게", icon: "♋", price: 3 },
   { type: "crab", name: "칠게", icon: "♋", price: 8 },
+  { type: "shore-crab", name: "방게", icon: "♋", price: 12 },
+  { type: "fiddler-crab", name: "농게", icon: "♋", price: 20 },
+  { type: "blue-crab", name: "민꽃게", icon: "♋", price: 34 },
+  { type: "purple-crab", name: "보라돌이", icon: "♋", price: 58 },
   { type: "shrimp", name: "새우", icon: "⌁", price: 12 },
-  { type: "mudfish", name: "망둥어", icon: "◇", price: 15 },
   { type: "whelk", name: "소라", icon: "@", price: 22 },
   { type: "octopus", name: "낙지", icon: "✣", price: 36 },
-  { type: "king-crab", name: "대왕 꽃게", icon: "♛", price: 240 },
+  { type: "golbaengi", name: "골뱅이", icon: "@", price: 26 },
+  { type: "flounder", name: "광어", icon: "◇", price: 52 },
+  ...MUDFLAT_CLAM_GRADES.map((item) => ({ type: item.id, name: item.name, icon: "◒", price: item.price })),
+  { type: MUDFLAT_PEARL.id, name: MUDFLAT_PEARL.name, icon: "●", price: MUDFLAT_PEARL.price },
+  { type: "king-crab", name: "대왕 박하지", icon: "♛", price: 240 },
 ];
 
 export const MUDFLAT_SHOP_EQUIPMENT = [
@@ -33,6 +65,7 @@ export const MUDFLAT_SHOP_EQUIPMENT = [
   { id: "waders", icon: "≫", name: "강화 갯벌 장화", description: "이동 속도가 5% 증가하고 최대 체력이 8 늘어납니다.", basePrice: 110, priceStep: 80, max: 4 },
   { id: "cooler", icon: "▣", name: "보냉 바구니", description: "해산물 판매가가 8% 오르고 수집 범위가 넓어집니다.", basePrice: 100, priceStep: 75, max: 4 },
   { id: "vest", icon: "♥", name: "부력 작업 조끼", description: "최대 체력이 15 늘어납니다.", basePrice: 130, priceStep: 95, max: 3 },
+  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "어두운 곳에 숨은 소라가 출현합니다.", basePrice: 180, priceStep: 0, max: 1 },
 ];
 
 export const MUDFLAT_RECOVERY_FOODS = [
@@ -58,6 +91,7 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "snack", icon: "♥", name: "든든한 간식", description: "최대 체력 상승 및 현재 체력을 회복합니다.", max: 6 },
   { id: "rocker", icon: "◆", name: "돌뒤집게", description: "돌 밑에 숨어있는 해산물을 찾아낼 수 있습니다.", max: 6 },
   { id: "net", icon: "◇", name: "뜰채", description: "넓은 범위의 채집이 가능합니다.", max: 6 },
+  { id: "digging", icon: "⌁", name: "호미질", description: "조개 구멍에서 더 좋은 조개를 찾을 확률이 높아집니다.", max: 6 },
 ];
 
 export function mudflatJoystickVector(deltaX, deltaY, radius = MUDFLAT_JOYSTICK_RADIUS, deadzone = 5) {
@@ -73,10 +107,25 @@ export function mudflatSpawnInterval(elapsedSeconds, mode = "kids") {
   return mode === "normal" ? Math.max(0.11, base * 0.82) : base;
 }
 
-export function mudflatCreatureForTime(elapsedSeconds, roll = 0) {
-  const available = MUDFLAT_CREATURES.filter((item) => !item.boss && item.unlock <= elapsedSeconds);
+export function mudflatCreatureForTime(elapsedSeconds, roll = 0, options = {}) {
+  const available = MUDFLAT_CREATURES.filter((item) => !item.boss && item.unlock <= elapsedSeconds && (!item.requiresHeadlamp || options.headlamp));
   const index = Math.min(available.length - 1, Math.floor(Math.max(0, Math.min(0.9999, roll)) * available.length));
   return available[Math.max(0, index)];
+}
+
+export function mudflatClamRewardForRoll(level = 1, roll = 0) {
+  const safeLevel = Math.max(1, Math.min(6, Math.floor(level)));
+  const safeRoll = Math.max(0, Math.min(0.999999, Number.isFinite(roll) ? roll : 0));
+  if (safeLevel === 6 && safeRoll < 0.01) return MUDFLAT_PEARL;
+  const shellRoll = safeLevel === 6 ? (safeRoll - 0.01) / 0.99 : safeRoll;
+  const weights = MUDFLAT_CLAM_WEIGHTS[safeLevel - 1];
+  const total = weights.reduce((sum, value) => sum + value, 0);
+  let threshold = Math.max(0, shellRoll) * total;
+  for (let index = 0; index < weights.length; index += 1) {
+    threshold -= weights[index];
+    if (threshold < 0 && weights[index] > 0) return MUDFLAT_CLAM_GRADES[index];
+  }
+  return MUDFLAT_CLAM_GRADES.at(-1);
 }
 
 export function mudflatUpgradeChoices(level, levels = {}, mode = "kids") {

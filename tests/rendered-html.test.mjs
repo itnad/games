@@ -109,6 +109,7 @@ import {
   summarizeTenSeconds,
 } from "../app/ten-seconds-engine.js";
 import {
+  MUDFLAT_CLAM_GRADES,
   MUDFLAT_CREATURES,
   MUDFLAT_GENERAL_UPGRADES,
   MUDFLAT_JOYSTICK_RADIUS,
@@ -116,6 +117,8 @@ import {
   MUDFLAT_RUN_SECONDS,
   MUDFLAT_SEAFOOD_MARKET,
   MUDFLAT_SHOP_EQUIPMENT,
+  MUDFLAT_PEARL,
+  mudflatClamRewardForRoll,
   mudflatEquipmentPrice,
   mudflatCreatureForTime,
   mudflatFinalScore,
@@ -774,17 +777,21 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(Math.abs(diagonal.y - Math.SQRT1_2) < 0.0001);
   assert.equal(diagonal.strength, 1);
 
-  assert.equal(mudflatCreatureForTime(0, 0.99).id, "clam");
-  assert.notEqual(mudflatCreatureForTime(130, 0.99).id, "clam");
+  assert.equal(mudflatCreatureForTime(0, 0.99).id, "small-crab");
+  assert.notEqual(mudflatCreatureForTime(130, 0.99).id, "small-crab");
+  assert.equal(mudflatCreatureForTime(80, 0.99).id, "shrimp");
+  assert.equal(mudflatCreatureForTime(80, 0.99, { headlamp: true }).id, "whelk");
+  assert.equal(mudflatCreatureForTime(100, 0.99, { headlamp: true }).id, "golbaengi");
+  assert.equal(MUDFLAT_CREATURES.find((creature) => creature.id === "whelk").speed, 0);
   assert.ok(mudflatSpawnInterval(200) < mudflatSpawnInterval(0));
   assert.ok(mudflatSpawnInterval(0, "normal") < mudflatSpawnInterval(0, "kids"));
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
-  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["넓은 바구니", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집게", "뜰채"]);
+  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["넓은 바구니", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집게", "뜰채", "호미질"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "rocker").description, "돌 밑에 숨어있는 해산물을 찾아낼 수 있습니다.");
   const generalChoices = mudflatUpgradeChoices(2, {}, "normal");
   assert.equal(generalChoices.length, 3);
-  assert.ok(generalChoices.every((choice) => ["basket", "tongs", "harpoon", "boots", "snack", "rocker", "net"].includes(choice.id)));
+  assert.ok(generalChoices.every((choice) => ["basket", "tongs", "harpoon", "boots", "snack", "rocker", "net", "digging"].includes(choice.id)));
   assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
   assert.equal(mudflatTongStats(2).power, mudflatTongStats(1).power * 1.5);
   assert.equal(mudflatNetStats(1).range, mudflatTongStats(1).reach);
@@ -803,26 +810,35 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatRockTurnerStats(1).creatureChance, 0.2);
   assert.equal(mudflatRockTurnerStats(2).creatureChance, 0.3);
   assert.equal(mudflatRockTurnerStats(2).activationsPerSecond, 1.3);
-  assert.equal(mudflatRockCreatureForRoll(0).type, "whelk");
-  assert.equal(mudflatRockCreatureForRoll(0.3999).type, "whelk");
-  assert.equal(mudflatRockCreatureForRoll(0.4).type, "clam");
-  assert.equal(mudflatRockCreatureForRoll(0.6999).type, "clam");
-  assert.equal(mudflatRockCreatureForRoll(0.7).type, "shrimp");
-  assert.equal(mudflatRockCreatureForRoll(0.8999).type, "shrimp");
-  assert.equal(mudflatRockCreatureForRoll(0.9).type, "octopus");
+  assert.equal(mudflatRockCreatureForRoll(0).type, "shrimp");
+  assert.equal(mudflatRockCreatureForRoll(0.4999).type, "shrimp");
+  assert.equal(mudflatRockCreatureForRoll(0.5).type, "small-crab");
+  assert.equal(mudflatRockCreatureForRoll(0.7999).type, "small-crab");
+  assert.equal(mudflatRockCreatureForRoll(0.8).type, "octopus");
+  assert.equal(mudflatRockCreatureForRoll(0.9499).type, "octopus");
+  assert.equal(mudflatRockCreatureForRoll(0.999).type, "flounder");
+  assert.deepEqual(MUDFLAT_CLAM_GRADES.map((grade) => grade.name), ["작은조개", "바지락", "동죽", "백합", "피조개", "맛조개"]);
+  assert.equal(mudflatClamRewardForRoll(1, 0).id, "small-clam");
+  assert.equal(mudflatClamRewardForRoll(1, 0.5999).id, "small-clam");
+  assert.equal(mudflatClamRewardForRoll(1, 0.6).id, "clam");
+  assert.equal(mudflatClamRewardForRoll(1, 0.9).id, "dongjuk");
+  assert.equal(mudflatClamRewardForRoll(6, 0.009).id, "pearl");
+  assert.equal(mudflatClamRewardForRoll(6, 0.01).id, "clam");
+  assert.equal(mudflatClamRewardForRoll(6, 0.999).id, "razor-clam");
+  assert.equal(MUDFLAT_PEARL.price, 300);
   assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "octopus").price, 36);
-  assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 4);
+  assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
   assert.equal(MUDFLAT_RECOVERY_FOODS.length, 3);
-  assert.equal(mudflatSeafoodSaleValue("clam", 10, 0), 40);
-  assert.equal(mudflatSeafoodSaleValue("clam", 10, 2), 46);
+  assert.equal(mudflatSeafoodSaleValue("clam", 10, 0), 50);
+  assert.equal(mudflatSeafoodSaleValue("clam", 10, 2), 57);
   const settledCatch = mudflatSettleCatch({ crab: 2 }, { clam: 3, octopus: 1 }, 4, 0);
   assert.deepEqual(settledCatch.inventory, { crab: 2, clam: 3, octopus: 1 });
   assert.equal(settledCatch.catchCount, 4);
-  assert.equal(settledCatch.value, 48);
+  assert.equal(settledCatch.value, 51);
   const recoveredCatch = mudflatSettleCatch({}, { clam: 1 }, 3, 0);
   assert.deepEqual(recoveredCatch.inventory, { clam: 3 });
   assert.equal(recoveredCatch.recoveredCount, 2);
-  assert.equal(recoveredCatch.value, 12);
+  assert.equal(recoveredCatch.value, 15);
   assert.equal(mudflatEquipmentPrice("gloves", 1), 160);
   assert.equal(mudflatTrainingPrice(2), 160);
   assert.ok(mudflatStageStats(3).creatureHpMultiplier > mudflatStageStats(2).creatureHpMultiplier);
@@ -830,6 +846,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(mudflatFinalScore({ catchScore: 1000, caught: 50, elapsed: 240, bossCaught: true }) > 4000);
 
   const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const engineSource = await readFile(new URL("../app/mudflat-survivor-engine.js", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
   assert.match(source, /event\.clientX - joystick\.originX/);
   assert.match(source, /event\.clientY - joystick\.originY/);
@@ -872,9 +889,18 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function MudflatTopbar/);
   assert.match(source, /className="game-topbar ms-topbar"/);
   assert.doesNotMatch(source, /paperoid · MUDFLAT ACTION/);
-  assert.match(source, /creature\.type === "crab"/);
-  assert.match(source, /creature\.type === "mudfish"/);
-  assert.match(source, /creature\.type === "octopus"/);
+  assert.match(source, /creature\.family === "crab"/);
+  assert.match(engineSource, /mudflat-creatures\/shrimp\.png/);
+  assert.match(engineSource, /mudflat-creatures\/whelk\.png/);
+  assert.match(engineSource, /mudflat-creatures\/golbaengi\.png/);
+  assert.match(engineSource, /mudflat-creatures\/octopus\.png/);
+  assert.match(engineSource, /mudflat-creatures\/flounder\.png/);
+  assert.match(engineSource, /requiresHeadlamp: true/);
+  assert.match(source, /function drawClamHole\(/);
+  assert.match(source, /function drawClamDigging\(/);
+  assert.match(source, /progress >= 2/);
+  assert.match(source, /mudflatClamRewardForRoll/);
+  assert.match(source, /equipment\.headlamp/);
   assert.doesNotMatch(source, /const grid = 80/);
   assert.match(styles, /touch-action:none/);
   assert.match(styles, /data-game-id="mudflat-survivor"/);
