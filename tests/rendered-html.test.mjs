@@ -862,6 +862,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /joystickRef\.current = \{ pointerId: -1, originX: 0, originY: 0, x: 0, y: 0 \}/);
   assert.match(source, /keysRef\.current\.clear\(\)/);
   assert.match(source, /const resume = \(\) => \{ const runtime = runtimeRef\.current; if \(!runtime\) return; resetMovementInput\(\); runtime\.paused = false/);
+  assert.match(source, /window\.localStorage\.removeItem\(CAMPAIGN_KEY\);/);
+  assert.match(source, /setSavedCampaign\(null\);/);
+  assert.match(source, /EXPEDITION ENDED/);
+  assert.match(source, /onClick=\{reset\}>처음부터 새 원정/);
+  assert.doesNotMatch(source, /onClick=\{\(\) => setScreen\("camp"\)\}>정비소에서 재도전/);
   assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
   assert.match(source, /function drawMudflat\(/);
   assert.match(source, /function drawCreatureSprite\(/);
