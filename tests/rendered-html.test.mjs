@@ -872,6 +872,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const damageCreature = \(creature: Creature, damage: number, hitFlash = \.12\)/);
   assert.match(source, /text: damageText/);
   assert.match(source, /color: DAMAGE_TEXT_COLOR/);
+  assert.match(source, /const playerDamage = baseDamage \+ stageStats\.contactDamageBonus/);
+  assert.match(source, /text: `-\$\{playerDamage\}`/);
+  assert.match(source, /color: "#ff8b7a"/);
   assert.doesNotMatch(source, /damageCreature\([^\n]+#[0-9a-fA-F]{6}/);
   assert.doesNotMatch(source, /text: `\+\$\{item\.score\}`/);
   assert.match(source, /runtime\.harpoons/);

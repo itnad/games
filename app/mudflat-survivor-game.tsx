@@ -868,9 +868,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const touchingRock = runtime.mode === "normal" && runtime.rocks.some((rock) => Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) < rock.radius + 16);
       if ((touching || touchingRock) && runtime.player.damageCooldown <= 0) {
         const baseDamage = runtime.mode === "normal" ? (touchingRock ? 10 : 9) : 7;
-        runtime.player.hp = Math.max(0, runtime.player.hp - (baseDamage + stageStats.contactDamageBonus + Math.floor(runtime.elapsed / 70)));
+        const playerDamage = baseDamage + stageStats.contactDamageBonus + Math.floor(runtime.elapsed / 70);
+        runtime.player.hp = Math.max(0, runtime.player.hp - playerDamage);
         runtime.player.damageCooldown = .52;
         runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, life: .35, maxLife: .35, color: "#ff7868", size: 24 });
+        runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y - 28, life: .72, text: `-${playerDamage}`, color: "#ff8b7a" });
         if ("vibrate" in navigator) navigator.vibrate(22);
       }
 
