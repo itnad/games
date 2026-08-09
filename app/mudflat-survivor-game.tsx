@@ -739,7 +739,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const difficulty = runtime.mode === "normal" ? 1.15 : 1;
       const scale = (forcedBoss ? 1 : 1 + runtime.elapsed / 420) * difficulty * stageStats.creatureHpMultiplier;
       runtime.creatures.push({
-        ...template, id: sequenceRef.current++, x: runtime.player.x + Math.cos(angle) * distance,
+        ...template, id: sequenceRef.current++, type: template.id, x: runtime.player.x + Math.cos(angle) * distance,
         y: runtime.player.y + Math.sin(angle) * distance, hp: template.hp * scale, maxHp: template.hp * scale,
         speed: template.speed * (1 + runtime.elapsed / 750) * (runtime.mode === "normal" ? 1.12 : 1) * stageStats.creatureSpeedMultiplier, saltHit: 0, hitFlash: 0, phase: Math.random() * Math.PI * 2,
         movement: (template.movement ?? "chase") as CreatureMovement, movementAngle: angle + Math.PI, movementClock: 1,
@@ -756,6 +756,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.creatures.push({
         ...template,
         id: sequenceRef.current++,
+        type: template.id,
         name: finding.name,
         x: rock.x + Math.cos(revealAngle) * offset,
         y: rock.y + Math.sin(revealAngle) * offset,

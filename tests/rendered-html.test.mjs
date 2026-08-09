@@ -873,6 +873,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-layer\.pause \.ms-primary:not\(:disabled\):active/);
   assert.match(source, /function drawMudflat\(/);
   assert.match(source, /function drawCreatureSprite\(/);
+  assert.match(source, /const sprite = creature\.sprite \? sprites\.get\(creature\.type\) : undefined/);
+  assert.match(source, /id: sequenceRef\.current\+\+, type: template\.id, x: runtime\.player\.x/);
+  assert.match(source, /const revealRockCreature = \(rock: Rock\) => \{[\s\S]*?id: sequenceRef\.current\+\+,\s*type: template\.id,/);
   assert.match(source, /function drawGatherer\(/);
   assert.match(source, /function drawRotatingTongs\(/);
   assert.match(source, /function drawHarpoonSprite\(/);
