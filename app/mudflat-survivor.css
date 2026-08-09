@@ -14,6 +14,15 @@
 @media(max-width:600px){.ms-mode-picker button,.ms-character-grid button{padding:13px!important}.ms-general-profile{padding:14px}.ms-general-profile>i{width:54px!important;height:54px!important}}
 @media(prefers-reduced-motion:reduce){.ms-shell *,.ms-shell *::before,.ms-shell *::after{animation:none!important;transition-duration:.01ms!important}}
 
+/* Paused overlays need unmistakable touch feedback: the action being pressed
+   stays visibly distinct until its click changes the paused game state. */
+.ms-layer button:not(:disabled){-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease,background .12s ease,color .12s ease}
+.ms-layer button:not(:disabled):focus-visible{outline:3px solid #ef6b4c;outline-offset:3px}
+.ms-layer section>div button:not(:disabled):active{transform:translateY(1px) scale(.982);border-color:var(--ms-coral);background:linear-gradient(145deg,#fff3dd,#ffe2c9);box-shadow:inset 0 0 0 2px #ef6b4c66,0 0 0 5px #ef6b4c20}
+.ms-layer section>div button:not(:disabled):active>i{background:#b95039;box-shadow:0 0 0 4px #ef6b4c28}
+.ms-layer .ms-reroll:not(:disabled):active,.ms-layer.pause .ms-quit:not(:disabled):active{transform:translateY(1px) scale(.985);border-color:#b94732;background:#ffe6d5;box-shadow:inset 0 0 0 2px #b9473255}
+.ms-layer.pause .ms-primary:not(:disabled):active{transform:translateY(2px) scale(.985);background:#c6533b!important;box-shadow:inset 0 3px 9px #67291e66,0 5px 13px #ad493622}
+
 /* Match the shared paperoid header on setup and result screens. */
 .ms-shell .ms-topbar.game-topbar{height:72px;min-height:72px;padding:0 32px;grid-template-columns:48px minmax(0,1fr) 128px;column-gap:8px;background:rgba(250,249,247,.94)}
 .ms-shell .ms-topbar .back-button{width:38px;height:38px;border:1px solid #d8d4de;border-radius:50%;color:#57515e;background:transparent;font-size:19px}
