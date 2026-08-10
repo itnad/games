@@ -696,7 +696,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (!savedCampaign) return;
     window.localStorage.setItem(LAST_MODE_KEY, savedCampaign.mode);
     setMode(savedCampaign.mode); setCharacterId(savedCampaign.characterId); storeCampaign(savedCampaign);
-    setCampNotice(`${savedCampaign.stage - 1}단계 정산 · 대왕 박하지 ${savedCampaign.lastBossCaught ? "포획" : "미포획"}. 다음 출정을 준비하세요.`); setScreen("camp");
+    const previousHaulCount = Object.values(savedCampaign.lastHaul).reduce((sum, count) => sum + count, 0);
+    setCampNotice(`${savedCampaign.stage - 1}단계에서 잡은 ${previousHaulCount}마리를 판매해서 ${savedCampaign.lastSaleValue}코인을 얻었습니다.`); setScreen("camp");
   };
 
   const endRun = useCallback((runtime: Runtime) => {
@@ -727,8 +728,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       level: runtime.level, xp: runtime.xp, nextXp: runtime.nextXp, levels: { ...runtime.levels }, inventory: {}, lastHaul: autoSale.haul, lastSaleValue: autoSale.value,
       totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught,
     };
-    const recoveryNotice = settlement.recoveredCount > 0 ? ` · 누락된 ${settlement.recoveredCount}마리 정산 복구` : "";
-    storeCampaign(next); setCampNotice(`${runtime.stage}단계에서 ${settlement.catchCount}마리를 잡아 ${autoSale.value}코인으로 자동 정산했습니다${recoveryNotice} · 대왕 박하지 ${runtime.bossCaught ? "포획" : "미포획"}`); setScreen("camp");
+    storeCampaign(next); setCampNotice(`${runtime.stage}단계에서 잡은 ${settlement.catchCount}마리를 판매해서 ${autoSale.value}코인을 얻었습니다.`); setScreen("camp");
   }, [best, characterId, snapshot, storeCampaign]);
 
   useEffect(() => {
@@ -1323,6 +1323,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <span><small>보유 코인</small><b>{campaign.coins.toLocaleString()}</b></span>
           <span><small>현재 체력</small><b>{Math.ceil(campaign.hp)} / {campaign.maxHp}</b></span>
           <span><small>다음 갯벌</small><b>STAGE {campaign.stage}</b></span>
+          <span className="ms-boss-status"><small>대왕 박하지</small><b>{campaign.lastBossCaught ? "포획" : "미포획"}</b></span>
         </div>
         <div className="ms-camp-auto-sale"><span>이번 바구니 {haulCount}마리</span><b>+{campaign.lastSaleValue.toLocaleString()}코인 자동 입금</b></div>
       </section>

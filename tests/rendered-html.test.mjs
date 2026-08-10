@@ -881,8 +881,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
   assert.match(source, /totalScore: number; lastBossCaught: boolean/);
   assert.match(source, /lastBossCaught: runtime\.bossCaught/);
-  assert.match(source, /대왕 박하지 \$\{runtime\.bossCaught \? "포획" : "미포획"\}/);
-  assert.match(source, /대왕 박하지 \$\{savedCampaign\.lastBossCaught \? "포획" : "미포획"\}/);
+  assert.match(source, /단계에서 잡은 \$\{settlement\.catchCount\}마리를 판매해서 \$\{autoSale\.value\}코인을 얻었습니다/);
+  assert.match(source, /<small>대왕 박하지<\/small><b>\{campaign\.lastBossCaught \? "포획" : "미포획"\}<\/b>/);
   assert.match(styles, /\.ms-layer button:not\(:disabled\)\{-webkit-tap-highlight-color:transparent;touch-action:manipulation/);
   assert.match(styles, /\.ms-layer section>div button:not\(:disabled\):active\{transform:translateY\(1px\) scale\(\.982\)/);
   assert.match(styles, /\.ms-layer\.pause \.ms-primary:not\(:disabled\):active/);
@@ -926,7 +926,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.doesNotMatch(source, /stats\.xpChance/);
   assert.match(source, /CATCH SUMMARY/);
   assert.match(source, /ms-camp-auto-sale/);
-  assert.match(source, /자동 정산했습니다/);
+  assert.doesNotMatch(source, /자동 정산했습니다|정산 복구| · 대왕 박하지/);
   assert.doesNotMatch(source, /1개 판매|바구니 모두 판매/);
   assert.match(source, /EQUIPMENT SHOP/);
   assert.match(source, /RECOVERY FOOD/);
