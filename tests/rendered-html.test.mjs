@@ -584,6 +584,8 @@ test("keeps the home introduction compact on mobile", async () => {
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.match(pageSource, /잠깐의 여유,\{\" \"\}/);
+  assert.match(pageSource, /className=\"hero-mudflat-shortcut\"[\s\S]*?onClick=\{\(\) => launchGame\(\"mudflat-survivor\"\)\}[\s\S]*?>\s*\?\s*<\/button>/);
+  assert.match(styles, /\.hero-mudflat-shortcut \{[\s\S]*?font: inherit/);
   assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.hero \{[\s\S]*?min-height: 168px/);
   assert.match(styles, /\.hero h1 br \{ display: none; \}/);
   assert.match(styles, /\.hero p \{\s*display: none;/);

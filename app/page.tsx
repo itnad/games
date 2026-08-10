@@ -2117,7 +2117,15 @@ export default function Home() {
           <h1>
             잠깐의 여유,{" "}
             <br />
-            <em>한 판</em> 어때요?
+            <em>한 판</em> 어때요
+            <button
+              className="hero-mudflat-shortcut"
+              type="button"
+              onClick={() => launchGame("mudflat-survivor")}
+              aria-label="비밀 게임 바로 시작"
+            >
+              ?
+            </button>
           </h1>
           <p>혼자여도 즐거운 보드게임 아지트.<br />원하는 게임을 골라 AI와 바로 시작하세요.</p>
           <button className="hero-finder-button" type="button" onClick={() => openFinder()}>

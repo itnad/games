@@ -169,6 +169,28 @@ a:focus-visible {
   font-style: normal;
 }
 
+.hero-mudflat-shortcut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0 0.06em;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hero-mudflat-shortcut:focus-visible {
+  border-radius: 0.12em;
+  outline: 2px solid #b7a5ff;
+  outline-offset: 3px;
+}
+
 .hero p {
   margin: 15px 0 0;
   color: #aaa4b1;
