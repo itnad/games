@@ -840,6 +840,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatClamRewardForRoll(6, 0.999).id, "razor-clam");
   assert.equal(MUDFLAT_PEARL.price, 300);
   assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "octopus").price, 36);
+  const crabTypes = ["small-crab", "crab", "shore-crab", "fiddler-crab", "blue-crab", "purple-crab", "king-crab"];
+  assert.ok(crabTypes.every((type) => MUDFLAT_CREATURES.find((creature) => creature.id === type)?.sprite?.endsWith(".svg")));
+  assert.ok(crabTypes.every((type) => MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === type)?.image === MUDFLAT_CREATURES.find((creature) => creature.id === type)?.sprite));
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
   assert.equal(MUDFLAT_RECOVERY_FOODS.length, 3);
   assert.equal(mudflatSeafoodSaleValue("clam", 10, 0), 50);
@@ -941,6 +944,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /className="game-topbar ms-topbar"/);
   assert.doesNotMatch(source, /paperoid · MUDFLAT ACTION/);
   assert.match(source, /creature\.family === "crab"/);
+  assert.match(await readFile(new URL("../app/page.tsx", import.meta.url), "utf8"), /mudflat-creatures\/crab\.png/);
   assert.match(engineSource, /mudflat-creatures\/shrimp\.png/);
   assert.match(engineSource, /mudflat-creatures\/whelk\.png/);
   assert.match(engineSource, /mudflat-creatures\/golbaengi-v2\.png/);

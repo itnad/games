@@ -2,18 +2,18 @@ export const MUDFLAT_RUN_SECONDS = 240;
 export const MUDFLAT_JOYSTICK_RADIUS = 72;
 
 export const MUDFLAT_CREATURES = [
-  { id: "small-crab", name: "작은게", family: "crab", icon: "♋", color: "#d6a177", hp: 2, speed: 25, size: 11, xp: 1, score: 6, unlock: 0 },
-  { id: "crab", name: "칠게", family: "crab", icon: "♋", color: "#ef6d52", hp: 4, speed: 34, size: 13, xp: 2, score: 15, unlock: 15 },
-  { id: "shore-crab", name: "방게", family: "crab", icon: "♋", color: "#bd8058", hp: 7, speed: 38, size: 15, xp: 3, score: 24, unlock: 40 },
-  { id: "fiddler-crab", name: "농게", family: "crab", icon: "♋", color: "#e3a449", hp: 12, speed: 43, size: 17, xp: 4, score: 38, unlock: 70 },
-  { id: "blue-crab", name: "민꽃게", family: "crab", icon: "♋", color: "#6bafa7", hp: 20, speed: 46, size: 20, xp: 6, score: 62, unlock: 105 },
-  { id: "purple-crab", name: "보라돌이", family: "crab", icon: "♋", color: "#a66cb0", hp: 36, speed: 40, size: 24, xp: 10, score: 110, unlock: 150 },
+  { id: "small-crab", name: "작은게", family: "crab", sprite: "/mudflat-creatures/small-crab.svg", icon: "♋", color: "#d6a177", hp: 2, speed: 25, size: 11, xp: 1, score: 6, unlock: 0 },
+  { id: "crab", name: "칠게", family: "crab", sprite: "/mudflat-creatures/chilge.svg", icon: "♋", color: "#ef6d52", hp: 4, speed: 34, size: 13, xp: 2, score: 15, unlock: 15 },
+  { id: "shore-crab", name: "방게", family: "crab", sprite: "/mudflat-creatures/shore-crab.svg", icon: "♋", color: "#bd8058", hp: 7, speed: 38, size: 15, xp: 3, score: 24, unlock: 40 },
+  { id: "fiddler-crab", name: "농게", family: "crab", sprite: "/mudflat-creatures/fiddler-crab.svg", icon: "♋", color: "#e3a449", hp: 12, speed: 43, size: 17, xp: 4, score: 38, unlock: 70 },
+  { id: "blue-crab", name: "민꽃게", family: "crab", sprite: "/mudflat-creatures/blue-crab.svg", icon: "♋", color: "#6bafa7", hp: 20, speed: 46, size: 20, xp: 6, score: 62, unlock: 105 },
+  { id: "purple-crab", name: "보라돌이", family: "crab", sprite: "/mudflat-creatures/purple-crab.svg", icon: "♋", color: "#a66cb0", hp: 36, speed: 40, size: 24, xp: 10, score: 110, unlock: 150 },
   { id: "shrimp", name: "새우", family: "seafood", sprite: "/mudflat-creatures/shrimp.png", icon: "⌁", color: "#eda584", hp: 5, speed: 34, size: 14, xp: 3, score: 22, unlock: 32, movement: "wander" },
   { id: "whelk", name: "소라", family: "seafood", sprite: "/mudflat-creatures/whelk.png", icon: "@", color: "#c99a68", hp: 14, speed: 1, size: 18, xp: 5, score: 45, unlock: 65, movement: "flee", requiresHeadlamp: true },
   { id: "octopus", name: "낙지", family: "seafood", sprite: "/mudflat-creatures/octopus.png", icon: "✣", color: "#c9cdd0", hp: 22, speed: 38, size: 20, xp: 8, score: 75, unlock: 110, movement: "flee" },
   { id: "golbaengi", name: "골뱅이", family: "seafood", sprite: "/mudflat-creatures/golbaengi-v2.png", icon: "@", color: "#b97b42", hp: 16, speed: 1, size: 19, xp: 6, score: 52, unlock: 90, movement: "chase", requiresHeadlamp: true },
   { id: "flounder", name: "광어", family: "seafood", sprite: "/mudflat-creatures/flounder.png", icon: "◇", color: "#a59369", hp: 30, speed: 52, size: 22, xp: 10, score: 95, unlock: 145, movement: "flee" },
-  { id: "king-crab", name: "대왕 박하지", family: "crab", icon: "♛", color: "#f0a33b", hp: 420, speed: 28, size: 43, xp: 80, score: 1800, unlock: 200, boss: true },
+  { id: "king-crab", name: "대왕 박하지", family: "crab", sprite: "/mudflat-creatures/king-crab.svg", icon: "♛", color: "#f0a33b", hp: 420, speed: 28, size: 43, xp: 80, score: 1800, unlock: 200, boss: true },
 ];
 
 export const MUDFLAT_ROCK_FINDINGS = [
@@ -44,12 +44,12 @@ const MUDFLAT_CLAM_WEIGHTS = [
 ];
 
 export const MUDFLAT_SEAFOOD_MARKET = [
-  { type: "small-crab", name: "작은게", image: "/mudflat-creatures/crab.png", price: 3 },
-  { type: "crab", name: "칠게", image: "/mudflat-creatures/crab.png", price: 8 },
-  { type: "shore-crab", name: "방게", image: "/mudflat-creatures/crab.png", price: 12 },
-  { type: "fiddler-crab", name: "농게", image: "/mudflat-creatures/crab.png", price: 20 },
-  { type: "blue-crab", name: "민꽃게", image: "/mudflat-creatures/crab.png", price: 34 },
-  { type: "purple-crab", name: "보라돌이", image: "/mudflat-creatures/crab.png", price: 58 },
+  { type: "small-crab", name: "작은게", image: "/mudflat-creatures/small-crab.svg", price: 3 },
+  { type: "crab", name: "칠게", image: "/mudflat-creatures/chilge.svg", price: 8 },
+  { type: "shore-crab", name: "방게", image: "/mudflat-creatures/shore-crab.svg", price: 12 },
+  { type: "fiddler-crab", name: "농게", image: "/mudflat-creatures/fiddler-crab.svg", price: 20 },
+  { type: "blue-crab", name: "민꽃게", image: "/mudflat-creatures/blue-crab.svg", price: 34 },
+  { type: "purple-crab", name: "보라돌이", image: "/mudflat-creatures/purple-crab.svg", price: 58 },
   { type: "shrimp", name: "새우", image: "/mudflat-creatures/shrimp.png", price: 12 },
   { type: "whelk", name: "소라", image: "/mudflat-creatures/whelk.png", price: 22 },
   { type: "octopus", name: "낙지", image: "/mudflat-creatures/octopus.png", price: 36 },
@@ -57,7 +57,7 @@ export const MUDFLAT_SEAFOOD_MARKET = [
   { type: "flounder", name: "광어", image: "/mudflat-creatures/flounder.png", price: 52 },
   ...MUDFLAT_CLAM_GRADES.map((item) => ({ type: item.id, name: item.name, image: "/mudflat-creatures/clam.png", price: item.price })),
   { type: MUDFLAT_PEARL.id, name: MUDFLAT_PEARL.name, image: "/mudflat-creatures/pearl.png", price: MUDFLAT_PEARL.price },
-  { type: "king-crab", name: "대왕 박하지", image: "/mudflat-creatures/crab.png", price: 240 },
+  { type: "king-crab", name: "대왕 박하지", image: "/mudflat-creatures/king-crab.svg", price: 240 },
 ];
 
 export const MUDFLAT_SHOP_EQUIPMENT = [

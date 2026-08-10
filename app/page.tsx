@@ -854,7 +854,7 @@ function GameArtwork({ game }: { game: GameDefinition }) {
   }
 
   if (game.id === "mudflat-survivor") {
-    return <div className="card-art casual-card-art mudflat" aria-hidden="true"><span>해루질럿</span><i /><span className="float-chip">2 MODES</span></div>;
+    return <div className="card-art casual-card-art mudflat" aria-hidden="true"><img src="/mudflat-creatures/crab.png" alt="" /><i /><span className="float-chip">2 MODES</span></div>;
   }
 
   if (game.id === "tetris") {
