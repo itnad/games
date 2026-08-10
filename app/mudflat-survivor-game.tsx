@@ -9,6 +9,7 @@ import {
   MUDFLAT_SEAFOOD_MARKET,
   MUDFLAT_SHOP_EQUIPMENT,
   MUDFLAT_UPGRADES,
+  mudflatAutoSellInventory,
   mudflatEquipmentPrice,
   mudflatClamRewardForRoll,
   mudflatCreatureForTime,
@@ -56,7 +57,7 @@ type Runtime = {
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
 type Campaign = {
   version: 1; mode: GameMode; characterId: string; stage: number; coins: number; hp: number; maxHp: number;
-  level: number; xp: number; nextXp: number; levels: CountMap; equipment: CountMap; inventory: CountMap; totalScore: number; lastBossCaught: boolean;
+  level: number; xp: number; nextXp: number; levels: CountMap; equipment: CountMap; inventory: CountMap; lastHaul: CountMap; lastSaleValue: number; totalScore: number; lastBossCaught: boolean;
 };
 
 const BEST_KEY = "paperoid-mudflat-survivor-best-v1";
@@ -102,7 +103,7 @@ function createCampaign(characterId: string, mode: GameMode): Campaign {
   return {
     version: 1, mode, characterId, stage: 1, coins: 0, hp: character.hp, maxHp: character.hp,
     level: 1, xp: 0, nextXp: mode === "normal" ? 10 : 8, levels: { ...character.levels },
-    equipment: { gloves: 0, waders: 0, cooler: 0, vest: 0 }, inventory: {}, totalScore: 0, lastBossCaught: false,
+    equipment: { gloves: 0, waders: 0, cooler: 0, vest: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false,
   };
 }
 
@@ -120,12 +121,15 @@ function readSavedCampaign(): Campaign | null {
   try {
     const value = JSON.parse(window.localStorage.getItem(CAMPAIGN_KEY) ?? "null") as Partial<Campaign> | null;
     if (!value || value.version !== 1 || (value.mode !== "kids" && value.mode !== "normal") || !Number.isFinite(value.stage) || !value.levels || !value.equipment || !value.inventory) return null;
-    return {
+    const restored: Campaign = {
       version: 1, mode: value.mode, characterId: String(value.characterId ?? "digger"), stage: Math.max(1, Math.floor(value.stage ?? 1)),
       coins: Math.max(0, Math.floor(value.coins ?? 0)), hp: Math.max(1, Number(value.hp ?? 1)), maxHp: Math.max(1, Number(value.maxHp ?? 1)),
       level: Math.max(1, Math.floor(value.level ?? 1)), xp: Math.max(0, Math.floor(value.xp ?? 0)), nextXp: Math.max(1, Math.floor(value.nextXp ?? 8)),
-      levels: { ...value.levels }, equipment: { ...value.equipment }, inventory: { ...value.inventory }, totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught),
+      levels: { ...value.levels }, equipment: { ...value.equipment }, inventory: { ...value.inventory }, lastHaul: { ...(value.lastHaul ?? {}) }, lastSaleValue: Math.max(0, Math.floor(value.lastSaleValue ?? 0)), totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught),
     };
+    const unsold = mudflatAutoSellInventory(restored.inventory, restored.equipment.cooler ?? 0);
+    if (unsold.count === 0) return restored;
+    return { ...restored, coins: restored.coins + unsold.value, inventory: {}, lastHaul: unsold.haul, lastSaleValue: unsold.value };
   } catch { return null; }
 }
 
@@ -701,13 +705,15 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (score > best) { setBest(score); window.localStorage.setItem(BEST_KEY, String(score)); }
     const current = campaignRef.current ?? createCampaign(characterId, runtime.mode);
     const settlement = mudflatSettleCatch(current.inventory, runtime.basket, runtime.caught, current.equipment.cooler ?? 0);
+    const autoSale = mudflatAutoSellInventory(settlement.inventory, current.equipment.cooler ?? 0);
     const next: Campaign = {
       ...current, stage: runtime.stage + 1, hp: Math.max(1, runtime.player.hp), maxHp: runtime.player.maxHp,
-      level: runtime.level, xp: runtime.xp, nextXp: runtime.nextXp, levels: { ...runtime.levels }, inventory: settlement.inventory,
+      coins: current.coins + autoSale.value,
+      level: runtime.level, xp: runtime.xp, nextXp: runtime.nextXp, levels: { ...runtime.levels }, inventory: {}, lastHaul: autoSale.haul, lastSaleValue: autoSale.value,
       totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught,
     };
     const recoveryNotice = settlement.recoveredCount > 0 ? ` · 누락된 ${settlement.recoveredCount}마리 정산 복구` : "";
-    storeCampaign(next); setCampNotice(`${runtime.stage}단계에서 ${settlement.catchCount}마리를 잡았습니다. 예상 판매액 ${settlement.value}코인${recoveryNotice} · 대왕 박하지 ${runtime.bossCaught ? "포획" : "미포획"}`); setScreen("camp");
+    storeCampaign(next); setCampNotice(`${runtime.stage}단계에서 ${settlement.catchCount}마리를 잡아 ${autoSale.value}코인으로 자동 정산했습니다${recoveryNotice} · 대왕 박하지 ${runtime.bossCaught ? "포획" : "미포획"}`); setScreen("camp");
   }, [best, characterId, snapshot, storeCampaign]);
 
   useEffect(() => {
@@ -1242,24 +1248,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     setChoices(mudflatUpgradeChoices(runtime.level, runtime.levels, runtime.mode)); snapshot(runtime);
     if ("vibrate" in navigator) navigator.vibrate(18);
   };
-  const sellSeafood = (type: string, sellAllOfType = false) => {
-    const current = campaignRef.current; if (!current) return;
-    const held = current.inventory[type] ?? 0; const quantity = sellAllOfType ? held : Math.min(1, held);
-    if (quantity <= 0) return;
-    const market = MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === type);
-    const earned = mudflatSeafoodSaleValue(type, quantity, current.equipment.cooler ?? 0);
-    const inventory = { ...current.inventory, [type]: held - quantity };
-    const next = { ...current, coins: current.coins + earned, inventory };
-    storeCampaign(next); setCampNotice(`${market?.name ?? "해산물"} ${quantity}개 판매 · ${earned}코인 획득`);
-  };
-  const sellAllSeafood = () => {
-    const current = campaignRef.current; if (!current) return;
-    let earned = 0; let sold = 0;
-    for (const [type, count] of Object.entries(current.inventory)) { earned += mudflatSeafoodSaleValue(type, count, current.equipment.cooler ?? 0); sold += count; }
-    if (sold === 0) { setCampNotice("판매할 해산물이 없습니다."); return; }
-    const next = { ...current, coins: current.coins + earned, inventory: {} };
-    storeCampaign(next); setCampNotice(`해산물 ${sold}마리 일괄 판매 · ${earned}코인 획득`);
-  };
   const buyEquipment = (id: string) => {
     const current = campaignRef.current; if (!current) return;
     const item = MUDFLAT_SHOP_EQUIPMENT.find((entry) => entry.id === id); if (!item) return;
@@ -1309,11 +1297,46 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
   if (screen === "camp" && campaign) {
     const coolerLevel = campaign.equipment.cooler ?? 0;
-    const inventoryCount = Object.values(campaign.inventory).reduce((sum, count) => sum + count, 0);
-    const inventoryValue = Object.entries(campaign.inventory).reduce((sum, [type, count]) => sum + mudflatSeafoodSaleValue(type, count, coolerLevel), 0);
+    const haulCount = Object.values(campaign.lastHaul).reduce((sum, count) => sum + count, 0);
     const upgrades = campaign.mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
     const nextStageStats = mudflatStageStats(campaign.stage);
-    return <main className="ms-shell ms-camp"><MudflatTopbar onExit={onExit} /><section className="ms-camp-hero"><div><small>STAGE {campaign.stage - 1} CLEAR</small><h1>무사히 돌아왔습니다</h1><p>{campNotice}</p></div><div className="ms-wallet"><span><small>보유 코인</small><b>{campaign.coins.toLocaleString()}</b></span><span><small>현재 체력</small><b>{Math.ceil(campaign.hp)} / {campaign.maxHp}</b></span><span><small>다음 갯벌</small><b>STAGE {campaign.stage}</b></span></div>{inventoryCount > 0 && <button type="button" className="ms-camp-quick-sale" onClick={sellAllSeafood}><span>이번 바구니 {inventoryCount}마리</span><b>{inventoryValue}코인에 모두 판매</b></button>}</section><section className="ms-camp-layout"><article className="ms-market"><header><div><small>CATCH MARKET</small><h2>해산물 판매</h2></div><span>{inventoryCount}마리 · 예상 {inventoryValue}코인</span></header><div className="ms-market-list">{MUDFLAT_SEAFOOD_MARKET.map((item) => { const count = campaign.inventory[item.type] ?? 0; const unitPrice = mudflatSeafoodSaleValue(item.type, 1, coolerLevel); return <div key={item.type} className={count ? "" : "empty"}><i>{item.icon}</i><span><b>{item.name}</b><small>마리당 {unitPrice}코인</small></span><em>{count}마리</em><button type="button" disabled={!count} onClick={() => sellSeafood(item.type)}>1개 판매</button><button type="button" disabled={!count} onClick={() => sellSeafood(item.type, true)}>전부</button></div>; })}</div><button type="button" className="ms-sell-all" disabled={!inventoryCount} onClick={sellAllSeafood}>바구니 모두 판매 · {inventoryValue}코인</button></article><div className="ms-shop-stack"><article className="ms-shop"><header><small>EQUIPMENT SHOP</small><h2>장비 물품</h2></header><div>{MUDFLAT_SHOP_EQUIPMENT.map((item) => { const level = campaign.equipment[item.id] ?? 0; const price = mudflatEquipmentPrice(item.id, level); return <button type="button" key={item.id} disabled={level >= item.max || campaign.coins < price} onClick={() => buyEquipment(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{level >= item.max ? "최고 단계" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article><article className="ms-shop"><header><small>RECOVERY FOOD</small><h2>체력 회복 음식</h2></header><div>{MUDFLAT_RECOVERY_FOODS.map((food) => <button type="button" key={food.id} disabled={campaign.hp >= campaign.maxHp || campaign.coins < food.price} onClick={() => buyFood(food.id)}><i>{food.icon}</i><span><b>{food.name}</b><small>{food.description} 구매 즉시 먹습니다.</small></span><em>{food.price}코인</em></button>)}</div></article><article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const level = campaign.levels[skill.id] ?? 0; const price = mudflatTrainingPrice(level); return <button type="button" key={skill.id} disabled={level >= skill.max || campaign.coins < price} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{level >= skill.max ? "최고 레벨" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article></div></section><section className="ms-departure"><div><small>NEXT TIDE</small><b>{campaign.stage}단계 출정 준비</b><span>해산물 체력 ×{nextStageStats.creatureHpMultiplier.toFixed(2)} · 접촉 피해 +{nextStageStats.contactDamageBonus}</span></div><button type="button" className="ms-clear-save" onClick={clearCampaign}>새 원정으로 초기화</button><button type="button" className="ms-primary" onClick={startNextStage}>다음 갯벌 출정 <span>→</span></button></section></main>;
+    const soldItems = MUDFLAT_SEAFOOD_MARKET.filter((item) => (campaign.lastHaul[item.type] ?? 0) > 0);
+    return <main className="ms-shell ms-camp">
+      <MudflatTopbar onExit={onExit} />
+      <section className="ms-camp-hero">
+        <div><small>STAGE {campaign.stage - 1} CLEAR</small><h1>무사히 돌아왔습니다</h1><p>{campNotice}</p></div>
+        <div className="ms-wallet">
+          <span><small>보유 코인</small><b>{campaign.coins.toLocaleString()}</b></span>
+          <span><small>현재 체력</small><b>{Math.ceil(campaign.hp)} / {campaign.maxHp}</b></span>
+          <span><small>다음 갯벌</small><b>STAGE {campaign.stage}</b></span>
+        </div>
+        <div className="ms-camp-auto-sale"><span>이번 바구니 {haulCount}마리</span><b>+{campaign.lastSaleValue.toLocaleString()}코인 자동 입금</b></div>
+      </section>
+      <section className="ms-camp-layout">
+        <article className="ms-market">
+          <header><div><small>CATCH SUMMARY</small><h2>해산물 정산 내역</h2></div><span>{haulCount}마리 · 판매 완료</span></header>
+          <div className="ms-market-list">
+            {soldItems.length > 0 ? soldItems.map((item) => {
+              const count = campaign.lastHaul[item.type] ?? 0;
+              const unitPrice = mudflatSeafoodSaleValue(item.type, 1, coolerLevel);
+              const subtotal = mudflatSeafoodSaleValue(item.type, count, coolerLevel);
+              return <div key={item.type}>
+                <img src={item.image} alt="" />
+                <span><b>{item.name}</b><small>마리당 {unitPrice}코인</small></span>
+                <em>{count}마리</em><strong>{subtotal.toLocaleString()}코인</strong>
+              </div>;
+            }) : <p className="ms-market-empty">이번 단계에서 정산할 해산물이 없습니다.</p>}
+          </div>
+          <div className="ms-sale-total"><span>자동 판매 합계</span><b>{campaign.lastSaleValue.toLocaleString()}코인</b></div>
+        </article>
+        <div className="ms-shop-stack">
+          <article className="ms-shop"><header><small>EQUIPMENT SHOP</small><h2>장비 물품</h2></header><div>{MUDFLAT_SHOP_EQUIPMENT.map((item) => { const level = campaign.equipment[item.id] ?? 0; const price = mudflatEquipmentPrice(item.id, level); return <button type="button" key={item.id} disabled={level >= item.max || campaign.coins < price} onClick={() => buyEquipment(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{level >= item.max ? "최고 단계" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
+          <article className="ms-shop"><header><small>RECOVERY FOOD</small><h2>체력 회복 음식</h2></header><div>{MUDFLAT_RECOVERY_FOODS.map((food) => <button type="button" key={food.id} disabled={campaign.hp >= campaign.maxHp || campaign.coins < food.price} onClick={() => buyFood(food.id)}><i>{food.icon}</i><span><b>{food.name}</b><small>{food.description} 구매 즉시 먹습니다.</small></span><em>{food.price}코인</em></button>)}</div></article>
+          <article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const level = campaign.levels[skill.id] ?? 0; const price = mudflatTrainingPrice(level); return <button type="button" key={skill.id} disabled={level >= skill.max || campaign.coins < price} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{level >= skill.max ? "최고 레벨" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
+        </div>
+      </section>
+      <section className="ms-departure"><div><small>NEXT TIDE</small><b>{campaign.stage}단계 출정 준비</b><span>해산물 체력 ×{nextStageStats.creatureHpMultiplier.toFixed(2)} · 접촉 피해 +{nextStageStats.contactDamageBonus}</span></div><button type="button" className="ms-clear-save" onClick={clearCampaign}>새 원정으로 초기화</button><button type="button" className="ms-primary" onClick={startNextStage}>다음 갯벌 출정 <span>→</span></button></section>
+    </main>;
   }
 
   if (screen === "defeat") return <main className="ms-shell ms-result defeat"><MudflatTopbar onExit={onExit} /><section><div className="ms-result-icon">≈</div><small>EXPEDITION ENDED</small><h1>갯벌에서 힘이 다했습니다</h1><p>이번 원정의 진행 상태와 장비는 정리되었습니다. 처음 설정 화면에서 새 원정을 시작하세요.</p><div className="ms-result-grid"><span><small>도전 스테이지</small><b>{hud.stage}</b></span><span><small>잡은 수</small><b>{hud.caught}</b></span><span><small>레벨</small><b>{hud.level}</b></span><span><small>대왕 박하지</small><b>{hud.bossCaught ? "포획" : "놓침"}</b></span></div><div className="ms-result-actions"><button className="ms-primary" onClick={reset}>처음부터 새 원정</button></div></section></main>;

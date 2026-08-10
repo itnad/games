@@ -118,6 +118,7 @@ import {
   MUDFLAT_SEAFOOD_MARKET,
   MUDFLAT_SHOP_EQUIPMENT,
   MUDFLAT_PEARL,
+  mudflatAutoSellInventory,
   mudflatClamRewardForRoll,
   mudflatEquipmentPrice,
   mudflatCreatureForTime,
@@ -782,7 +783,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatCreatureForTime(80, 0.99).id, "shrimp");
   assert.equal(mudflatCreatureForTime(80, 0.99, { headlamp: true }).id, "whelk");
   assert.equal(mudflatCreatureForTime(100, 0.99, { headlamp: true }).id, "golbaengi");
-  assert.equal(MUDFLAT_CREATURES.find((creature) => creature.id === "whelk").speed, 0);
+  const whelk = MUDFLAT_CREATURES.find((creature) => creature.id === "whelk");
+  const golbaengi = MUDFLAT_CREATURES.find((creature) => creature.id === "golbaengi");
+  assert.equal(whelk.speed, 1);
+  assert.equal(whelk.movement, "flee");
+  assert.equal(golbaengi.speed, 1);
+  assert.equal(golbaengi.movement, "chase");
+  assert.equal(golbaengi.sprite, "/mudflat-creatures/golbaengi-v2.png");
   assert.ok(mudflatSpawnInterval(200) < mudflatSpawnInterval(0));
   assert.ok(mudflatSpawnInterval(0, "normal") < mudflatSpawnInterval(0, "kids"));
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
@@ -845,6 +852,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual(recoveredCatch.inventory, { clam: 3 });
   assert.equal(recoveredCatch.recoveredCount, 2);
   assert.equal(recoveredCatch.value, 15);
+  const autoSale = mudflatAutoSellInventory({ clam: 3, octopus: 1, unknown: 99 }, 0);
+  assert.deepEqual(autoSale.haul, { clam: 3, octopus: 1 });
+  assert.equal(autoSale.count, 4);
+  assert.equal(autoSale.value, 51);
   assert.equal(mudflatEquipmentPrice("gloves", 1), 160);
   assert.equal(mudflatTrainingPrice(2), 160);
   assert.ok(mudflatStageStats(3).creatureHpMultiplier > mudflatStageStats(2).creatureHpMultiplier);
@@ -909,8 +920,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /movement === "wander"/);
   assert.match(source, /movement === "flee"/);
   assert.doesNotMatch(source, /stats\.xpChance/);
-  assert.match(source, /CATCH MARKET/);
-  assert.match(source, /ms-camp-quick-sale/);
+  assert.match(source, /CATCH SUMMARY/);
+  assert.match(source, /ms-camp-auto-sale/);
+  assert.match(source, /자동 정산했습니다/);
+  assert.doesNotMatch(source, /1개 판매|바구니 모두 판매/);
   assert.match(source, /EQUIPMENT SHOP/);
   assert.match(source, /RECOVERY FOOD/);
   assert.match(source, /SKILL TRAINING/);
@@ -926,7 +939,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /creature\.family === "crab"/);
   assert.match(engineSource, /mudflat-creatures\/shrimp\.png/);
   assert.match(engineSource, /mudflat-creatures\/whelk\.png/);
-  assert.match(engineSource, /mudflat-creatures\/golbaengi\.png/);
+  assert.match(engineSource, /mudflat-creatures\/golbaengi-v2\.png/);
   assert.match(engineSource, /mudflat-creatures\/octopus\.png/);
   assert.match(engineSource, /mudflat-creatures\/flounder\.png/);
   assert.match(engineSource, /requiresHeadlamp: true/);

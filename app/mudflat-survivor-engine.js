@@ -9,9 +9,9 @@ export const MUDFLAT_CREATURES = [
   { id: "blue-crab", name: "민꽃게", family: "crab", icon: "♋", color: "#6bafa7", hp: 20, speed: 46, size: 20, xp: 6, score: 62, unlock: 105 },
   { id: "purple-crab", name: "보라돌이", family: "crab", icon: "♋", color: "#a66cb0", hp: 36, speed: 40, size: 24, xp: 10, score: 110, unlock: 150 },
   { id: "shrimp", name: "새우", family: "seafood", sprite: "/mudflat-creatures/shrimp.png", icon: "⌁", color: "#eda584", hp: 5, speed: 34, size: 14, xp: 3, score: 22, unlock: 32, movement: "wander" },
-  { id: "whelk", name: "소라", family: "seafood", sprite: "/mudflat-creatures/whelk.png", icon: "@", color: "#c99a68", hp: 14, speed: 0, size: 18, xp: 5, score: 45, unlock: 65, movement: "still", requiresHeadlamp: true },
+  { id: "whelk", name: "소라", family: "seafood", sprite: "/mudflat-creatures/whelk.png", icon: "@", color: "#c99a68", hp: 14, speed: 1, size: 18, xp: 5, score: 45, unlock: 65, movement: "flee", requiresHeadlamp: true },
   { id: "octopus", name: "낙지", family: "seafood", sprite: "/mudflat-creatures/octopus.png", icon: "✣", color: "#c9cdd0", hp: 22, speed: 38, size: 20, xp: 8, score: 75, unlock: 110, movement: "flee" },
-  { id: "golbaengi", name: "골뱅이", family: "seafood", sprite: "/mudflat-creatures/golbaengi.png", icon: "@", color: "#6f9c8e", hp: 16, speed: 0, size: 19, xp: 6, score: 52, unlock: 90, movement: "still", requiresHeadlamp: true },
+  { id: "golbaengi", name: "골뱅이", family: "seafood", sprite: "/mudflat-creatures/golbaengi-v2.png", icon: "@", color: "#b97b42", hp: 16, speed: 1, size: 19, xp: 6, score: 52, unlock: 90, movement: "chase", requiresHeadlamp: true },
   { id: "flounder", name: "광어", family: "seafood", sprite: "/mudflat-creatures/flounder.png", icon: "◇", color: "#a59369", hp: 30, speed: 52, size: 22, xp: 10, score: 95, unlock: 145, movement: "flee" },
   { id: "king-crab", name: "대왕 박하지", family: "crab", icon: "♛", color: "#f0a33b", hp: 420, speed: 28, size: 43, xp: 80, score: 1800, unlock: 200, boss: true },
 ];
@@ -44,20 +44,20 @@ const MUDFLAT_CLAM_WEIGHTS = [
 ];
 
 export const MUDFLAT_SEAFOOD_MARKET = [
-  { type: "small-crab", name: "작은게", icon: "♋", price: 3 },
-  { type: "crab", name: "칠게", icon: "♋", price: 8 },
-  { type: "shore-crab", name: "방게", icon: "♋", price: 12 },
-  { type: "fiddler-crab", name: "농게", icon: "♋", price: 20 },
-  { type: "blue-crab", name: "민꽃게", icon: "♋", price: 34 },
-  { type: "purple-crab", name: "보라돌이", icon: "♋", price: 58 },
-  { type: "shrimp", name: "새우", icon: "⌁", price: 12 },
-  { type: "whelk", name: "소라", icon: "@", price: 22 },
-  { type: "octopus", name: "낙지", icon: "✣", price: 36 },
-  { type: "golbaengi", name: "골뱅이", icon: "@", price: 26 },
-  { type: "flounder", name: "광어", icon: "◇", price: 52 },
-  ...MUDFLAT_CLAM_GRADES.map((item) => ({ type: item.id, name: item.name, icon: "◒", price: item.price })),
-  { type: MUDFLAT_PEARL.id, name: MUDFLAT_PEARL.name, icon: "●", price: MUDFLAT_PEARL.price },
-  { type: "king-crab", name: "대왕 박하지", icon: "♛", price: 240 },
+  { type: "small-crab", name: "작은게", image: "/mudflat-creatures/crab.png", price: 3 },
+  { type: "crab", name: "칠게", image: "/mudflat-creatures/crab.png", price: 8 },
+  { type: "shore-crab", name: "방게", image: "/mudflat-creatures/crab.png", price: 12 },
+  { type: "fiddler-crab", name: "농게", image: "/mudflat-creatures/crab.png", price: 20 },
+  { type: "blue-crab", name: "민꽃게", image: "/mudflat-creatures/crab.png", price: 34 },
+  { type: "purple-crab", name: "보라돌이", image: "/mudflat-creatures/crab.png", price: 58 },
+  { type: "shrimp", name: "새우", image: "/mudflat-creatures/shrimp.png", price: 12 },
+  { type: "whelk", name: "소라", image: "/mudflat-creatures/whelk.png", price: 22 },
+  { type: "octopus", name: "낙지", image: "/mudflat-creatures/octopus.png", price: 36 },
+  { type: "golbaengi", name: "골뱅이", image: "/mudflat-creatures/golbaengi-v2.png", price: 26 },
+  { type: "flounder", name: "광어", image: "/mudflat-creatures/flounder.png", price: 52 },
+  ...MUDFLAT_CLAM_GRADES.map((item) => ({ type: item.id, name: item.name, image: "/mudflat-creatures/clam.png", price: item.price })),
+  { type: MUDFLAT_PEARL.id, name: MUDFLAT_PEARL.name, image: "/mudflat-creatures/pearl.png", price: MUDFLAT_PEARL.price },
+  { type: "king-crab", name: "대왕 박하지", image: "/mudflat-creatures/crab.png", price: 240 },
 ];
 
 export const MUDFLAT_SHOP_EQUIPMENT = [
@@ -65,7 +65,7 @@ export const MUDFLAT_SHOP_EQUIPMENT = [
   { id: "waders", icon: "≫", name: "강화 갯벌 장화", description: "이동 속도가 5% 증가하고 최대 체력이 8 늘어납니다.", basePrice: 110, priceStep: 80, max: 4 },
   { id: "cooler", icon: "▣", name: "보냉 바구니", description: "해산물 판매가가 8% 오르고 수집 범위가 넓어집니다.", basePrice: 100, priceStep: 75, max: 4 },
   { id: "vest", icon: "♥", name: "부력 작업 조끼", description: "최대 체력이 15 늘어납니다.", basePrice: 130, priceStep: 95, max: 3 },
-  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "어두운 곳에 숨은 소라가 출현합니다.", basePrice: 180, priceStep: 0, max: 1 },
+  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "어두운 곳에 숨은 소라와 골뱅이가 출현합니다.", basePrice: 180, priceStep: 0, max: 1 },
 ];
 
 export const MUDFLAT_RECOVERY_FOODS = [
@@ -220,6 +220,19 @@ export function mudflatSeafoodSaleValue(type, count = 1, coolerLevel = 0) {
   if (!market || safeCount === 0) return 0;
   const saleMultiplier = 1 + Math.max(0, Math.floor(coolerLevel)) * 0.08;
   return Math.floor(market.price * safeCount * saleMultiplier);
+}
+
+export function mudflatAutoSellInventory(inventory = {}, coolerLevel = 0) {
+  const knownTypes = new Set(MUDFLAT_SEAFOOD_MARKET.map((item) => item.type));
+  const haul = {};
+  for (const [type, count] of Object.entries(inventory ?? {})) {
+    if (!knownTypes.has(type)) continue;
+    const safeCount = Math.max(0, Math.floor(Number(count) || 0));
+    if (safeCount > 0) haul[type] = safeCount;
+  }
+  const count = Object.values(haul).reduce((sum, quantity) => sum + quantity, 0);
+  const value = Object.entries(haul).reduce((sum, [type, quantity]) => sum + mudflatSeafoodSaleValue(type, quantity, coolerLevel), 0);
+  return { haul, count, value };
 }
 
 export function mudflatSettleCatch(inventory = {}, basket = {}, caught = 0, coolerLevel = 0) {
