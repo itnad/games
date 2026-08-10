@@ -2313,7 +2313,15 @@ export default function Home() {
           >
             즐거운
           </button>{" "}
-          한 판 되세요.
+          <button
+            className="footer-mudflat-shortcut"
+            type="button"
+            onClick={() => launchGame("mudflat-survivor")}
+            aria-label="비밀 게임 바로 시작"
+          >
+            한
+          </button>{" "}
+          판 되세요.
         </p>
         <span>AI BOARD GAME CLUB</span>
       </footer>

@@ -347,6 +347,7 @@ test("hides unverified games by default and reveals them from the footer phrase"
     assert.match(pageSource, new RegExp(`DEFAULT_HIDDEN_GAME_IDS[\\s\\S]*?"${id}"`));
   }
   assert.match(pageSource, /className="footer-game-visibility-toggle"[\s\S]*?>\s*즐거운\s*<\/button>/);
+  assert.match(pageSource, /className="footer-mudflat-shortcut"[\s\S]*?onClick=\{\(\) => launchGame\("mudflat-survivor"\)\}[\s\S]*?>\s*한\s*<\/button>/);
   assert.match(pageSource, /showAllGames \? GAMES : GAMES\.filter/);
   assert.match(pageSource, /paperoid-show-all-games/);
 });

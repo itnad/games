@@ -955,7 +955,8 @@ footer > span {
   letter-spacing: 0.12em;
 }
 
-.footer-game-visibility-toggle {
+.footer-game-visibility-toggle,
+.footer-mudflat-shortcut {
   margin: 0;
   padding: 0;
   border: 0;
@@ -965,7 +966,8 @@ footer > span {
   font: inherit;
 }
 
-.footer-game-visibility-toggle:focus-visible {
+.footer-game-visibility-toggle:focus-visible,
+.footer-mudflat-shortcut:focus-visible {
   outline: 2px solid #b8a8d7;
   outline-offset: 3px;
   border-radius: 2px;
