@@ -44,7 +44,7 @@ type FloatText = Point & { id: number; life: number; text: string; color: string
 type Rock = Point & { id: number; radius: number; tone: number };
 type ClamHole = Point & { id: number; radius: number; progress: number };
 type ClamReveal = Point & { id: number; life: number; maxLife: number; pearl: boolean };
-type RockFlipEffect = Point & { originX: number; originY: number; life: number; maxLife: number };
+type RockFlipEffect = Point & { life: number; maxLife: number };
 type Runtime = {
   mode: GameMode;
   stage: number;
@@ -65,6 +65,7 @@ const CAMPAIGN_KEY = "paperoid-mudflat-survivor-campaign-v1";
 const LAST_MODE_KEY = "paperoid-mudflat-survivor-last-mode-v1";
 const DAMAGE_TEXT_COLOR = "#ffd29a";
 const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
+const ROCK_FLIP_EFFECT_DURATION = .58 / 3;
 const CHARACTERS = [
   { id: "digger", icon: "⌁", name: "호미꾼 하루", description: "넓은 호미질로 시작합니다.", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
   { id: "netter", icon: "◇", name: "그물잡이 모아", description: "자동 뜰채를 빠르게 던집니다.", levels: { hoe: 1, net: 2, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 },
@@ -1068,7 +1069,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           if (target) {
             const stats = mudflatRockTurnerStats(rockerLevel);
             runtime.rocks = runtime.rocks.filter((rock) => rock.id !== target.id);
-            runtime.rockFlipEffect = { x: target.x, y: target.y, originX: runtime.player.x, originY: runtime.player.y, life: .58, maxLife: .58 };
+            runtime.rockFlipEffect = { x: target.x, y: target.y, life: ROCK_FLIP_EFFECT_DURATION, maxLife: ROCK_FLIP_EFFECT_DURATION };
             runtime.rockTurnClock = stats.interval;
             runtime.bursts.push({ id: sequenceRef.current++, x: target.x, y: target.y, life: .5, maxLife: .5, color: "#b89569", size: target.radius });
             if (Math.random() < stats.creatureChance) revealRockCreature(target);
@@ -1190,8 +1191,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
       if (runtime.rockFlipEffect) {
         const point = screenPoint(runtime.rockFlipEffect);
-        const origin = screenPoint({ x: runtime.rockFlipEffect.originX, y: runtime.rockFlipEffect.originY });
-        drawRockHookBar(context, origin, point, runtime.rockFlipEffect);
+        drawRockHookBar(context, { x: width / 2, y: height / 2 }, point, runtime.rockFlipEffect);
       }
       if (runtime.hoeEffect > 0) {
         const alpha = runtime.hoeEffect / .2;

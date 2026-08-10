@@ -895,6 +895,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawRotatingTongs\(/);
   assert.match(source, /function drawHarpoonSprite\(/);
   assert.match(source, /function drawRockHookBar\(/);
+  assert.match(source, /const ROCK_FLIP_EFFECT_DURATION = \.58 \/ 3/);
+  assert.match(source, /life: ROCK_FLIP_EFFECT_DURATION, maxLife: ROCK_FLIP_EFFECT_DURATION/);
+  assert.match(source, /drawRockHookBar\(context, \{ x: width \/ 2, y: height \/ 2 \}, point, runtime\.rockFlipEffect\)/);
+  assert.doesNotMatch(source, /rockFlipEffect\.originX|rockFlipEffect\.originY/);
   assert.match(source, /function drawDipNetSlam\(/);
   assert.match(source, /runtime\.netSlams\.push/);
   assert.match(source, /progress >= \.54/);
