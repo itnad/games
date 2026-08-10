@@ -838,27 +838,36 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatClamRewardForRoll(6, 0.009).id, "pearl");
   assert.equal(mudflatClamRewardForRoll(6, 0.01).id, "clam");
   assert.equal(mudflatClamRewardForRoll(6, 0.999).id, "razor-clam");
-  assert.equal(MUDFLAT_PEARL.price, 300);
-  assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "octopus").price, 36);
+  assert.equal(MUDFLAT_PEARL.price, 10000);
+  assert.deepEqual(
+    Object.fromEntries(MUDFLAT_SEAFOOD_MARKET.map((item) => [item.type, item.price])),
+    {
+      "small-crab": 2, crab: 3, "shore-crab": 4, "fiddler-crab": 5, "blue-crab": 7, "purple-crab": 9,
+      shrimp: 1, whelk: 2, octopus: 20, golbaengi: 6, flounder: 50,
+      "small-clam": 0, clam: 1, dongjuk: 2, "hard-clam": 3, "ark-shell": 24, "razor-clam": 34,
+      pearl: 10000, "king-crab": 100,
+    },
+  );
   const crabTypes = ["small-crab", "crab", "shore-crab", "fiddler-crab", "blue-crab", "purple-crab", "king-crab"];
   assert.ok(crabTypes.every((type) => MUDFLAT_CREATURES.find((creature) => creature.id === type)?.sprite?.endsWith(".svg")));
   assert.ok(crabTypes.every((type) => MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === type)?.image === MUDFLAT_CREATURES.find((creature) => creature.id === type)?.sprite));
+  assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "pearl").unit, "개");
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
   assert.equal(MUDFLAT_RECOVERY_FOODS.length, 3);
-  assert.equal(mudflatSeafoodSaleValue("clam", 10, 0), 50);
-  assert.equal(mudflatSeafoodSaleValue("clam", 10, 2), 57);
+  assert.equal(mudflatSeafoodSaleValue("clam", 10, 0), 10);
+  assert.equal(mudflatSeafoodSaleValue("clam", 10, 2), 11);
   const settledCatch = mudflatSettleCatch({ crab: 2 }, { clam: 3, octopus: 1 }, 4, 0);
   assert.deepEqual(settledCatch.inventory, { crab: 2, clam: 3, octopus: 1 });
   assert.equal(settledCatch.catchCount, 4);
-  assert.equal(settledCatch.value, 51);
+  assert.equal(settledCatch.value, 23);
   const recoveredCatch = mudflatSettleCatch({}, { clam: 1 }, 3, 0);
   assert.deepEqual(recoveredCatch.inventory, { clam: 3 });
   assert.equal(recoveredCatch.recoveredCount, 2);
-  assert.equal(recoveredCatch.value, 15);
+  assert.equal(recoveredCatch.value, 3);
   const autoSale = mudflatAutoSellInventory({ clam: 3, octopus: 1, unknown: 99 }, 0);
   assert.deepEqual(autoSale.haul, { clam: 3, octopus: 1 });
   assert.equal(autoSale.count, 4);
-  assert.equal(autoSale.value, 51);
+  assert.equal(autoSale.value, 23);
   assert.equal(mudflatEquipmentPrice("gloves", 1), 160);
   assert.equal(mudflatTrainingPrice(2), 160);
   assert.ok(mudflatStageStats(3).creatureHpMultiplier > mudflatStageStats(2).creatureHpMultiplier);

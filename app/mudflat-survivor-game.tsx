@@ -1337,8 +1337,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
               const subtotal = mudflatSeafoodSaleValue(item.type, count, coolerLevel);
               return <div key={item.type}>
                 <img src={item.image} alt="" />
-                <span><b>{item.name}</b><small>마리당 {unitPrice}코인</small></span>
-                <em>{count}마리</em><strong>{subtotal.toLocaleString()}코인</strong>
+                <span><b>{item.name}</b><small>{item.unit ?? "마리"}당 {unitPrice}코인</small></span>
+                <em>{count}{item.unit ?? "마리"}</em><strong>{subtotal.toLocaleString()}코인</strong>
               </div>;
             }) : <p className="ms-market-empty">이번 단계에서 정산할 해산물이 없습니다.</p>}
           </div>
