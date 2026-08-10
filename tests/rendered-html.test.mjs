@@ -951,6 +951,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawGatherer\([^)]*hasHeadlamp: boolean/);
   assert.match(source, /runtime\.equipment\.headlamp \?\? 0\) > 0/);
   assert.match(source, /rgba\(255,232,151,\.27\)/);
+  assert.match(source, /rgba\(164,105,193,\.24\)/);
+  assert.match(source, /color: "#aa72c6"/);
+  assert.doesNotMatch(source, /color: "#8fdac5"/);
   assert.doesNotMatch(source, /const grid = 80/);
   assert.match(styles, /touch-action:none/);
   assert.match(styles, /data-game-id="mudflat-survivor"/);

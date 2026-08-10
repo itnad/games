@@ -589,10 +589,10 @@ function drawDipNetSlam(context: CanvasRenderingContext2D, origin: Point, target
   context.strokeStyle = "rgba(24,28,27,.36)";
   context.lineWidth = 10;
   context.beginPath(); context.moveTo(origin.x - ux * 18, origin.y - uy * 18 + 5); context.lineTo(drawX, drawY + 5); context.stroke();
-  context.strokeStyle = "#476f69";
+  context.strokeStyle = "#594768";
   context.lineWidth = 6;
   context.beginPath(); context.moveTo(origin.x - ux * 20, origin.y - uy * 20); context.lineTo(drawX, drawY); context.stroke();
-  context.strokeStyle = "#a8d1c5";
+  context.strokeStyle = "#d8c8e8";
   context.lineWidth = 1.5;
   context.beginPath(); context.moveTo(origin.x - ux * 16, origin.y - uy * 16 - 2); context.lineTo(drawX, drawY - 2); context.stroke();
   context.fillStyle = "#8c5737";
@@ -602,11 +602,11 @@ function drawDipNetSlam(context: CanvasRenderingContext2D, origin: Point, target
   const hoopDepth = Math.max(12, effect.headDepth);
   context.translate(drawX, drawY);
   context.rotate(handleAngle + Math.PI / 2);
-  context.fillStyle = impact ? "rgba(157,225,206,.22)" : "rgba(157,225,206,.12)";
-  context.strokeStyle = impact ? "#e7fff4" : "#b7e4d6";
+  context.fillStyle = impact ? "rgba(164,105,193,.24)" : "rgba(164,105,193,.13)";
+  context.strokeStyle = impact ? "#f8e7ff" : "#cda7df";
   context.lineWidth = impact ? 5 : 4;
   context.beginPath(); context.ellipse(0, 0, hoopRadius, hoopDepth * (impact ? 1 : .72), 0, 0, Math.PI * 2); context.fill(); context.stroke();
-  context.strokeStyle = "rgba(225,255,246,.55)";
+  context.strokeStyle = "rgba(241,220,251,.65)";
   context.lineWidth = 1.3;
   for (let line = -2; line <= 2; line += 1) {
     const offset = line * hoopRadius * .28;
@@ -619,8 +619,8 @@ function drawDipNetSlam(context: CanvasRenderingContext2D, origin: Point, target
     const impactProgress = Math.min(1, Math.max(0, (progress - .54) / .32));
     context.save();
     context.globalAlpha = (1 - impactProgress) * .78;
-    context.fillStyle = "rgba(102,194,169,.13)";
-    context.strokeStyle = "#a9ead5";
+    context.fillStyle = "rgba(139,82,169,.16)";
+    context.strokeStyle = "#d8b3eb";
     context.lineWidth = 3;
     context.save();
     context.translate(target.x, target.y);
@@ -998,7 +998,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             damageCreature(trackedTarget, netSlam.damage, .16);
           }
           netSlam.hit = true;
-          runtime.bursts.push({ id: sequenceRef.current++, x: netSlam.x, y: netSlam.y, life: .34, maxLife: .34, color: "#8fdac5", size: netSlam.radius });
+          runtime.bursts.push({ id: sequenceRef.current++, x: netSlam.x, y: netSlam.y, life: .34, maxLife: .34, color: "#aa72c6", size: netSlam.radius });
         }
       }
       runtime.netSlams = runtime.netSlams.filter((item) => item.life > 0);
