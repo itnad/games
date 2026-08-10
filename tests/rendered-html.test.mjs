@@ -785,6 +785,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.notEqual(mudflatCreatureForTime(130, 0.99).id, "small-crab");
   assert.equal(mudflatCreatureForTime(80, 0.99).id, "shrimp");
   assert.equal(mudflatCreatureForTime(80, 0.99, { headlamp: true }).id, "whelk");
+  assert.equal(mudflatCreatureForTime(80, 0.834, { headlamp: true }).id, "fist-whelk");
+  assert.equal(mudflatCreatureForTime(80, 0.851, { headlamp: true }).id, "whelk");
   assert.equal(mudflatCreatureForTime(100, 0.99, { headlamp: true }).id, "golbaengi");
   const whelk = MUDFLAT_CREATURES.find((creature) => creature.id === "whelk");
   const golbaengi = MUDFLAT_CREATURES.find((creature) => creature.id === "golbaengi");
@@ -855,8 +857,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
     Object.fromEntries(MUDFLAT_SEAFOOD_MARKET.map((item) => [item.type, item.price])),
     {
       "small-crab": 2, crab: 3, "shore-crab": 4, "fiddler-crab": 5, "blue-crab": 7, "purple-crab": 9,
-      shrimp: 1, whelk: 2, octopus: 20, golbaengi: 6, flounder: 50,
-      "small-clam": 0, clam: 1, dongjuk: 2, "hard-clam": 3, "ark-shell": 24, "razor-clam": 34,
+      shrimp: 1, whelk: 2, "fist-whelk": 8, octopus: 20, golbaengi: 6, flounder: 50,
+      "small-clam": 0, clam: 1, dongjuk: 2, "hard-clam": 3, "ark-shell": 10, "razor-clam": 12,
       pearl: 10000, "king-crab": 100,
     },
   );
@@ -864,6 +866,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(crabTypes.every((type) => MUDFLAT_CREATURES.find((creature) => creature.id === type)?.sprite?.endsWith(".svg")));
   assert.ok(crabTypes.every((type) => MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === type)?.image === MUDFLAT_CREATURES.find((creature) => creature.id === type)?.sprite));
   assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "pearl").unit, "개");
+  assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "whelk").size, 9);
+  assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "fist-whelk").size, 18);
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
   assert.equal(MUDFLAT_RECOVERY_FOODS.length, 3);
   assert.equal(mudflatSeafoodSaleValue("clam", 10, 0), 10);
