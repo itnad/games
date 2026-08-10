@@ -55,7 +55,7 @@ export const MUDFLAT_SEAFOOD_MARKET = [
   { type: "octopus", name: "낙지", image: "/mudflat-creatures/octopus.png", price: 20 },
   { type: "golbaengi", name: "골뱅이", image: "/mudflat-creatures/golbaengi-v2.png", price: 6 },
   { type: "flounder", name: "광어", image: "/mudflat-creatures/flounder.png", price: 50 },
-  ...MUDFLAT_CLAM_GRADES.map((item) => ({ type: item.id, name: item.name, image: "/mudflat-creatures/clam.png", price: item.price })),
+  ...MUDFLAT_CLAM_GRADES.map((item) => ({ type: item.id, name: item.name, image: item.id === "razor-clam" ? "/mudflat-creatures/razor-clam.svg" : "/mudflat-creatures/clam.png", price: item.price })),
   { type: MUDFLAT_PEARL.id, name: MUDFLAT_PEARL.name, image: "/mudflat-creatures/pearl.png", price: MUDFLAT_PEARL.price, unit: "개" },
   { type: "king-crab", name: "대왕 박하지", image: "/mudflat-creatures/king-crab.svg", price: 100 },
 ];
@@ -115,6 +115,13 @@ export function mudflatBossPulse(elapsedSeconds = 0, phase = 0) {
     scaleY: 1.08 - wave * .12,
     color: `rgb(${mixed.join(",")})`,
   };
+}
+
+export function mudflatEmptySeafoodHazard(emptySeconds = 0) {
+  const safeSeconds = Math.max(0, Number.isFinite(emptySeconds) ? emptySeconds : 0);
+  if (safeSeconds >= 30) return { damagePerSecond: 10, message: "너무 춥다. 되돌아가야해" };
+  if (safeSeconds >= 10) return { damagePerSecond: 1, message: "너무 깊게 들어온 것 같다." };
+  return { damagePerSecond: 0, message: "" };
 }
 
 export function mudflatSpawnInterval(elapsedSeconds, mode = "kids") {

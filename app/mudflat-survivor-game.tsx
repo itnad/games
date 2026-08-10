@@ -10,6 +10,7 @@ import {
   MUDFLAT_SHOP_EQUIPMENT,
   MUDFLAT_UPGRADES,
   mudflatBossPulse,
+  mudflatEmptySeafoodHazard,
   mudflatAutoSellInventory,
   mudflatEquipmentPrice,
   mudflatClamRewardForRoll,
@@ -44,7 +45,7 @@ type Burst = Point & { id: number; life: number; maxLife: number; color: string;
 type FloatText = Point & { id: number; life: number; text: string; color: string; kind?: "playerDamage" };
 type Rock = Point & { id: number; radius: number; tone: number };
 type ClamHole = Point & { id: number; radius: number; progress: number };
-type ClamReveal = Point & { id: number; life: number; maxLife: number; pearl: boolean };
+type ClamReveal = Point & { id: number; life: number; maxLife: number; type: string };
 type RockFlipEffect = Point & { life: number; maxLife: number };
 type Runtime = {
   mode: GameMode;
@@ -53,7 +54,7 @@ type Runtime = {
   creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; clamReveals: ClamReveal[]; levels: CountMap; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
-  bossSpawned: boolean; spawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; paused: boolean; ended: boolean;
+  bossSpawned: boolean; spawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; emptySeafoodSeconds: number; emptySeafoodDamageClock: number; paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
 type Campaign = {
@@ -66,7 +67,7 @@ const CAMPAIGN_KEY = "paperoid-mudflat-survivor-campaign-v1";
 const LAST_MODE_KEY = "paperoid-mudflat-survivor-last-mode-v1";
 const DAMAGE_TEXT_COLOR = "#ffd29a";
 const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
-const ROCK_FLIP_EFFECT_DURATION = .58 / 3;
+const ROCK_FLIP_EFFECT_DURATION = .58 / 1.5;
 const CHARACTERS = [
   { id: "digger", icon: "⌁", name: "호미꾼 하루", description: "넓은 호미질로 시작합니다.", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
   { id: "netter", icon: "◇", name: "그물잡이 모아", description: "자동 뜰채를 빠르게 던집니다.", levels: { hoe: 1, net: 2, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 },
@@ -115,7 +116,7 @@ function makeRuntime(campaign: Campaign): Runtime {
     elapsed: 0, player: { x: 0, y: 0, hp: campaign.hp, maxHp: campaign.maxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0 },
     creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], rocks: [], clamHoles: [], clamReveals: [], bursts: [], floatTexts: [], levels: { ...(campaign.mode === "normal" ? GENERAL_CHARACTER.levels : {}), ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0,
-    hoeEffect: 0, rockFlipEffect: null, paused: false, ended: false,
+    hoeEffect: 0, rockFlipEffect: null, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0, paused: false, ended: false,
   };
 }
 
@@ -753,6 +754,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const image = new Image(); image.src = item.sprite; creatureSprites.set(item.id, image);
     }
     const clamSprite = new Image(); clamSprite.src = "/mudflat-creatures/clam.png"; creatureSprites.set("clam-reveal", clamSprite);
+    const razorClamSprite = new Image(); razorClamSprite.src = "/mudflat-creatures/razor-clam.svg"; creatureSprites.set("razor-clam-reveal", razorClamSprite);
 
     const resize = () => {
       const ratio = Math.min(2, window.devicePixelRatio || 1);
@@ -944,7 +946,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           runtime.caught += 1; runtime.catchScore += reward.score;
           runtime.basket[reward.id] = (runtime.basket[reward.id] ?? 0) + 1;
           runtime.pickups.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, xp: reward.xp });
-          runtime.clamReveals.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .9, maxLife: .9, pearl: reward.id === "pearl" });
+          runtime.clamReveals.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .9, maxLife: .9, type: reward.id });
           runtime.bursts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .55, maxLife: .55, color: reward.id === "pearl" ? "#fff0a2" : "#dbc69c", size: 18 });
           runtime.floatTexts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y - 24, life: 1.05, text: `${reward.name} 채집!`, color: reward.id === "pearl" ? "#fff2a4" : "#ffe2a6" });
           runtime.clamHoles = runtime.clamHoles.filter((hole) => hole.id !== activeClamHole?.id);
@@ -1083,6 +1085,29 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
       damageAndCollect();
 
+      const hasVisibleSeafood = runtime.creatures.some((creature) => {
+        const screenX = width / 2 + creature.x - runtime.player.x;
+        const screenY = height / 2 + creature.y - runtime.player.y;
+        const margin = Math.max(10, creature.size * 1.6);
+        return screenX >= -margin && screenX <= width + margin && screenY >= -margin && screenY <= height + margin;
+      });
+      if (hasVisibleSeafood) {
+        runtime.emptySeafoodSeconds = 0;
+        runtime.emptySeafoodDamageClock = 0;
+      } else {
+        runtime.emptySeafoodSeconds += dt;
+        const emptyHazard = mudflatEmptySeafoodHazard(runtime.emptySeafoodSeconds);
+        if (emptyHazard.damagePerSecond > 0) {
+          runtime.emptySeafoodDamageClock += dt;
+          while (runtime.emptySeafoodDamageClock >= 1) {
+            runtime.emptySeafoodDamageClock -= 1;
+            runtime.player.hp = Math.max(0, runtime.player.hp - emptyHazard.damagePerSecond);
+            runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, life: .4, maxLife: .4, color: emptyHazard.damagePerSecond >= 10 ? "#8bbcff" : "#d6bcff", size: 22 });
+            runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .8, text: `-${emptyHazard.damagePerSecond}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
+          }
+        } else runtime.emptySeafoodDamageClock = 0;
+      }
+
       const pickupRadius = 50 + (runtime.levels.basket ?? 0) * 24 + (runtime.equipment.cooler ?? 0) * 12;
       for (const pickup of runtime.pickups) {
         const dx = runtime.player.x - pickup.x; const dy = runtime.player.y - pickup.y; const distance = Math.hypot(dx, dy) || 1;
@@ -1156,13 +1181,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       for (const reveal of runtime.clamReveals) {
         const point = screenPoint(reveal); const progress = 1 - reveal.life / reveal.maxLife;
         context.save(); context.globalAlpha = Math.min(1, reveal.life * 3); context.translate(point.x, point.y - progress * 26);
-        if (reveal.pearl) {
+        if (reveal.type === "pearl") {
           const glow = context.createRadialGradient(0, 0, 2, 0, 0, 22); glow.addColorStop(0, "#fffef2"); glow.addColorStop(.35, "#ffe98e"); glow.addColorStop(1, "rgba(255,219,94,0)");
           context.fillStyle = glow; context.beginPath(); context.arc(0, 0, 22, 0, Math.PI * 2); context.fill();
           context.fillStyle = "#fffbe3"; context.beginPath(); context.arc(0, 0, 8, 0, Math.PI * 2); context.fill();
         } else {
-          const image = creatureSprites.get("clam-reveal");
-          if (image?.complete && image.naturalWidth > 0) context.drawImage(image, -27, -21, 54, 54);
+          const isRazorClam = reveal.type === "razor-clam";
+          const image = creatureSprites.get(isRazorClam ? "razor-clam-reveal" : "clam-reveal");
+          if (image?.complete && image.naturalWidth > 0) context.drawImage(image, isRazorClam ? -36 : -27, isRazorClam ? -14 : -21, isRazorClam ? 72 : 54, isRazorClam ? 28 : 54);
         }
         context.restore();
       }
@@ -1205,6 +1231,16 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.strokeStyle = `rgba(255,251,224,${alpha * .6})`; context.lineWidth = 2; context.beginPath(); context.arc(width / 2, height / 2, radius + 7, 0, Math.PI * 1.35); context.stroke();
       }
       drawGatherer(context, width / 2, height / 2, runtime.player, runtime.mode === "normal" ? "beginner" : characterId, (runtime.equipment.headlamp ?? 0) > 0);
+      const emptyHazard = mudflatEmptySeafoodHazard(runtime.emptySeafoodSeconds);
+      if (emptyHazard.message) {
+        context.save();
+        context.font = "900 14px system-ui"; context.textAlign = "center";
+        const messageWidth = Math.min(width - 30, context.measureText(emptyHazard.message).width + 34);
+        context.fillStyle = emptyHazard.damagePerSecond >= 10 ? "rgba(21,42,72,.92)" : "rgba(47,34,62,.9)";
+        roundedRect(context, width / 2 - messageWidth / 2, height / 2 - 92, messageWidth, 36, 14); context.fill();
+        context.strokeStyle = emptyHazard.damagePerSecond >= 10 ? "#9fc9ff" : "#d8b9ff"; context.lineWidth = 1.5; context.stroke();
+        context.fillStyle = "#fffaf2"; context.fillText(emptyHazard.message, width / 2, height / 2 - 69); context.restore();
+      }
       const diggingHole = runtime.clamHoles.find((hole) => hole.progress > 0);
       if (diggingHole) drawClamDigging(context, { x: width / 2, y: height / 2 }, screenPoint(diggingHole), diggingHole.progress / 2);
       for (const label of runtime.floatTexts) {

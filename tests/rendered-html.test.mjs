@@ -120,6 +120,7 @@ import {
   MUDFLAT_PEARL,
   mudflatAutoSellInventory,
   mudflatBossPulse,
+  mudflatEmptySeafoodHazard,
   mudflatClamRewardForRoll,
   mudflatEquipmentPrice,
   mudflatCreatureForTime,
@@ -841,6 +842,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatClamRewardForRoll(6, 0.01).id, "clam");
   assert.equal(mudflatClamRewardForRoll(6, 0.999).id, "razor-clam");
   assert.equal(MUDFLAT_PEARL.price, 10000);
+  assert.deepEqual(mudflatEmptySeafoodHazard(9.99), { damagePerSecond: 0, message: "" });
+  assert.deepEqual(mudflatEmptySeafoodHazard(10), { damagePerSecond: 1, message: "너무 깊게 들어온 것 같다." });
+  assert.deepEqual(mudflatEmptySeafoodHazard(30), { damagePerSecond: 10, message: "너무 춥다. 되돌아가야해" });
+  assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "razor-clam").image, "/mudflat-creatures/razor-clam.svg");
   assert.deepEqual(mudflatBossPulse(0, 0), { wave: .5, scaleX: 1.02, scaleY: 1.02, color: "rgb(38,34,84)" });
   const swollenBoss = mudflatBossPulse(0, Math.PI / 2);
   assert.equal(swollenBoss.scaleX, 1.08);
@@ -915,8 +920,12 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawRotatingTongs\(/);
   assert.match(source, /function drawHarpoonSprite\(/);
   assert.match(source, /function drawRockHookBar\(/);
-  assert.match(source, /const ROCK_FLIP_EFFECT_DURATION = \.58 \/ 3/);
+  assert.match(source, /const ROCK_FLIP_EFFECT_DURATION = \.58 \/ 1\.5/);
   assert.match(source, /life: ROCK_FLIP_EFFECT_DURATION, maxLife: ROCK_FLIP_EFFECT_DURATION/);
+  assert.match(source, /hasVisibleSeafood[\s\S]*?runtime\.emptySeafoodSeconds = 0[\s\S]*?runtime\.emptySeafoodDamageClock = 0/);
+  assert.match(source, /runtime\.player\.hp = Math\.max\(0, runtime\.player\.hp - emptyHazard\.damagePerSecond\)/);
+  assert.match(source, /const emptyHazard = mudflatEmptySeafoodHazard\(runtime\.emptySeafoodSeconds\)/);
+  assert.match(source, /context\.fillText\(emptyHazard\.message, width \/ 2, height \/ 2 - 69\)/);
   assert.match(source, /drawRockHookBar\(context, \{ x: width \/ 2, y: height \/ 2 \}, point, runtime\.rockFlipEffect\)/);
   assert.doesNotMatch(source, /rockFlipEffect\.originX|rockFlipEffect\.originY/);
   assert.match(source, /function drawDipNetSlam\(/);
