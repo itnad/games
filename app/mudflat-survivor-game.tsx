@@ -350,12 +350,19 @@ function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creatur
   context.restore();
 }
 
-function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, player: Runtime["player"], characterId: string) {
+function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, player: Runtime["player"], characterId: string, hasHeadlamp: boolean) {
   const direction = Math.cos(player.facing) < 0 ? -1 : 1;
   const bob = Math.sin(player.stride * 9) * 1.8;
   context.save();
   context.translate(x, y + bob);
   context.scale(direction, 1);
+  if (hasHeadlamp) {
+    const beam = context.createLinearGradient(12, -34, 112, -34);
+    beam.addColorStop(0, "rgba(255,232,151,.27)");
+    beam.addColorStop(1, "rgba(255,232,151,0)");
+    context.fillStyle = beam;
+    context.beginPath(); context.moveTo(12, -39); context.lineTo(112, -65); context.lineTo(112, -3); context.closePath(); context.fill();
+  }
   context.fillStyle = "rgba(24,20,17,.3)";
   context.beginPath(); context.ellipse(0, 22, 25, 9, 0, 0, Math.PI * 2); context.fill();
   context.strokeStyle = "#273e40"; context.lineWidth = 7; context.lineCap = "round";
@@ -369,6 +376,13 @@ function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, p
   context.fillStyle = "#f5d87a"; context.beginPath(); context.ellipse(0, -28, 24, 6, 0, 0, Math.PI * 2); context.fill();
   context.fillStyle = "#e8b950"; roundedRect(context, -13, -39, 26, 13, 5); context.fill();
   context.fillStyle = "#41352c"; context.fillRect(-14, -30, 28, 3);
+  if (hasHeadlamp) {
+    context.fillStyle = "#3b3835"; roundedRect(context, -14, -36, 28, 5, 2); context.fill();
+    context.fillStyle = "#273036"; roundedRect(context, 9, -41, 13, 13, 4); context.fill();
+    context.strokeStyle = "#11191d"; context.lineWidth = 1.5; context.stroke();
+    context.fillStyle = "#fff0a4"; context.beginPath(); context.arc(18, -34.5, 4.2, 0, Math.PI * 2); context.fill();
+    context.fillStyle = "#fffbe0"; context.beginPath(); context.arc(19.2, -35.7, 1.5, 0, Math.PI * 2); context.fill();
+  }
   context.fillStyle = "#c58b49"; roundedRect(context, 13, -1, 15, 20, 5); context.fill();
   context.strokeStyle = "#eed7a4"; context.lineWidth = 2; context.beginPath(); context.arc(20, 0, 9, Math.PI, Math.PI * 2); context.stroke();
   context.restore();
@@ -1186,7 +1200,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.beginPath(); context.arc(width / 2, height / 2, radius, -.18, Math.PI * 1.55); context.stroke();
         context.strokeStyle = `rgba(255,251,224,${alpha * .6})`; context.lineWidth = 2; context.beginPath(); context.arc(width / 2, height / 2, radius + 7, 0, Math.PI * 1.35); context.stroke();
       }
-      drawGatherer(context, width / 2, height / 2, runtime.player, runtime.mode === "normal" ? "beginner" : characterId);
+      drawGatherer(context, width / 2, height / 2, runtime.player, runtime.mode === "normal" ? "beginner" : characterId, (runtime.equipment.headlamp ?? 0) > 0);
       const diggingHole = runtime.clamHoles.find((hole) => hole.progress > 0);
       if (diggingHole) drawClamDigging(context, { x: width / 2, y: height / 2 }, screenPoint(diggingHole), diggingHole.progress / 2);
       for (const label of runtime.floatTexts) {
