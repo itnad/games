@@ -9,6 +9,7 @@ import {
   MUDFLAT_SEAFOOD_MARKET,
   MUDFLAT_SHOP_EQUIPMENT,
   MUDFLAT_UPGRADES,
+  mudflatBossPulse,
   mudflatAutoSellInventory,
   mudflatEquipmentPrice,
   mudflatClamRewardForRoll,
@@ -248,14 +249,16 @@ function drawMudflat(
 function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creature, elapsed: number, sprites: ReadonlyMap<string, HTMLImageElement>) {
   const size = creature.size;
   const wobble = Math.sin(elapsed * 5 + creature.phase) * .08;
+  const bossPulse = creature.boss ? mudflatBossPulse(elapsed, creature.phase) : null;
   context.save();
   context.rotate(wobble);
   context.fillStyle = "rgba(28,22,19,.28)";
   context.beginPath();
   context.ellipse(0, size * .72, size * 1.05, size * .38, 0, 0, Math.PI * 2);
   context.fill();
+  if (bossPulse) context.scale(bossPulse.scaleX, bossPulse.scaleY);
 
-  const sprite = creature.sprite ? sprites.get(creature.type) : undefined;
+  const sprite = creature.sprite && !creature.boss ? sprites.get(creature.type) : undefined;
   if (sprite?.complete && sprite.naturalWidth > 0) {
     const maxWidth = size * (creature.type === "flounder" ? 3.6 : 3.1);
     const maxHeight = size * 3;
@@ -269,7 +272,8 @@ function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creatur
   }
 
   if (creature.family === "crab") {
-    context.strokeStyle = creature.boss ? "#9f481d" : "#a94331";
+    const crabColor = bossPulse?.color ?? creature.color;
+    context.strokeStyle = creature.boss ? "#111f46" : "#a94331";
     context.lineWidth = Math.max(2, size * .12);
     context.lineCap = "round";
     for (const side of [-1, 1]) {
@@ -283,7 +287,7 @@ function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creatur
       context.moveTo(side * size * .48, -size * .24);
       context.lineTo(side * size * 1.12, -size * .68);
       context.stroke();
-      context.fillStyle = creature.color;
+      context.fillStyle = crabColor;
       context.beginPath();
       context.arc(side * size * 1.2, -size * .74, size * .34, 0, Math.PI * 2);
       context.fill();
@@ -291,7 +295,7 @@ function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creatur
       context.lineWidth = 2;
       context.stroke();
     }
-    context.fillStyle = creature.hitFlash > 0 ? "#fff8e6" : creature.color;
+    context.fillStyle = creature.hitFlash > 0 ? "#fff8e6" : crabColor;
     context.beginPath();
     context.ellipse(0, 0, size * 1.02, size * .68, 0, 0, Math.PI * 2);
     context.fill();

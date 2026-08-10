@@ -119,6 +119,7 @@ import {
   MUDFLAT_SHOP_EQUIPMENT,
   MUDFLAT_PEARL,
   mudflatAutoSellInventory,
+  mudflatBossPulse,
   mudflatClamRewardForRoll,
   mudflatEquipmentPrice,
   mudflatCreatureForTime,
@@ -839,6 +840,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatClamRewardForRoll(6, 0.01).id, "clam");
   assert.equal(mudflatClamRewardForRoll(6, 0.999).id, "razor-clam");
   assert.equal(MUDFLAT_PEARL.price, 10000);
+  assert.deepEqual(mudflatBossPulse(0, 0), { wave: .5, scaleX: 1.02, scaleY: 1.02, color: "rgb(38,34,84)" });
+  const swollenBoss = mudflatBossPulse(0, Math.PI / 2);
+  assert.equal(swollenBoss.scaleX, 1.08);
+  assert.ok(Math.abs(swollenBoss.scaleY - .96) < 1e-9);
+  assert.equal(swollenBoss.color, "rgb(18,43,77)");
   assert.deepEqual(
     Object.fromEntries(MUDFLAT_SEAFOOD_MARKET.map((item) => [item.type, item.price])),
     {
@@ -900,7 +906,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-layer\.pause \.ms-primary:not\(:disabled\):active/);
   assert.match(source, /function drawMudflat\(/);
   assert.match(source, /function drawCreatureSprite\(/);
-  assert.match(source, /const sprite = creature\.sprite \? sprites\.get\(creature\.type\) : undefined/);
+  assert.match(source, /const sprite = creature\.sprite && !creature\.boss \? sprites\.get\(creature\.type\) : undefined/);
+  assert.match(source, /mudflatBossPulse\(elapsed, creature\.phase\)/);
   assert.match(source, /id: sequenceRef\.current\+\+, type: template\.id, x: runtime\.player\.x/);
   assert.match(source, /const revealRockCreature = \(rock: Rock\) => \{[\s\S]*?id: sequenceRef\.current\+\+,\s*type: template\.id,/);
   assert.match(source, /function drawGatherer\(/);

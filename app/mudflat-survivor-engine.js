@@ -13,7 +13,7 @@ export const MUDFLAT_CREATURES = [
   { id: "octopus", name: "낙지", family: "seafood", sprite: "/mudflat-creatures/octopus.png", icon: "✣", color: "#c9cdd0", hp: 22, speed: 38, size: 20, xp: 8, score: 75, unlock: 110, movement: "flee" },
   { id: "golbaengi", name: "골뱅이", family: "seafood", sprite: "/mudflat-creatures/golbaengi-v2.png", icon: "@", color: "#b97b42", hp: 16, speed: 1, size: 19, xp: 6, score: 52, unlock: 90, movement: "chase", requiresHeadlamp: true },
   { id: "flounder", name: "광어", family: "seafood", sprite: "/mudflat-creatures/flounder.png", icon: "◇", color: "#a59369", hp: 30, speed: 52, size: 22, xp: 10, score: 95, unlock: 145, movement: "flee" },
-  { id: "king-crab", name: "대왕 박하지", family: "crab", sprite: "/mudflat-creatures/king-crab.svg", icon: "♛", color: "#f0a33b", hp: 420, speed: 28, size: 43, xp: 80, score: 1800, unlock: 200, boss: true },
+  { id: "king-crab", name: "대왕 박하지", family: "crab", sprite: "/mudflat-creatures/king-crab.svg", icon: "♛", color: "#3a195b", hp: 420, speed: 28, size: 43, xp: 80, score: 1800, unlock: 200, boss: true },
 ];
 
 export const MUDFLAT_ROCK_FINDINGS = [
@@ -100,6 +100,21 @@ export function mudflatJoystickVector(deltaX, deltaY, radius = MUDFLAT_JOYSTICK_
   const clamped = Math.min(radius, length);
   const strength = Math.min(1, (clamped - deadzone) / Math.max(1, radius - deadzone));
   return { x: deltaX / length * strength, y: deltaY / length * strength, strength };
+}
+
+export function mudflatBossPulse(elapsedSeconds = 0, phase = 0) {
+  const safeElapsed = Number.isFinite(elapsedSeconds) ? elapsedSeconds : 0;
+  const safePhase = Number.isFinite(phase) ? phase : 0;
+  const wave = (Math.sin(safeElapsed * 3.2 + safePhase) + 1) / 2;
+  const purple = [58, 25, 91];
+  const navy = [18, 43, 77];
+  const mixed = purple.map((value, index) => Math.round(value + (navy[index] - value) * wave));
+  return {
+    wave,
+    scaleX: .96 + wave * .12,
+    scaleY: 1.08 - wave * .12,
+    color: `rgb(${mixed.join(",")})`,
+  };
 }
 
 export function mudflatSpawnInterval(elapsedSeconds, mode = "kids") {
