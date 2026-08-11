@@ -319,7 +319,7 @@ const GAMES: GameDefinition[] = [
     id: "love-letter",
     title: "러브레터",
     subtitle: "한 장의 비밀로 상대의 편지를 추리하세요",
-    category: "추리",
+    category: "전략",
     players: "AI 포함 2~6인",
     tone: "red",
   },
