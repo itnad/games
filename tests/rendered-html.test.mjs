@@ -579,8 +579,9 @@ test("separates traditional classics from the strategy category", async () => {
 
   assert.match(pageSource, /type Category = [^;]*"고전게임"/);
   assert.match(pageSource, /const CATEGORIES:[\s\S]*?"고전게임"/);
-  assert.match(pageSource, /type Category = [^;]*"카드게임"/);
-  assert.match(pageSource, /id: "baccarat",[\s\S]*?category: "카드게임"/);
+  assert.match(pageSource, /type Category = [^;]*"카드"/);
+  assert.match(pageSource, /id: "baccarat",[\s\S]*?category: "카드"/);
+  assert.doesNotMatch(pageSource, /category: "카드게임"/);
   assert.match(pageSource, /id: "love-letter",[\s\S]*?category: "전략"/);
   for (const id of classicGames) {
     assert.match(pageSource, new RegExp(`id: "${id}",[\\s\\S]*?category: "고전게임"`));
