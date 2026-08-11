@@ -1394,7 +1394,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     </main>;
   }
 
-  if (screen === "defeat") return <main className="ms-shell ms-result defeat"><MudflatTopbar onExit={onExit} /><section><div className="ms-result-icon">≈</div><small>EXPEDITION ENDED</small><h1>갯벌에서 힘이 다했습니다</h1><p>이번 원정의 진행 상태와 장비는 정리되었습니다. 처음 설정 화면에서 새 원정을 시작하세요.</p><div className="ms-result-grid"><span><small>도전 스테이지</small><b>{hud.stage}</b></span><span><small>잡은 수</small><b>{hud.caught}</b></span><span><small>레벨</small><b>{hud.level}</b></span><span><small>대왕 박하지</small><b>{hud.bossCaught ? "포획" : "놓침"}</b></span></div><div className="ms-result-actions"><button className="ms-primary" onClick={reset}>처음부터 새 원정</button></div></section></main>;
+  if (screen === "defeat") return <main className="ms-shell ms-result defeat"><MudflatTopbar onExit={onExit} /><section><div className="ms-result-icon">≈</div><small>EXPEDITION ENDED</small><h1><span>갯벌에서</span>{" "}<span>힘이 다했습니다</span></h1><p>갯벌에는 여러가지 위험이 도사리고 있습니다. 절대로 자만하지 말고 안전한 해루질 하세요.</p><div className="ms-result-grid"><span><small>도전 스테이지</small><b>{hud.stage}</b></span><span><small>잡은 수</small><b>{hud.caught}</b></span><span><small>레벨</small><b>{hud.level}</b></span><span><small>대왕 박하지</small><b>{hud.bossCaught ? "포획" : "놓침"}</b></span></div><div className="ms-result-actions"><button className="ms-primary" onClick={reset}>처음부터 새 원정</button></div></section></main>;
 
   const hpWidth = Math.max(0, hud.hp / hud.maxHp * 100);
   const xpWidth = Math.max(0, hud.xp / hud.nextXp * 100);

@@ -974,6 +974,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /일반 모드/);
   assert.match(source, /function MudflatTopbar/);
   assert.match(source, /className="game-topbar ms-topbar"/);
+  assert.match(source, /<h1><span>갯벌에서<\/span>\{" "\}<span>힘이 다했습니다<\/span><\/h1>/);
+  assert.match(source, /갯벌에는 여러가지 위험이 도사리고 있습니다\. 절대로 자만하지 말고 안전한 해루질 하세요\./);
+  assert.match(styles, /\.ms-result h1\{word-break:keep-all;text-wrap:balance\}/);
+  assert.match(await readFile(new URL("../app/globals.css", import.meta.url), "utf8"), /\.game-title-lockup strong \{[\s\S]*?color: #211d21;/);
   assert.doesNotMatch(source, /paperoid · MUDFLAT ACTION/);
   assert.match(source, /creature\.family === "crab"/);
   assert.match(await readFile(new URL("../app/page.tsx", import.meta.url), "utf8"), /mudflat-creatures\/crab\.png/);
