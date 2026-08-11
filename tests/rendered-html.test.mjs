@@ -114,6 +114,7 @@ import {
   MUDFLAT_GENERAL_UPGRADES,
   MUDFLAT_JOYSTICK_RADIUS,
   MUDFLAT_RECOVERY_FOODS,
+  MUDFLAT_REGULAR_STAGES,
   MUDFLAT_RUN_SECONDS,
   MUDFLAT_SEAFOOD_MARKET,
   MUDFLAT_SHOP_EQUIPMENT,
@@ -132,6 +133,10 @@ import {
   mudflatPufferBleedStep,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
+  mudflatStageProfile,
+  mudflatStageEmptySeafoodHazard,
+  mudflatInWaterChannel,
+  mudflatEndlessObjectiveResult,
   mudflatSeafoodSaleValue,
   mudflatSettleCatch,
   mudflatSpawnInterval,
@@ -913,6 +918,16 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatTrainingPrice(2), 160);
   assert.ok(mudflatStageStats(3).creatureHpMultiplier > mudflatStageStats(2).creatureHpMultiplier);
   assert.ok(mudflatStageStats(3).spawnIntervalMultiplier < mudflatStageStats(2).spawnIntervalMultiplier);
+  assert.equal(MUDFLAT_REGULAR_STAGES.length, 8);
+  assert.deepEqual(MUDFLAT_REGULAR_STAGES.map((stage) => stage.name), ["초입 갯벌", "차오르는 물골", "바위 갯벌", "어두운 갯벌", "깊은 펄", "거센 갯벌", "대조기 갯벌", "마지막 물때"]);
+  assert.equal(mudflatStageProfile(4).darkness, .78);
+  assert.equal(mudflatStageProfile(8).finalBoss, true);
+  assert.equal(mudflatStageProfile(9).name, "끝없는 물때");
+  assert.ok(mudflatStageProfile(9).modifiers.length >= 3);
+  assert.deepEqual(mudflatStageProfile(11), mudflatStageProfile(11), "endless combinations must remain deterministic after reload");
+  assert.ok(mudflatStageEmptySeafoodHazard(20, 5).damagePerSecond > mudflatStageEmptySeafoodHazard(20, 1).damagePerSecond);
+  assert.equal(typeof mudflatInWaterChannel(0, 0, 2), "boolean");
+  assert.equal(mudflatEndlessObjectiveResult({ objective: { id: "rocks", label: "돌 3개", target: 3, bonus: 50 } }, { rocksFlipped: 3 }).bonus, 50);
   assert.ok(mudflatFinalScore({ catchScore: 1000, caught: 50, elapsed: 240, bossCaught: true }) > 4000);
 
   const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
@@ -951,7 +966,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawRockHookBar\(/);
   assert.match(source, /function drawRock\(context:[\s\S]*?const shake =[\s\S]*?const liftProgress =/);
   assert.match(source, /rockId: target\.id[\s\S]*?life: stats\.processingTime, maxLife: stats\.processingTime/);
-  assert.match(source, /runtime\.rockFlipEffect\?\.life <= 0[\s\S]*?mudflatRockCreatureForRoll\(Math\.random\(\), runtime\.levels\.rocker \?\? 1\)/);
+  assert.match(source, /runtime\.rockFlipEffect && runtime\.rockFlipEffect\.life <= 0[\s\S]*?mudflatRockCreatureForRoll\(Math\.random\(\), runtime\.levels\.rocker \?\? 1\)/);
   assert.match(source, /const stillInRange = target &&[\s\S]*?runtime\.rockFlipEffect = null;[\s\S]*?runtime\.rockTurnClock = \.12/);
   assert.doesNotMatch(source, /text: "빈 돌"/);
   assert.match(source, /creature\.movement === "oval"/);
@@ -962,7 +977,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /runtime\.bleedSeconds = 0; runtime\.bleedTickClock = 1/);
   assert.match(source, /hasVisibleSeafood[\s\S]*?runtime\.emptySeafoodSeconds = 0[\s\S]*?runtime\.emptySeafoodDamageClock = 0/);
   assert.match(source, /runtime\.player\.hp = Math\.max\(0, runtime\.player\.hp - emptyHazard\.damagePerSecond\)/);
-  assert.match(source, /const emptyHazard = mudflatEmptySeafoodHazard\(runtime\.emptySeafoodSeconds\)/);
+  assert.match(source, /const emptyHazard = mudflatStageEmptySeafoodHazard\(runtime\.emptySeafoodSeconds, runtime\.stage\)/);
+  assert.match(source, /stageProfile\.waterChannels && mudflatInWaterChannel/);
+  assert.match(source, /stageProfile\.fallingRocks/);
+  assert.match(source, /stageProfile\.safeZone/);
+  assert.match(source, /stageProfile\.darkness/);
+  assert.match(source, /해산물 무리가 몰려옵니다/);
+  assert.match(source, /정규 원정을 완주해 끝없는 물때가 열렸습니다/);
   assert.match(source, /context\.fillText\(emptyHazard\.message, width \/ 2, height \/ 2 - 69\)/);
   assert.match(source, /drawRockHookBar\(context, \{ x: width \/ 2, y: height \/ 2 \}, point, runtime\.rockFlipEffect\)/);
   assert.doesNotMatch(source, /rockFlipEffect\.originX|rockFlipEffect\.originY/);

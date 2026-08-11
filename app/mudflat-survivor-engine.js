@@ -257,24 +257,101 @@ export function mudflatPufferBleedStep(seconds = 0, tickClock = 1, deltaSeconds 
 
 export function mudflatStageStats(stage = 1) {
   const safeStage = Math.max(1, Math.floor(stage));
+  const profile = mudflatStageProfile(safeStage);
+  const endlessDepth = Math.max(0, safeStage - 8);
   return {
-    creatureHpMultiplier: 1 + (safeStage - 1) * 0.18,
-    creatureSpeedMultiplier: 1 + (safeStage - 1) * 0.05,
-    spawnIntervalMultiplier: Math.max(0.58, 1 - (safeStage - 1) * 0.045),
-    contactDamageBonus: (safeStage - 1) * 2,
-    rockLimit: Math.min(32, 20 + (safeStage - 1) * 2),
+    creatureHpMultiplier: 1 + (safeStage - 1) * 0.16 + (profile.finalBoss ? .24 : 0),
+    creatureSpeedMultiplier: 1 + (safeStage - 1) * 0.045,
+    spawnIntervalMultiplier: Math.max(0.5, 1 - (safeStage - 1) * 0.04) * profile.seafoodSpawnMultiplier,
+    contactDamageBonus: Math.min(24, (safeStage - 1) * 2 + Math.floor(endlessDepth / 3)),
+    rockLimit: Math.min(42, Math.round((20 + (safeStage - 1) * 2) * profile.rockMultiplier)),
   };
 }
 
-export function mudflatSeafoodSaleValue(type, count = 1, coolerLevel = 0) {
+export const MUDFLAT_REGULAR_STAGES = [
+  { stage: 1, name: "초입 갯벌", subtitle: "기본 조작과 채집 수단을 익히는 잔잔한 초입", modifiers: ["초입"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: .65, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
+  { stage: 2, name: "차오르는 물골", subtitle: "물골을 피하고 밀물 전에 마른 지대를 찾으세요", modifiers: ["물골", "주기적 밀물"], waterChannels: true, tideInterval: 48, safeZone: "fixed", rockMultiplier: .8, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: .96, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
+  { stage: 3, name: "바위 갯벌", subtitle: "늘어난 돌과 낙석을 피해 돌 밑을 노리세요", modifiers: ["바위 증가", "낙석"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: 1.55, fallingRocks: 19, darkness: 0, mudSlow: .96, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
+  { stage: 4, name: "어두운 갯벌", subtitle: "좁아진 시야에서 헤드랜턴으로 숨은 패류를 찾으세요", modifiers: ["시야 감소", "패류 가치 2배"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: 1, fallingRocks: 0, darkness: .78, mudSlow: 1, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
+  { stage: 5, name: "깊은 펄", subtitle: "발이 빠지는 펄과 빨라진 추위에 대비하세요", modifiers: ["이동 감속", "빠른 추위"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: .9, fallingRocks: 0, darkness: .18, mudSlow: .78, seafoodSpawnMultiplier: 1.22, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: .65, finalBoss: false },
+  { stage: 6, name: "거센 갯벌", subtitle: "바람과 파도 사이로 몰려오는 해산물 무리를 버티세요", modifiers: ["바람", "파도", "해산물 무리"], waterChannels: true, tideInterval: 43, safeZone: "fixed", rockMultiplier: 1, fallingRocks: 0, darkness: 0, mudSlow: .93, seafoodSpawnMultiplier: .92, wind: 32, waves: true, swarms: true, coldThresholdMultiplier: .9, finalBoss: false },
+  { stage: 7, name: "대조기 갯벌", subtitle: "빠른 밀물과 계속 움직이는 안전 지대를 따라가세요", modifiers: ["빠른 밀물", "이동 안전 지대"], waterChannels: true, tideInterval: 27, safeZone: "moving", rockMultiplier: 1.08, fallingRocks: 0, darkness: .08, mudSlow: .9, seafoodSpawnMultiplier: .88, wind: 18, waves: true, swarms: false, coldThresholdMultiplier: .85, finalBoss: false },
+  { stage: 8, name: "마지막 물때", subtitle: "모든 환경과 강화된 대왕 박하지를 넘어 귀환하세요", modifiers: ["복합 환경", "강화 대왕 박하지", "최종 귀환"], waterChannels: true, tideInterval: 31, safeZone: "moving", rockMultiplier: 1.35, fallingRocks: 22, darkness: .62, mudSlow: .84, seafoodSpawnMultiplier: .82, wind: 30, waves: true, swarms: true, coldThresholdMultiplier: .72, finalBoss: true },
+];
+
+const MUDFLAT_ENDLESS_MODIFIERS = [
+  { id: "channels", name: "깊은 물골", patch: { waterChannels: true, mudSlow: .9 } },
+  { id: "dark", name: "짙은 어둠", patch: { darkness: .7 } },
+  { id: "rocks", name: "낙석 지대", patch: { rockMultiplier: 1.5, fallingRocks: 18 } },
+  { id: "wind", name: "돌풍", patch: { wind: 38, waves: true } },
+  { id: "tide", name: "급한 밀물", patch: { tideInterval: 25, safeZone: "moving" } },
+  { id: "swarm", name: "해산물 대이동", patch: { swarms: true, seafoodSpawnMultiplier: .78 } },
+  { id: "mud", name: "끝없는 깊은 펄", patch: { mudSlow: .74, coldThresholdMultiplier: .62 } },
+];
+
+function mudflatSeed(stage, salt = 0) {
+  const value = Math.sin(stage * 91.731 + salt * 37.117) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+export function mudflatStageProfile(stage = 1) {
+  const safeStage = Math.max(1, Math.floor(stage));
+  if (safeStage <= 8) return { ...MUDFLAT_REGULAR_STAGES[safeStage - 1], endless: false, objective: null };
+  const chosen = [...MUDFLAT_ENDLESS_MODIFIERS]
+    .sort((left, right) => mudflatSeed(safeStage, left.id.length) - mudflatSeed(safeStage, right.id.length))
+    .slice(0, 3 + (safeStage % 4 === 0 ? 1 : 0));
+  const profile = {
+    stage: safeStage, name: "끝없는 물때", subtitle: "지형·날씨·생물이 다시 섞인 끝없는 원정",
+    modifiers: chosen.map((item) => item.name), waterChannels: false, tideInterval: 0, safeZone: "none",
+    rockMultiplier: 1, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: .86,
+    wind: 0, waves: false, swarms: false, coldThresholdMultiplier: .82, finalBoss: safeStage % 3 === 0,
+    endless: true,
+  };
+  for (const modifier of chosen) Object.assign(profile, modifier.patch);
+  const objectiveIndex = Math.floor(mudflatSeed(safeStage, 19) * 3);
+  profile.objective = [
+    { id: "catch", label: `해산물 ${110 + (safeStage - 9) * 10}마리 채집`, target: 110 + (safeStage - 9) * 10, bonus: 140 + safeStage * 18 },
+    { id: "rocks", label: `돌 ${8 + Math.floor((safeStage - 9) / 2)}개 뒤집기`, target: 8 + Math.floor((safeStage - 9) / 2), bonus: 160 + safeStage * 20 },
+    { id: "health", label: "체력 50% 이상으로 귀환", target: .5, bonus: 180 + safeStage * 22 },
+  ][objectiveIndex];
+  return profile;
+}
+
+export function mudflatInWaterChannel(x = 0, y = 0, stage = 2) {
+  const safeStage = Math.max(1, Math.floor(stage));
+  const centerA = Math.sin((y + safeStage * 83) / 175) * 92 + Math.sin((y - safeStage * 41) / 430) * 52;
+  if (Math.abs(x - centerA) < 42) return true;
+  const profile = mudflatStageProfile(safeStage);
+  if (!profile.endless && safeStage !== 8) return false;
+  const centerB = 265 + Math.sin((y - safeStage * 63) / 210) * 74;
+  return Math.abs(x - centerB) < 34;
+}
+
+export function mudflatStageEmptySeafoodHazard(emptySeconds = 0, stage = 1) {
+  const profile = mudflatStageProfile(stage);
+  return mudflatEmptySeafoodHazard(Math.max(0, Number(emptySeconds) || 0) / Math.max(.35, profile.coldThresholdMultiplier));
+}
+
+export function mudflatEndlessObjectiveResult(profile, { caught = 0, rocksFlipped = 0, hp = 0, maxHp = 1 } = {}) {
+  const objective = profile?.objective;
+  if (!objective) return { complete: false, bonus: 0, label: "" };
+  const complete = objective.id === "catch" ? caught >= objective.target
+    : objective.id === "rocks" ? rocksFlipped >= objective.target
+      : hp / Math.max(1, maxHp) >= objective.target;
+  return { complete, bonus: complete ? objective.bonus : 0, label: objective.label };
+}
+
+export function mudflatSeafoodSaleValue(type, count = 1, coolerLevel = 0, stage = 1) {
   const market = MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === type);
   const safeCount = Math.max(0, Math.floor(count));
   if (!market || safeCount === 0) return 0;
-  const saleMultiplier = 1 + Math.max(0, Math.floor(coolerLevel)) * 0.08;
+  const profile = mudflatStageProfile(stage);
+  const darkShellBonus = (profile.darkness >= .6 && ["whelk", "fist-whelk", "golbaengi"].includes(type)) ? 2 : 1;
+  const saleMultiplier = (1 + Math.max(0, Math.floor(coolerLevel)) * 0.08) * darkShellBonus;
   return Math.floor(market.price * safeCount * saleMultiplier);
 }
 
-export function mudflatAutoSellInventory(inventory = {}, coolerLevel = 0) {
+export function mudflatAutoSellInventory(inventory = {}, coolerLevel = 0, stage = 1) {
   const knownTypes = new Set(MUDFLAT_SEAFOOD_MARKET.map((item) => item.type));
   const haul = {};
   for (const [type, count] of Object.entries(inventory ?? {})) {
@@ -283,7 +360,7 @@ export function mudflatAutoSellInventory(inventory = {}, coolerLevel = 0) {
     if (safeCount > 0) haul[type] = safeCount;
   }
   const count = Object.values(haul).reduce((sum, quantity) => sum + quantity, 0);
-  const value = Object.entries(haul).reduce((sum, [type, quantity]) => sum + mudflatSeafoodSaleValue(type, quantity, coolerLevel), 0);
+  const value = Object.entries(haul).reduce((sum, [type, quantity]) => sum + mudflatSeafoodSaleValue(type, quantity, coolerLevel, stage), 0);
   return { haul, count, value };
 }
 
