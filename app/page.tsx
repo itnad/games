@@ -92,10 +92,10 @@ type GameId =
   | "ten-seconds"
   | "mudflat-survivor"
   | "tetris";
-type Category = "전체" | "전략" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
+type Category = "전체" | "전략" | "카드게임" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
 
-const CATEGORIES: Category[] = ["전체", "전략", "고전게임", "기억력", "추리", "퍼즐", "주사위", "경주", "터치류", "RPG"];
-const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "고전게임", "기억력", "추리", "퍼즐", "주사위", "경주", "터치류", "RPG"];
+const CATEGORIES: Category[] = ["전체", "전략", "카드게임", "고전게임", "기억력", "추리", "퍼즐", "주사위", "경주", "터치류", "RPG"];
+const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "카드게임", "고전게임", "기억력", "추리", "퍼즐", "주사위", "경주", "터치류", "RPG"];
 
 type GameDefinition = {
   id: GameId;
@@ -239,7 +239,7 @@ const GAMES: GameDefinition[] = [
     id: "baccarat",
     title: "바카라",
     subtitle: "9에 가까운 패를 예측하는 가상 칩 카드게임",
-    category: "전략",
+    category: "카드게임",
     players: "AI 딜러 1인",
     tone: "green",
   },
