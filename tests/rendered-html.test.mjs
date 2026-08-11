@@ -963,6 +963,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.doesNotMatch(source, /stats\.xpChance/);
   assert.match(source, /CATCH SUMMARY/);
   assert.match(source, /ms-camp-auto-sale/);
+  assert.match(source, /className="ms-departure-status" aria-label="현재 원정 상태"/);
+  assert.match(source, /className="ms-departure-coins"[\s\S]*?\{campaign\.coins\.toLocaleString\(\)\}C/);
+  assert.match(source, /aria-label="현재 체력"[\s\S]*?campHpPercent/);
+  assert.match(source, /aria-label="현재 경험치"[\s\S]*?campXpPercent/);
+  assert.match(source, /event\.target instanceof Element \? event\.target\.closest\("\.ms-shell button:not\(:disabled\)"\)/);
+  assert.match(source, /button\.classList\.add\("ms-touch-confirmed"\)/);
+  assert.match(styles, /\.ms-shell button\.ms-touch-confirmed\{animation:ms-button-confirm \.26s ease-out\}/);
   assert.match(source, /className="ms-market-table" role="table"/);
   assert.match(source, /<small>\{count\.toLocaleString\(\)\}×\{item\.price\}C<\/small>/);
   assert.match(source, /<span>전체 판매 가격<\/span>/);

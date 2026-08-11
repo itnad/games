@@ -674,6 +674,29 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (lastMode === "kids" || lastMode === "normal") setMode(lastMode);
   }, []);
 
+  useEffect(() => {
+    const timers = new Map<HTMLButtonElement, number>();
+    const confirmButtonTouch = (event: PointerEvent) => {
+      const button = event.target instanceof Element ? event.target.closest(".ms-shell button:not(:disabled)") : null;
+      if (!(button instanceof HTMLButtonElement)) return;
+      const previousTimer = timers.get(button);
+      if (previousTimer) window.clearTimeout(previousTimer);
+      button.classList.remove("ms-touch-confirmed");
+      void button.offsetWidth;
+      button.classList.add("ms-touch-confirmed");
+      const timer = window.setTimeout(() => {
+        button.classList.remove("ms-touch-confirmed");
+        timers.delete(button);
+      }, 260);
+      timers.set(button, timer);
+    };
+    document.addEventListener("pointerdown", confirmButtonTouch, true);
+    return () => {
+      document.removeEventListener("pointerdown", confirmButtonTouch, true);
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
+
   const storeCampaign = useCallback((next: Campaign) => {
     campaignRef.current = next; setCampaign(next); setSavedCampaign(next); window.localStorage.setItem(CAMPAIGN_KEY, JSON.stringify(next));
   }, []);
@@ -1353,6 +1376,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const upgrades = campaign.mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
     const nextStageStats = mudflatStageStats(campaign.stage);
     const soldItems = MUDFLAT_SEAFOOD_MARKET.filter((item) => (campaign.lastHaul[item.type] ?? 0) > 0);
+    const campHpPercent = Math.max(0, Math.min(100, campaign.hp / Math.max(1, campaign.maxHp) * 100));
+    const campXpPercent = Math.max(0, Math.min(100, campaign.xp / Math.max(1, campaign.nextXp) * 100));
     return <main className="ms-shell ms-camp">
       <MudflatTopbar onExit={onExit} />
       <section className="ms-camp-hero">
@@ -1386,7 +1411,15 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const level = campaign.levels[skill.id] ?? 0; const price = mudflatTrainingPrice(level); return <button type="button" key={skill.id} disabled={level >= skill.max || campaign.coins < price} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{level >= skill.max ? "최고 레벨" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
         </div>
       </section>
-      <section className="ms-departure"><div><small>NEXT TIDE</small><b>{campaign.stage}단계 출정 준비</b><span>해산물 체력 ×{nextStageStats.creatureHpMultiplier.toFixed(2)} · 접촉 피해 +{nextStageStats.contactDamageBonus}</span></div><button type="button" className="ms-clear-save" onClick={clearCampaign}>새 원정으로 초기화</button><button type="button" className="ms-primary" onClick={startNextStage}>다음 갯벌 출정 <span>→</span></button></section>
+      <section className="ms-departure">
+        <div className="ms-departure-copy"><small>NEXT TIDE</small><b>{campaign.stage}단계 출정 준비</b><span>해산물 체력 ×{nextStageStats.creatureHpMultiplier.toFixed(2)} · 접촉 피해 +{nextStageStats.contactDamageBonus}</span></div>
+        <div className="ms-departure-status" aria-label="현재 원정 상태">
+          <span className="ms-departure-coins"><small>보유 코인</small><b>{campaign.coins.toLocaleString()}C</b></span>
+          <span className="ms-departure-meter hp"><small><b>체력</b><em>{Math.ceil(campaign.hp)} / {campaign.maxHp}</em></small><i role="progressbar" aria-label="현재 체력" aria-valuemin={0} aria-valuemax={campaign.maxHp} aria-valuenow={Math.ceil(campaign.hp)}><span style={{ width: `${campHpPercent}%` }} /></i></span>
+          <span className="ms-departure-meter xp"><small><b>경험치</b><em>{campaign.xp} / {campaign.nextXp}</em></small><i role="progressbar" aria-label="현재 경험치" aria-valuemin={0} aria-valuemax={campaign.nextXp} aria-valuenow={campaign.xp}><span style={{ width: `${campXpPercent}%` }} /></i></span>
+        </div>
+        <button type="button" className="ms-clear-save" onClick={clearCampaign}>새 원정으로 초기화</button><button type="button" className="ms-primary" onClick={startNextStage}>다음 갯벌 출정 <span>→</span></button>
+      </section>
     </main>;
   }
 
