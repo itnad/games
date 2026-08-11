@@ -67,12 +67,19 @@ export const MUDFLAT_SEAFOOD_MARKET = [
 ];
 
 export const MUDFLAT_SHOP_EQUIPMENT = [
-  { id: "gloves", icon: "⌁", name: "미끄럼 방지 장갑", description: "모든 채집 도구의 위력이 12% 증가합니다.", basePrice: 90, priceStep: 70, max: 4 },
-  { id: "waders", icon: "≫", name: "강화 갯벌 장화", description: "이동 속도가 5% 증가하고 최대 체력이 8 늘어납니다.", basePrice: 110, priceStep: 80, max: 4 },
-  { id: "cooler", icon: "▣", name: "보냉 바구니", description: "해산물 판매가가 8% 오르고 수집 범위가 넓어집니다.", basePrice: 100, priceStep: 75, max: 4 },
-  { id: "vest", icon: "♥", name: "부력 작업 조끼", description: "최대 체력이 15 늘어납니다.", basePrice: 130, priceStep: 95, max: 3 },
-  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "어두운 곳에 숨은 소라와 골뱅이가 출현합니다.", basePrice: 1000, priceStep: 0, max: 1 },
+  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "어두운 곳에 숨은 소라와 골뱅이가 출현합니다.", max: 6 },
+  { id: "cooler", icon: "▣", name: "조과통 업그레이드", description: "Lv.1부터 800·1,200·1,700·2,300·3,000·3,800마리까지 채집합니다.", max: 6 },
+  { id: "vest", icon: "♥", name: "작업 조끼", description: "최대 체력 +25/+50/+100/+200/+400/+800, 출혈 시간 50~75% 감소.", max: 6 },
+  { id: "gloves", icon: "⌁", name: "장갑 업그레이드", description: "모든 채집 도구의 기본 위력이 단계별로 6~21% 증가합니다.", max: 6 },
+  { id: "waders", icon: "≫", name: "장화 밑창 업그레이드", description: "지형 페널티 30~75% 감소, 기본 최대 체력 10~20% 상승.", max: 6 },
 ];
+
+export const MUDFLAT_CATCH_CAPACITIES = [500, 800, 1200, 1700, 2300, 3000, 3800];
+export const MUDFLAT_VEST_HP_BONUSES = [0, 25, 50, 100, 200, 400, 800];
+export const MUDFLAT_VEST_BLEED_REDUCTIONS = [0, .5, .55, .6, .65, .7, .75];
+export const MUDFLAT_GLOVE_POWER_BONUSES = [0, .06, .11, .15, .18, .2, .21];
+export const MUDFLAT_WADER_TERRAIN_REDUCTIONS = [0, .3, .4, .5, .6, .7, .75];
+export const MUDFLAT_WADER_HP_BONUSES = [0, .1, .12, .14, .16, .18, .2];
 
 export const MUDFLAT_RECOVERY_FOODS = [
   { id: "fishcake", icon: "♨", name: "따뜻한 어묵국", description: "체력을 35 회복합니다.", price: 35, heal: 35 },
@@ -94,11 +101,73 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "tongs", icon: "⌁", name: "집게 숙련도", description: "집게를 쓰는 방식과 파워가 상승합니다.", max: 6 },
   { id: "harpoon", icon: "➶", name: "작살던지기", description: "가장 가까운 해산물을 향해 여러 대상을 관통하는 작살을 던집니다.", max: 6 },
   { id: "boots", icon: "≫", name: "갯벌 장화", description: "내구도가 강하고 더 빠르게 이동합니다.", max: 6 },
-  { id: "snack", icon: "♥", name: "든든한 간식", description: "최대 체력 상승 및 현재 체력을 회복합니다.", max: 6 },
-  { id: "rocker", icon: "◆", name: "돌뒤집게", description: "돌 밑에 숨어있는 해산물을 찾아낼 수 있습니다.", max: 6 },
+  { id: "snack", icon: "♥", name: "든든한 간식", description: "최대 체력이 기본 대비 20% 상승하며 현재 체력을 전부 회복합니다.", max: 6 },
+  { id: "rocker", icon: "◆", name: "돌뒤집개", description: "돌 밑에 숨어있는 해산물을 더 빨리 더 잘 찾아낼 수 있습니다.", max: 6 },
   { id: "net", icon: "◇", name: "뜰채", description: "넓은 범위의 채집이 가능합니다.", max: 6 },
   { id: "digging", icon: "⌁", name: "호미질", description: "조개 구멍에서 더 좋은 조개를 찾을 확률이 높아집니다.", max: 6 },
+  { id: "electric", icon: "ϟ", name: "전기 스파크", description: "집게 사거리 안의 해산물 모두에 주기적으로 전기 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 1 },
+  { id: "cast-net", icon: "⌗", name: "그물 투척", description: "먼 해산물 위로 그물을 떨어뜨려 30px 범위에 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 2 },
 ];
+
+function mudflatSafeLevel(level = 0) {
+  return Math.max(0, Math.min(6, Math.floor(Number(level) || 0)));
+}
+
+export function mudflatCatchCapacity(level = 0) {
+  return MUDFLAT_CATCH_CAPACITIES[mudflatSafeLevel(level)];
+}
+
+export function mudflatEquipmentDescription(id, level = 1) {
+  const safeLevel = Math.max(1, mudflatSafeLevel(level));
+  if (id === "cooler") return `${mudflatCatchCapacity(safeLevel).toLocaleString()}마리까지 채집 가능합니다.`;
+  if (id === "vest") return `기본 최대 체력보다 ${MUDFLAT_VEST_HP_BONUSES[safeLevel]} 높아지고 출혈 시간이 ${Math.round(MUDFLAT_VEST_BLEED_REDUCTIONS[safeLevel] * 100)}% 감소합니다.`;
+  if (id === "gloves") return `모든 채집 도구의 위력이 기본 수치보다 ${Math.round(MUDFLAT_GLOVE_POWER_BONUSES[safeLevel] * 100)}% 증가합니다.`;
+  if (id === "waders") return `지형 이동 페널티가 ${Math.round(MUDFLAT_WADER_TERRAIN_REDUCTIONS[safeLevel] * 100)}% 감소하고 기본 최대 체력보다 ${Math.round(MUDFLAT_WADER_HP_BONUSES[safeLevel] * 100)}% 상승합니다.`;
+  return "어두운 곳에 숨은 소라와 골뱅이가 출현합니다.";
+}
+
+export function mudflatEquipmentStats(equipment = {}, baseMaxHp = 100, snackLevel = 0) {
+  const vestLevel = mudflatSafeLevel(equipment.vest);
+  const gloveLevel = mudflatSafeLevel(equipment.gloves);
+  const waderLevel = mudflatSafeLevel(equipment.waders);
+  const safeBaseHp = Math.max(1, Number(baseMaxHp) || 100);
+  const percentHpBonus = MUDFLAT_WADER_HP_BONUSES[waderLevel] + mudflatSafeLevel(snackLevel) * .2;
+  return {
+    catchCapacity: mudflatCatchCapacity(equipment.cooler),
+    maxHp: safeBaseHp * (1 + percentHpBonus) + MUDFLAT_VEST_HP_BONUSES[vestLevel],
+    vestHpBonus: MUDFLAT_VEST_HP_BONUSES[vestLevel],
+    bleedDurationReduction: MUDFLAT_VEST_BLEED_REDUCTIONS[vestLevel],
+    toolPowerMultiplier: 1 + MUDFLAT_GLOVE_POWER_BONUSES[gloveLevel],
+    terrainPenaltyReduction: MUDFLAT_WADER_TERRAIN_REDUCTIONS[waderLevel],
+  };
+}
+
+export function mudflatTerrainSpeedMultiplier(baseMultiplier = 1, waderLevel = 0) {
+  const safeBase = Math.max(0, Math.min(1, Number(baseMultiplier) || 0));
+  const reduction = MUDFLAT_WADER_TERRAIN_REDUCTIONS[mudflatSafeLevel(waderLevel)];
+  return 1 - (1 - safeBase) * (1 - reduction);
+}
+
+export function mudflatBleedDamage(maxHp = 0) {
+  return Math.max(0, Number(maxHp) || 0) * .01;
+}
+
+export function mudflatAdvancedSkillUnlocks(levels = {}) {
+  const masteryCount = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !skill.advanced && (levels[skill.id] ?? 0) >= 5).length;
+  return { masteryCount, electric: masteryCount >= 1, castNet: masteryCount >= 2 };
+}
+
+export function mudflatElectricStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { interval: Infinity, damage: 0, selfInterval: Infinity, selfDamage: 0 };
+  return { interval: [1, .8, .6, .4, .2, .1][safeLevel - 1], damage: 100, selfInterval: 10, selfDamage: 5 };
+}
+
+export function mudflatCastNetStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { interval: Infinity, damage: 0, radius: 0 };
+  return { interval: [2, 1.7, 1.4, 1.1, .8, .5][safeLevel - 1], damage: 200, radius: 30 };
+}
 
 export function mudflatJoystickVector(deltaX, deltaY, radius = MUDFLAT_JOYSTICK_RADIUS, deadzone = 5) {
   const length = Math.hypot(deltaX, deltaY);
@@ -164,11 +233,13 @@ export function mudflatClamRewardForRoll(level = 1, roll = 0) {
 
 export function mudflatUpgradeChoices(_level, levels = {}, mode = "kids", random = Math.random) {
   const upgrades = mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
+  const unlocks = mudflatAdvancedSkillUnlocks(levels);
   const ownedSkillCount = upgrades.filter((item) => (levels[item.id] ?? 0) > 0).length;
   const hasOpenSkillSlot = mode !== "normal" || ownedSkillCount < 6;
   const available = upgrades.filter((item) => {
     const currentLevel = levels[item.id] ?? 0;
-    return currentLevel < item.max && (hasOpenSkillSlot || currentLevel > 0);
+    const unlocked = !item.advanced || (item.id === "electric" ? unlocks.electric : unlocks.castNet);
+    return unlocked && currentLevel < item.max && (hasOpenSkillSlot || currentLevel > 0);
   });
   if (available.length <= 3) return available;
   const shuffled = [...available];
@@ -218,12 +289,14 @@ export function mudflatHarpoonStats(level = 0, netLevel = 1) {
 
 export function mudflatRockTurnerStats(level = 0) {
   const safeLevel = Math.max(0, Math.min(6, Math.floor(level)));
-  if (safeLevel === 0) return { processingTime: Infinity, interval: Infinity, activationsPerSecond: 0 };
+  if (safeLevel === 0) return { processingTime: Infinity, cooldown: Infinity, interval: Infinity, activationsPerSecond: 0 };
   const processingTime = [1, 0.8, 0.6, 0.4, 0.2, 0.2][safeLevel - 1];
+  const cooldown = [2, 1.7, 1.4, 1.1, .8, .5][safeLevel - 1];
   return {
     processingTime,
-    interval: processingTime,
-    activationsPerSecond: 1 / processingTime,
+    cooldown,
+    interval: processingTime + cooldown,
+    activationsPerSecond: 1 / (processingTime + cooldown),
   };
 }
 
@@ -239,8 +312,9 @@ export function mudflatRockCreatureForRoll(roll = 0, level = 1) {
   return null;
 }
 
-export function mudflatPufferBleedOnContact(seconds = 0, tickClock = 1) {
-  return { seconds: 50, tickClock: seconds > 0 ? tickClock : 1 };
+export function mudflatPufferBleedOnContact(seconds = 0, tickClock = 1, vestLevel = 0) {
+  const reduction = MUDFLAT_VEST_BLEED_REDUCTIONS[mudflatSafeLevel(vestLevel)];
+  return { seconds: 50 * (1 - reduction), tickClock: seconds > 0 ? tickClock : 1 };
 }
 
 export function mudflatPufferMovementForAge(ageSeconds = 0) {
@@ -350,13 +424,13 @@ export function mudflatEndlessObjectiveResult(profile, { caught = 0, rocksFlippe
   return { complete, bonus: complete ? objective.bonus : 0, label: objective.label };
 }
 
-export function mudflatSeafoodSaleValue(type, count = 1, coolerLevel = 0, stage = 1) {
+export function mudflatSeafoodSaleValue(type, count = 1, _coolerLevel = 0, stage = 1) {
   const market = MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === type);
   const safeCount = Math.max(0, Math.floor(count));
   if (!market || safeCount === 0) return 0;
   const profile = mudflatStageProfile(stage);
   const darkShellBonus = (profile.darkness >= .6 && ["whelk", "fist-whelk", "golbaengi"].includes(type)) ? 2 : 1;
-  const saleMultiplier = (1 + Math.max(0, Math.floor(coolerLevel)) * 0.08) * darkShellBonus;
+  const saleMultiplier = darkShellBonus;
   return Math.floor(market.price * safeCount * saleMultiplier);
 }
 
@@ -400,11 +474,13 @@ export function mudflatSettleCatch(inventory = {}, basket = {}, caught = 0, cool
 export function mudflatEquipmentPrice(id, currentLevel = 0) {
   const equipment = MUDFLAT_SHOP_EQUIPMENT.find((item) => item.id === id);
   if (!equipment) return Infinity;
-  return equipment.basePrice + Math.max(0, Math.floor(currentLevel)) * equipment.priceStep;
+  const nextLevel = Math.max(1, Math.min(6, Math.floor(currentLevel) + 1));
+  return nextLevel * 1000;
 }
 
 export function mudflatTrainingPrice(currentLevel = 0) {
-  return 70 + Math.max(0, Math.floor(currentLevel)) * 45;
+  const nextLevel = Math.max(1, Math.min(6, Math.floor(currentLevel) + 1));
+  return nextLevel * 1000;
 }
 
 export function mudflatFinalScore({ catchScore = 0, caught = 0, elapsed = 0, bossCaught = false }) {

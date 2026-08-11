@@ -120,12 +120,19 @@ import {
   MUDFLAT_SHOP_EQUIPMENT,
   MUDFLAT_PEARL,
   mudflatAutoSellInventory,
+  mudflatAdvancedSkillUnlocks,
+  mudflatBleedDamage,
   mudflatBossPulse,
   mudflatEmptySeafoodHazard,
   mudflatClamRewardForRoll,
   mudflatEquipmentPrice,
+  mudflatEquipmentDescription,
+  mudflatEquipmentStats,
+  mudflatCatchCapacity,
+  mudflatCastNetStats,
   mudflatCreatureForTime,
   mudflatFinalScore,
+  mudflatElectricStats,
   mudflatHarpoonStats,
   mudflatJoystickVector,
   mudflatNetStats,
@@ -144,6 +151,7 @@ import {
   mudflatSpawnInterval,
   mudflatStageStats,
   mudflatTongStats,
+  mudflatTerrainSpeedMultiplier,
   mudflatTrainingPrice,
   mudflatUpgradeChoices,
 } from "../app/mudflat-survivor-engine.js";
@@ -851,13 +859,17 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(mudflatSpawnInterval(200) < mudflatSpawnInterval(0));
   assert.ok(mudflatSpawnInterval(0, "normal") < mudflatSpawnInterval(0, "kids"));
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
-  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["넓은 바구니", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집게", "뜰채", "호미질"]);
+  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["넓은 바구니", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
-  assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "rocker").description, "돌 밑에 숨어있는 해산물을 찾아낼 수 있습니다.");
+  assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "rocker").description, "돌 밑에 숨어있는 해산물을 더 빨리 더 잘 찾아낼 수 있습니다.");
+  assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "snack").description, "최대 체력이 기본 대비 20% 상승하며 현재 체력을 전부 회복합니다.");
   const generalChoices = mudflatUpgradeChoices(2, {}, "normal");
   assert.equal(generalChoices.length, 3);
   assert.ok(generalChoices.every((choice) => ["basket", "tongs", "harpoon", "boots", "snack", "rocker", "net", "digging"].includes(choice.id)));
   assert.equal(new Set(generalChoices.map((choice) => choice.id)).size, 3);
+  assert.ok(generalChoices.every((choice) => !["electric", "cast-net"].includes(choice.id)));
+  assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5 }), { masteryCount: 1, electric: true, castNet: false });
+  assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5, digging: 5 }), { masteryCount: 2, electric: true, castNet: true });
   const cappedChoices = mudflatUpgradeChoices(4, { tongs: 1, digging: 1, harpoon: 1, net: 1, rocker: 1, boots: 1 }, "normal", () => .5);
   assert.ok(cappedChoices.every((choice) => ["tongs", "digging", "harpoon", "net", "rocker", "boots"].includes(choice.id)));
   assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
@@ -879,7 +891,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatHarpoonStats(2, 2).damage, 45);
   assert.equal(mudflatHarpoonStats(1, 1).speed, 760 * 0.4);
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatRockTurnerStats(level).processingTime), [1, .8, .6, .4, .2, .2]);
-  assert.equal(mudflatRockTurnerStats(2).activationsPerSecond, 1.25);
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatRockTurnerStats(level).cooldown), [2, 1.7, 1.4, 1.1, .8, .5]);
+  assert.equal(mudflatRockTurnerStats(2).activationsPerSecond, 1 / 2.5);
   assert.equal(mudflatRockCreatureForRoll(0).type, "shrimp");
   assert.equal(mudflatRockCreatureForRoll(.1999, 1).type, "shrimp");
   assert.equal(mudflatRockCreatureForRoll(.2001, 1).type, "small-crab");
@@ -897,6 +910,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatRockCreatureForRoll(.8501, 6), null);
   assert.deepEqual(mudflatPufferBleedOnContact(), { seconds: 50, tickClock: 1 });
   assert.deepEqual(mudflatPufferBleedOnContact(12, .4), { seconds: 50, tickClock: .4 });
+  assert.deepEqual(mudflatPufferBleedOnContact(0, 1, 1), { seconds: 25, tickClock: 1 });
+  assert.deepEqual(mudflatPufferBleedOnContact(0, 1, 6), { seconds: 12.5, tickClock: 1 });
+  assert.equal(mudflatBleedDamage(100), 1);
+  assert.equal(mudflatBleedDamage(925), 9.25);
   assert.deepEqual(mudflatPufferBleedStep(50, 1, 1), { seconds: 49, tickClock: 1, ticks: 1 });
   assert.deepEqual(mudflatPufferBleedStep(50, 1, 50), { seconds: 0, tickClock: 1, ticks: 50 });
   assert.deepEqual(MUDFLAT_CLAM_GRADES.map((grade) => grade.name), ["작은조개", "바지락", "동죽", "백합", "피조개", "맛조개"]);
@@ -946,11 +963,23 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatPufferMovementForAge(8), "oval");
   assert.ok((await readFile(new URL("../public/mudflat-creatures/pufferfish.png", import.meta.url))).byteLength > 10_000);
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
-  assert.equal(MUDFLAT_SHOP_EQUIPMENT.find((item) => item.id === "headlamp").basePrice, 1000);
+  assert.deepEqual(MUDFLAT_SHOP_EQUIPMENT.map((item) => item.name), ["헤드랜턴", "조과통 업그레이드", "작업 조끼", "장갑 업그레이드", "장화 밑창 업그레이드"]);
+  assert.ok(MUDFLAT_SHOP_EQUIPMENT.every((item) => item.max === 6));
   assert.equal(mudflatEquipmentPrice("headlamp", 0), 1000);
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map(mudflatCatchCapacity), [500, 800, 1200, 1700, 2300, 3000, 3800]);
+  assert.equal(mudflatEquipmentDescription("cooler", 6), "3,800마리까지 채집 가능합니다.");
+  assert.equal(mudflatEquipmentDescription("vest", 6), "기본 최대 체력보다 800 높아지고 출혈 시간이 75% 감소합니다.");
+  assert.equal(mudflatEquipmentDescription("gloves", 6), "모든 채집 도구의 위력이 기본 수치보다 21% 증가합니다.");
+  assert.equal(mudflatEquipmentDescription("waders", 6), "지형 이동 페널티가 75% 감소하고 기본 최대 체력보다 20% 상승합니다.");
+  assert.deepEqual(mudflatEquipmentStats({ cooler: 0, vest: 0, gloves: 0, waders: 0 }, 100, 0), { catchCapacity: 500, maxHp: 100, vestHpBonus: 0, bleedDurationReduction: 0, toolPowerMultiplier: 1, terrainPenaltyReduction: 0 });
+  assert.equal(mudflatEquipmentStats({ vest: 6, gloves: 6, waders: 6 }, 100, 1).maxHp, 940);
+  assert.equal(mudflatEquipmentStats({ vest: 6, gloves: 6, waders: 6 }, 100, 1).toolPowerMultiplier, 1.21);
+  assert.equal(mudflatTerrainSpeedMultiplier(.5, 1), .65);
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatElectricStats(level).interval), [1, .8, .6, .4, .2, .1]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatCastNetStats(level).interval), [2, 1.7, 1.4, 1.1, .8, .5]);
   assert.equal(MUDFLAT_RECOVERY_FOODS.length, 3);
   assert.equal(mudflatSeafoodSaleValue("clam", 10, 0), 10);
-  assert.equal(mudflatSeafoodSaleValue("clam", 10, 2), 11);
+  assert.equal(mudflatSeafoodSaleValue("clam", 10, 2), 10);
   const settledCatch = mudflatSettleCatch({ crab: 2 }, { clam: 3, octopus: 1 }, 4, 0);
   assert.deepEqual(settledCatch.inventory, { crab: 2, clam: 3, octopus: 1 });
   assert.equal(settledCatch.catchCount, 4);
@@ -963,8 +992,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual(autoSale.haul, { clam: 3, octopus: 1 });
   assert.equal(autoSale.count, 4);
   assert.equal(autoSale.value, 23);
-  assert.equal(mudflatEquipmentPrice("gloves", 1), 160);
-  assert.equal(mudflatTrainingPrice(2), 160);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map((level) => mudflatEquipmentPrice("gloves", level)), [1000, 2000, 3000, 4000, 5000, 6000]);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(mudflatTrainingPrice), [1000, 2000, 3000, 4000, 5000, 6000]);
   assert.ok(mudflatStageStats(3).creatureHpMultiplier > mudflatStageStats(2).creatureHpMultiplier);
   assert.ok(mudflatStageStats(3).spawnIntervalMultiplier < mudflatStageStats(2).spawnIntervalMultiplier);
   assert.equal(MUDFLAT_REGULAR_STAGES.length, 8);
@@ -1019,7 +1048,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal((source.match(/context\.arc\(0, 0, ACTION_PROGRESS_RING_RADIUS/g) ?? []).length, 4);
   assert.match(source, /rockId: target\.id[\s\S]*?life: stats\.processingTime, maxLife: stats\.processingTime/);
   assert.match(source, /runtime\.rockFlipEffect && runtime\.rockFlipEffect\.life <= 0[\s\S]*?mudflatRockCreatureForRoll\(Math\.random\(\), runtime\.levels\.rocker \?\? 1\)/);
-  assert.match(source, /const stillInRange = target &&[\s\S]*?runtime\.rockFlipEffect = null;[\s\S]*?runtime\.rockTurnClock = \.12/);
+  assert.match(source, /const stillInRange = target &&[\s\S]*?runtime\.rockFlipEffect = null;[\s\S]*?runtime\.rockTurnClock = mudflatRockTurnerStats\(runtime\.levels\.rocker \?\? 1\)\.cooldown/);
   assert.doesNotMatch(source, /text: "빈 돌"/);
   assert.match(source, /mudflatPufferMovementForAge\(creature\.age\)/);
   assert.match(source, /\["whelk", "fist-whelk", "golbaengi"\]\.includes\(creature\.type\) \? mudflatShellMovementSpeed\(speed\)/);
@@ -1031,6 +1060,16 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /speed: finding\.type === "pufferfish" \? template\.speed/);
   assert.match(source, /mudflatPufferBleedOnContact/);
   assert.match(source, /mudflatPufferBleedStep/);
+  assert.match(source, /creature\.type === "pufferfish" \|\| creature\.type === "king-crab"/);
+  assert.match(source, /damagePlayer\(mudflatBleedDamage\(runtime\.player\.maxHp\)/);
+  assert.match(source, /mudflatCatchCapacity\(runtime\.equipment\.cooler \?\? 0\)/);
+  assert.match(source, /조과통이 가득 찼습니다/);
+  assert.match(source, /mudflatElectricStats\(electricLevel\)/);
+  assert.match(source, /runtime\.player\.hp > 50/);
+  assert.match(source, /runtime\.selfShockClock = electric\.selfInterval/);
+  assert.match(source, /mudflatCastNetStats\(castNetLevel\)/);
+  assert.match(source, /Math\.hypot\(creature\.x - castNet\.x, creature\.y - castNet\.y\) <= castNet\.radius/);
+  assert.match(source, /신기술을 알게되었다\./);
   assert.match(source, /runtime\.bleedSeconds = 0; runtime\.bleedTickClock = 1/);
   assert.match(source, /hasVisibleSeafood[\s\S]*?runtime\.emptySeafoodSeconds = 0[\s\S]*?runtime\.emptySeafoodDamageClock = 0/);
   assert.match(source, /runtime\.player\.hp = Math\.max\(0, runtime\.player\.hp - emptyHazard\.damagePerSecond\)/);
