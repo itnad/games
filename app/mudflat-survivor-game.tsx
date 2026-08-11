@@ -22,6 +22,7 @@ import {
   mudflatNetStats,
   mudflatPufferBleedOnContact,
   mudflatPufferBleedStep,
+  mudflatPufferMovementForAge,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
   mudflatStageProfile,
@@ -44,7 +45,7 @@ type CountMap = Record<string, number>;
 type StageObjective = { id: "catch" | "rocks" | "health"; label: string; target: number; bonus: number };
 type StageProfile = { stage: number; name: string; subtitle: string; modifiers: string[]; waterChannels: boolean; tideInterval: number; safeZone: string; rockMultiplier: number; fallingRocks: number; darkness: number; mudSlow: number; seafoodSpawnMultiplier: number; wind: number; waves: boolean; swarms: boolean; coldThresholdMultiplier: number; finalBoss: boolean; endless: boolean; objective: StageObjective | null };
 type CreatureMovement = "chase" | "still" | "wander" | "flee" | "oval";
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number; movement: CreatureMovement; movementAngle: number; movementClock: number; ovalDirection?: number };
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; movementAngle: number; movementClock: number; ovalDirection?: number };
 type Pickup = Point & { id: number; xp: number };
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
@@ -56,6 +57,8 @@ type ClamHole = Point & { id: number; radius: number; progress: number };
 type ClamReveal = Point & { id: number; life: number; maxLife: number; type: string };
 type RockFlipEffect = Point & { rockId: number; life: number; maxLife: number };
 type FallingRock = Point & { id: number; life: number; maxLife: number; radius: number };
+
+const ACTION_PROGRESS_RING_RADIUS = 18;
 type Runtime = {
   mode: GameMode;
   stage: number;
@@ -456,15 +459,14 @@ function drawRock(context: CanvasRenderingContext2D, rock: Rock, effect?: RockFl
   context.strokeStyle = "rgba(240,225,197,.22)"; context.lineWidth = 2; context.stroke();
   context.restore();
   if (effect) {
-    const ringRadius = radius + 10;
     context.save();
     context.strokeStyle = "rgba(38,31,28,.58)"; context.lineWidth = 6;
-    context.beginPath(); context.arc(0, 0, ringRadius, -Math.PI / 2, Math.PI * 1.5); context.stroke();
+    context.beginPath(); context.arc(0, 0, ACTION_PROGRESS_RING_RADIUS, -Math.PI / 2, Math.PI * 1.5); context.stroke();
     context.strokeStyle = "#ffe29a"; context.lineWidth = 4;
-    context.beginPath(); context.arc(0, 0, ringRadius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress); context.stroke();
+    context.beginPath(); context.arc(0, 0, ACTION_PROGRESS_RING_RADIUS, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress); context.stroke();
     context.fillStyle = "#fff8df"; context.font = "900 11px system-ui"; context.textAlign = "center";
     context.shadowColor = "rgba(20,16,14,.78)"; context.shadowBlur = 5;
-    context.fillText(`돌뒤집기 ${Math.ceil(progress * 100)}%`, 0, -radius - 17);
+    context.fillText(`돌뒤집기 ${Math.ceil(progress * 100)}%`, 0, -ACTION_PROGRESS_RING_RADIUS - 7);
     context.restore();
   }
 }
@@ -484,11 +486,11 @@ function drawClamHole(context: CanvasRenderingContext2D, hole: ClamHole) {
   if (active) {
     const progress = Math.min(1, hole.progress / 2);
     context.strokeStyle = "rgba(38,31,28,.5)"; context.lineWidth = 6;
-    context.beginPath(); context.arc(0, 0, hole.radius + 8, -Math.PI / 2, Math.PI * 1.5); context.stroke();
+    context.beginPath(); context.arc(0, 0, ACTION_PROGRESS_RING_RADIUS, -Math.PI / 2, Math.PI * 1.5); context.stroke();
     context.strokeStyle = "#ffe29a"; context.lineWidth = 4;
-    context.beginPath(); context.arc(0, 0, hole.radius + 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress); context.stroke();
+    context.beginPath(); context.arc(0, 0, ACTION_PROGRESS_RING_RADIUS, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress); context.stroke();
     context.fillStyle = "#fff8df"; context.font = "900 11px system-ui"; context.textAlign = "center";
-    context.fillText(`호미질 ${Math.ceil(progress * 100)}%`, 0, -hole.radius - 14);
+    context.fillText(`호미질 ${Math.ceil(progress * 100)}%`, 0, -ACTION_PROGRESS_RING_RADIUS - 7);
   }
   context.restore();
 }
@@ -862,7 +864,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.creatures.push({
         ...template, id: sequenceRef.current++, type: template.id, x: runtime.player.x + Math.cos(angle) * distance,
         y: runtime.player.y + Math.sin(angle) * distance, hp: template.hp * scale, maxHp: template.hp * scale,
-        speed: template.speed * (1 + runtime.elapsed / 750) * (runtime.mode === "normal" ? 1.12 : 1) * stageStats.creatureSpeedMultiplier, saltHit: 0, hitFlash: 0, phase: Math.random() * Math.PI * 2,
+        speed: template.speed * (1 + runtime.elapsed / 750) * (runtime.mode === "normal" ? 1.12 : 1) * stageStats.creatureSpeedMultiplier, saltHit: 0, hitFlash: 0, phase: Math.random() * Math.PI * 2, age: 0,
         movement: (template.movement ?? "chase") as CreatureMovement, movementAngle: angle + Math.PI, movementClock: 1,
       });
     };
@@ -886,6 +888,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         saltHit: 0,
         hitFlash: .18,
         phase: Math.random() * Math.PI * 2,
+        age: 0,
         movement: finding.movement as CreatureMovement,
         movementAngle: revealAngle,
         movementClock: 1,
@@ -1095,17 +1098,19 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       let touching = false;
       let pufferTouching = false;
       for (const creature of runtime.creatures) {
+        creature.age += dt;
         const dx = runtime.player.x - creature.x; const dy = runtime.player.y - creature.y; const distance = Math.hypot(dx, dy) || 1;
-        if (creature.movement === "chase") {
+        const activeMovement = creature.type === "pufferfish" ? mudflatPufferMovementForAge(creature.age) : creature.movement;
+        if (activeMovement === "chase") {
           creature.x += dx / distance * creature.speed * dt; creature.y += dy / distance * creature.speed * dt;
-        } else if (creature.movement === "wander") {
+        } else if (activeMovement === "wander") {
           creature.movementClock -= dt;
           if (creature.movementClock <= 0) { creature.movementAngle = Math.random() * Math.PI * 2; creature.movementClock += 1; }
           creature.x += Math.cos(creature.movementAngle) * creature.speed * dt;
           creature.y += Math.sin(creature.movementAngle) * creature.speed * dt;
-        } else if (creature.movement === "flee") {
+        } else if (activeMovement === "flee") {
           creature.x -= dx / distance * creature.speed * dt; creature.y -= dy / distance * creature.speed * dt;
-        } else if (creature.movement === "oval") {
+        } else if (activeMovement === "oval") {
           creature.movementClock -= dt;
           if (creature.movementClock <= 0) {
             creature.movementClock = .8 + Math.random() * 1.6;

@@ -131,6 +131,7 @@ import {
   mudflatNetStats,
   mudflatPufferBleedOnContact,
   mudflatPufferBleedStep,
+  mudflatPufferMovementForAge,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
   mudflatStageProfile,
@@ -933,8 +934,12 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   const pufferfish = MUDFLAT_CREATURES.find((item) => item.id === "pufferfish");
   assert.equal(pufferfish.hp, 118);
   assert.equal(pufferfish.speed, 155 * .7);
+  assert.equal(pufferfish.size, 22 * .8);
   assert.equal(pufferfish.movement, "oval");
   assert.equal(pufferfish.spawnVariant, true);
+  assert.equal(mudflatPufferMovementForAge(0), "wander");
+  assert.equal(mudflatPufferMovementForAge(7.999), "wander");
+  assert.equal(mudflatPufferMovementForAge(8), "oval");
   assert.ok((await readFile(new URL("../public/mudflat-creatures/pufferfish.png", import.meta.url))).byteLength > 10_000);
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.find((item) => item.id === "headlamp").basePrice, 1000);
@@ -1006,11 +1011,15 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawRockHookBar\(/);
   assert.match(source, /function drawRock\(context:[\s\S]*?const shake =[\s\S]*?const liftProgress =/);
   assert.match(source, /context\.fillText\(`돌뒤집기 \$\{Math\.ceil\(progress \* 100\)\}%`/);
+  assert.match(source, /const ACTION_PROGRESS_RING_RADIUS = 18/);
+  assert.equal((source.match(/context\.arc\(0, 0, ACTION_PROGRESS_RING_RADIUS/g) ?? []).length, 4);
   assert.match(source, /rockId: target\.id[\s\S]*?life: stats\.processingTime, maxLife: stats\.processingTime/);
   assert.match(source, /runtime\.rockFlipEffect && runtime\.rockFlipEffect\.life <= 0[\s\S]*?mudflatRockCreatureForRoll\(Math\.random\(\), runtime\.levels\.rocker \?\? 1\)/);
   assert.match(source, /const stillInRange = target &&[\s\S]*?runtime\.rockFlipEffect = null;[\s\S]*?runtime\.rockTurnClock = \.12/);
   assert.doesNotMatch(source, /text: "빈 돌"/);
-  assert.match(source, /creature\.movement === "oval"/);
+  assert.match(source, /mudflatPufferMovementForAge\(creature\.age\)/);
+  assert.match(source, /creature\.age \+= dt/);
+  assert.match(source, /activeMovement === "oval"/);
   assert.match(source, /const retreatSpeed = travelSpeed \* \.62/);
   assert.match(source, /const orbitSpeed = travelSpeed \* \.34/);
   assert.match(source, /creature\.type === "pufferfish"/);
@@ -1052,8 +1061,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /runtime\.harpoons/);
   assert.match(source, /hitIds: new Set<number>\(\)/);
   assert.doesNotMatch(source, /function drawRockSkewer\(/);
-  assert.match(source, /movement === "wander"/);
-  assert.match(source, /movement === "flee"/);
+  assert.match(source, /activeMovement === "wander"/);
+  assert.match(source, /activeMovement === "flee"/);
   assert.doesNotMatch(source, /stats\.xpChance/);
   assert.match(source, /CATCH SUMMARY/);
   assert.match(source, /ms-camp-auto-sale/);
