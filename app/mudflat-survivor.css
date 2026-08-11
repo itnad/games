@@ -19,6 +19,18 @@
 .ms-result h1{word-break:keep-all;text-wrap:balance}
 .ms-result h1 span{display:inline-block}
 
+/* Compact settlement table: eight catches per row, with horizontal access on
+   narrow screens instead of shrinking names and prices below readable size. */
+.ms-market-table{padding:12px 14px;display:grid;grid-template-columns:repeat(8,minmax(72px,1fr));gap:8px;overflow-x:auto;scrollbar-width:thin}
+.ms-market-cell{min-width:72px;padding:9px 5px;display:grid;grid-template-rows:46px auto auto;justify-items:center;align-items:center;gap:3px;border:1px solid #4d40331c;border-radius:13px;background:#fffdf8;text-align:center}
+.ms-market-cell img{width:46px;height:46px;object-fit:contain;filter:drop-shadow(0 4px 5px #39291e24)}
+.ms-market-cell b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.ms-market-cell small{color:#a64b35;font-size:12px;font-weight:900;white-space:nowrap}
+.ms-market-table .ms-market-empty{grid-column:1/-1}
+.ms-market{grid-column:1/-1}
+.ms-shop-stack{grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:850px){.ms-shop-stack{grid-template-columns:1fr}}
+
 /* Paused overlays need unmistakable touch feedback: the action being pressed
    stays visibly distinct until its click changes the paused game state. */
 .ms-layer button:not(:disabled){-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease,background .12s ease,color .12s ease}

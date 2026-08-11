@@ -21,7 +21,6 @@ import {
   mudflatNetStats,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
-  mudflatSeafoodSaleValue,
   mudflatSettleCatch,
   mudflatSpawnInterval,
   mudflatStageStats,
@@ -1350,7 +1349,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   if (screen === "setup") return <main className="ms-shell ms-setup"><MudflatTopbar onExit={onExit} /><section className="ms-setup-hero"><div className="ms-sun">☀</div><small>THE TIDE IS COMING</small><h1>해루질에<br /><em>미친 자여!</em></h1><p>화면 아무 곳이나 누른 뒤 가고 싶은 방향으로 드래그하세요.<br />도구는 자동으로 움직이고, 손을 떼면 바로 멈춥니다.</p></section><section className="ms-character-select"><header><span>01</span><div><b>난이도와 채집꾼 선택</b><small>4분 출정 후 정비소에서 다음 갯벌을 준비합니다</small></div></header>{savedCampaign && <button type="button" className="ms-continue" onClick={continueCampaign}><span><small>SAVED EXPEDITION</small><b>{savedCampaign.stage}단계 정비소에서 이어하기</b><em>{savedCampaign.coins.toLocaleString()}코인 · LV.{savedCampaign.level}</em></span><strong>→</strong></button>}<div className="ms-mode-picker"><button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => { setMode("kids"); window.localStorage.setItem(LAST_MODE_KEY, "kids"); }}><i>☀</i><span><b>어린이 모드</b><small>기존 난이도와 세 명의 채집꾼</small></span></button><button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => { setMode("normal"); window.localStorage.setItem(LAST_MODE_KEY, "normal"); }}><i>◆</i><span><b>일반 모드</b><small>강한 해산물·돌 장애물·전용 기술</small></span></button></div>{mode === "kids" ? <><h2 className="ms-selection-title">채집꾼을 선택하세요</h2><div className="ms-character-grid">{CHARACTERS.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.id === "digger" ? "호미 Lv.2" : item.id === "netter" ? "뜰채 Lv.2" : "왕소금 Lv.2"}</em></button>)}</div></> : <div className="ms-general-profile"><i>⌁</i><span><small>STARTING GATHERER</small><b>갯벌 초보</b><em>집게 숙련도 Lv.1 · 체력 92 · 돌 장애물 등장</em></span></div>}<button className="ms-primary" type="button" onClick={begin}>{mode === "normal" ? "새 일반 원정 시작" : "새 어린이 원정 시작"} <span>→</span></button><p>스테이지마다 4분 동안 진행됩니다. 귀환 후 해산물을 팔아 장비와 회복 음식을 마련할 수 있습니다.</p></section></main>;
 
   if (screen === "camp" && campaign) {
-    const coolerLevel = campaign.equipment.cooler ?? 0;
     const haulCount = Object.values(campaign.lastHaul).reduce((sum, count) => sum + count, 0);
     const upgrades = campaign.mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
     const nextStageStats = mudflatStageStats(campaign.stage);
@@ -1370,19 +1368,17 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       <section className="ms-camp-layout">
         <article className="ms-market">
           <header><div><small>CATCH SUMMARY</small><h2>해산물 정산 내역</h2></div><span>{haulCount}마리 · 판매 완료</span></header>
-          <div className="ms-market-list">
+          <div className="ms-market-table" role="table" aria-label="해산물별 판매 내역">
             {soldItems.length > 0 ? soldItems.map((item) => {
               const count = campaign.lastHaul[item.type] ?? 0;
-              const unitPrice = mudflatSeafoodSaleValue(item.type, 1, coolerLevel);
-              const subtotal = mudflatSeafoodSaleValue(item.type, count, coolerLevel);
-              return <div key={item.type}>
+              return <div className="ms-market-cell" role="cell" key={item.type}>
                 <img src={item.image} alt="" />
-                <span><b>{item.name}</b><small>{item.unit ?? "마리"}당 {unitPrice}코인</small></span>
-                <em>{count}{item.unit ?? "마리"}</em><strong>{subtotal.toLocaleString()}코인</strong>
+                <b>{item.name}</b>
+                <small>{count.toLocaleString()}×{item.price}C</small>
               </div>;
             }) : <p className="ms-market-empty">이번 단계에서 정산할 해산물이 없습니다.</p>}
           </div>
-          <div className="ms-sale-total"><span>자동 판매 합계</span><b>{campaign.lastSaleValue.toLocaleString()}코인</b></div>
+          <div className="ms-sale-total"><span>전체 판매 가격</span><b>{campaign.lastSaleValue.toLocaleString()}코인</b></div>
         </article>
         <div className="ms-shop-stack">
           <article className="ms-shop"><header><small>EQUIPMENT SHOP</small><h2>장비 물품</h2></header><div>{MUDFLAT_SHOP_EQUIPMENT.map((item) => { const level = campaign.equipment[item.id] ?? 0; const price = mudflatEquipmentPrice(item.id, level); return <button type="button" key={item.id} disabled={level >= item.max || campaign.coins < price} onClick={() => buyEquipment(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{level >= item.max ? "최고 단계" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>

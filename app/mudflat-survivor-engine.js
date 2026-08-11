@@ -67,7 +67,7 @@ export const MUDFLAT_SHOP_EQUIPMENT = [
   { id: "waders", icon: "≫", name: "강화 갯벌 장화", description: "이동 속도가 5% 증가하고 최대 체력이 8 늘어납니다.", basePrice: 110, priceStep: 80, max: 4 },
   { id: "cooler", icon: "▣", name: "보냉 바구니", description: "해산물 판매가가 8% 오르고 수집 범위가 넓어집니다.", basePrice: 100, priceStep: 75, max: 4 },
   { id: "vest", icon: "♥", name: "부력 작업 조끼", description: "최대 체력이 15 늘어납니다.", basePrice: 130, priceStep: 95, max: 3 },
-  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "어두운 곳에 숨은 소라와 골뱅이가 출현합니다.", basePrice: 180, priceStep: 0, max: 1 },
+  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "어두운 곳에 숨은 소라와 골뱅이가 출현합니다.", basePrice: 1000, priceStep: 0, max: 1 },
 ];
 
 export const MUDFLAT_RECOVERY_FOODS = [

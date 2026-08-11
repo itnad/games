@@ -871,6 +871,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "whelk").size, 9);
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "fist-whelk").size, 18);
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
+  assert.equal(MUDFLAT_SHOP_EQUIPMENT.find((item) => item.id === "headlamp").basePrice, 1000);
+  assert.equal(mudflatEquipmentPrice("headlamp", 0), 1000);
   assert.equal(MUDFLAT_RECOVERY_FOODS.length, 3);
   assert.equal(mudflatSeafoodSaleValue("clam", 10, 0), 10);
   assert.equal(mudflatSeafoodSaleValue("clam", 10, 2), 11);
@@ -961,6 +963,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.doesNotMatch(source, /stats\.xpChance/);
   assert.match(source, /CATCH SUMMARY/);
   assert.match(source, /ms-camp-auto-sale/);
+  assert.match(source, /className="ms-market-table" role="table"/);
+  assert.match(source, /<small>\{count\.toLocaleString\(\)\}×\{item\.price\}C<\/small>/);
+  assert.match(source, /<span>전체 판매 가격<\/span>/);
+  assert.doesNotMatch(source, /자동 판매 합계/);
+  assert.match(styles, /\.ms-market-table\{[^}]*grid-template-columns:repeat\(8,minmax\(72px,1fr\)\)/);
   assert.doesNotMatch(source, /자동 정산했습니다|정산 복구| · 대왕 박하지/);
   assert.doesNotMatch(source, /1개 판매|바구니 모두 판매/);
   assert.match(source, /EQUIPMENT SHOP/);
