@@ -1,54 +1,54 @@
 const PARKING_LEVEL_SEEDS = [
-  { n: 1, d: "b", m: 4, map: "Th322Ah033Bv523Cv203Dv333Eh002Fh412Gv302Hh402Iv042Jh152Kh012" },
-  { n: 2, d: "b", m: 5, map: "Th322Ah402Bv302Ch353Dv113Eh042Fv022Gv242Hh102Iv213Jh332Kv002" },
-  { n: 3, d: "b", m: 8, map: "Th322Av222Bv102Cv333Dv202Eh452Fv122Gv512Hv242Iv142Jh432" },
-  { n: 4, d: "b", m: 9, map: "Th322Av213Bv102Ch252Dh452Eh022Fh052Gv432Hh143Ih202Jh032Kh312" },
-  { n: 5, d: "b", m: 10, map: "Th322Ah113Bh103Cv232Dh023Ev002Fh352Gh412Hh053Ih332Jh343" },
-  { n: 6, d: "i", m: 10, map: "Th222Ah022Bv132Ch053Dh212Ev102Fh232Gv002Hv032Ih352Jh303Kh432" },
-  { n: 7, d: "i", m: 11, map: "Th322Av112Bh412Ch002Dv542Eh352Fv042Gv332Hh152Iv222Jv432" },
-  { n: 8, d: "i", m: 13, map: "Th322Ah013Bh402Cv433Dh023Eh042Fv242Gv302Hv512Ih102Jv332" },
-  { n: 9, d: "i", m: 13, map: "Th222Av002Bv112Ch042Dh052Eh212Fh412Gh032Hv522Ih103" },
-  { n: 10, d: "i", m: 13, map: "Th222Av202Bh053Ch442Dh012Ev333Fh303Gh132Hh312Ih022Jh142Kh432" },
-  { n: 11, d: "i", m: 13, map: "Th322Ah042Bv242Ch122Dv342Eh402Fh442Gh412Hv302Iv102Jv022" },
-  { n: 12, d: "i", m: 14, map: "Th222Ah022Bh052Ch002Dh033Eh043Fh212Gv333Hh432Ih452Jv412Kv512" },
-  { n: 13, d: "i", m: 15, map: "Th322Av022Bh122Ch232Dh212Ev102Fv002Gh043Hv342Ih442" },
-  { n: 14, d: "i", m: 15, map: "Th322Av402Bh432Ch342Dh212Eh232Fh043Gh353Hh002Ih023" },
-  { n: 15, d: "i", m: 16, map: "Th222Av112Bh353Cv012Dh032Eh242Fh212Gh102Hh042Ih302" },
-  { n: 16, d: "i", m: 16, map: "Th122Ah313Bv342Cv012Dv422Ev032Fv232Gv202Hh302Ih002" },
-  { n: 17, d: "i", m: 17, map: "Th122Ah352Bv102Cv202Dh303Ev002Fv022Gh053Hh412Ih432Jh042Kv232" },
-  { n: 18, d: "i", m: 17, map: "Th322Ah402Bv242Cv103Dv002Ev333Fh432Gh442Hv132Ih452Jh202Kv222" },
-  { n: 19, d: "i", m: 17, map: "Th222Ah203Bv033Ch432Dh002Ev332Fh013Gv142Hv412Ih022" },
-  { n: 20, d: "i", m: 19, map: "Th222Av233Bh042Ch212Dv502Eh452Fh022Gv342Hv102Iv412Jh203" },
-  { n: 21, d: "i", m: 19, map: "Th022Av523Bv312Cv133Dv002Ev502Fh243Gh332Hh252Iv042Jv222Kh452" },
-  { n: 22, d: "i", m: 20, map: "Th322Av122Bv522Ch353Dv302Ev142Fh003Gv402Hv502Iv033Jh012" },
-  { n: 23, d: "i", m: 20, map: "Th322Ah122Bv032Ch302Dv003Ev202Fv433Gv102Hh232Iv342Jh142" },
-  { n: 24, d: "i", m: 20, map: "Th022Av142Bv222Cv002Dv102Eh412Fh212Gh242Hh032Ih303Jh252" },
-  { n: 25, d: "i", m: 21, map: "Th222Av233Bv103Ch052Dh042Eh333Fh202Gh213Hh402Iv002Jv022" },
-  { n: 26, d: "a", m: 21, map: "Th022Av142Bh452Ch132Dh442Ev102Fh252Gv522Hv033Iv332" },
-  { n: 27, d: "a", m: 22, map: "Th222Ah042Bv002Cv302Dh022Eh112Fh102Gh402Hv342Ih412" },
-  { n: 28, d: "a", m: 23, map: "Th022Ah452Bv222Cv132Dv202Ev342Fv432Gv322Hv102Iv502Jh152Kv002" },
-  { n: 29, d: "a", m: 23, map: "Th222Av432Bh402Cv512Dv412Ev302Fh012Gv042Hh252Ih452" },
-  { n: 30, d: "a", m: 23, map: "Th322Ah022Bv132Cv222Dh243Eh412Fv002Gh402Hh202Ih212Jv542Kh052" },
-  { n: 31, d: "a", m: 23, map: "Th322Ah232Bh012Ch432Dv033Eh002Fh442Gh252Hh202Ih023Jv502Kh452" },
-  { n: 32, d: "a", m: 24, map: "Th022Av423Bv312Cv133Dv042Ev542Fh412Gv212Hh232Ih242" },
-  { n: 33, d: "a", m: 24, map: "Th222Ah212Bh202Cv132Dv342Ev103Fv512Gv002Hh402Iv412Jv242" },
-  { n: 34, d: "a", m: 24, map: "Th322Ah043Bv203Ch002Dh303Eh152Fh452Gv342Hh012Ih232Jh032" },
-  { n: 35, d: "a", m: 25, map: "Th022Av102Bv242Ch412Dh352Eh033Fv542Gh042Hv522Ih212" },
-  { n: 36, d: "a", m: 25, map: "Th222Av412Bh113Ch022Dh153Eh432Fh303Gv002Hv332Iv512Jv442" },
-  { n: 37, d: "a", m: 25, map: "Th022Av342Bh013Ch333Dv403Ev502Fh003Gv222Hv033Ih152" },
-  { n: 38, d: "a", m: 26, map: "Th022Ah112Bh003Ch452Dv222Eh302Fv142Gh442Hh032Ih252" },
-  { n: 39, d: "a", m: 29, map: "Th222Av302Bh032Ch022Dh102Ev142Fh452Gh412Hv042Iv002" },
-  { n: 40, d: "a", m: 30, map: "Th222Ah402Bh043Cv412Dh022Ev202Fv302Gh452Hv342Iv513" },
-  { n: 41, d: "a", m: 30, map: "Th022Ah442Bv042Cv222Dh012Eh202Fv323Gh032Hh213Ih353Jh402" },
-  { n: 42, d: "a", m: 33, map: "Th022Av512Bh002Ch452Dh232Eh432Fv132Gh012Hv342Ih442Jh052Kv402" },
-  { n: 43, d: "a", m: 34, map: "Th222Ah343Bh152Ch022Dv522Eh002Fv302Gv033Hh332Ih412" },
-  { n: 44, d: "a", m: 37, map: "Th122Ah232Bv023Cv132Dv403Ev242Fh052Gv502Hh003Iv342" },
-  { n: 45, d: "a", m: 39, map: "Th122Av432Bv412Ch032Dv202Eh052Fv003Gh402Hv102Ih232Jh042" },
-  { n: 46, d: "a", m: 39, map: "Th222Ah202Bh212Cv042Dv422Eh412Fh442Gv342Hv232Ih032Jh402Kh152" },
-  { n: 47, d: "a", m: 41, map: "Th122Av332Bv312Ch052Dv102Ev022Fv242Gh202Hh132Iv002Jv402" },
-  { n: 48, d: "a", m: 42, map: "Th322Av112Bv333Cv402Dh132Eh212Fh002Gh452Hh202Iv242Jv042" },
-  { n: 49, d: "a", m: 46, map: "Th022Ah233Bv242Ch202Dv312Eh412Fv212Gh002Hh042Ih052" },
-  { n: 50, d: "a", m: 50, map: "Th322Av502Bh252Ch013Dh002Ev402Fh032Gv222Hh452Ih022Jv142" },
+  { n: 1, d: "b", m: 5, map: "Th022Av102Bh432Ch252Dv142Eh033Fh452Gv332Hh442" },
+  { n: 2, d: "b", m: 6, map: "Th022Ah103Bh113Cv433Dh232Ev502Fv522Gv142Hv032" },
+  { n: 3, d: "b", m: 9, map: "Th022Ah232Bv422Ch252Dh102Eh112Fh442Gv512Hh312" },
+  { n: 4, d: "b", m: 5, map: "Th022Ah312Bv032Cv142Dh432Eh132Fh013Gv442Hh252Ih102" },
+  { n: 5, d: "b", m: 5, map: "Th022Ah132Bh412Ch342Dh102Eh052Fh432Gh352Hh013Ih142" },
+  { n: 6, d: "i", m: 13, map: "Th022Ah152Bh412Ch142Dh212Eh402Fh232Gv422Hh342Iv542Jv522" },
+  { n: 7, d: "i", m: 10, map: "Th022Ah113Bh342Cv142Dv042Ev412Fh003Gh332Hv522Ih352Jh302" },
+  { n: 8, d: "i", m: 10, map: "Th022Av522Bh012Cv223Dv502Eh042Fv402Gv323Hh152Iv423" },
+  { n: 9, d: "i", m: 10, map: "Th022Av312Bv342Ch102Dv413Ev033Fv133Gh302Hv222Ih112Jv002" },
+  { n: 10, d: "i", m: 11, map: "Th022Av042Bv303Cv133Dv102Ev512Fh402Gv223Hh432Iv442" },
+  { n: 11, d: "i", m: 18, map: "Th022Ah342Bv303Ch352Dv522Eh142Fv222Gv422Hv102Ih412Jh052" },
+  { n: 12, d: "i", m: 14, map: "Th022Av542Bh012Cv232Dv303Ev132Fv033Gh402Hh352Iv522Jv212" },
+  { n: 13, d: "i", m: 10, map: "Th022Ah442Bv522Ch452Dh212Eh252Fh132Gv002Hh202Iv322Jh412" },
+  { n: 14, d: "i", m: 10, map: "Th022Av322Bh202Ch313Dh012Ev222Fh352Gh402Hv422Ih142Jv522" },
+  { n: 15, d: "i", m: 10, map: "Th022Ah012Bv542Ch242Dv203Eh303Fv142Gh432Hh132Iv042" },
+  { n: 16, d: "i", m: 11, map: "Th022Ah343Bv102Ch132Dh452Ev212Fv522Gv422Hv312Iv032" },
+  { n: 17, d: "i", m: 10, map: "Th022Ah003Bh053Ch012Dv523Ev342Fh402Gv322Hh312Ih132Jv422" },
+  { n: 18, d: "i", m: 11, map: "Th022Ah432Bh112Cv002Dv032Eh202Fv342Gv503Hv242Ih133Jv402" },
+  { n: 19, d: "i", m: 10, map: "Th022Av042Bv002Ch152Dv512Ev223Fv542Gv332Hv202Iv442Jv412" },
+  { n: 20, d: "i", m: 11, map: "Th022Ah343Bv213Ch002Dh352Eh432Fh032Gh012Hh142Ih202Jv312" },
+  { n: 21, d: "i", m: 12, map: "Th022Ah113Bv222Cv522Dh402Eh102Fh042Gh332Hv242Ih442" },
+  { n: 22, d: "i", m: 11, map: "Th022Av413Bh253Ch002Dv222Eh342Fv532Gv502Hh302Ih042Jh032" },
+  { n: 23, d: "i", m: 11, map: "Th022Av032Bh002Cv512Dv412Ev312Fh232Gh202Hv132Iv242" },
+  { n: 24, d: "i", m: 11, map: "Th022Ah013Bv312Cv042Dh342Ev512Fh232Gh252Hv403Ih102" },
+  { n: 25, d: "i", m: 10, map: "Th022Av322Bh243Ch013Dv422Eh132Fv532Gv402Hh152Iv512Jh452" },
+  { n: 26, d: "a", m: 15, map: "Th022Av342Bh113Ch333Dv403Ev512Fh003Gv222Hv033Ih152" },
+  { n: 27, d: "a", m: 15, map: "Th022Ah442Bv042Cv222Dh012Eh102Fv323Gh032Hh213Ih353Jh302" },
+  { n: 28, d: "a", m: 28, map: "Th122Av432Bv412Ch032Dv202Eh152Fv003Gh402Hv102Ih232Jh042" },
+  { n: 29, d: "a", m: 16, map: "Th122Ah442Bv042Cv232Dh012Eh002Fv323Gh032Hh213Ih353Jh302" },
+  { n: 30, d: "a", m: 24, map: "Th222Av442Bv412Ch032Dv202Eh252Fv003Gh402Hv102Ih332Jh142" },
+  { n: 31, d: "a", m: 16, map: "Th022Ah442Bv042Cv232Dh112Eh102Fv323Gh032Hh313Ih353Jh302" },
+  { n: 32, d: "a", m: 15, map: "Th122Ah442Bv042Cv242Dh012Eh002Fv323Gh032Hh313Ih353Jh302" },
+  { n: 33, d: "a", m: 24, map: "Th222Av432Bv412Ch032Dv202Eh252Fv003Gh302Hv102Ih232Jh242" },
+  { n: 34, d: "a", m: 17, map: "Th122Ah442Bv042Cv232Dh012Eh202Fv323Gh032Hh213Ih353Jh402" },
+  { n: 35, d: "a", m: 26, map: "Th122Av442Bv412Ch032Dv202Eh152Fv003Gh302Hv102Ih232Jh042" },
+  { n: 36, d: "a", m: 15, map: "Th022Ah442Bv042Cv222Dh012Eh102Fv323Gh032Hh213Ih353Jh402" },
+  { n: 37, d: "a", m: 15, map: "Th022Ah202Bh112Cv042Dv422Eh412Fh442Gv342Hv222Ih032Jh402Kh152" },
+  { n: 38, d: "a", m: 19, map: "Th222Av442Bv412Ch232Dv202Eh052Fv013Gh302Hv112Ih432Jh142" },
+  { n: 39, d: "a", m: 24, map: "Th222Av442Bv412Ch032Dv202Eh052Fv003Gh302Hv112Ih232Jh142" },
+  { n: 40, d: "a", m: 22, map: "Th222Av442Bv412Ch032Dv202Eh252Fv003Gh302Hv112Ih232Jh242" },
+  { n: 41, d: "a", m: 15, map: "Th022Ah442Bv042Cv242Dh112Eh102Fv323Gh032Hh313Ih353Jh302" },
+  { n: 42, d: "a", m: 24, map: "Th222Av432Bv412Ch032Dv202Eh252Fv003Gh402Hv112Ih232Jh242" },
+  { n: 43, d: "a", m: 15, map: "Th122Ah442Bv042Cv232Dh112Eh002Fv323Gh032Hh313Ih353Jh302" },
+  { n: 44, d: "a", m: 25, map: "Th222Av432Bv412Ch032Dv202Eh352Fv003Gh302Hv112Ih232Jh142" },
+  { n: 45, d: "a", m: 24, map: "Th222Av442Bv412Ch032Dv202Eh152Fv003Gh402Hv102Ih232Jh242" },
+  { n: 46, d: "a", m: 25, map: "Th222Av442Bv422Ch032Dv202Eh152Fv003Gh402Hv102Ih232Jh242" },
+  { n: 47, d: "a", m: 17, map: "Th122Ah442Bv042Cv232Dh012Eh102Fv323Gh032Hh213Ih353Jh302" },
+  { n: 48, d: "a", m: 26, map: "Th122Av432Bv412Ch032Dv202Eh152Fv003Gh302Hv102Ih232Jh142" },
+  { n: 49, d: "a", m: 15, map: "Th022Ah442Bv042Cv222Dh112Eh102Fv323Gh032Hh313Ih353Jh302" },
+  { n: 50, d: "a", m: 26, map: "Th122Av442Bv412Ch032Dv202Eh052Fv003Gh302Hv102Ih232Jh142" },
 ];
 
 const DIFFICULTY_NAMES = { b: "초급", i: "중급", a: "고급" };
@@ -69,10 +69,57 @@ function decodeParkingMap(map) {
   });
 }
 
+export function parkingMinimumMoves(cars, maxStates = 750000) {
+  const start = cars.flatMap((car) => [car.x, car.y]);
+  const stateKey = (positions) => positions.join("");
+  const queue = [{ positions: start, moves: 0 }];
+  const visited = new Set([stateKey(start)]);
+
+  for (let cursor = 0; cursor < queue.length && queue.length <= maxStates; cursor += 1) {
+    const { positions, moves } = queue[cursor];
+    const targetX = positions[0];
+    if (targetX + cars[0].len === 6) return moves + 1;
+
+    const occupied = new Int8Array(36).fill(-1);
+    for (let carIndex = 0; carIndex < cars.length; carIndex += 1) {
+      const car = cars[carIndex];
+      const x = positions[carIndex * 2];
+      const y = positions[carIndex * 2 + 1];
+      for (let step = 0; step < car.len; step += 1) {
+        const cellX = x + (car.axis === "h" ? step : 0);
+        const cellY = y + (car.axis === "v" ? step : 0);
+        occupied[cellY * 6 + cellX] = carIndex;
+      }
+    }
+
+    for (let carIndex = 0; carIndex < cars.length; carIndex += 1) {
+      const car = cars[carIndex];
+      const x = positions[carIndex * 2];
+      const y = positions[carIndex * 2 + 1];
+      for (const delta of [-1, 1]) {
+        const nextX = car.axis === "h" ? x + delta : x;
+        const nextY = car.axis === "v" ? y + delta : y;
+        if (nextX < 0 || nextY < 0 || nextX + (car.axis === "h" ? car.len : 1) > 6 || nextY + (car.axis === "v" ? car.len : 1) > 6) continue;
+        const leadingX = car.axis === "h" ? (delta > 0 ? x + car.len : x - 1) : x;
+        const leadingY = car.axis === "v" ? (delta > 0 ? y + car.len : y - 1) : y;
+        if (occupied[leadingY * 6 + leadingX] !== -1) continue;
+        const next = [...positions];
+        next[carIndex * 2] = nextX;
+        next[carIndex * 2 + 1] = nextY;
+        const key = stateKey(next);
+        if (!visited.has(key)) {
+          visited.add(key);
+          queue.push({ positions: next, moves: moves + 1 });
+        }
+      }
+    }
+  }
+  return Infinity;
+}
+
 export const PARKING_LEVELS = PARKING_LEVEL_SEEDS.map((seed) => ({
   number: seed.n,
   difficulty: DIFFICULTY_NAMES[seed.d],
   minMoves: seed.m,
   cars: decodeParkingMap(seed.map),
 }));
-

@@ -12,7 +12,7 @@ import {
 } from "../app/chess-engine.js";
 import { chooseAiHeld, describeAiHeld, shouldAiStop } from "../app/dice-ai.js";
 import { scoreDice } from "../app/dice-scoring.js";
-import { PARKING_LEVELS } from "../app/parking-levels.js";
+import { PARKING_LEVELS, parkingMinimumMoves } from "../app/parking-levels.js";
 import {
   TETRIS_HEIGHT,
   TETRIS_TYPES,
@@ -645,10 +645,12 @@ test("provides 50 ordered and valid Parking Escape levels", () => {
   assert.equal(PARKING_LEVELS.filter((level) => level.difficulty === "초급").length, 5);
   assert.equal(PARKING_LEVELS.filter((level) => level.difficulty === "중급").length, 20);
   assert.equal(PARKING_LEVELS.filter((level) => level.difficulty === "고급").length, 25);
+  const minimumByDifficulty = { 초급: 5, 중급: 10, 고급: 15 };
 
   for (const [index, level] of PARKING_LEVELS.entries()) {
     assert.equal(level.number, index + 1);
-    assert.ok(level.minMoves > 0);
+    assert.ok(level.minMoves >= minimumByDifficulty[level.difficulty]);
+    assert.equal(parkingMinimumMoves(level.cars), level.minMoves, `level ${level.number} minimum-move label must match its actual shortest solution`);
     assert.equal(level.cars[0].id, "T");
     assert.equal(level.cars[0].axis, "h");
     assert.equal(level.cars[0].y, 2);

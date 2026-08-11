@@ -247,8 +247,8 @@ export function ParkingEscapeGame({ onExit }: ExitProps) {
   const visibleLevels = PARKING_LEVELS.filter((item) => item.difficulty === levelGroup);
 
   useEffect(() => {
-    const savedUnlocked = Number(window.localStorage.getItem("paperoid-parking-unlocked") ?? 1);
-    const savedRecords = JSON.parse(window.localStorage.getItem("paperoid-parking-records") ?? "{}");
+    const savedUnlocked = Number(window.localStorage.getItem("paperoid-parking-unlocked-v2") ?? 1);
+    const savedRecords = JSON.parse(window.localStorage.getItem("paperoid-parking-records-v2") ?? "{}");
     setUnlocked(Math.max(1, Math.min(PARKING_LEVELS.length, savedUnlocked)));
     setRecords(savedRecords);
   }, []);
@@ -273,8 +273,8 @@ export function ParkingEscapeGame({ onExit }: ExitProps) {
       setWon(true);
       setRecords(nextRecords);
       setUnlocked(nextUnlocked);
-      window.localStorage.setItem("paperoid-parking-records", JSON.stringify(nextRecords));
-      window.localStorage.setItem("paperoid-parking-unlocked", String(nextUnlocked));
+      window.localStorage.setItem("paperoid-parking-records-v2", JSON.stringify(nextRecords));
+      window.localStorage.setItem("paperoid-parking-unlocked-v2", String(nextUnlocked));
       return;
     }
     const next = { ...car, x: car.axis === "h" ? car.x + delta : car.x, y: car.axis === "v" ? car.y + delta : car.y };
