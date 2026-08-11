@@ -870,6 +870,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "pearl").unit, "개");
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "whelk").size, 9);
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "fist-whelk").size, 18);
+  assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "whelk").visualScale, 1.2);
+  assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "fist-whelk").visualScale, .8);
+  assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "golbaengi").visualScale, .8);
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.find((item) => item.id === "headlamp").basePrice, 1000);
   assert.equal(mudflatEquipmentPrice("headlamp", 0), 1000);

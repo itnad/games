@@ -35,7 +35,7 @@ type GameMode = "kids" | "normal";
 type Point = { x: number; y: number };
 type CountMap = Record<string, number>;
 type CreatureMovement = "chase" | "still" | "wander" | "flee";
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number; movement: CreatureMovement; movementAngle: number; movementClock: number };
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number; movement: CreatureMovement; movementAngle: number; movementClock: number };
 type Pickup = Point & { id: number; xp: number };
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
@@ -247,7 +247,7 @@ function drawMudflat(
 }
 
 function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creature, elapsed: number, sprites: ReadonlyMap<string, HTMLImageElement>) {
-  const size = creature.size;
+  const size = creature.size * (creature.visualScale ?? 1);
   const wobble = Math.sin(elapsed * 5 + creature.phase) * .08;
   const bossPulse = creature.boss ? mudflatBossPulse(elapsed, creature.phase) : null;
   context.save();
@@ -1193,8 +1193,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const point = screenPoint(creature); if (point.x < -70 || point.y < -70 || point.x > width + 70 || point.y > height + 70) continue;
         context.save(); context.translate(point.x, point.y); drawCreatureSprite(context, creature, runtime.elapsed, creatureSprites); context.restore();
         if (creature.boss || creature.hp < creature.maxHp) {
-          const barWidth = creature.boss ? 104 : Math.max(28, creature.size * 2);
-          const barY = point.y - creature.size - (creature.boss ? 29 : 13);
+          const visualSize = creature.size * (creature.visualScale ?? 1);
+          const barWidth = creature.boss ? 104 : Math.max(28, visualSize * 2);
+          const barY = point.y - visualSize - (creature.boss ? 29 : 13);
           context.fillStyle = "rgba(28,22,21,.64)"; roundedRect(context, point.x - barWidth / 2, barY, barWidth, creature.boss ? 9 : 5, 4); context.fill();
           context.fillStyle = creature.boss ? "#ffd55f" : "#ff8a6f"; roundedRect(context, point.x - barWidth / 2 + 2, barY + 2, Math.max(0, (barWidth - 4) * creature.hp / creature.maxHp), creature.boss ? 5 : 1.5, 3); context.fill();
           if (creature.boss) { context.fillStyle = "#fff4cf"; context.font = "800 12px system-ui"; context.textAlign = "center"; context.fillText("대왕 박하지", point.x, barY - 6); }
