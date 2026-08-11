@@ -733,7 +733,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const keysRef = useRef(new Set<string>());
   const sequenceRef = useRef(1);
   const [screen, setScreen] = useState<Screen>("setup");
-  const [mode, setMode] = useState<GameMode>("kids");
+  const [mode, setMode] = useState<GameMode>("normal");
   const [characterId, setCharacterId] = useState("digger");
   const [hud, setHud] = useState<Hud>(emptyHud);
   const [choices, setChoices] = useState<Array<{ id: string; icon: string; name: string; description: string; max: number }>>([]);

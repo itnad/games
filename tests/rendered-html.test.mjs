@@ -1018,6 +1018,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   const engineSource = await readFile(new URL("../app/mudflat-survivor-engine.js", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
   assert.match(source, /event\.clientX - joystick\.originX/);
+  assert.match(source, /const \[mode, setMode\] = useState<GameMode>\("normal"\)/);
+  assert.match(source, /const lastMode = window\.localStorage\.getItem\(LAST_MODE_KEY\)[\s\S]*?if \(lastMode === "kids" \|\| lastMode === "normal"\) setMode\(lastMode\)/);
+  assert.match(source, /setMode\("normal"\); window\.localStorage\.setItem\(LAST_MODE_KEY, "normal"\)/);
+  assert.match(source, /setMode\("kids"\); window\.localStorage\.setItem\(LAST_MODE_KEY, "kids"\)/);
   assert.match(source, /event\.clientY - joystick\.originY/);
   assert.match(source, /onPointerCancel=\{pointerEnd\}/);
   assert.match(source, /onLostPointerCapture=\{pointerEnd\}/);
