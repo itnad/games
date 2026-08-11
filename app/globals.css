@@ -150,6 +150,30 @@ a:focus-visible {
   cursor: pointer;
   font-size: 13px;
   font-weight: 850;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.app-update-notice button:disabled {
+  cursor: wait;
+  opacity: .82;
+}
+
+.app-update-spinner {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  border: 2px solid rgba(255, 255, 255, .38);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: app-update-spin .72s linear infinite;
+}
+
+@keyframes app-update-spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 700px) {

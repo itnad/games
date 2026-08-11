@@ -630,7 +630,13 @@ test("detects published site updates and refreshes only through safe user action
   assert.match(pageSource, /onExit=\{exitGame\}/);
   assert.match(pageSource, /PENDING_GAME_AFTER_UPDATE_KEY/);
   assert.match(pageSource, /새 버전이 준비되었습니다/);
+  assert.match(pageSource, /const \[isUpdating, setIsUpdating\] = useState\(false\)/);
+  assert.match(pageSource, /setIsUpdating\(true\)[\s\S]*?requestAnimationFrame\(\(\) => window\.requestAnimationFrame\(onUpdate\)\)/);
+  assert.match(pageSource, /disabled=\{isUpdating\} aria-busy=\{isUpdating\}/);
+  assert.match(pageSource, /app-update-spinner/);
   assert.match(styles, /\.app-update-notice\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?z-index:\s*10000;/);
+  assert.match(styles, /\.app-update-spinner\s*\{[\s\S]*?border-radius:\s*50%;[\s\S]*?animation:\s*app-update-spin/);
+  assert.match(styles, /@keyframes app-update-spin/);
 });
 
 test("keeps the home introduction compact on mobile", async () => {

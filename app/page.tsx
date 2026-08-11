@@ -2371,13 +2371,23 @@ function HomeContent({
 }
 
 function AppUpdateNotice({ onUpdate }: { onUpdate: () => void }) {
+  const [isUpdating, setIsUpdating] = useState(false);
+  const beginUpdate = () => {
+    if (isUpdating) return;
+    setIsUpdating(true);
+    // Let the pressed/loading state paint before location.replace starts navigation.
+    window.requestAnimationFrame(() => window.requestAnimationFrame(onUpdate));
+  };
   return (
     <aside className="app-update-notice" role="status" aria-live="polite">
       <span>
         <b>새 버전이 준비되었습니다</b>
         <small>게임 나가기나 새 게임 시작 시 자동으로 반영됩니다.</small>
       </span>
-      <button type="button" onClick={onUpdate}>지금 업데이트</button>
+      <button type="button" onClick={beginUpdate} disabled={isUpdating} aria-busy={isUpdating}>
+        {isUpdating && <i className="app-update-spinner" aria-hidden="true" />}
+        <span>{isUpdating ? "업데이트 중" : "지금 업데이트"}</span>
+      </button>
     </aside>
   );
 }
