@@ -92,10 +92,10 @@ type GameId =
   | "ten-seconds"
   | "mudflat-survivor"
   | "tetris";
-type Category = "전체" | "전략" | "카드게임" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
+type Category = "전체" | "전략" | "모바일" | "카드게임" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
 
-const CATEGORIES: Category[] = ["전체", "전략", "카드게임", "고전게임", "기억력", "추리", "퍼즐", "주사위", "경주", "터치류", "RPG"];
-const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "카드게임", "고전게임", "기억력", "추리", "퍼즐", "주사위", "경주", "터치류", "RPG"];
+const CATEGORIES: Category[] = ["전체", "전략", "모바일", "고전게임", "주사위", "터치류", "카드게임", "기억력", "추리", "퍼즐", "경주", "RPG"];
+const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "모바일", "고전게임", "주사위", "터치류", "카드게임", "기억력", "추리", "퍼즐", "경주", "RPG"];
 
 type GameDefinition = {
   id: GameId;
@@ -431,7 +431,7 @@ const GAMES: GameDefinition[] = [
     id: "mudflat-survivor",
     title: "해루질럿",
     subtitle: "어린이·일반 모드에서 밀물 전 해산물을 채집하세요",
-    category: "터치류",
+    category: "모바일",
     players: "1인 생존 채집",
     tone: "teal",
   },
@@ -463,7 +463,6 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "miniville",
   "camel-up",
   "winners-circle",
-  "mudflat-survivor",
   "paper-dungeon",
   "tetris",
 ]);

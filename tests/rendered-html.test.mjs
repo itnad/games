@@ -346,7 +346,6 @@ test("hides unverified games by default and reveals them from the footer phrase"
     "miniville",
     "camel-up",
     "winners-circle",
-    "mudflat-survivor",
     "paper-dungeon",
     "tetris",
   ];
@@ -527,6 +526,7 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /주차 탈출/);
   assert.match(html, /종이 던전/);
   assert.match(html, /10\.00/);
+  assert.match(html, /해루질럿/);
   for (const hiddenTitle of [
     "만칼라",
     "고누",
@@ -544,7 +544,6 @@ test("server-renders the paperoid game library", async () => {
     "카멜 업",
     "티츄",
     "현금흐름 탈출",
-    "해루질럿",
     "테트리스",
   ]) {
     assert.doesNotMatch(html, new RegExp(hiddenTitle));
@@ -587,6 +586,18 @@ test("separates traditional classics from the strategy category", async () => {
     assert.match(pageSource, new RegExp(`id: "${id}",[\\s\\S]*?category: "고전게임"`));
   }
   assert.match(pageSource, /title=\{item === "고전게임" \? item : `\$\{item\} 게임`\}/);
+});
+
+test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const categoryOrder = '["전체", "전략", "모바일", "고전게임", "주사위", "터치류"';
+  const hiddenSet = pageSource.match(/const DEFAULT_HIDDEN_GAME_IDS[\s\S]*?\]\);/)?.[0] ?? "";
+
+  assert.match(pageSource, /type Category = [^;]*"모바일"/);
+  assert.ok(pageSource.includes(`const CATEGORIES: Category[] = ${categoryOrder}`));
+  assert.ok(pageSource.includes('const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "모바일", "고전게임", "주사위", "터치류"'));
+  assert.match(pageSource, /id: "mudflat-survivor",[\s\S]*?category: "모바일"/);
+  assert.doesNotMatch(hiddenSet, /"mudflat-survivor"/);
 });
 
 test("keeps the home introduction compact on mobile", async () => {
