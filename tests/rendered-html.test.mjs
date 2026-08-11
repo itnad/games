@@ -892,6 +892,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "fist-whelk").visualScale, .8);
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "golbaengi").visualScale, .8);
   const pufferfish = MUDFLAT_CREATURES.find((item) => item.id === "pufferfish");
+  assert.equal(pufferfish.hp, 118);
   assert.equal(pufferfish.speed, 155 * .7);
   assert.equal(pufferfish.movement, "oval");
   assert.equal(pufferfish.spawnVariant, true);
@@ -965,11 +966,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawHarpoonSprite\(/);
   assert.match(source, /function drawRockHookBar\(/);
   assert.match(source, /function drawRock\(context:[\s\S]*?const shake =[\s\S]*?const liftProgress =/);
+  assert.match(source, /context\.fillText\(`돌뒤집기 \$\{Math\.ceil\(progress \* 100\)\}%`/);
   assert.match(source, /rockId: target\.id[\s\S]*?life: stats\.processingTime, maxLife: stats\.processingTime/);
   assert.match(source, /runtime\.rockFlipEffect && runtime\.rockFlipEffect\.life <= 0[\s\S]*?mudflatRockCreatureForRoll\(Math\.random\(\), runtime\.levels\.rocker \?\? 1\)/);
   assert.match(source, /const stillInRange = target &&[\s\S]*?runtime\.rockFlipEffect = null;[\s\S]*?runtime\.rockTurnClock = \.12/);
   assert.doesNotMatch(source, /text: "빈 돌"/);
   assert.match(source, /creature\.movement === "oval"/);
+  assert.match(source, /const retreatSpeed = travelSpeed \* \.62/);
+  assert.match(source, /const orbitSpeed = travelSpeed \* \.34/);
   assert.match(source, /creature\.type === "pufferfish"/);
   assert.match(source, /speed: finding\.type === "pufferfish" \? template\.speed/);
   assert.match(source, /mudflatPufferBleedOnContact/);

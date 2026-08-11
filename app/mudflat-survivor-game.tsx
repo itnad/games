@@ -455,6 +455,18 @@ function drawRock(context: CanvasRenderingContext2D, rock: Rock, effect?: RockFl
   context.closePath(); context.fill();
   context.strokeStyle = "rgba(240,225,197,.22)"; context.lineWidth = 2; context.stroke();
   context.restore();
+  if (effect) {
+    const ringRadius = radius + 10;
+    context.save();
+    context.strokeStyle = "rgba(38,31,28,.58)"; context.lineWidth = 6;
+    context.beginPath(); context.arc(0, 0, ringRadius, -Math.PI / 2, Math.PI * 1.5); context.stroke();
+    context.strokeStyle = "#ffe29a"; context.lineWidth = 4;
+    context.beginPath(); context.arc(0, 0, ringRadius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress); context.stroke();
+    context.fillStyle = "#fff8df"; context.font = "900 11px system-ui"; context.textAlign = "center";
+    context.shadowColor = "rgba(20,16,14,.78)"; context.shadowBlur = 5;
+    context.fillText(`돌뒤집기 ${Math.ceil(progress * 100)}%`, 0, -radius - 17);
+    context.restore();
+  }
 }
 
 function drawClamHole(context: CanvasRenderingContext2D, hole: ClamHole) {
@@ -1102,10 +1114,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const direction = creature.ovalDirection ?? 1;
           const travelSpeed = creature.speed;
           creature.movementAngle += direction * travelSpeed / 52 * dt;
-          const localX = -Math.sin(creature.movementAngle) * travelSpeed * direction;
-          const localY = Math.cos(creature.movementAngle) * travelSpeed * .58 * direction;
-          creature.x += (Math.cos(creature.phase) * localX - Math.sin(creature.phase) * localY) * dt;
-          creature.y += (Math.sin(creature.phase) * localX + Math.cos(creature.phase) * localY) * dt;
+          // The ellipse travels with the fish while its centre consistently
+          // retreats from the player, so a loop can never bring it closer.
+          const retreatSpeed = travelSpeed * .62;
+          const orbitSpeed = travelSpeed * .34;
+          const localX = -Math.sin(creature.movementAngle) * orbitSpeed * direction;
+          const localY = Math.cos(creature.movementAngle) * orbitSpeed * .58 * direction;
+          creature.x += (-dx / distance * retreatSpeed + Math.cos(creature.phase) * localX - Math.sin(creature.phase) * localY) * dt;
+          creature.y += (-dy / distance * retreatSpeed + Math.sin(creature.phase) * localX + Math.cos(creature.phase) * localY) * dt;
         }
         creature.saltHit = Math.max(0, creature.saltHit - dt); creature.hitFlash = Math.max(0, creature.hitFlash - dt);
         if (distance < creature.size + 17) {

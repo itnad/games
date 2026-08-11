@@ -13,7 +13,7 @@ export const MUDFLAT_CREATURES = [
   { id: "octopus", name: "낙지", family: "seafood", sprite: "/mudflat-creatures/octopus.png", icon: "✣", color: "#c9cdd0", hp: 22, speed: 38, size: 20, xp: 8, score: 75, unlock: 110, movement: "flee" },
   { id: "golbaengi", name: "골뱅이", family: "seafood", sprite: "/mudflat-creatures/golbaengi-v2.png", icon: "@", color: "#b97b42", hp: 16, speed: 1, size: 19, visualScale: .8, xp: 6, score: 52, unlock: 90, movement: "chase", requiresHeadlamp: true },
   { id: "flounder", name: "광어", family: "seafood", sprite: "/mudflat-creatures/flounder.png", icon: "◇", color: "#a59369", hp: 30, speed: 52, size: 22, xp: 10, score: 95, unlock: 145, movement: "flee" },
-  { id: "pufferfish", name: "복어", family: "seafood", sprite: "/mudflat-creatures/pufferfish.png", icon: "●", color: "#d69a38", hp: 18, speed: 108.5, size: 22, xp: 7, score: 68, unlock: 0, movement: "oval", spawnVariant: true },
+  { id: "pufferfish", name: "복어", family: "seafood", sprite: "/mudflat-creatures/pufferfish.png", icon: "●", color: "#d69a38", hp: 118, speed: 108.5, size: 22, xp: 7, score: 68, unlock: 0, movement: "oval", spawnVariant: true },
   { id: "fist-whelk", name: "주먹소라", family: "seafood", sprite: "/mudflat-creatures/whelk.png", icon: "@", color: "#b77f4d", hp: 14, speed: 1, size: 18, visualScale: .8, xp: 5, score: 45, unlock: 65, movement: "flee", requiresHeadlamp: true, spawnVariant: true },
   { id: "king-crab", name: "대왕 박하지", family: "crab", sprite: "/mudflat-creatures/king-crab.svg", icon: "♛", color: "#3a195b", hp: 420, speed: 28, size: 43, xp: 80, score: 1800, unlock: 200, boss: true },
 ];
