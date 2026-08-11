@@ -23,6 +23,7 @@ import {
   mudflatPufferBleedOnContact,
   mudflatPufferBleedStep,
   mudflatPufferMovementForAge,
+  mudflatShellMovementSpeed,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
   mudflatStageProfile,
@@ -1101,15 +1102,16 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         creature.age += dt;
         const dx = runtime.player.x - creature.x; const dy = runtime.player.y - creature.y; const distance = Math.hypot(dx, dy) || 1;
         const activeMovement = creature.type === "pufferfish" ? mudflatPufferMovementForAge(creature.age) : creature.movement;
+        const creatureSpeed = ["whelk", "fist-whelk", "golbaengi"].includes(creature.type) ? mudflatShellMovementSpeed(speed) : creature.speed;
         if (activeMovement === "chase") {
-          creature.x += dx / distance * creature.speed * dt; creature.y += dy / distance * creature.speed * dt;
+          creature.x += dx / distance * creatureSpeed * dt; creature.y += dy / distance * creatureSpeed * dt;
         } else if (activeMovement === "wander") {
           creature.movementClock -= dt;
           if (creature.movementClock <= 0) { creature.movementAngle = Math.random() * Math.PI * 2; creature.movementClock += 1; }
-          creature.x += Math.cos(creature.movementAngle) * creature.speed * dt;
-          creature.y += Math.sin(creature.movementAngle) * creature.speed * dt;
+          creature.x += Math.cos(creature.movementAngle) * creatureSpeed * dt;
+          creature.y += Math.sin(creature.movementAngle) * creatureSpeed * dt;
         } else if (activeMovement === "flee") {
-          creature.x -= dx / distance * creature.speed * dt; creature.y -= dy / distance * creature.speed * dt;
+          creature.x -= dx / distance * creatureSpeed * dt; creature.y -= dy / distance * creatureSpeed * dt;
         } else if (activeMovement === "oval") {
           creature.movementClock -= dt;
           if (creature.movementClock <= 0) {
@@ -1117,7 +1119,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             creature.ovalDirection = Math.random() < .5 ? -1 : 1;
           }
           const direction = creature.ovalDirection ?? 1;
-          const travelSpeed = creature.speed;
+          const travelSpeed = creatureSpeed;
           creature.movementAngle += direction * travelSpeed / 52 * dt;
           // The ellipse travels with the fish while its centre consistently
           // retreats from the player, so a loop can never bring it closer.

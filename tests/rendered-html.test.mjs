@@ -132,6 +132,7 @@ import {
   mudflatPufferBleedOnContact,
   mudflatPufferBleedStep,
   mudflatPufferMovementForAge,
+  mudflatShellMovementSpeed,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
   mudflatStageProfile,
@@ -839,11 +840,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatCreatureForTime(100, 0.99, { headlamp: true }).id, "golbaengi");
   const whelk = MUDFLAT_CREATURES.find((creature) => creature.id === "whelk");
   const golbaengi = MUDFLAT_CREATURES.find((creature) => creature.id === "golbaengi");
-  assert.equal(whelk.speed, 1);
+  assert.equal(whelk.speed, 155 * .05);
   assert.equal(whelk.movement, "flee");
-  assert.equal(golbaengi.speed, 1);
+  assert.equal(golbaengi.speed, 155 * .05);
   assert.equal(golbaengi.movement, "chase");
   assert.equal(golbaengi.sprite, "/mudflat-creatures/golbaengi-v2.png");
+  assert.equal(MUDFLAT_CREATURES.find((creature) => creature.id === "fist-whelk").speed, 155 * .05);
+  assert.equal(mudflatShellMovementSpeed(155), 7.75);
+  assert.equal(mudflatShellMovementSpeed(200), 10);
   assert.ok(mudflatSpawnInterval(200) < mudflatSpawnInterval(0));
   assert.ok(mudflatSpawnInterval(0, "normal") < mudflatSpawnInterval(0, "kids"));
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
@@ -1018,6 +1022,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const stillInRange = target &&[\s\S]*?runtime\.rockFlipEffect = null;[\s\S]*?runtime\.rockTurnClock = \.12/);
   assert.doesNotMatch(source, /text: "빈 돌"/);
   assert.match(source, /mudflatPufferMovementForAge\(creature\.age\)/);
+  assert.match(source, /\["whelk", "fist-whelk", "golbaengi"\]\.includes\(creature\.type\) \? mudflatShellMovementSpeed\(speed\)/);
   assert.match(source, /creature\.age \+= dt/);
   assert.match(source, /activeMovement === "oval"/);
   assert.match(source, /const retreatSpeed = travelSpeed \* \.62/);
