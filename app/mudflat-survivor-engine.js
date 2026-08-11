@@ -13,15 +13,18 @@ export const MUDFLAT_CREATURES = [
   { id: "octopus", name: "낙지", family: "seafood", sprite: "/mudflat-creatures/octopus.png", icon: "✣", color: "#c9cdd0", hp: 22, speed: 38, size: 20, xp: 8, score: 75, unlock: 110, movement: "flee" },
   { id: "golbaengi", name: "골뱅이", family: "seafood", sprite: "/mudflat-creatures/golbaengi-v2.png", icon: "@", color: "#b97b42", hp: 16, speed: 1, size: 19, visualScale: .8, xp: 6, score: 52, unlock: 90, movement: "chase", requiresHeadlamp: true },
   { id: "flounder", name: "광어", family: "seafood", sprite: "/mudflat-creatures/flounder.png", icon: "◇", color: "#a59369", hp: 30, speed: 52, size: 22, xp: 10, score: 95, unlock: 145, movement: "flee" },
+  { id: "pufferfish", name: "복어", family: "seafood", sprite: "/mudflat-creatures/pufferfish.png", icon: "●", color: "#d69a38", hp: 18, speed: 108.5, size: 22, xp: 7, score: 68, unlock: 0, movement: "oval", spawnVariant: true },
   { id: "fist-whelk", name: "주먹소라", family: "seafood", sprite: "/mudflat-creatures/whelk.png", icon: "@", color: "#b77f4d", hp: 14, speed: 1, size: 18, visualScale: .8, xp: 5, score: 45, unlock: 65, movement: "flee", requiresHeadlamp: true, spawnVariant: true },
   { id: "king-crab", name: "대왕 박하지", family: "crab", sprite: "/mudflat-creatures/king-crab.svg", icon: "♛", color: "#3a195b", hp: 420, speed: 28, size: 43, xp: 80, score: 1800, unlock: 200, boss: true },
 ];
 
 export const MUDFLAT_ROCK_FINDINGS = [
-  { type: "shrimp", name: "새우", movement: "wander", chance: 0.5 },
-  { type: "small-crab", name: "작은게", movement: "chase", chance: 0.3 },
-  { type: "octopus", name: "낙지", movement: "flee", chance: 0.15 },
-  { type: "flounder", name: "광어", movement: "flee", chance: 0.05 },
+  { type: "shrimp", name: "새우", movement: "wander", level1Chance: 0.2, level6Chance: 0.1 },
+  { type: "small-crab", name: "작은게", movement: "chase", level1Chance: 0.3, level6Chance: 0.2 },
+  { type: "crab", name: "칠게", movement: "chase", level1Chance: 0.1, level6Chance: 0.1 },
+  { type: "blue-crab", name: "민꽃게", movement: "chase", level1Chance: 0.1, level6Chance: 0.1 },
+  { type: "octopus", name: "낙지", movement: "flee", level1Chance: 0.1, level6Chance: 0.2 },
+  { type: "pufferfish", name: "복어", movement: "oval", level1Chance: 0.05, level6Chance: 0.15 },
 ];
 
 export const MUDFLAT_CLAM_GRADES = [
@@ -57,6 +60,7 @@ export const MUDFLAT_SEAFOOD_MARKET = [
   { type: "octopus", name: "낙지", image: "/mudflat-creatures/octopus.png", price: 20 },
   { type: "golbaengi", name: "골뱅이", image: "/mudflat-creatures/golbaengi-v2.png", price: 6 },
   { type: "flounder", name: "광어", image: "/mudflat-creatures/flounder.png", price: 50 },
+  { type: "pufferfish", name: "복어", image: "/mudflat-creatures/pufferfish.png", price: 15 },
   ...MUDFLAT_CLAM_GRADES.map((item) => ({ type: item.id, name: item.name, image: item.id === "razor-clam" ? "/mudflat-creatures/razor-clam.svg" : "/mudflat-creatures/clam.png", price: item.price })),
   { type: MUDFLAT_PEARL.id, name: MUDFLAT_PEARL.name, image: "/mudflat-creatures/pearl.png", price: MUDFLAT_PEARL.price, unit: "개" },
   { type: "king-crab", name: "대왕 박하지", image: "/mudflat-creatures/king-crab.svg", price: 100 },
@@ -213,24 +217,42 @@ export function mudflatHarpoonStats(level = 0, netLevel = 1) {
 }
 
 export function mudflatRockTurnerStats(level = 0) {
-  const safeLevel = Math.max(0, Math.floor(level));
-  if (safeLevel === 0) return { interval: Infinity, activationsPerSecond: 0, creatureChance: 0 };
-  const activationsPerSecond = 1.3 ** (safeLevel - 1);
+  const safeLevel = Math.max(0, Math.min(6, Math.floor(level)));
+  if (safeLevel === 0) return { processingTime: Infinity, interval: Infinity, activationsPerSecond: 0 };
+  const processingTime = [1, 0.8, 0.6, 0.4, 0.2, 0.2][safeLevel - 1];
   return {
-    interval: 1 / activationsPerSecond,
-    activationsPerSecond,
-    creatureChance: Math.min(1, Math.round((0.2 + (safeLevel - 1) * 0.1) * 100) / 100),
+    processingTime,
+    interval: processingTime,
+    activationsPerSecond: 1 / processingTime,
   };
 }
 
-export function mudflatRockCreatureForRoll(roll = 0) {
+export function mudflatRockCreatureForRoll(roll = 0, level = 1) {
   const safeRoll = Math.max(0, Math.min(0.999999, Number.isFinite(roll) ? roll : 0));
+  const safeLevel = Math.max(1, Math.min(6, Math.floor(level)));
+  const levelRatio = (safeLevel - 1) / 5;
   let accumulated = 0;
   for (const finding of MUDFLAT_ROCK_FINDINGS) {
-    accumulated += finding.chance;
+    accumulated += finding.level1Chance + (finding.level6Chance - finding.level1Chance) * levelRatio;
     if (safeRoll < accumulated) return finding;
   }
-  return MUDFLAT_ROCK_FINDINGS.at(-1);
+  return null;
+}
+
+export function mudflatPufferBleedOnContact(seconds = 0, tickClock = 1) {
+  return { seconds: 50, tickClock: seconds > 0 ? tickClock : 1 };
+}
+
+export function mudflatPufferBleedStep(seconds = 0, tickClock = 1, deltaSeconds = 0) {
+  const safeSeconds = Math.max(0, Number(seconds) || 0);
+  const activeTime = Math.min(Math.max(0, Number(deltaSeconds) || 0), safeSeconds);
+  let nextTickClock = Number.isFinite(tickClock) ? tickClock - activeTime : 1;
+  let ticks = 0;
+  while (nextTickClock <= 0 && ticks < 100) {
+    ticks += 1;
+    nextTickClock += 1;
+  }
+  return { seconds: Math.max(0, safeSeconds - activeTime), tickClock: nextTickClock, ticks };
 }
 
 export function mudflatStageStats(stage = 1) {

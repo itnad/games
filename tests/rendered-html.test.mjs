@@ -128,6 +128,8 @@ import {
   mudflatHarpoonStats,
   mudflatJoystickVector,
   mudflatNetStats,
+  mudflatPufferBleedOnContact,
+  mudflatPufferBleedStep,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
   mudflatSeafoodSaleValue,
@@ -827,16 +829,27 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatHarpoonStats(1, 1).damage, 30);
   assert.equal(mudflatHarpoonStats(2, 2).damage, 45);
   assert.equal(mudflatHarpoonStats(1, 1).speed, 760 * 0.4);
-  assert.equal(mudflatRockTurnerStats(1).creatureChance, 0.2);
-  assert.equal(mudflatRockTurnerStats(2).creatureChance, 0.3);
-  assert.equal(mudflatRockTurnerStats(2).activationsPerSecond, 1.3);
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatRockTurnerStats(level).processingTime), [1, .8, .6, .4, .2, .2]);
+  assert.equal(mudflatRockTurnerStats(2).activationsPerSecond, 1.25);
   assert.equal(mudflatRockCreatureForRoll(0).type, "shrimp");
-  assert.equal(mudflatRockCreatureForRoll(0.4999).type, "shrimp");
-  assert.equal(mudflatRockCreatureForRoll(0.5).type, "small-crab");
-  assert.equal(mudflatRockCreatureForRoll(0.7999).type, "small-crab");
-  assert.equal(mudflatRockCreatureForRoll(0.8).type, "octopus");
-  assert.equal(mudflatRockCreatureForRoll(0.9499).type, "octopus");
-  assert.equal(mudflatRockCreatureForRoll(0.999).type, "flounder");
+  assert.equal(mudflatRockCreatureForRoll(.1999, 1).type, "shrimp");
+  assert.equal(mudflatRockCreatureForRoll(.2001, 1).type, "small-crab");
+  assert.equal(mudflatRockCreatureForRoll(.5001, 1).type, "crab");
+  assert.equal(mudflatRockCreatureForRoll(.6001, 1).type, "blue-crab");
+  assert.equal(mudflatRockCreatureForRoll(.7001, 1).type, "octopus");
+  assert.equal(mudflatRockCreatureForRoll(.8001, 1).type, "pufferfish");
+  assert.equal(mudflatRockCreatureForRoll(.8501, 1), null);
+  assert.equal(mudflatRockCreatureForRoll(.0999, 6).type, "shrimp");
+  assert.equal(mudflatRockCreatureForRoll(.1001, 6).type, "small-crab");
+  assert.equal(mudflatRockCreatureForRoll(.3001, 6).type, "crab");
+  assert.equal(mudflatRockCreatureForRoll(.4001, 6).type, "blue-crab");
+  assert.equal(mudflatRockCreatureForRoll(.5001, 6).type, "octopus");
+  assert.equal(mudflatRockCreatureForRoll(.7001, 6).type, "pufferfish");
+  assert.equal(mudflatRockCreatureForRoll(.8501, 6), null);
+  assert.deepEqual(mudflatPufferBleedOnContact(), { seconds: 50, tickClock: 1 });
+  assert.deepEqual(mudflatPufferBleedOnContact(12, .4), { seconds: 50, tickClock: .4 });
+  assert.deepEqual(mudflatPufferBleedStep(50, 1, 1), { seconds: 49, tickClock: 1, ticks: 1 });
+  assert.deepEqual(mudflatPufferBleedStep(50, 1, 50), { seconds: 0, tickClock: 1, ticks: 50 });
   assert.deepEqual(MUDFLAT_CLAM_GRADES.map((grade) => grade.name), ["작은조개", "바지락", "동죽", "백합", "피조개", "맛조개"]);
   assert.equal(mudflatClamRewardForRoll(1, 0).id, "small-clam");
   assert.equal(mudflatClamRewardForRoll(1, 0.5999).id, "small-clam");
@@ -859,7 +872,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
     Object.fromEntries(MUDFLAT_SEAFOOD_MARKET.map((item) => [item.type, item.price])),
     {
       "small-crab": 2, crab: 3, "shore-crab": 4, "fiddler-crab": 5, "blue-crab": 7, "purple-crab": 9,
-      shrimp: 1, whelk: 2, "fist-whelk": 8, octopus: 20, golbaengi: 6, flounder: 50,
+      shrimp: 1, whelk: 2, "fist-whelk": 8, octopus: 20, golbaengi: 6, flounder: 50, pufferfish: 15,
       "small-clam": 0, clam: 1, dongjuk: 2, "hard-clam": 3, "ark-shell": 10, "razor-clam": 12,
       pearl: 10000, "king-crab": 100,
     },
@@ -873,6 +886,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "whelk").visualScale, 1.2);
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "fist-whelk").visualScale, .8);
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "golbaengi").visualScale, .8);
+  const pufferfish = MUDFLAT_CREATURES.find((item) => item.id === "pufferfish");
+  assert.equal(pufferfish.speed, 155 * .7);
+  assert.equal(pufferfish.movement, "oval");
+  assert.equal(pufferfish.spawnVariant, true);
+  assert.ok((await readFile(new URL("../public/mudflat-creatures/pufferfish.png", import.meta.url))).byteLength > 10_000);
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.find((item) => item.id === "headlamp").basePrice, 1000);
   assert.equal(mudflatEquipmentPrice("headlamp", 0), 1000);
@@ -926,13 +944,22 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const sprite = creature\.sprite && !creature\.boss \? sprites\.get\(creature\.type\) : undefined/);
   assert.match(source, /mudflatBossPulse\(elapsed, creature\.phase\)/);
   assert.match(source, /id: sequenceRef\.current\+\+, type: template\.id, x: runtime\.player\.x/);
-  assert.match(source, /const revealRockCreature = \(rock: Rock\) => \{[\s\S]*?id: sequenceRef\.current\+\+,\s*type: template\.id,/);
+  assert.match(source, /const revealRockCreature = \(rock: Rock, finding:[\s\S]*?id: sequenceRef\.current\+\+,\s*type: template\.id,/);
   assert.match(source, /function drawGatherer\(/);
   assert.match(source, /function drawRotatingTongs\(/);
   assert.match(source, /function drawHarpoonSprite\(/);
   assert.match(source, /function drawRockHookBar\(/);
-  assert.match(source, /const ROCK_FLIP_EFFECT_DURATION = \.58 \/ 1\.5/);
-  assert.match(source, /life: ROCK_FLIP_EFFECT_DURATION, maxLife: ROCK_FLIP_EFFECT_DURATION/);
+  assert.match(source, /function drawRock\(context:[\s\S]*?const shake =[\s\S]*?const liftProgress =/);
+  assert.match(source, /rockId: target\.id[\s\S]*?life: stats\.processingTime, maxLife: stats\.processingTime/);
+  assert.match(source, /runtime\.rockFlipEffect\?\.life <= 0[\s\S]*?mudflatRockCreatureForRoll\(Math\.random\(\), runtime\.levels\.rocker \?\? 1\)/);
+  assert.match(source, /const stillInRange = target &&[\s\S]*?runtime\.rockFlipEffect = null;[\s\S]*?runtime\.rockTurnClock = \.12/);
+  assert.doesNotMatch(source, /text: "빈 돌"/);
+  assert.match(source, /creature\.movement === "oval"/);
+  assert.match(source, /creature\.type === "pufferfish"/);
+  assert.match(source, /speed: finding\.type === "pufferfish" \? template\.speed/);
+  assert.match(source, /mudflatPufferBleedOnContact/);
+  assert.match(source, /mudflatPufferBleedStep/);
+  assert.match(source, /runtime\.bleedSeconds = 0; runtime\.bleedTickClock = 1/);
   assert.match(source, /hasVisibleSeafood[\s\S]*?runtime\.emptySeafoodSeconds = 0[\s\S]*?runtime\.emptySeafoodDamageClock = 0/);
   assert.match(source, /runtime\.player\.hp = Math\.max\(0, runtime\.player\.hp - emptyHazard\.damagePerSecond\)/);
   assert.match(source, /const emptyHazard = mudflatEmptySeafoodHazard\(runtime\.emptySeafoodSeconds\)/);

@@ -19,6 +19,8 @@ import {
   mudflatHarpoonStats,
   mudflatJoystickVector,
   mudflatNetStats,
+  mudflatPufferBleedOnContact,
+  mudflatPufferBleedStep,
   mudflatRockCreatureForRoll,
   mudflatRockTurnerStats,
   mudflatSettleCatch,
@@ -34,8 +36,8 @@ type Screen = "setup" | "running" | "upgrade" | "paused" | "camp" | "defeat";
 type GameMode = "kids" | "normal";
 type Point = { x: number; y: number };
 type CountMap = Record<string, number>;
-type CreatureMovement = "chase" | "still" | "wander" | "flee";
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number; movement: CreatureMovement; movementAngle: number; movementClock: number };
+type CreatureMovement = "chase" | "still" | "wander" | "flee" | "oval";
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number; movement: CreatureMovement; movementAngle: number; movementClock: number; ovalDirection?: number };
 type Pickup = Point & { id: number; xp: number };
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
@@ -45,7 +47,7 @@ type FloatText = Point & { id: number; life: number; text: string; color: string
 type Rock = Point & { id: number; radius: number; tone: number };
 type ClamHole = Point & { id: number; radius: number; progress: number };
 type ClamReveal = Point & { id: number; life: number; maxLife: number; type: string };
-type RockFlipEffect = Point & { life: number; maxLife: number };
+type RockFlipEffect = Point & { rockId: number; life: number; maxLife: number };
 type Runtime = {
   mode: GameMode;
   stage: number;
@@ -53,7 +55,7 @@ type Runtime = {
   creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; clamReveals: ClamReveal[]; levels: CountMap; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
-  bossSpawned: boolean; spawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; emptySeafoodSeconds: number; emptySeafoodDamageClock: number; paused: boolean; ended: boolean;
+  bossSpawned: boolean; spawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number; paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
 type Campaign = {
@@ -66,7 +68,6 @@ const CAMPAIGN_KEY = "paperoid-mudflat-survivor-campaign-v1";
 const LAST_MODE_KEY = "paperoid-mudflat-survivor-last-mode-v1";
 const DAMAGE_TEXT_COLOR = "#ffd29a";
 const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
-const ROCK_FLIP_EFFECT_DURATION = .58 / 1.5;
 const CHARACTERS = [
   { id: "digger", icon: "⌁", name: "호미꾼 하루", description: "넓은 호미질로 시작합니다.", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
   { id: "netter", icon: "◇", name: "그물잡이 모아", description: "자동 뜰채를 빠르게 던집니다.", levels: { hoe: 1, net: 2, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 },
@@ -115,7 +116,7 @@ function makeRuntime(campaign: Campaign): Runtime {
     elapsed: 0, player: { x: 0, y: 0, hp: campaign.hp, maxHp: campaign.maxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0 },
     creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], rocks: [], clamHoles: [], clamReveals: [], bursts: [], floatTexts: [], levels: { ...(campaign.mode === "normal" ? GENERAL_CHARACTER.levels : {}), ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0,
-    hoeEffect: 0, rockFlipEffect: null, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0, paused: false, ended: false,
+    hoeEffect: 0, rockFlipEffect: null, bleedSeconds: 0, bleedTickClock: 1, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0, paused: false, ended: false,
   };
 }
 
@@ -393,10 +394,16 @@ function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, p
   context.restore();
 }
 
-function drawRock(context: CanvasRenderingContext2D, rock: Rock) {
+function drawRock(context: CanvasRenderingContext2D, rock: Rock, effect?: RockFlipEffect) {
   const radius = rock.radius;
+  const progress = effect ? Math.max(0, Math.min(1, 1 - effect.life / effect.maxLife)) : 0;
+  const shakeEnvelope = effect ? Math.sin(Math.min(1, progress / .72) * Math.PI) : 0;
+  const shake = effect ? Math.sin(progress * Math.PI * 14) * 2.4 * shakeEnvelope : 0;
+  const liftProgress = effect ? Math.max(0, (progress - .58) / .42) : 0;
   context.save();
-  context.rotate((rock.tone - .5) * .35);
+  context.translate(shake, -radius * .72 * liftProgress * liftProgress);
+  context.rotate((rock.tone - .5) * .35 + shake * .015 + liftProgress * .24);
+  context.globalAlpha = progress > .84 ? Math.max(0, (1 - progress) / .16) : 1;
   context.fillStyle = "rgba(25,21,19,.28)";
   context.beginPath(); context.ellipse(3, radius * .72, radius * 1.1, radius * .42, 0, 0, Math.PI * 2); context.fill();
   const gradient = context.createLinearGradient(-radius, -radius, radius, radius);
@@ -803,8 +810,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       });
     };
 
-    const revealRockCreature = (rock: Rock) => {
-      const finding = mudflatRockCreatureForRoll(Math.random());
+    const revealRockCreature = (rock: Rock, finding: NonNullable<ReturnType<typeof mudflatRockCreatureForRoll>>) => {
       const template = MUDFLAT_CREATURES.find((item) => item.id === finding.type);
       if (!template) return;
       const crabSpeed = MUDFLAT_CREATURES.find((item) => item.id === "crab")?.speed ?? 34;
@@ -819,13 +825,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         y: rock.y + Math.sin(revealAngle) * offset,
         hp: template.hp,
         maxHp: template.hp,
-        speed: (finding.type === "shrimp" ? crabSpeed * (1 + runtime.elapsed / 750) * 1.12 : template.speed) * stageStats.creatureSpeedMultiplier,
+        speed: finding.type === "pufferfish" ? template.speed : (finding.type === "shrimp" ? crabSpeed * (1 + runtime.elapsed / 750) * 1.12 : template.speed) * stageStats.creatureSpeedMultiplier,
         saltHit: 0,
         hitFlash: .18,
         phase: Math.random() * Math.PI * 2,
         movement: finding.movement as CreatureMovement,
         movementAngle: revealAngle,
         movementClock: 1,
+        ovalDirection: Math.random() < .5 ? -1 : 1,
       });
       runtime.bursts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y, life: .62, maxLife: .62, color: template.color, size: rock.radius + 5 });
       runtime.floatTexts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y - 20, life: 1.05, text: `${finding.name} 발견!`, color: "#fff0a8" });
@@ -888,9 +895,34 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.elapsed += dt;
       runtime.player.damageCooldown = Math.max(0, runtime.player.damageCooldown - dt);
       runtime.hoeClock -= dt; runtime.netClock -= dt; runtime.rockTurnClock -= dt; runtime.harpoonClock -= dt; runtime.hoeEffect = Math.max(0, runtime.hoeEffect - dt);
+      if (runtime.bleedSeconds > 0) {
+        const bleed = mudflatPufferBleedStep(runtime.bleedSeconds, runtime.bleedTickClock, dt);
+        runtime.bleedSeconds = bleed.seconds; runtime.bleedTickClock = bleed.tickClock;
+        for (let tick = 0; tick < bleed.ticks; tick += 1) {
+          runtime.player.hp = Math.max(0, runtime.player.hp - 1);
+          runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .72, text: "-1", color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
+        }
+      }
       if (runtime.rockFlipEffect) {
-        runtime.rockFlipEffect.life -= dt;
-        if (runtime.rockFlipEffect.life <= 0) runtime.rockFlipEffect = null;
+        const completedEffect = runtime.rockFlipEffect;
+        const target = runtime.rocks.find((rock) => rock.id === completedEffect.rockId);
+        const tongReach = mudflatTongStats(runtime.levels.tongs ?? 1).reach;
+        const stillInRange = target && Math.hypot(target.x - runtime.player.x, target.y - runtime.player.y) <= tongReach + target.radius;
+        if (!stillInRange) {
+          runtime.rockFlipEffect = null;
+          runtime.rockTurnClock = .12;
+        } else {
+          runtime.rockFlipEffect.life -= dt;
+        }
+        if (runtime.rockFlipEffect?.life <= 0) {
+          if (target) {
+            const finding = mudflatRockCreatureForRoll(Math.random(), runtime.levels.rocker ?? 1);
+            runtime.rocks = runtime.rocks.filter((rock) => rock.id !== target.id);
+            runtime.bursts.push({ id: sequenceRef.current++, x: target.x, y: target.y, life: .5, maxLife: .5, color: "#b89569", size: target.radius });
+            if (finding) revealRockCreature(target, finding);
+          }
+          runtime.rockFlipEffect = null;
+        }
       }
 
       let inputX = joystickRef.current.x;
@@ -924,6 +956,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
 
       let touching = false;
+      let pufferTouching = false;
       for (const creature of runtime.creatures) {
         const dx = runtime.player.x - creature.x; const dy = runtime.player.y - creature.y; const distance = Math.hypot(dx, dy) || 1;
         if (creature.movement === "chase") {
@@ -935,9 +968,29 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           creature.y += Math.sin(creature.movementAngle) * creature.speed * dt;
         } else if (creature.movement === "flee") {
           creature.x -= dx / distance * creature.speed * dt; creature.y -= dy / distance * creature.speed * dt;
+        } else if (creature.movement === "oval") {
+          creature.movementClock -= dt;
+          if (creature.movementClock <= 0) {
+            creature.movementClock = .8 + Math.random() * 1.6;
+            creature.ovalDirection = Math.random() < .5 ? -1 : 1;
+          }
+          const direction = creature.ovalDirection ?? 1;
+          const travelSpeed = creature.speed;
+          creature.movementAngle += direction * travelSpeed / 52 * dt;
+          const localX = -Math.sin(creature.movementAngle) * travelSpeed * direction;
+          const localY = Math.cos(creature.movementAngle) * travelSpeed * .58 * direction;
+          creature.x += (Math.cos(creature.phase) * localX - Math.sin(creature.phase) * localY) * dt;
+          creature.y += (Math.sin(creature.phase) * localX + Math.cos(creature.phase) * localY) * dt;
         }
         creature.saltHit = Math.max(0, creature.saltHit - dt); creature.hitFlash = Math.max(0, creature.hitFlash - dt);
-        if (distance < creature.size + 17) touching = true;
+        if (distance < creature.size + 17) {
+          touching = true;
+          if (creature.type === "pufferfish") pufferTouching = true;
+        }
+      }
+      if (pufferTouching) {
+        const bleed = mudflatPufferBleedOnContact(runtime.bleedSeconds, runtime.bleedTickClock);
+        runtime.bleedSeconds = bleed.seconds; runtime.bleedTickClock = bleed.tickClock;
       }
       const touchingRock = runtime.mode === "normal" && runtime.rocks.some((rock) => Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) < rock.radius + 16);
       if ((touching || touchingRock) && runtime.player.damageCooldown <= 0) {
@@ -1090,18 +1143,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
 
         const rockerLevel = runtime.levels.rocker ?? 0;
-        if (rockerLevel > 0 && runtime.rockTurnClock <= 0) {
+        if (rockerLevel > 0 && !runtime.rockFlipEffect && runtime.rockTurnClock <= 0) {
           const target = runtime.rocks
             .filter((rock) => Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) <= tong.reach + rock.radius)
             .sort((left, right) => Math.hypot(left.x - runtime.player.x, left.y - runtime.player.y) - Math.hypot(right.x - runtime.player.x, right.y - runtime.player.y))[0];
           if (target) {
             const stats = mudflatRockTurnerStats(rockerLevel);
-            runtime.rocks = runtime.rocks.filter((rock) => rock.id !== target.id);
-            runtime.rockFlipEffect = { x: target.x, y: target.y, life: ROCK_FLIP_EFFECT_DURATION, maxLife: ROCK_FLIP_EFFECT_DURATION };
+            runtime.rockFlipEffect = { rockId: target.id, x: target.x, y: target.y, life: stats.processingTime, maxLife: stats.processingTime };
             runtime.rockTurnClock = stats.interval;
-            runtime.bursts.push({ id: sequenceRef.current++, x: target.x, y: target.y, life: .5, maxLife: .5, color: "#b89569", size: target.radius });
-            if (Math.random() < stats.creatureChance) revealRockCreature(target);
-            else runtime.floatTexts.push({ id: sequenceRef.current++, x: target.x, y: target.y - 16, life: .75, text: "빈 돌", color: "#d8c6a8" });
           } else runtime.rockTurnClock = .12;
         }
       }
@@ -1166,7 +1215,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
       for (const rock of runtime.rocks) {
         const point = screenPoint(rock); if (point.x < -45 || point.y < -45 || point.x > width + 45 || point.y > height + 45) continue;
-        context.save(); context.translate(point.x, point.y); drawRock(context, rock); context.restore();
+        const effect = runtime.rockFlipEffect?.rockId === rock.id ? runtime.rockFlipEffect : undefined;
+        context.save(); context.translate(point.x, point.y); drawRock(context, rock, effect); context.restore();
       }
 
       for (const pickup of runtime.pickups) {
@@ -1311,6 +1361,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const chooseUpgrade = (id: string) => {
     const runtime = runtimeRef.current; if (!runtime) return;
     runtime.levels[id] = (runtime.levels[id] ?? 0) + 1;
+    runtime.bleedSeconds = 0; runtime.bleedTickClock = 1;
     if (id === "stamina") { runtime.player.maxHp += 18; runtime.player.hp = Math.min(runtime.player.maxHp, runtime.player.hp + 35); }
     if (id === "snack") { runtime.player.maxHp += 20; runtime.player.hp = Math.min(runtime.player.maxHp, runtime.player.hp + 42); }
     if (id === "boots" && runtime.mode === "normal") { runtime.player.maxHp += 10; runtime.player.hp = Math.min(runtime.player.maxHp, runtime.player.hp + 10); }
