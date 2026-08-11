@@ -601,6 +601,28 @@ test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
   assert.doesNotMatch(hiddenSet, /"mudflat-survivor"/);
 });
 
+test("detects published site updates and refreshes only through safe user actions", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const versionRoute = await readFile(new URL("../app/api/version/route.ts", import.meta.url), "utf8");
+  const viteConfig = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(viteConfig, /VITE_PAPEROID_BUILD_ID/);
+  assert.match(versionRoute, /Cache-Control[\s\S]*?no-store/);
+  assert.match(pageSource, /UPDATE_CHECK_INTERVAL_MS = 5 \* 60 \* 1000/);
+  assert.match(pageSource, /fetch\(`\/api\/version\?t=\$\{Date\.now\(\)\}`[\s\S]*?cache: "no-store"/);
+  assert.match(pageSource, /window\.addEventListener\("pageshow", checkNow\)/);
+  assert.match(pageSource, /window\.addEventListener\("focus", checkNow\)/);
+  assert.match(pageSource, /window\.addEventListener\("online", checkNow\)/);
+  assert.match(pageSource, /document\.addEventListener\("visibilitychange", checkWhenVisible\)/);
+  assert.match(pageSource, /if \(updateAvailable\) \{\s*applyUpdate\(id\);\s*return;/);
+  assert.match(pageSource, /const exitGame = \(\) => \{\s*if \(updateAvailable\) \{\s*applyUpdate\(\);/);
+  assert.match(pageSource, /onExit=\{exitGame\}/);
+  assert.match(pageSource, /PENDING_GAME_AFTER_UPDATE_KEY/);
+  assert.match(pageSource, /새 버전이 준비되었습니다/);
+  assert.match(styles, /\.app-update-notice\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?z-index:\s*10000;/);
+});
+
 test("keeps the home introduction compact on mobile", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");

@@ -40,6 +40,7 @@ import { MudflatSurvivorGame } from "./mudflat-survivor-game";
 import { TetrisGame } from "./tetris-game";
 import { ChessGame } from "./chess-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
+import { PAPEROID_BUILD_ID } from "./app-version";
 import {
   BackgammonGame,
   ChineseCheckersGame,
@@ -468,6 +469,8 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
 ]);
 
 const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
+const PENDING_GAME_AFTER_UPDATE_KEY = "paperoid-pending-game-after-update";
+const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 const IconSearch = () => (
   <span className="search-icon" aria-hidden="true" />
@@ -1822,7 +1825,13 @@ function MemoryGame({ onExit }: { onExit: () => void }) {
   );
 }
 
-export default function Home() {
+function HomeContent({
+  updateAvailable,
+  applyUpdate,
+}: {
+  updateAvailable: boolean;
+  applyUpdate: (pendingGame?: GameId) => void;
+}) {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [category, setCategory] = useState<Category>("전체");
   const [query, setQuery] = useState("");
@@ -1846,8 +1855,17 @@ export default function Home() {
     const recent = readGameIds("paperoid-recent-games");
     const migratedFavorites = favorites.length ? favorites : readGameIds(`${legacyPrefix}-favorites`);
     const migratedRecent = recent.length ? recent : readGameIds(`${legacyPrefix}-recent-games`);
+    const pendingGameValue = window.sessionStorage.getItem(PENDING_GAME_AFTER_UPDATE_KEY);
+    const pendingGame = pendingGameValue && knownIds.has(pendingGameValue as GameId)
+      ? pendingGameValue as GameId
+      : null;
+    const nextRecent = pendingGame
+      ? [pendingGame, ...migratedRecent.filter((id) => id !== pendingGame)].slice(0, 8)
+      : migratedRecent;
+    window.sessionStorage.removeItem(PENDING_GAME_AFTER_UPDATE_KEY);
     setFavorites(migratedFavorites);
-    setRecentIds(migratedRecent);
+    setRecentIds(nextRecent);
+    if (pendingGame) setActiveGame(pendingGame);
     // A reload always begins from the public, top-left home view.  Keep play
     // history and favourites, but do not restore a previously opened secret
     // catalogue or browser scroll position.
@@ -1857,7 +1875,7 @@ export default function Home() {
     setShowAllGames(false);
     window.localStorage.removeItem(SHOW_ALL_GAMES_STORAGE_KEY);
     if (migratedFavorites.length) window.localStorage.setItem("paperoid-favorites", JSON.stringify(migratedFavorites));
-    if (migratedRecent.length) window.localStorage.setItem("paperoid-recent-games", JSON.stringify(migratedRecent));
+    if (nextRecent.length) window.localStorage.setItem("paperoid-recent-games", JSON.stringify(nextRecent));
   }, []);
 
   useEffect(() => {
@@ -1908,6 +1926,10 @@ export default function Home() {
   }, [activeGame]);
 
   const launchGame = (id: GameId) => {
+    if (updateAvailable) {
+      applyUpdate(id);
+      return;
+    }
     setRecentIds((current) => {
       const next = [id, ...current.filter((item) => item !== id)].slice(0, 8);
       window.localStorage.setItem("paperoid-recent-games", JSON.stringify(next));
@@ -1915,6 +1937,14 @@ export default function Home() {
     });
     setFinderOpen(false);
     setActiveGame(id);
+  };
+
+  const exitGame = () => {
+    if (updateAvailable) {
+      applyUpdate();
+      return;
+    }
+    setActiveGame(null);
   };
 
   const toggleFavorite = (id: GameId) => {
@@ -1928,6 +1958,10 @@ export default function Home() {
   };
 
   const openFinder = (nextCategory: Category = "전체") => {
+    if (updateAvailable) {
+      applyUpdate();
+      return;
+    }
     setCategory(nextCategory);
     setQuery("");
     setFinderOpen(true);
@@ -1971,130 +2005,130 @@ export default function Home() {
   const quickStartGames = recentGames.length ? recentGames : availableGames.slice(0, 6);
 
   if (activeGame === "gomoku") {
-    return <GuidedGame gameId={activeGame}><GomokuGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><GomokuGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "memory") {
-    return <GuidedGame gameId={activeGame}><MemoryGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><MemoryGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "reversi") {
-    return <GuidedGame gameId={activeGame}><ReversiGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><ReversiGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "mancala") {
-    return <GuidedGame gameId={activeGame}><MancalaGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><MancalaGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "battleship") {
-    return <GuidedGame gameId={activeGame}><BattleshipGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><BattleshipGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "scotland-yard") {
-    return <GuidedGame gameId={activeGame}><ScotlandYardGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><ScotlandYardGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "whitechapel") {
-    return <GuidedGame gameId={activeGame}><WhitechapelGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><WhitechapelGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "seven-wonders") {
-    return <GuidedGame gameId={activeGame}><SevenWondersGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><SevenWondersGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "dice") {
-    return <GuidedGame gameId={activeGame}><DiceDuelGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><DiceDuelGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "checkers") {
-    return <GuidedGame gameId={activeGame}><CheckersGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><CheckersGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "chess") {
-    return <GuidedGame gameId={activeGame}><ChessGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><ChessGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "janggi") {
-    return <GuidedGame gameId={activeGame}><JanggiGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><JanggiGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "winners-circle") {
-    return <GuidedGame gameId={activeGame}><WinnersCircleGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><WinnersCircleGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "camel-up") {
-    return <GuidedGame gameId={activeGame}><CamelUpGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><CamelUpGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "tichu") {
-    return <GuidedGame gameId={activeGame}><TichuGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><TichuGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "cashflow-escape") {
-    return <GuidedGame gameId={activeGame}><CashflowEscapeGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><CashflowEscapeGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "baccarat") {
-    return <GuidedGame gameId={activeGame}><BaccaratGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><BaccaratGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "nine-mens-morris") {
-    return <GuidedGame gameId={activeGame}><NineMensMorrisGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><NineMensMorrisGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "gonu") {
-    return <GuidedGame gameId={activeGame}><GonuGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><GonuGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "domino") {
-    return <GuidedGame gameId={activeGame}><DominoGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><DominoGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "backgammon") {
-    return <GuidedGame gameId={activeGame}><BackgammonGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><BackgammonGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "chinese-checkers") {
-    return <GuidedGame gameId={activeGame}><ChineseCheckersGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><ChineseCheckersGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "diamond") {
-    return <GuidedGame gameId={activeGame}><DiamondGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><DiamondGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "incan-gold") {
-    return <GuidedGame gameId={activeGame}><IncanGoldGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><IncanGoldGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "qwixx") {
-    return <GuidedGame gameId={activeGame}><QwixxGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><QwixxGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "confrontation") {
-    return <GuidedGame gameId={activeGame}><ConfrontationGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><ConfrontationGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "love-letter") {
-    return <GuidedGame gameId={activeGame}><LoveLetterGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><LoveLetterGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "miniville") {
-    return <GuidedGame gameId={activeGame}><MinivilleGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><MinivilleGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "clocktowers") {
-    return <GuidedGame gameId={activeGame}><ClocktowersGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><ClocktowersGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "pick-picnic") {
-    return <GuidedGame gameId={activeGame}><PickPicnicGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><PickPicnicGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "epic-duels") {
-    return <GuidedGame gameId={activeGame}><EpicDuelsGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><EpicDuelsGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "sd-gundam-deluxe") {
-    return <GuidedGame gameId={activeGame}><SdGundamDeluxeGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><SdGundamDeluxeGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "pocket-stack") {
-    return <GuidedGame gameId={activeGame}><PocketStackGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><PocketStackGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "color-chain") {
-    return <GuidedGame gameId={activeGame}><ColorChainGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><ColorChainGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "number-drop") {
-    return <GuidedGame gameId={activeGame}><NumberDropGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><NumberDropGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "dot-survivor") {
-    return <GuidedGame gameId={activeGame}><DotSurvivorGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><DotSurvivorGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "untangle") {
-    return <GuidedGame gameId={activeGame}><UntangleGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><UntangleGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "parking-escape") {
-    return <GuidedGame gameId={activeGame}><ParkingEscapeGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><ParkingEscapeGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "paper-dungeon") {
-    return <GuidedGame gameId={activeGame}><PaperDungeonGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><PaperDungeonGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "ten-seconds") {
-    return <GuidedGame gameId={activeGame}><TenSecondsGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><TenSecondsGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "mudflat-survivor") {
-    return <GuidedGame gameId={activeGame}><MudflatSurvivorGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><MudflatSurvivorGame onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "tetris") {
-    return <GuidedGame gameId={activeGame}><TetrisGame onExit={() => setActiveGame(null)} /></GuidedGame>;
+    return <GuidedGame gameId={activeGame}><TetrisGame onExit={exitGame} /></GuidedGame>;
   }
 
   return (
@@ -2333,5 +2367,86 @@ export default function Home() {
         <span>AI BOARD GAME CLUB</span>
       </footer>
     </main>
+  );
+}
+
+function AppUpdateNotice({ onUpdate }: { onUpdate: () => void }) {
+  return (
+    <aside className="app-update-notice" role="status" aria-live="polite">
+      <span>
+        <b>새 버전이 준비되었습니다</b>
+        <small>게임 나가기나 새 게임 시작 시 자동으로 반영됩니다.</small>
+      </span>
+      <button type="button" onClick={onUpdate}>지금 업데이트</button>
+    </aside>
+  );
+}
+
+export default function Home() {
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const latestBuildIdRef = useRef("");
+  const checkingForUpdateRef = useRef(false);
+
+  const checkForUpdate = useCallback(async () => {
+    if (checkingForUpdateRef.current || !window.navigator.onLine) return;
+    checkingForUpdateRef.current = true;
+    try {
+      const response = await fetch(`/api/version?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) return;
+      const payload = await response.json() as { buildId?: unknown };
+      if (typeof payload.buildId === "string" && payload.buildId && payload.buildId !== PAPEROID_BUILD_ID) {
+        latestBuildIdRef.current = payload.buildId;
+        setUpdateAvailable(true);
+      }
+    } catch {
+      // Offline and transient network failures should never interrupt a game.
+    } finally {
+      checkingForUpdateRef.current = false;
+    }
+  }, []);
+
+  const applyUpdate = useCallback((pendingGame?: GameId) => {
+    if (pendingGame) window.sessionStorage.setItem(PENDING_GAME_AFTER_UPDATE_KEY, pendingGame);
+    const updateUrl = new URL(window.location.href);
+    updateUrl.searchParams.set("paperoid-update", latestBuildIdRef.current || String(Date.now()));
+    updateUrl.hash = "";
+    window.location.replace(updateUrl.toString());
+  }, []);
+
+  useEffect(() => {
+    const currentUrl = new URL(window.location.href);
+    if (currentUrl.searchParams.has("paperoid-update")) {
+      currentUrl.searchParams.delete("paperoid-update");
+      window.history.replaceState(window.history.state, "", currentUrl.toString());
+    }
+
+    const checkWhenVisible = () => {
+      if (document.visibilityState === "visible") void checkForUpdate();
+    };
+    const checkNow = () => { void checkForUpdate(); };
+    const initialTimer = window.setTimeout(checkNow, 1500);
+    const interval = window.setInterval(checkNow, UPDATE_CHECK_INTERVAL_MS);
+    window.addEventListener("pageshow", checkNow);
+    window.addEventListener("focus", checkNow);
+    window.addEventListener("online", checkNow);
+    document.addEventListener("visibilitychange", checkWhenVisible);
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(interval);
+      window.removeEventListener("pageshow", checkNow);
+      window.removeEventListener("focus", checkNow);
+      window.removeEventListener("online", checkNow);
+      document.removeEventListener("visibilitychange", checkWhenVisible);
+    };
+  }, [checkForUpdate]);
+
+  return (
+    <>
+      <HomeContent updateAvailable={updateAvailable} applyUpdate={applyUpdate} />
+      {updateAvailable && <AppUpdateNotice onUpdate={() => applyUpdate()} />}
+    </>
   );
 }
