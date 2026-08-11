@@ -1025,7 +1025,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /<small>\{count\.toLocaleString\(\)\}×\{item\.price\}C<\/small>/);
   assert.match(source, /<span>전체 판매 가격<\/span>/);
   assert.doesNotMatch(source, /자동 판매 합계/);
-  assert.match(styles, /\.ms-market-table\{[^}]*grid-template-columns:repeat\(8,minmax\(72px,1fr\)\)/);
+  assert.match(styles, /\.ms-market-table\{[^}]*grid-template-columns:repeat\(5,minmax\(0,1fr\)\)[^}]*overflow:hidden/);
+  assert.doesNotMatch(source, /코인 자동 입금/);
   assert.doesNotMatch(source, /자동 정산했습니다|정산 복구| · 대왕 박하지/);
   assert.doesNotMatch(source, /1개 판매|바구니 모두 판매/);
   assert.match(source, /EQUIPMENT SHOP/);

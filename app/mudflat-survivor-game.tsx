@@ -1611,7 +1611,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <span><small>다음 갯벌</small><b>{campaign.stage} · {nextStageProfile.name}</b></span>
           <span className="ms-boss-status"><small>대왕 박하지</small><b>{campaign.lastBossCaught ? "포획" : "미포획"}</b></span>
         </div>
-        <div className="ms-camp-auto-sale"><span>이번 바구니 {haulCount}마리</span><b>+{campaign.lastSaleValue.toLocaleString()}코인 자동 입금</b></div>
+        <div className="ms-camp-auto-sale"><span>이번 바구니 {haulCount}마리</span><b>+{campaign.lastSaleValue.toLocaleString()}코인</b></div>
       </section>
       <section className="ms-camp-layout">
         <article className="ms-market">

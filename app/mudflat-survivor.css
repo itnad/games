@@ -19,13 +19,12 @@
 .ms-result h1{word-break:keep-all;text-wrap:balance}
 .ms-result h1 span{display:inline-block}
 
-/* Compact settlement table: eight catches per row, with horizontal access on
-   narrow screens instead of shrinking names and prices below readable size. */
-.ms-market-table{padding:12px 14px;display:grid;grid-template-columns:repeat(8,minmax(72px,1fr));gap:8px;overflow-x:auto;scrollbar-width:thin}
-.ms-market-cell{min-width:72px;padding:9px 5px;display:grid;grid-template-rows:46px auto auto;justify-items:center;align-items:center;gap:3px;border:1px solid #4d40331c;border-radius:13px;background:#fffdf8;text-align:center}
-.ms-market-cell img{width:46px;height:46px;object-fit:contain;filter:drop-shadow(0 4px 5px #39291e24)}
-.ms-market-cell b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
-.ms-market-cell small{color:#a64b35;font-size:12px;font-weight:900;white-space:nowrap}
+/* Compact settlement table: five catches per row without horizontal overflow. */
+.ms-market-table{width:100%;padding:12px 14px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;overflow:hidden}
+.ms-market-cell{min-width:0;padding:8px 3px;display:grid;grid-template-rows:42px minmax(28px,auto) auto;justify-items:center;align-items:center;gap:3px;border:1px solid #4d40331c;border-radius:13px;background:#fffdf8;text-align:center}
+.ms-market-cell img{width:42px;height:42px;max-width:100%;object-fit:contain;filter:drop-shadow(0 4px 5px #39291e24)}
+.ms-market-cell b{width:100%;overflow-wrap:anywhere;font-size:12px;line-height:1.18}
+.ms-market-cell small{max-width:100%;color:#a64b35;font-size:11px;font-weight:900;letter-spacing:-.04em;white-space:nowrap}
 .ms-market-table .ms-market-empty{grid-column:1/-1}
 .ms-market{grid-column:1/-1}
 .ms-shop-stack{grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -58,6 +57,7 @@
 .ms-departure{position:fixed;z-index:12;left:50%;bottom:12px;translate:-50% 0;width:min(1090px,calc(100% - 24px));padding:12px 13px 12px 20px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;border:1px solid #fff3;border-radius:20px;color:#fff7e8;background:linear-gradient(110deg,#173d38ed,#29242aed);box-shadow:0 16px 45px #17131455;backdrop-filter:blur(12px)}.ms-departure>div{display:grid}.ms-departure>div b{font-size:18px}.ms-departure>div span{color:#c9c7bb;font-size:12px}.ms-departure button{min-height:50px;padding:0 18px;border-radius:14px;font-weight:900}.ms-clear-save{border:1px solid #fff3;color:#ddd5c9;background:#fff1}.ms-departure .ms-primary{min-width:205px}
 @media(max-width:850px){.ms-camp-hero{grid-template-columns:1fr}.ms-camp-layout{grid-template-columns:1fr}.ms-wallet{width:100%}.ms-departure{grid-template-columns:1fr auto}.ms-departure .ms-clear-save{display:none}}
 @media(max-width:600px){.ms-camp{padding-bottom:156px}.ms-camp-hero{width:calc(100% - 20px);margin:18px auto 10px;padding:20px 16px}.ms-camp-hero h1{font-size:34px}.ms-wallet{grid-template-columns:1fr 1fr}.ms-wallet span{min-width:0;padding:10px}.ms-wallet span:nth-child(3),.ms-wallet span:nth-child(4){border-top:1px solid #fff2}.ms-wallet span:nth-child(3){border-left:0}.ms-camp-auto-sale{padding:10px 12px}.ms-camp-layout{width:calc(100% - 20px)}.ms-camp article>header{align-items:start;flex-direction:column}.ms-market-list{padding:5px 9px}.ms-market-list>div{grid-template-columns:48px minmax(0,1fr) auto;gap:7px}.ms-market-list img{width:44px;height:44px}.ms-market-list>div>em{grid-column:3;grid-row:1}.ms-market-list>div>strong{grid-column:2/4;text-align:right}.ms-shop button{grid-template-columns:38px minmax(0,1fr)}.ms-shop button em{grid-column:2;max-width:none;text-align:left}.ms-departure{bottom:8px;padding:10px;grid-template-columns:1fr}.ms-departure>div{padding:0 4px}.ms-departure .ms-primary{width:100%;min-width:0}.ms-departure>div span{font-size:11px}}
+@media(max-width:600px){.ms-market-table{padding:9px 8px;gap:5px}.ms-market-cell{padding:6px 2px;grid-template-rows:36px minmax(26px,auto) auto;border-radius:10px}.ms-market-cell img{width:36px;height:36px}.ms-market-cell b{font-size:10.5px}.ms-market-cell small{font-size:9.5px}}
 
 /* Every present and future Mudflat action button receives the same brief
    pressed confirmation without requiring button-specific event handlers. */
