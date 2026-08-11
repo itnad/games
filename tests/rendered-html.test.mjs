@@ -1094,6 +1094,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /ms-mode-picker[\s\S]*?<b>일반 모드<\/b>[\s\S]*?<b>어린이 모드<\/b>/);
   assert.match(source, /className="ms-hero-crab" src="\/mudflat-creatures\/crab\.png"/);
   assert.match(styles, /\.ms-hero-crab\{position:absolute/);
+  assert.match(source, /runtime\.elapsed < 3[\s\S]*?일단 저 구멍들을 파봐야겠다\./);
+  assert.match(source, /const bubbleTop = height \/ 2 - 116/);
+  assert.match(styles, /\.ms-touch-hint\{display:none\}/);
   assert.match(source, /function MudflatTopbar/);
   assert.match(source, /className="game-topbar ms-topbar"/);
   assert.match(source, /<h1><span>갯벌에서<\/span>\{" "\}<span>힘이 다했습니다<\/span><\/h1>/);

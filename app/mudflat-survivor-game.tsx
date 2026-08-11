@@ -1494,6 +1494,18 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.fillStyle = "#fff8e9"; context.font = "900 23px system-ui"; context.fillText(stageProfile.name, 38, height - 94);
         context.fillStyle = "#d8d3c6"; context.font = "700 13px system-ui"; context.fillText(stageProfile.subtitle, 38, height - 67); context.restore();
       }
+      if (runtime.elapsed < 3) {
+        const message = "일단 저 구멍들을 파봐야겠다.";
+        const alpha = Math.min(1, runtime.elapsed * 4, (3 - runtime.elapsed) * 3);
+        context.save(); context.globalAlpha = alpha; context.font = "900 14px system-ui"; context.textAlign = "center";
+        const bubbleWidth = Math.min(width - 28, context.measureText(message).width + 34);
+        const bubbleTop = height / 2 - 116;
+        context.shadowColor = "rgba(25,18,15,.34)"; context.shadowBlur = 12; context.shadowOffsetY = 5;
+        context.fillStyle = "rgba(255,248,223,.96)"; roundedRect(context, width / 2 - bubbleWidth / 2, bubbleTop, bubbleWidth, 40, 16); context.fill();
+        context.shadowColor = "transparent"; context.beginPath(); context.moveTo(width / 2 - 8, bubbleTop + 39); context.lineTo(width / 2 + 8, bubbleTop + 39); context.lineTo(width / 2, bubbleTop + 50); context.closePath(); context.fill();
+        context.strokeStyle = "rgba(75,57,44,.28)"; context.lineWidth = 1.5; roundedRect(context, width / 2 - bubbleWidth / 2, bubbleTop, bubbleWidth, 40, 16); context.stroke();
+        context.fillStyle = "#46372c"; context.fillText(message, width / 2, bubbleTop + 26); context.restore();
+      }
       const emptyHazard = mudflatStageEmptySeafoodHazard(runtime.emptySeafoodSeconds, runtime.stage);
       if (emptyHazard.message) {
         context.save();
