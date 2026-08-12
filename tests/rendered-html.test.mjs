@@ -111,6 +111,7 @@ import {
 import {
   MUDFLAT_CLAM_GRADES,
   MUDFLAT_CREATURES,
+  MUDFLAT_FIXED_GENERAL_SKILL_IDS,
   MUDFLAT_GENERAL_UPGRADES,
   MUDFLAT_JOYSTICK_RADIUS,
   MUDFLAT_RECOVERY_FOODS,
@@ -877,12 +878,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(generalChoices.every((choice) => !["electric", "cast-net"].includes(choice.id)));
   assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5 }), { masteryCount: 1, electric: true, castNet: false });
   assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5, digging: 5 }), { masteryCount: 2, electric: true, castNet: true });
-  const fullBasicLoadout = { tongs: 5, digging: 5, harpoon: 1, net: 1, rocker: 1, boots: 1 };
-  assert.equal(mudflatCanLearnSkill(fullBasicLoadout, "electric", "normal"), true);
-  assert.equal(mudflatCanLearnSkill(fullBasicLoadout, "cast-net", "normal"), true);
-  assert.equal(mudflatCanLearnSkill(fullBasicLoadout, "basket", "normal"), false);
-  const cappedChoices = mudflatUpgradeChoices(4, { tongs: 1, digging: 1, harpoon: 1, net: 1, rocker: 1, boots: 1 }, "normal", () => .5);
-  assert.ok(cappedChoices.every((choice) => ["tongs", "digging", "harpoon", "net", "rocker", "boots"].includes(choice.id)));
+  assert.deepEqual(MUDFLAT_FIXED_GENERAL_SKILL_IDS, ["tongs", "digging"]);
+  const sixChoiceLoadout = { tongs: 5, digging: 5, harpoon: 1, net: 1, rocker: 1, boots: 1, basket: 1, snack: 1 };
+  assert.equal(mudflatCanLearnSkill(sixChoiceLoadout, "electric", "normal"), false);
+  assert.equal(mudflatCanLearnSkill(sixChoiceLoadout, "cast-net", "normal"), false);
+  assert.equal(mudflatCanLearnSkill(sixChoiceLoadout, "harpoon", "normal"), true);
+  const cappedChoices = mudflatUpgradeChoices(4, sixChoiceLoadout, "normal", () => .5);
+  assert.ok(cappedChoices.every((choice) => ["harpoon", "net", "rocker", "boots", "basket", "snack", "tongs", "digging"].includes(choice.id)));
   assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
   assert.equal(mudflatTongStats(2).power, mudflatTongStats(1).power * 1.5);
   assert.equal(mudflatNetStats(1).range, mudflatTongStats(1).reach);
@@ -1117,6 +1119,12 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const rerollUpgradeChoices/);
   assert.match(source, /최대 체력 20%/);
   assert.match(source, /GENERAL_SKILL_ORDER/);
+  assert.match(source, /MUDFLAT_FIXED_GENERAL_SKILL_IDS/);
+  assert.match(source, /선택 기술 \{normalSkills\.length\} \/ 6/);
+  assert.match(source, /className="ms-base-tools"/);
+  assert.match(source, /className="ms-skill-detail"/);
+  assert.match(source, /onClick=\{\(\) => setSelectedSkillId\(skill\.id\)\}/);
+  assert.match(styles, /\.ms-skill-detail\{position:fixed/);
   assert.doesNotMatch(source, /damageCreature\([^\n]+#[0-9a-fA-F]{6}/);
   assert.doesNotMatch(source, /text: `\+\$\{item\.score\}`/);
   assert.match(source, /runtime\.harpoons/);

@@ -109,6 +109,11 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "cast-net", icon: "⌗", name: "그물 투척", description: "먼 해산물 위로 그물을 떨어뜨려 30px 범위에 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 2 },
 ];
 
+// 집게와 호미질은 모든 일반 원정에 기본으로 장착되는 채집 도구다.
+// 나머지 기술 여섯 개만 빌드를 구성하는 선택 기술 슬롯을 사용한다.
+export const MUDFLAT_FIXED_GENERAL_SKILL_IDS = ["tongs", "digging"];
+export const MUDFLAT_SELECTABLE_SKILL_LIMIT = 6;
+
 function mudflatSafeLevel(level = 0) {
   return Math.max(0, Math.min(6, Math.floor(Number(level) || 0)));
 }
@@ -165,11 +170,10 @@ export function mudflatCanLearnSkill(levels = {}, skillId = "", mode = "normal")
   if (mode !== "normal" || (levels[skillId] ?? 0) > 0) return true;
   const skill = MUDFLAT_GENERAL_UPGRADES.find((item) => item.id === skillId);
   if (!skill) return false;
-  // Advanced techniques are mastery rewards, not additional basic loadout
-  // slots. Once unlocked they remain purchasable even with six basic skills.
-  if (skill.advanced) return true;
-  const ownedBasicSkills = MUDFLAT_GENERAL_UPGRADES.filter((item) => !item.advanced && (levels[item.id] ?? 0) > 0).length;
-  return ownedBasicSkills < 6;
+  // Mastery techniques are part of the same six-slot build.  This keeps
+  // powerful late-game tools meaningful choices rather than free extras.
+  const ownedSelectableSkills = MUDFLAT_GENERAL_UPGRADES.filter((item) => !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(item.id) && (levels[item.id] ?? 0) > 0).length;
+  return ownedSelectableSkills < MUDFLAT_SELECTABLE_SKILL_LIMIT;
 }
 
 export function mudflatElectricStats(level = 0) {
