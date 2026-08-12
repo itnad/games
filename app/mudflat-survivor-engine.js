@@ -161,6 +161,17 @@ export function mudflatAdvancedSkillUnlocks(levels = {}) {
   return { masteryCount, electric: masteryCount >= 1, castNet: masteryCount >= 2 };
 }
 
+export function mudflatCanLearnSkill(levels = {}, skillId = "", mode = "normal") {
+  if (mode !== "normal" || (levels[skillId] ?? 0) > 0) return true;
+  const skill = MUDFLAT_GENERAL_UPGRADES.find((item) => item.id === skillId);
+  if (!skill) return false;
+  // Advanced techniques are mastery rewards, not additional basic loadout
+  // slots. Once unlocked they remain purchasable even with six basic skills.
+  if (skill.advanced) return true;
+  const ownedBasicSkills = MUDFLAT_GENERAL_UPGRADES.filter((item) => !item.advanced && (levels[item.id] ?? 0) > 0).length;
+  return ownedBasicSkills < 6;
+}
+
 export function mudflatElectricStats(level = 0) {
   const safeLevel = mudflatSafeLevel(level);
   if (!safeLevel) return { interval: Infinity, damage: 0, selfInterval: Infinity, selfDamage: 0 };
@@ -238,12 +249,10 @@ export function mudflatClamRewardForRoll(level = 1, roll = 0) {
 export function mudflatUpgradeChoices(_level, levels = {}, mode = "kids", random = Math.random) {
   const upgrades = mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
   const unlocks = mudflatAdvancedSkillUnlocks(levels);
-  const ownedSkillCount = upgrades.filter((item) => (levels[item.id] ?? 0) > 0).length;
-  const hasOpenSkillSlot = mode !== "normal" || ownedSkillCount < 6;
   const available = upgrades.filter((item) => {
     const currentLevel = levels[item.id] ?? 0;
     const unlocked = !item.advanced || (item.id === "electric" ? unlocks.electric : unlocks.castNet);
-    return unlocked && currentLevel < item.max && (hasOpenSkillSlot || currentLevel > 0);
+    return unlocked && currentLevel < item.max && mudflatCanLearnSkill(levels, item.id, mode);
   });
   if (available.length <= 3) return available;
   const shuffled = [...available];

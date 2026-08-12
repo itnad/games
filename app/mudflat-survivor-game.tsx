@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import {
   MUDFLAT_CREATURES,
   MUDFLAT_CLAM_GRADES,
@@ -13,6 +13,7 @@ import {
   MUDFLAT_UPGRADES,
   mudflatBossPulse,
   mudflatAdvancedSkillUnlocks,
+  mudflatCanLearnSkill,
   mudflatAutoSellInventory,
   mudflatBleedDamage,
   mudflatCastNetStats,
@@ -731,6 +732,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const runtimeRef = useRef<Runtime | null>(null);
   const campaignRef = useRef<Campaign | null>(null);
+  const departureRef = useRef<HTMLElement | null>(null);
   const joystickRef = useRef({ pointerId: -1, originX: 0, originY: 0, x: 0, y: 0 });
   const keysRef = useRef(new Set<string>());
   const sequenceRef = useRef(1);
@@ -743,6 +745,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [best, setBest] = useState(0);
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [savedCampaign, setSavedCampaign] = useState<Campaign | null>(null);
+  const [departureSpace, setDepartureSpace] = useState(220);
   const [highestUnlockedStage, setHighestUnlockedStage] = useState(1);
   const [selectedStage, setSelectedStage] = useState(1);
 
@@ -766,6 +769,18 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const lastMode = window.localStorage.getItem(LAST_MODE_KEY);
     if (lastMode === "kids" || lastMode === "normal") setMode(lastMode);
   }, []);
+
+  useEffect(() => {
+    if (screen !== "camp") return;
+    const panel = departureRef.current;
+    if (!panel) return;
+    const updateSpace = () => setDepartureSpace(Math.ceil(panel.getBoundingClientRect().height) + 32);
+    updateSpace();
+    const observer = new ResizeObserver(updateSpace);
+    observer.observe(panel);
+    window.addEventListener("resize", updateSpace);
+    return () => { observer.disconnect(); window.removeEventListener("resize", updateSpace); };
+  }, [screen, campaign?.stage]);
 
   useEffect(() => {
     const timers = new Map<HTMLButtonElement, number>();
@@ -1770,8 +1785,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const upgrades = current.mode === "normal" ? unlockedNormalUpgrades(current.levels) : MUDFLAT_UPGRADES;
     const skill = upgrades.find((entry) => entry.id === id); if (!skill) return;
     const level = current.levels[id] ?? 0; const price = mudflatTrainingPrice(level);
-    const normalOwnedSkillCount = MUDFLAT_GENERAL_UPGRADES.filter((skill) => (current.levels[skill.id] ?? 0) > 0).length;
-    if (current.mode === "normal" && level === 0 && normalOwnedSkillCount >= 6) { setCampNotice("보유 기술은 최대 6개까지만 선택할 수 있습니다."); return; }
+    if (!mudflatCanLearnSkill(current.levels, id, current.mode)) { setCampNotice("기본 기술은 최대 6개까지만 선택할 수 있습니다."); return; }
     if (level >= skill.max) { setCampNotice("이미 최고 레벨에 도달한 기술입니다."); return; }
     if (current.coins < price) { setCampNotice("기술 훈련에 필요한 코인이 부족합니다."); return; }
     const beforeUnlocks = mudflatAdvancedSkillUnlocks(current.levels);
@@ -1807,7 +1821,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const soldItems = MUDFLAT_SEAFOOD_MARKET.filter((item) => (campaign.lastHaul[item.type] ?? 0) > 0);
     const campHpPercent = Math.max(0, Math.min(100, campaign.hp / Math.max(1, campaign.maxHp) * 100));
     const campXpPercent = Math.max(0, Math.min(100, campaign.xp / Math.max(1, campaign.nextXp) * 100));
-    return <main className="ms-shell ms-camp">
+    return <main className="ms-shell ms-camp" style={{ "--ms-departure-space": `${departureSpace}px` } as CSSProperties}>
       <MudflatTopbar onExit={onExit} />
       <section className="ms-camp-hero">
         <div><small>STAGE {campaign.stage - 1} CLEAR</small><h1>무사히 돌아왔습니다</h1><p>{campNotice}</p></div>
@@ -1840,7 +1854,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const level = campaign.levels[skill.id] ?? 0; const price = mudflatTrainingPrice(level); return <button type="button" key={skill.id} disabled={level >= skill.max || campaign.coins < price} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{level >= skill.max ? "최고 레벨" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
         </div>
       </section>
-      <section className="ms-departure">
+      <section className="ms-departure" ref={departureRef}>
         <div className="ms-departure-copy"><small>{nextStageProfile.endless ? "ENDLESS TIDE" : "NEXT TIDE"}</small><b>{campaign.stage}단계 · {nextStageProfile.name}</b><span>{nextStageProfile.subtitle}</span><div className="ms-stage-modifiers">{nextStageProfile.modifiers.map((modifier: string) => <em key={modifier}>{modifier}</em>)}</div>{nextStageObjective && <strong>보조 목표 · {nextStageObjective.label} · 성공 보너스 {nextStageObjective.bonus}C</strong>}<small>해산물 체력 ×{nextStageStats.creatureHpMultiplier.toFixed(2)} · 접촉 피해 +{nextStageStats.contactDamageBonus}</small></div>
         <div className="ms-departure-status" aria-label="현재 원정 상태">
           <span className="ms-departure-coins"><small>보유 코인</small><b>{campaign.coins.toLocaleString()}C</b></span>

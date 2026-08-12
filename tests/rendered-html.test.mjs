@@ -121,6 +121,7 @@ import {
   MUDFLAT_PEARL,
   mudflatAutoSellInventory,
   mudflatAdvancedSkillUnlocks,
+  mudflatCanLearnSkill,
   mudflatBleedDamage,
   mudflatBossPulse,
   mudflatEmptySeafoodHazard,
@@ -876,6 +877,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(generalChoices.every((choice) => !["electric", "cast-net"].includes(choice.id)));
   assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5 }), { masteryCount: 1, electric: true, castNet: false });
   assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5, digging: 5 }), { masteryCount: 2, electric: true, castNet: true });
+  const fullBasicLoadout = { tongs: 5, digging: 5, harpoon: 1, net: 1, rocker: 1, boots: 1 };
+  assert.equal(mudflatCanLearnSkill(fullBasicLoadout, "electric", "normal"), true);
+  assert.equal(mudflatCanLearnSkill(fullBasicLoadout, "cast-net", "normal"), true);
+  assert.equal(mudflatCanLearnSkill(fullBasicLoadout, "basket", "normal"), false);
   const cappedChoices = mudflatUpgradeChoices(4, { tongs: 1, digging: 1, harpoon: 1, net: 1, rocker: 1, boots: 1 }, "normal", () => .5);
   assert.ok(cappedChoices.every((choice) => ["tongs", "digging", "harpoon", "net", "rocker", "boots"].includes(choice.id)));
   assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
@@ -1123,6 +1128,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /CATCH SUMMARY/);
   assert.match(source, /ms-camp-auto-sale/);
   assert.match(source, /className="ms-departure-status" aria-label="현재 원정 상태"/);
+  assert.match(source, /new ResizeObserver\(updateSpace\)/);
+  assert.match(source, /--ms-departure-space/);
+  assert.match(source, /mudflatCanLearnSkill\(current\.levels, id, current\.mode\)/);
   assert.match(source, /className="ms-departure-coins"[\s\S]*?\{campaign\.coins\.toLocaleString\(\)\}C/);
   assert.match(source, /aria-label="현재 체력"[\s\S]*?campHpPercent/);
   assert.match(source, /aria-label="현재 경험치"[\s\S]*?campXpPercent/);
