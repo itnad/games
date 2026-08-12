@@ -865,7 +865,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(mudflatSpawnInterval(200) < mudflatSpawnInterval(0));
   assert.ok(mudflatSpawnInterval(0, "normal") < mudflatSpawnInterval(0, "kids"));
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
-  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["넓은 바구니", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척"]);
+  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["쓸어담기", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "rocker").description, "돌 밑에 숨어있는 해산물을 더 빨리 더 잘 찾아낼 수 있습니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "snack").description, "최대 체력이 기본 대비 20% 상승하며 현재 체력을 전부 회복합니다.");
@@ -979,6 +979,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatEquipmentDescription("waders", 6), "지형 이동 페널티가 75% 감소하고 기본 최대 체력보다 20% 상승합니다.");
   assert.deepEqual(mudflatEquipmentStats({ cooler: 0, vest: 0, gloves: 0, waders: 0 }, 100, 0), { catchCapacity: 500, maxHp: 100, vestHpBonus: 0, bleedDurationReduction: 0, toolPowerMultiplier: 1, terrainPenaltyReduction: 0 });
   assert.equal(mudflatEquipmentStats({ vest: 6, gloves: 6, waders: 6 }, 100, 1).maxHp, 940);
+  assert.equal(mudflatEquipmentStats({ vest: 1, waders: 1 }, 100, 0).maxHp, 135, "work vest and boot sole bonuses must add independently from base HP");
   assert.equal(mudflatEquipmentStats({ vest: 6, gloves: 6, waders: 6 }, 100, 1).toolPowerMultiplier, 1.21);
   assert.equal(mudflatTerrainSpeedMultiplier(.5, 1), .65);
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatElectricStats(level).interval), [1, .8, .6, .4, .2, .1]);
@@ -1032,7 +1033,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /window\.localStorage\.removeItem\(CAMPAIGN_KEY\);/);
   assert.match(source, /setSavedCampaign\(null\);/);
   assert.match(source, /EXPEDITION ENDED/);
-  assert.match(source, /onClick=\{reset\}>처음부터 새 원정/);
+  assert.match(source, /onClick=\{reset\}>단계 선택으로/);
+  assert.match(source, /onClick=\{\(\) => beginAtStage\(Math\.min\(9, highestUnlockedStage\)\)\}/);
   assert.doesNotMatch(source, /onClick=\{\(\) => setScreen\("camp"\)\}>정비소에서 재도전/);
   assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
   assert.match(source, /totalScore: number; lastBossCaught: boolean/);
@@ -1148,7 +1150,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /ms-mode-picker[\s\S]*?<b>일반 모드<\/b>[\s\S]*?<b>어린이 모드<\/b>/);
   assert.match(source, /className="ms-hero-crab" src="\/mudflat-creatures\/crab\.png"/);
   assert.match(styles, /\.ms-hero-crab\{position:absolute/);
-  assert.match(source, /runtime\.elapsed < 3[\s\S]*?일단 저 구멍들을 파봐야겠다\./);
+  assert.match(source, /runtime\.stage === 1 && runtime\.elapsed < 3[\s\S]*?일단 저 구멍들을 파봐야겠다\./);
+  assert.match(source, /앗 따가워, 몸이 이상해\./);
+  assert.match(source, /아 깜짝이야, 여기 돌이 있었네!/);
+  assert.match(source, /HIGHEST_STAGE_KEY/);
+  assert.match(source, /장비·기술·경험치·코인은 모두 초기화됩니다/);
+  assert.match(source, /\{Math\.floor\(hud\.hp\)\} \/ \{Math\.floor\(hud\.maxHp\)\}/);
+  assert.match(source, /createRadialGradient[\s\S]*?rgba\(3,8,15,0\)/);
   assert.match(source, /const bubbleTop = height \/ 2 - 116/);
   assert.match(styles, /\.ms-touch-hint\{display:none\}/);
   assert.match(source, /function MudflatTopbar/);
