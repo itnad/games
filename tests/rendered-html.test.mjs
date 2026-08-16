@@ -522,24 +522,28 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /해전/);
   assert.match(html, /주사위 대결 Yahtzee/);
   assert.match(html, /체커/);
-  assert.match(html, /체스/);
-  assert.match(html, /장기/);
-  assert.match(html, /도미노/);
-  assert.match(html, /백개먼/);
-  assert.match(html, /차이니즈 체커/);
-  assert.match(html, /잉카의 다이아몬드/);
-  assert.match(html, /큐윅스/);
-  assert.match(html, /러브레터/);
-  assert.match(html, /바카라/);
-  assert.match(html, /포켓 스택/);
-  assert.match(html, /컬러 체인/);
-  assert.match(html, /넘버 드롭/);
-  assert.match(html, /도트 서바이버/);
-  assert.match(html, /줄 풀기/);
-  assert.match(html, /주차 탈출/);
-  assert.match(html, /종이 던전/);
-  assert.match(html, /10\.00/);
-  assert.match(html, /해루질럿/);
+  for (const title of [
+    "체스",
+    "장기",
+    "도미노",
+    "백개먼",
+    "차이니즈 체커",
+    "잉카의 다이아몬드",
+    "큐윅스",
+    "러브레터",
+    "바카라",
+    "포켓 스택",
+    "컬러 체인",
+    "넘버 드롭",
+    "도트 서바이버",
+    "줄 풀기",
+    "주차 탈출",
+    "종이 던전",
+    "10.00",
+    "해루질럿",
+  ]) {
+    assert.match(pageSource, new RegExp(`title: "${title.replace(".", "\\.")}"`));
+  }
   for (const hiddenTitle of [
     "만칼라",
     "고누",
@@ -562,13 +566,15 @@ test("server-renders the paperoid game library", async () => {
     assert.doesNotMatch(html, new RegExp(hiddenTitle));
   }
   assert.match(html, /모든 게임 표시/);
-  assert.match(html, /이름·장르로 게임 찾기/);
-  assert.match(html, /사용자 의견 :/);
-  assert.match(html, /개선안 또는 추가 되면 좋을 게임을 의견 남겨주세요/);
-  assert.match(html, /사용자 의견 게시판/);
+  assert.match(html, /게임 찾기/);
+  assert.match(html, /전체 게임 보기/);
+  assert.match(html, /사용자 의견/);
+  assert.match(html, /개선안 또는 추가되면 좋을 게임을 남겨주세요/);
+  assert.match(html, /의견 남기기/);
   assert.doesNotMatch(html, /게임 추천 게시판/);
-  assert.match(html, /id="game-suggestion"/i);
-  assert.match(html, /maxlength="50"/i);
+  assert.doesNotMatch(html, /id="game-suggestion"/i);
+  assert.match(pageSource, /id="game-suggestion"/i);
+  assert.match(pageSource, /maxLength=\{50\}/i);
   assert.doesNotMatch(html, /예: 카탄, 루미큐브, 스플렌더/);
   assert.doesNotMatch(pageSource, /suggestionDate|<time dateTime=\{suggestion\.createdAt\}/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|react-loading-skeleton/);
@@ -599,7 +605,7 @@ test("separates traditional classics from the strategy category", async () => {
   for (const id of classicGames) {
     assert.match(pageSource, new RegExp(`id: "${id}",[\\s\\S]*?category: "고전게임"`));
   }
-  assert.match(pageSource, /title=\{item === "고전게임" \? item : `\$\{item\} 게임`\}/);
+  assert.match(pageSource, /CATEGORIES\.map\(\(item\) => \([\s\S]*?onClick=\{\(\) => openFinder\(item\)\}/);
 });
 
 test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
@@ -609,7 +615,6 @@ test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
 
   assert.match(pageSource, /type Category = [^;]*"모바일"/);
   assert.ok(pageSource.includes(`const CATEGORIES: Category[] = ${categoryOrder}`));
-  assert.ok(pageSource.includes('const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "모바일", "고전게임", "주사위", "터치류"'));
   assert.match(pageSource, /id: "mudflat-survivor",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(hiddenSet, /"mudflat-survivor"/);
 });
@@ -658,13 +663,14 @@ test("keeps the home introduction compact on mobile", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
-  assert.match(pageSource, /잠깐의 여유,\{\" \"\}/);
+  assert.match(pageSource, /지금, <em>한 판<\/em> 즐겨볼까요/);
   assert.match(pageSource, /className=\"hero-mudflat-shortcut\"[\s\S]*?onClick=\{\(\) => launchGame\(\"mudflat-survivor\"\)\}[\s\S]*?>\s*\?\s*<\/button>/);
   assert.match(styles, /\.hero-mudflat-shortcut \{[\s\S]*?font: inherit/);
-  assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.hero \{[\s\S]*?min-height: 168px/);
-  assert.match(styles, /\.hero h1 br \{ display: none; \}/);
-  assert.match(styles, /\.hero p \{\s*display: none;/);
-  assert.match(styles, /\.hero-finder-button \{[\s\S]*?min-height: 38px/);
+  assert.match(styles, /\.hub-hero \{[\s\S]*?min-height: 132px/);
+  assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.hub-hero \{[\s\S]*?min-height: 104px/);
+  assert.match(pageSource, /className="home-explore-bar"/);
+  assert.match(pageSource, /className="all-games-trigger"/);
+  assert.match(pageSource, /const \[expanded, setExpanded\] = useState\(false\)/);
 });
 
 test("opens the game finder with visible categories and without summoning the keyboard", async () => {

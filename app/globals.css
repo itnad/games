@@ -6174,6 +6174,369 @@ footer { font-size: 15px; }
   }
 }
 
+/* Home hub: keep the entry screen focused on resuming or finding a game. */
+.hub-header {
+  height: 68px;
+}
+
+.hub-search-button {
+  min-height: 38px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 999px;
+  color: #f3f0f8;
+  background: rgba(255, 255, 255, .06);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.hub-search-button:hover {
+  border-color: rgba(190, 174, 255, .74);
+  background: rgba(255, 255, 255, .12);
+}
+
+.hub-search-button .search-icon {
+  width: 15px;
+  height: 15px;
+  border-color: currentColor;
+}
+
+.hub-search-button .search-icon::after {
+  background: currentColor;
+}
+
+.hub-hero {
+  min-height: 132px;
+  padding-top: 27px;
+  padding-bottom: 27px;
+  background:
+    radial-gradient(circle at 82% 44%, rgba(121, 90, 200, .25), transparent 27%),
+    linear-gradient(128deg, #25202f 12%, #312641 74%, #292331);
+}
+
+.hub-hero::before {
+  opacity: .08;
+  mask-image: linear-gradient(90deg, black, transparent 72%);
+}
+
+.hub-hero h1 {
+  font-size: clamp(30px, 3.2vw, 42px);
+  line-height: 1.14;
+}
+
+.library {
+  padding-top: 36px;
+  padding-bottom: 54px;
+}
+
+.home-game-shelves {
+  gap: 34px;
+}
+
+.game-shelf-heading {
+  margin-bottom: 13px;
+}
+
+.game-shelf-heading h3 {
+  font-size: 23px;
+}
+
+.game-shelf-track {
+  grid-auto-columns: minmax(278px, 29%);
+}
+
+.shelf-game-card {
+  height: 156px;
+}
+
+.shelf-game-play {
+  grid-template-columns: 43% 57%;
+}
+
+.shelf-game-copy {
+  padding: 18px 15px 14px;
+}
+
+.shelf-game-copy h3 {
+  margin: 10px 0 0;
+  font-size: 19px;
+}
+
+.shelf-game-open {
+  margin-top: auto;
+  color: #5d47ab;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.shelf-game-open span {
+  margin-left: 3px;
+  font-size: 15px;
+}
+
+.home-explore-bar {
+  padding: 15px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid #e0dce7;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(37, 31, 48, .045);
+}
+
+.home-explore-bar .home-category-row {
+  min-width: 0;
+  flex: 1;
+  padding-bottom: 2px;
+}
+
+.home-category-row button {
+  min-height: 38px;
+  padding-inline: 13px;
+  color: #605b68;
+  background: #f8f7f9;
+  font-size: 14px;
+}
+
+.all-games-trigger {
+  min-width: 166px;
+  min-height: 52px;
+  padding: 0 14px 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 13px;
+  border: 0;
+  border-radius: 11px;
+  color: white;
+  background: #5f46bd;
+  box-shadow: 0 9px 19px rgba(77, 57, 156, .22);
+  cursor: pointer;
+  text-align: left;
+}
+
+.all-games-trigger:hover {
+  background: #6b50ca;
+}
+
+.all-games-trigger > span {
+  display: grid;
+  gap: 2px;
+}
+
+.all-games-trigger small {
+  color: #d8ceff;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .11em;
+}
+
+.all-games-trigger strong {
+  font-size: 14px;
+}
+
+.all-games-trigger b {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: #fff;
+  font-size: 14px;
+}
+
+.all-games-trigger i {
+  font-size: 17px;
+  font-style: normal;
+}
+
+.suggestion-section {
+  padding-top: 28px;
+  padding-bottom: 34px;
+}
+
+.suggestion-disclosure {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 19px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid #ddd7e6;
+  border-radius: 15px;
+  color: #322c3b;
+  background: rgba(255, 255, 255, .86);
+  box-shadow: 0 9px 26px rgba(43, 34, 58, .055);
+  cursor: pointer;
+  text-align: left;
+}
+
+.suggestion-disclosure:hover {
+  border-color: #a99bd8;
+  background: #fff;
+}
+
+.suggestion-disclosure-copy {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 11px;
+  row-gap: 3px;
+}
+
+.suggestion-disclosure-copy small {
+  grid-column: 1 / -1;
+  color: #8a7bc2;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.suggestion-disclosure-copy strong {
+  font-size: 18px;
+  letter-spacing: -.025em;
+}
+
+.suggestion-disclosure-copy > span {
+  min-width: 0;
+  overflow: hidden;
+  color: #77717e;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion-disclosure-action {
+  flex: 0 0 auto;
+  color: #5e48ad;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.suggestion-disclosure-action i {
+  margin-left: 5px;
+  font-size: 17px;
+  font-style: normal;
+}
+
+.suggestion-expanded {
+  width: min(1180px, 100%);
+  margin: 16px auto 0;
+}
+
+@media (max-width: 700px) {
+  .hub-header {
+    height: 60px;
+  }
+
+  .hub-search-button {
+    width: 38px;
+    min-height: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .hub-search-button > span {
+    display: none;
+  }
+
+  .hub-hero {
+    min-height: 104px;
+    padding: 20px 20px 22px;
+  }
+
+  .hub-hero h1 {
+    font-size: 29px;
+  }
+
+  .library {
+    padding: 25px 18px 39px;
+  }
+
+  .home-game-shelves {
+    gap: 28px;
+  }
+
+  .game-shelf-heading h3 {
+    font-size: 21px;
+  }
+
+  .game-shelf-track {
+    grid-auto-columns: minmax(245px, 76%);
+  }
+
+  .shelf-game-card {
+    height: 146px;
+  }
+
+  .shelf-game-copy {
+    padding: 15px 13px 13px;
+  }
+
+  .shelf-game-category {
+    font-size: 12px;
+  }
+
+  .shelf-game-copy h3 {
+    margin-top: 8px;
+    font-size: 18px;
+  }
+
+  .home-explore-bar {
+    padding: 13px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .home-explore-bar .home-category-row {
+    width: calc(100% + 2px);
+  }
+
+  .home-category-row button {
+    min-height: 36px;
+    padding-inline: 12px;
+    font-size: 13px;
+  }
+
+  .all-games-trigger {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .suggestion-section {
+    padding: 20px 18px 25px;
+  }
+
+  .suggestion-disclosure {
+    padding: 16px;
+    gap: 13px;
+  }
+
+  .suggestion-disclosure-copy {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .suggestion-disclosure-copy strong {
+    font-size: 17px;
+  }
+
+  .suggestion-disclosure-copy > span {
+    font-size: 13px;
+  }
+
+  .suggestion-disclosure-action {
+    font-size: 13px;
+  }
+}
+
 .janggi-board button.opponent-to .janggi-piece {
   background: #d9ba85;
   box-shadow:

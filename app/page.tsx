@@ -96,7 +96,6 @@ type GameId =
 type Category = "전체" | "전략" | "모바일" | "카드" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
 
 const CATEGORIES: Category[] = ["전체", "전략", "모바일", "고전게임", "주사위", "터치류", "카드", "기억력", "추리", "퍼즐", "경주", "RPG"];
-const GAME_CATEGORIES: Exclude<Category, "전체">[] = ["전략", "모바일", "고전게임", "주사위", "터치류", "카드", "기억력", "추리", "퍼즐", "경주", "RPG"];
 
 type GameDefinition = {
   id: GameId;
@@ -980,10 +979,7 @@ function ShelfGameCard({
         <div className="shelf-game-copy">
           <span className="shelf-game-category">{game.category}</span>
           <h3>{game.title}</h3>
-          <p>{game.subtitle}</p>
-          <span className="shelf-game-players">
-            <span className="status-dot" /> {game.players}
-          </span>
+          <span className="shelf-game-open">바로 시작 <span aria-hidden="true">→</span></span>
         </div>
       </button>
     </article>
@@ -1068,6 +1064,7 @@ function sortSuggestions(items: GameSuggestion[]) {
 function SuggestionBoard() {
   const [suggestions, setSuggestions] = useState<GameSuggestion[]>([]);
   const [draft, setDraft] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -1155,16 +1152,27 @@ function SuggestionBoard() {
   };
 
   return (
-    <section className="suggestion-section" id="game-suggestions">
-      <div className="suggestion-heading">
-        <span className="section-number">02</span>
-        <div>
-          <h2>사용자 의견 :</h2>
-          <p>개선안 또는 추가 되면 좋을 게임을 의견 남겨주세요</p>
-        </div>
-      </div>
+    <section className={`suggestion-section ${expanded ? "is-open" : ""}`} id="game-suggestions">
+      <button
+        className="suggestion-disclosure"
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+        aria-controls="suggestion-content"
+      >
+        <span className="suggestion-disclosure-copy">
+          <small>USER FEEDBACK</small>
+          <strong>사용자 의견</strong>
+          <span>개선안 또는 추가되면 좋을 게임을 남겨주세요.</span>
+        </span>
+        <span className="suggestion-disclosure-action">
+          {expanded ? "접기" : "의견 남기기"} <i aria-hidden="true">{expanded ? "↑" : "→"}</i>
+        </span>
+      </button>
 
-      <div className="suggestion-layout">
+      {expanded && (
+        <div className="suggestion-expanded" id="suggestion-content">
+          <div className="suggestion-layout">
         <form className="suggestion-form" onSubmit={submitSuggestion}>
           <label htmlFor="game-suggestion">추천할 게임</label>
           <div className="suggestion-input-row">
@@ -1231,7 +1239,9 @@ function SuggestionBoard() {
             </ul>
           )}
         </div>
-      </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -2213,19 +2223,16 @@ function HomeContent({
           <BrandMark />
           <span>paperoid</span>
         </a>
-        <div className="header-note">
-          <span className="status-dot" />
-          AI 플레이 가능
-        </div>
+        <button className="hub-search-button" type="button" onClick={() => openFinder()} aria-label="게임 찾기">
+          <IconSearch />
+          <span>게임 찾기</span>
+        </button>
       </header>
 
-      <section className="hero">
+      <section className="hero hub-hero">
         <div className="hero-copy">
-          <span className="eyebrow">YOUR NEXT MOVE</span>
           <h1>
-            잠깐의 여유,{" "}
-            <br />
-            <em>한 판</em> 어때요
+            지금, <em>한 판</em> 즐겨볼까요
             <button
               className="hero-mudflat-shortcut"
               type="button"
@@ -2235,90 +2242,46 @@ function HomeContent({
               ?
             </button>
           </h1>
-          <p>혼자여도 즐거운 보드게임 아지트.<br />원하는 게임을 골라 AI와 바로 시작하세요.</p>
-          <button className="hero-finder-button" type="button" onClick={() => openFinder()}>
-            게임 찾기 <span aria-hidden="true">→</span>
-          </button>
-        </div>
-        <div className="hero-orbit" aria-hidden="true">
-          <span className="orbit-line one" />
-          <span className="orbit-line two" />
-          <span className="hero-piece piece-black" />
-          <span className="hero-piece piece-white" />
-          <span className="hero-card-piece">✦</span>
-          <span className="hero-spark spark-one">✦</span>
-          <span className="hero-spark spark-two">·</span>
         </div>
       </section>
 
       <section className="library">
-        <div className="library-discovery">
-          <div className="library-heading">
-            <div>
-              <span className="section-number">01</span>
-              <h2>게임 고르기</h2>
-            </div>
-            <button className="game-finder-trigger" type="button" onClick={() => openFinder()}>
-              <IconSearch />
-              <span>이름·장르로 게임 찾기</span>
-              <b>{availableGames.length}</b>
-            </button>
-          </div>
-
-          <div className="category-row home-category-row" aria-label="게임 분류">
-            {CATEGORIES.map((item) => (
-              <button key={item} type="button" onClick={() => openFinder(item)}>
-                {item}
-                <span>{item === "전체" ? availableGames.length : availableGames.filter((game) => game.category === item).length}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="home-game-shelves">
           <GameShelf
             key={recentGames.length ? "recent-games" : "quick-start-games"}
-            title={recentGames.length ? "최근 플레이" : "빠른 시작"}
-            description={recentGames.length ? "최근에 즐긴 게임을 바로 이어서 시작하세요." : "처음이라면 인기 게임부터 가볍게 시작해 보세요."}
+            title={recentGames.length ? "이어서 하기" : "빠른 시작"}
             games={quickStartGames}
             favorites={favorites}
             onPlay={launchGame}
             onToggleFavorite={toggleFavorite}
-            onViewAll={() => openFinder()}
           />
 
           {favoriteGames.length > 0 && (
             <GameShelf
               title="즐겨찾기"
-              description="별표한 게임만 한곳에 모았습니다."
               games={favoriteGames}
               favorites={favorites}
               onPlay={launchGame}
               onToggleFavorite={toggleFavorite}
-              onViewAll={() => openFinder()}
             />
           )}
 
-          {GAME_CATEGORIES.map((item) => (
-            <GameShelf
-              key={item}
-              title={item === "고전게임" ? item : `${item} 게임`}
-              games={availableGames.filter((game) => game.category === item)}
-              favorites={favorites}
-              onPlay={launchGame}
-              onToggleFavorite={toggleFavorite}
-              onViewAll={() => openFinder(item)}
-            />
-          ))}
-
-          <a className="hub-suggestion-link" href="#game-suggestions">
-            <span className="plus-mark">+</span>
-            <div>
-              <strong>찾는 게임이 없나요?</strong>
-              <p>paperoid에 추가되면 좋을 게임을 추천해 주세요.</p>
+          <div className="home-explore-bar">
+            <div className="category-row home-category-row" aria-label="게임 분류">
+              {CATEGORIES.map((item) => (
+                <button key={item} type="button" onClick={() => openFinder(item)}>
+                  {item}
+                </button>
+              ))}
             </div>
-            <span className="suggestion-arrow" aria-hidden="true">↓</span>
-          </a>
+            <button className="all-games-trigger" type="button" onClick={() => openFinder()}>
+              <span>
+                <small>GAME LIBRARY</small>
+                <strong>전체 게임 보기</strong>
+              </span>
+              <b>{availableGames.length} <i aria-hidden="true">→</i></b>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -2409,10 +2372,6 @@ function HomeContent({
           </section>
         </div>
       )}
-
-      <button className="mobile-finder-button" type="button" onClick={() => openFinder()}>
-        <IconSearch /> 게임 찾기 <span>{availableGames.length}</span>
-      </button>
 
       <SuggestionBoard />
 
