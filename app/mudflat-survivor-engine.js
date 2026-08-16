@@ -28,12 +28,12 @@ export const MUDFLAT_ROCK_FINDINGS = [
 ];
 
 export const MUDFLAT_CLAM_GRADES = [
-  { id: "small-clam", name: "작은조개", xp: 1, score: 5, price: 0 },
-  { id: "clam", name: "바지락", xp: 2, score: 9, price: 1 },
-  { id: "dongjuk", name: "동죽", xp: 3, score: 16, price: 2 },
-  { id: "hard-clam", name: "백합", xp: 5, score: 28, price: 3 },
-  { id: "ark-shell", name: "피조개", xp: 7, score: 42, price: 10 },
-  { id: "razor-clam", name: "맛조개", xp: 9, score: 62, price: 12 },
+  { id: "small-clam", name: "작은조개", xp: 1, score: 5, price: 0, visualSize: 32 },
+  { id: "clam", name: "바지락", xp: 2, score: 9, price: 1, visualSize: 39 },
+  { id: "dongjuk", name: "동죽", xp: 3, score: 16, price: 2, visualSize: 46 },
+  { id: "hard-clam", name: "백합", xp: 5, score: 28, price: 3, visualSize: 53 },
+  { id: "ark-shell", name: "피조개", xp: 7, score: 42, price: 10, visualSize: 62 },
+  { id: "razor-clam", name: "맛조개", xp: 9, score: 62, price: 12, visualSize: 70, vertical: true },
 ];
 
 export const MUDFLAT_PEARL = { id: "pearl", name: "진주", xp: 30, score: 500, price: 10000 };

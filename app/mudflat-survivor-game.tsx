@@ -1599,7 +1599,15 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         } else {
           const isRazorClam = reveal.type === "razor-clam";
           const image = creatureSprites.get(isRazorClam ? "razor-clam-reveal" : "clam-reveal");
-          if (image?.complete && image.naturalWidth > 0) context.drawImage(image, isRazorClam ? -36 : -27, isRazorClam ? -14 : -21, isRazorClam ? 72 : 54, isRazorClam ? 28 : 54);
+          const clamGrade = MUDFLAT_CLAM_GRADES.find((grade) => grade.id === reveal.type);
+          const clamSize = clamGrade?.visualSize ?? 42;
+          if (image?.complete && image.naturalWidth > 0) {
+            if (clamGrade?.vertical) {
+              context.save(); context.rotate(Math.PI / 2);
+              context.drawImage(image, -clamSize / 2, -clamSize * .2, clamSize, clamSize * .4);
+              context.restore();
+            } else context.drawImage(image, -clamSize / 2, -clamSize / 2, clamSize, clamSize);
+          }
         }
         context.restore();
       }

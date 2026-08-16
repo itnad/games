@@ -931,6 +931,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual(mudflatPufferBleedStep(50, 1, 1), { seconds: 49, tickClock: 1, ticks: 1 });
   assert.deepEqual(mudflatPufferBleedStep(50, 1, 50), { seconds: 0, tickClock: 1, ticks: 50 });
   assert.deepEqual(MUDFLAT_CLAM_GRADES.map((grade) => grade.name), ["작은조개", "바지락", "동죽", "백합", "피조개", "맛조개"]);
+  assert.deepEqual(MUDFLAT_CLAM_GRADES.map((grade) => grade.visualSize), [32, 39, 46, 53, 62, 70]);
+  assert.equal(MUDFLAT_CLAM_GRADES.find((grade) => grade.id === "razor-clam").vertical, true);
   assert.equal(mudflatClamRewardForRoll(1, 0).id, "small-clam");
   assert.equal(mudflatClamRewardForRoll(1, 0.5999).id, "small-clam");
   assert.equal(mudflatClamRewardForRoll(1, 0.6).id, "clam");
@@ -1205,6 +1207,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawClamDigging\(/);
   assert.match(source, /progress >= 2/);
   assert.match(source, /mudflatClamRewardForRoll/);
+  assert.match(source, /const clamSize = clamGrade\?\.visualSize \?\? 42/);
+  assert.match(source, /context\.rotate\(Math\.PI \/ 2\)/);
   assert.match(source, /equipment\.headlamp/);
   assert.match(source, /function drawGatherer\([^)]*hasHeadlamp: boolean/);
   assert.match(source, /runtime\.equipment\.headlamp \?\? 0\) > 0/);
