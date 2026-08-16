@@ -66,6 +66,18 @@ export const MUDFLAT_SEAFOOD_MARKET = [
   { type: "king-crab", name: "대왕 박하지", image: "/mudflat-creatures/king-crab.svg", price: 100 },
 ];
 
+// Settlement cards have much less room than the field, so preserve the
+// in-game crab-size hierarchy while keeping even the smallest crab legible.
+export function mudflatMarketImageScale(type) {
+  const creature = MUDFLAT_CREATURES.find((item) => item.id === type);
+  if (creature?.family !== "crab") return 1;
+
+  const smallestCrabSize = 11;
+  const largestCrabSize = 43;
+  const normalized = (creature.size - smallestCrabSize) / (largestCrabSize - smallestCrabSize);
+  return Math.max(.4, Math.min(1, .4 + normalized * .6));
+}
+
 export const MUDFLAT_SHOP_EQUIPMENT = [
   { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "어두운 곳에 숨은 소라와 골뱅이가 출현합니다.", max: 6 },
   { id: "cooler", icon: "▣", name: "조과통 업그레이드", description: "Lv.1부터 800·1,200·1,700·2,300·3,000·3,800마리까지 채집합니다.", max: 6 },

@@ -29,6 +29,7 @@ import {
   mudflatHarpoonStats,
   mudflatJoystickVector,
   mudflatNetStats,
+  mudflatMarketImageScale,
   mudflatPufferBleedOnContact,
   mudflatPufferBleedStep,
   mudflatPufferMovementForAge,
@@ -1875,7 +1876,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <div className="ms-market-table" role="table" aria-label="해산물별 판매 내역">
             {soldItems.length > 0 ? soldItems.map((item) => {
               const count = campaign.lastHaul[item.type] ?? 0;
-              return <div className="ms-market-cell" role="cell" key={item.type}>
+              const crabScale = mudflatMarketImageScale(item.type);
+              return <div className={`ms-market-cell${crabScale !== 1 ? " is-crab" : ""}`} role="cell" key={item.type} style={{ "--ms-market-scale": crabScale } as CSSProperties}>
                 <img src={item.image} alt="" />
                 <b>{item.name}</b>
                 <small>{count.toLocaleString()}×{item.price}C</small>

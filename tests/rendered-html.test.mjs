@@ -138,6 +138,7 @@ import {
   mudflatHarpoonStats,
   mudflatJoystickVector,
   mudflatNetStats,
+  mudflatMarketImageScale,
   mudflatPufferBleedOnContact,
   mudflatPufferBleedStep,
   mudflatPufferMovementForAge,
@@ -959,6 +960,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   const crabTypes = ["small-crab", "crab", "shore-crab", "fiddler-crab", "blue-crab", "purple-crab", "king-crab"];
   assert.ok(crabTypes.every((type) => MUDFLAT_CREATURES.find((creature) => creature.id === type)?.sprite?.endsWith(".svg")));
   assert.ok(crabTypes.every((type) => MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === type)?.image === MUDFLAT_CREATURES.find((creature) => creature.id === type)?.sprite));
+  assert.ok(mudflatMarketImageScale("small-crab") < mudflatMarketImageScale("crab"));
+  assert.ok(mudflatMarketImageScale("crab") < mudflatMarketImageScale("blue-crab"));
+  assert.ok(mudflatMarketImageScale("blue-crab") < mudflatMarketImageScale("king-crab"));
+  assert.equal(mudflatMarketImageScale("king-crab"), 1);
+  assert.equal(mudflatMarketImageScale("shrimp"), 1);
   assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "pearl").unit, "개");
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "whelk").size, 9);
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "fist-whelk").size, 18);
