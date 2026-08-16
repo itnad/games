@@ -1406,7 +1406,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           for (const creature of runtime.creatures) {
             if (Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= reach + creature.size) damageCreature(creature, electric.damage * toolPower, .14);
           }
-          runtime.electricPulseLife = .18;
+          runtime.electricPulseLife = .42;
           runtime.electricClock = electric.interval;
         }
         if (runtime.selfShockClock <= 0) {
@@ -1653,12 +1653,44 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       drawGatherer(context, width / 2, height / 2, runtime.player, runtime.mode === "normal" ? "beginner" : characterId, (runtime.equipment.headlamp ?? 0) > 0);
       if (runtime.electricPulseLife > 0) {
         const reach = mudflatTongStats(runtime.levels.tongs ?? 1).reach;
-        context.save(); context.strokeStyle = `rgba(132,231,255,${Math.min(1, runtime.electricPulseLife * 5)})`; context.lineWidth = 3;
-        for (let arc = 0; arc < 7; arc += 1) {
-          const start = arc / 7 * Math.PI * 2 + runtime.elapsed * 8;
-          context.beginPath(); context.moveTo(width / 2 + Math.cos(start) * 24, height / 2 + Math.sin(start) * 24);
-          context.lineTo(width / 2 + Math.cos(start + .12) * reach * .55, height / 2 + Math.sin(start + .12) * reach * .55);
-          context.lineTo(width / 2 + Math.cos(start - .08) * reach, height / 2 + Math.sin(start - .08) * reach); context.stroke();
+        const pulse = Math.min(1, runtime.electricPulseLife / .42);
+        const centerX = width / 2; const centerY = height / 2;
+        const phase = runtime.elapsed * 12;
+        context.save(); context.globalCompositeOperation = "lighter";
+        const cloud = context.createRadialGradient(centerX, centerY, reach * .08, centerX, centerY, reach * 1.04);
+        cloud.addColorStop(0, `rgba(250,245,255,${pulse * .42})`);
+        cloud.addColorStop(.32, `rgba(193,115,255,${pulse * .22})`);
+        cloud.addColorStop(.7, `rgba(79,78,255,${pulse * .1})`);
+        cloud.addColorStop(1, "rgba(72,62,255,0)");
+        context.fillStyle = cloud; context.beginPath(); context.arc(centerX, centerY, reach * 1.05, 0, Math.PI * 2); context.fill();
+        for (let ring = 0; ring < 3; ring += 1) {
+          const ringRadius = reach * (.38 + ring * .22) + Math.sin(phase + ring * 1.8) * 5;
+          context.strokeStyle = ring === 1 ? `rgba(235,188,255,${pulse * .65})` : `rgba(100,192,255,${pulse * .5})`;
+          context.lineWidth = 1.5 + (2 - ring) * .6;
+          context.setLineDash([5 + ring * 4, 9 - ring]); context.lineDashOffset = -phase * (4 + ring * 2);
+          context.beginPath(); context.arc(centerX, centerY, ringRadius, phase * (.4 + ring * .11), phase * (.4 + ring * .11) + Math.PI * 1.45); context.stroke();
+        }
+        context.setLineDash([]);
+        for (let bolt = 0; bolt < 10; bolt += 1) {
+          const angle = bolt / 10 * Math.PI * 2 + phase * .24;
+          const endRadius = reach * (.58 + ((bolt * 17) % 4) * .1);
+          context.strokeStyle = bolt % 2 ? `rgba(124,222,255,${pulse * .8})` : `rgba(231,184,255,${pulse * .82})`;
+          context.lineWidth = bolt % 3 === 0 ? 2.6 : 1.35;
+          context.beginPath();
+          context.moveTo(centerX + Math.cos(angle) * 14, centerY + Math.sin(angle) * 14);
+          for (let step = 1; step <= 4; step += 1) {
+            const distance = endRadius * step / 4;
+            const jitter = Math.sin(phase * 2.6 + bolt * 3.1 + step * 4.7) * 10 * (step < 4 ? 1 : .25);
+            context.lineTo(centerX + Math.cos(angle) * distance + Math.cos(angle + Math.PI / 2) * jitter, centerY + Math.sin(angle) * distance + Math.sin(angle + Math.PI / 2) * jitter);
+          }
+          context.stroke();
+        }
+        for (let spark = 0; spark < 18; spark += 1) {
+          const angle = spark / 18 * Math.PI * 2 - phase * .32;
+          const distance = reach * (.26 + ((spark * 7) % 11) / 18);
+          const radius = 1.4 + (spark % 3) * .65;
+          context.fillStyle = spark % 2 ? `rgba(225,188,255,${pulse * .78})` : `rgba(144,236,255,${pulse * .7})`;
+          context.beginPath(); context.arc(centerX + Math.cos(angle) * distance, centerY + Math.sin(angle) * distance, radius, 0, Math.PI * 2); context.fill();
         }
         context.restore();
       }

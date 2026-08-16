@@ -1094,6 +1094,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /mudflatElectricStats\(electricLevel\)/);
   assert.match(source, /runtime\.player\.hp > 50/);
   assert.match(source, /runtime\.selfShockClock = electric\.selfInterval/);
+  assert.match(source, /context\.globalCompositeOperation = "lighter"/);
+  assert.match(source, /const cloud = context\.createRadialGradient/);
+  assert.match(source, /for \(let bolt = 0; bolt < 10; bolt \+= 1\)/);
   assert.match(source, /mudflatCastNetStats\(castNetLevel\)/);
   assert.match(source, /Math\.hypot\(creature\.x - castNet\.x, creature\.y - castNet\.y\) <= castNet\.radius/);
   assert.match(source, /신기술을 알게되었다\./);
