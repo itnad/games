@@ -263,6 +263,24 @@ function drawMudflat(
       context.strokeStyle = "rgba(190,226,222,.19)";
       context.lineWidth = 3;
       context.stroke();
+      context.strokeStyle = `rgba(226,249,237,${.18 + tide * .18})`;
+      context.lineWidth = 1.5;
+      for (let stream = -70; stream <= height + 70; stream += 48) {
+        const streamY = stream + ((elapsed * 36 + channel * 19) % 48);
+        const worldY = player.y + streamY - height / 2;
+        const centerA = Math.sin((worldY + profile.stage * 83) / 175) * 92 + Math.sin((worldY - profile.stage * 41) / 430) * 52;
+        const worldX = channel === 0 ? centerA : 265 + Math.sin((worldY - profile.stage * 63) / 210) * 74;
+        const screenX = width / 2 + worldX - player.x;
+        context.beginPath();
+        context.moveTo(screenX - 10, streamY - 12);
+        context.quadraticCurveTo(screenX + 8, streamY - 4, screenX + 2, streamY + 10);
+        context.stroke();
+        context.beginPath();
+        context.moveTo(screenX - 3, streamY + 4);
+        context.lineTo(screenX + 2, streamY + 10);
+        context.lineTo(screenX - 5, streamY + 9);
+        context.stroke();
+      }
       context.restore();
     }
   }
@@ -1157,7 +1175,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const inputLength = Math.hypot(inputX, inputY);
       if (inputLength > 1) { inputX /= inputLength; inputY /= inputLength; }
       const inWaterChannel = stageProfile.waterChannels && mudflatInWaterChannel(runtime.player.x, runtime.player.y, runtime.stage);
-      const rawTerrainSpeed = stageProfile.mudSlow * (inWaterChannel ? .68 : 1);
+      const tidePhase = stageProfile.tideInterval > 0 ? runtime.elapsed % stageProfile.tideInterval : stageProfile.tideInterval;
+      const tideSurge = stageProfile.tideInterval > 0 ? Math.max(0, 1 - tidePhase / 7) : 0;
+      const inSafeSandbar = stageProfile.safeZone !== "none" && Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
+      const incomingTideSlow = tideSurge > 0 && !inSafeSandbar ? .8 : 1;
+      const rawTerrainSpeed = stageProfile.mudSlow * (inWaterChannel ? .68 : 1) * incomingTideSlow;
       const terrainSpeed = mudflatTerrainSpeedMultiplier(rawTerrainSpeed, runtime.equipment.waders ?? 0);
       const speed = runtime.player.speed * (1 + (runtime.levels.boots ?? 0) * .09) * terrainSpeed;
       runtime.player.x += inputX * speed * dt; runtime.player.y += inputY * speed * dt;
@@ -1188,7 +1210,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           runtime.lastTideCycle = tideCycle;
           runtime.tideFlash = .7;
           const inSafeZone = Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
-          if (!inSafeZone) damagePlayer(10 + runtime.stage, "#79c7df");
+          if (!inSafeZone) {
+            damagePlayer(10 + runtime.stage, "#79c7df");
+            runtime.playerMessage = "밀물 물살에 휩쓸렸다! 마른 모래톱으로!";
+            runtime.playerMessageLife = 3.6;
+          } else {
+            runtime.playerMessage = "마른 모래톱에서 밀물을 피했다.";
+            runtime.playerMessageLife = 2.6;
+          }
           if (stageProfile.safeZone === "fixed") {
             runtime.safeZone.x = runtime.player.x + Math.cos(runtime.elapsed * .73) * 135;
             runtime.safeZone.y = runtime.player.y + Math.sin(runtime.elapsed * .61) * 110;
@@ -1591,11 +1620,45 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
       if (stageProfile.safeZone !== "none") {
         const safe = screenPoint(runtime.safeZone);
+        const tidePhase = runtime.elapsed % stageProfile.tideInterval;
+        const tideSurge = Math.max(0, 1 - tidePhase / 7);
+        const inSafeSandbar = Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
+        if (tideSurge > 0) {
+          context.save();
+          context.beginPath(); context.rect(0, 0, width, height); context.arc(safe.x, safe.y, 116, 0, Math.PI * 2); context.clip("evenodd");
+          const surge = context.createLinearGradient(0, 0, 0, height);
+          surge.addColorStop(0, `rgba(102,184,194,${tideSurge * .08})`);
+          surge.addColorStop(1, `rgba(42,132,157,${tideSurge * .31})`);
+          context.fillStyle = surge; context.fillRect(0, 0, width, height);
+          context.strokeStyle = `rgba(221,250,242,${.2 + tideSurge * .28})`; context.lineWidth = 2;
+          for (let y = -20; y < height + 30; y += 38) {
+            context.beginPath();
+            for (let x = -20; x < width + 25; x += 18) {
+              const waveY = y + Math.sin(x * .045 + runtime.elapsed * 6) * 4;
+              if (x === -20) context.moveTo(x, waveY); else context.lineTo(x, waveY);
+            }
+            context.stroke();
+          }
+          context.restore();
+        }
         const pulse = 1 + Math.sin(runtime.elapsed * 3) * .04;
         context.save(); context.translate(safe.x, safe.y);
-        context.fillStyle = "rgba(236,219,135,.13)"; context.strokeStyle = "rgba(255,237,148,.86)"; context.lineWidth = 4;
-        context.beginPath(); context.arc(0, 0, 112 * pulse, 0, Math.PI * 2); context.fill(); context.stroke();
-        context.fillStyle = "rgba(255,247,196,.92)"; context.font = "900 12px system-ui"; context.textAlign = "center"; context.fillText("마른 안전 지대", 0, -126); context.restore();
+        const sandbar = context.createRadialGradient(-20, -24, 10, 0, 0, 118);
+        sandbar.addColorStop(0, "rgba(255,239,170,.96)"); sandbar.addColorStop(.72, "rgba(216,180,104,.9)"); sandbar.addColorStop(1, "rgba(150,112,66,.72)");
+        context.fillStyle = sandbar; context.strokeStyle = "rgba(255,237,148,.94)"; context.lineWidth = 4;
+        context.beginPath(); context.ellipse(0, 0, 112 * pulse, 94 * pulse, -.12, 0, Math.PI * 2); context.fill(); context.stroke();
+        context.fillStyle = "rgba(116,76,40,.28)";
+        for (let mark = -66; mark <= 66; mark += 22) { context.beginPath(); context.arc(mark, 22 + Math.sin(mark) * 10, 2.5, 0, Math.PI * 2); context.fill(); }
+        context.fillStyle = "#855c34"; context.fillRect(-2, -48, 4, 28); context.fillStyle = "#f5ad57";
+        context.beginPath(); context.moveTo(2, -47); context.lineTo(26, -38); context.lineTo(2, -30); context.closePath(); context.fill();
+        context.fillStyle = "rgba(255,247,196,.96)"; context.font = "900 12px system-ui"; context.textAlign = "center"; context.fillText("마른 모래톱 · 밀물 피난처", 0, -126); context.restore();
+        if (!inSafeSandbar && tideSurge > 0) {
+          context.save(); context.translate(width / 2, height / 2);
+          context.fillStyle = `rgba(62,143,164,${.12 + tideSurge * .18})`; context.beginPath(); context.ellipse(0, 14, 42, 18, 0, 0, Math.PI * 2); context.fill();
+          context.strokeStyle = `rgba(220,251,247,${.42 + tideSurge * .32})`; context.lineWidth = 2;
+          for (let wave = -1; wave <= 1; wave += 1) { context.beginPath(); context.arc(wave * 14, 13, 15, Math.PI * .15, Math.PI * .82); context.stroke(); }
+          context.restore();
+        }
       }
       for (const falling of runtime.fallingRocks) {
         const point = screenPoint(falling); const progress = 1 - falling.life / falling.maxLife;
@@ -1773,10 +1836,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (stageProfile.tideInterval > 0) {
         const phase = runtime.elapsed % stageProfile.tideInterval;
         const warning = stageProfile.tideInterval - phase;
-        if (warning <= 4) {
-          context.save(); context.fillStyle = "rgba(16,48,65,.9)"; roundedRect(context, width / 2 - 116, 88, 232, 42, 18); context.fill();
-          context.strokeStyle = "#8de4ef"; context.lineWidth = 2; context.stroke(); context.fillStyle = "#eaffff"; context.font = "900 15px system-ui"; context.textAlign = "center";
-          context.fillText(`밀물까지 ${Math.max(1, Math.ceil(warning))}초 · 안전 지대로!`, width / 2, 114); context.restore();
+        if (warning <= 7) {
+          const warningText = warning <= 4 ? `밀물 ${Math.max(1, Math.ceil(warning))}초 · 물살을 피해 모래톱으로!` : "물이 차오릅니다 · 물골 밖은 발이 빠져요";
+          context.save(); context.fillStyle = "rgba(16,48,65,.92)"; roundedRect(context, width / 2 - 158, 88, 316, 42, 18); context.fill();
+          context.strokeStyle = "#8de4ef"; context.lineWidth = 2; context.stroke(); context.fillStyle = "#eaffff"; context.font = "900 14px system-ui"; context.textAlign = "center";
+          context.fillText(warningText, width / 2, 114); context.restore();
         }
       }
       if (runtime.elapsed < 4.5) {
