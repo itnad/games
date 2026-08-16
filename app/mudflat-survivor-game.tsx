@@ -1038,6 +1038,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .78, text: `-${damageLabel}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
     };
 
+    const showCatchFullMessage = () => {
+      if (runtime.catchFullNoticeClock > 0) return;
+      runtime.playerMessage = "더 담을 수가 없어. 다음에는 큰 통을 가져와야겠다.";
+      runtime.playerMessageLife = 3;
+      runtime.catchFullNoticeClock = 10;
+    };
+
     const damageAndCollect = () => {
       const defeated = runtime.creatures.filter((item) => item.hp <= 0);
       if (defeated.length) {
@@ -1048,10 +1055,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             runtime.basket[item.type] = (runtime.basket[item.type] ?? 0) + 1;
             runtime.pickups.push({ id: sequenceRef.current++, x: item.x, y: item.y, xp: item.xp });
             if (item.boss) runtime.bossCaught = true;
-          } else if (runtime.catchFullNoticeClock <= 0) {
-            runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y - 78, life: 1.4, text: `조과통이 가득 찼습니다. (${catchCapacity}마리)`, color: "#fff1a8" });
-            runtime.catchFullNoticeClock = 3;
-          }
+          } else showCatchFullMessage();
           runtime.bursts.push({ id: sequenceRef.current++, x: item.x, y: item.y, life: .5, maxLife: .5, color: item.color, size: item.size });
         }
         runtime.creatures = runtime.creatures.filter((item) => item.hp > 0);
@@ -1296,10 +1300,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             runtime.caught += 1; runtime.catchScore += reward.score;
             runtime.basket[reward.id] = (runtime.basket[reward.id] ?? 0) + 1;
             runtime.pickups.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, xp: reward.xp });
-          } else if (runtime.catchFullNoticeClock <= 0) {
-            runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y - 78, life: 1.4, text: `조과통이 가득 찼습니다. (${catchCapacity}마리)`, color: "#fff1a8" });
-            runtime.catchFullNoticeClock = 3;
-          }
+          } else showCatchFullMessage();
           runtime.clamReveals.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .9, maxLife: .9, type: reward.id });
           runtime.bursts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .55, maxLife: .55, color: reward.id === "pearl" ? "#fff0a2" : "#dbc69c", size: 18 });
           runtime.floatTexts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y - 24, life: 1.05, text: `${reward.name} 채집!`, color: reward.id === "pearl" ? "#fff2a4" : "#ffe2a6" });

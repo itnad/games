@@ -1095,7 +1095,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /creature\.type === "pufferfish" \|\| creature\.type === "king-crab"/);
   assert.match(source, /damagePlayer\(mudflatBleedDamage\(runtime\.player\.maxHp\)/);
   assert.match(source, /mudflatCatchCapacity\(runtime\.equipment\.cooler \?\? 0\)/);
-  assert.match(source, /조과통이 가득 찼습니다/);
+  assert.match(source, /더 담을 수가 없어\. 다음에는 큰 통을 가져와야겠다\./);
+  assert.match(source, /runtime\.catchFullNoticeClock = 10/);
   assert.match(source, /mudflatElectricStats\(electricLevel\)/);
   assert.match(source, /runtime\.player\.hp > 50/);
   assert.match(source, /runtime\.selfShockClock = electric\.selfInterval/);
@@ -2444,4 +2445,13 @@ test("opens public games from direct URLs and keeps history URLs in sync", async
   assert.match(pageSource, /window\.addEventListener\("popstate", restoreGameFromHistory\)/);
   assert.match(pageSource, /syncGameUrl\(id\);/);
   assert.match(pageSource, /syncGameUrl\(null\);/);
+});
+
+test("uses a throttled character speech bubble when the Mudflat haul container is full", async () => {
+  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  assert.match(source, /const showCatchFullMessage = \(\) =>/);
+  assert.match(source, /더 담을 수가 없어\. 다음에는 큰 통을 가져와야겠다\./);
+  assert.match(source, /runtime\.playerMessageLife = 3/);
+  assert.match(source, /runtime\.catchFullNoticeClock = 10/);
+  assert.doesNotMatch(source, /조과통이 가득 찼습니다/);
 });
