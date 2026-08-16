@@ -629,9 +629,12 @@ test("detects published site updates and refreshes only through safe user action
   assert.match(pageSource, /window\.addEventListener\("online", checkNow\)/);
   assert.match(pageSource, /document\.addEventListener\("visibilitychange", checkWhenVisible\)/);
   assert.match(pageSource, /if \(updateAvailable\) \{\s*applyUpdate\(id\);\s*return;/);
-  assert.match(pageSource, /const exitGame = \(\) => \{\s*if \(updateAvailable\) \{\s*applyUpdate\(\);/);
+  assert.match(pageSource, /const exitGame = \(\) => \{\s*if \(updateAvailable\) \{\s*applyUpdate\(null\);/);
   assert.match(pageSource, /onExit=\{exitGame\}/);
   assert.match(pageSource, /PENDING_GAME_AFTER_UPDATE_KEY/);
+  assert.match(pageSource, /const activeGameRef = useRef<GameId \| null>\(null\)/);
+  assert.match(pageSource, /const gameToRestore = pendingGame === undefined \? activeGameRef\.current : pendingGame/);
+  assert.match(pageSource, /onActiveGameChange\(activeGame\)/);
   assert.match(pageSource, /새 버전이 준비되었습니다/);
   assert.match(pageSource, /const \[isUpdating, setIsUpdating\] = useState\(false\)/);
   assert.match(pageSource, /setIsUpdating\(true\)[\s\S]*?requestAnimationFrame\(\(\) => window\.requestAnimationFrame\(onUpdate\)\)/);

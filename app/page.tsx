@@ -1828,9 +1828,11 @@ function MemoryGame({ onExit }: { onExit: () => void }) {
 function HomeContent({
   updateAvailable,
   applyUpdate,
+  onActiveGameChange,
 }: {
   updateAvailable: boolean;
-  applyUpdate: (pendingGame?: GameId) => void;
+  applyUpdate: (pendingGame?: GameId | null) => void;
+  onActiveGameChange: (game: GameId | null) => void;
 }) {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [category, setCategory] = useState<Category>("전체");
@@ -1839,6 +1841,10 @@ function HomeContent({
   const [recentIds, setRecentIds] = useState<GameId[]>([]);
   const [finderOpen, setFinderOpen] = useState(false);
   const [showAllGames, setShowAllGames] = useState(false);
+
+  useEffect(() => {
+    onActiveGameChange(activeGame);
+  }, [activeGame, onActiveGameChange]);
 
   useEffect(() => {
     const knownIds = new Set<GameId>(GAMES.map((game) => game.id));
@@ -1941,7 +1947,7 @@ function HomeContent({
 
   const exitGame = () => {
     if (updateAvailable) {
-      applyUpdate();
+      applyUpdate(null);
       return;
     }
     setActiveGame(null);
@@ -2396,6 +2402,11 @@ export default function Home() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const latestBuildIdRef = useRef("");
   const checkingForUpdateRef = useRef(false);
+  const activeGameRef = useRef<GameId | null>(null);
+
+  const rememberActiveGame = useCallback((game: GameId | null) => {
+    activeGameRef.current = game;
+  }, []);
 
   const checkForUpdate = useCallback(async () => {
     if (checkingForUpdateRef.current || !window.navigator.onLine) return;
@@ -2418,8 +2429,9 @@ export default function Home() {
     }
   }, []);
 
-  const applyUpdate = useCallback((pendingGame?: GameId) => {
-    if (pendingGame) window.sessionStorage.setItem(PENDING_GAME_AFTER_UPDATE_KEY, pendingGame);
+  const applyUpdate = useCallback((pendingGame?: GameId | null) => {
+    const gameToRestore = pendingGame === undefined ? activeGameRef.current : pendingGame;
+    if (gameToRestore) window.sessionStorage.setItem(PENDING_GAME_AFTER_UPDATE_KEY, gameToRestore);
     const updateUrl = new URL(window.location.href);
     updateUrl.searchParams.set("paperoid-update", latestBuildIdRef.current || String(Date.now()));
     updateUrl.hash = "";
@@ -2455,7 +2467,7 @@ export default function Home() {
 
   return (
     <>
-      <HomeContent updateAvailable={updateAvailable} applyUpdate={applyUpdate} />
+      <HomeContent updateAvailable={updateAvailable} applyUpdate={applyUpdate} onActiveGameChange={rememberActiveGame} />
       {updateAvailable && <AppUpdateNotice onUpdate={() => applyUpdate()} />}
     </>
   );
