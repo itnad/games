@@ -574,6 +574,44 @@ function drawClamDigging(context: CanvasRenderingContext2D, origin: Point, targe
   context.restore();
 }
 
+function drawExperiencePickup(context: CanvasRenderingContext2D, pickup: Pickup, elapsed: number) {
+  const pulse = 1 + Math.sin(elapsed * 7 + pickup.id) * .12;
+  const drawDiamond = (radius: number, fill: string, stroke: string, lineWidth = 1.5) => {
+    context.fillStyle = fill;
+    context.beginPath(); context.moveTo(0, -radius); context.lineTo(radius * .8, 0); context.lineTo(0, radius); context.lineTo(-radius * .8, 0); context.closePath(); context.fill();
+    context.strokeStyle = stroke; context.lineWidth = lineWidth; context.stroke();
+  };
+  const drawDot = (x: number, y: number, radius = 3.25) => {
+    context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2); context.fill();
+    context.strokeStyle = "#e7fff4"; context.lineWidth = 1; context.stroke();
+  };
+
+  context.save(); context.scale(pulse, pulse);
+  if (pickup.xp <= 5) {
+    context.fillStyle = "#74e2bd";
+    if (pickup.xp === 1) drawDiamond(8, "#74e2bd", "#e7fff4");
+    else if (pickup.xp === 2) { drawDot(0, -4); drawDot(0, 4); }
+    else if (pickup.xp === 3) { drawDot(0, -5); drawDot(-4, 3); drawDot(4, 3); }
+    else if (pickup.xp === 4) { drawDot(-4, -4); drawDot(4, -4); drawDot(-4, 4); drawDot(4, 4); }
+    else { drawDiamond(10, "#5dd9ad", "#effff7", 2.4); }
+  } else if (pickup.xp <= 10) {
+    context.fillStyle = "rgba(123,255,220,.2)"; context.beginPath(); context.arc(0, 0, 18, 0, Math.PI * 2); context.fill();
+    drawDiamond(11, "#81f0ce", "#f0fff9", 1.7);
+  } else if (pickup.xp <= 30) {
+    context.fillStyle = "rgba(69,242,229,.19)"; context.beginPath(); context.arc(0, 0, 24, 0, Math.PI * 2); context.fill();
+    drawDiamond(15, "#44cfc4", "#e6fffa", 2);
+    context.fillStyle = "rgba(219,255,251,.7)"; context.beginPath(); context.moveTo(0, -10); context.lineTo(5, 0); context.lineTo(0, 5); context.closePath(); context.fill();
+  } else {
+    const glint = .45 + .55 * Math.max(0, Math.sin(elapsed * 12 + pickup.id));
+    context.fillStyle = "rgba(248,213,111,.2)"; context.beginPath(); context.arc(0, 0, 29, 0, Math.PI * 2); context.fill();
+    drawDiamond(20, "#27b9bd", "#fff7c7", 2.5);
+    context.fillStyle = "rgba(213,255,252,.78)"; context.beginPath(); context.moveTo(0, -14); context.lineTo(7, -1); context.lineTo(0, 8); context.lineTo(-7, -1); context.closePath(); context.fill();
+    context.fillStyle = `rgba(255,221,119,${glint})`;
+    for (const [x, y] of [[-19, -12], [20, 7], [5, -24]]) { context.beginPath(); context.arc(x, y, 2.2, 0, Math.PI * 2); context.fill(); }
+  }
+  context.restore();
+}
+
 function drawRotatingTongs(context: CanvasRenderingContext2D, x: number, y: number, angle: number, reach: number) {
   context.save(); context.translate(x, y); context.rotate(angle);
   context.strokeStyle = "rgba(30,24,20,.28)"; context.lineWidth = 9; context.lineCap = "round";
@@ -1560,11 +1598,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
       for (const pickup of runtime.pickups) {
         const point = screenPoint(pickup);
-        const pulse = 1 + Math.sin(runtime.elapsed * 7 + pickup.id) * .12;
-        context.save(); context.translate(point.x, point.y); context.scale(pulse, pulse);
-        context.fillStyle = "rgba(94,255,210,.16)"; context.beginPath(); context.arc(0, 0, 16, 0, Math.PI * 2); context.fill();
-        context.fillStyle = "#74e2bd"; context.beginPath(); context.moveTo(0, -8); context.lineTo(7, 0); context.lineTo(0, 9); context.lineTo(-7, 0); context.closePath(); context.fill();
-        context.strokeStyle = "#e7fff4"; context.lineWidth = 1.5; context.stroke(); context.restore();
+        context.save(); context.translate(point.x, point.y); drawExperiencePickup(context, pickup, runtime.elapsed); context.restore();
       }
       for (const projectile of runtime.projectiles) {
         const point = screenPoint(projectile);

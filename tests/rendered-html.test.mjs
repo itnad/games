@@ -1071,6 +1071,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /id: sequenceRef\.current\+\+, type: template\.id, x: runtime\.player\.x/);
   assert.match(source, /const revealRockCreature = \(rock: Rock, finding:[\s\S]*?id: sequenceRef\.current\+\+,\s*type: template\.id,/);
   assert.match(source, /function drawGatherer\(/);
+  assert.match(source, /function drawExperiencePickup\(context: CanvasRenderingContext2D, pickup: Pickup, elapsed: number\)/);
+  assert.match(source, /if \(pickup\.xp <= 5\)/);
+  assert.match(source, /pickup\.xp === 2\) \{ drawDot\(0, -4\); drawDot\(0, 4\); \}/);
+  assert.match(source, /pickup\.xp === 3\) \{ drawDot\(0, -5\); drawDot\(-4, 3\); drawDot\(4, 3\); \}/);
+  assert.match(source, /pickup\.xp === 4\) \{ drawDot\(-4, -4\); drawDot\(4, -4\); drawDot\(-4, 4\); drawDot\(4, 4\); \}/);
+  assert.match(source, /else if \(pickup\.xp <= 10\)/);
+  assert.match(source, /else if \(pickup\.xp <= 30\)/);
+  assert.match(source, /const glint = \.45 \+ \.55/);
   assert.match(source, /function drawRotatingTongs\(/);
   assert.match(source, /function drawHarpoonSprite\(/);
   assert.match(source, /function drawRockHookBar\(/);
