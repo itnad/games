@@ -40,6 +40,11 @@
 .ms-layer section>div button:not(:disabled):active{transform:translateY(1px) scale(.982);border-color:var(--ms-coral);background:linear-gradient(145deg,#fff3dd,#ffe2c9);box-shadow:inset 0 0 0 2px #ef6b4c66,0 0 0 5px #ef6b4c20}
 .ms-layer section>div button:not(:disabled):active>i{background:#b95039;box-shadow:0 0 0 4px #ef6b4c28}
 .ms-layer .ms-reroll:not(:disabled):active,.ms-layer.pause .ms-quit:not(:disabled):active{transform:translateY(1px) scale(.985);border-color:#b94732;background:#ffe6d5;box-shadow:inset 0 0 0 2px #b9473255}
+
+/* Keep the reroll action compact while separating its title from the health cost. */
+.ms-layer .ms-reroll{width:fit-content;max-width:100%;min-height:62px;padding:9px 16px;display:grid;place-items:center;gap:5px;font-size:0;line-height:0}
+.ms-layer .ms-reroll::before{content:"채집기술 새로고침";color:#a43f31;font-size:15px;font-weight:900;line-height:1.2;white-space:nowrap}
+.ms-layer .ms-reroll::after{content:"- 최대 체력의 20% 사용";color:#8f5d51;font-size:12px;font-weight:800;line-height:1.2;white-space:nowrap}
 .ms-layer.pause .ms-primary:not(:disabled):active{transform:translateY(2px) scale(.985);background:#c6533b!important;box-shadow:inset 0 3px 9px #67291e66,0 5px 13px #ad493622}
 
 /* Normal mode keeps six selectable techniques in the single bottom row.

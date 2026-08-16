@@ -1175,6 +1175,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function isInsideDipNetArea\(/);
   assert.match(source, /const rerollUpgradeChoices/);
   assert.match(source, /최대 체력 20%/);
+  assert.match(styles, /\.ms-layer \.ms-reroll\{width:fit-content;max-width:100%;min-height:62px/);
+  assert.match(styles, /content:"채집기술 새로고침"/);
+  assert.match(styles, /content:"- 최대 체력의 20% 사용"/);
   assert.match(source, /GENERAL_SKILL_ORDER/);
   assert.match(source, /MUDFLAT_FIXED_GENERAL_SKILL_IDS/);
   assert.match(source, /선택 기술 \{normalSkills\.length\} \/ 6/);
