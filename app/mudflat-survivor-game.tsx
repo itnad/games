@@ -57,7 +57,7 @@ type CountMap = Record<string, number>;
 type StageObjective = { id: "catch" | "rocks" | "health"; label: string; target: number; bonus: number };
 type StageProfile = { stage: number; name: string; subtitle: string; modifiers: string[]; waterChannels: boolean; tideInterval: number; safeZone: string; rockMultiplier: number; fallingRocks: number; darkness: number; mudSlow: number; seafoodSpawnMultiplier: number; wind: number; waves: boolean; swarms: boolean; coldThresholdMultiplier: number; finalBoss: boolean; endless: boolean; objective: StageObjective | null };
 type CreatureMovement = "chase" | "still" | "wander" | "flee" | "oval";
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; movementAngle: number; movementClock: number; ovalDirection?: number };
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; movementAngle: number; movementClock: number; facing?: 1 | -1; ovalDirection?: number };
 type Pickup = Point & { id: number; xp: number };
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
@@ -105,6 +105,7 @@ const CHARACTERS = [
 const GENERAL_CHARACTER = { id: "beginner", name: "갯벌 초보", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 };
 const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "boots", "snack", "basket"];
 const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", boots: "장화", snack: "간식", basket: "바구니" };
+const DIRECTIONAL_SEAFOOD_TYPES = new Set(["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp"]);
 const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, catchCapacity: 500, score: 0, levels: {}, basket: {}, bossCaught: false };
 
 function MudflatBrand() {
@@ -351,12 +352,19 @@ function drawMudflat(
   }
 }
 
+function creatureSpriteHorizontalScale(creature: Creature) {
+  const facesRight = (creature.facing ?? 1) > 0;
+  const artworkFacesRight = creature.type !== "shrimp";
+  return facesRight === artworkFacesRight ? 1 : -1;
+}
+
 function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creature, elapsed: number, sprites: ReadonlyMap<string, HTMLImageElement>) {
   const size = creature.size * (creature.visualScale ?? 1);
   const wobble = Math.sin(elapsed * 5 + creature.phase) * .08;
   const bossPulse = creature.boss ? mudflatBossPulse(elapsed, creature.phase) : null;
   context.save();
   context.rotate(wobble);
+  if (DIRECTIONAL_SEAFOOD_TYPES.has(creature.type)) context.scale(creatureSpriteHorizontalScale(creature), 1);
   context.fillStyle = "rgba(28,22,19,.28)";
   context.beginPath();
   context.ellipse(0, size * .72, size * 1.05, size * .38, 0, 0, Math.PI * 2);
@@ -1263,6 +1271,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       let pufferTouching = false;
       for (const creature of runtime.creatures) {
         creature.age += dt;
+        const previousX = creature.x;
         const dx = runtime.player.x - creature.x; const dy = runtime.player.y - creature.y; const distance = Math.hypot(dx, dy) || 1;
         const activeMovement = creature.type === "pufferfish" ? mudflatPufferMovementForAge(creature.age) : creature.movement;
         const creatureSpeed = ["whelk", "fist-whelk", "golbaengi"].includes(creature.type) ? mudflatShellMovementSpeed(speed) : creature.speed;
@@ -1293,6 +1302,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           creature.x += (-dx / distance * retreatSpeed + Math.cos(creature.phase) * localX - Math.sin(creature.phase) * localY) * dt;
           creature.y += (-dy / distance * retreatSpeed + Math.sin(creature.phase) * localX + Math.cos(creature.phase) * localY) * dt;
         }
+        if (Math.abs(creature.x - previousX) > .001) creature.facing = creature.x > previousX ? 1 : -1;
         creature.saltHit = Math.max(0, creature.saltHit - dt); creature.hitFlash = Math.max(0, creature.hitFlash - dt);
         if (distance < creature.size + 17) {
           touching = true;

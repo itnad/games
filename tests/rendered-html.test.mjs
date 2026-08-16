@@ -993,6 +993,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatPufferMovementForAge(7.999), "wander");
   assert.equal(mudflatPufferMovementForAge(8), "oval");
   assert.ok((await readFile(new URL("../public/mudflat-creatures/pufferfish.png", import.meta.url))).byteLength > 10_000);
+  assert.ok((await readFile(new URL("../public/mudflat-creatures/golbaengi-v2.png", import.meta.url))).byteLength > 10_000);
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
   assert.deepEqual(MUDFLAT_SHOP_EQUIPMENT.map((item) => item.name), ["헤드랜턴", "조과통 업그레이드", "작업 조끼", "장갑 업그레이드", "장화 밑창 업그레이드"]);
   assert.ok(MUDFLAT_SHOP_EQUIPMENT.every((item) => item.max === 6));
@@ -1073,6 +1074,12 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-layer\.pause \.ms-primary:not\(:disabled\):active/);
   assert.match(source, /function drawMudflat\(/);
   assert.match(source, /function drawCreatureSprite\(/);
+  assert.match(source, /const DIRECTIONAL_SEAFOOD_TYPES = new Set\(\["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp"\]\)/);
+  assert.match(source, /function creatureSpriteHorizontalScale\(creature: Creature\)/);
+  assert.match(source, /const artworkFacesRight = creature\.type !== "shrimp"/);
+  assert.match(source, /context\.scale\(creatureSpriteHorizontalScale\(creature\), 1\)/);
+  assert.match(source, /const previousX = creature\.x/);
+  assert.match(source, /creature\.facing = creature\.x > previousX \? 1 : -1/);
   assert.match(source, /const sprite = creature\.sprite && !creature\.boss \? sprites\.get\(creature\.type\) : undefined/);
   assert.match(source, /mudflatBossPulse\(elapsed, creature\.phase\)/);
   assert.match(source, /id: sequenceRef\.current\+\+, type: template\.id, x: runtime\.player\.x/);
