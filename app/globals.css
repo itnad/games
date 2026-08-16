@@ -128,12 +128,20 @@ a:focus-visible {
   background: rgba(35, 29, 48, .96);
   box-shadow: 0 18px 48px rgba(21, 16, 34, .34);
   backdrop-filter: blur(14px);
+  overflow: hidden;
+  transform-origin: right center;
+  transition: width .5s cubic-bezier(.22, 1, .36, 1), min-height .5s cubic-bezier(.22, 1, .36, 1), padding .5s cubic-bezier(.22, 1, .36, 1), gap .38s ease, border-radius .5s ease;
 }
 
 .app-update-notice > span {
   min-width: 0;
+  max-width: 290px;
   display: grid;
   gap: 4px;
+  opacity: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width .42s ease, opacity .22s ease;
 }
 
 .app-update-notice b { font-size: 15px; }
@@ -157,6 +165,55 @@ a:focus-visible {
   transition: opacity .18s ease, transform .18s ease;
 }
 
+.app-update-refresh-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 26px;
+  font-style: normal;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.app-update-label {
+  max-width: 100px;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  transition: max-width .3s ease, opacity .2s ease;
+}
+
+.app-update-notice.is-collapsed {
+  width: 56px;
+  min-height: 56px;
+  padding: 5px;
+  gap: 0;
+  border-radius: 18px;
+}
+
+.app-update-notice.is-collapsed > span {
+  max-width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-update-notice.is-collapsed button {
+  width: 46px;
+  min-width: 46px;
+  min-height: 46px;
+  padding: 0;
+  border-radius: 14px;
+}
+
+.app-update-notice.is-collapsed .app-update-label {
+  max-width: 0;
+  opacity: 0;
+}
+
 .app-update-notice button:disabled {
   cursor: wait;
   opacity: .82;
@@ -178,15 +235,17 @@ a:focus-visible {
 
 @media (max-width: 700px) {
   .app-update-notice {
-    width: auto;
+    width: calc(100vw - 24px);
     right: 12px;
     bottom: max(84px, calc(env(safe-area-inset-bottom) + 70px));
-    left: 12px;
+    left: auto;
     gap: 10px;
     padding-left: 15px;
   }
+  .app-update-notice.is-collapsed { width: 56px; padding-left: 5px; }
   .app-update-notice small { font-size: 11px; }
   .app-update-notice button { min-width: 96px; padding-inline: 10px; }
+  .app-update-notice.is-collapsed button { min-width: 46px; padding: 0; }
 }
 
 .hero {

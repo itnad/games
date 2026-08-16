@@ -637,10 +637,17 @@ test("detects published site updates and refreshes only through safe user action
   assert.match(pageSource, /onActiveGameChange\(activeGame\)/);
   assert.match(pageSource, /새 버전이 준비되었습니다/);
   assert.match(pageSource, /const \[isUpdating, setIsUpdating\] = useState\(false\)/);
+  assert.match(pageSource, /const \[isCollapsed, setIsCollapsed\] = useState\(false\)/);
+  assert.match(pageSource, /window\.setTimeout\(\(\) => setIsCollapsed\(true\), 2000\)/);
   assert.match(pageSource, /setIsUpdating\(true\)[\s\S]*?requestAnimationFrame\(\(\) => window\.requestAnimationFrame\(onUpdate\)\)/);
   assert.match(pageSource, /disabled=\{isUpdating\} aria-busy=\{isUpdating\}/);
   assert.match(pageSource, /app-update-spinner/);
+  assert.match(pageSource, /app-update-refresh-icon/);
+  assert.match(pageSource, /isUpdating \? "새로고침 중" : "새로고침"/);
+  assert.doesNotMatch(pageSource, /지금 업데이트/);
   assert.match(styles, /\.app-update-notice\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?z-index:\s*10000;/);
+  assert.match(styles, /\.app-update-notice\.is-collapsed\s*\{[\s\S]*?width:\s*56px;[\s\S]*?min-height:\s*56px;/);
+  assert.match(styles, /transition:\s*width \.5s/);
   assert.match(styles, /\.app-update-spinner\s*\{[\s\S]*?border-radius:\s*50%;[\s\S]*?animation:\s*app-update-spin/);
   assert.match(styles, /@keyframes app-update-spin/);
 });
