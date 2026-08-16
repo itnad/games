@@ -984,6 +984,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
   assert.deepEqual(MUDFLAT_SHOP_EQUIPMENT.map((item) => item.name), ["헤드랜턴", "조과통 업그레이드", "작업 조끼", "장갑 업그레이드", "장화 밑창 업그레이드"]);
   assert.ok(MUDFLAT_SHOP_EQUIPMENT.every((item) => item.max === 6));
+  assert.equal(MUDFLAT_SHOP_EQUIPMENT.find((item) => item.id === "cooler").description, "채집 한도를 늘립니다.");
+  assert.equal(MUDFLAT_SHOP_EQUIPMENT.find((item) => item.id === "vest").description, "최대 체력과 출혈 저항을 높입니다.");
   assert.equal(mudflatEquipmentPrice("headlamp", 0), 1000);
   assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map(mudflatCatchCapacity), [500, 800, 1200, 1700, 2300, 3000, 3800]);
   assert.equal(mudflatEquipmentDescription("cooler", 6), "3,800마리까지 채집 가능합니다.");

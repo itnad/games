@@ -80,10 +80,10 @@ export function mudflatMarketImageScale(type) {
 
 export const MUDFLAT_SHOP_EQUIPMENT = [
   { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "어두운 곳에 숨은 소라와 골뱅이가 출현합니다.", max: 6 },
-  { id: "cooler", icon: "▣", name: "조과통 업그레이드", description: "Lv.1부터 800·1,200·1,700·2,300·3,000·3,800마리까지 채집합니다.", max: 6 },
-  { id: "vest", icon: "♥", name: "작업 조끼", description: "최대 체력 +25/+50/+100/+200/+400/+800, 출혈 시간 50~75% 감소.", max: 6 },
-  { id: "gloves", icon: "⌁", name: "장갑 업그레이드", description: "모든 채집 도구의 기본 위력이 단계별로 6~21% 증가합니다.", max: 6 },
-  { id: "waders", icon: "≫", name: "장화 밑창 업그레이드", description: "지형 페널티 30~75% 감소, 기본 최대 체력 10~20% 상승.", max: 6 },
+  { id: "cooler", icon: "▣", name: "조과통 업그레이드", description: "채집 한도를 늘립니다.", max: 6 },
+  { id: "vest", icon: "♥", name: "작업 조끼", description: "최대 체력과 출혈 저항을 높입니다.", max: 6 },
+  { id: "gloves", icon: "⌁", name: "장갑 업그레이드", description: "모든 채집 도구의 위력을 높입니다.", max: 6 },
+  { id: "waders", icon: "≫", name: "장화 밑창 업그레이드", description: "지형 이동 저항과 최대 체력을 개선합니다.", max: 6 },
 ];
 
 export const MUDFLAT_CATCH_CAPACITIES = [500, 800, 1200, 1700, 2300, 3000, 3800];
