@@ -18,6 +18,12 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Keep a downward swipe inside an active game instead of handing it to the browser refresh gesture. */
+html.paperoid-game-active,
+html.paperoid-game-active body {
+  overscroll-behavior-y: none;
+}
+
 body {
   margin: 0;
   background: var(--paper);

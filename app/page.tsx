@@ -1971,6 +1971,33 @@ function HomeContent({
     return () => window.cancelAnimationFrame(frame);
   }, [activeGame]);
 
+  useEffect(() => {
+    if (!activeGame) return;
+    const root = document.documentElement;
+    root.classList.add("paperoid-game-active");
+    let touchStartY: number | null = null;
+    const rememberTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches.length === 1 ? event.touches[0]?.clientY ?? null : null;
+    };
+    const blockPullToRefresh = (event: TouchEvent) => {
+      const touchY = event.touches[0]?.clientY;
+      const pageAtTop = window.scrollY <= 0 && document.documentElement.scrollTop <= 0;
+      if (touchStartY !== null && touchY !== undefined && pageAtTop && touchY > touchStartY) event.preventDefault();
+    };
+    const clearTouchStart = () => { touchStartY = null; };
+    window.addEventListener("touchstart", rememberTouchStart, { passive: true });
+    window.addEventListener("touchmove", blockPullToRefresh, { passive: false });
+    window.addEventListener("touchend", clearTouchStart, { passive: true });
+    window.addEventListener("touchcancel", clearTouchStart, { passive: true });
+    return () => {
+      root.classList.remove("paperoid-game-active");
+      window.removeEventListener("touchstart", rememberTouchStart);
+      window.removeEventListener("touchmove", blockPullToRefresh);
+      window.removeEventListener("touchend", clearTouchStart);
+      window.removeEventListener("touchcancel", clearTouchStart);
+    };
+  }, [activeGame]);
+
   const launchGame = (id: GameId) => {
     if (updateAvailable) {
       applyUpdate(id);

@@ -1388,6 +1388,10 @@ test("starts every game at the top and keeps the latest Janggi AI piece distinct
 
   assert.match(pageSource, /if \(!activeGame\) return;[\s\S]*?window\.scrollTo\(\{ top: 0, left: 0, behavior: "auto" \}\)/);
   assert.match(pageSource, /window\.requestAnimationFrame\(scrollGameToTop\)/);
+  assert.match(pageSource, /root\.classList\.add\("paperoid-game-active"\)/);
+  assert.match(pageSource, /window\.addEventListener\("touchmove", blockPullToRefresh, \{ passive: false \}\)/);
+  assert.match(pageSource, /pageAtTop[\s\S]*?touchY > touchStartY\) event\.preventDefault\(\)/);
+  assert.match(styles, /html\.paperoid-game-active,[\s\S]*?overscroll-behavior-y: none/);
   assert.match(styles, /\.janggi-board button\.opponent-to \.janggi-piece \{[\s\S]*?background: #d9ba85/);
 });
 
