@@ -1151,6 +1151,16 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const emptyHazard = mudflatStageEmptySeafoodHazard\(runtime\.emptySeafoodSeconds, runtime\.stage\)/);
   assert.match(source, /stageProfile\.waterChannels && mudflatInWaterChannel/);
   assert.match(source, /incomingTideSlow/);
+  assert.match(source, /function waterChannelCenterX\(/);
+  assert.match(source, /function drawWaterChannelArrows\(/);
+  assert.match(source, /stageProfile\.waterChannels && tideSurge > 0/);
+  assert.match(source, /lastSandbarCycle: number; safeZoneTransition: number/);
+  assert.match(source, /if \(afterTide && sandbarCycle > runtime\.lastSandbarCycle\)/);
+  assert.match(source, /runtime\.safeZone = nextSandbarPosition\(/);
+  assert.match(source, /function drawSandbarDirectionGuide\(/);
+  assert.match(source, /밀물 접근 · \$\{Math\.max\(1, Math\.ceil\(warning\)\)\}초/);
+  assert.doesNotMatch(source, /runtime\.safeZone\.x \+= \(targetX - runtime\.safeZone\.x\)/);
+  assert.doesNotMatch(source, /elapsed \* 36 \+ channel/);
   assert.match(source, /stageProfile\.fallingRocks/);
   assert.match(source, /stageProfile\.safeZone/);
   assert.match(source, /밀물 물살에 휩쓸렸다! 마른 모래톱으로!/);

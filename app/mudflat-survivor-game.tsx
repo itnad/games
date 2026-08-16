@@ -80,7 +80,7 @@ type Runtime = {
   bursts: Burst[]; floatTexts: FloatText[];
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
   bossSpawned: boolean; spawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
-  safeZone: Point; lastTideCycle: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; waveClock: number; rocksFlipped: number;
+  safeZone: Point; lastTideCycle: number; lastSandbarCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; waveClock: number; rocksFlipped: number;
   paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
@@ -194,7 +194,7 @@ function makeRuntime(campaign: Campaign): Runtime {
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
     playerMessage: "", playerMessageLife: 0, pufferTouching: false, hiddenRockClock: campaign.stage === 3 ? .5 : 0, hiddenRockIntroShown: false, catchFullNoticeClock: 0,
     hoeEffect: 0, rockFlipEffect: null, bleedSeconds: 0, bleedTickClock: 1, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0,
-    safeZone: { x: 90, y: 0 }, lastTideCycle: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, waveClock: 10, rocksFlipped: 0,
+    safeZone: { x: 90, y: 0 }, lastTideCycle: 0, lastSandbarCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, waveClock: 10, rocksFlipped: 0,
     paused: false, ended: false,
   };
 }
@@ -229,13 +229,80 @@ function worldHash(x: number, y: number) {
   return value - Math.floor(value);
 }
 
+function waterChannelCenterX(worldY: number, stage: number, channel = 0) {
+  if (channel === 0) return Math.sin((worldY + stage * 83) / 175) * 92 + Math.sin((worldY - stage * 41) / 430) * 52;
+  return 265 + Math.sin((worldY - stage * 63) / 210) * 74;
+}
+
+function nextSandbarPosition(origin: Point, stage: number, cycle: number): Point {
+  const seed = Math.sin((stage + 1) * 87.31 + (cycle + 1) * 43.17);
+  const angle = seed * Math.PI + stage * .54 + cycle * .82;
+  const distance = 172 + (Math.sin((cycle + 1) * 2.31 + stage) + 1) * 30;
+  return { x: origin.x + Math.cos(angle) * distance, y: origin.y + Math.sin(angle) * distance };
+}
+
+function drawWaterChannelArrows(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  player: Point,
+  elapsed: number,
+  profile: StageProfile,
+) {
+  const count = profile.endless || profile.stage === 8 ? 3 : 2;
+  context.save();
+  context.strokeStyle = "rgba(223, 247, 250, .72)";
+  context.fillStyle = "rgba(223, 247, 250, .72)";
+  context.lineWidth = 2.4;
+  context.lineCap = "round";
+  for (let index = 0; index < count; index += 1) {
+    const channel = count === 3 && index === 2 ? 1 : 0;
+    const screenY = ((elapsed * 13 + index * (height / count + 38)) % (height + 108)) - 54;
+    const worldY = player.y + screenY - height / 2;
+    const screenX = width / 2 + waterChannelCenterX(worldY, profile.stage, channel) - player.x;
+    context.save();
+    context.translate(screenX, screenY);
+    context.rotate(Math.PI / 2);
+    context.beginPath();
+    context.moveTo(-11, -7); context.lineTo(0, 0); context.lineTo(-11, 7);
+    context.stroke();
+    context.restore();
+  }
+  context.restore();
+}
+
+function drawSandbarDirectionGuide(context: CanvasRenderingContext2D, width: number, player: Point, sandbar: Point) {
+  const deltaX = sandbar.x - player.x;
+  const deltaY = sandbar.y - player.y;
+  const distance = Math.hypot(deltaX, deltaY);
+  const angle = Math.atan2(deltaY, deltaX);
+  const panelWidth = 208;
+  const panelLeft = width / 2 - panelWidth / 2;
+  const panelTop = 138;
+  context.save();
+  context.fillStyle = "rgba(19, 52, 64, .9)";
+  roundedRect(context, panelLeft, panelTop, panelWidth, 36, 15); context.fill();
+  context.strokeStyle = "rgba(151, 230, 236, .72)";
+  context.lineWidth = 1.5; context.stroke();
+  context.translate(panelLeft + 25, panelTop + 18);
+  context.rotate(angle);
+  context.fillStyle = "#ffe5a2";
+  context.beginPath(); context.moveTo(10, 0); context.lineTo(-7, -7); context.lineTo(-3, 0); context.lineTo(-7, 7); context.closePath(); context.fill();
+  context.restore();
+  context.save();
+  context.fillStyle = "#efffff";
+  context.font = "800 13px system-ui";
+  context.textAlign = "left";
+  context.fillText(`다음 모래톱 · ${Math.round(distance / 10)}m`, panelLeft + 47, panelTop + 23);
+  context.restore();
+}
+
 function drawMudflat(
   context: CanvasRenderingContext2D,
   width: number,
   height: number,
   player: Point,
   tide: number,
-  elapsed: number,
   profile: StageProfile,
 ) {
   const base = context.createLinearGradient(0, 0, 0, height);
@@ -249,39 +316,20 @@ function drawMudflat(
     const channelCount = profile.endless || profile.stage === 8 ? 2 : 1;
     for (let channel = 0; channel < channelCount; channel += 1) {
       context.save();
-      context.strokeStyle = `rgba(63,128,143,${.35 + tide * .2})`;
+      context.strokeStyle = "rgba(75, 156, 179, .34)";
       context.lineWidth = channel === 0 ? 84 : 68;
       context.lineCap = "round";
       context.beginPath();
       for (let screenY = -80; screenY <= height + 80; screenY += 24) {
         const worldY = player.y + screenY - height / 2;
-        const centerA = Math.sin((worldY + profile.stage * 83) / 175) * 92 + Math.sin((worldY - profile.stage * 41) / 430) * 52;
-        const worldX = channel === 0 ? centerA : 265 + Math.sin((worldY - profile.stage * 63) / 210) * 74;
+        const worldX = waterChannelCenterX(worldY, profile.stage, channel);
         const screenX = width / 2 + worldX - player.x;
         if (screenY === -80) context.moveTo(screenX, screenY); else context.lineTo(screenX, screenY);
       }
       context.stroke();
-      context.strokeStyle = "rgba(190,226,222,.19)";
+      context.strokeStyle = "rgba(191, 232, 239, .24)";
       context.lineWidth = 3;
       context.stroke();
-      context.strokeStyle = `rgba(226,249,237,${.18 + tide * .18})`;
-      context.lineWidth = 1.5;
-      for (let stream = -70; stream <= height + 70; stream += 48) {
-        const streamY = stream + ((elapsed * 36 + channel * 19) % 48);
-        const worldY = player.y + streamY - height / 2;
-        const centerA = Math.sin((worldY + profile.stage * 83) / 175) * 92 + Math.sin((worldY - profile.stage * 41) / 430) * 52;
-        const worldX = channel === 0 ? centerA : 265 + Math.sin((worldY - profile.stage * 63) / 210) * 74;
-        const screenX = width / 2 + worldX - player.x;
-        context.beginPath();
-        context.moveTo(screenX - 10, streamY - 12);
-        context.quadraticCurveTo(screenX + 8, streamY - 4, screenX + 2, streamY + 10);
-        context.stroke();
-        context.beginPath();
-        context.moveTo(screenX - 3, streamY + 4);
-        context.lineTo(screenX + 2, streamY + 10);
-        context.lineTo(screenX - 5, streamY + 9);
-        context.stroke();
-      }
       context.restore();
     }
   }
@@ -342,33 +390,6 @@ function drawMudflat(
     }
   }
 
-  context.strokeStyle = "rgba(232,207,153,.1)";
-  context.lineWidth = 2;
-  for (let row = 0; row < 5; row += 1) {
-    const y = ((row * 167 - player.y * .35) % (height + 80) + height + 80) % (height + 80) - 40;
-    context.beginPath();
-    for (let x = -20; x <= width + 20; x += 24) {
-      const waveY = y + Math.sin((x + player.x * .2) * .028 + row) * 5;
-      if (x === -20) context.moveTo(x, waveY); else context.lineTo(x, waveY);
-    }
-    context.stroke();
-  }
-
-  if (tide > .7) {
-    const waterTop = height - ((tide - .7) / .3) * height * .35;
-    const water = context.createLinearGradient(0, waterTop, 0, height);
-    water.addColorStop(0, "rgba(92,181,185,.08)");
-    water.addColorStop(1, "rgba(53,142,164,.35)");
-    context.fillStyle = water;
-    context.beginPath();
-    context.moveTo(0, height);
-    for (let x = 0; x <= width + 20; x += 20) {
-      context.lineTo(x, waterTop + Math.sin(x * .025 + elapsed * 1.6) * 7);
-    }
-    context.lineTo(width, height);
-    context.closePath();
-    context.fill();
-  }
 }
 
 function creatureSpriteHorizontalScale(creature: Creature) {
@@ -1195,16 +1216,15 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         runtime.player.stride += dt * Math.max(.35, Math.hypot(inputX, inputY));
       }
 
-      if (stageProfile.safeZone !== "none") {
-        if (stageProfile.safeZone === "moving") {
-          const targetX = runtime.player.x + Math.cos(runtime.elapsed * .31 + runtime.stage) * 145;
-          const targetY = runtime.player.y + Math.sin(runtime.elapsed * .27 + runtime.stage) * 120;
-          runtime.safeZone.x += (targetX - runtime.safeZone.x) * Math.min(1, dt * .38);
-          runtime.safeZone.y += (targetY - runtime.safeZone.y) * Math.min(1, dt * .38);
-        } else if (Math.hypot(runtime.safeZone.x - runtime.player.x, runtime.safeZone.y - runtime.player.y) > 330) {
-          runtime.safeZone.x = runtime.player.x + Math.cos(runtime.stage + runtime.elapsed) * 130;
-          runtime.safeZone.y = runtime.player.y + Math.sin(runtime.stage + runtime.elapsed) * 105;
+      if (stageProfile.safeZone !== "none" && stageProfile.tideInterval > 0) {
+        const sandbarCycle = Math.floor(runtime.elapsed / stageProfile.tideInterval);
+        const afterTide = tidePhase >= 7;
+        if (afterTide && sandbarCycle > runtime.lastSandbarCycle) {
+          runtime.lastSandbarCycle = sandbarCycle;
+          runtime.safeZone = nextSandbarPosition(runtime.player, runtime.stage, sandbarCycle);
+          runtime.safeZoneTransition = .72;
         }
+        runtime.safeZoneTransition = Math.max(0, runtime.safeZoneTransition - dt);
       }
       if (stageProfile.tideInterval > 0) {
         const tideCycle = Math.floor(runtime.elapsed / stageProfile.tideInterval);
@@ -1219,10 +1239,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           } else {
             runtime.playerMessage = "마른 모래톱에서 밀물을 피했다.";
             runtime.playerMessageLife = 2.6;
-          }
-          if (stageProfile.safeZone === "fixed") {
-            runtime.safeZone.x = runtime.player.x + Math.cos(runtime.elapsed * .73) * 135;
-            runtime.safeZone.y = runtime.player.y + Math.sin(runtime.elapsed * .61) * 110;
           }
         }
       }
@@ -1617,50 +1633,27 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const draw = (width: number, height: number) => {
       context.clearRect(0, 0, width, height);
       const tide = Math.min(1, runtime.elapsed / MUDFLAT_RUN_SECONDS);
-      drawMudflat(context, width, height, runtime.player, tide, runtime.elapsed, stageProfile);
+      drawMudflat(context, width, height, runtime.player, tide, stageProfile);
       const screenPoint = (point: Point) => ({ x: width / 2 + point.x - runtime.player.x, y: height / 2 + point.y - runtime.player.y });
+      const tidePhase = stageProfile.tideInterval > 0 ? runtime.elapsed % stageProfile.tideInterval : stageProfile.tideInterval;
+      const tideSurge = stageProfile.tideInterval > 0 ? Math.max(0, 1 - tidePhase / 7) : 0;
+      if (stageProfile.waterChannels && tideSurge > 0) {
+        drawWaterChannelArrows(context, width, height, runtime.player, runtime.elapsed, stageProfile);
+      }
 
       if (stageProfile.safeZone !== "none") {
         const safe = screenPoint(runtime.safeZone);
-        const tidePhase = runtime.elapsed % stageProfile.tideInterval;
-        const tideSurge = Math.max(0, 1 - tidePhase / 7);
-        const inSafeSandbar = Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
-        if (tideSurge > 0) {
-          context.save();
-          context.beginPath(); context.rect(0, 0, width, height); context.arc(safe.x, safe.y, 116, 0, Math.PI * 2); context.clip("evenodd");
-          const surge = context.createLinearGradient(0, 0, 0, height);
-          surge.addColorStop(0, `rgba(102,184,194,${tideSurge * .08})`);
-          surge.addColorStop(1, `rgba(42,132,157,${tideSurge * .31})`);
-          context.fillStyle = surge; context.fillRect(0, 0, width, height);
-          context.strokeStyle = `rgba(221,250,242,${.2 + tideSurge * .28})`; context.lineWidth = 2;
-          for (let y = -20; y < height + 30; y += 38) {
-            context.beginPath();
-            for (let x = -20; x < width + 25; x += 18) {
-              const waveY = y + Math.sin(x * .045 + runtime.elapsed * 6) * 4;
-              if (x === -20) context.moveTo(x, waveY); else context.lineTo(x, waveY);
-            }
-            context.stroke();
-          }
-          context.restore();
-        }
-        const pulse = 1 + Math.sin(runtime.elapsed * 3) * .04;
-        context.save(); context.translate(safe.x, safe.y);
+        const sandbarAlpha = runtime.safeZoneTransition > 0 ? Math.max(0, 1 - runtime.safeZoneTransition / .72) : 1;
+        context.save(); context.globalAlpha = sandbarAlpha; context.translate(safe.x, safe.y);
         const sandbar = context.createRadialGradient(-20, -24, 10, 0, 0, 118);
         sandbar.addColorStop(0, "rgba(255,239,170,.96)"); sandbar.addColorStop(.72, "rgba(216,180,104,.9)"); sandbar.addColorStop(1, "rgba(150,112,66,.72)");
         context.fillStyle = sandbar; context.strokeStyle = "rgba(255,237,148,.94)"; context.lineWidth = 4;
-        context.beginPath(); context.ellipse(0, 0, 112 * pulse, 94 * pulse, -.12, 0, Math.PI * 2); context.fill(); context.stroke();
+        context.beginPath(); context.ellipse(0, 0, 112, 94, -.12, 0, Math.PI * 2); context.fill(); context.stroke();
         context.fillStyle = "rgba(116,76,40,.28)";
         for (let mark = -66; mark <= 66; mark += 22) { context.beginPath(); context.arc(mark, 22 + Math.sin(mark) * 10, 2.5, 0, Math.PI * 2); context.fill(); }
         context.fillStyle = "#855c34"; context.fillRect(-2, -48, 4, 28); context.fillStyle = "#f5ad57";
         context.beginPath(); context.moveTo(2, -47); context.lineTo(26, -38); context.lineTo(2, -30); context.closePath(); context.fill();
         context.fillStyle = "rgba(255,247,196,.96)"; context.font = "900 12px system-ui"; context.textAlign = "center"; context.fillText("마른 모래톱 · 밀물 피난처", 0, -126); context.restore();
-        if (!inSafeSandbar && tideSurge > 0) {
-          context.save(); context.translate(width / 2, height / 2);
-          context.fillStyle = `rgba(62,143,164,${.12 + tideSurge * .18})`; context.beginPath(); context.ellipse(0, 14, 42, 18, 0, 0, Math.PI * 2); context.fill();
-          context.strokeStyle = `rgba(220,251,247,${.42 + tideSurge * .32})`; context.lineWidth = 2;
-          for (let wave = -1; wave <= 1; wave += 1) { context.beginPath(); context.arc(wave * 14, 13, 15, Math.PI * .15, Math.PI * .82); context.stroke(); }
-          context.restore();
-        }
       }
       for (const falling of runtime.fallingRocks) {
         const point = screenPoint(falling); const progress = 1 - falling.life / falling.maxLife;
@@ -1839,10 +1832,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const phase = runtime.elapsed % stageProfile.tideInterval;
         const warning = stageProfile.tideInterval - phase;
         if (warning <= 7) {
-          const warningText = warning <= 4 ? `밀물 ${Math.max(1, Math.ceil(warning))}초 · 물살을 피해 모래톱으로!` : "물이 차오릅니다 · 물골 밖은 발이 빠져요";
+          const warningText = `밀물 접근 · ${Math.max(1, Math.ceil(warning))}초`;
           context.save(); context.fillStyle = "rgba(16,48,65,.92)"; roundedRect(context, width / 2 - 158, 88, 316, 42, 18); context.fill();
           context.strokeStyle = "#8de4ef"; context.lineWidth = 2; context.stroke(); context.fillStyle = "#eaffff"; context.font = "900 14px system-ui"; context.textAlign = "center";
           context.fillText(warningText, width / 2, 114); context.restore();
+          if (stageProfile.safeZone !== "none") drawSandbarDirectionGuide(context, width, runtime.player, runtime.safeZone);
         }
       }
       if (runtime.elapsed < 4.5) {
