@@ -647,6 +647,8 @@ test("detects published site updates and refreshes only through safe user action
   assert.doesNotMatch(pageSource, /지금 업데이트/);
   assert.match(styles, /\.app-update-notice\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?z-index:\s*10000;/);
   assert.match(styles, /\.app-update-notice\.is-collapsed\s*\{[\s\S]*?width:\s*56px;[\s\S]*?min-height:\s*56px;/);
+  assert.match(styles, /\.app-update-notice\.is-collapsed button\s*\{[\s\S]*?display:\s*grid;[\s\S]*?place-items:\s*center;[\s\S]*?gap:\s*0;/);
+  assert.match(styles, /\.app-update-notice\.is-collapsed \.app-update-refresh-icon\s*\{\s*translate:\s*0 -1px;/);
   assert.match(styles, /transition:\s*width \.5s/);
   assert.match(styles, /\.app-update-spinner\s*\{[\s\S]*?border-radius:\s*50%;[\s\S]*?animation:\s*app-update-spin/);
   assert.match(styles, /@keyframes app-update-spin/);

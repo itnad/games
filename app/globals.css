@@ -213,7 +213,12 @@ a:focus-visible {
   min-height: 46px;
   padding: 0;
   border-radius: 14px;
+  display: grid;
+  place-items: center;
+  gap: 0;
 }
+
+.app-update-notice.is-collapsed .app-update-refresh-icon { translate: 0 -1px; }
 
 .app-update-notice.is-collapsed .app-update-label {
   max-width: 0;
