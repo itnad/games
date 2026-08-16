@@ -2429,3 +2429,19 @@ test("settles a six-player Winner's Circle race independently", () => {
   assert.ok(result.results.every((entry) => Number.isFinite(entry.delta)));
   assert.equal(result.podium.length, 3);
 });
+
+test("opens public games from direct URLs and keeps history URLs in sync", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const directRoute = await readFile(new URL("../app/[gameId]/page.tsx", import.meta.url), "utf8");
+
+  assert.match(directRoute, /return <Home requestedGameId=\{params\.gameId\} \/>/);
+  assert.match(pageSource, /function publicGameIdFromPath\(value: string \| null \| undefined\): GameId \| null/);
+  assert.match(pageSource, /DEFAULT_HIDDEN_GAME_IDS\.has\(gameId\) \? null : gameId/);
+  assert.match(pageSource, /function gamePath\(gameId: GameId \| null\)/);
+  assert.match(pageSource, /const directGame = publicGameIdFromPath\(requestedGameId\)/);
+  assert.match(pageSource, /const openingGame = pendingGame \?\? directGame/);
+  assert.match(pageSource, /window\.history\.pushState\(window\.history\.state, "", nextUrl\.toString\(\)\)/);
+  assert.match(pageSource, /window\.addEventListener\("popstate", restoreGameFromHistory\)/);
+  assert.match(pageSource, /syncGameUrl\(id\);/);
+  assert.match(pageSource, /syncGameUrl\(null\);/);
+});

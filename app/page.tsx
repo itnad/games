@@ -472,6 +472,16 @@ const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
 const PENDING_GAME_AFTER_UPDATE_KEY = "paperoid-pending-game-after-update";
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
+function publicGameIdFromPath(value: string | null | undefined): GameId | null {
+  if (!value || !GAMES.some((game) => game.id === value)) return null;
+  const gameId = value as GameId;
+  return DEFAULT_HIDDEN_GAME_IDS.has(gameId) ? null : gameId;
+}
+
+function gamePath(gameId: GameId | null) {
+  return gameId ? `/${gameId}` : "/";
+}
+
 const IconSearch = () => (
   <span className="search-icon" aria-hidden="true" />
 );
@@ -1829,10 +1839,12 @@ function HomeContent({
   updateAvailable,
   applyUpdate,
   onActiveGameChange,
+  requestedGameId,
 }: {
   updateAvailable: boolean;
   applyUpdate: (pendingGame?: GameId | null) => void;
   onActiveGameChange: (game: GameId | null) => void;
+  requestedGameId?: string;
 }) {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [category, setCategory] = useState<Category>("전체");
@@ -1865,13 +1877,15 @@ function HomeContent({
     const pendingGame = pendingGameValue && knownIds.has(pendingGameValue as GameId)
       ? pendingGameValue as GameId
       : null;
-    const nextRecent = pendingGame
-      ? [pendingGame, ...migratedRecent.filter((id) => id !== pendingGame)].slice(0, 8)
+    const directGame = publicGameIdFromPath(requestedGameId);
+    const openingGame = pendingGame ?? directGame;
+    const nextRecent = openingGame
+      ? [openingGame, ...migratedRecent.filter((id) => id !== openingGame)].slice(0, 8)
       : migratedRecent;
     window.sessionStorage.removeItem(PENDING_GAME_AFTER_UPDATE_KEY);
     setFavorites(migratedFavorites);
     setRecentIds(nextRecent);
-    if (pendingGame) setActiveGame(pendingGame);
+    if (openingGame) setActiveGame(openingGame);
     // A reload always begins from the public, top-left home view.  Keep play
     // history and favourites, but do not restore a previously opened secret
     // catalogue or browser scroll position.
@@ -1882,6 +1896,22 @@ function HomeContent({
     window.localStorage.removeItem(SHOW_ALL_GAMES_STORAGE_KEY);
     if (migratedFavorites.length) window.localStorage.setItem("paperoid-favorites", JSON.stringify(migratedFavorites));
     if (nextRecent.length) window.localStorage.setItem("paperoid-recent-games", JSON.stringify(nextRecent));
+  }, [requestedGameId]);
+
+  const syncGameUrl = useCallback((gameId: GameId | null) => {
+    const nextUrl = new URL(window.location.href);
+    nextUrl.pathname = gamePath(gameId);
+    nextUrl.hash = "";
+    window.history.pushState(window.history.state, "", nextUrl.toString());
+  }, []);
+
+  useEffect(() => {
+    const restoreGameFromHistory = () => {
+      const pathGameId = window.location.pathname.replace(/^\/+|\/+$/g, "");
+      setActiveGame(publicGameIdFromPath(pathGameId));
+    };
+    window.addEventListener("popstate", restoreGameFromHistory);
+    return () => window.removeEventListener("popstate", restoreGameFromHistory);
   }, []);
 
   useEffect(() => {
@@ -1942,6 +1972,7 @@ function HomeContent({
       return next;
     });
     setFinderOpen(false);
+    syncGameUrl(id);
     setActiveGame(id);
   };
 
@@ -1950,6 +1981,7 @@ function HomeContent({
       applyUpdate(null);
       return;
     }
+    syncGameUrl(null);
     setActiveGame(null);
   };
 
@@ -2398,7 +2430,7 @@ function AppUpdateNotice({ onUpdate }: { onUpdate: () => void }) {
   );
 }
 
-export default function Home() {
+export default function Home({ requestedGameId }: { requestedGameId?: string }) {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const latestBuildIdRef = useRef("");
   const checkingForUpdateRef = useRef(false);
@@ -2433,6 +2465,7 @@ export default function Home() {
     const gameToRestore = pendingGame === undefined ? activeGameRef.current : pendingGame;
     if (gameToRestore) window.sessionStorage.setItem(PENDING_GAME_AFTER_UPDATE_KEY, gameToRestore);
     const updateUrl = new URL(window.location.href);
+    updateUrl.pathname = gamePath(gameToRestore);
     updateUrl.searchParams.set("paperoid-update", latestBuildIdRef.current || String(Date.now()));
     updateUrl.hash = "";
     window.location.replace(updateUrl.toString());
@@ -2467,7 +2500,7 @@ export default function Home() {
 
   return (
     <>
-      <HomeContent updateAvailable={updateAvailable} applyUpdate={applyUpdate} onActiveGameChange={rememberActiveGame} />
+      <HomeContent updateAvailable={updateAvailable} applyUpdate={applyUpdate} onActiveGameChange={rememberActiveGame} requestedGameId={requestedGameId} />
       {updateAvailable && <AppUpdateNotice onUpdate={() => applyUpdate()} />}
     </>
   );
