@@ -2477,10 +2477,13 @@ test("opens public games from direct URLs and keeps history URLs in sync", async
 
   assert.match(directRoute, /return <Home requestedGameId=\{params\.gameId\} \/>/);
   assert.match(pageSource, /function publicGameIdFromPath\(value: string \| null \| undefined\): GameId \| null/);
+  assert.match(pageSource, /haeru: "mudflat-survivor"/);
+  assert.match(pageSource, /if \(gameId === "mudflat-survivor"\) return "\/haeru"/);
   assert.match(pageSource, /DEFAULT_HIDDEN_GAME_IDS\.has\(gameId\) \? null : gameId/);
   assert.match(pageSource, /function gamePath\(gameId: GameId \| null\)/);
   assert.match(pageSource, /const directGame = publicGameIdFromPath\(requestedGameId\)/);
   assert.match(pageSource, /const openingGame = pendingGame \?\? directGame/);
+  assert.match(pageSource, /canonicalUrl\.pathname = gamePath\(directGame\)/);
   assert.match(pageSource, /window\.history\.pushState\(window\.history\.state, "", nextUrl\.toString\(\)\)/);
   assert.match(pageSource, /window\.addEventListener\("popstate", restoreGameFromHistory\)/);
   assert.match(pageSource, /syncGameUrl\(id\);/);

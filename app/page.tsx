@@ -471,14 +471,19 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
 const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
 const PENDING_GAME_AFTER_UPDATE_KEY = "paperoid-pending-game-after-update";
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const PUBLIC_GAME_PATH_ALIASES: Readonly<Record<string, GameId>> = {
+  haeru: "mudflat-survivor",
+};
 
 function publicGameIdFromPath(value: string | null | undefined): GameId | null {
-  if (!value || !GAMES.some((game) => game.id === value)) return null;
-  const gameId = value as GameId;
+  const resolvedPath = value ? (PUBLIC_GAME_PATH_ALIASES[value] ?? value) : null;
+  if (!resolvedPath || !GAMES.some((game) => game.id === resolvedPath)) return null;
+  const gameId = resolvedPath as GameId;
   return DEFAULT_HIDDEN_GAME_IDS.has(gameId) ? null : gameId;
 }
 
 function gamePath(gameId: GameId | null) {
+  if (gameId === "mudflat-survivor") return "/haeru";
   return gameId ? `/${gameId}` : "/";
 }
 
@@ -1896,6 +1901,11 @@ function HomeContent({
     window.localStorage.removeItem(SHOW_ALL_GAMES_STORAGE_KEY);
     if (migratedFavorites.length) window.localStorage.setItem("paperoid-favorites", JSON.stringify(migratedFavorites));
     if (nextRecent.length) window.localStorage.setItem("paperoid-recent-games", JSON.stringify(nextRecent));
+    if (directGame && requestedGameId && requestedGameId !== gamePath(directGame).slice(1)) {
+      const canonicalUrl = new URL(window.location.href);
+      canonicalUrl.pathname = gamePath(directGame);
+      window.history.replaceState(window.history.state, "", canonicalUrl.toString());
+    }
   }, [requestedGameId]);
 
   const syncGameUrl = useCallback((gameId: GameId | null) => {
