@@ -8430,8 +8430,9 @@ footer { font-size: 15px; }
   .qwixx-waiting button { animation: none; }
 }
 
-/* Keep crab illustrations proportional to the actual field creatures in the catch settlement. */
-.ms-market-cell.is-crab img { width: calc(42px * var(--ms-market-scale, 1)); height: calc(42px * var(--ms-market-scale, 1)); }
+/* Keep seafood illustrations proportional to their field counterparts in the catch settlement. */
+.ms-market-cell.is-scaled img { width: calc(42px * var(--ms-market-scale, 1)); height: calc(42px * var(--ms-market-scale, 1)); }
+.ms-market-cell.is-vertical img { transform: rotate(90deg); }
 @media (max-width: 600px) {
-  .ms-market-cell.is-crab img { width: calc(36px * var(--ms-market-scale, 1)); height: calc(36px * var(--ms-market-scale, 1)); }
+  .ms-market-cell.is-scaled img { width: calc(36px * var(--ms-market-scale, 1)); height: calc(36px * var(--ms-market-scale, 1)); }
 }

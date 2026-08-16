@@ -33,7 +33,9 @@ export const MUDFLAT_CLAM_GRADES = [
   { id: "dongjuk", name: "동죽", xp: 3, score: 16, price: 2, visualSize: 46 },
   { id: "hard-clam", name: "백합", xp: 5, score: 28, price: 3, visualSize: 53 },
   { id: "ark-shell", name: "피조개", xp: 7, score: 42, price: 10, visualSize: 62 },
-  { id: "razor-clam", name: "맛조개", xp: 9, score: 62, price: 12, visualSize: 70, vertical: true },
+  // A razor clam is intentionally a little shorter than before so the long,
+  // upright silhouette reads clearly without crowding nearby catches.
+  { id: "razor-clam", name: "맛조개", xp: 9, score: 62, price: 12, visualSize: 56, vertical: true },
 ];
 
 export const MUDFLAT_PEARL = { id: "pearl", name: "진주", xp: 30, score: 500, price: 10000 };
@@ -66,16 +68,33 @@ export const MUDFLAT_SEAFOOD_MARKET = [
   { type: "king-crab", name: "대왕 박하지", image: "/mudflat-creatures/king-crab.svg", price: 100 },
 ];
 
-// Settlement cards have much less room than the field, so preserve the
-// in-game crab-size hierarchy while keeping even the smallest crab legible.
+// Settlement cards have much less room than the field. Keep each family's
+// in-game size relationships readable while reserving the full tile for the
+// boss catch.
 export function mudflatMarketImageScale(type) {
   const creature = MUDFLAT_CREATURES.find((item) => item.id === type);
-  if (creature?.family !== "crab") return 1;
+  if (creature?.family === "crab") {
+    if (creature.boss) return 1;
 
-  const smallestCrabSize = 11;
-  const largestCrabSize = 43;
-  const normalized = (creature.size - smallestCrabSize) / (largestCrabSize - smallestCrabSize);
-  return Math.max(.4, Math.min(1, .4 + normalized * .6));
+    const smallestCrabSize = 11;
+    const largestRegularCrabSize = 24;
+    const normalized = (creature.size - smallestCrabSize) / (largestRegularCrabSize - smallestCrabSize);
+    return Math.max(.52, Math.min(.74, .52 + normalized * .22));
+  }
+
+  if (type === "whelk") return .62;
+  if (type === "fist-whelk") return .82;
+  if (type === "golbaengi") return .76;
+
+  const clamGrade = MUDFLAT_CLAM_GRADES.find((item) => item.id === type);
+  if (clamGrade) {
+    const smallestClamSize = 32;
+    const largestClamSize = 62;
+    const normalized = (clamGrade.visualSize - smallestClamSize) / (largestClamSize - smallestClamSize);
+    return Math.max(.62, Math.min(1, .62 + normalized * .38));
+  }
+
+  return 1;
 }
 
 export const MUDFLAT_SHOP_EQUIPMENT = [

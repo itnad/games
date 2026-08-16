@@ -941,8 +941,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual(mudflatPufferBleedStep(50, 1, 1), { seconds: 49, tickClock: 1, ticks: 1 });
   assert.deepEqual(mudflatPufferBleedStep(50, 1, 50), { seconds: 0, tickClock: 1, ticks: 50 });
   assert.deepEqual(MUDFLAT_CLAM_GRADES.map((grade) => grade.name), ["작은조개", "바지락", "동죽", "백합", "피조개", "맛조개"]);
-  assert.deepEqual(MUDFLAT_CLAM_GRADES.map((grade) => grade.visualSize), [32, 39, 46, 53, 62, 70]);
+  assert.deepEqual(MUDFLAT_CLAM_GRADES.map((grade) => grade.visualSize), [32, 39, 46, 53, 62, 56]);
   assert.equal(MUDFLAT_CLAM_GRADES.find((grade) => grade.id === "razor-clam").vertical, true);
+  assert.equal(MUDFLAT_CLAM_GRADES.find((grade) => grade.id === "razor-clam").visualSize, 56);
   assert.equal(mudflatClamRewardForRoll(1, 0).id, "small-clam");
   assert.equal(mudflatClamRewardForRoll(1, 0.5999).id, "small-clam");
   assert.equal(mudflatClamRewardForRoll(1, 0.6).id, "clam");
@@ -976,6 +977,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(mudflatMarketImageScale("crab") < mudflatMarketImageScale("blue-crab"));
   assert.ok(mudflatMarketImageScale("blue-crab") < mudflatMarketImageScale("king-crab"));
   assert.equal(mudflatMarketImageScale("king-crab"), 1);
+  assert.ok(mudflatMarketImageScale("small-crab") > .4);
+  assert.ok(mudflatMarketImageScale("whelk") < mudflatMarketImageScale("fist-whelk"));
+  assert.ok(mudflatMarketImageScale("small-clam") < mudflatMarketImageScale("clam"));
+  assert.ok(mudflatMarketImageScale("clam") < mudflatMarketImageScale("dongjuk"));
+  assert.ok(mudflatMarketImageScale("dongjuk") < mudflatMarketImageScale("hard-clam"));
+  assert.ok(mudflatMarketImageScale("hard-clam") < mudflatMarketImageScale("ark-shell"));
+  assert.ok(mudflatMarketImageScale("razor-clam") < mudflatMarketImageScale("ark-shell"));
   assert.equal(mudflatMarketImageScale("shrimp"), 1);
   assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "pearl").unit, "개");
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "whelk").size, 9);
@@ -1241,6 +1249,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /mudflatClamRewardForRoll/);
   assert.match(source, /const clamSize = clamGrade\?\.visualSize \?\? 42/);
   assert.match(source, /context\.rotate\(Math\.PI \/ 2\)/);
+  assert.match(source, /isVertical \? " is-vertical" : ""/);
   assert.match(source, /equipment\.headlamp/);
   assert.match(source, /function drawGatherer\([^)]*hasHeadlamp: boolean/);
   assert.match(source, /runtime\.equipment\.headlamp \?\? 0\) > 0/);

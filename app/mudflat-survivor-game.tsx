@@ -1971,8 +1971,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <div className="ms-market-table" role="table" aria-label="해산물별 판매 내역">
             {soldItems.length > 0 ? soldItems.map((item) => {
               const count = campaign.lastHaul[item.type] ?? 0;
-              const crabScale = mudflatMarketImageScale(item.type);
-              return <div className={`ms-market-cell${crabScale !== 1 ? " is-crab" : ""}`} role="cell" key={item.type} style={{ "--ms-market-scale": crabScale } as CSSProperties}>
+              const marketScale = mudflatMarketImageScale(item.type);
+              const isVertical = MUDFLAT_CLAM_GRADES.find((grade) => grade.id === item.type)?.vertical;
+              return <div className={`ms-market-cell${marketScale !== 1 ? " is-scaled" : ""}${isVertical ? " is-vertical" : ""}`} role="cell" key={item.type} style={{ "--ms-market-scale": marketScale } as CSSProperties}>
                 <img src={item.image} alt="" />
                 <b>{item.name}</b>
                 <small>{count.toLocaleString()}×{item.price}C</small>
