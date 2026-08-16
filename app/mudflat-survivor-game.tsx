@@ -106,6 +106,7 @@ const GENERAL_CHARACTER = { id: "beginner", name: "갯벌 초보", levels: { ton
 const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "boots", "snack", "basket"];
 const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", boots: "장화", snack: "간식", basket: "바구니" };
 const DIRECTIONAL_SEAFOOD_TYPES = new Set(["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp"]);
+const CATCH_FULL_MESSAGE = "더 담을 수가 없어. 다음에는 큰 통을 가져와야겠다.";
 const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, catchCapacity: 500, score: 0, levels: {}, basket: {}, bossCaught: false };
 
 function MudflatBrand() {
@@ -1106,9 +1107,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
     const showCatchFullMessage = () => {
       if (runtime.catchFullNoticeClock > 0) return;
-      runtime.playerMessage = "더 담을 수가 없어. 다음에는 큰 통을 가져와야겠다.";
-      runtime.playerMessageLife = 3;
-      runtime.catchFullNoticeClock = 10;
+      runtime.playerMessage = CATCH_FULL_MESSAGE;
+      runtime.playerMessageLife = 1.2;
+      runtime.catchFullNoticeClock = 15;
     };
 
     const damageAndCollect = () => {
@@ -1119,9 +1120,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           if (runtime.caught < catchCapacity) {
             runtime.caught += 1; runtime.catchScore += item.score;
             runtime.basket[item.type] = (runtime.basket[item.type] ?? 0) + 1;
-            runtime.pickups.push({ id: sequenceRef.current++, x: item.x, y: item.y, xp: item.xp });
             if (item.boss) runtime.bossCaught = true;
           } else showCatchFullMessage();
+          // A full container prevents selling the catch, not learning from it.
+          runtime.pickups.push({ id: sequenceRef.current++, x: item.x, y: item.y, xp: item.xp });
           runtime.bursts.push({ id: sequenceRef.current++, x: item.x, y: item.y, life: .5, maxLife: .5, color: item.color, size: item.size });
         }
         runtime.creatures = runtime.creatures.filter((item) => item.hp > 0);
@@ -1378,8 +1380,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           if (runtime.caught < catchCapacity) {
             runtime.caught += 1; runtime.catchScore += reward.score;
             runtime.basket[reward.id] = (runtime.basket[reward.id] ?? 0) + 1;
-            runtime.pickups.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, xp: reward.xp });
           } else showCatchFullMessage();
+          runtime.pickups.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, xp: reward.xp });
           runtime.clamReveals.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .9, maxLife: .9, type: reward.id });
           runtime.bursts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .55, maxLife: .55, color: reward.id === "pearl" ? "#fff0a2" : "#dbc69c", size: 18 });
           runtime.floatTexts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y - 24, life: 1.05, text: `${reward.name} 채집!`, color: reward.id === "pearl" ? "#fff2a4" : "#ffe2a6" });
@@ -1864,7 +1866,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
       if (runtime.playerMessageLife > 0) {
         const message = runtime.playerMessage;
-        context.save(); context.globalAlpha = Math.min(1, runtime.playerMessageLife * 2); context.font = "900 14px system-ui"; context.textAlign = "center";
+        const isCatchFullMessage = message === CATCH_FULL_MESSAGE;
+        const messageAlpha = isCatchFullMessage ? Math.min(1, runtime.playerMessageLife / .45) : Math.min(1, runtime.playerMessageLife * 2);
+        context.save(); context.globalAlpha = messageAlpha; context.font = "900 14px system-ui"; context.textAlign = "center";
         const bubbleWidth = Math.min(width - 28, context.measureText(message).width + 36); const bubbleTop = height / 2 - 116;
         context.fillStyle = "rgba(255,244,218,.97)"; roundedRect(context, width / 2 - bubbleWidth / 2, bubbleTop, bubbleWidth, 40, 16); context.fill();
         context.strokeStyle = "rgba(134,76,48,.48)"; context.lineWidth = 1.5; context.stroke(); context.fillStyle = "#512f25"; context.fillText(message, width / 2, bubbleTop + 26); context.restore();
