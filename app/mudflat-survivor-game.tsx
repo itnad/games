@@ -589,12 +589,14 @@ function drawExperiencePickup(context: CanvasRenderingContext2D, pickup: Pickup,
   context.save(); context.scale(pulse, pulse);
   if (pickup.xp <= 5) {
     context.fillStyle = "#74e2bd";
-    if (pickup.xp === 1) drawDiamond(8, "#74e2bd", "#e7fff4");
+    if (pickup.xp === 1) drawDot(0, 0);
     else if (pickup.xp === 2) { drawDot(0, -4); drawDot(0, 4); }
     else if (pickup.xp === 3) { drawDot(0, -5); drawDot(-4, 3); drawDot(4, 3); }
     else if (pickup.xp === 4) { drawDot(-4, -4); drawDot(4, -4); drawDot(-4, 4); drawDot(4, 4); }
-    else { drawDiamond(10, "#5dd9ad", "#effff7", 2.4); }
+    else { drawDot(0, 0, 5.25); }
   } else if (pickup.xp <= 10) {
+    drawDiamond(8, "#74e2bd", "#e7fff4");
+  } else if (pickup.xp <= 20) {
     context.fillStyle = "rgba(123,255,220,.2)"; context.beginPath(); context.arc(0, 0, 18, 0, Math.PI * 2); context.fill();
     drawDiamond(11, "#81f0ce", "#f0fff9", 1.7);
   } else if (pickup.xp <= 30) {

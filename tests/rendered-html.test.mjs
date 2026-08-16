@@ -1080,10 +1080,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawGatherer\(/);
   assert.match(source, /function drawExperiencePickup\(context: CanvasRenderingContext2D, pickup: Pickup, elapsed: number\)/);
   assert.match(source, /if \(pickup\.xp <= 5\)/);
+  assert.match(source, /pickup\.xp === 1\) drawDot\(0, 0\)/);
   assert.match(source, /pickup\.xp === 2\) \{ drawDot\(0, -4\); drawDot\(0, 4\); \}/);
   assert.match(source, /pickup\.xp === 3\) \{ drawDot\(0, -5\); drawDot\(-4, 3\); drawDot\(4, 3\); \}/);
   assert.match(source, /pickup\.xp === 4\) \{ drawDot\(-4, -4\); drawDot\(4, -4\); drawDot\(-4, 4\); drawDot\(4, 4\); \}/);
+  assert.match(source, /else \{ drawDot\(0, 0, 5\.25\); \}/);
   assert.match(source, /else if \(pickup\.xp <= 10\)/);
+  assert.match(source, /else if \(pickup\.xp <= 20\)/);
   assert.match(source, /else if \(pickup\.xp <= 30\)/);
   assert.match(source, /const glint = \.45 \+ \.55/);
   assert.match(source, /function drawRotatingTongs\(/);
