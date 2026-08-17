@@ -894,6 +894,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "rocker").description, "돌 밑에 숨어있는 해산물을 더 빨리 더 잘 찾아낼 수 있습니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "snack").description, "최대 체력이 기본 대비 20% 상승하며 현재 체력을 전부 회복합니다.");
+  assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "electric").description, "기본 집게 사거리 안의 해산물 모두에 주기적으로 전기 피해를 줍니다.");
   const generalChoices = mudflatUpgradeChoices(2, {}, "normal");
   assert.equal(generalChoices.length, 3);
   assert.ok(generalChoices.every((choice) => ["basket", "tongs", "harpoon", "boots", "snack", "rocker", "net", "digging"].includes(choice.id)));
@@ -910,6 +911,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(cappedChoices.every((choice) => ["harpoon", "net", "rocker", "boots", "basket", "snack", "tongs", "digging"].includes(choice.id)));
   assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
   assert.equal(mudflatTongStats(2).power, mudflatTongStats(1).power * 1.5);
+  assert.equal(mudflatElectricStats(1).reach, mudflatTongStats(1).reach);
+  assert.equal(mudflatElectricStats(6).reach, mudflatTongStats(1).reach);
+  assert.equal(mudflatElectricStats(7).reach, mudflatTongStats(1).reach + 12);
   assert.equal(mudflatNetStats(1).range, mudflatTongStats(1).reach);
   assert.equal(mudflatNetStats(2).range, mudflatTongStats(1).reach * 1.2);
   assert.equal(mudflatNetStats(3).range, mudflatTongStats(1).reach * 1.4);
@@ -1153,6 +1157,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /runtime\.catchFullNoticeClock = 15/);
   assert.match(source, /A full container prevents selling the catch, not learning from it\./);
   assert.match(source, /mudflatElectricStats\(electricLevel\)/);
+  assert.match(source, /const reach = electric\.reach;/);
+  assert.match(source, /const reach = mudflatElectricStats\(runtime\.levels\.electric \?\? 0\)\.reach;/);
   assert.match(source, /runtime\.player\.hp > 50/);
   assert.match(source, /runtime\.selfShockClock = electric\.selfInterval/);
   assert.match(source, /selfShockNotified: false/);

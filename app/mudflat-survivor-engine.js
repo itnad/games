@@ -136,7 +136,7 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "rocker", icon: "◆", name: "돌뒤집개", description: "돌 밑에 숨어있는 해산물을 더 빨리 더 잘 찾아낼 수 있습니다.", max: 6 },
   { id: "net", icon: "◇", name: "뜰채", description: "넓은 범위의 채집이 가능합니다.", max: 6 },
   { id: "digging", icon: "⌁", name: "호미질", description: "조개 구멍에서 더 좋은 조개를 찾을 확률이 높아집니다.", max: 6 },
-  { id: "electric", icon: "ϟ", name: "전기 스파크", description: "집게 사거리 안의 해산물 모두에 주기적으로 전기 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 1 },
+  { id: "electric", icon: "ϟ", name: "전기 스파크", description: "기본 집게 사거리 안의 해산물 모두에 주기적으로 전기 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 1 },
   { id: "cast-net", icon: "⌗", name: "그물 투척", description: "먼 해산물 위로 그물을 떨어뜨려 30px 범위에 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 2 },
 ];
 
@@ -144,6 +144,10 @@ export const MUDFLAT_GENERAL_UPGRADES = [
 // 나머지 기술 여섯 개만 빌드를 구성하는 선택 기술 슬롯을 사용한다.
 export const MUDFLAT_FIXED_GENERAL_SKILL_IDS = ["tongs", "digging"];
 export const MUDFLAT_SELECTABLE_SKILL_LIMIT = 6;
+const MUDFLAT_BASE_TONG_REACH = 84;
+// Lv.1~6 전기 스파크는 기본 집게 범위를 유지한다. 이후 단계는 이 값만
+// 조정하면 확장 범위를 별도로 설계할 수 있다.
+const MUDFLAT_ELECTRIC_POST_SIX_REACH_STEP = 12;
 
 function mudflatSafeLevel(level = 0) {
   return Math.max(0, Math.min(6, Math.floor(Number(level) || 0)));
@@ -208,9 +212,11 @@ export function mudflatCanLearnSkill(levels = {}, skillId = "", mode = "normal")
 }
 
 export function mudflatElectricStats(level = 0) {
+  const rawLevel = Math.max(0, Math.floor(Number(level) || 0));
   const safeLevel = mudflatSafeLevel(level);
-  if (!safeLevel) return { interval: Infinity, damage: 0, selfInterval: Infinity, selfDamage: 0 };
-  return { interval: [1, .8, .6, .4, .2, .1][safeLevel - 1], damage: 100, selfInterval: 10, selfDamage: 5 };
+  if (!safeLevel) return { interval: Infinity, damage: 0, reach: 0, selfInterval: Infinity, selfDamage: 0 };
+  const reach = MUDFLAT_BASE_TONG_REACH + Math.max(0, rawLevel - 6) * MUDFLAT_ELECTRIC_POST_SIX_REACH_STEP;
+  return { interval: [1, .8, .6, .4, .2, .1][safeLevel - 1], damage: 100, reach, selfInterval: 10, selfDamage: 5 };
 }
 
 export function mudflatCastNetStats(level = 0) {
@@ -322,7 +328,7 @@ export function mudflatUpgradeChoices(_level, levels = {}, mode = "kids", random
 export function mudflatTongStats(level = 1) {
   const safeLevel = Math.max(1, Math.floor(level));
   const multiplier = 1.5 ** (safeLevel - 1);
-  return { rotationSpeed: 1.55 * multiplier, power: 5.5 * multiplier, reach: 84 };
+  return { rotationSpeed: 1.55 * multiplier, power: 5.5 * multiplier, reach: MUDFLAT_BASE_TONG_REACH };
 }
 
 export function mudflatNetStats(level = 0) {

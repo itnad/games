@@ -174,7 +174,7 @@ function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[number], le
   }
   if (skill.id === "electric") {
     const current = mudflatElectricStats(safeLevel); const next = mudflatElectricStats(nextLevel);
-    return { current: `${current.interval.toFixed(1)}초마다 주변에 ${current.damage} 피해`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.interval.toFixed(1)}초마다 ${next.damage} 피해` };
+    return { current: `기본 집게 사거리 ${current.reach}px · ${current.interval.toFixed(1)}초마다 ${current.damage} 피해`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 기본 집게 사거리 ${next.reach}px · ${next.interval.toFixed(1)}초마다 ${next.damage} 피해` };
   }
   if (skill.id === "cast-net") {
     const current = mudflatCastNetStats(safeLevel); const next = mudflatCastNetStats(nextLevel);
@@ -1502,7 +1502,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (runtime.mode === "normal" && electricLevel > 0 && runtime.player.hp > 50) {
         const electric = mudflatElectricStats(electricLevel);
         if (runtime.electricClock <= 0) {
-          const reach = mudflatTongStats(runtime.levels.tongs ?? 1).reach;
+          const reach = electric.reach;
           for (const creature of runtime.creatures) {
             if (Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= reach + creature.size) damageCreature(creature, electric.damage * toolPower, .14);
           }
@@ -1783,7 +1783,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
       drawGatherer(context, width / 2, height / 2, runtime.player, runtime.mode === "normal" ? "beginner" : characterId, (runtime.equipment.headlamp ?? 0) > 0);
       if (runtime.electricPulseLife > 0) {
-        const reach = mudflatTongStats(runtime.levels.tongs ?? 1).reach;
+        const reach = mudflatElectricStats(runtime.levels.electric ?? 0).reach;
         const pulse = Math.min(1, runtime.electricPulseLife / .42);
         const centerX = width / 2; const centerY = height / 2;
         const phase = runtime.elapsed * 12;
