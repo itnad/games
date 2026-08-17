@@ -1362,6 +1362,46 @@ footer > span {
 .game-objective-cards p { margin: 0; color: #6f686e; font-size: 12px; line-height: 1.65; }
 .game-objective-cards article.victory p { color: rgba(255,255,255,.77); }
 
+.game-objective-steps {
+  display: grid;
+  gap: 8px;
+}
+
+.game-objective-steps article {
+  padding: 13px 14px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+  border: 1px solid #e2ddd6;
+  border-radius: 15px;
+  background: white;
+}
+
+.game-objective-steps article > b {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: white;
+  background: var(--objective-accent);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+}
+
+.game-objective-steps h3 {
+  margin: 1px 0 4px;
+  font-size: 16px;
+}
+
+.game-objective-steps p {
+  margin: 0;
+  color: #6f686e;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .game-objective-modal > aside {
   margin-top: 11px;
   padding: 12px 14px;
@@ -1425,6 +1465,7 @@ footer > span {
   .game-objective-cards { grid-template-columns: 1fr; }
   .game-objective-cards article { min-height: 0; padding: 15px; }
   .game-objective-cards h3 { margin: 9px 0 5px; font-size: 17px; }
+  .game-objective-steps article { padding: 12px; }
   .game-objective-modal > aside { grid-template-columns: 1fr; gap: 7px; }
   .game-objective-modal > aside span { justify-self: start; }
 }

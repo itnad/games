@@ -455,6 +455,9 @@ test("provides a complete objective and victory guide for every game", async () 
   assert.match(guideSource, /게임 목표/);
   assert.match(guideSource, /승리 조건/);
   assert.match(guideSource, /게임 종료 시점/);
+  assert.match(guideSource, /game-objective-steps/);
+  assert.deepEqual(GAME_OBJECTIVES["mudflat-survivor"].steps.map((step) => step.title), ["이동", "채집과 위험", "정비와 다음 물때"]);
+  assert.match(GAME_OBJECTIVES["mudflat-survivor"].summary, /4분 동안 채집/);
 
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.equal(

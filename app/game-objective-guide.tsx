@@ -18,6 +18,7 @@ export function GameObjectiveGuide({ gameId, inline = false }: { gameId: string;
 
   if (!guide) return null;
   const style = { "--objective-accent": guide.accent } as CSSProperties;
+  const steps = "steps" in guide && Array.isArray(guide.steps) ? guide.steps : null;
 
   return (
     <>
@@ -41,20 +42,29 @@ export function GameObjectiveGuide({ gameId, inline = false }: { gameId: string;
               <div><span>paperoid GAME GUIDE</span><h2 id="game-objective-title">{guide.title}</h2></div>
             </header>
             <p className="game-objective-summary">{guide.summary}</p>
-            <div className="game-objective-cards">
-              <article className="goal">
-                <span><b>01</b> GAME GOAL</span>
-                <h3>게임 목표</h3>
-                <p>{guide.objective}</p>
-              </article>
-              <article className="victory">
-                <span><b>02</b> VICTORY</span>
-                <h3>승리 조건</h3>
-                <p>{guide.victory}</p>
-              </article>
-            </div>
+            {steps ? (
+              <div className="game-objective-steps" aria-label={`${guide.title} 빠른 진행`}>{steps.map((step, index) => (
+                <article key={step.title}>
+                  <b>{String(index + 1).padStart(2, "0")}</b>
+                  <div><h3>{step.title}</h3><p>{step.body}</p></div>
+                </article>
+              ))}</div>
+            ) : (
+              <div className="game-objective-cards">
+                <article className="goal">
+                  <span><b>01</b> GAME GOAL</span>
+                  <h3>게임 목표</h3>
+                  <p>{guide.objective}</p>
+                </article>
+                <article className="victory">
+                  <span><b>02</b> VICTORY</span>
+                  <h3>승리 조건</h3>
+                  <p>{guide.victory}</p>
+                </article>
+              </div>
+            )}
             <aside>
-              <span>게임 종료 시점</span>
+              <span>{steps ? "원정 실패" : "게임 종료 시점"}</span>
               <strong>{guide.finish}</strong>
             </aside>
             <button className="game-objective-confirm" onClick={() => setOpen(false)}>확인하고 게임하기</button>
