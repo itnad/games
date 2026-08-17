@@ -141,6 +141,7 @@ import {
   mudflatFinalScore,
   mudflatElectricStats,
   mudflatHarpoonStats,
+  mudflatHeadlampDiscoveryRange,
   mudflatJoystickVector,
   mudflatNetStats,
   mudflatMarketImageScale,
@@ -889,6 +890,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatCreatureForTime(80, 0.834, { headlamp: true }).id, "fist-whelk");
   assert.equal(mudflatCreatureForTime(80, 0.851, { headlamp: true }).id, "whelk");
   assert.equal(mudflatCreatureForTime(100, 0.99, { headlamp: true }).id, "golbaengi");
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map(mudflatHeadlampDiscoveryRange), [0, 112, 154, 196, 238, 279, 320]);
+  assert.equal(mudflatEquipmentDescription("headlamp", 1), "소라와 골뱅이가 112px 안에서 출현합니다.");
+  assert.equal(mudflatEquipmentDescription("headlamp", 6), "소라와 골뱅이가 320px 안에서 출현합니다.");
   const whelk = MUDFLAT_CREATURES.find((creature) => creature.id === "whelk");
   const golbaengi = MUDFLAT_CREATURES.find((creature) => creature.id === "golbaengi");
   assert.equal(whelk.speed, 155 * .05);
@@ -1218,6 +1222,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /밀물 물살에 휩쓸렸다! 마른 모래톱으로!/);
   assert.match(source, /마른 모래톱 · 밀물 피난처/);
   assert.match(source, /stageProfile\.darkness/);
+  assert.match(source, /mudflatHeadlampDiscoveryRange\(runtime\.equipment\.headlamp \?\? 0\)/);
+  assert.match(source, /const distance = template\.requiresHeadlamp \? discoveryDistance : regularDistance/);
+  assert.match(source, /if \(stageProfile\.darkness > 0\) \{\s*const radius = 112;/);
+  assert.doesNotMatch(source, /const radius = headlamp \? 215 : 112/);
   assert.match(source, /해산물 무리가 몰려옵니다/);
   assert.match(source, /정규 원정을 완주해 끝없는 물때가 열렸습니다/);
   assert.match(source, /context\.fillText\(emptyHazard\.message, width \/ 2, height \/ 2 - 69\)/);

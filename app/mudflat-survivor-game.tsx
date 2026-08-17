@@ -29,6 +29,7 @@ import {
   mudflatCreatureForTime,
   mudflatFinalScore,
   mudflatHarpoonStats,
+  mudflatHeadlampDiscoveryRange,
   mudflatJoystickVector,
   mudflatNetStats,
   mudflatMarketImageScale,
@@ -1105,9 +1106,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     };
 
     const spawnCreature = (width: number, height: number, forcedBoss = false) => {
-      const template = forcedBoss ? MUDFLAT_CREATURES.find((item) => item.boss)! : mudflatCreatureForTime(runtime.elapsed, Math.random(), { headlamp: (runtime.equipment.headlamp ?? 0) > 0 });
+      const headlampRange = mudflatHeadlampDiscoveryRange(runtime.equipment.headlamp ?? 0);
+      const template = forcedBoss ? MUDFLAT_CREATURES.find((item) => item.boss)! : mudflatCreatureForTime(runtime.elapsed, Math.random(), { headlamp: headlampRange > 0 });
       const angle = Math.random() * Math.PI * 2;
-      const distance = Math.hypot(width, height) * .58 + 70 + Math.random() * 80;
+      const regularDistance = Math.hypot(width, height) * .58 + 70 + Math.random() * 80;
+      const discoveryDistance = Math.max(30, 38 + Math.random() * Math.max(0, headlampRange - 38));
+      const distance = template.requiresHeadlamp ? discoveryDistance : regularDistance;
       const difficulty = runtime.mode === "normal" ? 1.15 : 1;
       const bossScale = forcedBoss && stageProfile.finalBoss ? 1.7 : 1;
       const scale = (forcedBoss ? bossScale : 1 + runtime.elapsed / 420) * difficulty * stageStats.creatureHpMultiplier;
@@ -1931,8 +1935,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.restore();
       }
       if (stageProfile.darkness > 0) {
-        const headlamp = (runtime.equipment.headlamp ?? 0) > 0;
-        const radius = headlamp ? 215 : 112;
+        const radius = 112;
         context.save();
         const darkness = context.createRadialGradient(width / 2, height / 2, radius * .16, width / 2, height / 2, Math.max(radius, Math.hypot(width, height) * .72));
         darkness.addColorStop(0, "rgba(3,8,15,0)");
@@ -2209,7 +2212,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <div className="ms-sale-total"><span>전체 판매 가격</span><b>{campaign.lastSaleValue.toLocaleString()}코인</b></div>
         </article>
         <div className="ms-shop-stack">
-          <article className="ms-shop"><header><small>EQUIPMENT SHOP</small><h2>장비 물품</h2></header><div>{MUDFLAT_SHOP_EQUIPMENT.map((item) => { const level = campaign.equipment[item.id] ?? 0; const price = mudflatEquipmentPrice(item.id, level); const effectLevel = Math.max(1, Math.min(item.max, level >= item.max ? level : level + 1)); const effectDescription = item.id === "headlamp" ? item.description : `Lv.${effectLevel} 효과 · ${mudflatEquipmentDescription(item.id, effectLevel)}`; return <button type="button" key={item.id} disabled={level >= item.max || campaign.coins < price} onClick={() => buyEquipment(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{effectDescription}</small></span><em>{level >= item.max ? "최고 단계" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
+          <article className="ms-shop"><header><small>EQUIPMENT SHOP</small><h2>장비 물품</h2></header><div>{MUDFLAT_SHOP_EQUIPMENT.map((item) => { const level = campaign.equipment[item.id] ?? 0; const price = mudflatEquipmentPrice(item.id, level); const effectLevel = Math.max(1, Math.min(item.max, level >= item.max ? level : level + 1)); const effectDescription = `Lv.${effectLevel} 효과 · ${mudflatEquipmentDescription(item.id, effectLevel)}`; return <button type="button" key={item.id} disabled={level >= item.max || campaign.coins < price} onClick={() => buyEquipment(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{effectDescription}</small></span><em>{level >= item.max ? "최고 단계" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
           <article className="ms-shop"><header><small>RECOVERY FOOD</small><h2>체력 회복 음식</h2></header><div>{MUDFLAT_RECOVERY_FOODS.map((food) => <button type="button" key={food.id} disabled={campaign.hp >= campaign.maxHp || campaign.coins < food.price} onClick={() => buyFood(food.id)}><i>{food.icon}</i><span><b>{food.name}</b><small>{food.description} 구매 즉시 먹습니다.</small></span><em>{food.price}코인</em></button>)}</div></article>
           <article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const level = campaign.levels[skill.id] ?? 0; const price = mudflatTrainingPrice(level); return <button type="button" key={skill.id} disabled={level >= skill.max || campaign.coins < price} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{level >= skill.max ? "최고 레벨" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
         </div>

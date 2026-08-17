@@ -102,7 +102,7 @@ export function mudflatMarketImageScale(type) {
 }
 
 export const MUDFLAT_SHOP_EQUIPMENT = [
-  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "어두운 곳에 숨은 소라와 골뱅이가 출현합니다.", max: 6 },
+  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "소라와 골뱅이가 헤드랜턴 반경 안에서만 나타납니다.", max: 6 },
   { id: "cooler", icon: "▣", name: "조과통 업그레이드", description: "채집 한도를 늘립니다.", max: 6 },
   { id: "vest", icon: "♥", name: "작업 조끼", description: "최대 체력과 출혈 저항을 높입니다.", max: 6 },
   { id: "gloves", icon: "⌁", name: "장갑 업그레이드", description: "모든 채집 도구의 위력을 높입니다.", max: 6 },
@@ -115,6 +115,7 @@ export const MUDFLAT_VEST_BLEED_REDUCTIONS = [0, .5, .55, .6, .65, .7, .75];
 export const MUDFLAT_GLOVE_POWER_BONUSES = [0, .06, .11, .15, .18, .2, .21];
 export const MUDFLAT_WADER_TERRAIN_REDUCTIONS = [0, .3, .4, .5, .6, .7, .75];
 export const MUDFLAT_WADER_HP_BONUSES = [0, .1, .12, .14, .16, .18, .2];
+export const MUDFLAT_HEADLAMP_DISCOVERY_RANGES = [0, 112, 154, 196, 238, 279, 320];
 
 export const MUDFLAT_RECOVERY_FOODS = [
   { id: "fishcake", icon: "♨", name: "따뜻한 어묵국", description: "체력을 35 회복합니다.", price: 35, heal: 35 },
@@ -161,13 +162,18 @@ export function mudflatCatchCapacity(level = 0) {
   return MUDFLAT_CATCH_CAPACITIES[mudflatSafeLevel(level)];
 }
 
+export function mudflatHeadlampDiscoveryRange(level = 0) {
+  return MUDFLAT_HEADLAMP_DISCOVERY_RANGES[mudflatSafeLevel(level)];
+}
+
 export function mudflatEquipmentDescription(id, level = 1) {
   const safeLevel = Math.max(1, mudflatSafeLevel(level));
+  if (id === "headlamp") return `소라와 골뱅이가 ${mudflatHeadlampDiscoveryRange(safeLevel)}px 안에서 출현합니다.`;
   if (id === "cooler") return `${mudflatCatchCapacity(safeLevel).toLocaleString()}마리까지 채집 가능합니다.`;
   if (id === "vest") return `기본 최대 체력보다 ${MUDFLAT_VEST_HP_BONUSES[safeLevel]} 높아지고 출혈 시간이 ${Math.round(MUDFLAT_VEST_BLEED_REDUCTIONS[safeLevel] * 100)}% 감소합니다.`;
   if (id === "gloves") return `모든 채집 도구의 위력이 기본 수치보다 ${Math.round(MUDFLAT_GLOVE_POWER_BONUSES[safeLevel] * 100)}% 증가합니다.`;
   if (id === "waders") return `지형 이동 페널티가 ${Math.round(MUDFLAT_WADER_TERRAIN_REDUCTIONS[safeLevel] * 100)}% 감소하고 기본 최대 체력보다 ${Math.round(MUDFLAT_WADER_HP_BONUSES[safeLevel] * 100)}% 상승합니다.`;
-  return "어두운 곳에 숨은 소라와 골뱅이가 출현합니다.";
+  return "장비 효과를 확인할 수 없습니다.";
 }
 
 export function mudflatEquipmentStats(equipment = {}, baseMaxHp = 100, snackLevel = 0) {
@@ -434,7 +440,7 @@ export const MUDFLAT_REGULAR_STAGES = [
   { stage: 1, name: "초입 갯벌", subtitle: "기본 조작과 채집 수단을 익히는 잔잔한 초입", modifiers: ["초입"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: .65, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
   { stage: 2, name: "차오르는 물골", subtitle: "밀물 물살을 피해 마른 모래톱으로 피하세요", modifiers: ["물골", "주기적 밀물"], waterChannels: true, tideInterval: 48, safeZone: "fixed", rockMultiplier: .8, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: .96, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
   { stage: 3, name: "바위 갯벌", subtitle: "가까이서 드러나는 숨은 돌을 조심하며 돌 밑을 노리세요", modifiers: ["바위 증가", "숨은 돌"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: 1.55, fallingRocks: 0, darkness: 0, mudSlow: .96, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
-  { stage: 4, name: "어두운 갯벌", subtitle: "좁아진 시야에서 헤드랜턴으로 숨은 패류를 찾으세요", modifiers: ["시야 감소", "패류 가치 2배"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: 1, fallingRocks: 0, darkness: .78, mudSlow: 1, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
+  { stage: 4, name: "어두운 갯벌", subtitle: "좁아진 시야에서 가까이에 나타난 숨은 패류를 찾으세요", modifiers: ["시야 감소", "패류 가치 2배"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: 1, fallingRocks: 0, darkness: .78, mudSlow: 1, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
   { stage: 5, name: "깊은 펄", subtitle: "발이 빠지는 펄과 빨라진 추위에 대비하세요", modifiers: ["이동 감속", "빠른 추위"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: .9, fallingRocks: 0, darkness: .18, mudSlow: .78, seafoodSpawnMultiplier: 1.22, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: .65, finalBoss: false },
   { stage: 6, name: "거센 갯벌", subtitle: "바람과 파도 사이로 몰려오는 해산물 무리를 버티세요", modifiers: ["바람", "파도", "해산물 무리"], waterChannels: true, tideInterval: 43, safeZone: "fixed", rockMultiplier: 1, fallingRocks: 0, darkness: 0, mudSlow: .93, seafoodSpawnMultiplier: .92, wind: 32, waves: true, swarms: true, coldThresholdMultiplier: .9, finalBoss: false },
   { stage: 7, name: "대조기 갯벌", subtitle: "빠른 밀물과 주기마다 바뀌는 안전 지대를 따라가세요", modifiers: ["빠른 밀물", "바뀌는 안전 지대"], waterChannels: true, tideInterval: 27, safeZone: "moving", rockMultiplier: 1.08, fallingRocks: 0, darkness: .08, mudSlow: .9, seafoodSpawnMultiplier: .88, wind: 18, waves: true, swarms: false, coldThresholdMultiplier: .85, finalBoss: false },
