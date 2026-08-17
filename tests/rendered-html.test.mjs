@@ -1292,10 +1292,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-hero-crab\{position:absolute/);
   assert.doesNotMatch(source, /화면 아무 곳이나 누른 뒤 가고 싶은 방향으로 드래그하세요/);
   assert.match(source, /className="ms-setup-details ms-saved-expedition"/);
-  assert.match(source, /className="ms-setup-details ms-reentry-details"/);
-  assert.match(source, /className="ms-setup-details ms-roadmap-details"/);
-  assert.match(source, /<b>원정 경로 보기<\/b>/);
+  assert.match(source, /className="ms-setup-details ms-route-select-details"/);
+  assert.match(source, /<b>원정 경로·단계 선택<\/b>/);
+  assert.match(source, /className="ms-stage-route-list"/);
+  assert.match(source, /disabled=\{!unlocked\}/);
+  assert.doesNotMatch(source, /ms-reentry-details|ms-roadmap-details/);
   assert.match(styles, /\.ms-setup-details\{margin-top:10px/);
+  assert.match(styles, /\.ms-stage-route-list\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.ms-setup \.ms-character-select>\.ms-primary\{margin:18px auto 0/);
   assert.match(source, /runtime\.stage === 1 && runtime\.elapsed < 3[\s\S]*?일단 저 구멍들을 파봐야겠다\./);
   assert.match(source, /앗 따가워, 몸이 이상해\./);

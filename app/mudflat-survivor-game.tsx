@@ -2155,13 +2155,16 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <summary><span><small>SAVED EXPEDITION</small><b>저장된 원정 이어하기</b></span><i>⌄</i></summary>
           <button type="button" className="ms-continue" onClick={continueCampaign}><span><b>{savedCampaign.stage}단계 정비소</b><em>{savedCampaign.coins.toLocaleString()}코인 · LV.{savedCampaign.level}</em></span><strong>→</strong></button>
         </details>}
-        {highestUnlockedStage > 1 && <details className="ms-setup-details ms-reentry-details">
-          <summary><span><small>STAGE SELECT</small><b>열린 스테이지 재도전</b></span><i>⌄</i></summary>
-          <div className="ms-stage-reentry"><div>{Array.from({ length: highestUnlockedStage }, (_, index) => index + 1).map((stage) => <button type="button" key={stage} className={selectedStage === stage ? "selected" : ""} onClick={() => setSelectedStage(stage)}>{stage === 9 ? "9+ 무한" : `${stage}단계`}</button>)}</div><p>재도전하면 장비·기술·경험치·코인은 모두 처음 상태입니다.</p></div>
-        </details>}
-        <details className="ms-setup-details ms-roadmap-details">
-          <summary><span><small>EXPEDITION ROUTE</small><b>원정 경로 보기</b></span><i>⌄</i></summary>
-          <div className="ms-stage-roadmap"><div>{MUDFLAT_REGULAR_STAGES.map((stage) => <span key={stage.stage}><i>{stage.stage}</i><b>{stage.name}</b><small>{stage.modifiers.join(" · ")}</small></span>)}<span className="endless"><i>9+</i><b>끝없는 물때</b><small>지형·날씨·생물·보조 목표 무작위 조합</small></span></div></div>
+        <details className="ms-setup-details ms-route-select-details">
+          <summary><span><small>EXPEDITION ROUTE</small><b>원정 경로·단계 선택</b></span><i>⌄</i></summary>
+          <div className="ms-stage-route">
+            <p>열린 갯벌을 골라 새 원정을 시작하세요. 재도전하면 장비·기술·경험치·코인은 모두 처음 상태입니다.</p>
+            <div className="ms-stage-route-list">{[...MUDFLAT_REGULAR_STAGES, { stage: 9, name: "끝없는 물때", modifiers: ["지형·날씨·생물·보조 목표 무작위 조합"] }].map((stage) => {
+              const unlocked = stage.stage <= highestUnlockedStage;
+              const selected = selectedStage === stage.stage;
+              return <button type="button" key={stage.stage} className={`${stage.stage === 9 ? "endless " : ""}${selected ? "selected " : ""}${unlocked ? "unlocked" : "locked"}`} disabled={!unlocked} aria-pressed={selected} onClick={() => setSelectedStage(stage.stage)}><i>{stage.stage === 9 ? "9+" : stage.stage}</i><span><b>{stage.name}</b><small>{stage.modifiers.join(" · ")}</small></span><em>{unlocked ? (selected ? "선택됨" : "선택") : "잠김"}</em></button>;
+            })}</div>
+          </div>
         </details>
       </section>
     </main>
