@@ -657,7 +657,7 @@ test("detects published site updates and refreshes only through safe user action
   assert.match(styles, /\.app-update-notice\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?z-index:\s*10000;/);
   assert.match(styles, /\.app-update-notice\.is-collapsed\s*\{[\s\S]*?width:\s*56px;[\s\S]*?min-height:\s*56px;/);
   assert.match(styles, /\.app-update-notice\.is-collapsed button\s*\{[\s\S]*?display:\s*grid;[\s\S]*?place-items:\s*center;[\s\S]*?gap:\s*0;/);
-  assert.match(styles, /\.app-update-notice\.is-collapsed \.app-update-refresh-icon\s*\{\s*translate:\s*0 -1px;/);
+  assert.match(styles, /\.app-update-notice\.is-collapsed \.app-update-refresh-icon\s*\{\s*translate:\s*0 3px;/);
   assert.match(styles, /transition:\s*width \.5s/);
   assert.match(styles, /\.app-update-spinner\s*\{[\s\S]*?border-radius:\s*50%;[\s\S]*?animation:\s*app-update-spin/);
   assert.match(styles, /@keyframes app-update-spin/);
@@ -1088,6 +1088,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /window\.localStorage\.removeItem\(CAMPAIGN_KEY\);/);
   assert.match(source, /setSavedCampaign\(null\);/);
   assert.match(source, /EXPEDITION ENDED/);
+  assert.match(source, /className="ms-defeat-art" src="\/mudflat-illustrations\/defeat-gatherer\.png"/);
   assert.match(source, /onClick=\{reset\}>단계 선택으로/);
   assert.match(source, /onClick=\{\(\) => beginAtStage\(Math\.min\(9, highestUnlockedStage\)\)\}/);
   assert.doesNotMatch(source, /onClick=\{\(\) => setScreen\("camp"\)\}>정비소에서 재도전/);
@@ -1097,6 +1098,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /단계에서 잡은 \$\{settlement\.catchCount\}마리를 판매해서 \$\{autoSale\.value\}코인을 얻었습니다/);
   assert.match(source, /<small>대왕 박하지<\/small><b>\{campaign\.lastBossCaught \? "포획" : "미포획"\}<\/b>/);
   assert.match(styles, /\.ms-layer button:not\(:disabled\)\{-webkit-tap-highlight-color:transparent;touch-action:manipulation/);
+  assert.match(styles, /\.ms-defeat-art\{display:block;width:min\(310px,76vw\);height:auto;margin:0 auto 16px;/);
   assert.match(styles, /\.ms-layer section>div button:not\(:disabled\):active\{transform:translateY\(1px\) scale\(\.982\)/);
   assert.match(styles, /\.ms-layer\.pause \.ms-primary:not\(:disabled\):active/);
   assert.match(source, /function drawMudflat\(/);

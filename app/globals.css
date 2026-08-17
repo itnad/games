@@ -218,7 +218,7 @@ a:focus-visible {
   gap: 0;
 }
 
-.app-update-notice.is-collapsed .app-update-refresh-icon { translate: 0 -1px; }
+.app-update-notice.is-collapsed .app-update-refresh-icon { translate: 0 3px; }
 
 .app-update-notice.is-collapsed .app-update-label {
   max-width: 0;
