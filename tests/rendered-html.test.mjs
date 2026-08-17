@@ -1041,8 +1041,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatPufferMovementForAge(8), "oval");
   assert.ok((await readFile(new URL("../public/mudflat-creatures/pufferfish.png", import.meta.url))).byteLength > 10_000);
   assert.ok((await readFile(new URL("../public/mudflat-creatures/golbaengi-v2.png", import.meta.url))).byteLength > 10_000);
-  const lumiWalkSprite = await readFile(new URL("../public/mudflat-illustrations/standing-gatherer-walk.png", import.meta.url));
-  assert.equal(lumiWalkSprite[25], 6, "Lumi walk sheet must retain PNG alpha transparency");
+  const lumiWalkSprites = await Promise.all(["side", "front", "back"].map((direction) => readFile(new URL(`../public/mudflat-illustrations/lumi-${direction}-tongs-walk-transparent.png`, import.meta.url))));
+  assert.ok(lumiWalkSprites.every((sprite) => sprite[25] === 6), "Every directional Lumi walk sheet must retain PNG alpha transparency");
   assert.equal(MUDFLAT_SHOP_EQUIPMENT.length, 5);
   assert.deepEqual(MUDFLAT_SHOP_EQUIPMENT.map((item) => item.name), ["헤드랜턴", "조과통 업그레이드", "작업 조끼", "장갑 업그레이드", "장화 밑창 업그레이드"]);
   assert.ok(MUDFLAT_SHOP_EQUIPMENT.every((item) => item.max === 6));
@@ -1343,10 +1343,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /isVertical \? " is-vertical" : ""/);
   assert.match(source, /equipment\.headlamp/);
   assert.match(source, /function drawGatherer\([^)]*hasHeadlamp: boolean/);
-  assert.match(source, /standing-gatherer-walk\.png/);
-  assert.match(source, /const walkFrame = player\.walking \? Math\.floor\(player\.stride \* 16\) % 4 : 1/);
+  assert.match(source, /lumi-side-tongs-walk-transparent\.png/);
+  assert.match(source, /lumi-front-tongs-walk-transparent\.png/);
+  assert.match(source, /lumi-back-tongs-walk-transparent\.png/);
+  assert.match(source, /const lumiDirection = lumiFacesVertically \? \(Math\.sin\(player\.facing\) > 0 \? "front" : "back"\) : "side"/);
+  assert.match(source, /const walkFrame = player\.walking \? Math\.floor\(player\.stride \* 16\) % 4 : Math\.floor\(fullTongTurn \* 4\) % 4/);
   assert.match(source, /runtime\.player\.walking = Math\.hypot\(inputX, inputY\) > \.05/);
   assert.match(source, /context\.drawImage\(lumiSprite, frameWidth \* walkFrame/);
+  assert.match(source, /runtime\.mode === "normal" && characterId !== "lumi" && \(runtime\.levels\.tongs \?\? 0\) > 0/);
   assert.match(styles, /\.ms-character-sprite-sheet img\{width:400%;height:auto/);
   assert.match(source, /runtime\.equipment\.headlamp \?\? 0\) > 0/);
   assert.match(source, /rgba\(255,232,151,\.27\)/);

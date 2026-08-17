@@ -92,6 +92,7 @@ type Runtime = {
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
 type CharacterOption = { id: string; icon: string; sprite?: string; spriteSheet?: boolean; name: string; description: string; startLabel: string; levels: CountMap; hp: number };
+type LumiSprites = { side: HTMLImageElement; front: HTMLImageElement; back: HTMLImageElement };
 type Campaign = {
   version: 1; mode: GameMode; characterId: string; stage: number; coins: number; hp: number; maxHp: number; baseMaxHp: number;
   level: number; xp: number; nextXp: number; levels: CountMap; equipment: CountMap; inventory: CountMap; lastHaul: CountMap; lastSaleValue: number; totalScore: number; lastBossCaught: boolean;
@@ -104,7 +105,7 @@ const LAST_MODE_KEY = "paperoid-mudflat-survivor-last-mode-v1";
 const HIGHEST_STAGE_KEY = "paperoid-mudflat-survivor-highest-stage-v1";
 const DAMAGE_TEXT_COLOR = "#ffd29a";
 const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
-const LUMI_CHARACTER: CharacterOption = { id: "lumi", icon: "●", sprite: "/mudflat-illustrations/standing-gatherer-walk.png", spriteSheet: true, name: "탐험가 루미", description: "걸음마다 자연스럽게 움직이는 갯벌 탐험가입니다.", startLabel: "기본 장비 · 체력 100", levels: { hoe: 1, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 };
+const LUMI_CHARACTER: CharacterOption = { id: "lumi", icon: "●", sprite: "/mudflat-illustrations/lumi-side-tongs-walk-transparent.png", spriteSheet: true, name: "탐험가 루미", description: "한 손의 집게와 3방향 걸음으로 갯벌을 누빕니다.", startLabel: "기본 장비 · 체력 100", levels: { hoe: 1, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 };
 const CHARACTERS: CharacterOption[] = [
   { id: "digger", icon: "⌁", name: "호미꾼 하루", description: "넓은 호미질로 시작합니다.", startLabel: "호미 Lv.2", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
   { id: "netter", icon: "◇", name: "그물잡이 모아", description: "자동 뜰채를 빠르게 던집니다.", startLabel: "뜰채 Lv.2", levels: { hoe: 1, net: 2, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 },
@@ -565,25 +566,33 @@ function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creatur
   context.restore();
 }
 
-function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, player: Runtime["player"], characterId: string, hasHeadlamp: boolean, lumiSprite?: HTMLImageElement, elapsed = 0) {
-  const direction = Math.cos(player.facing) < 0 ? -1 : 1;
+function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, player: Runtime["player"], characterId: string, hasHeadlamp: boolean, lumiSprites?: LumiSprites, elapsed = 0, tongRotationSpeed = 0) {
+  const lumiFacesVertically = Math.abs(Math.sin(player.facing)) > Math.abs(Math.cos(player.facing));
+  const lumiDirection = lumiFacesVertically ? (Math.sin(player.facing) > 0 ? "front" : "back") : "side";
+  const direction = characterId === "lumi" ? (lumiDirection === "side" && Math.cos(player.facing) < 0 ? -1 : 1) : (Math.cos(player.facing) < 0 ? -1 : 1);
   const bob = characterId === "lumi" ? (player.walking ? Math.sin(player.stride * 16) * 2.2 : Math.sin(elapsed * 2.4) * .7) : Math.sin(player.stride * 9) * 1.8;
   context.save();
   context.translate(x, y + bob);
-  context.scale(direction, 1);
   if (hasHeadlamp) {
     const lampY = characterId === "lumi" ? -58 : -34;
+    context.save();
+    if (characterId === "lumi") context.rotate(player.facing);
+    else context.scale(direction, 1);
     const beam = context.createLinearGradient(12, lampY, 112, lampY);
     beam.addColorStop(0, "rgba(255,232,151,.27)");
     beam.addColorStop(1, "rgba(255,232,151,0)");
     context.fillStyle = beam;
     context.beginPath(); context.moveTo(12, lampY - 5); context.lineTo(112, lampY - 31); context.lineTo(112, lampY + 31); context.closePath(); context.fill();
+    context.restore();
   }
+  context.scale(direction, 1);
   context.fillStyle = "rgba(24,20,17,.3)";
   context.beginPath(); context.ellipse(0, 22, 25, 9, 0, 0, Math.PI * 2); context.fill();
+  const lumiSprite = lumiSprites?.[lumiDirection];
   if (characterId === "lumi" && lumiSprite?.complete && lumiSprite.naturalWidth > 0) {
     const frameWidth = lumiSprite.naturalWidth / 4;
-    const walkFrame = player.walking ? Math.floor(player.stride * 16) % 4 : 1;
+    const fullTongTurn = tongRotationSpeed > 0 ? elapsed * tongRotationSpeed / (Math.PI * 2) : 0;
+    const walkFrame = player.walking ? Math.floor(player.stride * 16) % 4 : Math.floor(fullTongTurn * 4) % 4;
     const hitWobble = player.damageCooldown > 0 ? Math.sin(elapsed * 24) * .035 : 0;
     context.save();
     context.globalAlpha = player.damageCooldown > 0 ? .64 : 1;
@@ -1093,7 +1102,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     }
     const clamSprite = new Image(); clamSprite.src = "/mudflat-creatures/clam.png"; creatureSprites.set("clam-reveal", clamSprite);
     const razorClamSprite = new Image(); razorClamSprite.src = "/mudflat-creatures/razor-clam.svg"; creatureSprites.set("razor-clam-reveal", razorClamSprite);
-    const lumiSprite = new Image(); lumiSprite.src = LUMI_CHARACTER.sprite!;
+    const lumiSprites: LumiSprites = {
+      side: new Image(), front: new Image(), back: new Image(),
+    };
+    lumiSprites.side.src = LUMI_CHARACTER.sprite!;
+    lumiSprites.front.src = "/mudflat-illustrations/lumi-front-tongs-walk-transparent.png";
+    lumiSprites.back.src = "/mudflat-illustrations/lumi-back-tongs-walk-transparent.png";
 
     const resize = () => {
       const ratio = Math.min(2, window.devicePixelRatio || 1);
@@ -1877,7 +1891,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           context.fillStyle = "#fff1af"; context.save(); context.translate(saltX, saltY); context.rotate(angle); context.fillRect(-6, -6, 12, 12); context.restore();
         }
       }
-      if (runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0) {
+      if (runtime.mode === "normal" && characterId !== "lumi" && (runtime.levels.tongs ?? 0) > 0) {
         const tong = mudflatTongStats(runtime.levels.tongs);
         drawRotatingTongs(context, width / 2, height / 2, runtime.elapsed * tong.rotationSpeed, tong.reach);
       }
@@ -1892,7 +1906,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.beginPath(); context.arc(width / 2, height / 2, radius, -.18, Math.PI * 1.55); context.stroke();
         context.strokeStyle = `rgba(255,251,224,${alpha * .6})`; context.lineWidth = 2; context.beginPath(); context.arc(width / 2, height / 2, radius + 7, 0, Math.PI * 1.35); context.stroke();
       }
-      drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0, lumiSprite, runtime.elapsed);
+      const lumiTongRotationSpeed = runtime.mode === "normal" && characterId === "lumi" ? mudflatTongStats(runtime.levels.tongs ?? 1).rotationSpeed : 0;
+      drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0, lumiSprites, runtime.elapsed, lumiTongRotationSpeed);
       if (runtime.electricPulseLife > 0) {
         const reach = mudflatElectricStats(runtime.levels.electric ?? 0).reach;
         const pulse = Math.min(1, runtime.electricPulseLife / .42);
