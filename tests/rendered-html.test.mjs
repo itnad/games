@@ -1111,8 +1111,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /setSavedCampaign\(null\);/);
   assert.match(source, /EXPEDITION ENDED/);
   assert.match(source, /className="ms-defeat-art" src="\/mudflat-illustrations\/defeat-gatherer\.png"/);
-  assert.match(source, /onClick=\{reset\}>단계 선택으로/);
-  assert.match(source, /onClick=\{\(\) => beginAtStage\(Math\.min\(9, highestUnlockedStage\)\)\}/);
+  assert.match(source, /onClick=\{onExit\}>메인 화면으로/);
+  assert.match(source, /onClick=\{\(\) => beginAtStage\(hud\.stage\)\}/);
+  assert.match(source, /hud\.stage === 9 \? "끝없는 물때 재도전" : `\$\{hud\.stage\}단계 재도전`/);
   assert.doesNotMatch(source, /onClick=\{\(\) => setScreen\("camp"\)\}>정비소에서 재도전/);
   assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
   assert.match(source, /totalScore: number; lastBossCaught: boolean/);
