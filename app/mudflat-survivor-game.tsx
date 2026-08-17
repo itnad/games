@@ -80,7 +80,7 @@ type Runtime = {
   creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; clamReveals: ClamReveal[]; levels: CountMap; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
-  bossSpawned: boolean; spawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
+  bossSpawned: boolean; spawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
   safeZone: Point; lastTideCycle: number; lastSandbarCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; waveClock: number; rocksFlipped: number;
   paused: boolean; ended: boolean;
 };
@@ -192,8 +192,8 @@ function makeRuntime(campaign: Campaign): Runtime {
     mode: campaign.mode, stage: campaign.stage,
     elapsed: 0, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0 },
     creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], clamReveals: [], bursts: [], floatTexts: [], levels: { ...(campaign.mode === "normal" ? GENERAL_CHARACTER.levels : {}), ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
-    caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
-    playerMessage: "", playerMessageLife: 0, pufferTouching: false, hiddenRockClock: campaign.stage === 3 ? .5 : 0, hiddenRockIntroShown: false, catchFullNoticeClock: 0,
+    caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, selfShockNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
+    playerMessage: "", playerMessageLife: 0, playerMessageOpacity: 1, pufferTouching: false, hiddenRockClock: campaign.stage === 3 ? .5 : 0, hiddenRockIntroShown: false, catchFullNoticeClock: 0,
     hoeEffect: 0, rockFlipEffect: null, bleedSeconds: 0, bleedTickClock: 1, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0,
     safeZone: { x: 90, y: 0 }, lastTideCycle: 0, lastSandbarCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, waveClock: 10, rocksFlipped: 0,
     paused: false, ended: false,
@@ -1127,10 +1127,15 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .78, text: `-${damageLabel}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
     };
 
+    const showPlayerMessage = (message: string, life: number, opacity = 1) => {
+      runtime.playerMessage = message;
+      runtime.playerMessageLife = life;
+      runtime.playerMessageOpacity = opacity;
+    };
+
     const showCatchFullMessage = () => {
       if (runtime.catchFullNoticeClock > 0) return;
-      runtime.playerMessage = CATCH_FULL_MESSAGE;
-      runtime.playerMessageLife = 1.2;
+      showPlayerMessage(CATCH_FULL_MESSAGE, 1.2);
       runtime.catchFullNoticeClock = 15;
     };
 
@@ -1235,11 +1240,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const inSafeZone = Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
           if (!inSafeZone) {
             damagePlayer(10 + runtime.stage, "#79c7df");
-            runtime.playerMessage = "밀물 물살에 휩쓸렸다! 마른 모래톱으로!";
-            runtime.playerMessageLife = 3.6;
+            showPlayerMessage("밀물 물살에 휩쓸렸다! 마른 모래톱으로!", 3.6);
           } else {
-            runtime.playerMessage = "마른 모래톱에서 밀물을 피했다.";
-            runtime.playerMessageLife = 2.6;
+            showPlayerMessage("마른 모래톱에서 밀물을 피했다.", 2.6);
           }
         }
       }
@@ -1256,8 +1259,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           runtime.bursts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y, life: .46, maxLife: .46, color: "#c5a276", size: rock.radius + 10 });
           if (firstReveal) {
             runtime.hiddenRockIntroShown = true;
-            runtime.playerMessage = "아 깜짝이야, 여기 돌이 있었네!";
-            runtime.playerMessageLife = 3;
+            showPlayerMessage("아 깜짝이야, 여기 돌이 있었네!", 3);
           }
           runtime.hiddenRockClock = 7 + Math.random() * 5;
         }
@@ -1363,8 +1365,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         runtime.bleedSeconds = bleed.seconds; runtime.bleedTickClock = bleed.tickClock;
       }
       if (pufferTouching && !runtime.pufferTouching) {
-        runtime.playerMessage = "앗 따가워, 몸이 이상해.";
-        runtime.playerMessageLife = 3;
+        showPlayerMessage("앗 따가워, 몸이 이상해.", 3);
       }
       runtime.pufferTouching = pufferTouching;
       const touchingRock = runtime.mode === "normal" && runtime.rocks.some((rock) => Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) < rock.radius + 16);
@@ -1510,8 +1511,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
         if (runtime.selfShockClock <= 0) {
           damagePlayer(electric.selfDamage, "#79ddff");
-          runtime.playerMessage = "악 찌릿찌릿해, 이거 계속 쓸 수는 없겠네.";
-          runtime.playerMessageLife = 3;
+          const hasSelfShockMessage = runtime.selfShockNotified;
+          showPlayerMessage(hasSelfShockMessage ? "악 찌릿찌릿해!" : "악 찌릿찌릿해, 이거 계속 쓸 수는 없겠네.", hasSelfShockMessage ? 1 : 3, hasSelfShockMessage ? .7 : 1);
+          runtime.selfShockNotified = true;
           runtime.selfShockClock = electric.selfInterval;
         }
         runtime.electricStopNotified = false;
@@ -1519,8 +1521,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         runtime.electricClock = 0;
         runtime.selfShockClock = 10;
         if (runtime.mode === "normal" && electricLevel > 0 && runtime.player.hp <= 50 && !runtime.electricStopNotified && runtime.playerMessageLife <= 0) {
-          runtime.playerMessage = "체력이 너무 떨어져서 전기 스파크는 멈춰야겠어.";
-          runtime.playerMessageLife = 3;
+          showPlayerMessage("체력이 부족해서 지금은 전기 스파크를 못 쓰겠어.", 3);
           runtime.electricStopNotified = true;
         }
       }
@@ -1870,7 +1871,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (runtime.playerMessageLife > 0) {
         const message = runtime.playerMessage;
         const isCatchFullMessage = message === CATCH_FULL_MESSAGE;
-        const messageAlpha = isCatchFullMessage ? Math.min(1, runtime.playerMessageLife / .45) : Math.min(1, runtime.playerMessageLife * 2);
+        const messageAlpha = (isCatchFullMessage ? Math.min(1, runtime.playerMessageLife / .45) : Math.min(1, runtime.playerMessageLife * 2)) * runtime.playerMessageOpacity;
         context.save(); context.globalAlpha = messageAlpha; context.font = "900 14px system-ui"; context.textAlign = "center";
         const bubbleWidth = Math.min(width - 28, context.measureText(message).width + 36); const bubbleTop = height / 2 - 116;
         context.fillStyle = "rgba(255,244,218,.97)"; roundedRect(context, width / 2 - bubbleWidth / 2, bubbleTop, bubbleWidth, 40, 16); context.fill();

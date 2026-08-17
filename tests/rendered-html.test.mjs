@@ -1153,8 +1153,12 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /mudflatElectricStats\(electricLevel\)/);
   assert.match(source, /runtime\.player\.hp > 50/);
   assert.match(source, /runtime\.selfShockClock = electric\.selfInterval/);
+  assert.match(source, /selfShockNotified: false/);
   assert.match(source, /악 찌릿찌릿해, 이거 계속 쓸 수는 없겠네\./);
-  assert.match(source, /체력이 너무 떨어져서 전기 스파크는 멈춰야겠어\./);
+  assert.match(source, /악 찌릿찌릿해!/);
+  assert.match(source, /hasSelfShockMessage \? 1 : 3, hasSelfShockMessage \? \.7 : 1/);
+  assert.match(source, /runtime\.playerMessageOpacity/);
+  assert.match(source, /체력이 부족해서 지금은 전기 스파크를 못 쓰겠어\./);
   assert.match(source, /runtime\.electricStopNotified = false/);
   assert.match(source, /context\.globalCompositeOperation = "lighter"/);
   assert.match(source, /const cloud = context\.createRadialGradient/);
@@ -2541,8 +2545,8 @@ test("uses a throttled character speech bubble when the Mudflat haul container i
   const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
   assert.match(source, /const showCatchFullMessage = \(\) =>/);
   assert.match(source, /const CATCH_FULL_MESSAGE = "더 담을 수가 없어\. 다음에는 큰 통을 가져와야겠다\."/);
-  assert.match(source, /runtime\.playerMessageLife = 1\.2/);
+  assert.match(source, /showPlayerMessage\(CATCH_FULL_MESSAGE, 1\.2\)/);
   assert.match(source, /runtime\.catchFullNoticeClock = 15/);
-  assert.match(source, /const messageAlpha = isCatchFullMessage \? Math\.min\(1, runtime\.playerMessageLife \/ \.45\)/);
+  assert.match(source, /isCatchFullMessage \? Math\.min\(1, runtime\.playerMessageLife \/ \.45\)/);
   assert.doesNotMatch(source, /조과통이 가득 찼습니다/);
 });
