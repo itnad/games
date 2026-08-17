@@ -219,6 +219,27 @@ export function mudflatCastNetStats(level = 0) {
   return { interval: [2, 1.7, 1.4, 1.1, .8, .5][safeLevel - 1], damage: 200, radius: 30 };
 }
 
+// A thrown net must be something the player can actually see.  Targeting the
+// globally farthest creature made the effect frequently land far outside the
+// camera, which looked like the skill never fired.  Prefer the farthest
+// visible creature outside the regular tong reach; fall back to any visible
+// creature when there is no distant target.
+export function mudflatCastNetTarget(creatures = [], player = {}, viewport = {}, minimumDistance = 0) {
+  const playerX = Number(player.x) || 0;
+  const playerY = Number(player.y) || 0;
+  const halfWidth = Math.max(0, Number(viewport.width) || 0) / 2;
+  const halfHeight = Math.max(0, Number(viewport.height) || 0) / 2;
+  const visible = creatures.filter((creature) => {
+    const size = Math.max(0, Number(creature?.size) || 0);
+    return Math.abs((Number(creature?.x) || 0) - playerX) <= halfWidth + size
+      && Math.abs((Number(creature?.y) || 0) - playerY) <= halfHeight + size;
+  });
+  if (!visible.length) return null;
+  const distanceOf = (creature) => Math.hypot((Number(creature.x) || 0) - playerX, (Number(creature.y) || 0) - playerY);
+  const distant = visible.filter((creature) => distanceOf(creature) > Math.max(0, Number(minimumDistance) || 0));
+  return (distant.length ? distant : visible).reduce((farthest, creature) => distanceOf(creature) > distanceOf(farthest) ? creature : farthest);
+}
+
 export function mudflatJoystickVector(deltaX, deltaY, radius = MUDFLAT_JOYSTICK_RADIUS, deadzone = 5) {
   const length = Math.hypot(deltaX, deltaY);
   if (!Number.isFinite(length) || length <= deadzone) return { x: 0, y: 0, strength: 0 };

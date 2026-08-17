@@ -17,6 +17,7 @@ import {
   mudflatCanLearnSkill,
   mudflatAutoSellInventory,
   mudflatBleedDamage,
+  mudflatCastNetTarget,
   mudflatCastNetStats,
   mudflatCatchCapacity,
   mudflatElectricStats,
@@ -62,7 +63,7 @@ type Pickup = Point & { id: number; xp: number };
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
 type NetSlamEffect = Point & { id: number; life: number; maxLife: number; damage: number; radius: number; headDepth: number; range: number; angle: number; targetId: number; area: boolean; hit: boolean };
-type CastNetEffect = Point & { id: number; life: number; maxLife: number; damage: number; radius: number; hit: boolean };
+type CastNetEffect = Point & { id: number; targetId: number; life: number; maxLife: number; damage: number; radius: number; hit: boolean };
 type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number };
 type FloatText = Point & { id: number; life: number; text: string; color: string; kind?: "playerDamage" };
 type Rock = Point & { id: number; radius: number; tone: number };
@@ -1528,13 +1529,21 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (runtime.mode === "normal" && castNetLevel > 0 && runtime.castNetClock <= 0 && runtime.creatures.length) {
         const castNet = mudflatCastNetStats(castNetLevel);
         const tongReach = mudflatTongStats(runtime.levels.tongs ?? 1).reach;
-        const distant = runtime.creatures.filter((creature) => Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) > tongReach * 1.25);
-        const candidates = distant.length ? distant : runtime.creatures;
-        const target = candidates.reduce((farthest, creature) => Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) > Math.hypot(farthest.x - runtime.player.x, farthest.y - runtime.player.y) ? creature : farthest);
-        runtime.castNets.push({ id: sequenceRef.current++, x: target.x, y: target.y, life: .72, maxLife: .72, damage: castNet.damage * toolPower, radius: castNet.radius, hit: false });
-        runtime.castNetClock = castNet.interval;
+        const target = mudflatCastNetTarget(runtime.creatures, runtime.player, { width, height }, tongReach * 1.25);
+        if (target) {
+          runtime.castNets.push({ id: sequenceRef.current++, targetId: target.id, x: target.x, y: target.y, life: .82, maxLife: .82, damage: castNet.damage * toolPower, radius: castNet.radius, hit: false });
+          runtime.castNetClock = castNet.interval;
+        }
       }
       for (const castNet of runtime.castNets) {
+        const trackedTarget = runtime.creatures.find((creature) => creature.id === castNet.targetId);
+        const progressBefore = 1 - castNet.life / castNet.maxLife;
+        // Keep the falling net aligned with its living target until impact so
+        // quick seafood cannot simply swim away before the net reaches it.
+        if (trackedTarget && !castNet.hit && progressBefore < .62) {
+          castNet.x = trackedTarget.x;
+          castNet.y = trackedTarget.y;
+        }
         castNet.life -= dt;
         const progress = 1 - castNet.life / castNet.maxLife;
         if (!castNet.hit && progress >= .62) {

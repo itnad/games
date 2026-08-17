@@ -131,6 +131,7 @@ import {
   mudflatEquipmentDescription,
   mudflatEquipmentStats,
   mudflatCatchCapacity,
+  mudflatCastNetTarget,
   mudflatCastNetStats,
   mudflatCreatureForTime,
   mudflatFinalScore,
@@ -916,6 +917,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatNetStats(6).headDepth, mudflatNetStats(1).headDepth * 2);
   assert.ok(mudflatNetStats(1).radius < mudflatNetStats(1).range);
   assert.equal(mudflatHarpoonStats(1, 1).range, mudflatNetStats(1).range * 2);
+  const castNetTarget = mudflatCastNetTarget([
+    { id: "near", x: 20, y: 0, size: 10 },
+    { id: "visible-distant", x: 130, y: 0, size: 10 },
+    { id: "offscreen", x: 900, y: 0, size: 10 },
+  ], { x: 0, y: 0 }, { width: 320, height: 480 }, 100);
+  assert.equal(castNetTarget.id, "visible-distant");
+  assert.equal(mudflatCastNetTarget([{ id: "only-offscreen", x: 900, y: 0, size: 10 }], { x: 0, y: 0 }, { width: 320, height: 480 }, 100), null);
   assert.equal(mudflatHarpoonStats(2, 2).range, mudflatNetStats(2).range * 3);
   assert.equal(mudflatHarpoonStats(3, 3).range, mudflatNetStats(3).range * 4);
   assert.equal(mudflatHarpoonStats(4, 4).range, mudflatNetStats(4).range * 5);
@@ -1149,6 +1157,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const cloud = context\.createRadialGradient/);
   assert.match(source, /for \(let bolt = 0; bolt < 10; bolt \+= 1\)/);
   assert.match(source, /mudflatCastNetStats\(castNetLevel\)/);
+  assert.match(source, /mudflatCastNetTarget\(runtime\.creatures, runtime\.player, \{ width, height \}, tongReach \* 1\.25\)/);
+  assert.match(source, /targetId: target\.id/);
+  assert.match(source, /const trackedTarget = runtime\.creatures\.find\(\(creature\) => creature\.id === castNet\.targetId\)/);
   assert.match(source, /Math\.hypot\(creature\.x - castNet\.x, creature\.y - castNet\.y\) <= castNet\.radius/);
   assert.match(source, /신기술을 알게되었다\./);
   assert.match(source, /runtime\.bleedSeconds = 0; runtime\.bleedTickClock = 1/);
