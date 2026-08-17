@@ -82,7 +82,7 @@ const TIDE_RETURN_MESSAGE = "물이 가득찼어. 빨리 복귀해야해!";
 type Runtime = {
   mode: GameMode;
   stage: number;
-  elapsed: number; player: Point & { hp: number; maxHp: number; baseMaxHp: number; speed: number; damageCooldown: number; facing: number; stride: number };
+  elapsed: number; player: Point & { hp: number; maxHp: number; baseMaxHp: number; speed: number; damageCooldown: number; facing: number; stride: number; walking: boolean };
   creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; clamReveals: ClamReveal[]; levels: CountMap; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
@@ -91,7 +91,7 @@ type Runtime = {
   paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
-type CharacterOption = { id: string; icon: string; sprite?: string; name: string; description: string; startLabel: string; levels: CountMap; hp: number };
+type CharacterOption = { id: string; icon: string; sprite?: string; spriteSheet?: boolean; name: string; description: string; startLabel: string; levels: CountMap; hp: number };
 type Campaign = {
   version: 1; mode: GameMode; characterId: string; stage: number; coins: number; hp: number; maxHp: number; baseMaxHp: number;
   level: number; xp: number; nextXp: number; levels: CountMap; equipment: CountMap; inventory: CountMap; lastHaul: CountMap; lastSaleValue: number; totalScore: number; lastBossCaught: boolean;
@@ -104,7 +104,7 @@ const LAST_MODE_KEY = "paperoid-mudflat-survivor-last-mode-v1";
 const HIGHEST_STAGE_KEY = "paperoid-mudflat-survivor-highest-stage-v1";
 const DAMAGE_TEXT_COLOR = "#ffd29a";
 const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
-const LUMI_CHARACTER: CharacterOption = { id: "lumi", icon: "●", sprite: "/mudflat-illustrations/standing-gatherer.png", name: "탐험가 루미", description: "귀여운 모습으로 갯벌을 탐험합니다.", startLabel: "기본 장비 · 체력 100", levels: { hoe: 1, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 };
+const LUMI_CHARACTER: CharacterOption = { id: "lumi", icon: "●", sprite: "/mudflat-illustrations/standing-gatherer-walk.png", spriteSheet: true, name: "탐험가 루미", description: "걸음마다 자연스럽게 움직이는 갯벌 탐험가입니다.", startLabel: "기본 장비 · 체력 100", levels: { hoe: 1, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 };
 const CHARACTERS: CharacterOption[] = [
   { id: "digger", icon: "⌁", name: "호미꾼 하루", description: "넓은 호미질로 시작합니다.", startLabel: "호미 Lv.2", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
   { id: "netter", icon: "◇", name: "그물잡이 모아", description: "자동 뜰채를 빠르게 던집니다.", startLabel: "뜰채 Lv.2", levels: { hoe: 1, net: 2, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 },
@@ -207,7 +207,7 @@ function makeRuntime(campaign: Campaign): Runtime {
   const stats = mudflatEquipmentStats(campaign.equipment, campaign.baseMaxHp, campaign.mode === "normal" ? campaign.levels.snack : 0);
   return {
     mode: campaign.mode, stage: campaign.stage,
-    elapsed: 0, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0 },
+    elapsed: 0, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
     creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], clamReveals: [], bursts: [], floatTexts: [], levels: { ...(campaign.mode === "normal" ? GENERAL_CHARACTER.levels : {}), ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, selfShockNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
     playerMessage: "", playerMessageLife: 0, playerMessageOpacity: 1, pufferTouching: false, hiddenRockClock: campaign.stage === 3 ? .5 : 0, hiddenRockIntroShown: false, catchFullNoticeClock: 0,
@@ -565,29 +565,30 @@ function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creatur
   context.restore();
 }
 
-function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, player: Runtime["player"], characterId: string, hasHeadlamp: boolean, lumiSprite?: HTMLImageElement) {
+function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, player: Runtime["player"], characterId: string, hasHeadlamp: boolean, lumiSprite?: HTMLImageElement, elapsed = 0) {
   const direction = Math.cos(player.facing) < 0 ? -1 : 1;
-  const bob = Math.sin(player.stride * 9) * 1.8;
+  const bob = characterId === "lumi" ? (player.walking ? Math.sin(player.stride * 16) * 2.2 : Math.sin(elapsed * 2.4) * .7) : Math.sin(player.stride * 9) * 1.8;
   context.save();
   context.translate(x, y + bob);
   context.scale(direction, 1);
   if (hasHeadlamp) {
-    const beam = context.createLinearGradient(12, -34, 112, -34);
+    const lampY = characterId === "lumi" ? -58 : -34;
+    const beam = context.createLinearGradient(12, lampY, 112, lampY);
     beam.addColorStop(0, "rgba(255,232,151,.27)");
     beam.addColorStop(1, "rgba(255,232,151,0)");
     context.fillStyle = beam;
-    context.beginPath(); context.moveTo(12, -39); context.lineTo(112, -65); context.lineTo(112, -3); context.closePath(); context.fill();
+    context.beginPath(); context.moveTo(12, lampY - 5); context.lineTo(112, lampY - 31); context.lineTo(112, lampY + 31); context.closePath(); context.fill();
   }
   context.fillStyle = "rgba(24,20,17,.3)";
   context.beginPath(); context.ellipse(0, 22, 25, 9, 0, 0, Math.PI * 2); context.fill();
   if (characterId === "lumi" && lumiSprite?.complete && lumiSprite.naturalWidth > 0) {
-    const sourceX = lumiSprite.naturalWidth * .18;
-    const sourceY = lumiSprite.naturalHeight * .045;
-    const sourceWidth = lumiSprite.naturalWidth * .64;
-    const sourceHeight = lumiSprite.naturalHeight * .89;
+    const frameWidth = lumiSprite.naturalWidth / 4;
+    const walkFrame = player.walking ? Math.floor(player.stride * 16) % 4 : 1;
+    const hitWobble = player.damageCooldown > 0 ? Math.sin(elapsed * 24) * .035 : 0;
     context.save();
     context.globalAlpha = player.damageCooldown > 0 ? .64 : 1;
-    context.drawImage(lumiSprite, sourceX, sourceY, sourceWidth, sourceHeight, -32, -70, 64, 96);
+    context.rotate(hitWobble);
+    context.drawImage(lumiSprite, frameWidth * walkFrame, 0, frameWidth, lumiSprite.naturalHeight, -39, -76, 78, 104);
     context.restore();
     context.restore();
     return;
@@ -1310,7 +1311,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
         runtime.tideFlash = Math.max(runtime.tideFlash, .28);
       }
-      if (Math.hypot(inputX, inputY) > .05) {
+      runtime.player.walking = Math.hypot(inputX, inputY) > .05;
+      if (runtime.player.walking) {
         runtime.player.facing = Math.atan2(inputY, inputX);
         runtime.player.stride += dt * Math.max(.35, Math.hypot(inputX, inputY));
       }
@@ -1890,7 +1892,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.beginPath(); context.arc(width / 2, height / 2, radius, -.18, Math.PI * 1.55); context.stroke();
         context.strokeStyle = `rgba(255,251,224,${alpha * .6})`; context.lineWidth = 2; context.beginPath(); context.arc(width / 2, height / 2, radius + 7, 0, Math.PI * 1.35); context.stroke();
       }
-      drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0, lumiSprite);
+      drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0, lumiSprite, runtime.elapsed);
       if (runtime.electricPulseLife > 0) {
         const reach = mudflatElectricStats(runtime.levels.electric ?? 0).reach;
         const pulse = Math.min(1, runtime.electricPulseLife / .42);
@@ -2143,12 +2145,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         {mode === "kids" ? <>
           <h3 className="ms-selection-title">채집꾼 선택</h3>
           <div className="ms-character-grid">
-            {CHARACTERS.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i className={item.sprite ? "ms-character-portrait" : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.startLabel}</em></button>)}
+            {CHARACTERS.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i className={item.sprite ? `ms-character-portrait${item.spriteSheet ? " ms-character-sprite-sheet" : ""}` : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.startLabel}</em></button>)}
           </div>
         </> : <>
           <h3 className="ms-selection-title">채집꾼 모습 선택</h3>
           <div className="ms-character-grid ms-general-character-grid">
-            {GENERAL_APPEARANCES.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i className={item.sprite ? "ms-character-portrait" : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.startLabel}</em></button>)}
+            {GENERAL_APPEARANCES.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i className={item.sprite ? `ms-character-portrait${item.spriteSheet ? " ms-character-sprite-sheet" : ""}` : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.startLabel}</em></button>)}
           </div>
         </>}
         <button className="ms-primary" type="button" onClick={begin}>
