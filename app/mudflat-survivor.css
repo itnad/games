@@ -108,3 +108,7 @@
 /* The defeat illustration keeps the result header expressive without adding vertical bulk. */
 .ms-defeat-art{display:block;width:min(310px,76vw);height:auto;margin:0 auto 16px;filter:drop-shadow(0 12px 16px #160e1780)}
 @media(max-width:600px){.ms-defeat-art{width:min(255px,76vw);margin-bottom:12px}}
+
+/* The illustrated gatherer is an optional player appearance; existing marks stay available. */
+.ms-setup .ms-character-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.ms-character-grid button>i.ms-character-portrait{overflow:hidden;background:linear-gradient(145deg,#f3d16b,#d77947)}.ms-character-grid button>i.ms-character-portrait img{width:100%;height:100%;object-fit:cover;object-position:50% 40%;transform:scale(1.35)}
+@media(max-width:600px){.ms-setup .ms-character-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.ms-setup .ms-character-grid button>i.ms-character-portrait img{transform:scale(1.5)}}

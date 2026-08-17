@@ -90,6 +90,7 @@ type Runtime = {
   paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
+type CharacterOption = { id: string; icon: string; sprite?: string; name: string; description: string; startLabel: string; levels: CountMap; hp: number };
 type Campaign = {
   version: 1; mode: GameMode; characterId: string; stage: number; coins: number; hp: number; maxHp: number; baseMaxHp: number;
   level: number; xp: number; nextXp: number; levels: CountMap; equipment: CountMap; inventory: CountMap; lastHaul: CountMap; lastSaleValue: number; totalScore: number; lastBossCaught: boolean;
@@ -102,10 +103,16 @@ const LAST_MODE_KEY = "paperoid-mudflat-survivor-last-mode-v1";
 const HIGHEST_STAGE_KEY = "paperoid-mudflat-survivor-highest-stage-v1";
 const DAMAGE_TEXT_COLOR = "#ffd29a";
 const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
-const CHARACTERS = [
-  { id: "digger", icon: "⌁", name: "호미꾼 하루", description: "넓은 호미질로 시작합니다.", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
-  { id: "netter", icon: "◇", name: "그물잡이 모아", description: "자동 뜰채를 빠르게 던집니다.", levels: { hoe: 1, net: 2, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 },
-  { id: "salter", icon: "✦", name: "소금장인 소금", description: "주위를 도는 왕소금을 사용합니다.", levels: { hoe: 1, net: 0, salt: 2, boots: 0, basket: 0, stamina: 0 }, hp: 105 },
+const LUMI_CHARACTER: CharacterOption = { id: "lumi", icon: "●", sprite: "/mudflat-illustrations/standing-gatherer.png", name: "탐험가 루미", description: "귀여운 모습으로 갯벌을 탐험합니다.", startLabel: "기본 장비 · 체력 100", levels: { hoe: 1, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 };
+const CHARACTERS: CharacterOption[] = [
+  { id: "digger", icon: "⌁", name: "호미꾼 하루", description: "넓은 호미질로 시작합니다.", startLabel: "호미 Lv.2", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
+  { id: "netter", icon: "◇", name: "그물잡이 모아", description: "자동 뜰채를 빠르게 던집니다.", startLabel: "뜰채 Lv.2", levels: { hoe: 1, net: 2, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 },
+  { id: "salter", icon: "✦", name: "소금장인 소금", description: "주위를 도는 왕소금을 사용합니다.", startLabel: "왕소금 Lv.2", levels: { hoe: 1, net: 0, salt: 2, boots: 0, basket: 0, stamina: 0 }, hp: 105 },
+  LUMI_CHARACTER,
+];
+const GENERAL_APPEARANCES: CharacterOption[] = [
+  { id: "beginner", icon: "⌁", name: "갯벌 초보", description: "기본 장비로 단단하게 시작합니다.", startLabel: "집게·호미질 기본 장착 · 체력 100", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 },
+  { ...LUMI_CHARACTER, description: "기술 구성은 그대로, 모습만 루미로 출발합니다.", startLabel: "집게·호미질 기본 장착 · 체력 100" },
 ];
 
 const GENERAL_CHARACTER = { id: "beginner", name: "갯벌 초보", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 };
@@ -557,7 +564,7 @@ function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creatur
   context.restore();
 }
 
-function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, player: Runtime["player"], characterId: string, hasHeadlamp: boolean) {
+function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, player: Runtime["player"], characterId: string, hasHeadlamp: boolean, lumiSprite?: HTMLImageElement) {
   const direction = Math.cos(player.facing) < 0 ? -1 : 1;
   const bob = Math.sin(player.stride * 9) * 1.8;
   context.save();
@@ -572,6 +579,18 @@ function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, p
   }
   context.fillStyle = "rgba(24,20,17,.3)";
   context.beginPath(); context.ellipse(0, 22, 25, 9, 0, 0, Math.PI * 2); context.fill();
+  if (characterId === "lumi" && lumiSprite?.complete && lumiSprite.naturalWidth > 0) {
+    const sourceX = lumiSprite.naturalWidth * .18;
+    const sourceY = lumiSprite.naturalHeight * .045;
+    const sourceWidth = lumiSprite.naturalWidth * .64;
+    const sourceHeight = lumiSprite.naturalHeight * .89;
+    context.save();
+    context.globalAlpha = player.damageCooldown > 0 ? .64 : 1;
+    context.drawImage(lumiSprite, sourceX, sourceY, sourceWidth, sourceHeight, -32, -70, 64, 96);
+    context.restore();
+    context.restore();
+    return;
+  }
   context.strokeStyle = "#273e40"; context.lineWidth = 7; context.lineCap = "round";
   context.beginPath(); context.moveTo(-7, 10); context.lineTo(-10, 22 + Math.sin(player.stride * 9) * 3); context.stroke();
   context.beginPath(); context.moveTo(7, 10); context.lineTo(11, 22 - Math.sin(player.stride * 9) * 3); context.stroke();
@@ -1072,6 +1091,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     }
     const clamSprite = new Image(); clamSprite.src = "/mudflat-creatures/clam.png"; creatureSprites.set("clam-reveal", clamSprite);
     const razorClamSprite = new Image(); razorClamSprite.src = "/mudflat-creatures/razor-clam.svg"; creatureSprites.set("razor-clam-reveal", razorClamSprite);
+    const lumiSprite = new Image(); lumiSprite.src = LUMI_CHARACTER.sprite!;
 
     const resize = () => {
       const ratio = Math.min(2, window.devicePixelRatio || 1);
@@ -1866,7 +1886,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.beginPath(); context.arc(width / 2, height / 2, radius, -.18, Math.PI * 1.55); context.stroke();
         context.strokeStyle = `rgba(255,251,224,${alpha * .6})`; context.lineWidth = 2; context.beginPath(); context.arc(width / 2, height / 2, radius + 7, 0, Math.PI * 1.35); context.stroke();
       }
-      drawGatherer(context, width / 2, height / 2, runtime.player, runtime.mode === "normal" ? "beginner" : characterId, (runtime.equipment.headlamp ?? 0) > 0);
+      drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0, lumiSprite);
       if (runtime.electricPulseLife > 0) {
         const reach = mudflatElectricStats(runtime.levels.electric ?? 0).reach;
         const pulse = Math.min(1, runtime.electricPulseLife / .42);
@@ -2110,19 +2130,24 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       <section className="ms-character-select">
         <h2 className="ms-mode-heading">어떤 해루질로 떠날까요?</h2>
         <div className="ms-mode-picker">
-          <button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => { setMode("normal"); window.localStorage.setItem(LAST_MODE_KEY, "normal"); }}>
+          <button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => { setMode("normal"); window.localStorage.setItem(LAST_MODE_KEY, "normal"); setCharacterId("beginner"); }}>
             <i>◆</i><span><b>일반 모드</b><small>강한 해산물·돌 장애물·전용 기술</small></span>
           </button>
-          <button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => { setMode("kids"); window.localStorage.setItem(LAST_MODE_KEY, "kids"); }}>
+          <button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => { setMode("kids"); window.localStorage.setItem(LAST_MODE_KEY, "kids"); setCharacterId((current) => CHARACTERS.some((item) => item.id === current) ? current : "digger"); }}>
             <i>☀</i><span><b>어린이 모드</b><small>가볍게 익히는 채집 모험</small></span>
           </button>
         </div>
         {mode === "kids" ? <>
           <h3 className="ms-selection-title">채집꾼 선택</h3>
           <div className="ms-character-grid">
-            {CHARACTERS.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.id === "digger" ? "호미 Lv.2" : item.id === "netter" ? "뜰채 Lv.2" : "왕소금 Lv.2"}</em></button>)}
+            {CHARACTERS.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i className={item.sprite ? "ms-character-portrait" : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.startLabel}</em></button>)}
           </div>
-        </> : <div className="ms-general-profile"><i>⌁</i><span><small>STARTING GATHERER</small><b>갯벌 초보</b><em>집게·호미질 기본 장착 · 체력 100</em></span></div>}
+        </> : <>
+          <h3 className="ms-selection-title">채집꾼 모습 선택</h3>
+          <div className="ms-character-grid ms-general-character-grid">
+            {GENERAL_APPEARANCES.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i className={item.sprite ? "ms-character-portrait" : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.startLabel}</em></button>)}
+          </div>
+        </>}
         <button className="ms-primary" type="button" onClick={begin}>
           {selectedStage > 1 ? `${selectedStage === 9 ? "끝없는 물때" : `${selectedStage}단계`} 새 원정 시작` : mode === "normal" ? "새 일반 원정 시작" : "새 어린이 원정 시작"} <span>→</span>
         </button>
