@@ -2004,7 +2004,47 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const reset = () => { runtimeRef.current = null; campaignRef.current = null; resetMovementInput(); setCampaign(null); setHud({ ...emptyHud, mode }); setSelectedStage(1); setChoices([]); setSelectedSkillId(null); setScreen("setup"); };
   const clearCampaign = () => { window.localStorage.removeItem(CAMPAIGN_KEY); setSavedCampaign(null); reset(); };
 
-  if (screen === "setup") return <main className="ms-shell ms-setup"><MudflatTopbar onExit={onExit} /><section className="ms-setup-hero"><div className="ms-sun" aria-hidden="true">☀</div><img className="ms-hero-crab" src="/mudflat-creatures/crab.png" alt="" aria-hidden="true" /><small>THE TIDE IS COMING</small><h1>해루질에<br /><em>미친 자여!</em></h1><p>화면 아무 곳이나 누른 뒤 가고 싶은 방향으로 드래그하세요.<br />도구는 자동으로 움직이고, 손을 떼면 바로 멈춥니다.</p></section><section className="ms-character-select"><header><span>01</span><div><b>난이도와 채집꾼 선택</b><small>4분 출정 후 정비소에서 다음 갯벌을 준비합니다</small></div></header>{savedCampaign && <button type="button" className="ms-continue" onClick={continueCampaign}><span><small>SAVED EXPEDITION</small><b>{savedCampaign.stage}단계 정비소에서 이어하기</b><em>{savedCampaign.coins.toLocaleString()}코인 · LV.{savedCampaign.level}</em></span><strong>→</strong></button>}<div className="ms-mode-picker"><button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => { setMode("normal"); window.localStorage.setItem(LAST_MODE_KEY, "normal"); }}><i>◆</i><span><b>일반 모드</b><small>강한 해산물·돌 장애물·전용 기술</small></span></button><button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => { setMode("kids"); window.localStorage.setItem(LAST_MODE_KEY, "kids"); }}><i>☀</i><span><b>어린이 모드</b><small>기존 난이도와 세 명의 채집꾼</small></span></button></div>{mode === "kids" ? <><h2 className="ms-selection-title">채집꾼을 선택하세요</h2><div className="ms-character-grid">{CHARACTERS.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.id === "digger" ? "호미 Lv.2" : item.id === "netter" ? "뜰채 Lv.2" : "왕소금 Lv.2"}</em></button>)}</div></> : <div className="ms-general-profile"><i>⌁</i><span><small>STARTING GATHERER</small><b>갯벌 초보</b><em>집게 숙련도 Lv.1 · 체력 100 · 돌 장애물 등장</em></span></div>}{highestUnlockedStage > 1 && <div className="ms-stage-reentry"><small>재도전할 열린 스테이지</small><div>{Array.from({ length: highestUnlockedStage }, (_, index) => index + 1).map((stage) => <button type="button" key={stage} className={selectedStage === stage ? "selected" : ""} onClick={() => setSelectedStage(stage)}>{stage === 9 ? "9+ 무한" : `${stage}단계`}</button>)}</div><p>열린 단계로 시작해도 장비·기술·경험치·코인은 모두 처음 상태입니다.</p></div>}<div className="ms-stage-roadmap"><header><small>EXPEDITION ROUTE</small><b>정규 8단계 이후 끝없는 물때</b></header><div>{MUDFLAT_REGULAR_STAGES.map((stage) => <span key={stage.stage}><i>{stage.stage}</i><b>{stage.name}</b><small>{stage.modifiers.join(" · ")}</small></span>)}<span className="endless"><i>9+</i><b>끝없는 물때</b><small>지형·날씨·생물·보조 목표 무작위 조합</small></span></div></div><button className="ms-primary" type="button" onClick={begin}>{selectedStage > 1 ? `${selectedStage === 9 ? "끝없는 물때" : `${selectedStage}단계`} 새 원정 시작` : mode === "normal" ? "새 일반 원정 시작" : "새 어린이 원정 시작"} <span>→</span></button><p>스테이지마다 4분 동안 진행됩니다. 귀환 후 해산물을 팔아 장비와 회복 음식을 마련할 수 있습니다.</p></section></main>;
+  if (screen === "setup") return (
+    <main className="ms-shell ms-setup">
+      <MudflatTopbar onExit={onExit} />
+      <section className="ms-setup-hero">
+        <img className="ms-hero-crab" src="/mudflat-creatures/crab.png" alt="" aria-hidden="true" />
+        <h1>해루질에 <em>미친 자여!</em></h1>
+      </section>
+      <section className="ms-character-select">
+        <h2 className="ms-mode-heading">어떤 해루질로 떠날까요?</h2>
+        <div className="ms-mode-picker">
+          <button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => { setMode("normal"); window.localStorage.setItem(LAST_MODE_KEY, "normal"); }}>
+            <i>◆</i><span><b>일반 모드</b><small>강한 해산물·돌 장애물·전용 기술</small></span>
+          </button>
+          <button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => { setMode("kids"); window.localStorage.setItem(LAST_MODE_KEY, "kids"); }}>
+            <i>☀</i><span><b>어린이 모드</b><small>가볍게 익히는 채집 모험</small></span>
+          </button>
+        </div>
+        {mode === "kids" ? <>
+          <h3 className="ms-selection-title">채집꾼 선택</h3>
+          <div className="ms-character-grid">
+            {CHARACTERS.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.id === "digger" ? "호미 Lv.2" : item.id === "netter" ? "뜰채 Lv.2" : "왕소금 Lv.2"}</em></button>)}
+          </div>
+        </> : <div className="ms-general-profile"><i>⌁</i><span><small>STARTING GATHERER</small><b>갯벌 초보</b><em>집게·호미질 기본 장착 · 체력 100</em></span></div>}
+        <button className="ms-primary" type="button" onClick={begin}>
+          {selectedStage > 1 ? `${selectedStage === 9 ? "끝없는 물때" : `${selectedStage}단계`} 새 원정 시작` : mode === "normal" ? "새 일반 원정 시작" : "새 어린이 원정 시작"} <span>→</span>
+        </button>
+        {savedCampaign && <details className="ms-setup-details ms-saved-expedition">
+          <summary><span><small>SAVED EXPEDITION</small><b>저장된 원정 이어하기</b></span><i>⌄</i></summary>
+          <button type="button" className="ms-continue" onClick={continueCampaign}><span><b>{savedCampaign.stage}단계 정비소</b><em>{savedCampaign.coins.toLocaleString()}코인 · LV.{savedCampaign.level}</em></span><strong>→</strong></button>
+        </details>}
+        {highestUnlockedStage > 1 && <details className="ms-setup-details ms-reentry-details">
+          <summary><span><small>STAGE SELECT</small><b>열린 스테이지 재도전</b></span><i>⌄</i></summary>
+          <div className="ms-stage-reentry"><div>{Array.from({ length: highestUnlockedStage }, (_, index) => index + 1).map((stage) => <button type="button" key={stage} className={selectedStage === stage ? "selected" : ""} onClick={() => setSelectedStage(stage)}>{stage === 9 ? "9+ 무한" : `${stage}단계`}</button>)}</div><p>재도전하면 장비·기술·경험치·코인은 모두 처음 상태입니다.</p></div>
+        </details>}
+        <details className="ms-setup-details ms-roadmap-details">
+          <summary><span><small>EXPEDITION ROUTE</small><b>원정 경로 보기</b></span><i>⌄</i></summary>
+          <div className="ms-stage-roadmap"><div>{MUDFLAT_REGULAR_STAGES.map((stage) => <span key={stage.stage}><i>{stage.stage}</i><b>{stage.name}</b><small>{stage.modifiers.join(" · ")}</small></span>)}<span className="endless"><i>9+</i><b>끝없는 물때</b><small>지형·날씨·생물·보조 목표 무작위 조합</small></span></div></div>
+        </details>
+      </section>
+    </main>
+  );
 
   if (screen === "camp" && campaign) {
     const haulCount = Object.values(campaign.lastHaul).reduce((sum, count) => sum + count, 0);
