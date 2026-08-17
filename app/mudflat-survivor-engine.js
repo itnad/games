@@ -1,5 +1,9 @@
 export const MUDFLAT_RUN_SECONDS = 240;
 export const MUDFLAT_JOYSTICK_RADIUS = 72;
+export const MUDFLAT_RETURN_GUIDE_SECONDS = 10;
+export const MUDFLAT_TIDE_SPEED_MULTIPLIER = .2;
+export const MUDFLAT_TIDE_DAMAGE_RATIO_PER_SECOND = .05;
+export const MUDFLAT_TIDE_MESSAGE_INTERVAL = 15;
 
 export const MUDFLAT_CREATURES = [
   { id: "small-crab", name: "작은게", family: "crab", sprite: "/mudflat-creatures/small-crab.svg", icon: "♋", color: "#d6a177", hp: 2, speed: 25, size: 11, xp: 1, score: 6, unlock: 0 },
@@ -561,4 +565,15 @@ export function mudflatTrainingPrice(currentLevel = 0) {
 export function mudflatFinalScore({ catchScore = 0, caught = 0, elapsed = 0, bossCaught = false }) {
   const survivalBonus = Math.floor(Math.min(MUDFLAT_RUN_SECONDS, elapsed) * 4);
   return Math.max(0, Math.floor(catchScore + caught * 3 + survivalBonus + (bossCaught ? 2500 : 0)));
+}
+
+export function mudflatTideStats(elapsed = 0, maxHp = 0) {
+  const safeElapsed = Math.max(0, Number(elapsed) || 0);
+  const tideActive = safeElapsed >= MUDFLAT_RUN_SECONDS;
+  return {
+    guideVisible: safeElapsed >= MUDFLAT_RUN_SECONDS - MUDFLAT_RETURN_GUIDE_SECONDS,
+    active: tideActive,
+    speedMultiplier: tideActive ? MUDFLAT_TIDE_SPEED_MULTIPLIER : 1,
+    damagePerSecond: tideActive ? Math.max(0, Number(maxHp) || 0) * MUDFLAT_TIDE_DAMAGE_RATIO_PER_SECOND : 0,
+  };
 }

@@ -116,9 +116,13 @@ import {
   MUDFLAT_JOYSTICK_RADIUS,
   MUDFLAT_RECOVERY_FOODS,
   MUDFLAT_REGULAR_STAGES,
+  MUDFLAT_RETURN_GUIDE_SECONDS,
   MUDFLAT_RUN_SECONDS,
   MUDFLAT_SEAFOOD_MARKET,
   MUDFLAT_SHOP_EQUIPMENT,
+  MUDFLAT_TIDE_DAMAGE_RATIO_PER_SECOND,
+  MUDFLAT_TIDE_MESSAGE_INTERVAL,
+  MUDFLAT_TIDE_SPEED_MULTIPLIER,
   MUDFLAT_PEARL,
   mudflatAutoSellInventory,
   mudflatAdvancedSkillUnlocks,
@@ -154,6 +158,7 @@ import {
   mudflatSettleCatch,
   mudflatSpawnInterval,
   mudflatStageStats,
+  mudflatTideStats,
   mudflatTongStats,
   mudflatTerrainSpeedMultiplier,
   mudflatTrainingPrice,
@@ -856,6 +861,13 @@ test("judges 10.00 with millisecond precision and supports a five-round challeng
 
 test("uses an invisible relative-drag joystick for Mudflat Survivor", async () => {
   assert.equal(MUDFLAT_RUN_SECONDS, 240);
+  assert.equal(MUDFLAT_RETURN_GUIDE_SECONDS, 10);
+  assert.equal(MUDFLAT_TIDE_SPEED_MULTIPLIER, .2);
+  assert.equal(MUDFLAT_TIDE_DAMAGE_RATIO_PER_SECOND, .05);
+  assert.equal(MUDFLAT_TIDE_MESSAGE_INTERVAL, 15);
+  assert.deepEqual(mudflatTideStats(229, 100), { guideVisible: false, active: false, speedMultiplier: 1, damagePerSecond: 0 });
+  assert.deepEqual(mudflatTideStats(230, 100), { guideVisible: true, active: false, speedMultiplier: 1, damagePerSecond: 0 });
+  assert.deepEqual(mudflatTideStats(240, 100), { guideVisible: true, active: true, speedMultiplier: .2, damagePerSecond: 5 });
   assert.equal(MUDFLAT_JOYSTICK_RADIUS, 72);
   assert.ok(MUDFLAT_CREATURES.length >= 6);
   assert.equal(MUDFLAT_CREATURES.at(-1).boss, true);
@@ -1157,6 +1169,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /runtime\.catchFullNoticeClock = 15/);
   assert.match(source, /A full container prevents selling the catch, not learning from it\./);
   assert.match(source, /mudflatElectricStats\(electricLevel\)/);
+  assert.match(source, /const tide = mudflatTideStats\(runtime\.elapsed, runtime\.player\.maxHp\);/);
+  assert.match(source, /const speed = tide\.active \? runtime\.player\.speed \* tide\.speedMultiplier : regularSpeed;/);
+  assert.match(source, /damagePlayer\(tide\.damagePerSecond, "#73d4ea"\);/);
+  assert.match(source, /TIDE_RETURN_MESSAGE = "물이 가득찼어\. 빨리 복귀해야해!"/);
+  assert.match(source, /runtime\.tideMessageClock \+= MUDFLAT_TIDE_MESSAGE_INTERVAL;/);
+  assert.match(source, /if \(tide\.active && inBaseCamp\) \{ completeStage\(runtime\); return; \}/);
+  assert.match(source, /drawBaseCampDirectionGuide\(context, width, height, runtime\.player, runtime\.baseCamp, returnTide\.active\)/);
+  assert.doesNotMatch(source, /else if \(runtime\.elapsed >= MUDFLAT_RUN_SECONDS\) completeStage\(runtime\)/);
   assert.match(source, /const reach = electric\.reach;/);
   assert.match(source, /const reach = mudflatElectricStats\(runtime\.levels\.electric \?\? 0\)\.reach;/);
   assert.match(source, /runtime\.player\.hp > 50/);
