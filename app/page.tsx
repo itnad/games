@@ -2424,7 +2424,7 @@ function AppUpdateNotice({ onUpdate }: { onUpdate: () => void }) {
         <small>게임 나가기나 새 게임 시작 시 자동으로 반영됩니다.</small>
       </span>
       <button type="button" onClick={beginUpdate} disabled={isUpdating} aria-busy={isUpdating} aria-label={isUpdating ? "새로고침 중" : "새 버전으로 새로고침"}>
-        {isUpdating ? <i className="app-update-spinner" aria-hidden="true" /> : <i className="app-update-refresh-icon" aria-hidden="true">↻</i>}
+        {isUpdating ? <i className="app-update-spinner" aria-hidden="true" /> : <i className="app-update-refresh-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0 2 5.3M20 4v7h-7" /></svg></i>}
         <span className="app-update-label">{isUpdating ? "새로고침 중" : "새로고침"}</span>
       </button>
     </aside>

@@ -658,12 +658,14 @@ test("detects published site updates and refreshes only through safe user action
   assert.match(pageSource, /disabled=\{isUpdating\} aria-busy=\{isUpdating\}/);
   assert.match(pageSource, /app-update-spinner/);
   assert.match(pageSource, /app-update-refresh-icon/);
+  assert.match(pageSource, /<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0 2 5\.3M20 4v7h-7" \/><\/svg>/);
   assert.match(pageSource, /isUpdating \? "새로고침 중" : "새로고침"/);
   assert.doesNotMatch(pageSource, /지금 업데이트/);
   assert.match(styles, /\.app-update-notice\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?z-index:\s*10000;/);
   assert.match(styles, /\.app-update-notice\.is-collapsed\s*\{[\s\S]*?width:\s*56px;[\s\S]*?min-height:\s*56px;/);
   assert.match(styles, /\.app-update-notice\.is-collapsed button\s*\{[\s\S]*?display:\s*grid;[\s\S]*?place-items:\s*center;[\s\S]*?gap:\s*0;/);
-  assert.match(styles, /\.app-update-notice\.is-collapsed \.app-update-refresh-icon\s*\{\s*translate:\s*0 3px;/);
+  assert.match(styles, /\.app-update-refresh-icon svg\s*\{[\s\S]*?width:\s*22px;[\s\S]*?height:\s*22px;[\s\S]*?stroke:\s*currentColor;/);
+  assert.doesNotMatch(styles, /\.app-update-notice\.is-collapsed \.app-update-refresh-icon\s*\{\s*translate:/);
   assert.match(styles, /transition:\s*width \.5s/);
   assert.match(styles, /\.app-update-spinner\s*\{[\s\S]*?border-radius:\s*50%;[\s\S]*?animation:\s*app-update-spin/);
   assert.match(styles, /@keyframes app-update-spin/);

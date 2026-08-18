@@ -175,14 +175,22 @@ a:focus-visible {
   width: 22px;
   height: 22px;
   flex: 0 0 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   color: white;
-  font-size: 26px;
   font-style: normal;
-  font-weight: 650;
-  line-height: 1;
+}
+
+.app-update-refresh-icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.5;
 }
 
 .app-update-label {
@@ -217,8 +225,6 @@ a:focus-visible {
   place-items: center;
   gap: 0;
 }
-
-.app-update-notice.is-collapsed .app-update-refresh-icon { translate: 0 3px; }
 
 .app-update-notice.is-collapsed .app-update-label {
   max-width: 0;
