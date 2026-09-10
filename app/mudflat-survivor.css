@@ -15,9 +15,9 @@
 @media(max-width:600px){.ms-mode-picker{gap:8px}.ms-mode-picker button{min-width:0;min-height:102px!important;padding:12px 10px!important;grid-template-columns:1fr;justify-items:center;text-align:center;gap:7px}.ms-mode-picker i{width:40px!important;height:40px!important;font-size:18px}.ms-mode-picker b{font-size:16px}.ms-mode-picker small{font-size:11px;line-height:1.25}.ms-character-grid button{padding:13px!important}.ms-general-profile{padding:14px}.ms-general-profile>i{width:54px!important;height:54px!important}}
 @media(prefers-reduced-motion:reduce){.ms-shell *,.ms-shell *::before,.ms-shell *::after{animation:none!important;transition-duration:.01ms!important}}
 
-/* Lumi becomes selectable only after a deliberate three-second hold. */
-.ms-character-grid button.lumi-hold{position:relative;overflow:hidden;border-color:#c5a66d;background:linear-gradient(90deg,#f9dd98 var(--ms-lumi-hold,0%),#f3eee4 var(--ms-lumi-hold,0%));box-shadow:inset 0 0 0 1px #c5a66d55}.ms-character-grid button.lumi-hold>i{filter:saturate(.65) grayscale(.25);opacity:.88}.ms-character-grid button.lumi-hold em{color:#8b632b}.ms-character-grid button.lumi-hold.selected{background:#fff9ed}
-@media(max-width:600px){.ms-setup .ms-character-grid button.lumi-hold em{display:block;font-size:9px;line-height:1.1}}
+/* Keep the hidden selection gesture out of the card's visible presentation. */
+.ms-character-grid button.lumi-hold{user-select:none;-webkit-touch-callout:none;background:#f3eee4}.ms-character-grid button.lumi-hold em{color:#887a70}.ms-character-grid button.lumi-hold.selected{background:#fff9ed}
+@media(max-width:600px){.ms-setup .ms-character-grid button.lumi-hold em{display:block;font-size:12px;line-height:1.2}}
 
 /* Keep result titles balanced and prevent the final syllables from becoming
    an orphaned line on narrow mobile screens. */
@@ -121,5 +121,8 @@
 .ms-stage-route{margin:12px;padding:13px;border-radius:13px;background:#fff8e7}.ms-stage-route>p{margin:0 0 11px;color:#756c64;font-size:12px;line-height:1.5}.ms-stage-route-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.ms-stage-route-list button{min-height:82px;padding:9px;display:grid;grid-template-columns:24px minmax(0,1fr);gap:2px 7px;align-content:start;border:1px solid #dfd1bc;border-radius:12px;background:#fff;text-align:left;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease}.ms-stage-route-list button>i{width:24px;height:24px;display:grid;grid-row:1/span 2;place-items:center;border-radius:50%;color:#fff8e8;background:#1f594b;font-size:10px;font-style:normal;font-weight:900}.ms-stage-route-list button>span{display:grid;gap:2px}.ms-stage-route-list button b{font-size:12px}.ms-stage-route-list button small{color:#776d62;font-size:10px;line-height:1.3}.ms-stage-route-list button em{grid-column:2;color:#a06b42;font-size:10px;font-style:normal;font-weight:900}.ms-stage-route-list button.unlocked:hover{border-color:#b86b45;transform:translateY(-1px)}.ms-stage-route-list button.selected{border-color:#1f594b;box-shadow:inset 0 0 0 1px #1f594b,0 7px 14px #1f594b22}.ms-stage-route-list button.selected em{color:#1f594b}.ms-stage-route-list button.locked{cursor:not-allowed;opacity:.46;background:#f3ede4}.ms-stage-route-list button.endless{color:#fff6e1;border-color:#765144;background:linear-gradient(135deg,#31262e,#5c3328)}.ms-stage-route-list button.endless>i{background:#e1844f}.ms-stage-route-list button.endless small{color:#ead9cb}.ms-stage-route-list button.endless em{color:#ffd8a0}.ms-stage-route-list button.endless.selected{border-color:#f2b65e;box-shadow:inset 0 0 0 1px #f2b65e,0 7px 14px #4b272844}
 @media(max-width:700px){.ms-stage-route-list{grid-template-columns:repeat(2,minmax(0,1fr))}.ms-stage-route-list button{min-height:78px}}
 
-/* Lumi's selection portrait shows the first cell of the transparent walk sheet. */
-.ms-character-grid button>i.ms-character-portrait.ms-character-sprite-sheet img{width:400%;height:auto;max-width:none;object-fit:initial;object-position:initial;transform:none}
+/* Anchor the front sheet's first face inside the portrait; centering the entire
+   four-frame sheet shows the gap between characters instead. */
+.ms-setup .ms-character-grid button>i.ms-character-portrait.ms-character-sprite-sheet{position:relative;display:block;width:64px;height:64px}
+.ms-setup .ms-character-grid button>i.ms-character-portrait.ms-character-sprite-sheet img{position:absolute;left:-40%;top:0;display:block;width:600%;height:auto;max-width:none;object-fit:initial;object-position:initial;transform:none;pointer-events:none}
+@media(max-width:600px){.ms-setup .ms-character-grid button>i.ms-character-portrait.ms-character-sprite-sheet{width:48px;height:48px}}

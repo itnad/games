@@ -1099,12 +1099,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /setMode\("normal"\); window\.localStorage\.setItem\(LAST_MODE_KEY, "normal"\)/);
   assert.match(source, /setMode\("kids"\); window\.localStorage\.setItem\(LAST_MODE_KEY, "kids"\)/);
   assert.match(source, /const LUMI_HOLD_MS = 3_000;/);
-  assert.match(source, /const \[lumiHoldProgress, setLumiHoldProgress\] = useState\(0\)/);
-  assert.match(source, /window\.setInterval\(advanceHold, 40\)/);
   assert.match(source, /setCharacterId\(LUMI_CHARACTER\.id\)/);
   assert.match(source, /onPointerDown=\{isLumi \? startLumiPointerHold : undefined\}/);
-  assert.match(source, /3초 길게 눌러 선택/);
-  assert.match(styles, /\.ms-character-grid button\.lumi-hold\{[\s\S]*?--ms-lumi-hold/);
+  assert.doesNotMatch(source, /3초 길게 눌러 선택|초 더 누르기|lumiHoldProgress/);
+  assert.match(source, /<em>\{isLumi \? "준비중" : item\.startLabel\}<\/em>/);
   assert.match(source, /event\.clientY - joystick\.originY/);
   assert.match(source, /onPointerCancel=\{pointerEnd\}/);
   assert.match(source, /onLostPointerCapture=\{pointerEnd\}/);
@@ -1379,7 +1377,6 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /runtime\.player\.walking = Math\.hypot\(inputX, inputY\) > \.05/);
   assert.match(source, /context\.drawImage\(lumiSprite, frameWidth \* walkFrame/);
   assert.match(source, /runtime\.mode === "normal" && characterId !== "lumi" && \(runtime\.levels\.tongs \?\? 0\) > 0/);
-  assert.match(styles, /\.ms-character-sprite-sheet img\{width:400%;height:auto/);
   assert.match(source, /runtime\.equipment\.headlamp \?\? 0\) > 0/);
   assert.match(source, /rgba\(255,232,151,\.27\)/);
   assert.match(source, /rgba\(164,105,193,\.24\)/);

@@ -94,7 +94,7 @@ type Runtime = {
   paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
-type CharacterOption = { id: string; icon: string; sprite?: string; spriteSheet?: boolean; name: string; description: string; startLabel: string; levels: CountMap; hp: number };
+type CharacterOption = { id: string; icon: string; sprite?: string; portrait?: string; spriteSheet?: boolean; name: string; description: string; startLabel: string; levels: CountMap; hp: number };
 type LumiSprites = { side: HTMLImageElement; front: HTMLImageElement; back: HTMLImageElement };
 type Campaign = {
   version: 1; mode: GameMode; characterId: string; stage: number; coins: number; hp: number; maxHp: number; baseMaxHp: number;
@@ -109,7 +109,7 @@ const HIGHEST_STAGE_KEY = "paperoid-mudflat-survivor-highest-stage-v1";
 const DAMAGE_TEXT_COLOR = "#ffd29a";
 const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
 const LUMI_HOLD_MS = 3_000;
-const LUMI_CHARACTER: CharacterOption = { id: "lumi", icon: "●", sprite: "/mudflat-illustrations/lumi-side-tongs-walk-transparent.png", spriteSheet: true, name: "탐험가 루미", description: "한 손의 집게와 3방향 걸음으로 갯벌을 누빕니다.", startLabel: "기본 장비 · 체력 100", levels: { hoe: 1, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 };
+const LUMI_CHARACTER: CharacterOption = { id: "lumi", icon: "●", sprite: "/mudflat-illustrations/lumi-side-tongs-walk-transparent.png", portrait: "/mudflat-illustrations/lumi-front-tongs-walk-transparent.png", spriteSheet: true, name: "탐험가 루미", description: "한 손의 집게와 3방향 걸음으로 갯벌을 누빕니다.", startLabel: "기본 장비 · 체력 100", levels: { hoe: 1, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 };
 const CHARACTERS: CharacterOption[] = [
   { id: "digger", icon: "⌁", name: "호미꾼 하루", description: "넓은 호미질로 시작합니다.", startLabel: "호미 Lv.2", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
   { id: "netter", icon: "◇", name: "그물잡이 모아", description: "자동 뜰채를 빠르게 던집니다.", startLabel: "뜰채 Lv.2", levels: { hoe: 1, net: 2, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 },
@@ -1037,7 +1037,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const keysRef = useRef(new Set<string>());
   const sequenceRef = useRef(1);
   const lumiHoldTimerRef = useRef<number | null>(null);
-  const lumiKeyboardHoldRef = useRef(false);
   const [screen, setScreen] = useState<Screen>("setup");
   const [mode, setMode] = useState<GameMode>("normal");
   const [characterId, setCharacterId] = useState(defaultCharacterId("normal"));
@@ -1051,44 +1050,31 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [highestUnlockedStage, setHighestUnlockedStage] = useState(1);
   const [selectedStage, setSelectedStage] = useState(1);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
-  const [lumiHoldProgress, setLumiHoldProgress] = useState(0);
 
   const clearLumiHold = useCallback(() => {
-    if (lumiHoldTimerRef.current !== null) window.clearInterval(lumiHoldTimerRef.current);
+    if (lumiHoldTimerRef.current !== null) window.clearTimeout(lumiHoldTimerRef.current);
     lumiHoldTimerRef.current = null;
-    lumiKeyboardHoldRef.current = false;
-    setLumiHoldProgress(0);
   }, []);
 
   const startLumiHold = useCallback(() => {
-    clearLumiHold();
-    const startedAt = performance.now();
-    const advanceHold = () => {
-      const progress = Math.min(1, (performance.now() - startedAt) / LUMI_HOLD_MS);
-      setLumiHoldProgress(progress);
-      if (progress < 1) return;
-      if (lumiHoldTimerRef.current !== null) window.clearInterval(lumiHoldTimerRef.current);
+    if (lumiHoldTimerRef.current !== null) return;
+    lumiHoldTimerRef.current = window.setTimeout(() => {
       lumiHoldTimerRef.current = null;
-      lumiKeyboardHoldRef.current = false;
       setCharacterId(LUMI_CHARACTER.id);
-      setLumiHoldProgress(0);
-    };
-    lumiHoldTimerRef.current = window.setInterval(advanceHold, 40);
-    advanceHold();
-  }, [clearLumiHold]);
+    }, LUMI_HOLD_MS);
+  }, []);
 
   const startLumiPointerHold = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0) return;
+    if (!event.isPrimary || event.button !== 0) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     startLumiHold();
   };
 
   const startLumiKeyboardHold = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    if ((event.key !== "Enter" && event.key !== " ") || event.repeat || lumiKeyboardHoldRef.current) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
-    lumiKeyboardHoldRef.current = true;
+    if (event.repeat) return;
     startLumiHold();
-    lumiKeyboardHoldRef.current = true;
   };
 
   const releaseLumiKeyboardHold = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -1121,7 +1107,16 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     }
   }, []);
 
-  useEffect(() => () => clearLumiHold(), [clearLumiHold]);
+  useEffect(() => {
+    const cancelWhenHidden = () => { if (document.hidden) clearLumiHold(); };
+    window.addEventListener("blur", clearLumiHold);
+    document.addEventListener("visibilitychange", cancelWhenHidden);
+    return () => {
+      clearLumiHold();
+      window.removeEventListener("blur", clearLumiHold);
+      document.removeEventListener("visibilitychange", cancelWhenHidden);
+    };
+  }, [clearLumiHold, mode, screen]);
 
   useEffect(() => {
     if (screen !== "camp") return;
@@ -2350,8 +2345,25 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <div className="ms-character-grid">
             {CHARACTERS.map((item) => {
               const isLumi = item.id === LUMI_CHARACTER.id;
-              const lumiHoldLabel = characterId === LUMI_CHARACTER.id ? "선택됨" : lumiHoldProgress > 0 ? `${Math.ceil((1 - lumiHoldProgress) * LUMI_HOLD_MS / 1_000)}초 더 누르기` : "3초 길게 눌러 선택";
-              return <button type="button" key={item.id} className={`${characterId === item.id ? "selected " : ""}${isLumi ? "lumi-hold" : ""}`} style={isLumi ? { "--ms-lumi-hold": `${Math.round(lumiHoldProgress * 100)}%` } as CSSProperties : undefined} aria-label={isLumi ? `${item.name}, 3초 길게 눌러 선택` : undefined} aria-pressed={isLumi ? characterId === item.id : undefined} onClick={() => { if (!isLumi) setCharacterId(item.id); }} onPointerDown={isLumi ? startLumiPointerHold : undefined} onPointerUp={isLumi ? clearLumiHold : undefined} onPointerCancel={isLumi ? clearLumiHold : undefined} onLostPointerCapture={isLumi ? clearLumiHold : undefined} onKeyDown={isLumi ? startLumiKeyboardHold : undefined} onKeyUp={isLumi ? releaseLumiKeyboardHold : undefined} onContextMenu={isLumi ? (event) => event.preventDefault() : undefined}><i className={item.sprite ? `ms-character-portrait${item.spriteSheet ? " ms-character-sprite-sheet" : ""}` : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{isLumi ? lumiHoldLabel : item.startLabel}</em></button>;
+              return <button
+                type="button" key={item.id}
+                className={`${characterId === item.id ? "selected " : ""}${isLumi ? "lumi-hold" : ""}`}
+                aria-label={isLumi ? `${item.name}, 준비중` : undefined}
+                aria-pressed={characterId === item.id}
+                onClick={() => { if (!isLumi) { clearLumiHold(); setCharacterId(item.id); } }}
+                onPointerDown={isLumi ? startLumiPointerHold : undefined}
+                onPointerUp={isLumi ? clearLumiHold : undefined}
+                onPointerCancel={isLumi ? clearLumiHold : undefined}
+                onLostPointerCapture={isLumi ? clearLumiHold : undefined}
+                onBlur={isLumi ? clearLumiHold : undefined}
+                onKeyDown={isLumi ? startLumiKeyboardHold : undefined}
+                onKeyUp={isLumi ? releaseLumiKeyboardHold : undefined}
+                onContextMenu={isLumi ? (event) => event.preventDefault() : undefined}
+              >
+                <i className={item.sprite ? `ms-character-portrait${item.spriteSheet ? " ms-character-sprite-sheet" : ""}` : ""}>{item.sprite ? <img src={item.portrait ?? item.sprite} alt="" draggable={false} /> : item.icon}</i>
+                <span><b>{item.name}</b>{!isLumi && <small>{item.description}</small>}</span>
+                <em>{isLumi ? "준비중" : item.startLabel}</em>
+              </button>;
             })}
           </div>
         </> : <>
@@ -2359,8 +2371,25 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <div className="ms-character-grid ms-general-character-grid">
             {GENERAL_APPEARANCES.map((item) => {
               const isLumi = item.id === LUMI_CHARACTER.id;
-              const lumiHoldLabel = characterId === LUMI_CHARACTER.id ? "선택됨" : lumiHoldProgress > 0 ? `${Math.ceil((1 - lumiHoldProgress) * LUMI_HOLD_MS / 1_000)}초 더 누르기` : "3초 길게 눌러 선택";
-              return <button type="button" key={item.id} className={`${characterId === item.id ? "selected " : ""}${isLumi ? "lumi-hold" : ""}`} style={isLumi ? { "--ms-lumi-hold": `${Math.round(lumiHoldProgress * 100)}%` } as CSSProperties : undefined} aria-label={isLumi ? `${item.name}, 3초 길게 눌러 선택` : undefined} aria-pressed={isLumi ? characterId === item.id : undefined} onClick={() => { if (!isLumi) setCharacterId(item.id); }} onPointerDown={isLumi ? startLumiPointerHold : undefined} onPointerUp={isLumi ? clearLumiHold : undefined} onPointerCancel={isLumi ? clearLumiHold : undefined} onLostPointerCapture={isLumi ? clearLumiHold : undefined} onKeyDown={isLumi ? startLumiKeyboardHold : undefined} onKeyUp={isLumi ? releaseLumiKeyboardHold : undefined} onContextMenu={isLumi ? (event) => event.preventDefault() : undefined}><i className={item.sprite ? `ms-character-portrait${item.spriteSheet ? " ms-character-sprite-sheet" : ""}` : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{isLumi ? lumiHoldLabel : item.startLabel}</em></button>;
+              return <button
+                type="button" key={item.id}
+                className={`${characterId === item.id ? "selected " : ""}${isLumi ? "lumi-hold" : ""}`}
+                aria-label={isLumi ? `${item.name}, 준비중` : undefined}
+                aria-pressed={characterId === item.id}
+                onClick={() => { if (!isLumi) { clearLumiHold(); setCharacterId(item.id); } }}
+                onPointerDown={isLumi ? startLumiPointerHold : undefined}
+                onPointerUp={isLumi ? clearLumiHold : undefined}
+                onPointerCancel={isLumi ? clearLumiHold : undefined}
+                onLostPointerCapture={isLumi ? clearLumiHold : undefined}
+                onBlur={isLumi ? clearLumiHold : undefined}
+                onKeyDown={isLumi ? startLumiKeyboardHold : undefined}
+                onKeyUp={isLumi ? releaseLumiKeyboardHold : undefined}
+                onContextMenu={isLumi ? (event) => event.preventDefault() : undefined}
+              >
+                <i className={item.sprite ? `ms-character-portrait${item.spriteSheet ? " ms-character-sprite-sheet" : ""}` : ""}>{item.sprite ? <img src={item.portrait ?? item.sprite} alt="" draggable={false} /> : item.icon}</i>
+                <span><b>{item.name}</b>{!isLumi && <small>{item.description}</small>}</span>
+                <em>{isLumi ? "준비중" : item.startLabel}</em>
+              </button>;
             })}
           </div>
         </>}
