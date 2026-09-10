@@ -102,7 +102,7 @@ export function mudflatMarketImageScale(type) {
 }
 
 export const MUDFLAT_SHOP_EQUIPMENT = [
-  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "소라와 골뱅이가 헤드랜턴 반경 안에서만 나타납니다.", max: 6 },
+  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "소라와 골뱅이를 밝혀 내는 범위가 넓어집니다.", max: 6 },
   { id: "cooler", icon: "▣", name: "조과통 업그레이드", description: "채집 한도를 늘립니다.", max: 6 },
   { id: "vest", icon: "♥", name: "작업 조끼", description: "최대 체력과 출혈 저항을 높입니다.", max: 6 },
   { id: "gloves", icon: "⌁", name: "장갑 업그레이드", description: "모든 채집 도구의 위력을 높입니다.", max: 6 },
@@ -115,7 +115,7 @@ export const MUDFLAT_VEST_BLEED_REDUCTIONS = [0, .5, .55, .6, .65, .7, .75];
 export const MUDFLAT_GLOVE_POWER_BONUSES = [0, .06, .11, .15, .18, .2, .21];
 export const MUDFLAT_WADER_TERRAIN_REDUCTIONS = [0, .3, .4, .5, .6, .7, .75];
 export const MUDFLAT_WADER_HP_BONUSES = [0, .1, .12, .14, .16, .18, .2];
-export const MUDFLAT_HEADLAMP_DISCOVERY_RANGES = [0, 112, 154, 196, 238, 279, 320];
+export const MUDFLAT_HEADLAMP_DISCOVERY_RANGES = [0, 155, 185, 215, 245, 275, 305];
 
 export const MUDFLAT_RECOVERY_FOODS = [
   { id: "fishcake", icon: "♨", name: "따뜻한 어묵국", description: "체력을 35 회복합니다.", price: 35, heal: 35 },
@@ -142,7 +142,7 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "net", icon: "◇", name: "뜰채", description: "넓은 범위의 채집이 가능합니다.", max: 6 },
   { id: "digging", icon: "⌁", name: "호미질", description: "조개 구멍에서 더 좋은 조개를 찾을 확률이 높아집니다.", max: 6 },
   { id: "electric", icon: "ϟ", name: "전기 스파크", description: "기본 집게 사거리 안의 해산물 모두에 주기적으로 전기 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 1 },
-  { id: "cast-net", icon: "⌗", name: "그물 투척", description: "먼 해산물 위로 그물을 떨어뜨려 30px 범위에 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 2 },
+  { id: "cast-net", icon: "⌗", name: "그물 투척", description: "주변의 무작위 지점에 그물을 던져 30px 범위에 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 2 },
 ];
 
 // 집게와 호미질은 모든 일반 원정에 기본으로 장착되는 채집 도구다.
@@ -166,9 +166,13 @@ export function mudflatHeadlampDiscoveryRange(level = 0) {
   return MUDFLAT_HEADLAMP_DISCOVERY_RANGES[mudflatSafeLevel(level)];
 }
 
+export function mudflatHeadlampEncounterLimit(level = 0) {
+  return [0, 1, 2, 2, 3, 3, 4][mudflatSafeLevel(level)];
+}
+
 export function mudflatEquipmentDescription(id, level = 1) {
   const safeLevel = Math.max(1, mudflatSafeLevel(level));
-  if (id === "headlamp") return `소라와 골뱅이가 ${mudflatHeadlampDiscoveryRange(safeLevel)}px 안에서 출현합니다.`;
+  if (id === "headlamp") return `반경 ${mudflatHeadlampDiscoveryRange(safeLevel)} 안에서 소라와 골뱅이를 밝힙니다.`;
   if (id === "cooler") return `${mudflatCatchCapacity(safeLevel).toLocaleString()}마리까지 채집 가능합니다.`;
   if (id === "vest") return `기본 최대 체력보다 ${MUDFLAT_VEST_HP_BONUSES[safeLevel]} 높아지고 출혈 시간이 ${Math.round(MUDFLAT_VEST_BLEED_REDUCTIONS[safeLevel] * 100)}% 감소합니다.`;
   if (id === "gloves") return `모든 채집 도구의 위력이 기본 수치보다 ${Math.round(MUDFLAT_GLOVE_POWER_BONUSES[safeLevel] * 100)}% 증가합니다.`;
@@ -233,27 +237,6 @@ export function mudflatCastNetStats(level = 0) {
   const safeLevel = mudflatSafeLevel(level);
   if (!safeLevel) return { interval: Infinity, damage: 0, radius: 0 };
   return { interval: [2, 1.7, 1.4, 1.1, .8, .5][safeLevel - 1], damage: 200, radius: 30 };
-}
-
-// A thrown net must be something the player can actually see.  Targeting the
-// globally farthest creature made the effect frequently land far outside the
-// camera, which looked like the skill never fired.  Prefer the farthest
-// visible creature outside the regular tong reach; fall back to any visible
-// creature when there is no distant target.
-export function mudflatCastNetTarget(creatures = [], player = {}, viewport = {}, minimumDistance = 0) {
-  const playerX = Number(player.x) || 0;
-  const playerY = Number(player.y) || 0;
-  const halfWidth = Math.max(0, Number(viewport.width) || 0) / 2;
-  const halfHeight = Math.max(0, Number(viewport.height) || 0) / 2;
-  const visible = creatures.filter((creature) => {
-    const size = Math.max(0, Number(creature?.size) || 0);
-    return Math.abs((Number(creature?.x) || 0) - playerX) <= halfWidth + size
-      && Math.abs((Number(creature?.y) || 0) - playerY) <= halfHeight + size;
-  });
-  if (!visible.length) return null;
-  const distanceOf = (creature) => Math.hypot((Number(creature.x) || 0) - playerX, (Number(creature.y) || 0) - playerY);
-  const distant = visible.filter((creature) => distanceOf(creature) > Math.max(0, Number(minimumDistance) || 0));
-  return (distant.length ? distant : visible).reduce((farthest, creature) => distanceOf(creature) > distanceOf(farthest) ? creature : farthest);
 }
 
 export function mudflatJoystickVector(deltaX, deltaY, radius = MUDFLAT_JOYSTICK_RADIUS, deadzone = 5) {
