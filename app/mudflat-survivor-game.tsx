@@ -78,6 +78,9 @@ type FallingRock = Point & { id: number; life: number; maxLife: number; radius: 
 const ACTION_PROGRESS_RING_RADIUS = 18;
 const BASE_CAMP = { x: 0, y: 250 };
 const BASE_CAMP_RADIUS = 92;
+const BASE_CAMP_STAGE_ONE_WIDTH_MULTIPLIER = 5;
+const BASE_CAMP_FINAL_WIDTH_MULTIPLIER = 1.8;
+const TIDE_FILL_SECONDS = 1;
 const TIDE_RETURN_MESSAGE = "물이 가득찼어. 빨리 복귀해야해!";
 type Runtime = {
   mode: GameMode;
@@ -87,7 +90,7 @@ type Runtime = {
   bursts: Burst[]; floatTexts: FloatText[];
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
   bossSpawned: boolean; spawnClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
-  safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastSandbarCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; waveClock: number; rocksFlipped: number;
+  safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; waveClock: number; rocksFlipped: number;
   paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
@@ -214,7 +217,7 @@ function makeRuntime(campaign: Campaign): Runtime {
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, headlampSpawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, selfShockNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
     playerMessage: "", playerMessageLife: 0, playerMessageOpacity: 1, pufferTouching: false, hiddenRockClock: campaign.stage === 3 ? .5 : 0, hiddenRockIntroShown: false, catchFullNoticeClock: 0,
     hoeEffect: 0, rockFlipEffect: null, bleedSeconds: 0, bleedTickClock: 1, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0,
-    safeZone: { x: 90, y: 0 }, baseCamp: { ...BASE_CAMP }, baseCampGuideShown: false, tideDamageClock: 1, tideMessageClock: 0, lastTideCycle: 0, lastSandbarCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, waveClock: 10, rocksFlipped: 0,
+    safeZone: { x: 90, y: 0 }, baseCamp: { ...BASE_CAMP }, baseCampGuideShown: false, tideDamageClock: 1, tideMessageClock: 0, lastTideCycle: 0, lastHillCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, waveClock: 10, rocksFlipped: 0,
     paused: false, ended: false,
   };
 }
@@ -244,6 +247,37 @@ function roundedRect(context: CanvasRenderingContext2D, x: number, y: number, wi
   context.roundRect(x, y, width, height, safeRadius);
 }
 
+function baseCampDimensions(stage: number) {
+  const stageProgress = Math.max(0, Math.min(1, (Math.floor(stage) - 1) / 7));
+  const widthMultiplier = BASE_CAMP_STAGE_ONE_WIDTH_MULTIPLIER - (BASE_CAMP_STAGE_ONE_WIDTH_MULTIPLIER - BASE_CAMP_FINAL_WIDTH_MULTIPLIER) * stageProgress;
+  return { radiusX: BASE_CAMP_RADIUS * widthMultiplier, radiusY: BASE_CAMP_RADIUS * (1 - stageProgress * .26) };
+}
+
+function isInsideBaseCamp(point: Point, baseCamp: Point, stage: number, padding = 0) {
+  const { radiusX, radiusY } = baseCampDimensions(stage);
+  const normalizedX = (point.x - baseCamp.x) / (radiusX + padding);
+  const normalizedY = (point.y - baseCamp.y) / (radiusY + padding);
+  return normalizedX * normalizedX + normalizedY * normalizedY <= 1;
+}
+
+function keepCreatureOutsideBaseCamp(creature: Creature, baseCamp: Point, stage: number) {
+  const { radiusX, radiusY } = baseCampDimensions(stage);
+  const protectedRadiusX = radiusX + creature.size + 12;
+  const protectedRadiusY = radiusY + creature.size + 12;
+  const dx = creature.x - baseCamp.x;
+  const dy = creature.y - baseCamp.y;
+  const normalizedDistance = Math.hypot(dx / protectedRadiusX, dy / protectedRadiusY);
+  if (normalizedDistance >= 1) return;
+  const angle = normalizedDistance > .001 ? Math.atan2(dy / protectedRadiusY, dx / protectedRadiusX) : creature.movementAngle;
+  creature.x = baseCamp.x + Math.cos(angle) * protectedRadiusX;
+  creature.y = baseCamp.y + Math.sin(angle) * protectedRadiusY;
+  creature.movementAngle = angle;
+}
+
+function returnTideFillProgress(elapsed: number) {
+  return Math.max(0, Math.min(1, (elapsed - MUDFLAT_RUN_SECONDS) / TIDE_FILL_SECONDS));
+}
+
 function worldHash(x: number, y: number) {
   const value = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
   return value - Math.floor(value);
@@ -254,7 +288,7 @@ function waterChannelCenterX(worldY: number, stage: number, channel = 0) {
   return 265 + Math.sin((worldY - stage * 63) / 210) * 74;
 }
 
-function nextSandbarPosition(origin: Point, stage: number, cycle: number): Point {
+function nextHillPosition(origin: Point, stage: number, cycle: number): Point {
   const seed = Math.sin((stage + 1) * 87.31 + (cycle + 1) * 43.17);
   const angle = seed * Math.PI + stage * .54 + cycle * .82;
   const distance = 172 + (Math.sin((cycle + 1) * 2.31 + stage) + 1) * 30;
@@ -291,9 +325,9 @@ function drawWaterChannelArrows(
   context.restore();
 }
 
-function drawSandbarDirectionGuide(context: CanvasRenderingContext2D, width: number, player: Point, sandbar: Point) {
-  const deltaX = sandbar.x - player.x;
-  const deltaY = sandbar.y - player.y;
+function drawHillDirectionGuide(context: CanvasRenderingContext2D, width: number, player: Point, hill: Point) {
+  const deltaX = hill.x - player.x;
+  const deltaY = hill.y - player.y;
   const distance = Math.hypot(deltaX, deltaY);
   const angle = Math.atan2(deltaY, deltaX);
   const panelWidth = 208;
@@ -313,25 +347,27 @@ function drawSandbarDirectionGuide(context: CanvasRenderingContext2D, width: num
   context.fillStyle = "#efffff";
   context.font = "800 13px system-ui";
   context.textAlign = "left";
-  context.fillText(`다음 모래톱 · ${Math.round(distance / 10)}m`, panelLeft + 47, panelTop + 23);
+  context.fillText(`다음 언덕배기 · ${Math.round(distance / 10)}m`, panelLeft + 47, panelTop + 23);
   context.restore();
 }
 
-function drawBaseCamp(context: CanvasRenderingContext2D, point: Point, guideVisible: boolean, tideActive: boolean, elapsed: number) {
+function drawBaseCamp(context: CanvasRenderingContext2D, point: Point, guideVisible: boolean, tideActive: boolean, elapsed: number, stage: number) {
+  const { radiusX, radiusY } = baseCampDimensions(stage);
   const pulse = .58 + Math.sin(elapsed * 4) * .18;
   context.save(); context.translate(point.x, point.y);
   if (guideVisible) {
     context.strokeStyle = tideActive ? `rgba(255,229,135,${pulse})` : `rgba(255,244,177,${pulse})`;
-    context.lineWidth = 5; context.beginPath(); context.ellipse(0, 0, BASE_CAMP_RADIUS + 11, BASE_CAMP_RADIUS * .68 + 9, -.1, 0, Math.PI * 2); context.stroke();
+    context.lineWidth = 5; context.beginPath(); context.ellipse(0, 0, radiusX + 11, radiusY + 9, -.1, 0, Math.PI * 2); context.stroke();
   }
-  const shore = context.createRadialGradient(-22, -30, 10, 0, 0, BASE_CAMP_RADIUS * 1.25);
+  const shore = context.createRadialGradient(-radiusX * .18, -radiusY * .32, 10, 0, 0, radiusX * 1.04);
   shore.addColorStop(0, tideActive ? "rgba(226,210,157,.85)" : "rgba(255,234,169,.96)");
   shore.addColorStop(.7, tideActive ? "rgba(167,150,107,.82)" : "rgba(220,182,105,.94)");
   shore.addColorStop(1, "rgba(111,83,53,.56)");
   context.fillStyle = shore; context.strokeStyle = "rgba(255,238,169,.86)"; context.lineWidth = 3;
-  context.beginPath(); context.ellipse(0, 0, BASE_CAMP_RADIUS * 1.28, BASE_CAMP_RADIUS * .76, -.12, 0, Math.PI * 2); context.fill(); context.stroke();
+  context.beginPath(); context.ellipse(0, 0, radiusX, radiusY, -.12, 0, Math.PI * 2); context.fill(); context.stroke();
   context.fillStyle = "rgba(92,67,44,.35)";
-  for (let mark = -72; mark <= 72; mark += 24) { context.beginPath(); context.arc(mark, 25 + Math.sin(mark) * 8, 2.5, 0, Math.PI * 2); context.fill(); }
+  const markSpacing = Math.max(24, radiusX / 10);
+  for (let mark = -radiusX * .72; mark <= radiusX * .72; mark += markSpacing) { context.beginPath(); context.arc(mark, radiusY * .34 + Math.sin(mark) * 8, 2.5, 0, Math.PI * 2); context.fill(); }
   context.fillStyle = "#7d4b2f"; context.fillRect(-3, -49, 6, 46);
   context.fillStyle = tideActive ? "#ec695d" : "#f19a4d";
   context.beginPath(); context.moveTo(3, -47); context.lineTo(42, -33); context.lineTo(3, -18); context.closePath(); context.fill();
@@ -339,7 +375,7 @@ function drawBaseCamp(context: CanvasRenderingContext2D, point: Point, guideVisi
   context.strokeStyle = "#9a6540"; context.lineWidth = 3; context.stroke();
   context.fillStyle = "#ffe9a5"; context.beginPath(); context.arc(47, 20, 7 + pulse * 2, 0, Math.PI * 2); context.fill();
   context.fillStyle = "rgba(44,31,27,.82)"; context.font = "900 12px system-ui"; context.textAlign = "center";
-  context.fillText(tideActive ? "귀환 지점" : (guideVisible ? "베이스캠프" : "모래사장"), 0, -BASE_CAMP_RADIUS - 20);
+  context.fillText(tideActive ? "귀환 지점" : (guideVisible ? "베이스캠프" : "모래사장"), 0, -radiusY - 20);
   context.restore();
 }
 
@@ -1207,15 +1243,21 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (!canCreateEncounter) template = mudflatCreatureForTime(runtime.elapsed, Math.random(), { headlamp: false });
         else runtime.headlampSpawnClock = 4.4 + Math.random() * 1.8;
       }
-      const angle = Math.random() * Math.PI * 2;
+      let angle = Math.random() * Math.PI * 2;
       const lightMargin = template.requiresHeadlamp ? headlampRange + 96 : 0;
-      const distance = Math.max(Math.hypot(width, height) * .58 + 70, lightMargin) + Math.random() * 80;
+      let distance = Math.max(Math.hypot(width, height) * .58 + 70, lightMargin) + Math.random() * 80;
+      let spawnPoint = { x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance };
+      for (let attempt = 0; attempt < 8 && isInsideBaseCamp(spawnPoint, runtime.baseCamp, runtime.stage, template.size + 12); attempt += 1) {
+        angle = Math.random() * Math.PI * 2;
+        distance += 56 + Math.random() * 44;
+        spawnPoint = { x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance };
+      }
       const difficulty = runtime.mode === "normal" ? 1.15 : 1;
       const bossScale = forcedBoss && stageProfile.finalBoss ? 1.7 : 1;
       const scale = (forcedBoss ? bossScale : 1 + runtime.elapsed / 420) * difficulty * stageStats.creatureHpMultiplier;
       runtime.creatures.push({
-        ...template, id: sequenceRef.current++, type: template.id, x: runtime.player.x + Math.cos(angle) * distance,
-        y: runtime.player.y + Math.sin(angle) * distance, hp: template.hp * scale, maxHp: template.hp * scale,
+        ...template, id: sequenceRef.current++, type: template.id, x: spawnPoint.x,
+        y: spawnPoint.y, hp: template.hp * scale, maxHp: template.hp * scale,
         speed: template.speed * (1 + runtime.elapsed / 750) * (runtime.mode === "normal" ? 1.12 : 1) * stageStats.creatureSpeedMultiplier, saltHit: 0, hitFlash: 0, phase: Math.random() * Math.PI * 2, age: 0,
         movement: (template.movement ?? "chase") as CreatureMovement, movementAngle: angle + Math.PI, movementClock: 1,
       });
@@ -1227,7 +1269,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const crabSpeed = MUDFLAT_CREATURES.find((item) => item.id === "crab")?.speed ?? 34;
       const revealAngle = Math.random() * Math.PI * 2;
       const offset = Math.max(8, rock.radius * .38);
-      runtime.creatures.push({
+      const revealedCreature: Creature = {
         ...template,
         id: sequenceRef.current++,
         type: template.id,
@@ -1245,7 +1287,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         movementAngle: revealAngle,
         movementClock: 1,
         ovalDirection: Math.random() < .5 ? -1 : 1,
-      });
+      };
+      keepCreatureOutsideBaseCamp(revealedCreature, runtime.baseCamp, runtime.stage);
+      runtime.creatures.push(revealedCreature);
       runtime.bursts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y, life: .62, maxLife: .62, color: template.color, size: rock.radius + 5 });
       runtime.floatTexts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y - 20, life: 1.05, text: `${finding.name} 발견!`, color: "#fff0a8" });
     };
@@ -1377,8 +1421,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const inWaterChannel = stageProfile.waterChannels && mudflatInWaterChannel(runtime.player.x, runtime.player.y, runtime.stage);
       const tidePhase = stageProfile.tideInterval > 0 ? runtime.elapsed % stageProfile.tideInterval : stageProfile.tideInterval;
       const tideSurge = stageProfile.tideInterval > 0 ? Math.max(0, 1 - tidePhase / 7) : 0;
-      const inSafeSandbar = stageProfile.safeZone !== "none" && Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
-      const incomingTideSlow = tideSurge > 0 && !inSafeSandbar ? .8 : 1;
+      const inHill = stageProfile.safeZone !== "none" && Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
+      const incomingTideSlow = tideSurge > 0 && !inHill ? .8 : 1;
       const rawTerrainSpeed = stageProfile.mudSlow * (inWaterChannel ? .68 : 1) * incomingTideSlow;
       const terrainSpeed = mudflatTerrainSpeedMultiplier(rawTerrainSpeed, runtime.equipment.waders ?? 0);
       const tide = mudflatTideStats(runtime.elapsed, runtime.player.maxHp);
@@ -1394,7 +1438,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         runtime.baseCampGuideShown = true;
         showPlayerMessage("베이스캠프가 보인다. 귀환 준비하자.", 3);
       }
-      const inBaseCamp = Math.hypot(runtime.player.x - runtime.baseCamp.x, runtime.player.y - runtime.baseCamp.y) <= BASE_CAMP_RADIUS;
+      const inBaseCamp = isInsideBaseCamp(runtime.player, runtime.baseCamp, runtime.stage);
       if (tide.active && inBaseCamp) { completeStage(runtime); return; }
       if (tide.active) {
         runtime.tideDamageClock -= dt;
@@ -1416,11 +1460,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
 
       if (stageProfile.safeZone !== "none" && stageProfile.tideInterval > 0) {
-        const sandbarCycle = Math.floor(runtime.elapsed / stageProfile.tideInterval);
+        const hillCycle = Math.floor(runtime.elapsed / stageProfile.tideInterval);
         const afterTide = tidePhase >= 7;
-        if (afterTide && sandbarCycle > runtime.lastSandbarCycle) {
-          runtime.lastSandbarCycle = sandbarCycle;
-          runtime.safeZone = nextSandbarPosition(runtime.player, runtime.stage, sandbarCycle);
+        if (afterTide && hillCycle > runtime.lastHillCycle) {
+          runtime.lastHillCycle = hillCycle;
+          runtime.safeZone = nextHillPosition(runtime.player, runtime.stage, hillCycle);
           runtime.safeZoneTransition = .72;
         }
         runtime.safeZoneTransition = Math.max(0, runtime.safeZoneTransition - dt);
@@ -1433,9 +1477,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const inSafeZone = Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
           if (!inSafeZone) {
             damagePlayer(10 + runtime.stage, "#79c7df");
-            showPlayerMessage("밀물 물살에 휩쓸렸다! 마른 모래톱으로!", 3.6);
+            showPlayerMessage("밀물 물살에 휩쓸렸다! 밝은 언덕배기로!", 3.6);
           } else {
-            showPlayerMessage("마른 모래톱에서 밀물을 피했다.", 2.6);
+            showPlayerMessage("언덕배기에서 밀물을 피했다.", 2.6);
           }
         }
       }
@@ -1547,9 +1591,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           creature.x += (-dx / distance * retreatSpeed + Math.cos(creature.phase) * localX - Math.sin(creature.phase) * localY) * dt;
           creature.y += (-dy / distance * retreatSpeed + Math.sin(creature.phase) * localX + Math.cos(creature.phase) * localY) * dt;
         }
+        keepCreatureOutsideBaseCamp(creature, runtime.baseCamp, runtime.stage);
         if (Math.abs(creature.x - previousX) > .001) creature.facing = creature.x > previousX ? 1 : -1;
         creature.saltHit = Math.max(0, creature.saltHit - dt); creature.hitFlash = Math.max(0, creature.hitFlash - dt);
-        if (revealed && distance < creature.size + 17) {
+        if (!inBaseCamp && revealed && distance < creature.size + 17) {
           touching = true;
           if (creature.type === "pufferfish" || creature.type === "king-crab") bleedingCreatureTouching = true;
           if (creature.type === "pufferfish") pufferTouching = true;
@@ -1795,7 +1840,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const margin = Math.max(10, creature.size * 1.6);
         return screenX >= -margin && screenX <= width + margin && screenY >= -margin && screenY <= height + margin;
       });
-      if (hasVisibleSeafood) {
+      if (inBaseCamp || hasVisibleSeafood) {
         runtime.emptySeafoodSeconds = 0;
         runtime.emptySeafoodDamageClock = 0;
       } else {
@@ -1839,12 +1884,19 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const tide = Math.min(1, runtime.elapsed / MUDFLAT_RUN_SECONDS);
       drawMudflat(context, width, height, runtime.player, tide, stageProfile);
       const returnTide = mudflatTideStats(runtime.elapsed, runtime.player.maxHp);
+      const returnTideFill = returnTide.active ? returnTideFillProgress(runtime.elapsed) : 0;
       if (returnTide.active) {
-        const floodAlpha = .34 + Math.min(.22, (runtime.elapsed - MUDFLAT_RUN_SECONDS) / 70);
-        context.fillStyle = `rgba(40,130,160,${floodAlpha})`; context.fillRect(0, 0, width, height);
-        context.save(); context.strokeStyle = "rgba(222,250,255,.28)"; context.lineWidth = 2;
+        const waterHeight = height * returnTideFill;
+        const waterTop = height - waterHeight;
+        context.save(); context.beginPath(); context.rect(0, waterTop, width, waterHeight); context.clip();
+        const flood = context.createLinearGradient(0, waterTop, 0, height);
+        flood.addColorStop(0, `rgba(83,176,198,${.34 + returnTideFill * .16})`);
+        flood.addColorStop(1, `rgba(19,81,117,${.46 + returnTideFill * .18})`);
+        context.fillStyle = flood; context.fillRect(0, waterTop, width, waterHeight);
+        context.fillStyle = `rgba(9,46,66,${returnTideFill * .18})`; context.fillRect(0, waterTop, width, waterHeight);
+        context.strokeStyle = "rgba(222,250,255,.28)"; context.lineWidth = 2;
         for (let wave = 0; wave < 5; wave += 1) {
-          const y = (runtime.elapsed * 26 + wave * (height / 5 + 24)) % (height + 48) - 24;
+          const y = waterTop + (runtime.elapsed * 26 + wave * (Math.max(42, waterHeight / 5) + 24)) % (waterHeight + 48) - 24;
           context.beginPath();
           for (let x = -18; x <= width + 18; x += 18) {
             const waveY = y + Math.sin(x * .045 + runtime.elapsed * 3 + wave) * 5;
@@ -1863,19 +1915,17 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
       if (stageProfile.safeZone !== "none") {
         const safe = screenPoint(runtime.safeZone);
-        const sandbarAlpha = runtime.safeZoneTransition > 0 ? Math.max(0, 1 - runtime.safeZoneTransition / .72) : 1;
-        context.save(); context.globalAlpha = sandbarAlpha; context.translate(safe.x, safe.y);
-        const sandbar = context.createRadialGradient(-20, -24, 10, 0, 0, 118);
-        sandbar.addColorStop(0, "rgba(255,239,170,.96)"); sandbar.addColorStop(.72, "rgba(216,180,104,.9)"); sandbar.addColorStop(1, "rgba(150,112,66,.72)");
-        context.fillStyle = sandbar; context.strokeStyle = "rgba(255,237,148,.94)"; context.lineWidth = 4;
+        const hillAlpha = runtime.safeZoneTransition > 0 ? Math.max(0, 1 - runtime.safeZoneTransition / .72) : 1;
+        context.save(); context.globalAlpha = hillAlpha; context.translate(safe.x, safe.y);
+        const hill = context.createRadialGradient(-18, -22, 10, 0, 0, 118);
+        hill.addColorStop(0, "rgba(239,241,242,.97)"); hill.addColorStop(.72, "rgba(185,191,195,.92)"); hill.addColorStop(1, "rgba(119,128,134,.76)");
+        context.fillStyle = hill; context.strokeStyle = "rgba(247,249,250,.94)"; context.lineWidth = 4;
         context.beginPath(); context.ellipse(0, 0, 112, 94, -.12, 0, Math.PI * 2); context.fill(); context.stroke();
-        context.fillStyle = "rgba(116,76,40,.28)";
-        for (let mark = -66; mark <= 66; mark += 22) { context.beginPath(); context.arc(mark, 22 + Math.sin(mark) * 10, 2.5, 0, Math.PI * 2); context.fill(); }
-        context.fillStyle = "#855c34"; context.fillRect(-2, -48, 4, 28); context.fillStyle = "#f5ad57";
-        context.beginPath(); context.moveTo(2, -47); context.lineTo(26, -38); context.lineTo(2, -30); context.closePath(); context.fill();
-        context.fillStyle = "rgba(255,247,196,.96)"; context.font = "900 12px system-ui"; context.textAlign = "center"; context.fillText("마른 모래톱 · 밀물 피난처", 0, -126); context.restore();
+        context.strokeStyle = "rgba(255,255,255,.43)"; context.lineWidth = 2;
+        for (let ridge = 0; ridge < 3; ridge += 1) { context.beginPath(); context.ellipse(0, 8 + ridge * 6, 76 - ridge * 14, 54 - ridge * 10, -.12, Math.PI * .1, Math.PI * .92); context.stroke(); }
+        context.fillStyle = "rgba(245,248,250,.96)"; context.font = "900 12px system-ui"; context.textAlign = "center"; context.fillText("언덕배기 · 밀물 피난처", 0, -126); context.restore();
       }
-      drawBaseCamp(context, screenPoint(runtime.baseCamp), returnTide.guideVisible, returnTide.active, runtime.elapsed);
+      drawBaseCamp(context, screenPoint(runtime.baseCamp), returnTide.guideVisible, returnTide.active, runtime.elapsed, runtime.stage);
       for (const falling of runtime.fallingRocks) {
         const point = screenPoint(falling); const progress = 1 - falling.life / falling.maxLife;
         context.save(); context.translate(point.x, point.y);
@@ -2044,7 +2094,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.fillStyle = darkness; context.fillRect(0, 0, width, height); context.restore();
       }
       if (runtime.tideFlash > 0) {
-        context.fillStyle = `rgba(84,181,206,${runtime.tideFlash * .28})`; context.fillRect(0, 0, width, height);
+        const tideFlashStrength = returnTide.active ? returnTideFill : 1;
+        context.fillStyle = `rgba(84,181,206,${runtime.tideFlash * .28 * tideFlashStrength})`; context.fillRect(0, 0, width, height);
       }
       if (stageProfile.tideInterval > 0) {
         const phase = runtime.elapsed % stageProfile.tideInterval;
@@ -2054,7 +2105,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           context.save(); context.fillStyle = "rgba(16,48,65,.92)"; roundedRect(context, width / 2 - 158, 88, 316, 42, 18); context.fill();
           context.strokeStyle = "#8de4ef"; context.lineWidth = 2; context.stroke(); context.fillStyle = "#eaffff"; context.font = "900 14px system-ui"; context.textAlign = "center";
           context.fillText(warningText, width / 2, 114); context.restore();
-          if (stageProfile.safeZone !== "none") drawSandbarDirectionGuide(context, width, runtime.player, runtime.safeZone);
+          if (stageProfile.safeZone !== "none") drawHillDirectionGuide(context, width, runtime.player, runtime.safeZone);
         }
       }
       if (returnTide.guideVisible) drawBaseCampDirectionGuide(context, width, height, runtime.player, runtime.baseCamp, returnTide.active);
