@@ -15,6 +15,10 @@
 @media(max-width:600px){.ms-mode-picker{gap:8px}.ms-mode-picker button{min-width:0;min-height:102px!important;padding:12px 10px!important;grid-template-columns:1fr;justify-items:center;text-align:center;gap:7px}.ms-mode-picker i{width:40px!important;height:40px!important;font-size:18px}.ms-mode-picker b{font-size:16px}.ms-mode-picker small{font-size:11px;line-height:1.25}.ms-character-grid button{padding:13px!important}.ms-general-profile{padding:14px}.ms-general-profile>i{width:54px!important;height:54px!important}}
 @media(prefers-reduced-motion:reduce){.ms-shell *,.ms-shell *::before,.ms-shell *::after{animation:none!important;transition-duration:.01ms!important}}
 
+/* Lumi becomes selectable only after a deliberate three-second hold. */
+.ms-character-grid button.lumi-hold{position:relative;overflow:hidden;border-color:#c5a66d;background:linear-gradient(90deg,#f9dd98 var(--ms-lumi-hold,0%),#f3eee4 var(--ms-lumi-hold,0%));box-shadow:inset 0 0 0 1px #c5a66d55}.ms-character-grid button.lumi-hold>i{filter:saturate(.65) grayscale(.25);opacity:.88}.ms-character-grid button.lumi-hold em{color:#8b632b}.ms-character-grid button.lumi-hold.selected{background:#fff9ed}
+@media(max-width:600px){.ms-setup .ms-character-grid button.lumi-hold em{display:block;font-size:9px;line-height:1.1}}
+
 /* Keep result titles balanced and prevent the final syllables from becoming
    an orphaned line on narrow mobile screens. */
 .ms-result h1{word-break:keep-all;text-wrap:balance}

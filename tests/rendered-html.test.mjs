@@ -1098,8 +1098,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const lastMode = window\.localStorage\.getItem\(LAST_MODE_KEY\)[\s\S]*?if \(lastMode === "kids" \|\| lastMode === "normal"\) \{\s*setMode\(lastMode\);\s*setCharacterId\(defaultCharacterId\(lastMode\)\);/);
   assert.match(source, /setMode\("normal"\); window\.localStorage\.setItem\(LAST_MODE_KEY, "normal"\)/);
   assert.match(source, /setMode\("kids"\); window\.localStorage\.setItem\(LAST_MODE_KEY, "kids"\)/);
-  assert.match(source, /const unavailable = item\.id === LUMI_CHARACTER\.id;[\s\S]*?disabled=\{unavailable\}[\s\S]*?\{unavailable \? "준비 중" : item\.startLabel\}/);
-  assert.match(styles, /\.ms-character-grid button:disabled\{cursor:not-allowed;opacity:\.56/);
+  assert.match(source, /const LUMI_HOLD_MS = 3_000;/);
+  assert.match(source, /const \[lumiHoldProgress, setLumiHoldProgress\] = useState\(0\)/);
+  assert.match(source, /window\.setInterval\(advanceHold, 40\)/);
+  assert.match(source, /setCharacterId\(LUMI_CHARACTER\.id\)/);
+  assert.match(source, /onPointerDown=\{isLumi \? startLumiPointerHold : undefined\}/);
+  assert.match(source, /3초 길게 눌러 선택/);
+  assert.match(styles, /\.ms-character-grid button\.lumi-hold\{[\s\S]*?--ms-lumi-hold/);
   assert.match(source, /event\.clientY - joystick\.originY/);
   assert.match(source, /onPointerCancel=\{pointerEnd\}/);
   assert.match(source, /onLostPointerCapture=\{pointerEnd\}/);
@@ -2599,13 +2604,14 @@ test("opens public games from direct URLs and keeps history URLs in sync", async
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const directRoute = await readFile(new URL("../app/[gameId]/page.tsx", import.meta.url), "utf8");
 
-  assert.match(directRoute, /return <Home requestedGameId=\{params\.gameId\} \/>/);
+  assert.match(directRoute, /return <Home \/>/);
   assert.match(pageSource, /function publicGameIdFromPath\(value: string \| null \| undefined\): GameId \| null/);
   assert.match(pageSource, /haeru: "mudflat-survivor"/);
   assert.match(pageSource, /if \(gameId === "mudflat-survivor"\) return "\/haeru"/);
   assert.match(pageSource, /DEFAULT_HIDDEN_GAME_IDS\.has\(gameId\) \? null : gameId/);
   assert.match(pageSource, /function gamePath\(gameId: GameId \| null\)/);
-  assert.match(pageSource, /const directGame = publicGameIdFromPath\(requestedGameId\)/);
+  assert.match(pageSource, /const directPath = requestedGameId \?\? window\.location\.pathname\.replace/);
+  assert.match(pageSource, /const directGame = publicGameIdFromPath\(directPath\)/);
   assert.match(pageSource, /const openingGame = pendingGame \?\? directGame/);
   assert.match(pageSource, /canonicalUrl\.pathname = gamePath\(directGame\)/);
   assert.match(pageSource, /window\.history\.pushState\(window\.history\.state, "", nextUrl\.toString\(\)\)/);

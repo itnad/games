@@ -1892,7 +1892,12 @@ function HomeContent({
     const pendingGame = pendingGameValue && knownIds.has(pendingGameValue as GameId)
       ? pendingGameValue as GameId
       : null;
-    const directGame = publicGameIdFromPath(requestedGameId);
+    // Some static hosts serve a direct URL with the app shell rather than
+    // forwarding the dynamic segment to the client route. The browser path is
+    // the source of truth in that case, while requestedGameId keeps route props
+    // usable for hosts that do supply them.
+    const directPath = requestedGameId ?? window.location.pathname.replace(/^\/+|\/+$/g, "");
+    const directGame = publicGameIdFromPath(directPath);
     const openingGame = pendingGame ?? directGame;
     const nextRecent = openingGame
       ? [openingGame, ...migratedRecent.filter((id) => id !== openingGame)].slice(0, 8)
@@ -1911,7 +1916,7 @@ function HomeContent({
     window.localStorage.removeItem(SHOW_ALL_GAMES_STORAGE_KEY);
     if (migratedFavorites.length) window.localStorage.setItem("paperoid-favorites", JSON.stringify(migratedFavorites));
     if (nextRecent.length) window.localStorage.setItem("paperoid-recent-games", JSON.stringify(nextRecent));
-    if (directGame && requestedGameId && requestedGameId !== gamePath(directGame).slice(1)) {
+    if (directGame && directPath && directPath !== gamePath(directGame).slice(1)) {
       const canonicalUrl = new URL(window.location.href);
       canonicalUrl.pathname = gamePath(directGame);
       window.history.replaceState(window.history.state, "", canonicalUrl.toString());
