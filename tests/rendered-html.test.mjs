@@ -1093,9 +1093,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
   assert.match(source, /event\.clientX - joystick\.originX/);
   assert.match(source, /const \[mode, setMode\] = useState<GameMode>\("normal"\)/);
-  assert.match(source, /const lastMode = window\.localStorage\.getItem\(LAST_MODE_KEY\)[\s\S]*?if \(lastMode === "kids" \|\| lastMode === "normal"\) setMode\(lastMode\)/);
+  assert.match(source, /const defaultCharacterId = \(mode: GameMode\) => mode === "normal" \? "beginner" : "digger";/);
+  assert.match(source, /const \[characterId, setCharacterId\] = useState\(defaultCharacterId\("normal"\)\)/);
+  assert.match(source, /const lastMode = window\.localStorage\.getItem\(LAST_MODE_KEY\)[\s\S]*?if \(lastMode === "kids" \|\| lastMode === "normal"\) \{\s*setMode\(lastMode\);\s*setCharacterId\(defaultCharacterId\(lastMode\)\);/);
   assert.match(source, /setMode\("normal"\); window\.localStorage\.setItem\(LAST_MODE_KEY, "normal"\)/);
   assert.match(source, /setMode\("kids"\); window\.localStorage\.setItem\(LAST_MODE_KEY, "kids"\)/);
+  assert.match(source, /const unavailable = item\.id === LUMI_CHARACTER\.id;[\s\S]*?disabled=\{unavailable\}[\s\S]*?\{unavailable \? "준비 중" : item\.startLabel\}/);
+  assert.match(styles, /\.ms-character-grid button:disabled\{cursor:not-allowed;opacity:\.56/);
   assert.match(source, /event\.clientY - joystick\.originY/);
   assert.match(source, /onPointerCancel=\{pointerEnd\}/);
   assert.match(source, /onLostPointerCapture=\{pointerEnd\}/);

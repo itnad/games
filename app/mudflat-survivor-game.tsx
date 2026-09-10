@@ -118,6 +118,7 @@ const GENERAL_APPEARANCES: CharacterOption[] = [
 ];
 
 const GENERAL_CHARACTER = { id: "beginner", name: "갯벌 초보", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 };
+const defaultCharacterId = (mode: GameMode) => mode === "normal" ? "beginner" : "digger";
 const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "boots", "snack", "basket"];
 const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", boots: "장화", snack: "간식", basket: "바구니" };
 const DIRECTIONAL_SEAFOOD_TYPES = new Set(["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp"]);
@@ -1000,7 +1001,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const sequenceRef = useRef(1);
   const [screen, setScreen] = useState<Screen>("setup");
   const [mode, setMode] = useState<GameMode>("normal");
-  const [characterId, setCharacterId] = useState("digger");
+  const [characterId, setCharacterId] = useState(defaultCharacterId("normal"));
   const [hud, setHud] = useState<Hud>(emptyHud);
   const [choices, setChoices] = useState<Array<{ id: string; icon: string; name: string; description: string; max: number }>>([]);
   const [runId, setRunId] = useState(0);
@@ -1030,7 +1031,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     setHighestUnlockedStage(highest);
     window.localStorage.setItem(HIGHEST_STAGE_KEY, String(highest));
     const lastMode = window.localStorage.getItem(LAST_MODE_KEY);
-    if (lastMode === "kids" || lastMode === "normal") setMode(lastMode);
+    if (lastMode === "kids" || lastMode === "normal") {
+      setMode(lastMode);
+      setCharacterId(defaultCharacterId(lastMode));
+    }
   }, []);
 
   useEffect(() => {
@@ -2216,7 +2220,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (current.pendingSkillDiscovery) storeCampaign({ ...current, pendingSkillDiscovery: false });
     resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
   };
-  const reset = () => { runtimeRef.current = null; campaignRef.current = null; resetMovementInput(); setCampaign(null); setHud({ ...emptyHud, mode }); setSelectedStage(1); setChoices([]); setSelectedSkillId(null); setScreen("setup"); };
+  const reset = () => { runtimeRef.current = null; campaignRef.current = null; resetMovementInput(); setCampaign(null); setCharacterId(defaultCharacterId(mode)); setHud({ ...emptyHud, mode }); setSelectedStage(1); setChoices([]); setSelectedSkillId(null); setScreen("setup"); };
   const clearCampaign = () => { window.localStorage.removeItem(CAMPAIGN_KEY); setSavedCampaign(null); reset(); };
 
   if (screen === "setup") return (
@@ -2232,19 +2236,25 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => { setMode("normal"); window.localStorage.setItem(LAST_MODE_KEY, "normal"); setCharacterId("beginner"); }}>
             <i>◆</i><span><b>일반 모드</b><small>강한 해산물·돌 장애물·전용 기술</small></span>
           </button>
-          <button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => { setMode("kids"); window.localStorage.setItem(LAST_MODE_KEY, "kids"); setCharacterId((current) => CHARACTERS.some((item) => item.id === current) ? current : "digger"); }}>
+          <button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => { setMode("kids"); window.localStorage.setItem(LAST_MODE_KEY, "kids"); setCharacterId((current) => CHARACTERS.some((item) => item.id === current && item.id !== LUMI_CHARACTER.id) ? current : defaultCharacterId("kids")); }}>
             <i>☀</i><span><b>어린이 모드</b><small>가볍게 익히는 채집 모험</small></span>
           </button>
         </div>
         {mode === "kids" ? <>
           <h3 className="ms-selection-title">채집꾼 선택</h3>
           <div className="ms-character-grid">
-            {CHARACTERS.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i className={item.sprite ? `ms-character-portrait${item.spriteSheet ? " ms-character-sprite-sheet" : ""}` : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.startLabel}</em></button>)}
+            {CHARACTERS.map((item) => {
+              const unavailable = item.id === LUMI_CHARACTER.id;
+              return <button type="button" key={item.id} className={`${characterId === item.id ? "selected " : ""}${unavailable ? "unavailable" : ""}`} disabled={unavailable} aria-label={unavailable ? `${item.name} 준비 중` : undefined} onClick={() => setCharacterId(item.id)}><i className={item.sprite ? `ms-character-portrait${item.spriteSheet ? " ms-character-sprite-sheet" : ""}` : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{unavailable ? "준비 중" : item.startLabel}</em></button>;
+            })}
           </div>
         </> : <>
           <h3 className="ms-selection-title">채집꾼 모습 선택</h3>
           <div className="ms-character-grid ms-general-character-grid">
-            {GENERAL_APPEARANCES.map((item) => <button type="button" key={item.id} className={characterId === item.id ? "selected" : ""} onClick={() => setCharacterId(item.id)}><i className={item.sprite ? `ms-character-portrait${item.spriteSheet ? " ms-character-sprite-sheet" : ""}` : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{item.startLabel}</em></button>)}
+            {GENERAL_APPEARANCES.map((item) => {
+              const unavailable = item.id === LUMI_CHARACTER.id;
+              return <button type="button" key={item.id} className={`${characterId === item.id ? "selected " : ""}${unavailable ? "unavailable" : ""}`} disabled={unavailable} aria-label={unavailable ? `${item.name} 준비 중` : undefined} onClick={() => setCharacterId(item.id)}><i className={item.sprite ? `ms-character-portrait${item.spriteSheet ? " ms-character-sprite-sheet" : ""}` : ""}>{item.sprite ? <img src={item.sprite} alt="" /> : item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>{unavailable ? "준비 중" : item.startLabel}</em></button>;
+            })}
           </div>
         </>}
         <button className="ms-primary" type="button" onClick={begin}>
