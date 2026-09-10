@@ -1195,6 +1195,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const returnTideFill = returnTide\.active \? returnTideFillProgress\(runtime\.elapsed\) : 0;/);
   assert.match(source, /const waterHeight = height \* returnTideFill;/);
   assert.match(source, /context\.rect\(0, waterTop, width, waterHeight\); context\.clip\(\);/);
+  assert.match(source, /const tideArrivalProgress = stageProfile\.tideInterval > 0 \? Math\.min\(1, tidePhase \/ TIDE_FILL_SECONDS\) : 1;/);
+  assert.match(source, /Math\.max\(0, 1 - tidePhase \/ 7\) \* tideArrivalProgress/);
   assert.doesNotMatch(source, /else if \(runtime\.elapsed >= MUDFLAT_RUN_SECONDS\) completeStage\(runtime\)/);
   assert.match(source, /const reach = electric\.reach;/);
   assert.match(source, /const reach = mudflatElectricStats\(runtime\.levels\.electric \?\? 0\)\.reach;/);

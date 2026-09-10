@@ -1420,7 +1420,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (inputLength > 1) { inputX /= inputLength; inputY /= inputLength; }
       const inWaterChannel = stageProfile.waterChannels && mudflatInWaterChannel(runtime.player.x, runtime.player.y, runtime.stage);
       const tidePhase = stageProfile.tideInterval > 0 ? runtime.elapsed % stageProfile.tideInterval : stageProfile.tideInterval;
-      const tideSurge = stageProfile.tideInterval > 0 ? Math.max(0, 1 - tidePhase / 7) : 0;
+      const tideArrivalProgress = stageProfile.tideInterval > 0 ? Math.min(1, tidePhase / TIDE_FILL_SECONDS) : 1;
+      const tideSurge = stageProfile.tideInterval > 0 ? Math.max(0, 1 - tidePhase / 7) * tideArrivalProgress : 0;
       const inHill = stageProfile.safeZone !== "none" && Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
       const incomingTideSlow = tideSurge > 0 && !inHill ? .8 : 1;
       const rawTerrainSpeed = stageProfile.mudSlow * (inWaterChannel ? .68 : 1) * incomingTideSlow;
@@ -1908,9 +1909,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
       const screenPoint = (point: Point) => ({ x: width / 2 + point.x - runtime.player.x, y: height / 2 + point.y - runtime.player.y });
       const tidePhase = stageProfile.tideInterval > 0 ? runtime.elapsed % stageProfile.tideInterval : stageProfile.tideInterval;
-      const tideSurge = stageProfile.tideInterval > 0 ? Math.max(0, 1 - tidePhase / 7) : 0;
+      const tideArrivalProgress = stageProfile.tideInterval > 0 ? Math.min(1, tidePhase / TIDE_FILL_SECONDS) : 1;
+      const tideSurge = stageProfile.tideInterval > 0 ? Math.max(0, 1 - tidePhase / 7) * tideArrivalProgress : 0;
       if (stageProfile.waterChannels && tideSurge > 0) {
+        context.save(); context.globalAlpha = tideArrivalProgress;
         drawWaterChannelArrows(context, width, height, runtime.player, runtime.elapsed, stageProfile);
+        context.restore();
       }
 
       if (stageProfile.safeZone !== "none") {
@@ -2094,7 +2098,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.fillStyle = darkness; context.fillRect(0, 0, width, height); context.restore();
       }
       if (runtime.tideFlash > 0) {
-        const tideFlashStrength = returnTide.active ? returnTideFill : 1;
+        const tideFlashStrength = returnTide.active ? returnTideFill : tideArrivalProgress;
         context.fillStyle = `rgba(84,181,206,${runtime.tideFlash * .28 * tideFlashStrength})`; context.fillRect(0, 0, width, height);
       }
       if (stageProfile.tideInterval > 0) {
