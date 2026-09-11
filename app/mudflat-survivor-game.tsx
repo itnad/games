@@ -11,6 +11,7 @@ import {
   MUDFLAT_RECOVERY_FOODS,
   MUDFLAT_REGULAR_STAGES,
   MUDFLAT_TIDE_MESSAGE_INTERVAL,
+  MUDFLAT_TIDE_FILL_SECONDS as TIDE_FILL_SECONDS,
   MUDFLAT_RUN_SECONDS,
   MUDFLAT_SEAFOOD_MARKET,
   MUDFLAT_SHOP_EQUIPMENT,
@@ -51,6 +52,8 @@ import {
   mudflatTongStats,
   mudflatTerrainSpeedMultiplier,
   mudflatTideStats,
+  mudflatStageTideState,
+  mudflatCampObstacleAllowed,
   mudflatReturnCampPosition,
   mudflatTrainingPrice,
   mudflatUpgradeChoices,
@@ -83,7 +86,6 @@ const BASE_CAMP = { x: 0, y: 250 };
 const BASE_CAMP_RADIUS = 92;
 const BASE_CAMP_STAGE_ONE_WIDTH_MULTIPLIER = 5;
 const BASE_CAMP_FINAL_WIDTH_MULTIPLIER = 1.8;
-const TIDE_FILL_SECONDS = 1;
 const TIDE_RETURN_MESSAGE = "물이 가득찼어. 빨리 복귀해야해!";
 type Runtime = {
   mode: GameMode;
@@ -1320,10 +1322,19 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.floatTexts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y - 20, life: 1.05, text: `${finding.name} 발견!`, color: "#fff0a8" });
     };
 
+    const campObstacleAllowed = (point: Point, clearance: number) => mudflatCampObstacleAllowed(
+      point, runtime.baseCamp, baseCampDimensions(runtime.stage), runtime.baseCampGuideShown, clearance,
+    );
+    const addRock = (rock: Rock) => {
+      if (!campObstacleAllowed(rock, rock.radius + 20)) return false;
+      runtime.rocks.push(rock);
+      return true;
+    };
+
     const spawnRock = (width: number, height: number) => {
       const angle = Math.random() * Math.PI * 2;
       const distance = 105 + Math.random() * Math.max(160, Math.hypot(width, height) * .58);
-      runtime.rocks.push({
+      addRock({
         id: sequenceRef.current++,
         x: runtime.player.x + Math.cos(angle) * distance,
         y: runtime.player.y + Math.sin(angle) * distance,
@@ -1335,13 +1346,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const spawnClamHole = (width: number, height: number) => {
       const angle = Math.random() * Math.PI * 2;
       const distance = 70 + Math.random() * Math.max(150, Math.hypot(width, height) * .52);
-      runtime.clamHoles.push({
+      const hole = {
         id: sequenceRef.current++,
         x: runtime.player.x + Math.cos(angle) * distance,
         y: runtime.player.y + Math.sin(angle) * distance,
         radius: 8 + Math.random() * 3,
         progress: 0,
-      });
+      };
+      if (campObstacleAllowed(hole, 48)) runtime.clamHoles.push(hole);
     };
 
     const damageCreature = (creature: Creature, damage: number, hitFlash = .12) => {
@@ -1446,9 +1458,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const inputLength = Math.hypot(inputX, inputY);
       if (inputLength > 1) { inputX /= inputLength; inputY /= inputLength; }
       const inWaterChannel = stageProfile.waterChannels && mudflatInWaterChannel(runtime.player.x, runtime.player.y, runtime.stage);
-      const tidePhase = stageProfile.tideInterval > 0 ? runtime.elapsed % stageProfile.tideInterval : stageProfile.tideInterval;
-      const tideArrivalProgress = stageProfile.tideInterval > 0 ? Math.min(1, tidePhase / TIDE_FILL_SECONDS) : 1;
-      const tideSurge = stageProfile.tideInterval > 0 ? Math.max(0, 1 - tidePhase / 7) * tideArrivalProgress : 0;
+      const stageTide = mudflatStageTideState(runtime.elapsed, stageProfile.tideInterval);
+      const tideSurge = stageTide.fill;
       const inHill = stageProfile.safeZone !== "none" && Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
       const incomingTideSlow = tideSurge > 0 && !inHill ? .8 : 1;
       const rawTerrainSpeed = stageProfile.mudSlow * (inWaterChannel ? .68 : 1) * incomingTideSlow;
@@ -1465,8 +1476,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (tide.guideVisible && !runtime.baseCampGuideShown) {
         runtime.baseCamp = mudflatReturnCampPosition(runtime.player, width, height, baseCampDimensions(runtime.stage));
         runtime.baseCampGuideShown = true;
-        runtime.rocks = runtime.rocks.filter((rock) => !isInsideBaseCamp(rock, runtime.baseCamp, runtime.stage, rock.radius + 20));
-        runtime.clamHoles = runtime.clamHoles.filter((hole) => !isInsideBaseCamp(hole, runtime.baseCamp, runtime.stage, 48));
+        runtime.rocks = runtime.rocks.filter((rock) => campObstacleAllowed(rock, rock.radius + 20));
+        runtime.clamHoles = runtime.clamHoles.filter((hole) => campObstacleAllowed(hole, 48));
+        runtime.fallingRocks = runtime.fallingRocks.filter((rock) => campObstacleAllowed(rock, rock.radius + 20));
         showPlayerMessage("베이스캠프가 보인다. 귀환 준비하자.", 3);
       }
       const inBaseCamp = runtime.baseCampGuideShown && isInsideBaseCamp(runtime.player, runtime.baseCamp, runtime.stage);
@@ -1490,9 +1502,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         runtime.player.stride += dt * Math.max(.35, Math.hypot(inputX, inputY));
       }
 
-      if (stageProfile.safeZone !== "none" && stageProfile.tideInterval > 0) {
-        const hillCycle = Math.floor(runtime.elapsed / stageProfile.tideInterval);
-        const afterTide = tidePhase >= 7;
+      if (!tide.active && stageProfile.safeZone !== "none" && stageProfile.tideInterval > 0) {
+        const hillCycle = stageTide.cycle;
+        const afterTide = hillCycle === 0 ? runtime.elapsed >= 7 : stageTide.settled;
         if (afterTide && hillCycle > runtime.lastHillCycle) {
           runtime.lastHillCycle = hillCycle;
           runtime.safeZone = nextHillPosition(runtime.player, runtime.stage, hillCycle);
@@ -1500,16 +1512,15 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
         runtime.safeZoneTransition = Math.max(0, runtime.safeZoneTransition - dt);
       }
-      if (stageProfile.tideInterval > 0) {
-        const tideCycle = Math.floor(runtime.elapsed / stageProfile.tideInterval);
+      if (!tide.active && stageProfile.tideInterval > 0) {
+        const tideCycle = stageTide.impactCycle;
         if (tideCycle > runtime.lastTideCycle) {
           runtime.lastTideCycle = tideCycle;
-          runtime.tideFlash = .7;
           const inSafeZone = Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
-          if (!inSafeZone) {
+          if (!inSafeZone && !inBaseCamp) {
             damagePlayer(10 + runtime.stage, "#79c7df");
             showPlayerMessage("밀물 물살에 휩쓸렸다! 밝은 언덕배기로!", 3.6);
-          } else {
+          } else if (inSafeZone) {
             showPlayerMessage("언덕배기에서 밀물을 피했다.", 2.6);
           }
         }
@@ -1523,11 +1534,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const angle = firstReveal ? Math.PI * .18 : Math.random() * Math.PI * 2;
           const distance = firstReveal ? 58 : 72 + Math.random() * 74;
           const rock = { id: sequenceRef.current++, x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance, radius: 18 + Math.random() * 7, tone: Math.random() };
-          runtime.rocks.push(rock);
-          runtime.bursts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y, life: .46, maxLife: .46, color: "#c5a276", size: rock.radius + 10 });
-          if (firstReveal) {
-            runtime.hiddenRockIntroShown = true;
-            showPlayerMessage("아 깜짝이야, 여기 돌이 있었네!", 3);
+          if (addRock(rock)) {
+            runtime.bursts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y, life: .46, maxLife: .46, color: "#c5a276", size: rock.radius + 10 });
+            if (firstReveal) {
+              runtime.hiddenRockIntroShown = true;
+              showPlayerMessage("아 깜짝이야, 여기 돌이 있었네!", 3);
+            }
           }
           runtime.hiddenRockClock = 7 + Math.random() * 5;
         }
@@ -1538,15 +1550,16 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (runtime.fallClock <= 0) {
           const angle = Math.random() * Math.PI * 2;
           const distance = 45 + Math.random() * 230;
-          runtime.fallingRocks.push({ id: sequenceRef.current++, x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance, life: 2.1, maxLife: 2.1, radius: 29 });
+          const falling = { id: sequenceRef.current++, x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance, life: 2.1, maxLife: 2.1, radius: 29 };
+          if (campObstacleAllowed(falling, falling.radius + 20)) runtime.fallingRocks.push(falling);
           runtime.fallClock = stageProfile.fallingRocks * (.72 + Math.random() * .48);
         }
         for (const falling of runtime.fallingRocks) {
           const previousLife = falling.life;
           falling.life -= dt;
-          if (previousLife > 0 && falling.life <= 0) {
+          if (previousLife > 0 && falling.life <= 0 && campObstacleAllowed(falling, falling.radius + 20)) {
             if (Math.hypot(falling.x - runtime.player.x, falling.y - runtime.player.y) <= falling.radius + 16) damagePlayer(14 + runtime.stage * 2, "#d69d68");
-            runtime.rocks.push({ id: sequenceRef.current++, x: falling.x, y: falling.y, radius: 18 + Math.random() * 7, tone: Math.random() });
+            addRock({ id: sequenceRef.current++, x: falling.x, y: falling.y, radius: 18 + Math.random() * 7, tone: Math.random() });
             runtime.bursts.push({ id: sequenceRef.current++, x: falling.x, y: falling.y, life: .55, maxLife: .55, color: "#c99564", size: 36 });
           }
         }
@@ -1925,15 +1938,17 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       drawMudflat(context, width, height, runtime.player, tide, stageProfile);
       const returnTide = mudflatTideStats(runtime.elapsed, runtime.player.maxHp);
       const returnTideFill = returnTide.active ? returnTideFillProgress(runtime.elapsed) : 0;
-      if (returnTide.active) {
-        const waterHeight = height * returnTideFill;
+      const stageTide = mudflatStageTideState(runtime.elapsed, stageProfile.tideInterval);
+      const waterFill = returnTide.active ? returnTideFill : stageTide.fill;
+      if (waterFill > 0) {
+        const waterHeight = height * waterFill;
         const waterTop = height - waterHeight;
-        context.save(); context.beginPath(); context.rect(0, waterTop, width, waterHeight); context.clip();
+        context.save(); context.globalAlpha = waterFill; context.beginPath(); context.rect(0, waterTop, width, waterHeight); context.clip();
         const flood = context.createLinearGradient(0, waterTop, 0, height);
-        flood.addColorStop(0, `rgba(83,176,198,${.34 + returnTideFill * .16})`);
-        flood.addColorStop(1, `rgba(19,81,117,${.46 + returnTideFill * .18})`);
+        flood.addColorStop(0, `rgba(83,176,198,${.34 + waterFill * .16})`);
+        flood.addColorStop(1, `rgba(19,81,117,${.46 + waterFill * .18})`);
         context.fillStyle = flood; context.fillRect(0, waterTop, width, waterHeight);
-        context.fillStyle = `rgba(9,46,66,${returnTideFill * .18})`; context.fillRect(0, waterTop, width, waterHeight);
+        context.fillStyle = `rgba(9,46,66,${waterFill * .18})`; context.fillRect(0, waterTop, width, waterHeight);
         context.strokeStyle = "rgba(222,250,255,.28)"; context.lineWidth = 2;
         for (let wave = 0; wave < 5; wave += 1) {
           const y = waterTop + (runtime.elapsed * 26 + wave * (Math.max(42, waterHeight / 5) + 24)) % (waterHeight + 48) - 24;
@@ -1947,11 +1962,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.restore();
       }
       const screenPoint = (point: Point) => ({ x: width / 2 + point.x - runtime.player.x, y: height / 2 + point.y - runtime.player.y });
-      const tidePhase = stageProfile.tideInterval > 0 ? runtime.elapsed % stageProfile.tideInterval : stageProfile.tideInterval;
-      const tideArrivalProgress = stageProfile.tideInterval > 0 ? Math.min(1, tidePhase / TIDE_FILL_SECONDS) : 1;
-      const tideSurge = stageProfile.tideInterval > 0 ? Math.max(0, 1 - tidePhase / 7) * tideArrivalProgress : 0;
+      const tideSurge = stageTide.fill;
       if (stageProfile.waterChannels && tideSurge > 0) {
-        context.save(); context.globalAlpha = tideArrivalProgress;
+        context.save(); context.globalAlpha = tideSurge;
         drawWaterChannelArrows(context, width, height, runtime.player, runtime.elapsed, stageProfile);
         context.restore();
       }
@@ -2139,10 +2152,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.fillStyle = darkness; context.fillRect(0, 0, width, height); context.restore();
       }
       if (runtime.tideFlash > 0) {
-        const tideFlashStrength = returnTide.active ? returnTideFill : tideArrivalProgress;
+        const tideFlashStrength = returnTide.active ? returnTideFill : 1;
         context.fillStyle = `rgba(84,181,206,${runtime.tideFlash * .28 * tideFlashStrength})`; context.fillRect(0, 0, width, height);
       }
-      if (stageProfile.tideInterval > 0) {
+      if (!returnTide.active && stageProfile.tideInterval > 0) {
         const phase = runtime.elapsed % stageProfile.tideInterval;
         const warning = stageProfile.tideInterval - phase;
         if (warning <= 7) {

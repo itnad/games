@@ -1,4 +1,5 @@
 export const MUDFLAT_RUN_SECONDS = 240;
+export const MUDFLAT_TIDE_FILL_SECONDS = 1;
 export const MUDFLAT_JOYSTICK_RADIUS = 72;
 export const MUDFLAT_RETURN_GUIDE_SECONDS = 10;
 export const MUDFLAT_TIDE_SPEED_MULTIPLIER = .2;
@@ -565,6 +566,32 @@ export function mudflatTideStats(elapsed = 0, maxHp = 0) {
     speedMultiplier: tideActive ? MUDFLAT_TIDE_SPEED_MULTIPLIER : 1,
     damagePerSecond: tideActive ? Math.max(0, Number(maxHp) || 0) * MUDFLAT_TIDE_DAMAGE_RATIO_PER_SECOND : 0,
   };
+}
+
+// A periodic tide rises for one second, hits at its crest, then drains for one
+// second. Cycle zero is dry; the final return tide owns the water after 240s.
+export function mudflatStageTideState(elapsed = 0, interval = 0) {
+  const time = Math.max(0, Number(elapsed) || 0);
+  if (!(interval > 0) || time >= MUDFLAT_RUN_SECONDS) {
+    return { cycle: 0, fill: 0, impactCycle: 0, settled: false };
+  }
+  const cycle = Math.floor(time / interval);
+  const phase = time - cycle * interval;
+  const fill = cycle === 0 ? 0 : Math.max(0, Math.min(phase / MUDFLAT_TIDE_FILL_SECONDS, 2 - phase / MUDFLAT_TIDE_FILL_SECONDS));
+  return {
+    cycle,
+    fill,
+    impactCycle: Math.max(0, Math.floor((time - MUDFLAT_TIDE_FILL_SECONDS) / interval)),
+    settled: cycle > 0 && phase >= MUDFLAT_TIDE_FILL_SECONDS * 2,
+  };
+}
+
+// Include an object's footprint and a shoreline buffer, not just its center.
+export function mudflatCampObstacleAllowed(point, camp, radii, active, clearance = 0) {
+  if (!active) return true;
+  const dx = (point.x - camp.x) / (radii.radiusX + clearance);
+  const dy = (point.y - camp.y) / (radii.radiusY + clearance);
+  return dx * dx + dy * dy > 1;
 }
 
 // Put the entire camp beyond the nearer viewport edge at the return signal.

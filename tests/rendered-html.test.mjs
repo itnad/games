@@ -123,6 +123,7 @@ import {
   MUDFLAT_SHOP_EQUIPMENT,
   MUDFLAT_TIDE_DAMAGE_RATIO_PER_SECOND,
   MUDFLAT_TIDE_MESSAGE_INTERVAL,
+  MUDFLAT_TIDE_FILL_SECONDS,
   MUDFLAT_TIDE_SPEED_MULTIPLIER,
   MUDFLAT_PEARL,
   mudflatAutoSellInventory,
@@ -161,6 +162,8 @@ import {
   mudflatSpawnInterval,
   mudflatStageStats,
   mudflatTideStats,
+  mudflatStageTideState,
+  mudflatCampObstacleAllowed,
   mudflatReturnCampPosition,
   mudflatTongStats,
   mudflatTerrainSpeedMultiplier,
@@ -1196,12 +1199,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /if \(inBaseCamp \|\| hasVisibleSeafood\)/);
   assert.match(source, /if \(tide\.active && inBaseCamp\) \{ completeStage\(runtime\); return; \}/);
   assert.match(source, /drawBaseCampDirectionGuide\(context, width, height, runtime\.player, runtime\.baseCamp, returnTide\.active\)/);
-  assert.match(source, /const TIDE_FILL_SECONDS = 1;/);
+  assert.equal(MUDFLAT_TIDE_FILL_SECONDS, 1);
   assert.match(source, /const returnTideFill = returnTide\.active \? returnTideFillProgress\(runtime\.elapsed\) : 0;/);
-  assert.match(source, /const waterHeight = height \* returnTideFill;/);
+  assert.match(source, /const waterFill = returnTide\.active \? returnTideFill : stageTide\.fill;/);
+  assert.match(source, /const waterHeight = height \* waterFill;/);
   assert.match(source, /context\.rect\(0, waterTop, width, waterHeight\); context\.clip\(\);/);
-  assert.match(source, /const tideArrivalProgress = stageProfile\.tideInterval > 0 \? Math\.min\(1, tidePhase \/ TIDE_FILL_SECONDS\) : 1;/);
-  assert.match(source, /Math\.max\(0, 1 - tidePhase \/ 7\) \* tideArrivalProgress/);
+  assert.match(source, /context\.globalAlpha = waterFill/);
+  assert.match(source, /const tideCycle = stageTide\.impactCycle;/);
+  assert.doesNotMatch(source, /tidePhase \/ 7|runtime\.tideFlash = \.7/);
   assert.doesNotMatch(source, /else if \(runtime\.elapsed >= MUDFLAT_RUN_SECONDS\) completeStage\(runtime\)/);
   assert.match(source, /const reach = electric\.reach;/);
   assert.match(source, /const reach = mudflatElectricStats\(runtime\.levels\.electric \?\? 0\)\.reach;/);
@@ -2672,6 +2677,67 @@ test("places the return camp wholly offscreen relative to the current player", (
   }
   assert.equal(mudflatTideStats(229.999, 100).guideVisible, false);
   assert.equal(mudflatTideStats(230, 100).guideVisible, true);
+});
+
+test("periodic tides rise for one second, hit at the crest, and drain in one second", () => {
+  for (const interval of [25, 27, 31, 43, 48]) {
+    for (const elapsed of [0, .5, 1, 2, interval - .01]) {
+      assert.equal(mudflatStageTideState(elapsed, interval).fill, 0, "no phantom starting tide");
+      assert.equal(mudflatStageTideState(elapsed, interval).impactCycle, 0);
+    }
+    for (const [offset, fill, impactCycle, settled] of [
+      [0, 0, 0, false], [.25, .25, 0, false], [.5, .5, 0, false],
+      [1, 1, 1, false], [1.5, .5, 1, false], [1.75, .25, 1, false],
+      [2, 0, 1, true], [3, 0, 1, true],
+    ]) {
+      assert.deepEqual(mudflatStageTideState(interval + offset, interval), { cycle: 1, fill, impactCycle, settled });
+    }
+    let lastImpact = 0;
+    const hits = [];
+    for (let frame = 0; frame < 240 * 60; frame += 1) {
+      const elapsed = frame / 60;
+      const state = mudflatStageTideState(elapsed, interval);
+      assert.ok(state.fill >= 0 && state.fill <= 1);
+      if (state.impactCycle > lastImpact) {
+        lastImpact = state.impactCycle;
+        hits.push(elapsed);
+        assert.equal(state.fill, 1, "each damage check occurs only at the full-water crest");
+      }
+    }
+    assert.deepEqual(hits, Array.from({ length: Math.floor((239 - 1) / interval) }, (_, index) => (index + 1) * interval + 1));
+    assert.equal(mudflatStageTideState(240, interval).fill, 0, "final return tide takes over without periodic damage");
+  }
+  assert.equal(mudflatStageTideState(49, 0).fill, 0);
+  assert.equal(mudflatStageTideState(49, 0).impactCycle, 0);
+  assert.equal(mudflatTideStats(242, 100).active, true, "return tide stays full instead of draining");
+});
+
+test("camp obstacle exclusion accounts for the full footprint at every stage size", () => {
+  const camp = { x: 987, y: -654 };
+  for (let stage = 1; stage <= 8; stage += 1) {
+    const progress = (stage - 1) / 7;
+    const radii = { radiusX: 92 * (5 - 3.2 * progress), radiusY: 92 * (1 - .26 * progress) };
+    for (const clearance of [37, 46, 48, 49]) {
+      assert.equal(mudflatCampObstacleAllowed(camp, camp, radii, false, clearance), true, "hidden camp does not affect initial spawns");
+      assert.equal(mudflatCampObstacleAllowed(camp, camp, radii, true, clearance), false);
+      for (const angle of [0, .3, Math.PI / 2, Math.PI, -Math.PI / 4]) {
+        const point = { x: camp.x + Math.cos(angle) * (radii.radiusX + clearance * .9), y: camp.y + Math.sin(angle) * (radii.radiusY + clearance * .9) };
+        assert.equal(mudflatCampObstacleAllowed(point, camp, radii, true, clearance), false, "camp edge and shoreline buffer remain clear");
+      }
+      assert.equal(mudflatCampObstacleAllowed({ x: camp.x + radii.radiusX + clearance + 1, y: camp.y }, camp, radii, true, clearance), true);
+    }
+  }
+});
+
+test("all rock, hole, and falling-rock spawn paths respect the camp exclusion", async () => {
+  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  assert.equal((source.match(/runtime\.rocks\.push\(/g) ?? []).length, 1, "all rocks use the guarded addRock helper");
+  assert.match(source, /if \(!campObstacleAllowed\(rock, rock\.radius \+ 20\)\) return false;\s*runtime\.rocks\.push\(rock\)/);
+  assert.match(source, /if \(campObstacleAllowed\(hole, 48\)\) runtime\.clamHoles\.push\(hole\)/);
+  assert.match(source, /if \(campObstacleAllowed\(falling, falling\.radius \+ 20\)\) runtime\.fallingRocks\.push\(falling\)/);
+  for (const collection of ["rocks", "clamHoles", "fallingRocks"]) {
+    assert.ok(source.includes(`runtime.${collection} = runtime.${collection}.filter((`), `existing ${collection} are cleared when camp appears`);
+  }
 });
 
 test("uses a throttled character speech bubble when the Mudflat haul container is full", async () => {
