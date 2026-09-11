@@ -566,3 +566,15 @@ export function mudflatTideStats(elapsed = 0, maxHp = 0) {
     damagePerSecond: tideActive ? Math.max(0, Number(maxHp) || 0) * MUDFLAT_TIDE_DAMAGE_RATIO_PER_SECOND : 0,
   };
 }
+
+// Put the entire camp beyond the nearer viewport edge at the return signal.
+// Measure from the player's current position, not the stage's starting point.
+export function mudflatReturnCampPosition(player, width, height, radii) {
+  const margin = 72;
+  if (width <= height) {
+    const direction = Math.cos(player.facing) >= 0 ? 1 : -1;
+    return { x: player.x + direction * (width / 2 + radii.radiusX + margin), y: player.y };
+  }
+  const direction = Math.sin(player.facing) >= 0 ? 1 : -1;
+  return { x: player.x, y: player.y + direction * (height / 2 + radii.radiusY + margin) };
+}

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
+import { advanceLumiMotion, clearLumiAtlasMatte, createLumiMotion, lumiPose, lumiTongPose } from "../app/mudflat-lumi-animation.js";
 import { distributeRemainingGemsAcrossCards } from "../app/incan-gold-gems.js";
 import {
   applyChessMove,
@@ -160,6 +161,7 @@ import {
   mudflatSpawnInterval,
   mudflatStageStats,
   mudflatTideStats,
+  mudflatReturnCampPosition,
   mudflatTongStats,
   mudflatTerrainSpeedMultiplier,
   mudflatTrainingPrice,
@@ -1189,7 +1191,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const BASE_CAMP_STAGE_ONE_WIDTH_MULTIPLIER = 5;/);
   assert.match(source, /function baseCampDimensions\(stage: number\)/);
   assert.match(source, /function keepCreatureOutsideBaseCamp\(creature: Creature, baseCamp: Point, stage: number\)/);
-  assert.match(source, /const inBaseCamp = isInsideBaseCamp\(runtime\.player, runtime\.baseCamp, runtime\.stage\);/);
+  assert.match(source, /const inBaseCamp = runtime\.baseCampGuideShown && isInsideBaseCamp\(runtime\.player, runtime\.baseCamp, runtime\.stage\);/);
   assert.match(source, /keepCreatureOutsideBaseCamp\(creature, runtime\.baseCamp, runtime\.stage\);/);
   assert.match(source, /if \(inBaseCamp \|\| hasVisibleSeafood\)/);
   assert.match(source, /if \(tide\.active && inBaseCamp\) \{ completeStage\(runtime\); return; \}/);
@@ -1371,11 +1373,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawGatherer\([^)]*hasHeadlamp: boolean/);
   assert.match(source, /lumi-side-tongs-walk-transparent\.png/);
   assert.match(source, /lumi-front-tongs-walk-transparent\.png/);
-  assert.match(source, /lumi-back-tongs-walk-transparent\.png/);
-  assert.match(source, /const lumiDirection = lumiFacesVertically \? \(Math\.sin\(player\.facing\) > 0 \? "front" : "back"\) : "side"/);
-  assert.match(source, /const walkFrame = player\.walking \? Math\.floor\(player\.stride \* 16\) % 4 : Math\.floor\(fullTongTurn \* 4\) % 4/);
   assert.match(source, /runtime\.player\.walking = Math\.hypot\(inputX, inputY\) > \.05/);
-  assert.match(source, /context\.drawImage\(lumiSprite, frameWidth \* walkFrame/);
   assert.match(source, /runtime\.mode === "normal" && characterId !== "lumi" && \(runtime\.levels\.tongs \?\? 0\) > 0/);
   assert.match(source, /runtime\.equipment\.headlamp \?\? 0\) > 0/);
   assert.match(source, /rgba\(255,232,151,\.27\)/);
@@ -2615,6 +2613,65 @@ test("opens public games from direct URLs and keeps history URLs in sync", async
   assert.match(pageSource, /window\.addEventListener\("popstate", restoreGameFromHistory\)/);
   assert.match(pageSource, /syncGameUrl\(id\);/);
   assert.match(pageSource, /syncGameUrl\(null\);/);
+});
+
+test("keeps Lumi's walk, turning, and tong collision in independent motion", () => {
+  const motion = createLumiMotion();
+  const tick = (values = {}) => advanceLumiMotion(motion, { facing: 0, distance: 0, walking: false, tongSpeed: 1.55, dt: .1, ...values });
+  tick();
+  assert.equal(motion.phase, 0, "standing must not advance the walking cycle");
+  assert.ok(motion.tongAngle > 0, "the tongs must continue while standing");
+  const startAngle = motion.tongAngle;
+  tick({ walking: true, distance: 21, tongSpeed: 3.1 });
+  assert.equal(motion.phase, .25);
+  assert.ok(Math.abs(motion.tongAngle - startAngle - .31) < 1e-9, "upgrading changes speed, not angular position");
+  tick({ facing: 49 * Math.PI / 180 });
+  assert.equal(motion.direction, "side", "small diagonal changes must not flicker directions");
+  tick({ facing: 60 * Math.PI / 180 });
+  assert.equal(motion.direction, "front");
+  tick({ facing: 41 * Math.PI / 180 });
+  assert.equal(motion.direction, "front");
+  tick({ facing: Math.PI });
+  assert.equal(lumiPose(motion).mirror, -1);
+  for (let step = 0; step < 60; step += 1) {
+    tick();
+    const tool = lumiTongPose(motion, 105);
+    assert.ok(Math.abs(Math.hypot(tool.tipX, tool.tipY) - 105) < 1e-9);
+    assert.ok(Math.abs(tool.handX + Math.cos(tool.angle) * tool.length - tool.tipX) < 1e-9);
+    assert.ok(Math.abs(tool.handY + Math.sin(tool.angle) * tool.length - tool.tipY) < 1e-9);
+  }
+  assert.equal(lumiPose(motion).frame, 0, "stopping settles into a stable pose");
+});
+
+test("clears the atlas matte without clearing enclosed character highlights", () => {
+  const width = 80; const height = 30;
+  const pixels = new Uint8ClampedArray(width * height * 4).fill(255);
+  for (let y = 2; y <= 7; y += 1) for (let x = 2; x <= 7; x += 1) {
+    if (x !== 2 && x !== 7 && y !== 2 && y !== 7) continue;
+    const index = (y * width + x) * 4;
+    pixels[index] = 40; pixels[index + 1] = 50; pixels[index + 2] = 45;
+  }
+  clearLumiAtlasMatte(pixels, width, height);
+  assert.equal(pixels[3], 0);
+  assert.equal(pixels[(4 * width + 4) * 4 + 3], 255, "enclosed whites in the face must stay opaque");
+  assert.equal(pixels[(4 * width + 2) * 4 + 3], 255, "dark outlines must survive");
+});
+
+test("places the return camp wholly offscreen relative to the current player", () => {
+  for (const [width, height] of [[360, 640], [1024, 600], [768, 768]]) {
+    for (const radii of [{ radiusX: 460, radiusY: 92 }, { radiusX: 165.6, radiusY: 68.08 }]) {
+      for (const facing of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+        const player = { x: 2345, y: -6789, facing };
+        const camp = mudflatReturnCampPosition(player, width, height, radii);
+        const dx = Math.abs(camp.x - player.x); const dy = Math.abs(camp.y - player.y);
+        assert.ok(dx - radii.radiusX > width / 2 || dy - radii.radiusY > height / 2);
+        const approach = width <= height ? dx - radii.radiusX : dy - radii.radiusY;
+        assert.ok(approach <= Math.min(width, height) / 2 + 72.001);
+      }
+    }
+  }
+  assert.equal(mudflatTideStats(229.999, 100).guideVisible, false);
+  assert.equal(mudflatTideStats(230, 100).guideVisible, true);
 });
 
 test("uses a throttled character speech bubble when the Mudflat haul container is full", async () => {

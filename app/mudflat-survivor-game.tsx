@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { advanceLumiMotion, createLumiMotion, lumiTongPose } from "./mudflat-lumi-animation.js";
+import { drawLumiGatherer, loadLumiArt } from "./mudflat-lumi-renderer";
 import {
   MUDFLAT_CREATURES,
   MUDFLAT_CLAM_GRADES,
@@ -49,6 +51,7 @@ import {
   mudflatTongStats,
   mudflatTerrainSpeedMultiplier,
   mudflatTideStats,
+  mudflatReturnCampPosition,
   mudflatTrainingPrice,
   mudflatUpgradeChoices,
 } from "./mudflat-survivor-engine.js";
@@ -85,6 +88,7 @@ const TIDE_RETURN_MESSAGE = "물이 가득찼어. 빨리 복귀해야해!";
 type Runtime = {
   mode: GameMode;
   stage: number;
+  lumiMotion: ReturnType<typeof createLumiMotion>;
   elapsed: number; player: Point & { hp: number; maxHp: number; baseMaxHp: number; speed: number; damageCooldown: number; facing: number; stride: number; walking: boolean };
   creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; clamReveals: ClamReveal[]; levels: CountMap; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
@@ -95,7 +99,6 @@ type Runtime = {
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
 type CharacterOption = { id: string; icon: string; sprite?: string; portrait?: string; spriteSheet?: boolean; name: string; description: string; startLabel: string; levels: CountMap; hp: number };
-type LumiSprites = { side: HTMLImageElement; front: HTMLImageElement; back: HTMLImageElement };
 type Campaign = {
   version: 1; mode: GameMode; characterId: string; stage: number; coins: number; hp: number; maxHp: number; baseMaxHp: number;
   level: number; xp: number; nextXp: number; levels: CountMap; equipment: CountMap; inventory: CountMap; lastHaul: CountMap; lastSaleValue: number; totalScore: number; lastBossCaught: boolean;
@@ -212,7 +215,7 @@ function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[number], le
 function makeRuntime(campaign: Campaign): Runtime {
   const stats = mudflatEquipmentStats(campaign.equipment, campaign.baseMaxHp, campaign.mode === "normal" ? campaign.levels.snack : 0);
   return {
-    mode: campaign.mode, stage: campaign.stage,
+    mode: campaign.mode, stage: campaign.stage, lumiMotion: createLumiMotion(),
     elapsed: 0, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
     creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], clamReveals: [], bursts: [], floatTexts: [], levels: { ...(campaign.mode === "normal" ? GENERAL_CHARACTER.levels : {}), ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, headlampSpawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, selfShockNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
@@ -604,18 +607,15 @@ function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creatur
   context.restore();
 }
 
-function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, player: Runtime["player"], characterId: string, hasHeadlamp: boolean, lumiSprites?: LumiSprites, elapsed = 0, tongRotationSpeed = 0) {
-  const lumiFacesVertically = Math.abs(Math.sin(player.facing)) > Math.abs(Math.cos(player.facing));
-  const lumiDirection = lumiFacesVertically ? (Math.sin(player.facing) > 0 ? "front" : "back") : "side";
-  const direction = characterId === "lumi" ? (lumiDirection === "side" && Math.cos(player.facing) < 0 ? -1 : 1) : (Math.cos(player.facing) < 0 ? -1 : 1);
-  const bob = characterId === "lumi" ? (player.walking ? Math.sin(player.stride * 16) * 2.2 : Math.sin(elapsed * 2.4) * .7) : Math.sin(player.stride * 9) * 1.8;
+function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, player: Runtime["player"], characterId: string, hasHeadlamp: boolean) {
+  const direction = Math.cos(player.facing) < 0 ? -1 : 1;
+  const bob = Math.sin(player.stride * 9) * 1.8;
   context.save();
   context.translate(x, y + bob);
   if (hasHeadlamp) {
-    const lampY = characterId === "lumi" ? -58 : -34;
+    const lampY = -34;
     context.save();
-    if (characterId === "lumi") context.rotate(player.facing);
-    else context.scale(direction, 1);
+    context.scale(direction, 1);
     const beam = context.createLinearGradient(12, lampY, 112, lampY);
     beam.addColorStop(0, "rgba(255,232,151,.27)");
     beam.addColorStop(1, "rgba(255,232,151,0)");
@@ -626,20 +626,6 @@ function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, p
   context.scale(direction, 1);
   context.fillStyle = "rgba(24,20,17,.3)";
   context.beginPath(); context.ellipse(0, 22, 25, 9, 0, 0, Math.PI * 2); context.fill();
-  const lumiSprite = lumiSprites?.[lumiDirection];
-  if (characterId === "lumi" && lumiSprite?.complete && lumiSprite.naturalWidth > 0) {
-    const frameWidth = lumiSprite.naturalWidth / 4;
-    const fullTongTurn = tongRotationSpeed > 0 ? elapsed * tongRotationSpeed / (Math.PI * 2) : 0;
-    const walkFrame = player.walking ? Math.floor(player.stride * 16) % 4 : Math.floor(fullTongTurn * 4) % 4;
-    const hitWobble = player.damageCooldown > 0 ? Math.sin(elapsed * 24) * .035 : 0;
-    context.save();
-    context.globalAlpha = player.damageCooldown > 0 ? .64 : 1;
-    context.rotate(hitWobble);
-    context.drawImage(lumiSprite, frameWidth * walkFrame, 0, frameWidth, lumiSprite.naturalHeight, -39, -76, 78, 104);
-    context.restore();
-    context.restore();
-    return;
-  }
   context.strokeStyle = "#273e40"; context.lineWidth = 7; context.lineCap = "round";
   context.beginPath(); context.moveTo(-7, 10); context.lineTo(-10, 22 + Math.sin(player.stride * 9) * 3); context.stroke();
   context.beginPath(); context.moveTo(7, 10); context.lineTo(11, 22 - Math.sin(player.stride * 9) * 3); context.stroke();
@@ -1246,12 +1232,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     }
     const clamSprite = new Image(); clamSprite.src = "/mudflat-creatures/clam.png"; creatureSprites.set("clam-reveal", clamSprite);
     const razorClamSprite = new Image(); razorClamSprite.src = "/mudflat-creatures/razor-clam.svg"; creatureSprites.set("razor-clam-reveal", razorClamSprite);
-    const lumiSprites: LumiSprites = {
-      side: new Image(), front: new Image(), back: new Image(),
-    };
-    lumiSprites.side.src = LUMI_CHARACTER.sprite!;
-    lumiSprites.front.src = "/mudflat-illustrations/lumi-front-tongs-walk-transparent.png";
-    lumiSprites.back.src = "/mudflat-illustrations/lumi-back-tongs-walk-transparent.png";
+    const lumiArt = characterId === "lumi" ? loadLumiArt() : null;
 
     const resize = () => {
       const ratio = Math.min(2, window.devicePixelRatio || 1);
@@ -1292,7 +1273,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const lightMargin = template.requiresHeadlamp ? headlampRange + 96 : 0;
       let distance = Math.max(Math.hypot(width, height) * .58 + 70, lightMargin) + Math.random() * 80;
       let spawnPoint = { x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance };
-      for (let attempt = 0; attempt < 8 && isInsideBaseCamp(spawnPoint, runtime.baseCamp, runtime.stage, template.size + 12); attempt += 1) {
+      for (let attempt = 0; runtime.baseCampGuideShown && attempt < 8 && isInsideBaseCamp(spawnPoint, runtime.baseCamp, runtime.stage, template.size + 12); attempt += 1) {
         angle = Math.random() * Math.PI * 2;
         distance += 56 + Math.random() * 44;
         spawnPoint = { x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance };
@@ -1333,7 +1314,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         movementClock: 1,
         ovalDirection: Math.random() < .5 ? -1 : 1,
       };
-      keepCreatureOutsideBaseCamp(revealedCreature, runtime.baseCamp, runtime.stage);
+      if (runtime.baseCampGuideShown) keepCreatureOutsideBaseCamp(revealedCreature, runtime.baseCamp, runtime.stage);
       runtime.creatures.push(revealedCreature);
       runtime.bursts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y, life: .62, maxLife: .62, color: template.color, size: rock.radius + 5 });
       runtime.floatTexts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y - 20, life: 1.05, text: `${finding.name} 발견!`, color: "#fff0a8" });
@@ -1364,6 +1345,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     };
 
     const damageCreature = (creature: Creature, damage: number, hitFlash = .12) => {
+      if (runtime.baseCampGuideShown && isInsideBaseCamp(runtime.player, runtime.baseCamp, runtime.stage)) return;
       const safeDamage = Math.max(0, Number(damage) || 0);
       if (safeDamage <= 0 || creature.hp <= 0) return;
       creature.hp -= safeDamage;
@@ -1481,10 +1463,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         runtime.player.y += Math.sin(windAngle) * stageProfile.wind * dt;
       }
       if (tide.guideVisible && !runtime.baseCampGuideShown) {
+        runtime.baseCamp = mudflatReturnCampPosition(runtime.player, width, height, baseCampDimensions(runtime.stage));
         runtime.baseCampGuideShown = true;
+        runtime.rocks = runtime.rocks.filter((rock) => !isInsideBaseCamp(rock, runtime.baseCamp, runtime.stage, rock.radius + 20));
+        runtime.clamHoles = runtime.clamHoles.filter((hole) => !isInsideBaseCamp(hole, runtime.baseCamp, runtime.stage, 48));
         showPlayerMessage("베이스캠프가 보인다. 귀환 준비하자.", 3);
       }
-      const inBaseCamp = isInsideBaseCamp(runtime.player, runtime.baseCamp, runtime.stage);
+      const inBaseCamp = runtime.baseCampGuideShown && isInsideBaseCamp(runtime.player, runtime.baseCamp, runtime.stage);
       if (tide.active && inBaseCamp) { completeStage(runtime); return; }
       if (tide.active) {
         runtime.tideDamageClock -= dt;
@@ -1637,7 +1622,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           creature.x += (-dx / distance * retreatSpeed + Math.cos(creature.phase) * localX - Math.sin(creature.phase) * localY) * dt;
           creature.y += (-dy / distance * retreatSpeed + Math.sin(creature.phase) * localX + Math.cos(creature.phase) * localY) * dt;
         }
-        keepCreatureOutsideBaseCamp(creature, runtime.baseCamp, runtime.stage);
+        if (runtime.baseCampGuideShown) keepCreatureOutsideBaseCamp(creature, runtime.baseCamp, runtime.stage);
         if (Math.abs(creature.x - previousX) > .001) creature.facing = creature.x > previousX ? 1 : -1;
         creature.saltHit = Math.max(0, creature.saltHit - dt); creature.hitFlash = Math.max(0, creature.hitFlash - dt);
         if (!inBaseCamp && revealed && distance < creature.size + 17) {
@@ -1671,7 +1656,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       let activeClamDistance = Infinity;
       for (const hole of runtime.clamHoles) {
         const distance = Math.hypot(hole.x - runtime.player.x, hole.y - runtime.player.y);
-        if (distance <= 48 && distance < activeClamDistance) { activeClamHole = hole; activeClamDistance = distance; }
+        if (!inBaseCamp && distance <= 48 && distance < activeClamDistance) { activeClamHole = hole; activeClamDistance = distance; }
       }
       for (const hole of runtime.clamHoles) {
         if (hole !== activeClamHole) hole.progress = 0;
@@ -1696,7 +1681,15 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
       }
 
-      const revealedCreatures = runtime.creatures.filter(isCreatureRevealed);
+      if (characterId === "lumi") {
+        advanceLumiMotion(runtime.lumiMotion, {
+          facing: runtime.player.facing, walking: runtime.player.walking,
+          distance: Math.hypot(inputX, inputY) * speed * dt,
+          tongSpeed: runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).rotationSpeed : 0,
+          dt,
+        });
+      }
+      const revealedCreatures = inBaseCamp ? [] : runtime.creatures.filter(isCreatureRevealed);
       const hoeLevel = runtime.levels.hoe ?? 0;
       const toolPower = mudflatEquipmentStats(runtime.equipment, runtime.player.baseMaxHp, runtime.levels.snack ?? 0).toolPowerMultiplier;
       if (hoeLevel > 0 && runtime.hoeClock <= 0) {
@@ -1857,8 +1850,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (runtime.mode === "normal" && tongLevel > 0) {
         const tong = mudflatTongStats(tongLevel);
         const angle = runtime.elapsed * tong.rotationSpeed;
-        const tipX = runtime.player.x + Math.cos(angle) * tong.reach;
-        const tipY = runtime.player.y + Math.sin(angle) * tong.reach;
+        const lumiTool = characterId === "lumi" ? lumiTongPose(runtime.lumiMotion, tong.reach) : null;
+        const tipX = runtime.player.x + (lumiTool ? lumiTool.tipX : Math.cos(angle) * tong.reach);
+        const tipY = runtime.player.y + (lumiTool ? lumiTool.tipY : Math.sin(angle) * tong.reach);
         for (const creature of revealedCreatures) {
           if (creature.saltHit <= 0 && Math.hypot(creature.x - tipX, creature.y - tipY) < creature.size + 10) {
             damageCreature(creature, tong.power * toolPower, .1); creature.saltHit = .22;
@@ -1866,7 +1860,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
 
         const rockerLevel = runtime.levels.rocker ?? 0;
-        if (rockerLevel > 0 && !runtime.rockFlipEffect && runtime.rockTurnClock <= 0) {
+        if (!inBaseCamp && rockerLevel > 0 && !runtime.rockFlipEffect && runtime.rockTurnClock <= 0) {
           const target = runtime.rocks
             .filter((rock) => Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) <= tong.reach + rock.radius)
             .sort((left, right) => Math.hypot(left.x - runtime.player.x, left.y - runtime.player.y) - Math.hypot(right.x - runtime.player.x, right.y - runtime.player.y))[0];
@@ -1974,7 +1968,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         for (let ridge = 0; ridge < 3; ridge += 1) { context.beginPath(); context.ellipse(0, 8 + ridge * 6, 76 - ridge * 14, 54 - ridge * 10, -.12, Math.PI * .1, Math.PI * .92); context.stroke(); }
         context.fillStyle = "rgba(245,248,250,.96)"; context.font = "900 12px system-ui"; context.textAlign = "center"; context.fillText("언덕배기 · 밀물 피난처", 0, -126); context.restore();
       }
-      drawBaseCamp(context, screenPoint(runtime.baseCamp), returnTide.guideVisible, returnTide.active, runtime.elapsed, runtime.stage);
+      if (runtime.baseCampGuideShown) drawBaseCamp(context, screenPoint(runtime.baseCamp), returnTide.guideVisible, returnTide.active, runtime.elapsed, runtime.stage);
       for (const falling of runtime.fallingRocks) {
         const point = screenPoint(falling); const progress = 1 - falling.life / falling.maxLife;
         context.save(); context.translate(point.x, point.y);
@@ -2088,8 +2082,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.beginPath(); context.arc(width / 2, height / 2, radius, -.18, Math.PI * 1.55); context.stroke();
         context.strokeStyle = `rgba(255,251,224,${alpha * .6})`; context.lineWidth = 2; context.beginPath(); context.arc(width / 2, height / 2, radius + 7, 0, Math.PI * 1.35); context.stroke();
       }
-      const lumiTongRotationSpeed = runtime.mode === "normal" && characterId === "lumi" ? mudflatTongStats(runtime.levels.tongs ?? 1).rotationSpeed : 0;
-      drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0, lumiSprites, runtime.elapsed, lumiTongRotationSpeed);
+      const lumiTongReach = runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).reach : 0;
+      const lumiDrawn = lumiArt && drawLumiGatherer(context, width / 2, height / 2, runtime.lumiMotion, lumiArt,
+        runtime.elapsed, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
+      if (!lumiDrawn) drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);
       if (runtime.electricPulseLife > 0) {
         const reach = mudflatElectricStats(runtime.levels.electric ?? 0).reach;
         const pulse = Math.min(1, runtime.electricPulseLife / .42);
