@@ -2766,6 +2766,8 @@ test("uses the salt spirit name throughout the children's mode without renaming 
   assert.match(source, /갯벌 파동 Lv\.2/);
   assert.match(source, /뜰채장인 채리/);
   assert.match(source, /장거리 자동 뜰채 Lv\.2/);
+  assert.match(source, /갯벌소년 펄럭/);
+  assert.match(source, /바다요정 바요/);
   assert.match(source, /saltSpiritPose\(runtime\.elapsed, saltLevel, index\)/);
   assert.match(source, /drawSaltSpirit\(context/);
   assert.match(source, /drawHarvestPulse\(context/);
