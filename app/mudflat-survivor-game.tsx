@@ -117,7 +117,7 @@ const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
 const LUMI_HOLD_MS = 3_000;
 const LUMI_CHARACTER: CharacterOption = { id: "lumi", icon: "●", sprite: "/mudflat-illustrations/lumi-side-tongs-walk-transparent.png", portrait: "/mudflat-illustrations/lumi-front-tongs-walk-transparent.png", spriteSheet: true, name: "탐험가 루미", description: "한 손의 집게와 3방향 걸음으로 갯벌을 누빕니다.", startLabel: "기본 장비 · 체력 100", levels: { hoe: 1, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 };
 const CHARACTERS: CharacterOption[] = [
-  { id: "digger", icon: "⌁", name: "호미꾼 하루", description: "넓은 호미질로 시작합니다.", startLabel: "호미 Lv.2", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
+  { id: "digger", icon: "⌁", name: "호미꾼 하루", description: "넓은 갯벌 파동으로 시작합니다.", startLabel: "갯벌 파동 Lv.2", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
   { id: "netter", icon: "◇", name: "그물잡이 모아", description: "자동 뜰채를 빠르게 던집니다.", startLabel: "뜰채 Lv.2", levels: { hoe: 1, net: 2, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 },
   { id: "salter", icon: "✦", name: "소금장인 소금", description: "반짝이는 소금 결정의 정령과 함께 채집합니다.", startLabel: "소금 결정의 정령 Lv.2", levels: { hoe: 1, net: 0, salt: 2, boots: 0, basket: 0, stamina: 0 }, hp: 105 },
   LUMI_CHARACTER,
