@@ -126,3 +126,10 @@
 .ms-setup .ms-character-grid button>i.ms-character-portrait.ms-character-sprite-sheet{position:relative;display:block;width:64px;height:64px}
 .ms-setup .ms-character-grid button>i.ms-character-portrait.ms-character-sprite-sheet img{position:absolute;left:-40%;top:0;display:block;width:600%;height:auto;max-width:none;object-fit:initial;object-position:initial;transform:none;pointer-events:none}
 @media(max-width:600px){.ms-setup .ms-character-grid button>i.ms-character-portrait.ms-character-sprite-sheet{width:48px;height:48px}}
+
+/* Spell out the children's skill names without squeezing the crystal spirit title. */
+.ms-tools.ms-kids-tools{height:88px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch}
+.ms-tools.ms-kids-tools>span{min-width:0;grid-template-columns:28px minmax(0,1fr)}
+.ms-kids-tools b{min-width:0;font-size:14px;line-height:1.25;white-space:normal;word-break:keep-all;overflow-wrap:anywhere}
+.ms-kids-game .ms-canvas-wrap{height:calc(100dvh - 160px)}
+@media(max-width:600px){.ms-tools.ms-kids-tools{height:112px;gap:4px}.ms-tools.ms-kids-tools>span{display:flex;gap:3px;padding:5px 3px}.ms-kids-tools b{display:flex;flex:1;align-items:center;justify-content:center}.ms-kids-tools i{width:23px;height:23px}.ms-kids-game .ms-canvas-wrap{height:calc(100dvh - 176px)}}

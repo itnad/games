@@ -124,6 +124,7 @@ import {
   MUDFLAT_TIDE_DAMAGE_RATIO_PER_SECOND,
   MUDFLAT_TIDE_MESSAGE_INTERVAL,
   MUDFLAT_TIDE_FILL_SECONDS,
+  MUDFLAT_UPGRADES,
   MUDFLAT_TIDE_SPEED_MULTIPLIER,
   MUDFLAT_PEARL,
   mudflatAutoSellInventory,
@@ -2710,6 +2711,60 @@ test("periodic tides rise for one second, hit at the crest, and drain in one sec
   assert.equal(mudflatStageTideState(49, 0).fill, 0);
   assert.equal(mudflatStageTideState(49, 0).impactCycle, 0);
   assert.equal(mudflatTideStats(242, 100).active, true, "return tide stays full instead of draining");
+});
+
+test("children's collection effects preserve range, orbit, and canvas state", async () => {
+  const { HARVEST_PULSE_SECONDS, harvestPulseFrame, saltSpiritPose, drawHarvestPulse, drawSaltSpirit } = await import("../app/mudflat-kids-effects.js");
+  assert.equal(harvestPulseFrame(0, 102).opacity, 0);
+  let previousRadius = 0;
+  for (let frame = 0; frame <= 60; frame += 1) {
+    const pulse = harvestPulseFrame(HARVEST_PULSE_SECONDS * (1 - frame / 60), 102);
+    assert.ok(pulse.waveRadius >= previousRadius && pulse.waveRadius <= 102);
+    assert.ok(pulse.opacity >= 0 && pulse.opacity <= 1);
+    previousRadius = pulse.waveRadius;
+  }
+  const states = [];
+  let drawCalls = 0;
+  const context = new Proxy({ globalAlpha: 1 }, {
+    get(target, key) {
+      if (key in target) return target[key];
+      if (key === "save") return () => states.push({ ...target });
+      if (key === "restore") return () => { assert.ok(states.length > 0); Object.assign(target, states.pop()); };
+      return (...args) => {
+        drawCalls += 1;
+        for (const value of args) if (typeof value === "number") assert.ok(Number.isFinite(value));
+        if (String(key).startsWith("create")) return { addColorStop(offset) { assert.ok(offset >= 0 && offset <= 1); } };
+      };
+    },
+  });
+  for (const level of [1, 2, 6]) {
+    const count = 1 + Math.floor(level / 2);
+    for (const elapsed of [0, .25, 240]) {
+      for (let index = 0; index < count; index += 1) {
+        const pose = saltSpiritPose(elapsed, level, index);
+        assert.ok(Math.abs(Math.hypot(pose.x, pose.y) - (66 + level * 3)) < 1e-8);
+        assert.equal(pose.angle, elapsed * (1.8 + level * .08) + index / count * Math.PI * 2);
+        drawSaltSpirit(context, 180, 320, elapsed, level, index);
+        assert.equal(states.length, 0);
+        assert.equal(context.globalAlpha, 1);
+      }
+      drawHarvestPulse(context, 180, 320, 78 + level * 12, HARVEST_PULSE_SECONDS * .5, elapsed);
+      assert.equal(states.length, 0);
+      assert.equal(context.globalAlpha, 1);
+    }
+  }
+  assert.ok(drawCalls > 0);
+});
+
+test("uses the salt spirit name throughout the children's mode without renaming normal digging", async () => {
+  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  assert.equal(MUDFLAT_UPGRADES.find((skill) => skill.id === "salt").name, "소금 결정의 정령");
+  assert.equal(MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === "digging").name, "호미질");
+  assert.doesNotMatch(source, /왕소금|radius, -\.18, Math\.PI \* 1\.55/);
+  assert.match(source, /saltSpiritPose\(runtime\.elapsed, saltLevel, index\)/);
+  assert.match(source, /drawSaltSpirit\(context/);
+  assert.match(source, /drawHarvestPulse\(context/);
+  assert.match(source, /소금 결정의 정령 Lv\.2/);
 });
 
 test("camp obstacle exclusion accounts for the full footprint at every stage size", () => {
