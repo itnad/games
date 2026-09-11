@@ -126,7 +126,7 @@ export const MUDFLAT_RECOVERY_FOODS = [
 
 export const MUDFLAT_UPGRADES = [
   { id: "hoe", icon: "⌁", name: "갯벌 파동", description: "빛나는 갯벌 파동의 범위와 위력이 커집니다.", max: 6 },
-  { id: "net", icon: "◇", name: "자동 뜰채", description: "가까운 해산물에게 그물을 던집니다.", max: 6 },
+  { id: "net", icon: "◇", name: "장거리 자동 뜰채", description: "멀리 있는 해산물까지 자동으로 뜰채를 던집니다.", max: 6 },
   { id: "salt", icon: "✦", name: "소금 결정의 정령", description: "반짝이는 결정 정령이 주위를 돌며 해산물을 채집합니다.", max: 6 },
   { id: "boots", icon: "≫", name: "갯벌 장화", description: "진흙에서도 더 빠르게 이동합니다.", max: 5 },
   { id: "basket", icon: "◉", name: "쓸어담기", description: "경험치와 보상을 끌어당기는 범위가 넓어집니다.", max: 5 },

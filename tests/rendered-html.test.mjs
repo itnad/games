@@ -2761,8 +2761,11 @@ test("uses the salt spirit name throughout the children's mode without renaming 
   assert.equal(MUDFLAT_UPGRADES.find((skill) => skill.id === "salt").name, "소금 결정의 정령");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === "digging").name, "호미질");
   assert.equal(MUDFLAT_UPGRADES.find((skill) => skill.id === "hoe").name, "갯벌 파동");
+  assert.equal(MUDFLAT_UPGRADES.find((skill) => skill.id === "net").name, "장거리 자동 뜰채");
   assert.doesNotMatch(source, /왕소금|radius, -\.18, Math\.PI \* 1\.55/);
   assert.match(source, /갯벌 파동 Lv\.2/);
+  assert.match(source, /뜰채장인 채리/);
+  assert.match(source, /장거리 자동 뜰채 Lv\.2/);
   assert.match(source, /saltSpiritPose\(runtime\.elapsed, saltLevel, index\)/);
   assert.match(source, /drawSaltSpirit\(context/);
   assert.match(source, /drawHarvestPulse\(context/);
