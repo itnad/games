@@ -516,7 +516,7 @@ export function IncanGoldGame({ onExit }: ExitProps) {
 
         <div className="board-panel incan-board-panel">
           {state.phase === "setup" ? (
-            <section className="incan-welcome">
+            <section className="incan-welcome" data-game-menu>
               <div className="incan-torch" aria-hidden="true"><span>✦</span></div>
               <span className="incan-kicker">TACORA EXPEDITION</span>
               <h2>보물을 챙겨<br />무사히 돌아오세요</h2>

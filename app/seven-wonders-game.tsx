@@ -324,7 +324,7 @@ export function SevenWondersGame({ onExit }: { onExit: () => void }) {
           <div><small>paperoid</small><strong>7대 문명</strong></div>
           <button onClick={onExit}>나가기</button>
         </header>
-        <section className="sw-lobby">
+        <section className="sw-lobby" data-game-menu>
           <div className="sw-lobby-copy">
             <span>BUILD AN ANCIENT LEGACY</span>
             <h1>일곱 문명의<br /><em>찬란한 시대</em></h1>

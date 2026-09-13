@@ -654,7 +654,7 @@ export function EpicDuelsGame({ onExit }: { onExit: () => void }) {
 
         <div className="board-panel epic-board-panel">
           {phase === "setup" ? (
-            <section className="epic-setup">
+            <section className="epic-setup" data-game-menu>
               <div className="epic-setup-heading"><span>CHOOSE YOUR DESTINY</span><h2>결투에 나설<br />두 팀을 선택하세요</h2><p>12개 원작 팀은 각각 다른 체력, 31장 덱과 특수 능력을 가집니다.</p></div>
               <div className="epic-team-columns">
                 <section><header><span>PLAYER 1</span><strong>내 팀</strong></header><div>{EPIC_DUELS_TEAMS.map((team) => <button key={team.id} className={playerTeamId === team.id ? "active" : ""} style={{ "--team-color": team.color } as CSSProperties} onClick={() => setPlayerTeamId(team.id)}><i>{teamIcon(team)}</i><span><strong>{team.major.name}</strong><small>{team.minors.map((minor) => minor.name.replace(/ \d$/, "")).join(" · ")}</small></span><b>{team.major.hp}</b></button>)}</div></section>

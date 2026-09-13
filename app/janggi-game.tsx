@@ -600,7 +600,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
             <p>초 진영으로 먼저 시작합니다. 친선 승부제를 적용해 외통은 승리, 빅장 청구·동일 국면 3회·연속 한 수 쉼은 무승부로 처리합니다.</p>
           </div>
           {!started && (
-            <fieldset className="janggi-setup-picker">
+            <fieldset className="janggi-setup-picker" data-game-menu>
               <legend>초의 마·상 차림</legend>
               {(Object.entries(JANGGI_SETUPS) as [JanggiSetup, { label: string; flank: PieceType[] }][]).map(([id, setup]) => (
                 <button key={id} className={choSetup === id ? "active" : ""} aria-pressed={choSetup === id} onClick={() => {

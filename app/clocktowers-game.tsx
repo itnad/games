@@ -433,7 +433,7 @@ export function ClocktowersGame({ onExit }: ExitProps) {
 
   if (state.phase === "setup") {
     return (
-      <main className="ct-shell setup">
+      <main className="ct-shell setup" data-game-menu>
         <header className="ct-topbar">
           <button onClick={onExit} aria-label="게임 목록으로 돌아가기">←</button>
           <div><span>paperoid</span><strong>시계탑</strong></div>

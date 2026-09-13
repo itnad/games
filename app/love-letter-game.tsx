@@ -728,7 +728,7 @@ export function LoveLetterGame({ onExit }: { onExit: () => void }) {
 
         <div className="board-panel love-board-panel">
           {state.phase === "setup" ? (
-            <section className="love-welcome">
+            <section className="love-welcome" data-game-menu>
               <div className="love-seal" aria-hidden="true">♥<i>✉</i></div>
               <span>DRAW ONE · PLAY ONE</span>
               <h2>러브레터</h2>

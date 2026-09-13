@@ -482,7 +482,7 @@ export function ConfrontationGame({ onExit }: { onExit: () => void }) {
 
         <div className="board-panel confrontation-board-panel">
           {state.phase === "setup" ? (
-            <section className="confront-welcome">
+            <section className="confront-welcome" data-game-menu>
               <div className="confront-emblem" aria-hidden="true"><i>✦</i><b>VS</b><i>◆</i></div>
               <span>ASYMMETRIC HIDDEN STRATEGY</span>
               <h2>빛과 그림자의 대결</h2>

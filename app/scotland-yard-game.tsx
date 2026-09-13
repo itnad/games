@@ -345,7 +345,7 @@ export function ScotlandYardGame({ onExit }: { onExit: () => void }) {
       </header>
 
       {!game ? (
-        <section className="sy-lobby">
+        <section className="sy-lobby" data-game-menu>
           <div className="sy-lobby-copy">
             <span className="sy-eyebrow">HIDDEN MOVEMENT · AI 대전</span>
             <h1>밤의 도시에서<br />미스터 X를 추적하세요</h1>

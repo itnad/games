@@ -276,7 +276,7 @@ export function PickPicnicGame({ onExit }: { onExit: () => void }) {
 
         <div className="board-panel picnic-board-panel">
           {phase === "setup" ? (
-            <section className="picnic-setup">
+            <section className="picnic-setup" data-game-menu>
               <div className="picnic-setup-visual" aria-hidden="true">
                 <span className="bird one">🐔</span><span className="bird two">🦆</span>
                 <span className="fox">🦊</span><i className="grain g1" /><i className="grain g2" /><i className="grain g3" />

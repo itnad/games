@@ -704,7 +704,7 @@ export function QwixxGame({ onExit }: ExitProps) {
         <div className="board-panel qwixx-board-panel">
           <QwixxLearningTools />
           {state.phase === "setup" ? (
-            <section className="qwixx-welcome">
+            <section className="qwixx-welcome" data-game-menu>
               <div className="qwixx-logo-dice" aria-hidden="true"><i>⚁</i><i>⚄</i><i>⚂</i></div>
               <span>FAST FAMILY DICE GAME</span>
               <h2>모두가 매번<br />함께 선택합니다</h2>

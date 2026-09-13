@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { installGameRefreshGuard } from "./game-refresh.js";
 import {
   BattleshipGame,
   CheckersGame,
@@ -1531,7 +1532,7 @@ function GomokuGame({ onExit }: { onExit: () => void }) {
         </div>
         <div className="board-panel">
           {!started ? (
-            <div className="gomoku-setup" aria-labelledby="gomoku-rule-title">
+            <div className="gomoku-setup" data-game-menu aria-labelledby="gomoku-rule-title">
               <span className="gomoku-setup-kicker">GAME RULES</span>
               <h2 id="gomoku-rule-title">승리 규칙을 선택하세요</h2>
               <p>선택한 규칙은 대국 화면에도 계속 표시됩니다.</p>
@@ -1988,29 +1989,7 @@ function HomeContent({
 
   useEffect(() => {
     if (!activeGame) return;
-    const root = document.documentElement;
-    root.classList.add("paperoid-game-active");
-    let touchStartY: number | null = null;
-    const rememberTouchStart = (event: TouchEvent) => {
-      touchStartY = event.touches.length === 1 ? event.touches[0]?.clientY ?? null : null;
-    };
-    const blockPullToRefresh = (event: TouchEvent) => {
-      const touchY = event.touches[0]?.clientY;
-      const pageAtTop = window.scrollY <= 0 && document.documentElement.scrollTop <= 0;
-      if (touchStartY !== null && touchY !== undefined && pageAtTop && touchY > touchStartY) event.preventDefault();
-    };
-    const clearTouchStart = () => { touchStartY = null; };
-    window.addEventListener("touchstart", rememberTouchStart, { passive: true });
-    window.addEventListener("touchmove", blockPullToRefresh, { passive: false });
-    window.addEventListener("touchend", clearTouchStart, { passive: true });
-    window.addEventListener("touchcancel", clearTouchStart, { passive: true });
-    return () => {
-      root.classList.remove("paperoid-game-active");
-      window.removeEventListener("touchstart", rememberTouchStart);
-      window.removeEventListener("touchmove", blockPullToRefresh);
-      window.removeEventListener("touchend", clearTouchStart);
-      window.removeEventListener("touchcancel", clearTouchStart);
-    };
+    return installGameRefreshGuard(document, window);
   }, [activeGame]);
 
   const launchGame = (id: GameId) => {

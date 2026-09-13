@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
+import { installGameRefreshGuard } from "../app/game-refresh.js";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { advanceLumiMotion, clearLumiAtlasMatte, createLumiMotion, lumiPose, lumiTongPose } from "../app/mudflat-lumi-animation.js";
 import { distributeRemainingGemsAcrossCards } from "../app/incan-gold-gems.js";
@@ -1327,7 +1328,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /paperoid-mudflat-survivor-campaign-v1/);
   assert.match(source, /runtime\.basket\[item\.type\]/);
   assert.match(source, /runtime\.rocks/);
-  assert.match(source, /갯벌 초보/);
+  assert.match(source, /기본 스킨/);
   assert.match(source, /어린이 모드/);
   assert.match(source, /일반 모드/);
   assert.match(source, /GENERAL_CHARACTER = \{[^\n]+hp: 100 \}/);
@@ -1513,11 +1514,64 @@ test("starts every game at the top and keeps the latest Janggi AI piece distinct
 
   assert.match(pageSource, /if \(!activeGame\) return;[\s\S]*?window\.scrollTo\(\{ top: 0, left: 0, behavior: "auto" \}\)/);
   assert.match(pageSource, /window\.requestAnimationFrame\(scrollGameToTop\)/);
-  assert.match(pageSource, /root\.classList\.add\("paperoid-game-active"\)/);
-  assert.match(pageSource, /window\.addEventListener\("touchmove", blockPullToRefresh, \{ passive: false \}\)/);
-  assert.match(pageSource, /pageAtTop[\s\S]*?touchY > touchStartY\) event\.preventDefault\(\)/);
-  assert.match(styles, /html\.paperoid-game-active,[\s\S]*?overscroll-behavior-y: none/);
+  assert.match(pageSource, /return installGameRefreshGuard\(document, window\)/);
+  assert.match(styles, /html\.paperoid-game-active:not\(:has\(\.game-readability-scope \[data-game-menu\]\)\)[\s\S]*?overscroll-behavior-y: none/);
   assert.match(styles, /\.janggi-board button\.opponent-to \.janggi-piece \{[\s\S]*?background: #d9ba85/);
+});
+
+test("allows native refresh in game menus, protects play, and releases the guard on exit", () => {
+  let menuVisible = true;
+  const classes = new Set();
+  const listeners = new Map();
+  const root = { scrollTop: 0, classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name) } };
+  const document = { documentElement: root, querySelector: () => menuVisible ? {} : null };
+  const window = {
+    scrollY: 0,
+    addEventListener: (type, listener, options) => {
+      if (type === "touchmove") assert.equal(options.passive, false);
+      listeners.set(type, listener);
+    },
+    removeEventListener: (type, listener) => {
+      assert.equal(listeners.get(type), listener);
+      listeners.delete(type);
+    },
+  };
+  const touch = (type, positions, cancelable = true) => {
+    let prevented = false;
+    listeners.get(type)?.({ touches: positions.map((clientY) => ({ clientY })), cancelable, preventDefault: () => { prevented = true; } });
+    return prevented;
+  };
+  const pull = () => { touch("touchstart", [50]); return touch("touchmove", [140]); };
+  const cleanup = installGameRefreshGuard(document, window);
+  assert.ok(classes.has("paperoid-game-active"));
+  assert.equal(pull(), false, "menu keeps the native downward gesture");
+  menuVisible = false;
+  assert.equal(pull(), true, "starting play immediately protects progress");
+  menuVisible = true;
+  assert.equal(pull(), false, "returning to the same game's menu restores refresh");
+  menuVisible = false;
+  window.scrollY = 80;
+  assert.equal(pull(), false, "ordinary page scrolling stays available");
+  window.scrollY = 0;
+  root.scrollTop = 80;
+  assert.equal(pull(), false);
+  root.scrollTop = 0;
+  touch("touchstart", [140]);
+  assert.equal(touch("touchmove", [50]), false, "upward swipes are not blocked");
+  touch("touchstart", [50]);
+  assert.equal(touch("touchmove", [140], false), false, "non-cancelable events are left alone");
+  touch("touchstart", [50, 60]);
+  assert.equal(touch("touchmove", [140, 150]), false, "pinch gestures are not blocked");
+  assert.equal(touch("touchmove", [140]), false, "a remaining finger does not reuse a stale start");
+  for (const end of ["touchend", "touchcancel"]) {
+    touch("touchstart", [50]);
+    touch(end, []);
+    assert.equal(touch("touchmove", [140]), false);
+  }
+  cleanup();
+  assert.equal(classes.size, 0);
+  assert.equal(listeners.size, 0);
+  assert.equal(pull(), false, "leaving the game restores unrestricted home refresh");
 });
 
 test("resets the home view and game shelves after a browser refresh", async () => {

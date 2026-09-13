@@ -18,10 +18,15 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Keep a downward swipe inside an active game instead of handing it to the browser refresh gesture. */
-html.paperoid-game-active,
-html.paperoid-game-active body {
+/* Only gameplay blocks native pull-to-refresh; game menus keep browser scrolling. */
+html.paperoid-game-active:not(:has(.game-readability-scope [data-game-menu])),
+html.paperoid-game-active:not(:has(.game-readability-scope [data-game-menu])) body {
   overscroll-behavior-y: none;
+}
+
+/* The survivor arena is only a preview until the first run starts. */
+.survivor-theme[data-game-menu] .survivor-arena {
+  touch-action: pan-y pinch-zoom;
 }
 
 body {

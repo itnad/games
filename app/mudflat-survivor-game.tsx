@@ -123,11 +123,11 @@ const CHARACTERS: CharacterOption[] = [
   LUMI_CHARACTER,
 ];
 const GENERAL_APPEARANCES: CharacterOption[] = [
-  { id: "beginner", icon: "⌁", name: "갯벌 초보", description: "기본 장비로 단단하게 시작합니다.", startLabel: "집게·호미질 기본 장착 · 체력 100", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 },
+  { id: "beginner", icon: "⌁", name: "기본 스킨", description: "기본 장비로 단단하게 시작합니다.", startLabel: "집게·호미질 기본 장착 · 체력 100", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 },
   { ...LUMI_CHARACTER, description: "기술 구성은 그대로, 모습만 루미로 출발합니다.", startLabel: "집게·호미질 기본 장착 · 체력 100" },
 ];
 
-const GENERAL_CHARACTER = { id: "beginner", name: "갯벌 초보", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 };
+const GENERAL_CHARACTER = { id: "beginner", name: "기본 스킨", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 };
 const defaultCharacterId = (mode: GameMode) => mode === "normal" ? "beginner" : "digger";
 const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "boots", "snack", "basket"];
 const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", boots: "장화", snack: "간식", basket: "바구니" };
@@ -2325,7 +2325,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const clearCampaign = () => { window.localStorage.removeItem(CAMPAIGN_KEY); setSavedCampaign(null); reset(); };
 
   if (screen === "setup") return (
-    <main className="ms-shell ms-setup">
+    <main className="ms-shell ms-setup" data-game-menu>
       <MudflatTopbar onExit={onExit} />
       <section className="ms-setup-hero">
         <img className="ms-hero-crab" src="/mudflat-creatures/crab.png" alt="" aria-hidden="true" />

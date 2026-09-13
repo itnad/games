@@ -292,7 +292,7 @@ export function WhitechapelGame({ onExit }: { onExit: () => void }) {
       </header>
 
       {!game ? (
-        <section className="wc-lobby">
+        <section className="wc-lobby" data-game-menu>
           <div className="wc-title-panel">
             <span>LETTERS FROM THE FOG</span>
             <h1>WHITE<br /><em>CHAPEL</em></h1>

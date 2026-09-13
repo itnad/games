@@ -162,7 +162,7 @@ export function TichuGame({ onExit }: { onExit: () => void }) {
     setWish(null);
   };
 
-  if (!game) return <main className="ti-shell"><Topbar onExit={onExit} /><section className="ti-lobby">
+  if (!game) return <main className="ti-shell"><Topbar onExit={onExit} /><section className="ti-lobby" data-game-menu>
     <div className="ti-hero-copy"><small>THE LEGENDARY PARTNERSHIP GAME</small><h1>한 장의 패보다<br /><em>강한 것은 팀입니다</em></h1><p>파트너와 호흡을 맞춰 손을 비우고, 폭탄과 특수 카드로 흐름을 뒤집으세요.</p><div><button onClick={() => openGuide("rules")}>◎ 게임 방법</button><button onClick={() => openGuide("tutorial")}>▷ 튜토리얼</button></div></div>
     <div className="ti-hero-art" aria-hidden="true"><i className="ring one" /><i className="ring two" /><span className="dragon-mark">龍</span><div className="ti-fan">{[
       { label: "A", symbol: "◆", color: "#299476" }, { label: "K", symbol: "⚔", color: "#3975b7" }, { label: "Q", symbol: "♜", color: "#c84f4f" }, { label: "J", symbol: "★", color: "#8d62b7" },

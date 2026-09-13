@@ -418,7 +418,7 @@ export function MinivilleGame({ onExit }: { onExit: () => void }) {
 
         <div className="board-panel miniville-board-panel">
           {state.phase === "setup" ? (
-            <section className="mini-welcome">
+            <section className="mini-welcome" data-game-menu>
               <div className="mini-town-art" aria-hidden="true">
                 <i className="house one">▰</i><i className="house two">▰</i><i className="tower">▥</i><span>☀</span>
               </div>

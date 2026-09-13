@@ -199,7 +199,7 @@ export function CamelUpGame({ onExit }: { onExit: () => void }) {
     return (
       <main className="cu-shell">
         <Topbar onExit={onExit} />
-        <section className="cu-lobby">
+        <section className="cu-lobby" data-game-menu>
           <div className="cu-lobby-copy">
             <span>THE WILDEST DESERT RACE</span>
             <h1>누가 먼저<br /><em>결승선을 넘을까?</em></h1>

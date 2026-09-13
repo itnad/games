@@ -142,7 +142,7 @@ export function TetrisGame({ onExit }: { onExit: () => void }) {
   const nextCells = new Set(tetrisShape(nextType, 0).map(([x, y]) => `${x},${y}`));
 
   return (
-    <main className="tetris-shell">
+    <main className="tetris-shell" data-game-menu={status === "ready" || undefined}>
       <CasualHeader title="테트리스" icon="▦" onExit={onExit} />
       <section className="tetris-heading">
         <div><small>STACK · CLEAR · LEVEL UP</small><h1>빈틈없이 쌓아<br />가로줄을 지우세요</h1></div>
@@ -174,4 +174,3 @@ export function TetrisGame({ onExit }: { onExit: () => void }) {
     </main>
   );
 }
-

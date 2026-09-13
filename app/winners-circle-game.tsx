@@ -362,7 +362,7 @@ export function WinnersCircleGame({ onExit }: { onExit: () => void }) {
 
           <div className="wc-race-board">
             {phase === "setup" ? (
-              <section className="wc-player-setup" aria-labelledby="wc-player-count-title">
+              <section className="wc-player-setup" data-game-menu aria-labelledby="wc-player-count-title">
                 <span className="wc-setup-icon" aria-hidden="true">♞</span>
                 <p className="eyebrow">AI RACE SETUP</p>
                 <h2 id="wc-player-count-title">몇 명이 경주할까요?</h2>

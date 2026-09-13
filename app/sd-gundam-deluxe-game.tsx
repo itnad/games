@@ -679,7 +679,7 @@ export function SdGundamDeluxeGame({ onExit }: { onExit: () => void }) {
         </aside>
         <div className="board-panel sd-board-panel">
           {!started ? (
-            <section className="sd-setup">
+            <section className="sd-setup" data-game-menu>
               <header><span>SELECT MISSION</span><h2>플레이할 전장을 선택하세요</h2><p>두 모드는 같은 전투 카드를 사용하지만 목표와 말의 운용 방식이 완전히 다릅니다.</p></header>
               <div className="sd-mode-picker">
                 <button className={mode === "space" ? "active" : ""} onClick={() => setMode("space")}><i>◉</i><span><small>SIDE A</small><strong>우주편</strong><em>룰렛으로 항로를 돌며 기지 HP를 넘어 점령하세요.</em></span><b>기지전</b></button>
