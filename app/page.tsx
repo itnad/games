@@ -2407,8 +2407,13 @@ function AppUpdateNotice({ onUpdate }: { onUpdate: () => void }) {
         <b>새 버전이 준비되었습니다</b>
         <small>게임 나가기나 새 게임 시작 시 자동으로 반영됩니다.</small>
       </span>
-      <button type="button" onClick={beginUpdate} disabled={isUpdating} aria-busy={isUpdating} aria-label={isUpdating ? "새로고침 중" : "새 버전으로 새로고침"}>
-        {isUpdating ? <i className="app-update-spinner" aria-hidden="true" /> : <i className="app-update-refresh-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0 2 5.3M20 4v7h-7" /></svg></i>}
+      <button type="button" title={isUpdating ? "새로고침 중" : "새 버전으로 새로고침"} onClick={beginUpdate} disabled={isUpdating} aria-busy={isUpdating} aria-label={isUpdating ? "새로고침 중" : "새 버전으로 새로고침"}>
+        {isUpdating ? <i className="app-update-spinner" aria-hidden="true" /> : <i className="app-update-refresh-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5" />
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5" />
+          </svg>
+        </i>}
         <span className="app-update-label">{isUpdating ? "새로고침 중" : "새로고침"}</span>
       </button>
     </aside>
