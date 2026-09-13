@@ -11,9 +11,11 @@ export function saltSpiritPose(elapsed, level, index) {
 
 export function harvestPulseFrame(life, radius) {
   const progress = Math.max(0, Math.min(1, 1 - life / HARVEST_PULSE_SECONDS));
+  const rise = Math.min(1, progress / .18);
+  const fall = 1 - progress;
   return {
     progress,
-    opacity: Math.max(0, Math.min(1, life / .12)),
+    opacity: .65 * rise * rise * (3 - 2 * rise) * fall * fall * (3 - 2 * fall),
     waveRadius: radius * (.24 + .76 * (1 - Math.pow(1 - progress, 3))),
   };
 }
@@ -26,40 +28,30 @@ function glint(context, x, y, size, opacity, color) {
   context.restore();
 }
 
-// A complete ground-level wave with a soft crest and sand motes, never a
-// broken weapon arc. Keep the center transparent so nearby catches stay legible.
+// A quiet, pearly ripple on the ground, not a light source. Leave the whole
+// center clear and ease both ends so repeated casts never flash over catches.
 export function drawHarvestPulse(context, x, y, radius, life, elapsed) {
   if (life <= 0) return;
   const { progress, opacity, waveRadius } = harvestPulseFrame(life, radius);
-  context.save(); context.translate(x, y); context.globalAlpha = opacity;
-  const wash = context.createRadialGradient(0, 0, 8, 0, 0, radius);
-  wash.addColorStop(0, "rgba(255,237,169,0)");
-  wash.addColorStop(.35, `rgba(255,225,140,${(1 - progress) * .10})`);
-  wash.addColorStop(.9, `rgba(255,228,151,${(1 - progress) * .19})`);
-  wash.addColorStop(1, "rgba(255,231,171,0)");
-  context.fillStyle = wash; context.beginPath(); context.arc(0, 0, radius, 0, TAU); context.fill();
+  context.save(); context.translate(x, y); context.globalAlpha *= opacity;
 
-  const crest = context.createRadialGradient(0, 0, Math.max(0, waveRadius - 17), 0, 0, waveRadius + 5);
-  crest.addColorStop(0, "rgba(247,190,83,0)");
-  crest.addColorStop(.55, "rgba(255,220,133,.14)");
-  crest.addColorStop(.78, "rgba(255,249,210,.65)");
-  crest.addColorStop(.9, "rgba(255,224,146,.32)");
-  crest.addColorStop(1, "rgba(255,227,161,0)");
-  context.fillStyle = crest; context.beginPath(); context.arc(0, 0, waveRadius + 5, 0, TAU); context.fill();
+  const crest = context.createRadialGradient(0, 0, Math.max(0, waveRadius - 5), 0, 0, waveRadius + 2);
+  crest.addColorStop(0, "rgba(184,201,198,0)");
+  crest.addColorStop(.38, "rgba(190,207,203,.045)");
+  crest.addColorStop(.7, "rgba(219,225,210,.20)");
+  crest.addColorStop(.86, "rgba(200,215,208,.07)");
+  crest.addColorStop(1, "rgba(200,215,208,0)");
+  context.fillStyle = crest; context.beginPath(); context.arc(0, 0, waveRadius + 2, 0, TAU); context.fill();
 
-  // Fixed seeds avoid random flicker or per-frame particle allocations.
-  for (let index = 0; index < 24; index += 1) {
+  // Sparse, translucent grains drift with the ripple; no sparks or bright rays.
+  for (let index = 0; index < 10; index += 1) {
     const seed = ((index * 17) % 23) / 23;
-    const angle = index / 24 * TAU + Math.sin(index * 2.4) * .08;
-    const distance = radius * (.2 + (.49 + seed * .3) * (1 - Math.pow(1 - progress, 2)));
+    const angle = index / 10 * TAU + Math.sin(index * 2.4) * .08 + Math.sin(elapsed * .45 + index) * .025;
+    const distance = waveRadius * (.87 + seed * .1);
     const px = Math.cos(angle) * distance;
-    const py = Math.sin(angle) * distance - Math.sin(progress * Math.PI) * (4 + seed * 8);
-    context.strokeStyle = `rgba(255,223,150,${(1 - progress) * .35})`;
-    context.lineWidth = 1.4;
-    context.beginPath(); context.moveTo(px - Math.cos(angle) * 7, py - Math.sin(angle) * 7); context.lineTo(px, py); context.stroke();
-    context.fillStyle = index % 3 ? "#f6d792" : "#fffbe6";
-    context.beginPath(); context.arc(px, py, 1.1 + seed * 1.4, 0, TAU); context.fill();
-    if (index % 6 === 0) glint(context, px, py, 3 + Math.sin(elapsed * 8 + index), 1 - progress, "#fffbe6");
+    const py = Math.sin(angle) * distance - Math.sin(progress * Math.PI) * (1 + seed * 2);
+    context.fillStyle = `rgba(215,220,204,${(1 - progress) * .22})`;
+    context.beginPath(); context.arc(px, py, .7 + seed * .55, 0, TAU); context.fill();
   }
   context.restore();
 }
