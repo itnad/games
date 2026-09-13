@@ -2830,6 +2830,57 @@ test("uses the salt spirit name throughout the children's mode without renaming 
   assert.match(source, /소금 결정의 정령 Lv\.2/);
 });
 
+test("entering camp cancels every harvest effect without deleting rewards or world state", async () => {
+  const { mudflatStopHarvestInCamp } = await import("../app/mudflat-survivor-engine.js");
+  const queues = ["projectiles", "harpoons", "netSlams", "castNets", "clamReveals"];
+  for (const mode of ["normal", "kids"]) {
+    for (const stage of [1, 2, 8]) {
+      const progress = (stage - 1) / 7;
+      const radii = { radiusX: 92 * (5 - 3.2 * progress), radiusY: 92 * (1 - .26 * progress) };
+      const runtime = {
+        mode, stage, player: { x: 0, y: 0, hp: 82, walking: true },
+        baseCamp: { x: 0, y: 0 }, baseCampGuideShown: false,
+        ...Object.fromEntries(queues.map((key) => [key, [{ id: key, life: .01 }]])),
+        hoeEffect: .3, electricPulseLife: .2, rockFlipEffect: { rockId: 1, life: .001 },
+        clamHoles: [{ id: 1, progress: 1.99 }],
+        bursts: [{ id: 1, kind: "harvest" }, { id: 2 }],
+        floatTexts: [{ id: 1, kind: "harvest" }, { id: 2, kind: "playerDamage" }, { id: 3 }],
+        pickups: [{ x: 0, y: 0, xp: 8 }], creatures: [{ id: 1, hp: 20 }], rocks: [{ id: 1 }],
+        basket: { clam: 4 }, caught: 4, xp: 12, hoeClock: .3, electricClock: .4, selfShockClock: 2,
+        elapsed: 230, paused: false,
+      };
+      const before = structuredClone(runtime);
+      assert.equal(mudflatStopHarvestInCamp(runtime, radii), false, "an unrevealed camp has no effect");
+      assert.deepEqual(runtime, before);
+      runtime.baseCampGuideShown = true;
+      runtime.player.x = radii.radiusX + .01;
+      const outside = structuredClone(runtime);
+      assert.equal(mudflatStopHarvestInCamp(runtime, radii), false);
+      assert.deepEqual(runtime, outside, "harvesting outside the camp is untouched");
+      runtime.player.x = radii.radiusX;
+      assert.equal(mudflatStopHarvestInCamp(runtime, radii), true, "the shoreline is inside the camp");
+      for (const key of queues) assert.deepEqual(runtime[key], [], key);
+      assert.equal(runtime.hoeEffect, 0);
+      assert.equal(runtime.electricPulseLife, 0);
+      assert.equal(runtime.rockFlipEffect, null, "a nearly finished rock cannot complete on entry");
+      assert.equal(runtime.clamHoles[0].progress, 0);
+      assert.deepEqual(runtime.bursts, [{ id: 2 }], "keep environmental effects");
+      assert.deepEqual(runtime.floatTexts, [{ id: 2, kind: "playerDamage" }, { id: 3 }]);
+      for (const key of ["pickups", "creatures", "rocks", "basket", "caught", "xp", "hoeClock", "electricClock", "selfShockClock", "elapsed", "paused"]) {
+        assert.deepEqual(runtime[key], before[key], `preserve ${key}`);
+      }
+      assert.equal(runtime.player.hp, 82);
+      assert.equal(runtime.player.walking, true);
+      const stopped = structuredClone(runtime);
+      assert.equal(mudflatStopHarvestInCamp(runtime, radii), true);
+      assert.deepEqual(runtime, stopped, "staying in camp is idempotent");
+      runtime.player.x = 0; runtime.player.y = radii.radiusY + .01;
+      assert.equal(mudflatStopHarvestInCamp(runtime, radii), false, "leaving camp re-enables actions");
+      assert.deepEqual(runtime.castNets, [], "cancelled casts never return after leaving");
+    }
+  }
+});
+
 test("camp obstacle exclusion accounts for the full footprint at every stage size", () => {
   const camp = { x: 987, y: -654 };
   for (let stage = 1; stage <= 8; stage += 1) {

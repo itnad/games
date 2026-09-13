@@ -55,6 +55,7 @@ import {
   mudflatTideStats,
   mudflatStageTideState,
   mudflatCampObstacleAllowed,
+  mudflatStopHarvestInCamp,
   mudflatReturnCampPosition,
   mudflatTrainingPrice,
   mudflatUpgradeChoices,
@@ -74,8 +75,8 @@ type Projectile = Point & { id: number; vx: number; vy: number; damage: number; 
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
 type NetSlamEffect = Point & { id: number; life: number; maxLife: number; damage: number; radius: number; headDepth: number; range: number; angle: number; targetId: number; area: boolean; hit: boolean };
 type CastNetEffect = Point & { id: number; originX: number; originY: number; angle: number; life: number; maxLife: number; damage: number; radius: number; hit: boolean };
-type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number };
-type FloatText = Point & { id: number; life: number; text: string; color: string; kind?: "playerDamage" };
+type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number; kind?: "harvest" };
+type FloatText = Point & { id: number; life: number; text: string; color: string; kind?: "playerDamage" | "harvest" };
 type Rock = Point & { id: number; radius: number; tone: number };
 type ClamHole = Point & { id: number; radius: number; progress: number };
 type ClamReveal = Point & { id: number; life: number; maxLife: number; type: string };
@@ -1368,7 +1369,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const horizontalJitter = (sequenceRef.current % 3 - 1) * 9;
       runtime.floatTexts.push({
         id: sequenceRef.current++, x: creature.x + horizontalJitter, y: creature.y - creature.size - 4,
-        life: .62, text: damageText, color: DAMAGE_TEXT_COLOR,
+        life: .62, text: damageText, color: DAMAGE_TEXT_COLOR, kind: "harvest",
       });
     };
 
@@ -1406,7 +1407,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           if (item.requiresHeadlamp) runtime.headlampSpawnClock = Math.max(runtime.headlampSpawnClock, 4.8);
           // A full container prevents selling the catch, not learning from it.
           runtime.pickups.push({ id: sequenceRef.current++, x: item.x, y: item.y, xp: item.xp });
-          runtime.bursts.push({ id: sequenceRef.current++, x: item.x, y: item.y, life: .5, maxLife: .5, color: item.color, size: item.size });
+          runtime.bursts.push({ id: sequenceRef.current++, x: item.x, y: item.y, life: .5, maxLife: .5, color: item.color, size: item.size, kind: "harvest" });
         }
         runtime.creatures = runtime.creatures.filter((item) => item.hp > 0);
       }
@@ -1416,36 +1417,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (runtime.paused || runtime.ended) return;
       runtime.elapsed += dt;
       runtime.player.damageCooldown = Math.max(0, runtime.player.damageCooldown - dt);
-      runtime.hoeClock -= dt; runtime.netClock -= dt; runtime.castNetClock -= dt; runtime.electricClock -= dt; runtime.selfShockClock -= dt; runtime.rockTurnClock -= dt; runtime.harpoonClock -= dt; runtime.headlampSpawnClock = Math.max(0, runtime.headlampSpawnClock - dt); runtime.hoeEffect = Math.max(0, runtime.hoeEffect - dt);
+      runtime.headlampSpawnClock = Math.max(0, runtime.headlampSpawnClock - dt); runtime.hoeEffect = Math.max(0, runtime.hoeEffect - dt);
       runtime.electricPulseLife = Math.max(0, runtime.electricPulseLife - dt); runtime.discoveryMessageLife = Math.max(0, runtime.discoveryMessageLife - dt); runtime.playerMessageLife = Math.max(0, runtime.playerMessageLife - dt); runtime.catchFullNoticeClock = Math.max(0, runtime.catchFullNoticeClock - dt);
       if (runtime.bleedSeconds > 0) {
         const bleed = mudflatPufferBleedStep(runtime.bleedSeconds, runtime.bleedTickClock, dt);
         runtime.bleedSeconds = bleed.seconds; runtime.bleedTickClock = bleed.tickClock;
         for (let tick = 0; tick < bleed.ticks; tick += 1) {
           damagePlayer(mudflatBleedDamage(runtime.player.maxHp), "#ff695f");
-        }
-      }
-      if (runtime.rockFlipEffect) {
-        const completedEffect = runtime.rockFlipEffect;
-        const target = runtime.rocks.find((rock) => rock.id === completedEffect.rockId);
-        const tongReach = mudflatTongStats(runtime.levels.tongs ?? 1).reach;
-        const stillInRange = target && Math.hypot(target.x - runtime.player.x, target.y - runtime.player.y) <= tongReach + target.radius;
-        if (!stillInRange) {
-          runtime.rockFlipEffect = null;
-          runtime.rockTurnClock = mudflatRockTurnerStats(runtime.levels.rocker ?? 1).cooldown;
-        } else {
-          const activeEffect = runtime.rockFlipEffect;
-          if (activeEffect) activeEffect.life = (activeEffect.life ?? 0) - dt;
-        }
-        if (runtime.rockFlipEffect && runtime.rockFlipEffect.life <= 0) {
-          if (target) {
-            const finding = mudflatRockCreatureForRoll(Math.random(), runtime.levels.rocker ?? 1);
-            runtime.rocks = runtime.rocks.filter((rock) => rock.id !== target.id);
-            runtime.rocksFlipped += 1;
-            runtime.bursts.push({ id: sequenceRef.current++, x: target.x, y: target.y, life: .5, maxLife: .5, color: "#b89569", size: target.radius });
-            if (finding) revealRockCreature(target, finding);
-          }
-          runtime.rockFlipEffect = null;
         }
       }
 
@@ -1482,8 +1460,35 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         runtime.fallingRocks = runtime.fallingRocks.filter((rock) => campObstacleAllowed(rock, rock.radius + 20));
         showPlayerMessage("베이스캠프가 보인다. 귀환 준비하자.", 3);
       }
-      const inBaseCamp = runtime.baseCampGuideShown && isInsideBaseCamp(runtime.player, runtime.baseCamp, runtime.stage);
+      const inBaseCamp = mudflatStopHarvestInCamp(runtime, baseCampDimensions(runtime.stage));
+      if (!inBaseCamp) {
+        runtime.hoeClock -= dt; runtime.netClock -= dt; runtime.castNetClock -= dt; runtime.electricClock -= dt;
+        runtime.selfShockClock -= dt; runtime.rockTurnClock -= dt; runtime.harpoonClock -= dt;
+      }
       if (tide.active && inBaseCamp) { completeStage(runtime); return; }
+      if (runtime.rockFlipEffect) {
+        const completedEffect = runtime.rockFlipEffect;
+        const target = runtime.rocks.find((rock) => rock.id === completedEffect.rockId);
+        const tongReach = mudflatTongStats(runtime.levels.tongs ?? 1).reach;
+        const stillInRange = target && Math.hypot(target.x - runtime.player.x, target.y - runtime.player.y) <= tongReach + target.radius;
+        if (!stillInRange) {
+          runtime.rockFlipEffect = null;
+          runtime.rockTurnClock = mudflatRockTurnerStats(runtime.levels.rocker ?? 1).cooldown;
+        } else {
+          const activeEffect = runtime.rockFlipEffect;
+          if (activeEffect) activeEffect.life = (activeEffect.life ?? 0) - dt;
+        }
+        if (runtime.rockFlipEffect && runtime.rockFlipEffect.life <= 0) {
+          if (target) {
+            const finding = mudflatRockCreatureForRoll(Math.random(), runtime.levels.rocker ?? 1);
+            runtime.rocks = runtime.rocks.filter((rock) => rock.id !== target.id);
+            runtime.rocksFlipped += 1;
+            runtime.bursts.push({ id: sequenceRef.current++, x: target.x, y: target.y, life: .5, maxLife: .5, color: "#b89569", size: target.radius, kind: "harvest" });
+            if (finding) revealRockCreature(target, finding);
+          }
+          runtime.rockFlipEffect = null;
+        }
+      }
       if (tide.active) {
         runtime.tideDamageClock -= dt;
         while (runtime.tideDamageClock <= 0) {
@@ -1688,8 +1693,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           } else showCatchFullMessage();
           runtime.pickups.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, xp: reward.xp });
           runtime.clamReveals.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .9, maxLife: .9, type: reward.id });
-          runtime.bursts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .55, maxLife: .55, color: reward.id === "pearl" ? "#fff0a2" : "#dbc69c", size: 18 });
-          runtime.floatTexts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y - 24, life: 1.05, text: `${reward.name} 채집!`, color: reward.id === "pearl" ? "#fff2a4" : "#ffe2a6" });
+          runtime.bursts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .55, maxLife: .55, color: reward.id === "pearl" ? "#fff0a2" : "#dbc69c", size: 18, kind: "harvest" });
+          runtime.floatTexts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y - 24, life: 1.05, text: `${reward.name} 채집!`, color: reward.id === "pearl" ? "#fff2a4" : "#ffe2a6", kind: "harvest" });
           runtime.clamHoles = runtime.clamHoles.filter((hole) => hole.id !== activeClamHole?.id);
           if ("vibrate" in navigator) navigator.vibrate([18, 25, 35]);
         }
@@ -1699,193 +1704,195 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         advanceLumiMotion(runtime.lumiMotion, {
           facing: runtime.player.facing, walking: runtime.player.walking,
           distance: Math.hypot(inputX, inputY) * speed * dt,
-          tongSpeed: runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).rotationSpeed : 0,
+          tongSpeed: !inBaseCamp && runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).rotationSpeed : 0,
           dt,
         });
       }
-      const revealedCreatures = inBaseCamp ? [] : runtime.creatures.filter(isCreatureRevealed);
-      const hoeLevel = runtime.levels.hoe ?? 0;
-      const toolPower = mudflatEquipmentStats(runtime.equipment, runtime.player.baseMaxHp, runtime.levels.snack ?? 0).toolPowerMultiplier;
-      if (hoeLevel > 0 && runtime.hoeClock <= 0) {
-        const radius = 78 + hoeLevel * 12;
-        for (const creature of revealedCreatures) if (Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= radius + creature.size) damageCreature(creature, (3 + hoeLevel * 2.3) * toolPower, .1);
-        runtime.hoeClock = Math.max(.42, 1.02 - hoeLevel * .09); runtime.hoeEffect = HARVEST_PULSE_SECONDS;
-      }
-
-      const netLevel = runtime.levels.net ?? 0;
-      if (netLevel > 0 && runtime.netClock <= 0 && revealedCreatures.length) {
-        const target = revealedCreatures.reduce((nearest, item) => Math.hypot(item.x - runtime.player.x, item.y - runtime.player.y) < Math.hypot(nearest.x - runtime.player.x, nearest.y - runtime.player.y) ? item : nearest);
-        const netStats = mudflatNetStats(netLevel);
-        const targetDx = target.x - runtime.player.x; const targetDy = target.y - runtime.player.y;
-        const targetDistance = Math.hypot(targetDx, targetDy) || 1;
-        const angle = Math.atan2(targetDy, targetDx);
-        const impactDistance = runtime.mode === "normal" ? Math.min(targetDistance, netStats.range) : targetDistance;
-        runtime.netSlams.push({
-          id: sequenceRef.current++, x: runtime.player.x + Math.cos(angle) * impactDistance, y: runtime.player.y + Math.sin(angle) * impactDistance, targetId: target.id,
-          damage: (6 + netLevel * 4) * toolPower,
-          radius: runtime.mode === "normal" ? netStats.radius : 30,
-          headDepth: runtime.mode === "normal" ? netStats.headDepth : 20,
-          range: runtime.mode === "normal" ? netStats.range : targetDistance,
-          angle,
-          area: runtime.mode === "normal", hit: false, life: .62, maxLife: .62,
-        });
-        runtime.netClock = Math.max(.48, 1.5 - netLevel * .14);
-      }
-      for (const netSlam of runtime.netSlams) {
-        const trackedTarget = revealedCreatures.find((item) => item.id === netSlam.targetId);
-        const progressBefore = 1 - netSlam.life / netSlam.maxLife;
-        if (trackedTarget && !netSlam.hit && progressBefore < .54) {
-          const dx = trackedTarget.x - runtime.player.x; const dy = trackedTarget.y - runtime.player.y;
-          const distance = Math.hypot(dx, dy) || 1;
-          netSlam.angle = Math.atan2(dy, dx);
-          const impactDistance = netSlam.area ? Math.min(distance, netSlam.range) : distance;
-          netSlam.x = runtime.player.x + Math.cos(netSlam.angle) * impactDistance;
-          netSlam.y = runtime.player.y + Math.sin(netSlam.angle) * impactDistance;
+      if (!inBaseCamp) {
+        const revealedCreatures = runtime.creatures.filter(isCreatureRevealed);
+        const hoeLevel = runtime.levels.hoe ?? 0;
+        const toolPower = mudflatEquipmentStats(runtime.equipment, runtime.player.baseMaxHp, runtime.levels.snack ?? 0).toolPowerMultiplier;
+        if (hoeLevel > 0 && runtime.hoeClock <= 0) {
+          const radius = 78 + hoeLevel * 12;
+          for (const creature of revealedCreatures) if (Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= radius + creature.size) damageCreature(creature, (3 + hoeLevel * 2.3) * toolPower, .1);
+          runtime.hoeClock = Math.max(.42, 1.02 - hoeLevel * .09); runtime.hoeEffect = HARVEST_PULSE_SECONDS;
         }
-        netSlam.life -= dt;
-        const progress = 1 - netSlam.life / netSlam.maxLife;
-        if (!netSlam.hit && progress >= .54) {
-          if (netSlam.area) {
-            for (const creature of revealedCreatures) {
-              if (isInsideDipNetArea(creature, netSlam)) {
-                damageCreature(creature, netSlam.damage, .16);
-              }
-            }
-          } else if (trackedTarget) {
-            damageCreature(trackedTarget, netSlam.damage, .16);
-          }
-          netSlam.hit = true;
-          runtime.bursts.push({ id: sequenceRef.current++, x: netSlam.x, y: netSlam.y, life: .34, maxLife: .34, color: "#aa72c6", size: netSlam.radius });
-        }
-      }
-      runtime.netSlams = runtime.netSlams.filter((item) => item.life > 0);
 
-      const harpoonLevel = runtime.levels.harpoon ?? 0;
-      if (runtime.mode === "normal" && harpoonLevel > 0 && runtime.harpoonClock <= 0) {
-        const target = revealedCreatures.reduce<Creature | null>((nearest, item) => {
-          if (!nearest) return item;
-          return Math.hypot(item.x - runtime.player.x, item.y - runtime.player.y) < Math.hypot(nearest.x - runtime.player.x, nearest.y - runtime.player.y) ? item : nearest;
-        }, null);
-        if (target) {
-          const stats = mudflatHarpoonStats(harpoonLevel, netLevel);
-          const dx = target.x - runtime.player.x; const dy = target.y - runtime.player.y; const distance = Math.hypot(dx, dy) || 1;
-          const angle = Math.atan2(dy, dx);
-          runtime.harpoons.push({
-            id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y,
-            vx: dx / distance * stats.speed, vy: dy / distance * stats.speed,
-            damage: stats.damage * toolPower, distance: 0, maxDistance: stats.range, angle, hitIds: new Set<number>(),
+        const netLevel = runtime.levels.net ?? 0;
+        if (netLevel > 0 && runtime.netClock <= 0 && revealedCreatures.length) {
+          const target = revealedCreatures.reduce((nearest, item) => Math.hypot(item.x - runtime.player.x, item.y - runtime.player.y) < Math.hypot(nearest.x - runtime.player.x, nearest.y - runtime.player.y) ? item : nearest);
+          const netStats = mudflatNetStats(netLevel);
+          const targetDx = target.x - runtime.player.x; const targetDy = target.y - runtime.player.y;
+          const targetDistance = Math.hypot(targetDx, targetDy) || 1;
+          const angle = Math.atan2(targetDy, targetDx);
+          const impactDistance = runtime.mode === "normal" ? Math.min(targetDistance, netStats.range) : targetDistance;
+          runtime.netSlams.push({
+            id: sequenceRef.current++, x: runtime.player.x + Math.cos(angle) * impactDistance, y: runtime.player.y + Math.sin(angle) * impactDistance, targetId: target.id,
+            damage: (6 + netLevel * 4) * toolPower,
+            radius: runtime.mode === "normal" ? netStats.radius : 30,
+            headDepth: runtime.mode === "normal" ? netStats.headDepth : 20,
+            range: runtime.mode === "normal" ? netStats.range : targetDistance,
+            angle,
+            area: runtime.mode === "normal", hit: false, life: .62, maxLife: .62,
           });
-          runtime.harpoonClock = stats.interval;
-        } else runtime.harpoonClock = .15;
-      }
-      for (const harpoon of runtime.harpoons) {
-        const previousPosition = { x: harpoon.x, y: harpoon.y };
-        const step = Math.min(Math.hypot(harpoon.vx, harpoon.vy) * dt, Math.max(0, harpoon.maxDistance - harpoon.distance));
-        harpoon.x += Math.cos(harpoon.angle) * step;
-        harpoon.y += Math.sin(harpoon.angle) * step;
-        harpoon.distance += step;
-        for (const creature of revealedCreatures) {
-          if (harpoon.hitIds.has(creature.id)) continue;
-          if (distanceToSegment(creature, previousPosition, harpoon) <= creature.size + 7) {
-            damageCreature(creature, harpoon.damage, .16);
-            harpoon.hitIds.add(creature.id);
+          runtime.netClock = Math.max(.48, 1.5 - netLevel * .14);
+        }
+        for (const netSlam of runtime.netSlams) {
+          const trackedTarget = revealedCreatures.find((item) => item.id === netSlam.targetId);
+          const progressBefore = 1 - netSlam.life / netSlam.maxLife;
+          if (trackedTarget && !netSlam.hit && progressBefore < .54) {
+            const dx = trackedTarget.x - runtime.player.x; const dy = trackedTarget.y - runtime.player.y;
+            const distance = Math.hypot(dx, dy) || 1;
+            netSlam.angle = Math.atan2(dy, dx);
+            const impactDistance = netSlam.area ? Math.min(distance, netSlam.range) : distance;
+            netSlam.x = runtime.player.x + Math.cos(netSlam.angle) * impactDistance;
+            netSlam.y = runtime.player.y + Math.sin(netSlam.angle) * impactDistance;
+          }
+          netSlam.life -= dt;
+          const progress = 1 - netSlam.life / netSlam.maxLife;
+          if (!netSlam.hit && progress >= .54) {
+            if (netSlam.area) {
+              for (const creature of revealedCreatures) {
+                if (isInsideDipNetArea(creature, netSlam)) {
+                  damageCreature(creature, netSlam.damage, .16);
+                }
+              }
+            } else if (trackedTarget) {
+              damageCreature(trackedTarget, netSlam.damage, .16);
+            }
+            netSlam.hit = true;
+            runtime.bursts.push({ id: sequenceRef.current++, x: netSlam.x, y: netSlam.y, life: .34, maxLife: .34, color: "#aa72c6", size: netSlam.radius, kind: "harvest" });
           }
         }
-      }
-      runtime.harpoons = runtime.harpoons.filter((item) => item.distance < item.maxDistance);
+        runtime.netSlams = runtime.netSlams.filter((item) => item.life > 0);
 
-      const electricLevel = runtime.levels.electric ?? 0;
-      if (runtime.mode === "normal" && electricLevel > 0 && runtime.player.hp > 50) {
-        const electric = mudflatElectricStats(electricLevel);
-        if (runtime.electricClock <= 0) {
-          const reach = electric.reach;
-          for (const creature of revealedCreatures) {
-            if (Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= reach + creature.size) damageCreature(creature, electric.damage * toolPower, .14);
-          }
-          runtime.electricPulseLife = .42;
-          runtime.electricClock = electric.interval;
-        }
-        if (runtime.selfShockClock <= 0) {
-          damagePlayer(electric.selfDamage, "#79ddff");
-          const hasSelfShockMessage = runtime.selfShockNotified;
-          showPlayerMessage(hasSelfShockMessage ? "악 찌릿찌릿해!" : "악 찌릿찌릿해, 이거 계속 쓸 수는 없겠네.", hasSelfShockMessage ? 1 : 3, hasSelfShockMessage ? .7 : 1);
-          runtime.selfShockNotified = true;
-          runtime.selfShockClock = electric.selfInterval;
-        }
-        runtime.electricStopNotified = false;
-      } else {
-        runtime.electricClock = 0;
-        runtime.selfShockClock = 10;
-        if (runtime.mode === "normal" && electricLevel > 0 && runtime.player.hp <= 50 && !runtime.electricStopNotified && runtime.playerMessageLife <= 0) {
-          showPlayerMessage("체력이 부족해서 지금은 전기 스파크를 못 쓰겠어.", 3);
-          runtime.electricStopNotified = true;
-        }
-      }
-
-      const castNetLevel = runtime.levels["cast-net"] ?? 0;
-      if (runtime.mode === "normal" && castNetLevel > 0 && runtime.castNetClock <= 0) {
-        const castNet = mudflatCastNetStats(castNetLevel);
-        const angle = Math.random() * Math.PI * 2;
-        const minimumDistance = 54 + castNet.radius;
-        const maximumDistance = Math.max(minimumDistance + 18, Math.min(148 + castNetLevel * 8, Math.hypot(width, height) * .34));
-        const distance = minimumDistance + Math.random() * (maximumDistance - minimumDistance);
-        runtime.castNets.push({
-          id: sequenceRef.current++, originX: runtime.player.x, originY: runtime.player.y, angle,
-          x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance,
-          life: .96, maxLife: .96, damage: castNet.damage * toolPower, radius: castNet.radius, hit: false,
-        });
-        runtime.castNetClock = castNet.interval;
-      }
-      for (const castNet of runtime.castNets) {
-        castNet.life -= dt;
-        const progress = 1 - castNet.life / castNet.maxLife;
-        if (!castNet.hit && progress >= .62) {
-          for (const creature of revealedCreatures) {
-            if (Math.hypot(creature.x - castNet.x, creature.y - castNet.y) <= castNet.radius + creature.size) damageCreature(creature, castNet.damage, .18);
-          }
-          castNet.hit = true;
-          runtime.bursts.push({ id: sequenceRef.current++, x: castNet.x, y: castNet.y, life: .34, maxLife: .34, color: "#d8e8df", size: castNet.radius });
-        }
-      }
-      runtime.castNets = runtime.castNets.filter((item) => item.life > 0);
-
-      const saltLevel = runtime.levels.salt ?? 0;
-      if (saltLevel > 0) {
-        const count = 1 + Math.floor(saltLevel / 2);
-        for (let index = 0; index < count; index += 1) {
-          const spirit = saltSpiritPose(runtime.elapsed, saltLevel, index);
-          const saltX = runtime.player.x + spirit.x;
-          const saltY = runtime.player.y + spirit.y;
-          for (const creature of revealedCreatures) if (creature.saltHit <= 0 && Math.hypot(creature.x - saltX, creature.y - saltY) < creature.size + 10) { damageCreature(creature, (3 + saltLevel * 2) * toolPower, .1); creature.saltHit = .22; }
-        }
-      }
-
-      const tongLevel = runtime.levels.tongs ?? 0;
-      if (runtime.mode === "normal" && tongLevel > 0) {
-        const tong = mudflatTongStats(tongLevel);
-        const angle = runtime.elapsed * tong.rotationSpeed;
-        const lumiTool = characterId === "lumi" ? lumiTongPose(runtime.lumiMotion, tong.reach) : null;
-        const tipX = runtime.player.x + (lumiTool ? lumiTool.tipX : Math.cos(angle) * tong.reach);
-        const tipY = runtime.player.y + (lumiTool ? lumiTool.tipY : Math.sin(angle) * tong.reach);
-        for (const creature of revealedCreatures) {
-          if (creature.saltHit <= 0 && Math.hypot(creature.x - tipX, creature.y - tipY) < creature.size + 10) {
-            damageCreature(creature, tong.power * toolPower, .1); creature.saltHit = .22;
-          }
-        }
-
-        const rockerLevel = runtime.levels.rocker ?? 0;
-        if (!inBaseCamp && rockerLevel > 0 && !runtime.rockFlipEffect && runtime.rockTurnClock <= 0) {
-          const target = runtime.rocks
-            .filter((rock) => Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) <= tong.reach + rock.radius)
-            .sort((left, right) => Math.hypot(left.x - runtime.player.x, left.y - runtime.player.y) - Math.hypot(right.x - runtime.player.x, right.y - runtime.player.y))[0];
+        const harpoonLevel = runtime.levels.harpoon ?? 0;
+        if (runtime.mode === "normal" && harpoonLevel > 0 && runtime.harpoonClock <= 0) {
+          const target = revealedCreatures.reduce<Creature | null>((nearest, item) => {
+            if (!nearest) return item;
+            return Math.hypot(item.x - runtime.player.x, item.y - runtime.player.y) < Math.hypot(nearest.x - runtime.player.x, nearest.y - runtime.player.y) ? item : nearest;
+          }, null);
           if (target) {
-            const stats = mudflatRockTurnerStats(rockerLevel);
-            runtime.rockFlipEffect = { rockId: target.id, x: target.x, y: target.y, life: stats.processingTime, maxLife: stats.processingTime };
-            runtime.rockTurnClock = 0;
-          } else runtime.rockTurnClock = .12;
+            const stats = mudflatHarpoonStats(harpoonLevel, netLevel);
+            const dx = target.x - runtime.player.x; const dy = target.y - runtime.player.y; const distance = Math.hypot(dx, dy) || 1;
+            const angle = Math.atan2(dy, dx);
+            runtime.harpoons.push({
+              id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y,
+              vx: dx / distance * stats.speed, vy: dy / distance * stats.speed,
+              damage: stats.damage * toolPower, distance: 0, maxDistance: stats.range, angle, hitIds: new Set<number>(),
+            });
+            runtime.harpoonClock = stats.interval;
+          } else runtime.harpoonClock = .15;
         }
+        for (const harpoon of runtime.harpoons) {
+          const previousPosition = { x: harpoon.x, y: harpoon.y };
+          const step = Math.min(Math.hypot(harpoon.vx, harpoon.vy) * dt, Math.max(0, harpoon.maxDistance - harpoon.distance));
+          harpoon.x += Math.cos(harpoon.angle) * step;
+          harpoon.y += Math.sin(harpoon.angle) * step;
+          harpoon.distance += step;
+          for (const creature of revealedCreatures) {
+            if (harpoon.hitIds.has(creature.id)) continue;
+            if (distanceToSegment(creature, previousPosition, harpoon) <= creature.size + 7) {
+              damageCreature(creature, harpoon.damage, .16);
+              harpoon.hitIds.add(creature.id);
+            }
+          }
+        }
+        runtime.harpoons = runtime.harpoons.filter((item) => item.distance < item.maxDistance);
+
+        const electricLevel = runtime.levels.electric ?? 0;
+        if (runtime.mode === "normal" && electricLevel > 0 && runtime.player.hp > 50) {
+          const electric = mudflatElectricStats(electricLevel);
+          if (runtime.electricClock <= 0) {
+            const reach = electric.reach;
+            for (const creature of revealedCreatures) {
+              if (Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= reach + creature.size) damageCreature(creature, electric.damage * toolPower, .14);
+            }
+            runtime.electricPulseLife = .42;
+            runtime.electricClock = electric.interval;
+          }
+          if (runtime.selfShockClock <= 0) {
+            damagePlayer(electric.selfDamage, "#79ddff");
+            const hasSelfShockMessage = runtime.selfShockNotified;
+            showPlayerMessage(hasSelfShockMessage ? "악 찌릿찌릿해!" : "악 찌릿찌릿해, 이거 계속 쓸 수는 없겠네.", hasSelfShockMessage ? 1 : 3, hasSelfShockMessage ? .7 : 1);
+            runtime.selfShockNotified = true;
+            runtime.selfShockClock = electric.selfInterval;
+          }
+          runtime.electricStopNotified = false;
+        } else {
+          runtime.electricClock = 0;
+          runtime.selfShockClock = 10;
+          if (runtime.mode === "normal" && electricLevel > 0 && runtime.player.hp <= 50 && !runtime.electricStopNotified && runtime.playerMessageLife <= 0) {
+            showPlayerMessage("체력이 부족해서 지금은 전기 스파크를 못 쓰겠어.", 3);
+            runtime.electricStopNotified = true;
+          }
+        }
+
+        const castNetLevel = runtime.levels["cast-net"] ?? 0;
+        if (runtime.mode === "normal" && castNetLevel > 0 && runtime.castNetClock <= 0) {
+          const castNet = mudflatCastNetStats(castNetLevel);
+          const angle = Math.random() * Math.PI * 2;
+          const minimumDistance = 54 + castNet.radius;
+          const maximumDistance = Math.max(minimumDistance + 18, Math.min(148 + castNetLevel * 8, Math.hypot(width, height) * .34));
+          const distance = minimumDistance + Math.random() * (maximumDistance - minimumDistance);
+          runtime.castNets.push({
+            id: sequenceRef.current++, originX: runtime.player.x, originY: runtime.player.y, angle,
+            x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance,
+            life: .96, maxLife: .96, damage: castNet.damage * toolPower, radius: castNet.radius, hit: false,
+          });
+          runtime.castNetClock = castNet.interval;
+        }
+        for (const castNet of runtime.castNets) {
+          castNet.life -= dt;
+          const progress = 1 - castNet.life / castNet.maxLife;
+          if (!castNet.hit && progress >= .62) {
+            for (const creature of revealedCreatures) {
+              if (Math.hypot(creature.x - castNet.x, creature.y - castNet.y) <= castNet.radius + creature.size) damageCreature(creature, castNet.damage, .18);
+            }
+            castNet.hit = true;
+            runtime.bursts.push({ id: sequenceRef.current++, x: castNet.x, y: castNet.y, life: .34, maxLife: .34, color: "#d8e8df", size: castNet.radius, kind: "harvest" });
+          }
+        }
+        runtime.castNets = runtime.castNets.filter((item) => item.life > 0);
+
+        const saltLevel = runtime.levels.salt ?? 0;
+        if (saltLevel > 0) {
+          const count = 1 + Math.floor(saltLevel / 2);
+          for (let index = 0; index < count; index += 1) {
+            const spirit = saltSpiritPose(runtime.elapsed, saltLevel, index);
+            const saltX = runtime.player.x + spirit.x;
+            const saltY = runtime.player.y + spirit.y;
+            for (const creature of revealedCreatures) if (creature.saltHit <= 0 && Math.hypot(creature.x - saltX, creature.y - saltY) < creature.size + 10) { damageCreature(creature, (3 + saltLevel * 2) * toolPower, .1); creature.saltHit = .22; }
+          }
+        }
+
+        const tongLevel = runtime.levels.tongs ?? 0;
+        if (runtime.mode === "normal" && tongLevel > 0) {
+          const tong = mudflatTongStats(tongLevel);
+          const angle = runtime.elapsed * tong.rotationSpeed;
+          const lumiTool = characterId === "lumi" ? lumiTongPose(runtime.lumiMotion, tong.reach) : null;
+          const tipX = runtime.player.x + (lumiTool ? lumiTool.tipX : Math.cos(angle) * tong.reach);
+          const tipY = runtime.player.y + (lumiTool ? lumiTool.tipY : Math.sin(angle) * tong.reach);
+          for (const creature of revealedCreatures) {
+            if (creature.saltHit <= 0 && Math.hypot(creature.x - tipX, creature.y - tipY) < creature.size + 10) {
+              damageCreature(creature, tong.power * toolPower, .1); creature.saltHit = .22;
+            }
+          }
+
+          const rockerLevel = runtime.levels.rocker ?? 0;
+          if (rockerLevel > 0 && !runtime.rockFlipEffect && runtime.rockTurnClock <= 0) {
+            const target = runtime.rocks
+              .filter((rock) => Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) <= tong.reach + rock.radius)
+              .sort((left, right) => Math.hypot(left.x - runtime.player.x, left.y - runtime.player.y) - Math.hypot(right.x - runtime.player.x, right.y - runtime.player.y))[0];
+            if (target) {
+              const stats = mudflatRockTurnerStats(rockerLevel);
+              runtime.rockFlipEffect = { rockId: target.id, x: target.x, y: target.y, life: stats.processingTime, maxLife: stats.processingTime };
+              runtime.rockTurnClock = 0;
+            } else runtime.rockTurnClock = .12;
+          }
+        }
+        damageAndCollect();
       }
-      damageAndCollect();
 
       const hasVisibleSeafood = runtime.creatures.some((creature) => {
         if (!isCreatureRevealed(creature)) return false;
@@ -1912,10 +1919,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
 
       const pickupRadius = 50 + (runtime.levels.basket ?? 0) * 24 + (runtime.equipment.cooler ?? 0) * 12;
-      for (const pickup of runtime.pickups) {
-        const dx = runtime.player.x - pickup.x; const dy = runtime.player.y - pickup.y; const distance = Math.hypot(dx, dy) || 1;
-        if (distance < pickupRadius) { const pull = Math.min(430, 120 + (pickupRadius - distance) * 7); pickup.x += dx / distance * pull * dt; pickup.y += dy / distance * pull * dt; }
-        if (distance < 22) { runtime.xp += pickup.xp; pickup.xp = 0; }
+      if (!inBaseCamp) {
+        // Leave uncollected experience in place until the player leaves camp.
+        for (const pickup of runtime.pickups) {
+          const dx = runtime.player.x - pickup.x; const dy = runtime.player.y - pickup.y; const distance = Math.hypot(dx, dy) || 1;
+          if (distance < pickupRadius) { const pull = Math.min(430, 120 + (pickupRadius - distance) * 7); pickup.x += dx / distance * pull * dt; pickup.y += dy / distance * pull * dt; }
+          if (distance < 22) { runtime.xp += pickup.xp; pickup.xp = 0; }
+        }
       }
       runtime.pickups = runtime.pickups.filter((item) => item.xp > 0);
       for (const burst of runtime.bursts) burst.life -= dt;
@@ -1934,6 +1944,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     };
 
     const draw = (width: number, height: number) => {
+      const inBaseCamp = runtime.baseCampGuideShown && isInsideBaseCamp(runtime.player, runtime.baseCamp, runtime.stage);
       context.clearRect(0, 0, width, height);
       const tide = Math.min(1, runtime.elapsed / MUDFLAT_RUN_SECONDS);
       drawMudflat(context, width, height, runtime.player, tide, stageProfile);
@@ -2073,13 +2084,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
         context.restore();
       }
-      if ((runtime.levels.salt ?? 0) > 0) {
+      if (!inBaseCamp && (runtime.levels.salt ?? 0) > 0) {
         const count = 1 + Math.floor((runtime.levels.salt ?? 0) / 2);
         for (let index = 0; index < count; index += 1) {
           drawSaltSpirit(context, width / 2, height / 2, runtime.elapsed, runtime.levels.salt ?? 0, index);
         }
       }
-      if (runtime.mode === "normal" && characterId !== "lumi" && (runtime.levels.tongs ?? 0) > 0) {
+      if (!inBaseCamp && runtime.mode === "normal" && characterId !== "lumi" && (runtime.levels.tongs ?? 0) > 0) {
         const tong = mudflatTongStats(runtime.levels.tongs);
         drawRotatingTongs(context, width / 2, height / 2, runtime.elapsed * tong.rotationSpeed, tong.reach);
       }
@@ -2087,7 +2098,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const point = screenPoint(runtime.rockFlipEffect);
         drawRockHookBar(context, { x: width / 2, y: height / 2 }, point, runtime.rockFlipEffect);
       }
-      const lumiTongReach = runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).reach : 0;
+      const lumiTongReach = !inBaseCamp && runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).reach : 0;
       const lumiDrawn = lumiArt && drawLumiGatherer(context, width / 2, height / 2, runtime.lumiMotion, lumiArt,
         runtime.elapsed, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
       if (!lumiDrawn) drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);

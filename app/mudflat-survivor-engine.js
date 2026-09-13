@@ -594,6 +594,20 @@ export function mudflatCampObstacleAllowed(point, camp, radii, active, clearance
   return dx * dx + dy * dy > 1;
 }
 
+// Entering camp cancels work, rather than hiding attacks that could resume or
+// land later. Keep earned rewards, world pickups, hazards, and cooldowns intact.
+export function mudflatStopHarvestInCamp(runtime, radii) {
+  if (mudflatCampObstacleAllowed(runtime.player, runtime.baseCamp, radii, runtime.baseCampGuideShown)) return false;
+  runtime.hoeEffect = 0;
+  runtime.electricPulseLife = 0;
+  runtime.rockFlipEffect = null;
+  for (const key of ["projectiles", "harpoons", "netSlams", "castNets", "clamReveals"]) runtime[key].length = 0;
+  for (const hole of runtime.clamHoles) hole.progress = 0;
+  runtime.bursts = runtime.bursts.filter((burst) => burst.kind !== "harvest");
+  runtime.floatTexts = runtime.floatTexts.filter((label) => label.kind !== "harvest");
+  return true;
+}
+
 // Put the entire camp beyond the nearer viewport edge at the return signal.
 // Measure from the player's current position, not the stage's starting point.
 export function mudflatReturnCampPosition(player, width, height, radii) {
