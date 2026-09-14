@@ -158,6 +158,9 @@ import {
   mudflatStageProfile,
   mudflatStageEmptySeafoodHazard,
   mudflatInWaterChannel,
+  mudflatWaterChannelLanes,
+  mudflatWaterChannelCenterX,
+  mudflatWaterChannelHalfWidth,
   mudflatEndlessObjectiveResult,
   mudflatSeafoodSaleValue,
   mudflatSettleCatch,
@@ -1243,7 +1246,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const emptyHazard = mudflatStageEmptySeafoodHazard\(runtime\.emptySeafoodSeconds, runtime\.stage\)/);
   assert.match(source, /stageProfile\.waterChannels && mudflatInWaterChannel/);
   assert.match(source, /incomingTideSlow/);
-  assert.match(source, /function waterChannelCenterX\(/);
+  assert.match(source, /const channels = mudflatWaterChannelLanes\(player\.x - width \/ 2, player\.x \+ width \/ 2, profile\.stage\)/);
+  assert.match(source, /const worldX = mudflatWaterChannelCenterX\(worldY, profile\.stage, channel\)/);
   assert.match(source, /function drawWaterChannelArrows\(/);
   assert.match(source, /stageProfile\.waterChannels && tideSurge > 0/);
   assert.match(source, /lastHillCycle: number; safeZoneTransition: number/);
@@ -1393,6 +1397,35 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /touch-action:none/);
   assert.match(styles, /data-game-id="mudflat-survivor"/);
   assert.doesNotMatch(styles, /\.ms-tools b\{display:none\}/);
+});
+
+test("distributes persistent stage-three water channels without adding recurring floods", () => {
+  const profile = mudflatStageProfile(3);
+  assert.equal(profile.waterChannels, true);
+  assert.ok(profile.modifiers.includes("물골"));
+  assert.equal(profile.rockMultiplier, 1.55);
+  assert.equal(profile.tideInterval, 0);
+  assert.equal(profile.safeZone, "none");
+  assert.equal(profile.waves, false);
+  const lanes = mudflatWaterChannelLanes(-3000, 3000, 3);
+  assert.ok(lanes.length > 6 && lanes.some((lane) => lane < 0) && lanes.some((lane) => lane > 0));
+  for (const y of [-2400, -173, 0, 417, 3200]) {
+    for (const lane of lanes) {
+      const x = mudflatWaterChannelCenterX(y, 3, lane);
+      const halfWidth = mudflatWaterChannelHalfWidth(3, lane);
+      assert.equal(mudflatInWaterChannel(x, y, 3), true);
+      assert.equal(mudflatInWaterChannel(x + halfWidth - 1, y, 3), true);
+      assert.equal(mudflatInWaterChannel(x + halfWidth + 1, y, 3), false);
+      assert.ok(mudflatWaterChannelLanes(x - 180, x + 180, 3).includes(lane));
+      assert.equal(mudflatWaterChannelCenterX(y, 3, lane), x, "camera movement must not regenerate terrain");
+      const nextX = mudflatWaterChannelCenterX(y, 3, lane + 1);
+      assert.equal(mudflatInWaterChannel((x + nextX) / 2, y, 3), false, "leave dry routes between channels");
+    }
+  }
+  assert.ok(mudflatWaterChannelLanes(100000, 100390, 3).length <= 3, "render only nearby lanes, even far from the start");
+  assert.deepEqual(mudflatWaterChannelLanes(-3000, 3000, 2), [0]);
+  assert.deepEqual(mudflatWaterChannelLanes(-3000, 3000, 8), [0, 1]);
+  assert.deepEqual(mudflatWaterChannelLanes(-3000, 3000, 1), []);
 });
 
 test("uses official classic Battleship fleet and American checkers crowning", async () => {

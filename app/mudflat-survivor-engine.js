@@ -423,7 +423,7 @@ export function mudflatStageStats(stage = 1) {
 export const MUDFLAT_REGULAR_STAGES = [
   { stage: 1, name: "초입 갯벌", subtitle: "기본 조작과 채집 수단을 익히는 잔잔한 초입", modifiers: ["초입"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: .65, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
   { stage: 2, name: "차오르는 물골", subtitle: "밀물 물살을 피해 밝은 언덕배기로 피하세요", modifiers: ["물골", "주기적 밀물", "언덕배기"], waterChannels: true, tideInterval: 48, safeZone: "fixed", rockMultiplier: .8, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: .96, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
-  { stage: 3, name: "바위 갯벌", subtitle: "가까이서 드러나는 숨은 돌을 조심하며 돌 밑을 노리세요", modifiers: ["바위 증가", "숨은 돌"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: 1.55, fallingRocks: 0, darkness: 0, mudSlow: .96, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
+  { stage: 3, name: "바위 갯벌", subtitle: "바위 사이 물골을 건너며 가까이 숨은 돌을 조심하세요", modifiers: ["바위 증가", "숨은 돌", "물골"], waterChannels: true, tideInterval: 0, safeZone: "none", rockMultiplier: 1.55, fallingRocks: 0, darkness: 0, mudSlow: .96, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
   { stage: 4, name: "어두운 갯벌", subtitle: "좁아진 시야에서 가까이에 나타난 숨은 패류를 찾으세요", modifiers: ["시야 감소", "패류 가치 2배"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: 1, fallingRocks: 0, darkness: .78, mudSlow: 1, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
   { stage: 5, name: "깊은 펄", subtitle: "발이 빠지는 펄과 빨라진 추위에 대비하세요", modifiers: ["이동 감속", "빠른 추위"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: .9, fallingRocks: 0, darkness: .18, mudSlow: .78, seafoodSpawnMultiplier: 1.22, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: .65, finalBoss: false },
   { stage: 6, name: "거센 갯벌", subtitle: "바람과 파도 사이로 몰려오는 해산물 무리를 버티세요", modifiers: ["바람", "파도", "해산물 무리"], waterChannels: true, tideInterval: 43, safeZone: "fixed", rockMultiplier: 1, fallingRocks: 0, darkness: 0, mudSlow: .93, seafoodSpawnMultiplier: .92, wind: 32, waves: true, swarms: true, coldThresholdMultiplier: .9, finalBoss: false },
@@ -469,14 +469,39 @@ export function mudflatStageProfile(stage = 1) {
   return profile;
 }
 
-export function mudflatInWaterChannel(x = 0, y = 0, stage = 2) {
+const MUDFLAT_ROCK_CHANNEL_SPACING = 520;
+
+// World-anchored lanes keep water in the same place when the camera moves.
+export function mudflatWaterChannelLanes(minX = 0, maxX = minX, stage = 2) {
+  const profile = mudflatStageProfile(stage);
+  if (!profile.waterChannels) return [];
+  if (profile.stage === 3) {
+    const margin = 176; // Maximum bend (134) plus the bank width.
+    const first = Math.ceil((Math.min(minX, maxX) - margin) / MUDFLAT_ROCK_CHANNEL_SPACING);
+    const last = Math.floor((Math.max(minX, maxX) + margin) / MUDFLAT_ROCK_CHANNEL_SPACING);
+    return Array.from({ length: Math.max(0, last - first + 1) }, (_, index) => first + index);
+  }
+  return profile.endless || profile.stage === 8 ? [0, 1] : [0];
+}
+
+export function mudflatWaterChannelCenterX(y = 0, stage = 2, channel = 0) {
   const safeStage = Math.max(1, Math.floor(stage));
-  const centerA = Math.sin((y + safeStage * 83) / 175) * 92 + Math.sin((y - safeStage * 41) / 430) * 52;
-  if (Math.abs(x - centerA) < 42) return true;
-  const profile = mudflatStageProfile(safeStage);
-  if (!profile.endless && safeStage !== 8) return false;
-  const centerB = 265 + Math.sin((y - safeStage * 63) / 210) * 74;
-  return Math.abs(x - centerB) < 34;
+  if (safeStage === 3) {
+    return channel * MUDFLAT_ROCK_CHANNEL_SPACING
+      + Math.sin((y + channel * 173 + safeStage * 83) / 210) * 92
+      + Math.sin((y - channel * 97 - safeStage * 41) / 470) * 42;
+  }
+  if (channel === 0) return Math.sin((y + safeStage * 83) / 175) * 92 + Math.sin((y - safeStage * 41) / 430) * 52;
+  return 265 + Math.sin((y - safeStage * 63) / 210) * 74;
+}
+
+export function mudflatWaterChannelHalfWidth(stage = 2, channel = 0) {
+  return Math.floor(stage) === 3 ? 32 : channel === 0 ? 42 : 34;
+}
+
+export function mudflatInWaterChannel(x = 0, y = 0, stage = 2) {
+  return mudflatWaterChannelLanes(x, x, stage).some((channel) =>
+    Math.abs(x - mudflatWaterChannelCenterX(y, stage, channel)) < mudflatWaterChannelHalfWidth(stage, channel));
 }
 
 export function mudflatStageEmptySeafoodHazard(emptySeconds = 0, stage = 1) {

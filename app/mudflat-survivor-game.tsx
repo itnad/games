@@ -46,6 +46,9 @@ import {
   mudflatStageProfile,
   mudflatStageEmptySeafoodHazard,
   mudflatInWaterChannel,
+  mudflatWaterChannelLanes,
+  mudflatWaterChannelCenterX,
+  mudflatWaterChannelHalfWidth,
   mudflatEndlessObjectiveResult,
   mudflatSettleCatch,
   mudflatSpawnInterval,
@@ -291,11 +294,6 @@ function worldHash(x: number, y: number) {
   return value - Math.floor(value);
 }
 
-function waterChannelCenterX(worldY: number, stage: number, channel = 0) {
-  if (channel === 0) return Math.sin((worldY + stage * 83) / 175) * 92 + Math.sin((worldY - stage * 41) / 430) * 52;
-  return 265 + Math.sin((worldY - stage * 63) / 210) * 74;
-}
-
 function nextHillPosition(origin: Point, stage: number, cycle: number): Point {
   const seed = Math.sin((stage + 1) * 87.31 + (cycle + 1) * 43.17);
   const angle = seed * Math.PI + stage * .54 + cycle * .82;
@@ -321,7 +319,7 @@ function drawWaterChannelArrows(
     const channel = count === 3 && index === 2 ? 1 : 0;
     const screenY = ((elapsed * 13 + index * (height / count + 38)) % (height + 108)) - 54;
     const worldY = player.y + screenY - height / 2;
-    const screenX = width / 2 + waterChannelCenterX(worldY, profile.stage, channel) - player.x;
+    const screenX = width / 2 + mudflatWaterChannelCenterX(worldY, profile.stage, channel) - player.x;
     context.save();
     context.translate(screenX, screenY);
     context.rotate(Math.PI / 2);
@@ -416,16 +414,16 @@ function drawMudflat(
   context.fillRect(0, 0, width, height);
 
   if (profile.waterChannels) {
-    const channelCount = profile.endless || profile.stage === 8 ? 2 : 1;
-    for (let channel = 0; channel < channelCount; channel += 1) {
+    const channels = mudflatWaterChannelLanes(player.x - width / 2, player.x + width / 2, profile.stage);
+    for (const channel of channels) {
       context.save();
       context.strokeStyle = "rgba(75, 156, 179, .34)";
-      context.lineWidth = channel === 0 ? 84 : 68;
+      context.lineWidth = mudflatWaterChannelHalfWidth(profile.stage, channel) * 2;
       context.lineCap = "round";
       context.beginPath();
       for (let screenY = -80; screenY <= height + 80; screenY += 24) {
         const worldY = player.y + screenY - height / 2;
-        const worldX = waterChannelCenterX(worldY, profile.stage, channel);
+        const worldX = mudflatWaterChannelCenterX(worldY, profile.stage, channel);
         const screenX = width / 2 + worldX - player.x;
         if (screenY === -80) context.moveTo(screenX, screenY); else context.lineTo(screenX, screenY);
       }
