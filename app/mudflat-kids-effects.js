@@ -36,11 +36,11 @@ export function drawHarvestPulse(context, x, y, radius, life, elapsed) {
   context.save(); context.translate(x, y); context.globalAlpha *= opacity;
 
   const crest = context.createRadialGradient(0, 0, Math.max(0, waveRadius - 5), 0, 0, waveRadius + 2);
-  crest.addColorStop(0, "rgba(184,201,198,0)");
-  crest.addColorStop(.38, "rgba(190,207,203,.045)");
-  crest.addColorStop(.7, "rgba(219,225,210,.20)");
-  crest.addColorStop(.86, "rgba(200,215,208,.07)");
-  crest.addColorStop(1, "rgba(200,215,208,0)");
+  crest.addColorStop(0, "rgba(157,195,184,0)");
+  crest.addColorStop(.38, "rgba(166,203,191,.06)");
+  crest.addColorStop(.7, "rgba(170,208,198,.25)");
+  crest.addColorStop(.86, "rgba(157,195,184,.09)");
+  crest.addColorStop(1, "rgba(157,195,184,0)");
   context.fillStyle = crest; context.beginPath(); context.arc(0, 0, waveRadius + 2, 0, TAU); context.fill();
 
   // Sparse, translucent grains drift with the ripple; no sparks or bright rays.
@@ -50,7 +50,7 @@ export function drawHarvestPulse(context, x, y, radius, life, elapsed) {
     const distance = waveRadius * (.87 + seed * .1);
     const px = Math.cos(angle) * distance;
     const py = Math.sin(angle) * distance - Math.sin(progress * Math.PI) * (1 + seed * 2);
-    context.fillStyle = `rgba(215,220,204,${(1 - progress) * .22})`;
+    context.fillStyle = `rgba(186,216,198,${(1 - progress) * .26})`;
     context.beginPath(); context.arc(px, py, .7 + seed * .55, 0, TAU); context.fill();
   }
   context.restore();

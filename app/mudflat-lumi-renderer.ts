@@ -2,54 +2,74 @@ import { clearLumiAtlasMatte, createLumiMotion, lumiPose, lumiTongPose } from ".
 
 type Motion = ReturnType<typeof createLumiMotion>;
 type Frame = { x: number; y: number; width: number; height: number; anchorX: number; baseline: number; scale: number };
-export type LumiArt = { image: HTMLCanvasElement; frames: Frame[] };
+export type LumiArt = { image: HTMLCanvasElement; frames: Frame[]; status: "loading" | "ready" | "error"; ready: Promise<boolean> };
+let cachedLumiArt: LumiArt | null = null;
 
-export function loadLumiArt(): LumiArt {
+export function loadLumiArt(retry = false): LumiArt {
+  if (cachedLumiArt && (!retry || cachedLumiArt.status !== "error")) return cachedLumiArt;
   const source = new Image();
-  const art: LumiArt = { image: document.createElement("canvas"), frames: [] };
+  let resolveReady: (ready: boolean) => void = () => {};
+  const art: LumiArt = { image: document.createElement("canvas"), frames: [], status: "loading",
+    ready: new Promise<boolean>((resolve) => { resolveReady = resolve; }),
+  };
+  cachedLumiArt = art;
+  const timeout = window.setTimeout(() => finish(false), 12000);
+  const finish = (ready: boolean) => {
+    window.clearTimeout(timeout);
+    source.onload = null; source.onerror = null;
+    if (!ready) art.frames.length = 0;
+    art.status = ready ? "ready" : "error";
+    resolveReady(ready);
+  };
   source.onload = () => {
-    // Read alpha once when the atlas loads, not during animation. Register each
-    // pose by its helmet center and lowest boot so image padding cannot jitter.
-    const canvas = art.image;
-    canvas.width = source.naturalWidth;
-    canvas.height = source.naturalHeight;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) return;
-    context.drawImage(source, 0, 0);
-    const bitmap = context.getImageData(0, 0, canvas.width, canvas.height);
-    const pixels = bitmap.data;
-    clearLumiAtlasMatte(pixels, canvas.width, canvas.height);
-    context.putImageData(bitmap, 0, 0);
-    const cellWidth = canvas.width / 8;
-    const cellHeight = canvas.height / 3;
-    for (let row = 0; row < 3; row += 1) {
-      for (let column = 0; column < 8; column += 1) {
-        const x = Math.round(column * cellWidth);
-        const y = Math.round(row * cellHeight);
-        const width = Math.round((column + 1) * cellWidth) - x;
-        const height = Math.round((row + 1) * cellHeight) - y;
-        let top = height; let bottom = -1; let helmetLeft = width; let helmetRight = -1;
-        for (let py = 0; py < height; py += 1) {
-          for (let px = 0; px < width; px += 1) {
-            if (pixels[((y + py) * canvas.width + x + px) * 4 + 3] < 96) continue;
-            top = Math.min(top, py); bottom = Math.max(bottom, py);
+    try {
+      // Read alpha once when the atlas loads, not during animation. Register each
+      // pose by its helmet center and lowest boot so image padding cannot jitter.
+      const canvas = art.image;
+      canvas.width = source.naturalWidth;
+      canvas.height = source.naturalHeight;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context || source.naturalWidth < 8 || source.naturalHeight < 3) { finish(false); return; }
+      context.drawImage(source, 0, 0);
+      const bitmap = context.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = bitmap.data;
+      clearLumiAtlasMatte(pixels, canvas.width, canvas.height);
+      context.putImageData(bitmap, 0, 0);
+      const cellWidth = canvas.width / 8;
+      const cellHeight = canvas.height / 3;
+      for (let row = 0; row < 3; row += 1) {
+        for (let column = 0; column < 8; column += 1) {
+          const x = Math.round(column * cellWidth);
+          const y = Math.round(row * cellHeight);
+          const width = Math.round((column + 1) * cellWidth) - x;
+          const height = Math.round((row + 1) * cellHeight) - y;
+          let top = height; let bottom = -1; let helmetLeft = width; let helmetRight = -1;
+          for (let py = 0; py < height; py += 1) {
+            for (let px = 0; px < width; px += 1) {
+              if (pixels[((y + py) * canvas.width + x + px) * 4 + 3] < 96) continue;
+              top = Math.min(top, py); bottom = Math.max(bottom, py);
+            }
           }
-        }
-        const helmetBottom = top + (bottom - top) * .25;
-        for (let py = top; py <= helmetBottom; py += 1) {
-          for (let px = 0; px < width; px += 1) {
-            if (pixels[((y + py) * canvas.width + x + px) * 4 + 3] < 96) continue;
-            helmetLeft = Math.min(helmetLeft, px); helmetRight = Math.max(helmetRight, px);
+          const helmetBottom = top + (bottom - top) * .25;
+          for (let py = top; py <= helmetBottom; py += 1) {
+            for (let px = 0; px < width; px += 1) {
+              if (pixels[((y + py) * canvas.width + x + px) * 4 + 3] < 96) continue;
+              helmetLeft = Math.min(helmetLeft, px); helmetRight = Math.max(helmetRight, px);
+            }
           }
+          art.frames.push({ x, y, width, height,
+            anchorX: helmetRight >= helmetLeft ? (helmetLeft + helmetRight) / 2 : width / 2,
+            baseline: bottom >= 0 ? bottom : height * .94,
+            scale: bottom > top ? 96 / (bottom - top) : 96 / height,
+          });
         }
-        art.frames.push({ x, y, width, height,
-          anchorX: helmetRight >= helmetLeft ? (helmetLeft + helmetRight) / 2 : width / 2,
-          baseline: bottom >= 0 ? bottom : height * .94,
-          scale: bottom > top ? 96 / (bottom - top) : 96 / height,
-        });
       }
+      finish(true);
+    } catch {
+      finish(false);
     }
   };
+  source.onerror = () => finish(false);
   source.src = "/mudflat-illustrations/lumi-walk-atlas-v2.png";
   return art;
 }
@@ -88,7 +108,7 @@ function drawLumiTongs(context: CanvasRenderingContext2D, motion: Motion, reach:
 
 export function drawLumiGatherer(context: CanvasRenderingContext2D, x: number, y: number,
   motion: Motion, art: LumiArt, elapsed: number, damaged: boolean, hasHeadlamp: boolean, tongReach: number) {
-  if (art.frames.length !== 24) return false;
+  if (art.status !== "ready" || art.frames.length !== 24) return false;
   const pose = lumiPose(motion);
   const frame = art.frames[pose.row * 8 + pose.frame];
   const upperBody = art.frames[pose.row * 8];

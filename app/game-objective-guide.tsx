@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { GAME_OBJECTIVES } from "./game-objectives.js";
 
 export function GameObjectiveGuide({ gameId, inline = false }: { gameId: string; inline?: boolean }) {
@@ -20,13 +21,7 @@ export function GameObjectiveGuide({ gameId, inline = false }: { gameId: string;
   const style = { "--objective-accent": guide.accent } as CSSProperties;
   const steps = "steps" in guide && Array.isArray(guide.steps) ? guide.steps : null;
 
-  return (
-    <>
-      <button className={`game-objective-trigger${inline ? " inline" : ""}`} style={style} onClick={() => setOpen(true)}>
-        <span aria-hidden="true">◎</span>
-        <span><small>GOAL &amp; WIN</small><strong>게임 설명</strong></span>
-      </button>
-      {open && (
+  const modal = open ? (
         <div className="game-objective-backdrop" role="presentation" onClick={() => setOpen(false)}>
           <section
             className="game-objective-modal"
@@ -70,7 +65,15 @@ export function GameObjectiveGuide({ gameId, inline = false }: { gameId: string;
             <button className="game-objective-confirm" onClick={() => setOpen(false)}>확인하고 게임하기</button>
           </section>
         </div>
-      )}
+  ) : null;
+
+  return (
+    <>
+      <button type="button" className={`game-objective-trigger${inline ? " inline" : ""}`} style={style} onClick={() => setOpen(true)}>
+        <span aria-hidden="true">◎</span>
+        <span><small>GOAL &amp; WIN</small><strong>게임 설명</strong></span>
+      </button>
+      {modal && inline ? createPortal(modal, document.body) : modal}
     </>
   );
 }

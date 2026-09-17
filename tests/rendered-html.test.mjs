@@ -4,6 +4,7 @@ import test from "node:test";
 import { installGameRefreshGuard } from "../app/game-refresh.js";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { advanceLumiMotion, clearLumiAtlasMatte, createLumiMotion, lumiPose, lumiTongPose } from "../app/mudflat-lumi-animation.js";
+import { EXPERIENCE_RISE_SECONDS, createExperiencePickup, advanceExperiencePickup } from "../app/mudflat-experience.js";
 import { distributeRemainingGemsAcrossCards } from "../app/incan-gold-gems.js";
 import {
   applyChessMove,
@@ -401,6 +402,38 @@ test("uses the game guide as a normal topbar action instead of a duplicate exit 
   assert.match(styles, /\.game-readability-scope \.game-topbar\s*\{[\s\S]*?grid-template-columns:\s*48px minmax\(0, 1fr\) 128px;/);
   assert.match(styles, /\.game-title-lockup strong\s*\{[\s\S]*?text-overflow:\s*ellipsis;[\s\S]*?white-space:\s*nowrap;/);
   assert.match(pageSource, /<strong title=\{title\}>\{title\}<\/strong>/);
+});
+
+test("folds the mudflat departure panel and keeps its guide out of the active HUD", async () => {
+  const [source, styles, page, guide] = await Promise.all([
+    readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/game-objective-guide.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(source, /\[departureCollapsed, setDepartureCollapsed\] = useState\(false\)/);
+  assert.match(source, /screen !== "camp"\) \{\s*setDepartureCollapsed\(false\)/);
+  assert.match(source, /aria-expanded=\{!departureCollapsed\} aria-controls="ms-departure-details"/);
+  assert.match(source, /setDepartureCollapsed\(\(collapsed\) => !collapsed\)/);
+  assert.match(source, /departureCollapsed \? "▲" : "▼"/);
+  assert.match(source, /id="ms-departure-details" className="ms-departure-details" hidden=\{departureCollapsed\}/);
+  const panel = source.slice(source.indexOf('aria-label="다음 갯벌 출정 패널"'), source.indexOf('if (screen === "defeat")'));
+  assert.match(panel, /<b>\{campaign.stage\}단계 · \{nextStageProfile.name\}<\/b>/);
+  assert.match(panel, /className="ms-departure-status"/);
+  assert.match(panel, /현재 체력/);
+  assert.match(panel, /현재 경험치/);
+  assert.match(panel, /!departureCollapsed && <button[^>]+ms-clear-save/);
+  assert.match(panel, /onClick=\{startNextStage\}>\{departureCollapsed \? "출정" : "다음 갯벌 출정"\}/);
+  assert.match(source, /new ResizeObserver\(updateSpace\)/);
+  assert.match(styles, /\.ms-departure-details\[hidden\]\{display:none\}/);
+  assert.match(styles, /\.ms-departure\.is-collapsed \.ms-primary\{[^}]*min-height:40px/);
+  assert.match(styles, /@media\(max-width:720px\)\{\.ms-departure\.is-collapsed/);
+  assert.match(page, /gameId !== "mudflat-survivor" && <GameObjectiveGuide gameId=\{gameId\}/);
+  assert.match(source, /const pauseLayer = screen === "paused" \?[\s\S]*?<GameObjectiveGuide gameId="mudflat-survivor" inline \/>/);
+  const activeGame = source.slice(source.indexOf('return <main className={`ms-shell ms-game'));
+  assert.doesNotMatch(activeGame, /GameObjectiveGuide/);
+  assert.match(activeGame, /\{pauseLayer\}/);
+  assert.match(guide, /modal && inline \? createPortal\(modal, document.body\) : modal/);
 });
 
 test("provides a complete objective and victory guide for every game", async () => {
@@ -1126,8 +1159,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /setSavedCampaign\(null\);/);
   assert.match(source, /EXPEDITION ENDED/);
   assert.match(source, /className="ms-defeat-art" src="\/mudflat-illustrations\/defeat-gatherer\.png"/);
-  assert.match(source, /onClick=\{onExit\}>메인 화면으로/);
-  assert.match(source, /onClick=\{\(\) => beginAtStage\(hud\.stage\)\}/);
+  assert.match(source, /onClick=\{reset\}>메인 화면으로/);
+  assert.match(source, /onRetry=\{\(\) => beginAtStage\(hud\.stage\)\} onSecretRetry=\{retryWithProgress\}/);
   assert.match(source, /hud\.stage === 9 \? "끝없는 물때 재도전" : `\$\{hud\.stage\}단계 재도전`/);
   assert.doesNotMatch(source, /onClick=\{\(\) => setScreen\("camp"\)\}>정비소에서 재도전/);
   assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
@@ -1254,14 +1287,19 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /if \(afterTide && hillCycle > runtime\.lastHillCycle\)/);
   assert.match(source, /runtime\.safeZone = nextHillPosition\(/);
   assert.match(source, /function drawHillDirectionGuide\(/);
-  assert.match(source, /밀물 접근 · \$\{Math\.max\(1, Math\.ceil\(warning\)\)\}초/);
+  assert.match(source, /돌발 물살 접근 · \$\{Math\.max\(1, Math\.ceil\(warning\)\)\}초/);
   assert.doesNotMatch(source, /runtime\.safeZone\.x \+= \(targetX - runtime\.safeZone\.x\)/);
   assert.doesNotMatch(source, /elapsed \* 36 \+ channel/);
   assert.match(source, /stageProfile\.fallingRocks/);
   assert.match(source, /stageProfile\.safeZone/);
   assert.match(engineSource, /밝은 언덕배기로 피하세요/);
-  assert.match(source, /밀물 물살에 휩쓸렸다! 밝은 언덕배기로!/);
-  assert.match(source, /언덕배기 · 밀물 피난처/);
+  assert.match(source, /돌발 물살에 휩쓸렸다! 밝은 언덕배기로!/);
+  assert.match(source, /언덕배기에서 돌발 물살을 피했다\./);
+  assert.match(source, /언덕배기 · 돌발 물살 대피처/);
+  assert.match(engineSource, /name: "거센 돌발 물살"/);
+  assert.doesNotMatch(engineSource, /주기적 밀물|빠른 밀물|급한 밀물/);
+  assert.match(source, /return `밀물 /);
+  assert.match(source, /밀물 속 귀환/);
   assert.match(source, /rgba\(239,241,242,\.97\)/);
   assert.doesNotMatch(source, /모래톱/);
   assert.match(source, /stageProfile\.darkness/);
@@ -2802,6 +2840,129 @@ test("periodic tides rise for one second, hit at the crest, and drain in one sec
   assert.equal(mudflatTideStats(242, 100).active, true, "return tide stays full instead of draining");
 });
 
+test("secret defeat retry preserves progression, restores full HP, and resets the stage world", async () => {
+  const { createDefeatRetrySnapshot, restoreDefeatRetryRuntime } = await import("../app/mudflat-retry.js");
+  for (const mode of ["normal", "kids"]) {
+    const campaign = { version: 1, mode, characterId: mode === "kids" ? "netter" : "lumi", stage: 14, coins: 732,
+      hp: 70, maxHp: 140, baseMaxHp: 100, level: 5, xp: 4, nextXp: 35,
+      levels: { hoe: 1, net: 1 }, equipment: { vest: 2 }, inventory: { clam: 3 }, lastHaul: { crab: 2 },
+      totalScore: 2400, lastSaleValue: 36, lastBossCaught: true, pendingSkillDiscovery: true };
+    const failed = { mode, stage: 14, elapsed: 265, player: { x: 850, y: -600, hp: 0, maxHp: 208, baseMaxHp: 100, speed: 155 },
+      level: 11, xp: 23, nextXp: 120, levels: { net: 6, hoe: 4, stamina: 6, snack: 2, boots: 3 },
+      equipment: { vest: 4, cooler: 5, headlamp: 2 }, basket: { crab: 9, clam: 11 }, caught: 20,
+      catchScore: 530, bossCaught: true, rocksFlipped: 6, bleedSeconds: 8, ended: true, paused: true };
+    const saved = createDefeatRetrySnapshot(campaign, failed);
+    assert.equal(saved.campaign.characterId, campaign.characterId);
+    assert.equal(saved.campaign.stage, 14, "endless stages must not be clamped to stage 9");
+    assert.equal(saved.campaign.coins, 732);
+    assert.equal(saved.campaign.totalScore, 2400);
+    for (const key of ["level", "xp", "nextXp"]) assert.equal(saved.campaign[key], failed[key]);
+    assert.deepEqual(saved.campaign.levels, failed.levels);
+    assert.deepEqual(saved.campaign.equipment, failed.equipment);
+    assert.equal(saved.campaign.hp, 208);
+    assert.equal(saved.campaign.maxHp, 208, "keep stamina and equipment max-health bonuses");
+    assert.equal(saved.campaign.pendingSkillDiscovery, false);
+    assert.notEqual(saved.campaign.levels, failed.levels);
+    assert.notEqual(saved.campaign.inventory, campaign.inventory);
+    assert.notEqual(saved.campaign.lastHaul, campaign.lastHaul);
+    assert.equal(campaign.hp, 70);
+    assert.equal(failed.player.hp, 0);
+    const fresh = { ...failed, elapsed: 0, player: { x: 0, y: 0, hp: 140, maxHp: 140, damageCooldown: 0, facing: 0 },
+      levels: { ...saved.campaign.levels }, equipment: { ...saved.campaign.equipment },
+      creatures: [], pickups: [], bleedSeconds: 0, paused: false, ended: false };
+    const restored = restoreDefeatRetryRuntime(fresh, saved);
+    assert.equal(restored.elapsed, 0);
+    assert.equal(restored.player.hp, 208);
+    assert.equal(restored.player.maxHp, 208);
+    assert.equal(restored.player.speed, 155);
+    assert.equal(restored.player.x, 0);
+    assert.equal(restored.player.damageCooldown, 0);
+    assert.equal(restored.bleedSeconds, 0);
+    assert.equal(restored.paused, false);
+    assert.equal(restored.ended, false);
+    assert.deepEqual(restored.creatures, []);
+    assert.deepEqual(restored.basket, { crab: 9, clam: 11 });
+    assert.equal(restored.caught, 20);
+    assert.equal(restored.catchScore, 530);
+    assert.equal(restored.rocksFlipped, 6);
+    assert.equal(restored.bossSpawned, true);
+    restored.basket.crab = 99;
+    assert.equal(saved.progress.basket.crab, 9);
+    assert.equal(fresh.player.hp, 140, "restoring does not mutate the template");
+  }
+  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  assert.match(source, /defeatRetryRef.current = campaignRef.current \? createDefeatRetrySnapshot\(campaignRef.current, runtime\) : null/);
+  const defeat = source.slice(source.indexOf('if (screen === "defeat") return'), source.indexOf('const pauseLayer ='));
+  assert.match(defeat, /onClick=\{reset\}>메인 화면으로/);
+  assert.doesNotMatch(defeat, /onClick=\{onExit\}>메인 화면으로|3초|비밀|길게 누르/);
+  assert.match(source, /const beginAtStage = \(stage: number\) => \{\s*defeatRetryRef.current = null/);
+  assert.match(source, /const reset = \(\) => \{ defeatRetryRef.current = null/);
+  assert.match(source, /restoreDefeatRetryRuntime\(makeRuntime\(next\), saved\)/);
+});
+
+test("secret retry hold fires once after three seconds and cancels without falling back", async () => {
+  const { createRetryHold, SECRET_RETRY_HOLD_MS } = await import("../app/mudflat-retry.js");
+  let now = 0, id = 0, short = 0, long = 0;
+  const pending = new Map();
+  const schedule = (fn, ms) => { const key = ++id; pending.set(key, { at: now + ms, fn }); return key; };
+  const advance = (ms) => { now += ms; for (const [key, task] of pending) if (task.at <= now) { pending.delete(key); task.fn(); } };
+  const hold = createRetryHold(() => short++, () => long++, schedule, (key) => pending.delete(key));
+  assert.equal(SECRET_RETRY_HOLD_MS, 3000);
+  hold.cancel(); hold.click(); // assistive click still works after idle cleanup
+  assert.equal(short, 1);
+  hold.start(); advance(2999);
+  assert.equal(long, 0);
+  hold.release(); hold.click(); advance(1);
+  assert.equal(short, 2);
+  assert.equal(long, 0);
+  hold.start(); advance(1500); hold.start(); advance(1499);
+  assert.equal(long, 0);
+  advance(1);
+  assert.equal(long, 1, "repeated keydowns do not restart or duplicate the hold");
+  hold.release(); hold.click(); advance(3000);
+  assert.equal(short, 2, "release/click after a secret retry must not reset its stats");
+  assert.equal(long, 1);
+  hold.start(); advance(2500); hold.cancel(); advance(1000); hold.release(); hold.click();
+  assert.equal(short, 2);
+  assert.equal(long, 1);
+  assert.equal(pending.size, 0);
+  hold.start(); advance(100); hold.release(); hold.cancel(); hold.click();
+  assert.equal(short, 3);
+  const button = await readFile(new URL("../app/mudflat-retry-button.tsx", import.meta.url), "utf8");
+  assert.match(button, /onPointerCancel=\{cancel\} onLostPointerCapture=\{cancel\} onBlur=\{cancel\}/);
+  assert.match(button, /getBoundingClientRect\(\)/);
+  assert.match(button, /document.hidden/);
+  assert.match(button, /event.repeat/);
+  assert.match(button, /onContextMenu=\{\(event\) => event.preventDefault\(\)\}/);
+  assert.match(button, /window.removeEventListener\("blur", stop\)/);
+});
+
+test("children's automatic net only acquires and follows targets inside the live viewport", async () => {
+  const { mudflatKidsNetCanTarget } = await import("../app/mudflat-survivor-engine.js");
+  const player = { x: 1400, y: -900 };
+  for (const [width, height] of [[320, 420], [720, 420], [1440, 900]]) {
+    const worldPoint = (x, y, size = 20) => ({ x: player.x + x - width / 2, y: player.y + y - height / 2, size });
+    assert.equal(mudflatKidsNetCanTarget(player, player, width, height), true);
+    for (const [x, y] of [[36, height / 2], [width - 36, height / 2], [width / 2, 36], [width / 2, height - 36]]) {
+      assert.equal(mudflatKidsNetCanTarget(worldPoint(x, y), player, width, height), true);
+    }
+    for (const [x, y] of [[35, height / 2], [width - 35, height / 2], [width / 2, 35], [width / 2, height - 35], [-100, -100], [width + 100, height + 100]]) {
+      assert.equal(mudflatKidsNetCanTarget(worldPoint(x, y), player, width, height), false);
+    }
+    assert.equal(mudflatKidsNetCanTarget(worldPoint(50, height / 2, 80), player, width, height), false);
+    const target = worldPoint(width - 40, height / 2);
+    assert.equal(mudflatKidsNetCanTarget(target, player, width, height), true);
+    assert.equal(mudflatKidsNetCanTarget(target, { ...player, x: player.x - 10 }, width, height), false);
+    assert.equal(mudflatKidsNetCanTarget(target, player, width / 2, height), false);
+  }
+  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  assert.match(source, /const netTargets = runtime.mode === "kids"[\s\S]*?revealedCreatures.filter\(\(creature\) => creature.hp > 0 && mudflatKidsNetCanTarget\(creature, runtime.player, width, height\)\)[\s\S]*?: revealedCreatures/);
+  assert.match(source, /runtime.netClock <= 0 && netTargets.length/);
+  assert.match(source, /const target = netTargets.reduce/);
+  assert.match(source, /const trackedTarget = netTargets.find[\s\S]*?if \(!netSlam.area && \(!trackedTarget \|\| trackedTarget.hp <= 0\)\) \{\s*netSlam.life = 0;\s*continue;/);
+  assert.match(source, /if \(!netSlam.area && !mudflatKidsNetCanTarget\(netSlam, runtime.player, width, height\)\) continue;/);
+});
+
 test("children's collection effects preserve range, orbit, and canvas state", async () => {
   const { HARVEST_PULSE_SECONDS, harvestPulseFrame, saltSpiritPose, drawHarvestPulse, drawSaltSpirit } = await import("../app/mudflat-kids-effects.js");
   assert.equal(harvestPulseFrame(0, 102).opacity, 0);
@@ -2813,6 +2974,7 @@ test("children's collection effects preserve range, orbit, and canvas state", as
     previousRadius = pulse.waveRadius;
   }
   const states = [];
+  const gradientColors = [];
   let drawCalls = 0;
   const context = new Proxy({ globalAlpha: 1 }, {
     get(target, key) {
@@ -2822,7 +2984,7 @@ test("children's collection effects preserve range, orbit, and canvas state", as
       return (...args) => {
         drawCalls += 1;
         for (const value of args) if (typeof value === "number") assert.ok(Number.isFinite(value));
-        if (String(key).startsWith("create")) return { addColorStop(offset) { assert.ok(offset >= 0 && offset <= 1); } };
+        if (String(key).startsWith("create")) return { addColorStop(offset, color) { assert.ok(offset >= 0 && offset <= 1); gradientColors.push(color); } };
       };
     },
   });
@@ -2843,6 +3005,7 @@ test("children's collection effects preserve range, orbit, and canvas state", as
     }
   }
   assert.ok(drawCalls > 0);
+  assert.ok(gradientColors.includes("rgba(170,208,198,.25)"), "the ripple has a slightly stronger sea-green crest");
 });
 
 test("uses the salt spirit name throughout the children's mode without renaming normal digging", async () => {
@@ -2861,6 +3024,136 @@ test("uses the salt spirit name throughout the children's mode without renaming 
   assert.match(source, /drawSaltSpirit\(context/);
   assert.match(source, /drawHarvestPulse\(context/);
   assert.match(source, /소금 결정의 정령 Lv\.2/);
+});
+
+test("preloads and caches Lumi art, reports failures, and retries without a default-character flash", async () => {
+  const saved = Object.fromEntries(["Image", "document", "window"].map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  const images = [];
+  const timers = new Map();
+  let timerId = 0;
+  try {
+    globalThis.Image = class {
+      naturalWidth = 16;
+      naturalHeight = 6;
+      onload = null;
+      onerror = null;
+      constructor() { images.push(this); }
+    };
+    globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => ({
+      drawImage() {}, putImageData() {},
+      getImageData: () => ({ data: new Uint8ClampedArray(16 * 6 * 4).fill(255) }),
+    }) }) };
+    globalThis.window = {
+      setTimeout(callback) { timers.set(++timerId, callback); return timerId; },
+      clearTimeout(id) { timers.delete(id); },
+    };
+    const { loadLumiArt, drawLumiGatherer } = await import("../app/mudflat-lumi-renderer.ts");
+    const first = loadLumiArt();
+    assert.equal(first.status, "loading");
+    assert.equal(loadLumiArt(), first, "selection and game entry share one load");
+    assert.equal(loadLumiArt(true), first, "do not duplicate an in-flight request");
+    assert.equal(drawLumiGatherer({}, 0, 0, createLumiMotion(), first, 0, false, false, 0), false);
+    assert.equal(images.length, 1);
+    images[0].onerror();
+    assert.equal(await first.ready, false);
+    assert.equal(first.status, "error");
+    const timedOut = loadLumiArt(true);
+    timers.values().next().value();
+    assert.equal(await timedOut.ready, false);
+    assert.equal(timedOut.status, "error", "a stalled request must offer retry rather than wait forever");
+    const retry = loadLumiArt(true);
+    images[2].onload();
+    assert.equal(await retry.ready, true);
+    assert.equal(retry.status, "ready");
+    assert.equal(retry.frames.length, 24);
+    assert.equal(loadLumiArt(), retry, "next stages reuse fully prepared frames");
+    assert.equal(timers.size, 0);
+  } finally {
+    for (const key of ["Image", "document", "window"]) {
+      if (saved[key]) Object.defineProperty(globalThis, key, saved[key]);
+      else delete globalThis[key];
+    }
+  }
+  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  assert.match(source, /const startLumiHold[\s\S]*?loadLumiArt\(\);[\s\S]*?window\.setTimeout/);
+  assert.match(source, /if \(lumiArt && lumiArt\.status !== "ready"\) \{[\s\S]*?return;\s*\}\s*update\(dt/);
+  assert.match(source, /if \(characterId !== "lumi"\) drawGatherer/);
+  assert.doesNotMatch(source, /if \(!lumiDrawn\) drawGatherer/);
+  assert.match(source, /\{lumiLoadingLayer\}/);
+  assert.match(source, /loadLumiArt\(true\); setRunId/);
+});
+
+test("experience rewards visibly rise and fly before granting XP exactly once at every attraction level", () => {
+  for (const fps of [30, 60, 120]) {
+    for (const level of [0, 1, 5, 6]) {
+      for (const cooler of [0, 6]) {
+        const radius = 50 + level * 24 + cooler * 12;
+        for (const distance of [0, 20, 40, radius - 1]) {
+          const pickup = createExperiencePickup(7, distance, 0, 13);
+          const player = { x: 0, y: 0 };
+          let total = 0;
+          let time = 0;
+          let flightFrames = 0;
+          for (let frame = 0; frame < fps * 2 && total === 0; frame += 1) {
+            total += advanceExperiencePickup(pickup, player, radius, 1 / fps);
+            time += 1 / fps;
+            if (time < EXPERIENCE_RISE_SECONDS) {
+              assert.equal(total, 0);
+              assert.ok(pickup.visualY < 0);
+            }
+            if (pickup.phase === "pull") flightFrames += 1;
+            assert.ok(pickup.trail.length <= 5);
+          }
+          assert.equal(total, 13);
+          assert.ok(time >= .34 - 1e-9 && time < .5, `readable but brief flight at ${fps} fps`);
+          assert.ok(flightFrames >= Math.floor(.2 * fps));
+          assert.equal(pickup.phase, "arrived");
+          assert.equal(pickup.visualX, player.x);
+          assert.equal(pickup.visualY, player.y - 10);
+          assert.equal(advanceExperiencePickup(pickup, player, radius, 1 / fps), 0);
+        }
+      }
+    }
+  }
+  const slowFrame = createExperiencePickup(2, 0, 0, 5);
+  assert.equal(advanceExperiencePickup(slowFrame, { x: 0, y: 0 }, 194, 2), 0);
+  assert.equal(slowFrame.phase, "spawn", "a frame stall must not erase the visible sequence");
+});
+
+test("experience attraction respects its radius, tracks movement, and freezes safely in camp", () => {
+  const player = { x: 0, y: 0 };
+  const pickup = createExperiencePickup(4, 74, 0, 8);
+  for (let frame = 0; frame < 60; frame += 1) assert.equal(advanceExperiencePickup(pickup, player, 74, 1 / 60), 0);
+  assert.equal(pickup.phase, "idle");
+  assert.equal(pickup.visualY, 0);
+  assert.equal(pickup.xp, 8);
+  player.x = 1;
+  advanceExperiencePickup(pickup, player, 74, 1 / 60);
+  assert.equal(pickup.phase, "pull");
+  const beforeCamp = structuredClone(pickup);
+  for (let frame = 0; frame < 60; frame += 1) assert.equal(advanceExperiencePickup(pickup, player, 74, 1 / 60, true), 0);
+  assert.deepEqual(pickup, beforeCamp, "keep pending rewards and flight progress without collecting in camp");
+  let total = 0;
+  for (let frame = 0; frame < 60 && !total; frame += 1) {
+    player.x += 4; player.y += 2;
+    total += advanceExperiencePickup(pickup, player, 74, 1 / 60);
+  }
+  assert.equal(total, 8);
+  assert.equal(pickup.visualX, player.x);
+  assert.equal(pickup.visualY, player.y - 10);
+});
+
+test("keeps experience flights above gameplay art and uses the requested two-line retry note", async () => {
+  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  assert.equal((source.match(/runtime\.pickups\.push\(createExperiencePickup\(/g) ?? []).length, 2, "both creature and clam rewards use the animation");
+  assert.match(source, /advanceExperiencePickup\(pickup, runtime\.player, pickupRadius, dt, inBaseCamp\)/);
+  assert.doesNotMatch(source, /if \(distance < 22\).*runtime\.xp/);
+  const gathererDraw = source.indexOf('if (characterId !== "lumi") drawGatherer');
+  assert.ok(gathererDraw > 0 && source.indexOf("// Active rewards sit above") > gathererDraw);
+  assert.match(source, /if \(earnedExperience > 0\) \{ hudClock = 0; snapshot\(runtime\); \}/);
+  assert.match(source, /data-xp-collecting=\{hud\.xpCollecting \|\| undefined\}/);
+  assert.match(source, /<p className="ms-reentry-note">한 번 성공한 스테이지는 언제든 재도전 가능합니다\.<br \/>하지만 장비·기술·경험치·코인은 모두 초기화됩니다\.<\/p>/);
+  assert.doesNotMatch(source, /한 번 연 스테이지는 유지됩니다/);
 });
 
 test("entering camp cancels every harvest effect without deleting rewards or world state", async () => {
