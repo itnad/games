@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
+import "./mudflat-cast-net.test.mjs";
 import { installGameRefreshGuard } from "../app/game-refresh.js";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { advanceLumiMotion, clearLumiAtlasMatte, createLumiMotion, lumiPose, lumiTongPose } from "../app/mudflat-lumi-animation.js";
@@ -1101,7 +1102,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatEquipmentStats({ vest: 6, gloves: 6, waders: 6 }, 100, 1).toolPowerMultiplier, 1.21);
   assert.equal(mudflatTerrainSpeedMultiplier(.5, 1), .65);
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatElectricStats(level).interval), [1, .8, .6, .4, .2, .1]);
-  assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatCastNetStats(level).interval), [2, 1.7, 1.4, 1.1, .8, .5]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatCastNetStats(level).interval), [3.2, 3, 2.8, 2.6, 2.4, 2.2]);
   assert.equal(MUDFLAT_RECOVERY_FOODS.length, 3);
   assert.equal(mudflatSeafoodSaleValue("clam", 10, 0), 10);
   assert.equal(mudflatSeafoodSaleValue("clam", 10, 2), 10);
@@ -1268,8 +1269,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /mudflatHeadlampEncounterLimit\(headlampLevel\)/);
   assert.match(source, /runtime\.headlampSpawnClock = Math\.max\(runtime\.headlampSpawnClock, 4\.8\)/);
   assert.match(source, /const headlampRetentionDistance = Math\.max\(Math\.hypot\(width, height\) \* 1\.15/);
-  assert.match(source, /originX: runtime\.player\.x, originY: runtime\.player\.y, angle/);
-  assert.match(source, /const maximumDistance = Math\.max\(minimumDistance \+ 18/);
+  assert.match(source, /findCastNetTarget\(\{/);
+  assert.match(source, /createCastNet\(sequenceRef.current\+\+, runtime.player, target, castNet, toolPower\)/);
   assert.match(source, /drawCastNetThrow\(context, screenPoint\(\{ x: castNet\.originX, y: castNet\.originY \}\), screenPoint\(castNet\), castNet\)/);
   assert.doesNotMatch(source, /mudflatCastNetTarget/);
   assert.match(source, /신기술을 알게되었다\./);

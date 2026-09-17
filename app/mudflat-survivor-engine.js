@@ -143,7 +143,7 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "net", icon: "◇", name: "뜰채", description: "넓은 범위의 채집이 가능합니다.", max: 6 },
   { id: "digging", icon: "⌁", name: "호미질", description: "조개 구멍에서 더 좋은 조개를 찾을 확률이 높아집니다.", max: 6 },
   { id: "electric", icon: "ϟ", name: "전기 스파크", description: "기본 집게 사거리 안의 해산물 모두에 주기적으로 전기 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 1 },
-  { id: "cast-net", icon: "⌗", name: "그물 투척", description: "주변의 무작위 지점에 그물을 던져 30px 범위에 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 2 },
+  { id: "cast-net", icon: "⌗", name: "그물 투척", description: "떨어진 해산물 무리에 그물을 펼쳐 잠시 붙잡고, 조여서 한꺼번에 채집합니다.", max: 6, advanced: true, requiredMasteries: 2 },
 ];
 
 // 집게와 호미질은 모든 일반 원정에 기본으로 장착되는 채집 도구다.
@@ -236,8 +236,13 @@ export function mudflatElectricStats(level = 0) {
 
 export function mudflatCastNetStats(level = 0) {
   const safeLevel = mudflatSafeLevel(level);
-  if (!safeLevel) return { interval: Infinity, damage: 0, radius: 0 };
-  return { interval: [2, 1.7, 1.4, 1.1, .8, .5][safeLevel - 1], damage: 200, radius: 30 };
+  if (!safeLevel) return { interval: Infinity, damage: 0, radius: 0, holdSeconds: 0, range: 0 };
+  return {
+    interval: [3.2, 3, 2.8, 2.6, 2.4, 2.2][safeLevel - 1], damage: 200,
+    radius: [45, 49, 53, 57, 61, 65][safeLevel - 1],
+    holdSeconds: [1.8, 2, 2.2, 2.4, 2.6, 2.8][safeLevel - 1],
+    range: 210 + (safeLevel - 1) * 10,
+  };
 }
 
 export function mudflatJoystickVector(deltaX, deltaY, radius = MUDFLAT_JOYSTICK_RADIUS, deadzone = 5) {

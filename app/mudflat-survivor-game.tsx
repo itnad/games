@@ -7,6 +7,8 @@ import { GameObjectiveGuide } from "./game-objective-guide";
 import { MudflatHoldButton, MudflatRetryButton } from "./mudflat-retry-button";
 import { createDefeatRetrySnapshot, restoreDefeatRetryRuntime } from "./mudflat-retry.js";
 import { withSecretExpeditionSkills } from "./mudflat-secret-entry.js";
+import { CAST_NET_RETRY, advanceCastNets, castNetMovementMultiplier, castNetOnScreen, createCastNet, findCastNetTarget } from "./mudflat-cast-net.js";
+import { drawCastNetThrow } from "./mudflat-cast-net-renderer.js";
 import { HARVEST_PULSE_SECONDS, drawHarvestPulse, drawSaltSpirit, saltSpiritPose } from "./mudflat-kids-effects.js";
 import { EXPERIENCE_FLASH_SECONDS, createExperiencePickup, advanceExperiencePickup } from "./mudflat-experience.js";
 import {
@@ -78,12 +80,12 @@ type CountMap = Record<string, number>;
 type StageObjective = { id: "catch" | "rocks" | "health"; label: string; target: number; bonus: number };
 type StageProfile = { stage: number; name: string; subtitle: string; modifiers: string[]; waterChannels: boolean; tideInterval: number; safeZone: string; rockMultiplier: number; fallingRocks: number; darkness: number; mudSlow: number; seafoodSpawnMultiplier: number; wind: number; waves: boolean; swarms: boolean; coldThresholdMultiplier: number; finalBoss: boolean; endless: boolean; objective: StageObjective | null };
 type CreatureMovement = "chase" | "still" | "wander" | "flee" | "oval";
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; movementAngle: number; movementClock: number; facing?: 1 | -1; ovalDirection?: number };
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; movementAngle: number; movementClock: number; facing?: 1 | -1; ovalDirection?: number; netReleaseUntil?: number };
 type Pickup = ReturnType<typeof createExperiencePickup>;
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
 type NetSlamEffect = Point & { id: number; life: number; maxLife: number; damage: number; radius: number; headDepth: number; range: number; angle: number; targetId: number; area: boolean; hit: boolean };
-type CastNetEffect = Point & { id: number; originX: number; originY: number; angle: number; life: number; maxLife: number; damage: number; radius: number; hit: boolean };
+type CastNetEffect = ReturnType<typeof createCastNet>;
 type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number; kind?: "harvest" };
 type FloatText = Point & { id: number; life: number; text: string; color: string; kind?: "playerDamage" | "harvest" };
 type Rock = Point & { id: number; radius: number; tone: number };
@@ -221,7 +223,7 @@ function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[number], le
   }
   if (skill.id === "cast-net") {
     const current = mudflatCastNetStats(safeLevel); const next = mudflatCastNetStats(nextLevel);
-    return { current: `${current.interval.toFixed(1)}초마다 반경 ${current.radius}px에 ${current.damage} 피해`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.interval.toFixed(1)}초마다 반경 ${next.radius}px에 ${next.damage} 피해` };
+    return { current: `무리 조준 · 반경 ${current.radius}px · ${current.holdSeconds.toFixed(1)}초 구속 후 ${current.damage} 피해 · 투척 간격 ${current.interval.toFixed(1)}초`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 반경 ${next.radius}px · 구속 ${next.holdSeconds.toFixed(1)}초 · 간격 ${next.interval.toFixed(1)}초` };
   }
   if (skill.id === "boots") return { current: `이동과 생존이 Lv.${safeLevel} 단계로 강화되었습니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 이동과 생존 능력이 한 단계 더 강화됩니다.` };
   if (skill.id === "snack") return { current: `기본 최대 체력의 ${safeLevel * 20}%만큼 증가합니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 기본 최대 체력 +${nextLevel * 20}%` };
@@ -968,65 +970,6 @@ function drawDipNetSlam(context: CanvasRenderingContext2D, origin: Point, target
   }
 }
 
-function drawCastNetThrow(context: CanvasRenderingContext2D, origin: Point, target: Point, effect: CastNetEffect) {
-  const progress = 1 - effect.life / effect.maxLife;
-  const throwProgress = Math.min(1, progress / .62);
-  const travel = 1 - (1 - throwProgress) ** 3;
-  const dx = target.x - origin.x;
-  const dy = target.y - origin.y;
-  const distance = Math.max(1, Math.hypot(dx, dy));
-  const flightX = origin.x + dx * travel;
-  const flightY = origin.y + dy * travel - Math.sin(throwProgress * Math.PI) * Math.min(72, distance * .46);
-  const netRadius = effect.radius * (.34 + travel * .66);
-  const netDepth = netRadius * (.54 + travel * .2);
-  const fading = Math.min(1, progress * 7, effect.life * 5);
-  const landed = progress >= .62;
-
-  context.save();
-  context.globalAlpha = fading;
-  context.lineCap = "round";
-  context.strokeStyle = "rgba(74,57,36,.5)";
-  context.lineWidth = 2;
-  context.beginPath();
-  context.moveTo(origin.x, origin.y - 6);
-  context.quadraticCurveTo((origin.x + flightX) / 2, Math.min(origin.y, flightY) - 16, flightX, flightY);
-  context.stroke();
-
-  context.translate(flightX, flightY);
-  context.rotate(effect.angle + Math.PI / 2);
-  context.fillStyle = landed ? "rgba(206,239,222,.28)" : "rgba(206,239,222,.16)";
-  context.beginPath(); context.ellipse(0, 0, netRadius, netDepth, 0, 0, Math.PI * 2); context.fill();
-  context.save();
-  context.beginPath(); context.ellipse(0, 0, netRadius, netDepth, 0, 0, Math.PI * 2); context.clip();
-  context.strokeStyle = "rgba(242,255,245,.82)";
-  context.lineWidth = 1.05;
-  for (let line = -5; line <= 5; line += 1) {
-    const offset = line * netRadius * .28;
-    context.beginPath(); context.moveTo(-netRadius * 1.12, offset - netDepth); context.lineTo(netRadius * 1.12, offset + netDepth); context.stroke();
-    context.beginPath(); context.moveTo(-netRadius * 1.12, offset + netDepth); context.lineTo(netRadius * 1.12, offset - netDepth); context.stroke();
-  }
-  context.restore();
-  context.strokeStyle = "#f0fff4";
-  context.lineWidth = landed ? 2.6 : 2;
-  context.beginPath(); context.ellipse(0, 0, netRadius, netDepth, 0, 0, Math.PI * 2); context.stroke();
-  context.fillStyle = "#8d7860";
-  for (let knot = 0; knot < 12; knot += 1) {
-    const angle = knot / 12 * Math.PI * 2;
-    context.beginPath(); context.arc(Math.cos(angle) * netRadius, Math.sin(angle) * netDepth, 1.8, 0, Math.PI * 2); context.fill();
-  }
-  context.restore();
-
-  if (landed) {
-    const splashProgress = Math.min(1, (progress - .62) / .28);
-    context.save();
-    context.globalAlpha = (1 - splashProgress) * .5;
-    context.strokeStyle = "rgba(214,244,226,.84)";
-    context.lineWidth = 2;
-    context.beginPath(); context.ellipse(target.x, target.y + netDepth * .18, netRadius * (1 + splashProgress * .35), netDepth * (1 + splashProgress * .35), 0, 0, Math.PI * 2); context.stroke();
-    context.restore();
-  }
-}
-
 export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const runtimeRef = useRef<Runtime | null>(null);
@@ -1639,14 +1582,20 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       let touching = false;
       let bleedingCreatureTouching = false;
       let pufferTouching = false;
+      const canNetCatch = (creature: Creature) => isCreatureRevealed(creature) && castNetOnScreen(creature, runtime.player, width, height);
+      if (!inBaseCamp) {
+        runtime.castNets = runtime.castNets.filter((net) => campObstacleAllowed(net, net.radius + 8));
+        runtime.castNets = advanceCastNets(runtime.castNets, runtime.creatures, dt, runtime.elapsed, canNetCatch, damageCreature);
+      }
       for (const creature of runtime.creatures) {
+        if (creature.hp <= 0) continue;
         creature.age += dt;
         const previousX = creature.x;
         const dx = runtime.player.x - creature.x; const dy = runtime.player.y - creature.y; const distance = Math.hypot(dx, dy) || 1;
         const revealed = isCreatureRevealed(creature);
         const activeMovement = creature.requiresHeadlamp && !revealed ? "wander" : (creature.type === "pufferfish" ? mudflatPufferMovementForAge(creature.age) : creature.movement);
         const baseCreatureSpeed = ["whelk", "fist-whelk", "golbaengi"].includes(creature.type) ? mudflatShellMovementSpeed(speed) : creature.speed;
-        const creatureSpeed = creature.requiresHeadlamp && !revealed ? baseCreatureSpeed * .25 : baseCreatureSpeed;
+        const creatureSpeed = (creature.requiresHeadlamp && !revealed ? baseCreatureSpeed * .25 : baseCreatureSpeed) * castNetMovementMultiplier(creature, runtime.castNets);
         if (activeMovement === "chase") {
           creature.x += dx / distance * creatureSpeed * dt; creature.y += dy / distance * creatureSpeed * dt;
         } else if (activeMovement === "wander") {
@@ -1872,29 +1821,18 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const castNetLevel = runtime.levels["cast-net"] ?? 0;
         if (runtime.mode === "normal" && castNetLevel > 0 && runtime.castNetClock <= 0) {
           const castNet = mudflatCastNetStats(castNetLevel);
-          const angle = Math.random() * Math.PI * 2;
-          const minimumDistance = 54 + castNet.radius;
-          const maximumDistance = Math.max(minimumDistance + 18, Math.min(148 + castNetLevel * 8, Math.hypot(width, height) * .34));
-          const distance = minimumDistance + Math.random() * (maximumDistance - minimumDistance);
-          runtime.castNets.push({
-            id: sequenceRef.current++, originX: runtime.player.x, originY: runtime.player.y, angle,
-            x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance,
-            life: .96, maxLife: .96, damage: castNet.damage * toolPower, radius: castNet.radius, hit: false,
+          const target = findCastNetTarget({
+            creatures: runtime.creatures, player: runtime.player, width, height, stats: castNet,
+            nets: runtime.castNets, now: runtime.elapsed, canCatch: canNetCatch,
+            canPlace: (point: Point, radius: number) => campObstacleAllowed(point, radius + 8),
           });
-          runtime.castNetClock = castNet.interval;
-        }
-        for (const castNet of runtime.castNets) {
-          castNet.life -= dt;
-          const progress = 1 - castNet.life / castNet.maxLife;
-          if (!castNet.hit && progress >= .62) {
-            for (const creature of revealedCreatures) {
-              if (Math.hypot(creature.x - castNet.x, creature.y - castNet.y) <= castNet.radius + creature.size) damageCreature(creature, castNet.damage, .18);
-            }
-            castNet.hit = true;
-            runtime.bursts.push({ id: sequenceRef.current++, x: castNet.x, y: castNet.y, life: .34, maxLife: .34, color: "#d8e8df", size: castNet.radius, kind: "harvest" });
+          if (target) {
+            runtime.castNets.push(createCastNet(sequenceRef.current++, runtime.player, target, castNet, toolPower));
+            runtime.castNetClock = castNet.interval;
+          } else {
+            runtime.castNetClock = CAST_NET_RETRY;
           }
         }
-        runtime.castNets = runtime.castNets.filter((item) => item.life > 0);
 
         const saltLevel = runtime.levels.salt ?? 0;
         if (saltLevel > 0) {
@@ -2076,7 +2014,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       for (const creature of runtime.creatures) {
         const visibility = creatureRevealStrength(creature);
         const point = screenPoint(creature); if (visibility <= 0 || point.x < -70 || point.y < -70 || point.x > width + 70 || point.y > height + 70) continue;
-        context.save(); context.globalAlpha = visibility; context.translate(point.x, point.y); drawCreatureSprite(context, creature, runtime.elapsed, creatureSprites); context.restore();
+        const netStruggle = castNetMovementMultiplier(creature, runtime.castNets) === 0 ? Math.sin(runtime.elapsed * 19 + creature.id) * .8 : 0;
+        context.save(); context.globalAlpha = visibility; context.translate(point.x + netStruggle, point.y); drawCreatureSprite(context, creature, runtime.elapsed, creatureSprites); context.restore();
         if (creature.boss || creature.hp < creature.maxHp) {
           context.save(); context.globalAlpha = visibility;
           const visualSize = creature.size * (creature.visualScale ?? 1);
