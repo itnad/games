@@ -2895,9 +2895,38 @@ test("secret defeat retry preserves progression, restores full HP, and resets th
   const defeat = source.slice(source.indexOf('if (screen === "defeat") return'), source.indexOf('const pauseLayer ='));
   assert.match(defeat, /onClick=\{reset\}>메인 화면으로/);
   assert.doesNotMatch(defeat, /onClick=\{onExit\}>메인 화면으로|3초|비밀|길게 누르/);
-  assert.match(source, /const beginAtStage = \(stage: number\) => \{\s*defeatRetryRef.current = null/);
+  assert.match(source, /const beginAtStage = \(stage: number, secretEntry = false\) => \{\s*defeatRetryRef.current = null/);
   assert.match(source, /const reset = \(\) => \{ defeatRetryRef.current = null/);
   assert.match(source, /restoreDefeatRetryRuntime\(makeRuntime\(next\), saved\)/);
+});
+
+test("secret route entry sets only the requested skills and leaves ordinary starts unchanged", async () => {
+  const { withSecretExpeditionSkills } = await import("../app/mudflat-secret-entry.js");
+  for (const characterId of ["beginner", "lumi"]) {
+    for (let stage = 1; stage <= 9; stage++) {
+      const fresh = { mode: "normal", characterId, stage, hp: 100, maxHp: 100, coins: 0, level: 1, xp: 0, nextXp: 10,
+        levels: { tongs: 1, digging: 1, basket: 0, rocker: 0, boots: 0, net: 0, snack: 0, harpoon: 0 },
+        equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {} };
+      const original = structuredClone(fresh);
+      const boosted = withSecretExpeditionSkills(fresh);
+      assert.deepEqual(boosted.levels, { ...original.levels, electric: 5, basket: 5, rocker: 5, "cast-net": 1 });
+      assert.deepEqual({ ...boosted, levels: original.levels }, original, "stage, skin, equipment, coins and XP are unchanged");
+      assert.deepEqual(fresh, original, "the preset never mutates the ordinary start");
+      assert.notEqual(boosted.levels, fresh.levels);
+    }
+  }
+  const kids = { mode: "kids", levels: { hoe: 2, basket: 0 } };
+  assert.equal(withSecretExpeditionSkills(kids), kids, "normal-mode-only skills must not leak into kids mode");
+  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const route = source.slice(source.indexOf('<div className="ms-stage-route-list">'), source.indexOf('if (screen === "camp" && campaign)'));
+  assert.match(route, /<MudflatHoldButton key=\{`\$\{mode\}:\$\{stage.stage\}`\}/);
+  assert.match(route, /disabled=\{!unlocked\}/);
+  assert.match(route, /onShort=\{\(\) => setSelectedStage\(stage.stage\)\}/);
+  assert.match(route, /if \(mode === "normal"\) beginAtStage\(stage.stage, true\); else setSelectedStage\(stage.stage\)/);
+  assert.doesNotMatch(route, /3초|비밀|길게 누르/);
+  assert.match(source, /Math.min\(highestUnlockedStage, Math.floor\(stage\)\)/);
+  assert.match(source, /secretEntry \? withSecretExpeditionSkills\(freshCampaign\) : freshCampaign/);
+  assert.match(source, /const begin = \(\) => beginAtStage\(selectedStage\)/);
 });
 
 test("secret retry hold fires once after three seconds and cancels without falling back", async () => {
@@ -2935,6 +2964,9 @@ test("secret retry hold fires once after three seconds and cancels without falli
   assert.match(button, /event.repeat/);
   assert.match(button, /onContextMenu=\{\(event\) => event.preventDefault\(\)\}/);
   assert.match(button, /window.removeEventListener\("blur", stop\)/);
+  assert.match(button, /\[hold, disabled\]/);
+  assert.match(button, /if \(!callbacks.current.disabled\) callbacks.current.onLong\(\)/);
+  assert.match(button, /<MudflatHoldButton className="ms-primary ms-retry-button" onShort=\{onRetry\} onLong=\{onSecretRetry\}/);
 });
 
 test("children's automatic net only acquires and follows targets inside the live viewport", async () => {

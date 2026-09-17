@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Keyb
 import { advanceLumiMotion, createLumiMotion, lumiTongPose } from "./mudflat-lumi-animation.js";
 import { drawLumiGatherer, loadLumiArt } from "./mudflat-lumi-renderer";
 import { GameObjectiveGuide } from "./game-objective-guide";
-import { MudflatRetryButton } from "./mudflat-retry-button";
+import { MudflatHoldButton, MudflatRetryButton } from "./mudflat-retry-button";
 import { createDefeatRetrySnapshot, restoreDefeatRetryRuntime } from "./mudflat-retry.js";
+import { withSecretExpeditionSkills } from "./mudflat-secret-entry.js";
 import { HARVEST_PULSE_SECONDS, drawHarvestPulse, drawSaltSpirit, saltSpiritPose } from "./mudflat-kids-effects.js";
 import { EXPERIENCE_FLASH_SECONDS, createExperiencePickup, advanceExperiencePickup } from "./mudflat-experience.js";
 import {
@@ -1177,11 +1178,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     });
   }, []);
 
-  const beginAtStage = (stage: number) => {
+  const beginAtStage = (stage: number, secretEntry = false) => {
     defeatRetryRef.current = null;
     window.localStorage.setItem(LAST_MODE_KEY, mode);
     const entryStage = Math.max(1, Math.min(highestUnlockedStage, Math.floor(stage)));
-    const nextCampaign = createCampaign(characterId, mode, entryStage);
+    const freshCampaign = createCampaign(characterId, mode, entryStage);
+    const nextCampaign = secretEntry ? withSecretExpeditionSkills(freshCampaign) : freshCampaign;
     storeCampaign(nextCampaign);
     const runtime = makeRuntime(nextCampaign);
     resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
@@ -2507,7 +2509,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             <div className="ms-stage-route-list">{[...MUDFLAT_REGULAR_STAGES, { stage: 9, name: "끝없는 물때", modifiers: ["지형·날씨·생물·보조 목표 무작위 조합"] }].map((stage) => {
               const unlocked = stage.stage <= highestUnlockedStage;
               const selected = selectedStage === stage.stage;
-              return <button type="button" key={stage.stage} className={`${stage.stage === 9 ? "endless " : ""}${selected ? "selected " : ""}${unlocked ? "unlocked" : "locked"}`} disabled={!unlocked} aria-pressed={selected} onClick={() => setSelectedStage(stage.stage)}><i>{stage.stage === 9 ? "9+" : stage.stage}</i><span><b>{stage.name}</b><small>{stage.modifiers.join(" · ")}</small></span><em>{unlocked ? (selected ? "선택됨" : "선택") : "잠김"}</em></button>;
+              return <MudflatHoldButton key={`${mode}:${stage.stage}`} className={`${stage.stage === 9 ? "endless " : ""}${selected ? "selected " : ""}${unlocked ? "unlocked" : "locked"}`} disabled={!unlocked} aria-pressed={selected} onShort={() => setSelectedStage(stage.stage)} onLong={() => { if (mode === "normal") beginAtStage(stage.stage, true); else setSelectedStage(stage.stage); }}><i>{stage.stage === 9 ? "9+" : stage.stage}</i><span><b>{stage.name}</b><small>{stage.modifiers.join(" · ")}</small></span><em>{unlocked ? (selected ? "선택됨" : "선택") : "잠김"}</em></MudflatHoldButton>;
             })}</div>
           </div>
         </details>

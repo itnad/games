@@ -1,13 +1,20 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createRetryHold } from "./mudflat-retry.js";
 
-export function MudflatRetryButton({ onRetry, onSecretRetry, children }: { onRetry: () => void; onSecretRetry: () => void; children: ReactNode }) {
-  const callbacks = useRef({ onRetry, onSecretRetry });
-  callbacks.current = { onRetry, onSecretRetry };
+type HoldButtonProps = Pick<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "disabled" | "aria-pressed"> & {
+  onShort: () => void; onLong: () => void; children: ReactNode;
+};
+
+export function MudflatHoldButton({ onShort, onLong, children, className = "", disabled = false, ...buttonProps }: HoldButtonProps) {
+  const callbacks = useRef({ onShort, onLong, disabled });
+  callbacks.current = { onShort, onLong, disabled };
   const holdRef = useRef<ReturnType<typeof createRetryHold> | null>(null);
-  if (!holdRef.current) holdRef.current = createRetryHold(() => callbacks.current.onRetry(), () => callbacks.current.onSecretRetry());
+  if (!holdRef.current) holdRef.current = createRetryHold(
+    () => { if (!callbacks.current.disabled) callbacks.current.onShort(); },
+    () => { if (!callbacks.current.disabled) callbacks.current.onLong(); },
+  );
   const hold = holdRef.current;
   const input = useRef<{ pointerId: number | null; key: string | null }>({ pointerId: null, key: null });
   const cancel = () => { input.current = { pointerId: null, key: null }; hold.cancel(); };
@@ -22,9 +29,9 @@ export function MudflatRetryButton({ onRetry, onSecretRetry, children }: { onRet
       window.removeEventListener("blur", stop);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [hold]);
+  }, [hold, disabled]);
 
-  return <button type="button" className="ms-primary ms-retry-button"
+  return <button {...buttonProps} type="button" disabled={disabled} className={`ms-hold-button ${className}`}
     onPointerDown={(event) => {
       if (!event.isPrimary || event.button !== 0 || input.current.pointerId !== null || input.current.key !== null) return;
       input.current.pointerId = event.pointerId;
@@ -59,4 +66,8 @@ export function MudflatRetryButton({ onRetry, onSecretRetry, children }: { onRet
     }}
     onClick={() => hold.click()}
   >{children}</button>;
+}
+
+export function MudflatRetryButton({ onRetry, onSecretRetry, children }: { onRetry: () => void; onSecretRetry: () => void; children: ReactNode }) {
+  return <MudflatHoldButton className="ms-primary ms-retry-button" onShort={onRetry} onLong={onSecretRetry}>{children}</MudflatHoldButton>;
 }
