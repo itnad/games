@@ -91,7 +91,7 @@ export function findCastNetTarget({ creatures, player, width, height, stats, net
 export function castNetMovementMultiplier(creature, nets) {
   const held = nets.some((net) => !net.hit && net.caughtIds.has(creature.id)
     && ["open", "closing"].includes(castNetPhase(net)));
-  return held ? (creature.boss ? .7 : 0) : 1;
+  return held ? 0 : 1;
 }
 
 export function advanceCastNets(nets, creatures, dt, now, canCatch, damageCreature) {
@@ -107,7 +107,7 @@ export function advanceCastNets(nets, creatures, dt, now, canCatch, damageCreatu
     net.age += Math.max(0, dt);
     for (const id of net.caughtIds) {
       const creature = creaturesById.get(id);
-      if (!creature || creature.hp <= 0 || !canCatch(creature) || !castNetContains(net, creature) || owned.has(id)) release(net, id);
+      if (!creature || creature.hp <= 0 || owned.has(id)) release(net, id);
       else owned.add(id);
     }
   }
@@ -128,7 +128,7 @@ export function advanceCastNets(nets, creatures, dt, now, canCatch, damageCreatu
       net.hit = true;
       for (const id of net.caughtIds) {
         const creature = creaturesById.get(id);
-        if (creature?.hp > 0 && canCatch(creature) && castNetContains(net, creature)) damageCreature(creature, net.damage, .18);
+        if (creature?.hp > 0) damageCreature(creature, net.damage, .18);
         release(net, id);
       }
     }

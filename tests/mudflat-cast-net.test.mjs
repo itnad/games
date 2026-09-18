@@ -108,37 +108,42 @@ test("nets land without damage, trap late arrivals, then cinch once and release 
   assert.equal(first.hp, 300, "no extra hit during fade or removal");
 });
 
-test("bosses are slowed, may escape, and overlapping nets cannot double-bind or double-hit", () => {
+test("bosses are held, and overlapping nets cannot double-bind or double-hit", () => {
   const first = newNet(), second = newNet(2);
   const boss = creature(1, 140, 0, { boss: true });
   let nets = advanceCastNets([first, second], [boss], .51, .51, visible, damage);
-  assert.equal(castNetMovementMultiplier(boss, nets), .7);
+  assert.equal(castNetMovementMultiplier(boss, nets), 0);
   assert.equal(first.caughtIds.size + second.caughtIds.size, 1);
   nets = advanceCastNets(nets, [boss], 2.1, 2.61, visible, damage);
   assert.equal(boss.hp, 300, "overlap cannot deliver two cinch hits");
   assert.equal(castNetMovementMultiplier(boss, nets), 1);
-  const escapeNet = newNet(3);
-  boss.netReleaseUntil = 0;
-  nets = advanceCastNets([escapeNet], [boss], .51, 3.5, visible, damage);
-  boss.x = 200;
-  nets = advanceCastNets(nets, [boss], .1, 3.6, visible, damage);
-  assert.equal(castNetMovementMultiplier(boss, nets), 1);
-  nets = advanceCastNets(nets, [boss], 2.1, 5.7, visible, damage);
-  assert.equal(boss.hp, 300, "an escaped boss is not hit at a distance");
 });
 
-test("hidden, offscreen or already-collected targets never receive delayed net damage", () => {
+test("cast nets only acquire visible targets, then resolve bound targets in world space", () => {
   for (const reason of ["hidden", "offscreen", "collected"]) {
     const net = newNet();
     const target = creature(1, 140, 0);
     const canCatch = (item) => visible(item) && castNetOnScreen(item, player, 800, 600);
-    let nets = advanceCastNets([net], [target], .51, .51, canCatch, damage);
     if (reason === "hidden") target.hidden = true;
     if (reason === "offscreen") target.x = 900;
     if (reason === "collected") target.hp = 0;
     let hits = 0;
+    let nets = advanceCastNets([net], [target], .51, .51, canCatch, () => hits++);
+    assert.equal(net.caughtIds.size, 0, `${reason} is not newly acquired`);
     nets = advanceCastNets(nets, [target], 2.1, 2.61, canCatch, () => hits++);
     assert.equal(hits, 0, reason);
+    assert.equal(castNetMovementMultiplier(target, nets), 1);
+  }
+  for (const reason of ["hidden", "offscreen"]) {
+    const net = newNet();
+    const target = creature(1, 140, 0);
+    const canCatch = (item) => visible(item) && castNetOnScreen(item, player, 800, 600);
+    let nets = advanceCastNets([net], [target], .51, .51, canCatch, damage);
+    assert.equal(castNetMovementMultiplier(target, nets), 0);
+    if (reason === "hidden") target.hidden = true;
+    if (reason === "offscreen") target.x = 900;
+    nets = advanceCastNets(nets, [target], 2.1, 2.61, canCatch, damage);
+    assert.equal(target.hp, 300, `bound ${reason} target is damaged at cinch`);
     assert.equal(castNetMovementMultiplier(target, nets), 1);
   }
 });
