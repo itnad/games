@@ -102,6 +102,9 @@ const BASE_CAMP_RADIUS = 92;
 const BASE_CAMP_STAGE_ONE_WIDTH_MULTIPLIER = 5;
 const BASE_CAMP_FINAL_WIDTH_MULTIPLIER = 1.8;
 const TIDE_RETURN_MESSAGE = "물이 가득찼어. 빨리 복귀해야해!";
+const DARK_STAGE_VISION_DARKNESS = .6;
+const DARK_STAGE_VISIBLE_DIAMETER_RATIO = 2 / 3;
+const HEADLAMP_CONE_HALF_ANGLE = Math.PI / 4;
 type Runtime = {
   mode: GameMode;
   stage: number;
@@ -675,6 +678,55 @@ function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, p
   }
   context.fillStyle = "#c58b49"; roundedRect(context, 13, -1, 15, 20, 5); context.fill();
   context.strokeStyle = "#eed7a4"; context.lineWidth = 2; context.beginPath(); context.arc(20, 0, 9, Math.PI, Math.PI * 2); context.stroke();
+  context.restore();
+}
+
+function drawMudflatDarkness(context: CanvasRenderingContext2D, width: number, height: number, darkness: number, headlampRange: number, facing: number) {
+  const centerX = width / 2, centerY = height / 2;
+  if (darkness < DARK_STAGE_VISION_DARKNESS) {
+    const radius = Math.max(112, headlampRange || 112);
+    context.save();
+    const veil = context.createRadialGradient(centerX, centerY, radius * .16, centerX, centerY, Math.max(radius, Math.hypot(width, height) * .72));
+    veil.addColorStop(0, "rgba(3,8,15,0)");
+    veil.addColorStop(Math.min(.8, radius / Math.max(radius, Math.hypot(width, height) * .72)), "rgba(3,8,15,.08)");
+    veil.addColorStop(1, `rgba(3,8,15,${darkness})`);
+    context.fillStyle = veil; context.fillRect(0, 0, width, height); context.restore();
+    return;
+  }
+  const baseRadius = Math.max(150, height * DARK_STAGE_VISIBLE_DIAMETER_RATIO / 2);
+  const fillSightCircle = (radius: number, alpha = 1) => {
+    const sight = context.createRadialGradient(centerX, centerY, radius * .34, centerX, centerY, radius);
+    sight.addColorStop(0, `rgba(0,0,0,${alpha})`);
+    sight.addColorStop(.78, `rgba(0,0,0,${alpha})`);
+    sight.addColorStop(1, "rgba(0,0,0,0)");
+    context.fillStyle = sight;
+    context.beginPath(); context.arc(centerX, centerY, radius, 0, Math.PI * 2); context.fill();
+  };
+  const fillSightCone = (halfAngle: number, alpha: number) => {
+    const range = Math.min(Math.hypot(width, height), baseRadius + headlampRange);
+    if (range <= baseRadius + 1) return;
+    const cone = context.createRadialGradient(centerX, centerY, baseRadius * .64, centerX, centerY, range);
+    cone.addColorStop(0, `rgba(0,0,0,${alpha})`);
+    cone.addColorStop(.68, `rgba(0,0,0,${alpha})`);
+    cone.addColorStop(1, "rgba(0,0,0,0)");
+    context.save();
+    context.beginPath();
+    context.moveTo(centerX, centerY);
+    context.arc(centerX, centerY, range, facing - halfAngle, facing + halfAngle);
+    context.closePath();
+    context.clip();
+    context.fillStyle = cone; context.fillRect(0, 0, width, height);
+    context.restore();
+  };
+  context.save();
+  context.fillStyle = `rgba(3,8,15,${darkness})`;
+  context.fillRect(0, 0, width, height);
+  context.globalCompositeOperation = "destination-out";
+  fillSightCircle(baseRadius);
+  if (headlampRange > 0) {
+    fillSightCone(HEADLAMP_CONE_HALF_ANGLE, .48);
+    fillSightCone(HEADLAMP_CONE_HALF_ANGLE * .72, .86);
+  }
   context.restore();
 }
 
@@ -2192,15 +2244,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
         context.restore();
       }
-      if (stageProfile.darkness > 0) {
-        const radius = mudflatHeadlampDiscoveryRange(runtime.equipment.headlamp ?? 0) || 112;
-        context.save();
-        const darkness = context.createRadialGradient(width / 2, height / 2, radius * .16, width / 2, height / 2, Math.max(radius, Math.hypot(width, height) * .72));
-        darkness.addColorStop(0, "rgba(3,8,15,0)");
-        darkness.addColorStop(Math.min(.8, radius / Math.max(radius, Math.hypot(width, height) * .72)), "rgba(3,8,15,.08)");
-        darkness.addColorStop(1, `rgba(3,8,15,${stageProfile.darkness})`);
-        context.fillStyle = darkness; context.fillRect(0, 0, width, height); context.restore();
-      }
       if (runtime.tideFlash > 0) {
         const tideFlashStrength = returnTide.active ? returnTideFill : 1;
         context.fillStyle = `rgba(84,181,206,${runtime.tideFlash * .28 * tideFlashStrength})`; context.fillRect(0, 0, width, height);
@@ -2235,6 +2278,16 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           context.lineTo(0, radius); context.lineTo(-radius * .8, 0); context.closePath(); context.stroke();
           context.restore();
         }
+      }
+      const diggingHole = runtime.clamHoles.find((hole) => hole.progress > 0);
+      if (diggingHole) drawClamDigging(context, { x: width / 2, y: height / 2 }, screenPoint(diggingHole), diggingHole.progress / 2);
+      for (const label of runtime.floatTexts) {
+        const point = screenPoint(label); context.save(); context.globalAlpha = Math.min(1, label.life * 2.5);
+        const isPlayerDamage = label.kind === "playerDamage";
+        context.font = isPlayerDamage ? "900 25px system-ui" : "900 14px system-ui"; context.textAlign = "center"; context.lineWidth = isPlayerDamage ? 6 : 4; context.strokeStyle = isPlayerDamage ? "rgba(42,14,18,.9)" : "rgba(38,29,27,.72)"; context.strokeText(label.text, point.x, point.y); context.fillStyle = label.color; context.fillText(label.text, point.x, point.y); context.restore();
+      }
+      if (stageProfile.darkness > 0) {
+        drawMudflatDarkness(context, width, height, stageProfile.darkness, mudflatHeadlampDiscoveryRange(runtime.equipment.headlamp ?? 0), runtime.player.facing);
       }
       if (!returnTide.active && stageProfile.tideInterval > 0) {
         const phase = runtime.elapsed % stageProfile.tideInterval;
@@ -2292,13 +2345,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         roundedRect(context, width / 2 - messageWidth / 2, height / 2 - 92, messageWidth, 36, 14); context.fill();
         context.strokeStyle = emptyHazard.damagePerSecond >= 10 ? "#9fc9ff" : "#d8b9ff"; context.lineWidth = 1.5; context.stroke();
         context.fillStyle = "#fffaf2"; context.fillText(emptyHazard.message, width / 2, height / 2 - 69); context.restore();
-      }
-      const diggingHole = runtime.clamHoles.find((hole) => hole.progress > 0);
-      if (diggingHole) drawClamDigging(context, { x: width / 2, y: height / 2 }, screenPoint(diggingHole), diggingHole.progress / 2);
-      for (const label of runtime.floatTexts) {
-        const point = screenPoint(label); context.save(); context.globalAlpha = Math.min(1, label.life * 2.5);
-        const isPlayerDamage = label.kind === "playerDamage";
-        context.font = isPlayerDamage ? "900 25px system-ui" : "900 14px system-ui"; context.textAlign = "center"; context.lineWidth = isPlayerDamage ? 6 : 4; context.strokeStyle = isPlayerDamage ? "rgba(42,14,18,.9)" : "rgba(38,29,27,.72)"; context.strokeText(label.text, point.x, point.y); context.fillStyle = label.color; context.fillText(label.text, point.x, point.y); context.restore();
       }
     };
 

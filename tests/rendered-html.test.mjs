@@ -1307,7 +1307,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /stageProfile\.darkness/);
   assert.match(source, /mudflatHeadlampDiscoveryRange\(runtime\.equipment\.headlamp \?\? 0\)/);
   assert.match(source, /const lightMargin = template\.requiresHeadlamp \? headlampRange \+ 96 : 0/);
-  assert.match(source, /if \(stageProfile\.darkness > 0\) \{\s*const radius = mudflatHeadlampDiscoveryRange\(runtime\.equipment\.headlamp \?\? 0\) \|\| 112;/);
+  assert.match(source, /const DARK_STAGE_VISIBLE_DIAMETER_RATIO = 2 \/ 3/);
+  assert.match(source, /const HEADLAMP_CONE_HALF_ANGLE = Math\.PI \/ 4/);
+  assert.match(source, /function drawMudflatDarkness\(/);
+  assert.match(source, /height \* DARK_STAGE_VISIBLE_DIAMETER_RATIO \/ 2/);
+  assert.match(source, /context\.globalCompositeOperation = "destination-out"/);
+  assert.match(source, /fillSightCone\(HEADLAMP_CONE_HALF_ANGLE, \.48\)/);
+  assert.match(source, /drawMudflatDarkness\(context, width, height, stageProfile\.darkness, mudflatHeadlampDiscoveryRange\(runtime\.equipment\.headlamp \?\? 0\), runtime\.player\.facing\)/);
   assert.doesNotMatch(source, /const radius = headlamp \? 215 : 112/);
   assert.match(source, /해산물 무리가 몰려옵니다/);
   assert.match(source, /정규 원정을 완주해 끝없는 물때가 열렸습니다/);
