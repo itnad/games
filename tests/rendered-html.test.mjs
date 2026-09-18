@@ -1308,11 +1308,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /mudflatHeadlampDiscoveryRange\(runtime\.equipment\.headlamp \?\? 0\)/);
   assert.match(source, /const lightMargin = template\.requiresHeadlamp \? headlampRange \+ 96 : 0/);
   assert.match(source, /const DARK_STAGE_VISIBLE_DIAMETER_RATIO = 2 \/ 3/);
+  assert.match(source, /const DARK_STAGE_HIDDEN_COLOR = "#03080f"/);
   assert.match(source, /const HEADLAMP_CONE_HALF_ANGLE = Math\.PI \/ 4/);
   assert.match(source, /function drawMudflatDarkness\(/);
   assert.match(source, /height \* DARK_STAGE_VISIBLE_DIAMETER_RATIO \/ 2/);
   assert.match(source, /document\.createElement\("canvas"\)/);
   assert.match(source, /overlayContext\.globalCompositeOperation = "destination-out"/);
+  assert.match(source, /overlayContext\.fillStyle = DARK_STAGE_HIDDEN_COLOR/);
   assert.match(source, /context\.drawImage\(overlay, 0, 0, width, height\)/);
   assert.match(source, /fillSightCone\(HEADLAMP_CONE_HALF_ANGLE, \.48\)/);
   assert.match(source, /drawMudflatDarkness\(context, width, height, stageProfile\.darkness, mudflatHeadlampDiscoveryRange\(runtime\.equipment\.headlamp \?\? 0\), runtime\.player\.facing\)/);

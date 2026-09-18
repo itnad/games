@@ -104,6 +104,7 @@ const BASE_CAMP_FINAL_WIDTH_MULTIPLIER = 1.8;
 const TIDE_RETURN_MESSAGE = "물이 가득찼어. 빨리 복귀해야해!";
 const DARK_STAGE_VISION_DARKNESS = .6;
 const DARK_STAGE_VISIBLE_DIAMETER_RATIO = 2 / 3;
+const DARK_STAGE_HIDDEN_COLOR = "#03080f";
 const HEADLAMP_CONE_HALF_ANGLE = Math.PI / 4;
 let mudflatDarknessCanvas: HTMLCanvasElement | null = null;
 let mudflatDarknessContext: CanvasRenderingContext2D | null = null;
@@ -735,7 +736,7 @@ function drawMudflatDarkness(context: CanvasRenderingContext2D, width: number, h
     overlayContext.fillStyle = cone; overlayContext.fillRect(0, 0, width, height);
     overlayContext.restore();
   };
-  overlayContext.fillStyle = `rgba(3,8,15,${darkness})`;
+  overlayContext.fillStyle = DARK_STAGE_HIDDEN_COLOR;
   overlayContext.fillRect(0, 0, width, height);
   overlayContext.globalCompositeOperation = "destination-out";
   fillSightCircle(baseRadius);
