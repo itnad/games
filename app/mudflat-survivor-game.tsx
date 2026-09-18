@@ -105,6 +105,8 @@ const TIDE_RETURN_MESSAGE = "물이 가득찼어. 빨리 복귀해야해!";
 const DARK_STAGE_VISION_DARKNESS = .6;
 const DARK_STAGE_VISIBLE_DIAMETER_RATIO = 2 / 3;
 const HEADLAMP_CONE_HALF_ANGLE = Math.PI / 4;
+let mudflatDarknessCanvas: HTMLCanvasElement | null = null;
+let mudflatDarknessContext: CanvasRenderingContext2D | null = null;
 type Runtime = {
   mode: GameMode;
   stage: number;
@@ -693,41 +695,56 @@ function drawMudflatDarkness(context: CanvasRenderingContext2D, width: number, h
     context.fillStyle = veil; context.fillRect(0, 0, width, height); context.restore();
     return;
   }
+  if (typeof document === "undefined") return;
+  if (!mudflatDarknessCanvas) mudflatDarknessCanvas = document.createElement("canvas");
+  const overlay = mudflatDarknessCanvas;
+  const overlayWidth = Math.max(1, Math.ceil(width));
+  const overlayHeight = Math.max(1, Math.ceil(height));
+  if (overlay.width !== overlayWidth || overlay.height !== overlayHeight) {
+    overlay.width = overlayWidth;
+    overlay.height = overlayHeight;
+    mudflatDarknessContext = null;
+  }
+  const overlayContext = mudflatDarknessContext ?? overlay.getContext("2d");
+  if (!overlayContext) return;
+  mudflatDarknessContext = overlayContext;
+  overlayContext.setTransform(1, 0, 0, 1, 0, 0);
+  overlayContext.clearRect(0, 0, overlay.width, overlay.height);
   const baseRadius = Math.max(150, height * DARK_STAGE_VISIBLE_DIAMETER_RATIO / 2);
   const fillSightCircle = (radius: number, alpha = 1) => {
-    const sight = context.createRadialGradient(centerX, centerY, radius * .34, centerX, centerY, radius);
+    const sight = overlayContext.createRadialGradient(centerX, centerY, radius * .34, centerX, centerY, radius);
     sight.addColorStop(0, `rgba(0,0,0,${alpha})`);
     sight.addColorStop(.78, `rgba(0,0,0,${alpha})`);
     sight.addColorStop(1, "rgba(0,0,0,0)");
-    context.fillStyle = sight;
-    context.beginPath(); context.arc(centerX, centerY, radius, 0, Math.PI * 2); context.fill();
+    overlayContext.fillStyle = sight;
+    overlayContext.beginPath(); overlayContext.arc(centerX, centerY, radius, 0, Math.PI * 2); overlayContext.fill();
   };
   const fillSightCone = (halfAngle: number, alpha: number) => {
     const range = Math.min(Math.hypot(width, height), baseRadius + headlampRange);
     if (range <= baseRadius + 1) return;
-    const cone = context.createRadialGradient(centerX, centerY, baseRadius * .64, centerX, centerY, range);
+    const cone = overlayContext.createRadialGradient(centerX, centerY, baseRadius * .64, centerX, centerY, range);
     cone.addColorStop(0, `rgba(0,0,0,${alpha})`);
     cone.addColorStop(.68, `rgba(0,0,0,${alpha})`);
     cone.addColorStop(1, "rgba(0,0,0,0)");
-    context.save();
-    context.beginPath();
-    context.moveTo(centerX, centerY);
-    context.arc(centerX, centerY, range, facing - halfAngle, facing + halfAngle);
-    context.closePath();
-    context.clip();
-    context.fillStyle = cone; context.fillRect(0, 0, width, height);
-    context.restore();
+    overlayContext.save();
+    overlayContext.beginPath();
+    overlayContext.moveTo(centerX, centerY);
+    overlayContext.arc(centerX, centerY, range, facing - halfAngle, facing + halfAngle);
+    overlayContext.closePath();
+    overlayContext.clip();
+    overlayContext.fillStyle = cone; overlayContext.fillRect(0, 0, width, height);
+    overlayContext.restore();
   };
-  context.save();
-  context.fillStyle = `rgba(3,8,15,${darkness})`;
-  context.fillRect(0, 0, width, height);
-  context.globalCompositeOperation = "destination-out";
+  overlayContext.fillStyle = `rgba(3,8,15,${darkness})`;
+  overlayContext.fillRect(0, 0, width, height);
+  overlayContext.globalCompositeOperation = "destination-out";
   fillSightCircle(baseRadius);
   if (headlampRange > 0) {
     fillSightCone(HEADLAMP_CONE_HALF_ANGLE, .48);
     fillSightCone(HEADLAMP_CONE_HALF_ANGLE * .72, .86);
   }
-  context.restore();
+  overlayContext.globalCompositeOperation = "source-over";
+  context.drawImage(overlay, 0, 0, width, height);
 }
 
 function drawRock(context: CanvasRenderingContext2D, rock: Rock, effect?: RockFlipEffect) {

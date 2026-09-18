@@ -1311,7 +1311,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const HEADLAMP_CONE_HALF_ANGLE = Math\.PI \/ 4/);
   assert.match(source, /function drawMudflatDarkness\(/);
   assert.match(source, /height \* DARK_STAGE_VISIBLE_DIAMETER_RATIO \/ 2/);
-  assert.match(source, /context\.globalCompositeOperation = "destination-out"/);
+  assert.match(source, /document\.createElement\("canvas"\)/);
+  assert.match(source, /overlayContext\.globalCompositeOperation = "destination-out"/);
+  assert.match(source, /context\.drawImage\(overlay, 0, 0, width, height\)/);
   assert.match(source, /fillSightCone\(HEADLAMP_CONE_HALF_ANGLE, \.48\)/);
   assert.match(source, /drawMudflatDarkness\(context, width, height, stageProfile\.darkness, mudflatHeadlampDiscoveryRange\(runtime\.equipment\.headlamp \?\? 0\), runtime\.player\.facing\)/);
   assert.doesNotMatch(source, /const radius = headlamp \? 215 : 112/);
