@@ -1,0 +1,22 @@
+.ms-exit-dialog { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: #101c27bc; backdrop-filter: blur(10px); }
+.ms-exit-dialog section { width: min(100%, 410px); max-height: 100%; overflow-y: auto; box-sizing: border-box; padding: 30px 28px 22px; border: 1px solid #ffffff20; border-radius: 28px; background: linear-gradient(150deg, #253b45, #18232f); box-shadow: 0 24px 80px #0007; color: #f5faf8; text-align: center; }
+.ms-exit-symbol { display: grid; place-items: center; width: 48px; height: 48px; margin: 0 auto 18px; border: 1px solid #97e2c244; border-radius: 17px; background: #84dfbc16; color: #adf3d6; font-size: 23px; }
+.ms-exit-dialog small { color: #a4c7be; font-size: 10px; letter-spacing: 1.4px; }
+.ms-exit-dialog h2 { margin: 10px 0 14px; font-size: 25px; letter-spacing: -.7px; }
+.ms-exit-dialog p { margin: 0 0 23px; color: #c0cece; font-size: 14px; line-height: 1.8; word-break: keep-all; }
+.ms-exit-actions { display: grid; gap: 10px; }
+.ms-exit-actions button { min-height: 50px; padding: 12px 18px; border: 1px solid #ffffff20; border-radius: 15px; font: inherit; font-size: 15px; font-weight: 750; cursor: pointer; }
+.ms-exit-actions .ms-exit-main { display: flex; justify-content: space-between; align-items: center; border-color: #c0f0d6; background: linear-gradient(110deg, #b5eed1, #8cd8bb); color: #163b35; }
+.ms-exit-actions .ms-exit-home { background: #ffffff0c; color: #eff6f4; }
+.ms-exit-actions .ms-exit-cancel { min-height: 42px; border-color: transparent; background: transparent; color: #a8b9c1; }
+.ms-exit-actions button:focus-visible { outline: 3px solid #f6d988; outline-offset: 3px; }
+.ms-exit-actions button:active { transform: translateY(1px); }
+.ms-live-resume { margin: 0 0 26px; }
+.ms-live-resume .ms-continue { margin: 0; padding: 18px 22px; text-align: left; }
+.ms-live-resume .ms-continue span { display: grid; gap: 7px; }
+.ms-live-resume .ms-continue small { font-size: 11px; font-weight: 650; opacity: .8; }
+.ms-live-resume .ms-continue em { font-size: 12px; line-height: 1.6; }
+.ms-live-resume > p { margin: 10px 3px 0; color: #a9bebd; font-size: 11px; line-height: 1.6; word-break: keep-all; }
+.ms-save-error, .ms-exit-dialog .ms-save-error { color: #ffcf9e; font-size: 13px; line-height: 1.6; }
+.ms-live-save-warning { position: fixed; z-index: 75; bottom: 105px; left: 16px; right: 16px; width: fit-content; max-width: 460px; margin: 0 auto; padding: 12px 16px; border-radius: 12px; background: #392b20ee; color: #ffdab8; font-size: 12px; line-height: 1.5; pointer-events: none; }
+@media (max-width: 520px) { .ms-exit-dialog { padding: 20px; } .ms-exit-dialog section { padding: 27px 22px 18px; } }

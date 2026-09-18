@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import "./mudflat-cast-net.test.mjs";
+import "./mudflat-run-save.test.mjs";
 import { installGameRefreshGuard } from "../app/game-refresh.js";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { advanceLumiMotion, clearLumiAtlasMatte, createLumiMotion, lumiPose, lumiTongPose } from "../app/mudflat-lumi-animation.js";

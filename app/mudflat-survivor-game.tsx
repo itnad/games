@@ -9,6 +9,8 @@ import { createDefeatRetrySnapshot, restoreDefeatRetryRuntime } from "./mudflat-
 import { withSecretExpeditionSkills } from "./mudflat-secret-entry.js";
 import { CAST_NET_RETRY, advanceCastNets, castNetMovementMultiplier, castNetOnScreen, createCastNet, findCastNetTarget } from "./mudflat-cast-net.js";
 import { drawCastNetThrow } from "./mudflat-cast-net-renderer.js";
+import { MudflatExitDialog } from "./mudflat-exit-dialog";
+import { MUDFLAT_AUTOSAVE_MS, clearMudflatRun, readMudflatRun, writeMudflatRun } from "./mudflat-run-save.js";
 import { HARVEST_PULSE_SECONDS, drawHarvestPulse, drawSaltSpirit, saltSpiritPose } from "./mudflat-kids-effects.js";
 import { EXPERIENCE_FLASH_SECONDS, createExperiencePickup, advanceExperiencePickup } from "./mudflat-experience.js";
 import {
@@ -120,6 +122,8 @@ type Campaign = {
   level: number; xp: number; nextXp: number; levels: CountMap; equipment: CountMap; inventory: CountMap; lastHaul: CountMap; lastSaleValue: number; totalScore: number; lastBossCaught: boolean;
   lastObjectiveLabel?: string; lastObjectiveComplete?: boolean; lastObjectiveBonus?: number; pendingSkillDiscovery?: boolean;
 };
+type UpgradeChoice = { id: string; icon: string; name: string; description: string; max: number };
+type SavedRun = { version: 1; savedAt: number; campaign: Campaign; runtime: Runtime; choiceIds: string[]; nextSequence: number };
 
 const BEST_KEY = "paperoid-mudflat-survivor-best-v1";
 const CAMPAIGN_KEY = "paperoid-mudflat-survivor-campaign-v1";
@@ -248,8 +252,8 @@ function makeRuntime(campaign: Campaign): Runtime {
 
 function readSavedCampaign(): Campaign | null {
   try {
-    const value = JSON.parse(window.localStorage.getItem(CAMPAIGN_KEY) ?? "null") as Partial<Campaign> | null;
-    if (!value || value.version !== 1 || (value.mode !== "kids" && value.mode !== "normal") || !Number.isFinite(value.stage) || !value.levels || !value.equipment || !value.inventory) return null;
+    const value = JSON.parse(window.localStorage.getItem(CAMPAIGN_KEY) ?? "null") as (Partial<Campaign> & { inProgress?: boolean }) | null;
+    if (!value || value.inProgress || value.version !== 1 || (value.mode !== "kids" && value.mode !== "normal") || !Number.isFinite(value.stage) || !value.levels || !value.equipment || !value.inventory) return null;
     const restored: Campaign = {
       version: 1, mode: value.mode, characterId: String(value.characterId ?? "digger"), stage: Math.max(1, Math.floor(value.stage ?? 1)),
       coins: Math.max(0, Math.floor(value.coins ?? 0)), hp: Math.max(1, Number(value.hp ?? 1)), maxHp: Math.max(1, Number(value.maxHp ?? 1)), baseMaxHp: Math.max(1, Number(value.baseMaxHp ?? (value.mode === "normal" ? 100 : (CHARACTERS.find((item) => item.id === value.characterId)?.hp ?? 100)))),
@@ -269,6 +273,16 @@ function roundedRect(context: CanvasRenderingContext2D, x: number, y: number, wi
   const safeRadius = Math.min(radius, width / 2, height / 2);
   context.beginPath();
   context.roundRect(x, y, width, height, safeRadius);
+}
+
+function readActiveRun(): SavedRun | null {
+  const saved = readMudflatRun(makeRuntime) as SavedRun | null;
+  if (!saved) return null;
+  const characters = saved.campaign.mode === "normal" ? GENERAL_APPEARANCES : CHARACTERS;
+  const upgrades = saved.campaign.mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
+  if (!characters.some((item) => item.id === saved.campaign.characterId)
+    || !saved.choiceIds.every((id) => upgrades.some((item) => item.id === id))) return null;
+  return saved;
 }
 
 function baseCampDimensions(stage: number) {
@@ -984,7 +998,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [mode, setMode] = useState<GameMode>("normal");
   const [characterId, setCharacterId] = useState(defaultCharacterId("normal"));
   const [hud, setHud] = useState<Hud>(emptyHud);
-  const [choices, setChoices] = useState<Array<{ id: string; icon: string; name: string; description: string; max: number }>>([]);
+  const [choices, setChoicesState] = useState<UpgradeChoice[]>([]);
+  const choicesRef = useRef<UpgradeChoice[]>([]);
+  const setChoices = useCallback((next: UpgradeChoice[]) => { choicesRef.current = next; setChoicesState(next); }, []);
+  const [savedRun, setSavedRun] = useState<SavedRun | null>(null);
+  const [exitOpen, setExitOpen] = useState(false);
+  const exitOriginRef = useRef<Screen>("running");
+  const [saveError, setSaveError] = useState("");
   const [runId, setRunId] = useState(0);
   const [best, setBest] = useState(0);
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -1042,6 +1062,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [campNotice, setCampNotice] = useState("잡아온 해산물을 판매하고 다음 출정을 준비하세요.");
 
   useEffect(() => {
+    setSavedRun(readActiveRun());
+    try {
     setBest(Number(window.localStorage.getItem(BEST_KEY) ?? 0));
     const restoredCampaign = readSavedCampaign();
     setSavedCampaign(restoredCampaign);
@@ -1055,6 +1077,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       setMode(lastMode);
       setCharacterId(defaultCharacterId(lastMode));
     }
+    } catch { /* Local saving can be disabled by the browser. Report it on a save attempt. */ }
   }, []);
 
   useEffect(() => {
@@ -1106,9 +1129,35 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     };
   }, []);
 
-  const storeCampaign = useCallback((next: Campaign) => {
-    campaignRef.current = next; setCampaign(next); setSavedCampaign(next); window.localStorage.setItem(CAMPAIGN_KEY, JSON.stringify(next));
+  const storeCampaign = useCallback((next: Campaign, inProgress = false) => {
+    campaignRef.current = next; setCampaign(next); setSavedCampaign(inProgress ? null : next);
+    try { window.localStorage.setItem(CAMPAIGN_KEY, JSON.stringify({ ...next, inProgress })); }
+    catch { setSaveError("이 기기에 저장할 수 없습니다. 브라우저의 저장 공간과 개인정보 설정을 확인해 주세요."); }
   }, []);
+
+  const persistActiveRun = useCallback(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime || runtime.ended || runtime.player.hp <= 0 || !campaignRef.current) return false;
+    const success = writeMudflatRun(campaignRef.current, runtime, choicesRef.current.map((item) => item.id), sequenceRef.current);
+    setSaveError(success ? "" : "진행 상황을 저장하지 못했습니다. 브라우저의 저장 공간과 개인정보 설정을 확인한 뒤 다시 시도해 주세요.");
+    return success;
+  }, []);
+
+  const discardActiveRun = useCallback(() => {
+    clearMudflatRun(); setSavedRun(null); setSaveError("");
+  }, []);
+
+  useEffect(() => {
+    if (!runId) return;
+    persistActiveRun();
+    const timer = window.setInterval(persistActiveRun, MUDFLAT_AUTOSAVE_MS);
+    window.addEventListener("pagehide", persistActiveRun);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("pagehide", persistActiveRun);
+      persistActiveRun();
+    };
+  }, [runId, persistActiveRun]);
 
   const snapshot = useCallback((runtime: Runtime) => {
     setHud({
@@ -1123,15 +1172,29 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
   const beginAtStage = (stage: number, secretEntry = false) => {
     defeatRetryRef.current = null;
-    window.localStorage.setItem(LAST_MODE_KEY, mode);
+    discardActiveRun();
+    try { window.localStorage.setItem(LAST_MODE_KEY, mode); } catch { /* Live save reports failures. */ }
     const entryStage = Math.max(1, Math.min(highestUnlockedStage, Math.floor(stage)));
     const freshCampaign = createCampaign(characterId, mode, entryStage);
     const nextCampaign = secretEntry ? withSecretExpeditionSkills(freshCampaign) : freshCampaign;
-    storeCampaign(nextCampaign);
+    storeCampaign(nextCampaign, true);
     const runtime = makeRuntime(nextCampaign);
     resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
   };
   const begin = () => beginAtStage(selectedStage);
+
+  const continueActiveRun = () => {
+    const saved = readActiveRun();
+    if (!saved) { setSavedRun(null); setSaveError("저장된 진행 상황을 불러올 수 없습니다."); return; }
+    defeatRetryRef.current = null;
+    setMode(saved.campaign.mode); setCharacterId(saved.campaign.characterId);
+    storeCampaign(saved.campaign, true);
+    runtimeRef.current = saved.runtime; sequenceRef.current = saved.nextSequence;
+    resetMovementInput(); snapshot(saved.runtime); setSelectedSkillId(null);
+    const upgrades = saved.campaign.mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
+    setChoices(saved.choiceIds.map((id) => upgrades.find((item) => item.id === id)!));
+    setScreen(saved.choiceIds.length ? "upgrade" : "paused"); setRunId((value) => value + 1);
+  };
 
   const continueCampaign = () => {
     if (!savedCampaign) return;
@@ -1145,6 +1208,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (runtime.ended) return;
     defeatRetryRef.current = campaignRef.current ? createDefeatRetrySnapshot(campaignRef.current, runtime) : null;
     runtime.ended = true; runtime.paused = true; snapshot(runtime);
+    discardActiveRun();
     const score = mudflatFinalScore({ catchScore: runtime.catchScore, caught: runtime.caught, elapsed: runtime.elapsed, bossCaught: runtime.bossCaught });
     if (score > best) { setBest(score); window.localStorage.setItem(BEST_KEY, String(score)); }
     // Ordinary retries still start over. Keep only a memory-only backup for
@@ -1154,7 +1218,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     setCampaign(null);
     setSavedCampaign(null);
     setScreen("defeat");
-  }, [best, snapshot]);
+  }, [best, discardActiveRun, snapshot]);
 
   const completeStage = useCallback((runtime: Runtime) => {
     if (runtime.ended) return;
@@ -1180,8 +1244,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     });
     const regularClear = runtime.stage === 8 ? " 정규 원정을 완주해 끝없는 물때가 열렸습니다." : "";
     const objectiveNotice = objective.label ? ` 보조 목표 ${objective.complete ? `달성(+${objective.bonus}코인)` : "미달성"}: ${objective.label}.` : "";
-    storeCampaign(next); setCampNotice(`${runtime.stage}단계에서 잡은 ${settlement.catchCount}마리를 판매해서 ${autoSale.value}코인을 얻었습니다.${regularClear}${objectiveNotice}`); setScreen("camp");
-  }, [best, characterId, snapshot, storeCampaign]);
+    storeCampaign(next); discardActiveRun(); setCampNotice(`${runtime.stage}단계에서 잡은 ${settlement.catchCount}마리를 판매해서 ${autoSale.value}코인을 얻었습니다.${regularClear}${objectiveNotice}`); setScreen("camp");
+  }, [best, characterId, discardActiveRun, snapshot, storeCampaign]);
 
   useEffect(() => {
     if (!runId) return;
@@ -2252,18 +2316,23 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     };
     animation = requestAnimationFrame(loop);
     return () => { mounted = false; cancelAnimationFrame(animation); };
-  }, [completeStage, endRun, resetMovementInput, runId, snapshot]);
+  }, [completeStage, endRun, resetMovementInput, runId, setChoices, snapshot]);
 
   useEffect(() => {
-    const down = (event: KeyboardEvent) => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) { event.preventDefault(); keysRef.current.add(event.code); } };
+    const down = (event: KeyboardEvent) => { if (!runtimeRef.current?.paused && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) { event.preventDefault(); keysRef.current.add(event.code); } };
     const up = (event: KeyboardEvent) => keysRef.current.delete(event.code);
-    const visibility = () => { const runtime = runtimeRef.current; if (document.hidden && runtime && !runtime.ended && !runtime.paused) { runtime.paused = true; resetMovementInput(); setScreen("paused"); } };
+    const visibility = () => {
+      const runtime = runtimeRef.current;
+      if (!document.hidden || !runtime || runtime.ended) return;
+      if (!runtime.paused) { runtime.paused = true; resetMovementInput(); setScreen("paused"); }
+      persistActiveRun();
+    };
     window.addEventListener("keydown", down); window.addEventListener("keyup", up); document.addEventListener("visibilitychange", visibility);
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); document.removeEventListener("visibilitychange", visibility); };
-  }, [resetMovementInput]);
+  }, [persistActiveRun, resetMovementInput]);
 
   const pointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (screen !== "running") return;
+    if (screen !== "running" || runtimeRef.current?.paused || exitOpen) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     joystickRef.current = { pointerId: event.pointerId, originX: event.clientX, originY: event.clientY, x: 0, y: 0 };
   };
@@ -2276,7 +2345,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (joystickRef.current.pointerId !== event.pointerId) return;
     joystickRef.current = { pointerId: -1, originX: 0, originY: 0, x: 0, y: 0 };
   };
-  const pause = () => { const runtime = runtimeRef.current; if (!runtime || runtime.ended || runtime.paused) return; runtime.paused = true; resetMovementInput(); setScreen("paused"); };
+  const pause = () => { const runtime = runtimeRef.current; if (!runtime || runtime.ended || runtime.paused) return; runtime.paused = true; resetMovementInput(); setScreen("paused"); persistActiveRun(); };
   const resume = () => { const runtime = runtimeRef.current; if (!runtime) return; resetMovementInput(); runtime.paused = false; setScreen("running"); };
   const chooseUpgrade = (id: string) => {
     const runtime = runtimeRef.current; if (!runtime) return;
@@ -2292,7 +2361,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const afterUnlocks = mudflatAdvancedSkillUnlocks(runtime.levels);
       if ((!beforeUnlocks.electric && afterUnlocks.electric) || (!beforeUnlocks.castNet && afterUnlocks.castNet)) runtime.discoveryMessageLife = 3;
     }
-    resetMovementInput(); setChoices([]); runtime.paused = false; snapshot(runtime); setScreen("running");
+    resetMovementInput(); setChoices([]); runtime.paused = false; snapshot(runtime); setScreen("running"); persistActiveRun();
   };
   const rerollUpgradeChoices = () => {
     const runtime = runtimeRef.current; if (!runtime) return;
@@ -2300,7 +2369,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (runtime.player.hp <= cost) return;
     runtime.player.hp -= cost;
     runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .72, text: `-${cost}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
-    setChoices(mudflatUpgradeChoices(runtime.level, runtime.levels, runtime.mode)); snapshot(runtime);
+    setChoices(mudflatUpgradeChoices(runtime.level, runtime.levels, runtime.mode)); snapshot(runtime); persistActiveRun();
     if ("vibrate" in navigator) navigator.vibrate(18);
   };
   const buyEquipment = (id: string) => {
@@ -2348,7 +2417,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const startNextStage = () => {
     const current = campaignRef.current; if (!current) return;
     const runtime = makeRuntime(current);
-    if (current.pendingSkillDiscovery) storeCampaign({ ...current, pendingSkillDiscovery: false });
+    storeCampaign({ ...current, pendingSkillDiscovery: false }, true);
     resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
   };
   const retryWithProgress = () => {
@@ -2357,12 +2426,33 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     defeatRetryRef.current = null;
     const next: Campaign = saved.campaign;
     const runtime: Runtime = restoreDefeatRetryRuntime(makeRuntime(next), saved);
-    setMode(next.mode); setCharacterId(next.characterId); storeCampaign(next);
+    setMode(next.mode); setCharacterId(next.characterId); storeCampaign(next, true);
     resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime);
     setChoices([]); setSelectedSkillId(null); setScreen("running"); setRunId((value) => value + 1);
   };
-  const reset = () => { defeatRetryRef.current = null; runtimeRef.current = null; campaignRef.current = null; resetMovementInput(); setCampaign(null); setCharacterId(defaultCharacterId(mode)); setHud({ ...emptyHud, mode }); setSelectedStage(1); setChoices([]); setSelectedSkillId(null); setScreen("setup"); };
-  const clearCampaign = () => { window.localStorage.removeItem(CAMPAIGN_KEY); setSavedCampaign(null); reset(); };
+  const reset = () => { defeatRetryRef.current = null; runtimeRef.current = null; campaignRef.current = null; resetMovementInput(); setRunId(0); setExitOpen(false); setCampaign(null); setCharacterId(defaultCharacterId(mode)); setHud({ ...emptyHud, mode }); setSelectedStage(1); setChoices([]); setSelectedSkillId(null); setScreen("setup"); };
+  const clearCampaign = () => { window.localStorage.removeItem(CAMPAIGN_KEY); discardActiveRun(); setSavedCampaign(null); reset(); };
+  const openExitDialog = () => {
+    const runtime = runtimeRef.current;
+    if (!runtime || runtime.ended || exitOpen) return;
+    exitOriginRef.current = screen;
+    runtime.paused = true; resetMovementInput(); setSelectedSkillId(null);
+    setExitOpen(true); persistActiveRun();
+  };
+  const cancelExit = () => {
+    resetMovementInput(); setExitOpen(false);
+    const origin = exitOriginRef.current;
+    if (runtimeRef.current) runtimeRef.current.paused = origin !== "running";
+    setScreen(origin);
+  };
+  const leaveGame = (destination: "main" | "home") => {
+    // Never navigate away after a failed save and silently lose the run.
+    if (!persistActiveRun()) return;
+    setSavedRun(readActiveRun());
+    setExitOpen(false);
+    if (destination === "home") onExit();
+    else reset();
+  };
 
   if (screen === "setup") return (
     <main className="ms-shell ms-setup" data-game-menu>
@@ -2372,6 +2462,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         <h1>해루질에 <em>미친 자여!</em></h1>
       </section>
       <section className="ms-character-select">
+        {savedRun && <div className="ms-live-resume">
+          <button type="button" className="ms-continue" onClick={continueActiveRun}>
+            <span><small>진행 중인 원정 · {savedRun.campaign.mode === "normal" ? "일반 모드" : "어린이 모드"}</small><b>이어서 채집하기</b><em>{savedRun.runtime.stage}단계 · {mudflatStageProfile(savedRun.runtime.stage).name} · {formatClock(savedRun.runtime.elapsed)}<br />체력 {Math.floor(savedRun.runtime.player.hp)} / {Math.floor(savedRun.runtime.player.maxHp)} · LV.{savedRun.runtime.level} · {savedRun.campaign.coins.toLocaleString()}코인</em></span><strong aria-hidden="true">→</strong>
+          </button>
+          <p>이 기기·브라우저에 저장됩니다. 새 원정을 시작하면 기존 진행 상황이 교체됩니다.</p>
+        </div>}
+        {saveError && <p className="ms-save-error" role="alert">{saveError}</p>}
         <h2 className="ms-mode-heading">어떤 해루질로 떠날까요?</h2>
         <div className="ms-mode-picker">
           <button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => { setMode("normal"); window.localStorage.setItem(LAST_MODE_KEY, "normal"); setCharacterId("beginner"); }}>
@@ -2437,7 +2534,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         <button className="ms-primary" type="button" onClick={begin}>
           {selectedStage > 1 ? `${selectedStage === 9 ? "끝없는 물때" : `${selectedStage}단계`} 새 원정 시작` : mode === "normal" ? "새 일반 원정 시작" : "새 어린이 원정 시작"} <span>→</span>
         </button>
-        {savedCampaign && <details className="ms-setup-details ms-saved-expedition">
+        {savedCampaign && !savedRun && <details className="ms-setup-details ms-saved-expedition">
           <summary><span><small>SAVED EXPEDITION</small><b>저장된 원정 이어하기</b></span><i>⌄</i></summary>
           <button type="button" className="ms-continue" onClick={continueCampaign}><span><b>{savedCampaign.stage}단계 정비소</b><em>{savedCampaign.coins.toLocaleString()}코인 · LV.{savedCampaign.level}</em></span><strong>→</strong></button>
         </details>}
@@ -2533,7 +2630,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       <p>게임 시간과 해산물 움직임이 모두 멈춰 있습니다.</p>
       <GameObjectiveGuide gameId="mudflat-survivor" inline />
       <button className="ms-primary" onClick={resume}>계속 채집하기</button>
-      <button className="ms-quit" onClick={reset}>이번 채집 끝내기</button>
+      <button className="ms-quit" onClick={openExitDialog}>저장하고 나가기</button>
     </section></div>
   ) : null;
   const hpWidth = Math.max(0, hud.hp / hud.maxHp * 100);
@@ -2544,7 +2641,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       {lumiLoadStatus === "error" && <button type="button" className="ms-primary" onClick={() => {
         setLumiLoadStatus("loading"); loadLumiArt(true); setRunId((value) => value + 1);
       }}>다시 불러오기</button>}
-      <button type="button" className="ms-quit" onClick={reset}>캐릭터 선택으로</button>
+      <button type="button" className="ms-quit" onClick={openExitDialog}>저장하고 나가기</button>
     </section></div>
   ) : null;
   const xpWidth = Math.max(0, hud.xp / hud.nextXp * 100);
@@ -2556,5 +2653,5 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const canReroll = hud.hp > rerollCost;
   const activeStageProfile = mudflatStageProfile(hud.stage) as StageProfile;
   const activeStageObjective = activeStageProfile.objective;
-  return <main className={`ms-shell ms-game${hud.mode === "kids" ? " ms-kids-game" : ""}`}><header className="ms-game-head"><button onClick={onExit} aria-label="게임 목록으로">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {activeStageProfile.name}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label="해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다." /><div className="ms-hud-bars" data-xp-collecting={hud.xpCollecting || undefined}><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.floor(hud.hp)} / {Math.floor(hud.maxHp)}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div></div>{hud.mode === "normal" && <div className="ms-base-tools" aria-label="기본 채집 도구">{fixedNormalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)}><i>{skill.icon}</i><span>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name} <em>Lv.{hud.levels[skill.id] ?? 0}</em></span></button>)}</div>}<div className="ms-caught"><small>한 바구니</small><b>{hud.caught}</b><span>마리</span></div>{activeStageObjective && <div className="ms-stage-objective"><small>보조 목표</small><b>{activeStageObjective.label}</b></div>}<div className="ms-touch-hint">아무 곳이나 누르고 드래그</div></section><section className={`ms-tools${hud.mode === "kids" ? " ms-kids-tools" : ""}`} aria-label="선택 기술">{hud.mode === "normal" ? <>{normalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)} aria-label={`${skill.name} 상세 보기`}><i>{skill.icon}</i><b>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name}</b><em>Lv.{hud.levels[skill.id] ?? 0}</em></button>)}{Array.from({ length: Math.max(0, 6 - normalSkills.length) }, (_, index) => <span className="ms-tool-empty" key={`empty-${index}`} aria-label="비어 있는 선택 기술 칸">+</span>)}</> : <><span><i>⌁</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "hoe")?.name}</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "net")?.name}</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>소금 결정의 정령</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>쓸어담기</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{lumiLoadingLayer}{selectedSkill && selectedSkillDetail && <aside className="ms-skill-detail" role="dialog" aria-label={`${selectedSkill.name} 상세`}><button type="button" aria-label="기술 상세 닫기" onClick={() => setSelectedSkillId(null)}>×</button><i>{selectedSkill.icon}</i><div><small>{MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(selectedSkill.id) ? "기본 채집 도구" : "선택 기술"} · Lv.{hud.levels[selectedSkill.id] ?? 0}</small><b>{selectedSkill.name}</b><p>{selectedSkillDetail.current}</p><strong>{selectedSkillDetail.next}</strong></div></aside>}{screen === "upgrade" && <div className="ms-layer"><section><small>LEVEL {hud.level}</small><h2>새 채집 기술을 고르세요</h2><p>선택하는 동안 갯벌의 시간은 멈춥니다.</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div><button type="button" className="ms-reroll" disabled={!canReroll} onClick={rerollUpgradeChoices}>새로고침 · 최대 체력 20% ({rerollCost}) 사용</button><small className="ms-skill-slots">선택 기술 {normalSkills.length} / 6 · 집게와 호미질은 기본 기술입니다.</small></section></div>}{pauseLayer}</main>;
+  return <main className={`ms-shell ms-game${hud.mode === "kids" ? " ms-kids-game" : ""}`}><header className="ms-game-head"><button onClick={openExitDialog} aria-label="나가기 선택">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {activeStageProfile.name}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label="해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다." /><div className="ms-hud-bars" data-xp-collecting={hud.xpCollecting || undefined}><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.floor(hud.hp)} / {Math.floor(hud.maxHp)}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div></div>{hud.mode === "normal" && <div className="ms-base-tools" aria-label="기본 채집 도구">{fixedNormalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)}><i>{skill.icon}</i><span>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name} <em>Lv.{hud.levels[skill.id] ?? 0}</em></span></button>)}</div>}<div className="ms-caught"><small>한 바구니</small><b>{hud.caught}</b><span>마리</span></div>{activeStageObjective && <div className="ms-stage-objective"><small>보조 목표</small><b>{activeStageObjective.label}</b></div>}<div className="ms-touch-hint">아무 곳이나 누르고 드래그</div></section><section className={`ms-tools${hud.mode === "kids" ? " ms-kids-tools" : ""}`} aria-label="선택 기술">{hud.mode === "normal" ? <>{normalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)} aria-label={`${skill.name} 상세 보기`}><i>{skill.icon}</i><b>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name}</b><em>Lv.{hud.levels[skill.id] ?? 0}</em></button>)}{Array.from({ length: Math.max(0, 6 - normalSkills.length) }, (_, index) => <span className="ms-tool-empty" key={`empty-${index}`} aria-label="비어 있는 선택 기술 칸">+</span>)}</> : <><span><i>⌁</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "hoe")?.name}</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "net")?.name}</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>소금 결정의 정령</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>쓸어담기</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{lumiLoadingLayer}{selectedSkill && selectedSkillDetail && <aside className="ms-skill-detail" role="dialog" aria-label={`${selectedSkill.name} 상세`}><button type="button" aria-label="기술 상세 닫기" onClick={() => setSelectedSkillId(null)}>×</button><i>{selectedSkill.icon}</i><div><small>{MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(selectedSkill.id) ? "기본 채집 도구" : "선택 기술"} · Lv.{hud.levels[selectedSkill.id] ?? 0}</small><b>{selectedSkill.name}</b><p>{selectedSkillDetail.current}</p><strong>{selectedSkillDetail.next}</strong></div></aside>}{screen === "upgrade" && <div className="ms-layer"><section><small>LEVEL {hud.level}</small><h2>새 채집 기술을 고르세요</h2><p>선택하는 동안 갯벌의 시간은 멈춥니다.</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div><button type="button" className="ms-reroll" disabled={!canReroll} onClick={rerollUpgradeChoices}>새로고침 · 최대 체력 20% ({rerollCost}) 사용</button><small className="ms-skill-slots">선택 기술 {normalSkills.length} / 6 · 집게와 호미질은 기본 기술입니다.</small></section></div>}{pauseLayer}{saveError && !exitOpen && <p className="ms-live-save-warning" role="status">{saveError}</p>}{exitOpen && <MudflatExitDialog onMain={() => leaveGame("main")} onHome={() => leaveGame("home")} onCancel={cancelExit} error={saveError} />}</main>;
 }
