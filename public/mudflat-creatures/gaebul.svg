@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 78" role="img" aria-label="개불">
+  <defs>
+    <linearGradient id="body" x1="15" x2="145" y1="26" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d7a083"/>
+      <stop offset=".42" stop-color="#bd725d"/>
+      <stop offset="1" stop-color="#8f5146"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="45" cy="25" r="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd9be" stop-opacity=".75"/>
+      <stop offset=".55" stop-color="#d28a70" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#6c392f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="80" cy="54" rx="61" ry="11" fill="#2a1f1c" opacity=".22"/>
+  <path d="M14 38c0-16 18-28 40-28h48c25 0 44 13 44 30 0 18-19 28-45 28H55c-25 0-41-12-41-30Z" fill="url(#body)"/>
+  <path d="M14 38c0-16 18-28 40-28h48c25 0 44 13 44 30 0 18-19 28-45 28H55c-25 0-41-12-41-30Z" fill="url(#shine)"/>
+  <path d="M22 33c18 7 38 9 61 7 19-2 37 0 54 6" fill="none" stroke="#f3c3a4" stroke-width="5" stroke-linecap="round" opacity=".35"/>
+  <path d="M31 51c18 5 34 6 52 4 19-2 33-1 46 3" fill="none" stroke="#6e392f" stroke-width="4" stroke-linecap="round" opacity=".28"/>
+  <circle cx="36" cy="31" r="3.5" fill="#5a2e29" opacity=".5"/>
+  <circle cx="126" cy="37" r="4.5" fill="#5a2e29" opacity=".38"/>
+  <path d="M49 15c-9 2-18 8-23 17M111 15c12 3 21 10 25 21" fill="none" stroke="#f2d2bd" stroke-width="3" stroke-linecap="round" opacity=".42"/>
+</svg>

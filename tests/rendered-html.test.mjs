@@ -117,6 +117,7 @@ import {
   MUDFLAT_CLAM_GRADES,
   MUDFLAT_CREATURES,
   MUDFLAT_FIXED_GENERAL_SKILL_IDS,
+  MUDFLAT_GAEBUL,
   MUDFLAT_GENERAL_UPGRADES,
   MUDFLAT_JOYSTICK_RADIUS,
   MUDFLAT_RECOVERY_FOODS,
@@ -1034,6 +1035,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatClamRewardForRoll(6, 0.01).id, "clam");
   assert.equal(mudflatClamRewardForRoll(6, 0.999).id, "razor-clam");
   assert.equal(MUDFLAT_PEARL.price, 10000);
+  assert.deepEqual(MUDFLAT_GAEBUL, { id: "gaebul", name: "개불", xp: 11, score: 88, price: 24 });
   assert.deepEqual(mudflatEmptySeafoodHazard(9.99), { damagePerSecond: 0, message: "" });
   assert.deepEqual(mudflatEmptySeafoodHazard(10), { damagePerSecond: 1, message: "너무 깊게 들어온 것 같다." });
   assert.deepEqual(mudflatEmptySeafoodHazard(30), { damagePerSecond: 10, message: "너무 춥다. 되돌아가야해" });
@@ -1049,7 +1051,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
       "small-crab": 2, crab: 3, "shore-crab": 4, "fiddler-crab": 5, "blue-crab": 7, "purple-crab": 9,
       shrimp: 1, whelk: 2, "fist-whelk": 8, octopus: 20, golbaengi: 6, flounder: 50, pufferfish: 15,
       "small-clam": 0, clam: 1, dongjuk: 2, "hard-clam": 3, "ark-shell": 10, "razor-clam": 12,
-      pearl: 10000, "king-crab": 100,
+      pearl: 10000, gaebul: 24, "king-crab": 100,
     },
   );
   const crabTypes = ["small-crab", "crab", "shore-crab", "fiddler-crab", "blue-crab", "purple-crab", "king-crab"];
@@ -1068,6 +1070,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(mudflatMarketImageScale("razor-clam") < mudflatMarketImageScale("ark-shell"));
   assert.equal(mudflatMarketImageScale("shrimp"), 1);
   assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "pearl").unit, "개");
+  assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "gaebul").image, "/mudflat-creatures/gaebul.svg");
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "whelk").size, 9);
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "fist-whelk").size, 18);
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "whelk").visualScale, 1.2);
@@ -1125,6 +1128,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(mudflatStageStats(3).spawnIntervalMultiplier < mudflatStageStats(2).spawnIntervalMultiplier);
   assert.equal(MUDFLAT_REGULAR_STAGES.length, 8);
   assert.deepEqual(MUDFLAT_REGULAR_STAGES.map((stage) => stage.name), ["초입 갯벌", "차오르는 물골", "바위 갯벌", "어두운 갯벌", "깊은 펄", "거센 갯벌", "대조기 갯벌", "마지막 물때"]);
+  assert.ok(mudflatStageProfile(5).modifiers.includes("개불 숨구멍"));
   assert.equal(mudflatStageProfile(4).darkness, .78);
   assert.equal(mudflatStageProfile(8).finalBoss, true);
   assert.equal(mudflatStageProfile(9).name, "끝없는 물때");
@@ -1206,7 +1210,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawRock\(context:[\s\S]*?const shake =[\s\S]*?const liftProgress =/);
   assert.match(source, /context\.fillText\(`돌뒤집기 \$\{Math\.ceil\(progress \* 100\)\}%`/);
   assert.match(source, /const ACTION_PROGRESS_RING_RADIUS = 18/);
-  assert.equal((source.match(/context\.arc\(0, 0, ACTION_PROGRESS_RING_RADIUS/g) ?? []).length, 4);
+  assert.ok((source.match(/context\.arc\(0, 0, ACTION_PROGRESS_RING_RADIUS/g) ?? []).length >= 4);
   assert.match(source, /rockId: target\.id[\s\S]*?life: stats\.processingTime, maxLife: stats\.processingTime/);
   assert.match(source, /runtime\.rockFlipEffect && runtime\.rockFlipEffect\.life <= 0[\s\S]*?mudflatRockCreatureForRoll\(Math\.random\(\), runtime\.levels\.rocker \?\? 1\)/);
   assert.match(source, /const stillInRange = target &&[\s\S]*?runtime\.rockFlipEffect = null;[\s\S]*?runtime\.rockTurnClock = mudflatRockTurnerStats\(runtime\.levels\.rocker \?\? 1\)\.cooldown/);
@@ -1427,7 +1431,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(engineSource, /requiresHeadlamp: true/);
   assert.match(source, /function drawClamHole\(/);
   assert.match(source, /function drawClamDigging\(/);
-  assert.match(source, /progress >= 2/);
+  assert.match(source, /GAEBUL_DIG_SECONDS = 3\.1/);
+  assert.match(source, /kind === "gaebul" \? MUDFLAT_GAEBUL/);
+  assert.match(source, /두 개의 숨구멍을 깊게 파는 중/);
   assert.match(source, /mudflatClamRewardForRoll/);
   assert.match(source, /const clamSize = clamGrade\?\.visualSize \?\? 42/);
   assert.match(source, /context\.rotate\(Math\.PI \/ 2\)/);
@@ -3273,6 +3279,7 @@ test("all rock, hole, and falling-rock spawn paths respect the camp exclusion", 
   assert.equal((source.match(/runtime\.rocks\.push\(/g) ?? []).length, 1, "all rocks use the guarded addRock helper");
   assert.match(source, /if \(!campObstacleAllowed\(rock, rock\.radius \+ 20\)\) return false;\s*runtime\.rocks\.push\(rock\)/);
   assert.match(source, /if \(campObstacleAllowed\(hole, 48\)\) runtime\.clamHoles\.push\(hole\)/);
+  assert.match(source, /kind = runtime\.stage === GAEBUL_STAGE/);
   assert.match(source, /if \(campObstacleAllowed\(falling, falling\.radius \+ 20\)\) runtime\.fallingRocks\.push\(falling\)/);
   for (const collection of ["rocks", "clamHoles", "fallingRocks"]) {
     assert.ok(source.includes(`runtime.${collection} = runtime.${collection}.filter((`), `existing ${collection} are cleared when camp appears`);

@@ -72,6 +72,8 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     }
     if (!runtime.creatures.every((creature) => typeof creature.type === "string" && typeof creature.name === "string"
       && ["chase", "still", "wander", "flee", "oval"].includes(creature.movement))) return null;
+    if (!runtime.clamHoles.every((hole) => (hole.kind === undefined || ["clam", "gaebul"].includes(hole.kind))
+      && (hole.angle === undefined || finite(hole.angle)))) return null;
     if (!runtime.pickups.every((pickup) => ["spawn", "idle", "pull", "arrived"].includes(pickup.phase) && Array.isArray(pickup.trail) && pickup.trail.every(point))) return null;
     if (!runtime.floatTexts.every((text) => typeof text.text === "string" && typeof text.color === "string")) return null;
     if (!Array.isArray(save.choiceIds) || save.choiceIds.length > 3 || !save.choiceIds.every((id) => typeof id === "string")

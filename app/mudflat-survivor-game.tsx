@@ -17,6 +17,7 @@ import {
   MUDFLAT_CREATURES,
   MUDFLAT_CLAM_GRADES,
   MUDFLAT_FIXED_GENERAL_SKILL_IDS,
+  MUDFLAT_GAEBUL,
   MUDFLAT_GENERAL_UPGRADES,
   MUDFLAT_RECOVERY_FOODS,
   MUDFLAT_REGULAR_STAGES,
@@ -91,7 +92,7 @@ type CastNetEffect = ReturnType<typeof createCastNet>;
 type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number; kind?: "harvest" };
 type FloatText = Point & { id: number; life: number; text: string; color: string; kind?: "playerDamage" | "harvest" };
 type Rock = Point & { id: number; radius: number; tone: number };
-type ClamHole = Point & { id: number; radius: number; progress: number };
+type ClamHole = Point & { id: number; radius: number; progress: number; kind?: "clam" | "gaebul"; angle?: number };
 type ClamReveal = Point & { id: number; life: number; maxLife: number; type: string };
 type RockFlipEffect = Point & { rockId: number; life: number; maxLife: number };
 type FallingRock = Point & { id: number; life: number; maxLife: number; radius: number };
@@ -106,6 +107,10 @@ const DARK_STAGE_VISION_DARKNESS = .6;
 const DARK_STAGE_VISIBLE_DIAMETER_RATIO = 2 / 3;
 const DARK_STAGE_HIDDEN_COLOR = "#03080f";
 const HEADLAMP_CONE_HALF_ANGLE = Math.PI / 4;
+const GAEBUL_STAGE = 5;
+const GAEBUL_DIG_SECONDS = 3.1;
+const CLAM_DIG_SECONDS = 2;
+const GAEBUL_SPAWN_CHANCE = .24;
 let mudflatDarknessCanvas: HTMLCanvasElement | null = null;
 let mudflatDarknessContext: CanvasRenderingContext2D | null = null;
 type Runtime = {
@@ -498,6 +503,26 @@ function drawMudflat(
           context.stroke();
         }
         context.restore();
+      } else if (profile.stage === GAEBUL_STAGE && hash > .44 && hash < .54) {
+        context.save();
+        context.translate(screenX, screenY);
+        context.rotate((hash - .49) * 4.2);
+        const deepMud = context.createRadialGradient(-18, -8, 3, 0, 0, 74);
+        deepMud.addColorStop(0, "rgba(40,31,25,.5)");
+        deepMud.addColorStop(.62, "rgba(48,37,30,.36)");
+        deepMud.addColorStop(1, "rgba(33,25,22,0)");
+        context.fillStyle = deepMud;
+        context.beginPath();
+        context.ellipse(0, 0, 88 + hash * 22, 34 + hash * 18, 0, 0, Math.PI * 2);
+        context.fill();
+        context.strokeStyle = "rgba(218,188,135,.11)";
+        context.lineWidth = 1.4;
+        for (let ring = 0; ring < 2; ring += 1) {
+          context.beginPath();
+          context.ellipse(-14 + ring * 23, -4 + ring * 7, 28 + ring * 9, 8 + ring * 3, 0, Math.PI * .08, Math.PI * .88);
+          context.stroke();
+        }
+        context.restore();
       } else if (hash < .2) {
         context.fillStyle = "rgba(42,35,28,.26)";
         context.beginPath();
@@ -785,6 +810,40 @@ function drawRock(context: CanvasRenderingContext2D, rock: Rock, effect?: RockFl
 
 function drawClamHole(context: CanvasRenderingContext2D, hole: ClamHole) {
   const active = hole.progress > 0;
+  if (hole.kind === "gaebul") {
+    const pulse = .5 + Math.sin(Date.now() / 320 + hole.id) * .5;
+    context.save();
+    context.rotate(hole.angle ?? 0);
+    context.fillStyle = "rgba(25,18,16,.34)";
+    context.beginPath(); context.ellipse(0, 5, hole.radius * 2.7, hole.radius * .95, 0, 0, Math.PI * 2); context.fill();
+    context.strokeStyle = active ? "#eecb8e" : "rgba(214,181,132,.58)";
+    context.lineWidth = active ? 3 : 1.6;
+    for (const offset of [-hole.radius * 1.05, hole.radius * 1.05]) {
+      context.fillStyle = active ? "#2d211d" : "#47362f";
+      context.beginPath(); context.ellipse(offset, 0, hole.radius * .78, hole.radius * .48, 0, 0, Math.PI * 2); context.fill();
+      context.stroke();
+      context.fillStyle = "rgba(8,12,12,.72)";
+      context.beginPath(); context.ellipse(offset, 1, hole.radius * .36, hole.radius * .18, 0, 0, Math.PI * 2); context.fill();
+    }
+    context.strokeStyle = `rgba(164,215,204,${.24 + pulse * .24})`;
+    context.lineWidth = 1.5;
+    for (let bubble = 0; bubble < 3; bubble += 1) {
+      const x = -hole.radius * .8 + bubble * hole.radius * .8;
+      const y = -hole.radius * 1.2 - bubble * 3 - pulse * 5;
+      context.beginPath(); context.arc(x, y, 2.2 + bubble * .7, 0, Math.PI * 2); context.stroke();
+    }
+    if (active) {
+      const progress = Math.min(1, hole.progress / GAEBUL_DIG_SECONDS);
+      context.strokeStyle = "rgba(38,31,28,.5)"; context.lineWidth = 6;
+      context.beginPath(); context.arc(0, 0, ACTION_PROGRESS_RING_RADIUS, -Math.PI / 2, Math.PI * 1.5); context.stroke();
+      context.strokeStyle = "#ffd78f"; context.lineWidth = 4;
+      context.beginPath(); context.arc(0, 0, ACTION_PROGRESS_RING_RADIUS, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress); context.stroke();
+      context.fillStyle = "#fff8df"; context.font = "900 11px system-ui"; context.textAlign = "center";
+      context.fillText(`깊게 파기 ${Math.ceil(progress * 100)}%`, 0, -ACTION_PROGRESS_RING_RADIUS - 7);
+    }
+    context.restore();
+    return;
+  }
   context.save();
   context.fillStyle = "rgba(28,23,20,.28)";
   context.beginPath(); context.ellipse(2, 5, hole.radius * 1.2, hole.radius * .62, 0, 0, Math.PI * 2); context.fill();
@@ -796,7 +855,7 @@ function drawClamHole(context: CanvasRenderingContext2D, hole: ClamHole) {
   context.fillStyle = "rgba(11,16,16,.7)";
   context.beginPath(); context.ellipse(0, 1, hole.radius * .48, hole.radius * .2, 0, 0, Math.PI * 2); context.fill();
   if (active) {
-    const progress = Math.min(1, hole.progress / 2);
+    const progress = Math.min(1, hole.progress / CLAM_DIG_SECONDS);
     context.strokeStyle = "rgba(38,31,28,.5)"; context.lineWidth = 6;
     context.beginPath(); context.arc(0, 0, ACTION_PROGRESS_RING_RADIUS, -Math.PI / 2, Math.PI * 1.5); context.stroke();
     context.strokeStyle = "#ffe29a"; context.lineWidth = 4;
@@ -1337,6 +1396,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     }
     const clamSprite = new Image(); clamSprite.src = "/mudflat-creatures/clam.png"; creatureSprites.set("clam-reveal", clamSprite);
     const razorClamSprite = new Image(); razorClamSprite.src = "/mudflat-creatures/razor-clam.svg"; creatureSprites.set("razor-clam-reveal", razorClamSprite);
+    const gaebulSprite = new Image(); gaebulSprite.src = "/mudflat-creatures/gaebul.svg"; creatureSprites.set("gaebul-reveal", gaebulSprite);
     const lumiArt = characterId === "lumi" ? loadLumiArt() : null;
     if (lumiArt) {
       setLumiLoadStatus(lumiArt.status);
@@ -1458,12 +1518,15 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const spawnClamHole = (width: number, height: number) => {
       const angle = Math.random() * Math.PI * 2;
       const distance = 70 + Math.random() * Math.max(150, Math.hypot(width, height) * .52);
+      const kind = runtime.stage === GAEBUL_STAGE && Math.random() < GAEBUL_SPAWN_CHANCE ? "gaebul" : "clam";
       const hole = {
         id: sequenceRef.current++,
         x: runtime.player.x + Math.cos(angle) * distance,
         y: runtime.player.y + Math.sin(angle) * distance,
-        radius: 8 + Math.random() * 3,
+        radius: kind === "gaebul" ? 10 + Math.random() * 3 : 8 + Math.random() * 3,
         progress: 0,
+        kind,
+        angle: Math.random() * Math.PI,
       };
       if (campObstacleAllowed(hole, 48)) runtime.clamHoles.push(hole);
     };
@@ -1799,9 +1862,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (activeClamHole) {
         activeClamHole.progress += dt;
         runtime.player.facing = Math.atan2(activeClamHole.y - runtime.player.y, activeClamHole.x - runtime.player.x);
-        if (activeClamHole.progress >= 2) {
+        if (activeClamHole.kind === "gaebul" && activeClamHole.progress > .45 && activeClamHole.progress < .45 + dt) {
+          runtime.floatTexts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y - 28, life: 1.05, text: "두 개의 숨구멍을 깊게 파는 중", color: "#ffe8b8" });
+        }
+        const digSeconds = activeClamHole.kind === "gaebul" ? GAEBUL_DIG_SECONDS : CLAM_DIG_SECONDS;
+        if (activeClamHole.progress >= digSeconds) {
           const diggingLevel = runtime.mode === "normal" ? (runtime.levels.digging ?? 1) : Math.max(1, runtime.levels.hoe ?? 1);
-          const reward = mudflatClamRewardForRoll(diggingLevel, Math.random()) ?? MUDFLAT_CLAM_GRADES[0]!;
+          const reward = activeClamHole.kind === "gaebul" ? MUDFLAT_GAEBUL : (mudflatClamRewardForRoll(diggingLevel, Math.random()) ?? MUDFLAT_CLAM_GRADES[0]!);
           const catchCapacity = mudflatCatchCapacity(runtime.equipment.cooler ?? 0);
           if (runtime.caught < catchCapacity) {
             runtime.caught += 1; runtime.catchScore += reward.score;
@@ -1809,7 +1876,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           } else showCatchFullMessage();
           runtime.pickups.push(createExperiencePickup(sequenceRef.current++, activeClamHole.x, activeClamHole.y, reward.xp));
           runtime.clamReveals.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .9, maxLife: .9, type: reward.id });
-          runtime.bursts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .55, maxLife: .55, color: reward.id === "pearl" ? "#fff0a2" : "#dbc69c", size: 18, kind: "harvest" });
+          runtime.bursts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .55, maxLife: .55, color: reward.id === "pearl" ? "#fff0a2" : reward.id === "gaebul" ? "#d59272" : "#dbc69c", size: reward.id === "gaebul" ? 24 : 18, kind: "harvest" });
           runtime.floatTexts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y - 24, life: 1.05, text: `${reward.name} 채집!`, color: reward.id === "pearl" ? "#fff2a4" : "#ffe2a6", kind: "harvest" });
           runtime.clamHoles = runtime.clamHoles.filter((hole) => hole.id !== activeClamHole?.id);
           if ("vibrate" in navigator) navigator.vibrate([18, 25, 35]);
@@ -2168,6 +2235,17 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const glow = context.createRadialGradient(0, 0, 2, 0, 0, 22); glow.addColorStop(0, "#fffef2"); glow.addColorStop(.35, "#ffe98e"); glow.addColorStop(1, "rgba(255,219,94,0)");
           context.fillStyle = glow; context.beginPath(); context.arc(0, 0, 22, 0, Math.PI * 2); context.fill();
           context.fillStyle = "#fffbe3"; context.beginPath(); context.arc(0, 0, 8, 0, Math.PI * 2); context.fill();
+        } else if (reveal.type === "gaebul") {
+          const image = creatureSprites.get("gaebul-reveal");
+          if (image?.complete && image.naturalWidth > 0) {
+            const drawWidth = 62;
+            const drawHeight = drawWidth * image.naturalHeight / image.naturalWidth;
+            context.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+          } else {
+            context.fillStyle = "#c98265";
+            context.beginPath(); context.ellipse(0, 0, 28, 8, .08, 0, Math.PI * 2); context.fill();
+            context.strokeStyle = "rgba(98,54,43,.52)"; context.lineWidth = 2; context.stroke();
+          }
         } else {
           const isRazorClam = reveal.type === "razor-clam";
           const image = creatureSprites.get(isRazorClam ? "razor-clam-reveal" : "clam-reveal");
@@ -2298,7 +2376,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
       }
       const diggingHole = runtime.clamHoles.find((hole) => hole.progress > 0);
-      if (diggingHole) drawClamDigging(context, { x: width / 2, y: height / 2 }, screenPoint(diggingHole), diggingHole.progress / 2);
+      if (diggingHole) drawClamDigging(context, { x: width / 2, y: height / 2 }, screenPoint(diggingHole), diggingHole.progress / (diggingHole.kind === "gaebul" ? GAEBUL_DIG_SECONDS : CLAM_DIG_SECONDS));
       for (const label of runtime.floatTexts) {
         const point = screenPoint(label); context.save(); context.globalAlpha = Math.min(1, label.life * 2.5);
         const isPlayerDamage = label.kind === "playerDamage";
