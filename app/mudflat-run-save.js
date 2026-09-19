@@ -63,8 +63,15 @@ export function decodeMudflatRun(serialized, makeRuntime) {
       || !numericFields(campaign, "coins hp maxHp baseMaxHp level xp nextXp lastSaleValue totalScore")
       || campaign.coins < 0 || !positive(campaign.hp) || !positive(campaign.maxHp) || campaign.hp > campaign.maxHp
       || ![campaign.levels, campaign.equipment, campaign.inventory, campaign.lastHaul].every(countMap)) return null;
-    if (!record(runtime) || runtime.ended !== false || runtime.stage !== campaign.stage || runtime.mode !== campaign.mode
-      || !matchesShape(runtime, makeRuntime(campaign)) || !positive(runtime.player.hp)
+    if (!record(runtime) || runtime.ended !== false || runtime.stage !== campaign.stage || runtime.mode !== campaign.mode) return null;
+    // Older active-run autosaves did not know about stage-five deep-mud
+    // visuals/state. They are cosmetic or transient, so backfill defaults
+    // instead of discarding an otherwise valid expedition.
+    if (!Array.isArray(runtime.mudPrints)) runtime.mudPrints = [];
+    for (const key of ["deepMudGauge", "deepMudLock", "deepMudStepClock"]) {
+      if (!finite(runtime[key])) runtime[key] = 0;
+    }
+    if (!matchesShape(runtime, makeRuntime(campaign)) || !positive(runtime.player.hp)
       || runtime.player.hp > runtime.player.maxHp || runtime.elapsed < 0
       || ![runtime.levels, runtime.equipment, runtime.basket].every(countMap)) return null;
     for (const [key, fields] of Object.entries(ENTITY_FIELDS)) {

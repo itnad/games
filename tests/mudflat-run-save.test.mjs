@@ -75,6 +75,21 @@ test("net/harpoon hit histories become Sets and restored IDs cannot collide", ()
   assert.equal(restored.nextSequence, 20);
 });
 
+test("older live saves backfill deep-mud fields added after autosave", () => {
+  const { campaign, runtime } = fixture();
+  const save = JSON.parse(encodeMudflatRun(campaign, runtime, [], 30, 1000));
+  delete save.runtime.mudPrints;
+  delete save.runtime.deepMudGauge;
+  delete save.runtime.deepMudLock;
+  delete save.runtime.deepMudStepClock;
+  const restored = decodeMudflatRun(JSON.stringify(save), makeRuntime);
+  assert.ok(restored);
+  assert.deepEqual(restored.runtime.mudPrints, []);
+  assert.equal(restored.runtime.deepMudGauge, 0);
+  assert.equal(restored.runtime.deepMudLock, 0);
+  assert.equal(restored.runtime.deepMudStepClock, 0);
+});
+
 test("a pickup in flight is restored mid-flight and grants XP only once", () => {
   const { campaign, runtime } = fixture();
   const pickup = runtime.pickups[0];
