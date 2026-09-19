@@ -16,7 +16,7 @@ const ENTITY_FIELDS = {
   netSlams: "life maxLife damage radius headDepth range angle targetId",
   castNets: "originX originY angle radius damage holdSeconds age duration",
   rocks: "radius tone", clamHoles: "radius progress", clamReveals: "life maxLife",
-  bursts: "life maxLife size", floatTexts: "life", fallingRocks: "life maxLife radius",
+  mudPrints: "life maxLife angle side", bursts: "life maxLife size", floatTexts: "life", fallingRocks: "life maxLife radius",
 };
 
 function safeJson(value) {

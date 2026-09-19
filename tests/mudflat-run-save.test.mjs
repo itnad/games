@@ -25,13 +25,15 @@ function fixture(mode = "normal") {
   runtime.elapsed = 123.456;
   Object.assign(runtime.player, { x: -182, y: 710, hp: 62, walking: true });
   Object.assign(runtime, { caught: 23, basket: { crab: 20, whelk: 3 }, catchScore: 172,
-    bleedSeconds: 6, bleedTickClock: .3, lastTideCycle: 3, bossSpawned: true, spawnClock: .7 });
+    bleedSeconds: 6, bleedTickClock: .3, lastTideCycle: 3, bossSpawned: true, spawnClock: .7,
+    deepMudGauge: .63, deepMudLock: .2, deepMudStepClock: .1 });
   runtime.creatures.push({ id: 12, x: 41, y: 132, type: "crab", name: "게", icon: "●", color: "#f91",
     hp: 3, maxHp: 8, speed: 20, size: 11, xp: 2, score: 3, saltHit: .2, hitFlash: .1,
     phase: 1, age: 2, movement: "chase", movementAngle: 1, movementClock: .6, netReleaseUntil: 125 });
   runtime.rocks.push({ id: 13, x: 2, y: 3, radius: 15, tone: .4 });
   runtime.clamHoles.push({ id: 14, x: 24, y: 44, radius: 8, progress: .7 });
   runtime.clamHoles.push({ id: 18, x: 72, y: 80, radius: 12, progress: 1.4, kind: "gaebul", angle: .8 });
+  runtime.mudPrints.push({ id: 19, x: 35, y: 55, life: .8, maxLife: 1.4, angle: .3, side: -1 });
   runtime.pickups.push(createExperiencePickup(15, -181, 711, 7));
   const net = createCastNet(16, runtime.player, { x: 130, y: 150 }, mudflatCastNetStats(1));
   net.caughtIds.add(12); net.caughtPoints.push({ id: 12, x: 41, y: 132 }); runtime.castNets.push(net);

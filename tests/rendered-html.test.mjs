@@ -1233,7 +1233,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /A full container prevents selling the catch, not learning from it\./);
   assert.match(source, /mudflatElectricStats\(electricLevel\)/);
   assert.match(source, /const tide = mudflatTideStats\(runtime\.elapsed, runtime\.player\.maxHp\);/);
-  assert.match(source, /const speed = tide\.active \? runtime\.player\.speed \* tide\.speedMultiplier : regularSpeed;/);
+  assert.match(source, /const deepMudSlow = deepMud\.strength > 0 \?/);
+  assert.match(source, /const stuckSlow = runtime\.deepMudLock > 0 \?/);
+  assert.match(source, /const speed = \(tide\.active \? runtime\.player\.speed \* tide\.speedMultiplier : regularSpeed\) \* deepMudSlow \* stuckSlow;/);
   assert.match(source, /damagePlayer\(tide\.damagePerSecond, "#73d4ea"\);/);
   assert.match(source, /TIDE_RETURN_MESSAGE = "물이 가득찼어\. 빨리 복귀해야해!"/);
   assert.match(source, /runtime\.tideMessageClock \+= MUDFLAT_TIDE_MESSAGE_INTERVAL;/);
@@ -1434,6 +1436,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /GAEBUL_DIG_SECONDS = 3\.1/);
   assert.match(source, /kind === "gaebul" \? MUDFLAT_GAEBUL/);
   assert.match(source, /두 개의 숨구멍을 깊게 파는 중/);
+  assert.match(source, /function deepMudStrengthAtPoint\(/);
+  assert.match(source, /function drawDeepMudPatches\(/);
+  assert.match(source, /deepMudGauge >= 1[\s\S]*?발이 깊게 빠졌다!/);
+  assert.match(source, /mudBootLevel = Math\.max\(runtime\.levels\.boots/);
+  assert.match(source, /runtime\.mudPrints\.push\(/);
   assert.match(source, /mudflatClamRewardForRoll/);
   assert.match(source, /const clamSize = clamGrade\?\.visualSize \?\? 42/);
   assert.match(source, /context\.rotate\(Math\.PI \/ 2\)/);

@@ -94,8 +94,10 @@ type FloatText = Point & { id: number; life: number; text: string; color: string
 type Rock = Point & { id: number; radius: number; tone: number };
 type ClamHole = Point & { id: number; radius: number; progress: number; kind?: "clam" | "gaebul"; angle?: number };
 type ClamReveal = Point & { id: number; life: number; maxLife: number; type: string };
+type MudPrint = Point & { id: number; life: number; maxLife: number; angle: number; side: number };
 type RockFlipEffect = Point & { rockId: number; life: number; maxLife: number };
 type FallingRock = Point & { id: number; life: number; maxLife: number; radius: number };
+type DeepMudPatch = Point & { radiusX: number; radiusY: number; angle: number; hash: number };
 
 const ACTION_PROGRESS_RING_RADIUS = 18;
 const BASE_CAMP = { x: 0, y: 250 };
@@ -111,6 +113,10 @@ const GAEBUL_STAGE = 5;
 const GAEBUL_DIG_SECONDS = 3.1;
 const CLAM_DIG_SECONDS = 2;
 const GAEBUL_SPAWN_CHANCE = .24;
+const DEEP_MUD_TILE = 310;
+const DEEP_MUD_GAUGE_RISE = .42;
+const DEEP_MUD_GAUGE_DECAY = .36;
+const DEEP_MUD_STUCK_SECONDS = .82;
 let mudflatDarknessCanvas: HTMLCanvasElement | null = null;
 let mudflatDarknessContext: CanvasRenderingContext2D | null = null;
 type Runtime = {
@@ -118,11 +124,12 @@ type Runtime = {
   stage: number;
   lumiMotion: ReturnType<typeof createLumiMotion>;
   elapsed: number; player: Point & { hp: number; maxHp: number; baseMaxHp: number; speed: number; damageCooldown: number; facing: number; stride: number; walking: boolean };
-  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; clamReveals: ClamReveal[]; levels: CountMap; equipment: CountMap; basket: CountMap;
+  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; clamReveals: ClamReveal[]; mudPrints: MudPrint[]; levels: CountMap; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
   xpCollectLife: number;
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
   bossSpawned: boolean; spawnClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
+  deepMudGauge: number; deepMudLock: number; deepMudStepClock: number;
   safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; waveClock: number; rocksFlipped: number;
   paused: boolean; ended: boolean;
 };
@@ -252,10 +259,10 @@ function makeRuntime(campaign: Campaign): Runtime {
     mode: campaign.mode, stage: campaign.stage, lumiMotion: createLumiMotion(),
     xpCollectLife: 0,
     elapsed: 0, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
-    creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], clamReveals: [], bursts: [], floatTexts: [], levels: { ...(campaign.mode === "normal" ? GENERAL_CHARACTER.levels : {}), ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
+    creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: { ...(campaign.mode === "normal" ? GENERAL_CHARACTER.levels : {}), ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, headlampSpawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, selfShockNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
     playerMessage: "", playerMessageLife: 0, playerMessageOpacity: 1, pufferTouching: false, hiddenRockClock: campaign.stage === 3 ? .5 : 0, hiddenRockIntroShown: false, catchFullNoticeClock: 0,
-    hoeEffect: 0, rockFlipEffect: null, bleedSeconds: 0, bleedTickClock: 1, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0,
+    hoeEffect: 0, rockFlipEffect: null, bleedSeconds: 0, bleedTickClock: 1, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0, deepMudGauge: 0, deepMudLock: 0, deepMudStepClock: 0,
     safeZone: { x: 90, y: 0 }, baseCamp: { ...BASE_CAMP }, baseCampGuideShown: false, tideDamageClock: 1, tideMessageClock: 0, lastTideCycle: 0, lastHillCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, waveClock: 10, rocksFlipped: 0,
     paused: false, ended: false,
   };
@@ -330,6 +337,73 @@ function returnTideFillProgress(elapsed: number) {
 function worldHash(x: number, y: number) {
   const value = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
   return value - Math.floor(value);
+}
+
+function deepMudPatchForCell(cellX: number, cellY: number): DeepMudPatch | null {
+  const hash = worldHash(cellX + 91, cellY - 37);
+  if (hash < .48) return null;
+  const offsetX = (worldHash(cellX - 17, cellY + 23) - .5) * DEEP_MUD_TILE * .5;
+  const offsetY = (worldHash(cellX + 29, cellY - 11) - .5) * DEEP_MUD_TILE * .46;
+  return {
+    x: cellX * DEEP_MUD_TILE + DEEP_MUD_TILE / 2 + offsetX,
+    y: cellY * DEEP_MUD_TILE + DEEP_MUD_TILE / 2 + offsetY,
+    radiusX: 96 + hash * 58,
+    radiusY: 48 + worldHash(cellX + 7, cellY + 13) * 34,
+    angle: (worldHash(cellY - 19, cellX + 5) - .5) * Math.PI * .82,
+    hash,
+  };
+}
+
+function deepMudPatchesInView(minX: number, maxX: number, minY: number, maxY: number) {
+  const firstX = Math.floor(minX / DEEP_MUD_TILE) - 1;
+  const lastX = Math.ceil(maxX / DEEP_MUD_TILE) + 1;
+  const firstY = Math.floor(minY / DEEP_MUD_TILE) - 1;
+  const lastY = Math.ceil(maxY / DEEP_MUD_TILE) + 1;
+  const patches: DeepMudPatch[] = [];
+  for (let cellY = firstY; cellY <= lastY; cellY += 1) {
+    for (let cellX = firstX; cellX <= lastX; cellX += 1) {
+      const patch = deepMudPatchForCell(cellX, cellY);
+      if (patch && patch.x + patch.radiusX >= minX && patch.x - patch.radiusX <= maxX
+        && patch.y + patch.radiusY >= minY && patch.y - patch.radiusY <= maxY) patches.push(patch);
+    }
+  }
+  return patches;
+}
+
+function deepMudStrengthAtPoint(point: Point, stage: number) {
+  if (stage !== GAEBUL_STAGE) return { strength: 0, patch: null as DeepMudPatch | null };
+  const cellX = Math.floor(point.x / DEEP_MUD_TILE);
+  const cellY = Math.floor(point.y / DEEP_MUD_TILE);
+  let bestStrength = 0;
+  let bestPatch: DeepMudPatch | null = null;
+  for (let y = cellY - 1; y <= cellY + 1; y += 1) {
+    for (let x = cellX - 1; x <= cellX + 1; x += 1) {
+      const patch = deepMudPatchForCell(x, y);
+      if (!patch) continue;
+      const cos = Math.cos(-patch.angle), sin = Math.sin(-patch.angle);
+      const dx = point.x - patch.x, dy = point.y - patch.y;
+      const localX = dx * cos - dy * sin;
+      const localY = dx * sin + dy * cos;
+      const distance = Math.hypot(localX / patch.radiusX, localY / patch.radiusY);
+      if (distance < 1) {
+        const strength = Math.min(1, (1 - distance) / .74 + .22);
+        if (strength > bestStrength) { bestStrength = strength; bestPatch = patch; }
+      }
+    }
+  }
+  return { strength: bestStrength, patch: bestPatch };
+}
+
+function randomDeepMudPointNear(player: Point, width: number, height: number) {
+  const patches = deepMudPatchesInView(player.x - width * .7, player.x + width * .7, player.y - height * .7, player.y + height * .7);
+  if (!patches.length) return null;
+  const patch = patches[Math.floor(Math.random() * patches.length)]!;
+  const radius = Math.sqrt(Math.random()) * .72;
+  const angle = Math.random() * Math.PI * 2;
+  const localX = Math.cos(angle) * patch.radiusX * radius;
+  const localY = Math.sin(angle) * patch.radiusY * radius;
+  const cos = Math.cos(patch.angle), sin = Math.sin(patch.angle);
+  return { x: patch.x + localX * cos - localY * sin, y: patch.y + localX * sin + localY * cos };
 }
 
 function nextHillPosition(origin: Point, stage: number, cycle: number): Point {
@@ -436,6 +510,36 @@ function drawBaseCampDirectionGuide(context: CanvasRenderingContext2D, width: nu
   context.fillText(`${tideActive ? "밀물 속 귀환" : "베이스캠프"} · ${Math.round(distance / 10)}m`, panelLeft + 47, panelTop + 24); context.restore();
 }
 
+function drawDeepMudPatches(context: CanvasRenderingContext2D, width: number, height: number, player: Point, tide: number) {
+  const patches = deepMudPatchesInView(player.x - width / 2, player.x + width / 2, player.y - height / 2, player.y + height / 2);
+  for (const patch of patches) {
+    const screenX = width / 2 + patch.x - player.x;
+    const screenY = height / 2 + patch.y - player.y;
+    context.save();
+    context.translate(screenX, screenY);
+    context.rotate(patch.angle);
+    const mud = context.createRadialGradient(-patch.radiusX * .18, -patch.radiusY * .28, 4, 0, 0, patch.radiusX * 1.12);
+    mud.addColorStop(0, `rgba(38,26,22,${.78 + tide * .08})`);
+    mud.addColorStop(.58, `rgba(48,35,29,${.66 + tide * .12})`);
+    mud.addColorStop(1, "rgba(24,19,17,0)");
+    context.fillStyle = mud;
+    context.beginPath(); context.ellipse(0, 0, patch.radiusX, patch.radiusY, 0, 0, Math.PI * 2); context.fill();
+    context.strokeStyle = "rgba(234,207,152,.15)";
+    context.lineWidth = 2;
+    context.beginPath(); context.ellipse(0, 0, patch.radiusX * .96, patch.radiusY * .91, 0, 0, Math.PI * 2); context.stroke();
+    context.strokeStyle = "rgba(174,216,203,.16)";
+    context.lineWidth = 1.4;
+    for (let ring = 0; ring < 3; ring += 1) {
+      context.beginPath();
+      context.ellipse(-patch.radiusX * .24 + ring * patch.radiusX * .22, -patch.radiusY * .16 + ring * 7, patch.radiusX * (.18 + ring * .07), patch.radiusY * (.12 + ring * .025), 0, Math.PI * .08, Math.PI * .92);
+      context.stroke();
+    }
+    context.fillStyle = "rgba(16,12,10,.2)";
+    context.beginPath(); context.ellipse(patch.radiusX * .25, patch.radiusY * .2, patch.radiusX * .32, patch.radiusY * .22, 0, 0, Math.PI * 2); context.fill();
+    context.restore();
+  }
+}
+
 function drawMudflat(
   context: CanvasRenderingContext2D,
   width: number,
@@ -472,6 +576,8 @@ function drawMudflat(
       context.restore();
     }
   }
+
+  if (profile.stage === GAEBUL_STAGE) drawDeepMudPatches(context, width, height, player, tide);
 
   const tile = 138;
   const minWorldX = Math.floor((player.x - width / 2) / tile) - 1;
@@ -1519,10 +1625,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const angle = Math.random() * Math.PI * 2;
       const distance = 70 + Math.random() * Math.max(150, Math.hypot(width, height) * .52);
       const kind = runtime.stage === GAEBUL_STAGE && Math.random() < GAEBUL_SPAWN_CHANCE ? "gaebul" : "clam";
+      const deepMudPoint = kind === "gaebul" ? randomDeepMudPointNear(runtime.player, width, height) : null;
       const hole = {
         id: sequenceRef.current++,
-        x: runtime.player.x + Math.cos(angle) * distance,
-        y: runtime.player.y + Math.sin(angle) * distance,
+        x: deepMudPoint?.x ?? runtime.player.x + Math.cos(angle) * distance,
+        y: deepMudPoint?.y ?? runtime.player.y + Math.sin(angle) * distance,
         radius: kind === "gaebul" ? 10 + Math.random() * 3 : 8 + Math.random() * 3,
         progress: 0,
         kind,
@@ -1614,11 +1721,30 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const tideSurge = stageTide.fill;
       const inHill = stageProfile.safeZone !== "none" && Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
       const incomingTideSlow = tideSurge > 0 && !inHill ? .8 : 1;
+      const deepMud = deepMudStrengthAtPoint(runtime.player, runtime.stage);
+      const mudBootLevel = Math.max(runtime.levels.boots ?? 0, runtime.equipment.waders ?? 0);
+      const mudRelief = Math.min(.72, Math.max(0, mudBootLevel) * .11);
+      runtime.deepMudLock = Math.max(0, runtime.deepMudLock - dt);
+      if (deepMud.strength > 0) {
+        runtime.deepMudGauge = Math.min(1, runtime.deepMudGauge + dt * deepMud.strength * Math.max(.16, DEEP_MUD_GAUGE_RISE - mudRelief * .26));
+      } else {
+        runtime.deepMudGauge = Math.max(0, runtime.deepMudGauge - dt * (DEEP_MUD_GAUGE_DECAY + mudRelief * .34));
+      }
+      if (runtime.deepMudGauge >= 1 && runtime.deepMudLock <= 0) {
+        runtime.deepMudLock = Math.max(.48, DEEP_MUD_STUCK_SECONDS - mudRelief * .42);
+        runtime.deepMudGauge = Math.max(.34, .54 - mudRelief * .12);
+        showPlayerMessage("발이 깊게 빠졌다!", 1.15);
+        runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 8, life: .48, maxLife: .48, color: "#704f42", size: 34 });
+        runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y - 30, life: .9, text: "발이 깊게 빠졌다!", color: "#ffe0aa" });
+        if ("vibrate" in navigator) navigator.vibrate(28);
+      }
+      const deepMudSlow = deepMud.strength > 0 ? Math.max(.42 + mudRelief * .26, 1 - deepMud.strength * Math.max(.28, .6 - mudRelief * .28)) : 1;
+      const stuckSlow = runtime.deepMudLock > 0 ? .16 + mudRelief * .16 : 1;
       const rawTerrainSpeed = stageProfile.mudSlow * (inWaterChannel ? .68 : 1) * incomingTideSlow;
       const terrainSpeed = mudflatTerrainSpeedMultiplier(rawTerrainSpeed, runtime.equipment.waders ?? 0);
       const tide = mudflatTideStats(runtime.elapsed, runtime.player.maxHp);
       const regularSpeed = runtime.player.speed * (1 + (runtime.levels.boots ?? 0) * .09) * terrainSpeed;
-      const speed = tide.active ? runtime.player.speed * tide.speedMultiplier : regularSpeed;
+      const speed = (tide.active ? runtime.player.speed * tide.speedMultiplier : regularSpeed) * deepMudSlow * stuckSlow;
       runtime.player.x += inputX * speed * dt; runtime.player.y += inputY * speed * dt;
       if (stageProfile.wind > 0) {
         const windAngle = Math.sin(runtime.elapsed / 8 + runtime.stage) * .7 + runtime.stage * .31;
@@ -1679,6 +1805,22 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (runtime.player.walking) {
         runtime.player.facing = Math.atan2(inputY, inputX);
         runtime.player.stride += dt * Math.max(.35, Math.hypot(inputX, inputY));
+        if (deepMud.strength > 0 && runtime.deepMudLock <= 0) {
+          runtime.deepMudStepClock -= dt;
+          if (runtime.deepMudStepClock <= 0) {
+            const side = sequenceRef.current % 2 === 0 ? 1 : -1;
+            const angle = runtime.player.facing;
+            const backX = Math.cos(angle + Math.PI) * 11;
+            const backY = Math.sin(angle + Math.PI) * 11;
+            const sideX = Math.cos(angle + Math.PI / 2) * side * 5;
+            const sideY = Math.sin(angle + Math.PI / 2) * side * 5;
+            runtime.mudPrints.push({ id: sequenceRef.current++, x: runtime.player.x + backX + sideX, y: runtime.player.y + backY + sideY, life: 1.4, maxLife: 1.4, angle, side });
+            runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x + sideX, y: runtime.player.y + sideY + 8, life: .28, maxLife: .28, color: "#5d4238", size: 12 });
+            runtime.deepMudStepClock = .22 + mudRelief * .1;
+          }
+        } else {
+          runtime.deepMudStepClock = Math.min(runtime.deepMudStepClock, .12);
+        }
       }
 
       if (!tide.active && stageProfile.safeZone !== "none" && stageProfile.tideInterval > 0) {
@@ -2110,6 +2252,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.pickups = runtime.pickups.filter((item) => item.xp > 0);
       for (const burst of runtime.bursts) burst.life -= dt;
       runtime.bursts = runtime.bursts.filter((item) => item.life > 0);
+      for (const print of runtime.mudPrints) print.life -= dt;
+      runtime.mudPrints = runtime.mudPrints.filter((item) => item.life > 0).slice(-28);
       for (const reveal of runtime.clamReveals) reveal.life -= dt;
       runtime.clamReveals = runtime.clamReveals.filter((item) => item.life > 0);
       for (const label of runtime.floatTexts) { label.life -= dt; label.y -= 28 * dt; }
@@ -2176,6 +2320,16 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
       if (runtime.baseCampGuideShown) drawBaseCamp(context, screenPoint(runtime.baseCamp), returnTide.guideVisible, returnTide.active, runtime.elapsed, runtime.stage);
       if (runtime.hoeEffect > 0) drawHarvestPulse(context, width / 2, height / 2, 78 + (runtime.levels.hoe ?? 0) * 12, runtime.hoeEffect, runtime.elapsed);
+      for (const print of runtime.mudPrints) {
+        const point = screenPoint(print); if (point.x < -35 || point.y < -35 || point.x > width + 35 || point.y > height + 35) continue;
+        const alpha = Math.max(0, print.life / print.maxLife);
+        context.save(); context.globalAlpha = alpha * .78; context.translate(point.x, point.y); context.rotate(print.angle);
+        context.fillStyle = "rgba(25,17,15,.5)";
+        context.beginPath(); context.ellipse(0, 0, 7, 4.2, print.side * .18, 0, Math.PI * 2); context.fill();
+        context.strokeStyle = "rgba(180,218,204,.16)"; context.lineWidth = 1;
+        context.beginPath(); context.ellipse(0, 1, 15 * (1.1 - alpha * .25), 6 * (1.1 - alpha * .25), 0, 0, Math.PI * 2); context.stroke();
+        context.restore();
+      }
       for (const falling of runtime.fallingRocks) {
         const point = screenPoint(falling); const progress = 1 - falling.life / falling.maxLife;
         context.save(); context.translate(point.x, point.y);
@@ -2297,6 +2451,17 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (lumiArt) drawLumiGatherer(context, width / 2, height / 2, runtime.lumiMotion, lumiArt,
         runtime.elapsed, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
       if (characterId !== "lumi") drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);
+      if (runtime.stage === GAEBUL_STAGE && runtime.deepMudGauge > .03) {
+        const gaugeWidth = 94;
+        const gaugeY = height / 2 + 47;
+        context.save();
+        context.fillStyle = "rgba(29,21,18,.74)"; roundedRect(context, width / 2 - gaugeWidth / 2, gaugeY, gaugeWidth, 15, 7); context.fill();
+        context.fillStyle = runtime.deepMudLock > 0 ? "#ffbf7d" : "#8f6a4c";
+        roundedRect(context, width / 2 - gaugeWidth / 2 + 2, gaugeY + 2, Math.max(4, (gaugeWidth - 4) * Math.min(1, runtime.deepMudGauge)), 11, 6); context.fill();
+        context.fillStyle = "#fff3d8"; context.font = "900 9px system-ui"; context.textAlign = "center";
+        context.fillText(runtime.deepMudLock > 0 ? "발 빠짐 탈출" : "발빠짐", width / 2, gaugeY - 4);
+        context.restore();
+      }
       if (runtime.electricPulseLife > 0) {
         const reach = mudflatElectricStats(runtime.levels.electric ?? 0).reach;
         const pulse = Math.min(1, runtime.electricPulseLife / .42);
