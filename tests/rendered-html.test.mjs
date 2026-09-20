@@ -1164,7 +1164,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /window\.localStorage\.removeItem\(CAMPAIGN_KEY\);/);
   assert.match(source, /setSavedCampaign\(null\);/);
   assert.match(source, /EXPEDITION ENDED/);
-  assert.match(source, /className="ms-defeat-art" src="\/mudflat-illustrations\/defeat-gatherer\.png"/);
+  assert.match(source, /className="ms-defeat-art" src="\/mudflat-illustrations\/defeat-gatherer\.png" width="1470" height="606" decoding="async"/);
   assert.match(source, /onClick=\{reset\}>메인 화면으로/);
   assert.match(source, /onRetry=\{\(\) => beginAtStage\(hud\.stage\)\} onSecretRetry=\{retryWithProgress\}/);
   assert.match(source, /hud\.stage === 9 \? "끝없는 물때 재도전" : `\$\{hud\.stage\}단계 재도전`/);
@@ -1175,7 +1175,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /단계에서 잡은 \$\{settlement\.catchCount\}마리를 판매해서 \$\{autoSale\.value\}코인을 얻었습니다/);
   assert.match(source, /<small>대왕 박하지<\/small><b>\{campaign\.lastBossCaught \? "포획" : "미포획"\}<\/b>/);
   assert.match(styles, /\.ms-layer button:not\(:disabled\)\{-webkit-tap-highlight-color:transparent;touch-action:manipulation/);
-  assert.match(styles, /\.ms-defeat-art\{display:block;width:min\(310px,76vw\);height:auto;margin:0 auto 16px;/);
+  assert.match(styles, /\.ms-defeat-art\{display:block;width:min\(310px,76vw\);height:auto;aspect-ratio:1470\/606;object-fit:contain;margin:0 auto 16px;/);
   assert.match(styles, /\.ms-layer section>div button:not\(:disabled\):active\{transform:translateY\(1px\) scale\(\.982\)/);
   assert.match(styles, /\.ms-layer\.pause \.ms-primary:not\(:disabled\):active/);
   assert.match(source, /function drawMudflat\(/);
