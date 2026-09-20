@@ -1188,6 +1188,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-layer section>div button:not\(:disabled\):active\{transform:translateY\(1px\) scale\(\.982\)/);
   assert.match(styles, /\.ms-layer\.pause \.ms-primary:not\(:disabled\):active/);
   assert.match(source, /function drawMudflat\(/);
+  assert.match(source, /function traceMudflatSurfacePatch\(/);
+  assert.match(source, /function drawMudflatWetPatch\(/);
+  assert.match(source, /function drawMudflatStickyStreak\(/);
+  assert.match(source, /function drawMudflatMicroDetails\(/);
+  assert.match(source, /drawMudflatMicroDetails\(context, screenX, screenY, worldX, worldY, hash\)/);
+  assert.match(source, /rgba\(134,157,143,\$\{\.2 \+ tide \* \.1\}\)/);
+  assert.doesNotMatch(source, /rgba\(111,174,170,\$\{\.27 \+ tide \* \.12\}\)/);
+  assert.doesNotMatch(source, /context\.ellipse\(0, 0, 67 \+ hash \* 28, 25 \+ hash \* 17/);
   assert.match(source, /function drawCreatureSprite\(/);
   assert.match(source, /const DIRECTIONAL_SEAFOOD_TYPES = new Set\(\["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp"\]\)/);
   assert.match(source, /function creatureSpriteHorizontalScale\(creature: Creature\)/);

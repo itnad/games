@@ -381,6 +381,30 @@ function traceDeepMudBlobPath(context: CanvasRenderingContext2D, patch: DeepMudP
   context.closePath();
 }
 
+function mudflatSurfaceBoundaryScale(seed: number, angle: number) {
+  return Math.max(.74, Math.min(1.2,
+    .96
+    + Math.sin(angle * 2 + seed * 16.1) * .11
+    + Math.sin(angle * 4 - seed * 23.7) * .075
+    + Math.sin(angle * 7 + seed * 41.3) * .04));
+}
+
+function traceMudflatSurfacePatch(context: CanvasRenderingContext2D, radiusX: number, radiusY: number, seed: number, scale = 1) {
+  const points = Array.from({ length: 22 }, (_, index) => {
+    const angle = index / 22 * Math.PI * 2;
+    const edge = mudflatSurfaceBoundaryScale(seed, angle) * scale;
+    return { x: Math.cos(angle) * radiusX * edge, y: Math.sin(angle) * radiusY * edge };
+  });
+  const first = points[0]!, last = points.at(-1)!;
+  context.beginPath();
+  context.moveTo((last.x + first.x) / 2, (last.y + first.y) / 2);
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index]!, next = points[(index + 1) % points.length]!;
+    context.quadraticCurveTo(point.x, point.y, (point.x + next.x) / 2, (point.y + next.y) / 2);
+  }
+  context.closePath();
+}
+
 function deepMudPatchesInView(minX: number, maxX: number, minY: number, maxY: number) {
   const firstX = Math.floor(minX / DEEP_MUD_TILE) - 1;
   const lastX = Math.ceil(maxX / DEEP_MUD_TILE) + 1;
@@ -605,6 +629,101 @@ function drawDeepMudPatches(context: CanvasRenderingContext2D, width: number, he
   }
 }
 
+function drawMudflatWetPatch(context: CanvasRenderingContext2D, seed: number, tide: number) {
+  const radiusX = 56 + seed * 38;
+  const radiusY = 18 + worldHash(seed * 37, seed * 19) * 24;
+  context.save();
+  traceMudflatSurfacePatch(context, radiusX, radiusY, seed, 1.12);
+  context.fillStyle = "rgba(46,38,31,.08)";
+  context.fill();
+  const sheen = context.createRadialGradient(-radiusX * .22, -radiusY * .25, 2, 0, 0, radiusX * 1.08);
+  sheen.addColorStop(0, `rgba(134,157,143,${.2 + tide * .1})`);
+  sheen.addColorStop(.48, `rgba(87,116,104,${.13 + tide * .08})`);
+  sheen.addColorStop(.78, `rgba(70,90,82,${.08 + tide * .06})`);
+  sheen.addColorStop(1, "rgba(55,76,73,0)");
+  context.fillStyle = sheen;
+  traceMudflatSurfacePatch(context, radiusX, radiusY, seed, 1);
+  context.fill();
+  context.save();
+  traceMudflatSurfacePatch(context, radiusX, radiusY, seed, .92);
+  context.clip();
+  context.strokeStyle = "rgba(229,225,190,.13)";
+  context.lineWidth = 1.15;
+  context.lineCap = "round";
+  for (let line = 0; line < 3; line += 1) {
+    const lineSeed = seed * 31 + line * 7;
+    const startX = (worldHash(lineSeed, seed) - .5) * radiusX * 1.25;
+    const startY = (worldHash(seed, lineSeed) - .5) * radiusY * 1.05;
+    const bend = (worldHash(lineSeed + 3, seed - line) - .5) * radiusY * .58;
+    context.beginPath();
+    context.moveTo(startX - radiusX * .22, startY);
+    context.bezierCurveTo(startX - radiusX * .05, startY + bend, startX + radiusX * .2, startY - bend, startX + radiusX * .38, startY + bend * .18);
+    context.stroke();
+  }
+  context.restore();
+  context.strokeStyle = "rgba(230,213,170,.09)";
+  context.lineWidth = 1.4;
+  traceMudflatSurfacePatch(context, radiusX, radiusY, seed, 1.02);
+  context.stroke();
+  context.restore();
+}
+
+function drawMudflatStickyStreak(context: CanvasRenderingContext2D, seed: number, tide: number) {
+  const radiusX = 64 + seed * 46;
+  const radiusY = 22 + worldHash(seed * 43, seed * 11) * 22;
+  context.save();
+  const mud = context.createRadialGradient(-radiusX * .18, -radiusY * .2, 2, 0, 0, radiusX * 1.1);
+  mud.addColorStop(0, `rgba(43,34,28,${.3 + tide * .05})`);
+  mud.addColorStop(.58, "rgba(58,45,36,.22)");
+  mud.addColorStop(1, "rgba(37,29,25,0)");
+  context.fillStyle = mud;
+  traceMudflatSurfacePatch(context, radiusX, radiusY, seed + .37, 1);
+  context.fill();
+  context.strokeStyle = "rgba(220,190,137,.1)";
+  context.lineWidth = 1.1;
+  for (let ring = 0; ring < 3; ring += 1) {
+    context.beginPath();
+    context.ellipse(-radiusX * .16 + ring * radiusX * .17, -radiusY * .2 + ring * radiusY * .19, radiusX * (.22 + ring * .08), radiusY * (.18 + ring * .035), 0, Math.PI * .08, Math.PI * .9);
+    context.stroke();
+  }
+  context.restore();
+}
+
+function drawMudflatMicroDetails(context: CanvasRenderingContext2D, screenX: number, screenY: number, worldX: number, worldY: number, hash: number) {
+  for (let dot = 0; dot < 6; dot += 1) {
+    const dotSeed = worldHash(worldX * 5 + dot, worldY * 7 - dot);
+    const alpha = .045 + dotSeed * .085;
+    context.fillStyle = dotSeed > .62 ? `rgba(229,205,153,${alpha})` : `rgba(48,39,32,${alpha})`;
+    context.beginPath();
+    context.arc(screenX + (worldHash(dot, worldX) - .5) * 88, screenY + (worldHash(worldY, dot) - .5) * 78, .7 + dotSeed * 1.5, 0, Math.PI * 2);
+    context.fill();
+  }
+  if (hash > .22 && hash < .34) {
+    context.strokeStyle = "rgba(77,62,46,.13)";
+    context.lineWidth = 1.1;
+    context.lineCap = "round";
+    for (let layer = 0; layer < 2; layer += 1) {
+      context.beginPath();
+      const startY = screenY - 15 + layer * 14;
+      context.moveTo(screenX - 38, startY);
+      context.bezierCurveTo(screenX - 19, startY - 8, screenX + 9, startY + 10, screenX + 38, startY - 1);
+      context.stroke();
+    }
+  }
+  if (hash > .72 && hash < .77) {
+    context.save();
+    context.translate(screenX + (hash - .745) * 640, screenY + (worldHash(worldY, worldX) - .5) * 46);
+    context.rotate((hash - .5) * 5);
+    context.strokeStyle = "rgba(231,210,164,.2)";
+    context.lineWidth = 1.3;
+    context.beginPath();
+    context.moveTo(-7, 3);
+    context.quadraticCurveTo(0, -5, 8, 2);
+    context.stroke();
+    context.restore();
+  }
+}
+
 function drawMudflat(
   context: CanvasRenderingContext2D,
   width: number,
@@ -654,45 +773,18 @@ function drawMudflat(
       const hash = worldHash(worldX, worldY);
       const screenX = width / 2 + worldX * tile - player.x + (hash - .5) * 62;
       const screenY = height / 2 + worldY * tile - player.y + (worldHash(worldY, worldX) - .5) * 58;
-      if (hash > .54) {
+      drawMudflatMicroDetails(context, screenX, screenY, worldX, worldY, hash);
+      if (hash > .55) {
         context.save();
         context.translate(screenX, screenY);
-        context.rotate((hash - .5) * 1.8);
-        const puddle = context.createRadialGradient(-12, -7, 2, 0, 0, 62);
-        puddle.addColorStop(0, `rgba(111,174,170,${.27 + tide * .12})`);
-        puddle.addColorStop(.65, `rgba(72,133,137,${.2 + tide * .1})`);
-        puddle.addColorStop(1, "rgba(43,91,99,0)");
-        context.fillStyle = puddle;
-        context.beginPath();
-        context.ellipse(0, 0, 67 + hash * 28, 25 + hash * 17, 0, 0, Math.PI * 2);
-        context.fill();
-        context.strokeStyle = "rgba(205,228,207,.13)";
-        context.lineWidth = 1.5;
-        for (let line = 0; line < 2; line += 1) {
-          context.beginPath();
-          context.ellipse(-13 + line * 18, -4 + line * 5, 21 + line * 8, 7 + line * 2, 0, Math.PI * .05, Math.PI * .92);
-          context.stroke();
-        }
+        context.rotate((hash - .5) * 2.15);
+        drawMudflatWetPatch(context, hash, tide);
         context.restore();
       } else if (profile.stage === GAEBUL_STAGE && hash > .44 && hash < .54) {
         context.save();
         context.translate(screenX, screenY);
         context.rotate((hash - .49) * 4.2);
-        const deepMud = context.createRadialGradient(-18, -8, 3, 0, 0, 74);
-        deepMud.addColorStop(0, "rgba(40,31,25,.5)");
-        deepMud.addColorStop(.62, "rgba(48,37,30,.36)");
-        deepMud.addColorStop(1, "rgba(33,25,22,0)");
-        context.fillStyle = deepMud;
-        context.beginPath();
-        context.ellipse(0, 0, 88 + hash * 22, 34 + hash * 18, 0, 0, Math.PI * 2);
-        context.fill();
-        context.strokeStyle = "rgba(218,188,135,.11)";
-        context.lineWidth = 1.4;
-        for (let ring = 0; ring < 2; ring += 1) {
-          context.beginPath();
-          context.ellipse(-14 + ring * 23, -4 + ring * 7, 28 + ring * 9, 8 + ring * 3, 0, Math.PI * .08, Math.PI * .88);
-          context.stroke();
-        }
+        drawMudflatStickyStreak(context, hash, tide);
         context.restore();
       } else if (hash < .2) {
         context.fillStyle = "rgba(42,35,28,.26)";
