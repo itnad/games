@@ -431,6 +431,9 @@ test("folds the mudflat departure panel and keeps its guide out of the active HU
   assert.match(styles, /\.ms-departure-details\[hidden\]\{display:none\}/);
   assert.match(styles, /\.ms-departure\.is-collapsed \.ms-primary\{[^}]*min-height:40px/);
   assert.match(styles, /@media\(max-width:720px\)\{\.ms-departure\.is-collapsed/);
+  assert.match(styles, /@media\(max-width:720px\)\{\.ms-departure:not\(\.is-collapsed\)\{padding:20px 12px 10px\}/);
+  assert.match(styles, /\.ms-departure:not\(\.is-collapsed\) \.ms-departure-toggle\{right:12px;top:12px;width:40px;min-height:34px\}/);
+  assert.match(styles, /\.ms-departure:not\(\.is-collapsed\) \.ms-departure-copy\{padding-right:52px!important\}/);
   assert.match(page, /gameId !== "mudflat-survivor" && <GameObjectiveGuide gameId=\{gameId\}/);
   assert.match(source, /const pauseLayer = screen === "paused" \?[\s\S]*?<GameObjectiveGuide gameId="mudflat-survivor" inline \/>/);
   const activeGame = source.slice(source.indexOf('return <main className={`ms-shell ms-game'));
