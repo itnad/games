@@ -108,7 +108,10 @@ const TIDE_RETURN_MESSAGE = "물이 가득찼어. 빨리 복귀해야해!";
 const DARK_STAGE_VISION_DARKNESS = .6;
 const DARK_STAGE_VISIBLE_DIAMETER_RATIO = 2 / 3;
 const DARK_STAGE_HIDDEN_COLOR = "#03080f";
-const HEADLAMP_CONE_HALF_ANGLE = Math.PI / 4;
+const HEADLAMP_MIN_CONE_HALF_ANGLE = Math.PI / 18;
+const HEADLAMP_MAX_CONE_HALF_ANGLE = Math.PI / 4;
+const HEADLAMP_MIN_VISUAL_RANGE = 34;
+const HEADLAMP_MAX_VISUAL_RANGE = 155;
 const GAEBUL_STAGE = 5;
 const GAEBUL_DIG_SECONDS = 3.1;
 const CLAM_DIG_SECONDS = 2;
@@ -972,10 +975,33 @@ function drawGatherer(context: CanvasRenderingContext2D, x: number, y: number, p
   context.restore();
 }
 
-function drawMudflatDarkness(context: CanvasRenderingContext2D, width: number, height: number, darkness: number, headlampRange: number, facing: number) {
+function mudflatHeadlampVisualProgress(level: number) {
+  return Math.max(0, Math.min(1, (Math.floor(Number(level) || 0) - 1) / 5));
+}
+
+function mudflatHeadlampVisualRange(level: number) {
+  if (level <= 0) return 0;
+  const progress = mudflatHeadlampVisualProgress(level);
+  return HEADLAMP_MIN_VISUAL_RANGE + (HEADLAMP_MAX_VISUAL_RANGE - HEADLAMP_MIN_VISUAL_RANGE) * progress;
+}
+
+function mudflatHeadlampConeHalfAngle(level: number) {
+  if (level <= 0) return 0;
+  const progress = mudflatHeadlampVisualProgress(level);
+  return HEADLAMP_MIN_CONE_HALF_ANGLE + (HEADLAMP_MAX_CONE_HALF_ANGLE - HEADLAMP_MIN_CONE_HALF_ANGLE) * progress;
+}
+
+function mudflatHeadlampConeAlpha(level: number, inner: boolean) {
+  if (level <= 0) return 0;
+  const progress = mudflatHeadlampVisualProgress(level);
+  return (inner ? .3 : .16) + (inner ? .56 : .32) * progress;
+}
+
+function drawMudflatDarkness(context: CanvasRenderingContext2D, width: number, height: number, darkness: number, headlampRange: number, facing: number, headlampLevel = 0) {
   const centerX = width / 2, centerY = height / 2;
+  const visualRange = headlampLevel > 0 ? Math.min(headlampRange || HEADLAMP_MAX_VISUAL_RANGE, mudflatHeadlampVisualRange(headlampLevel)) : 0;
   if (darkness < DARK_STAGE_VISION_DARKNESS) {
-    const radius = Math.max(112, headlampRange || 112);
+    const radius = Math.max(112, visualRange || 112);
     context.save();
     const veil = context.createRadialGradient(centerX, centerY, radius * .16, centerX, centerY, Math.max(radius, Math.hypot(width, height) * .72));
     veil.addColorStop(0, "rgba(3,8,15,0)");
@@ -1008,8 +1034,8 @@ function drawMudflatDarkness(context: CanvasRenderingContext2D, width: number, h
     overlayContext.fillStyle = sight;
     overlayContext.beginPath(); overlayContext.arc(centerX, centerY, radius, 0, Math.PI * 2); overlayContext.fill();
   };
-  const fillSightCone = (halfAngle: number, alpha: number) => {
-    const range = Math.min(Math.hypot(width, height), baseRadius + headlampRange);
+  const fillSightCone = (halfAngle: number, alpha: number, extraRange: number) => {
+    const range = Math.min(Math.hypot(width, height), baseRadius + extraRange);
     if (range <= baseRadius + 1) return;
     const cone = overlayContext.createRadialGradient(centerX, centerY, baseRadius * .64, centerX, centerY, range);
     cone.addColorStop(0, `rgba(0,0,0,${alpha})`);
@@ -1028,9 +1054,10 @@ function drawMudflatDarkness(context: CanvasRenderingContext2D, width: number, h
   overlayContext.fillRect(0, 0, width, height);
   overlayContext.globalCompositeOperation = "destination-out";
   fillSightCircle(baseRadius);
-  if (headlampRange > 0) {
-    fillSightCone(HEADLAMP_CONE_HALF_ANGLE, .48);
-    fillSightCone(HEADLAMP_CONE_HALF_ANGLE * .72, .86);
+  if (visualRange > 0) {
+    const halfAngle = mudflatHeadlampConeHalfAngle(headlampLevel);
+    fillSightCone(halfAngle, mudflatHeadlampConeAlpha(headlampLevel, false), visualRange);
+    fillSightCone(halfAngle * .72, mudflatHeadlampConeAlpha(headlampLevel, true), visualRange);
   }
   overlayContext.globalCompositeOperation = "source-over";
   context.drawImage(overlay, 0, 0, width, height);
@@ -2727,7 +2754,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.font = isPlayerDamage ? "900 25px system-ui" : "900 14px system-ui"; context.textAlign = "center"; context.lineWidth = isPlayerDamage ? 6 : 4; context.strokeStyle = isPlayerDamage ? "rgba(42,14,18,.9)" : "rgba(38,29,27,.72)"; context.strokeText(label.text, point.x, point.y); context.fillStyle = label.color; context.fillText(label.text, point.x, point.y); context.restore();
       }
       if (stageProfile.darkness > 0) {
-        drawMudflatDarkness(context, width, height, stageProfile.darkness, mudflatHeadlampDiscoveryRange(runtime.equipment.headlamp ?? 0), runtime.player.facing);
+        drawMudflatDarkness(context, width, height, stageProfile.darkness, mudflatHeadlampDiscoveryRange(runtime.equipment.headlamp ?? 0), runtime.player.facing, runtime.equipment.headlamp ?? 0);
       }
       if (!returnTide.active && stageProfile.tideInterval > 0) {
         const phase = runtime.elapsed % stageProfile.tideInterval;
