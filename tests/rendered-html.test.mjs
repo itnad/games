@@ -1447,6 +1447,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /두 개의 숨구멍을 깊게 파는 중/);
   assert.match(source, /function deepMudStrengthAtPoint\(/);
   assert.match(source, /function drawDeepMudPatches\(/);
+  assert.match(source, /const DEEP_MUD_TILE = 250/);
+  assert.match(source, /if \(hash < \.32\) return null/);
+  assert.match(source, /function deepMudBoundaryScale\(/);
+  assert.match(source, /function traceDeepMudBlobPath\(/);
+  assert.match(source, /context\.bezierCurveTo\(startX - patch\.radiusX \* \.06/);
   assert.match(source, /deepMudGauge >= 1[\s\S]*?발이 깊게 빠졌다!/);
   assert.match(source, /mudBootLevel = Math\.max\(runtime\.levels\.boots/);
   assert.match(source, /runtime\.mudPrints\.push\(/);

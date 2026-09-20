@@ -113,7 +113,7 @@ const GAEBUL_STAGE = 5;
 const GAEBUL_DIG_SECONDS = 3.1;
 const CLAM_DIG_SECONDS = 2;
 const GAEBUL_SPAWN_CHANCE = .24;
-const DEEP_MUD_TILE = 310;
+const DEEP_MUD_TILE = 250;
 const DEEP_MUD_GAUGE_RISE = .42;
 const DEEP_MUD_GAUGE_DECAY = .36;
 const DEEP_MUD_STUCK_SECONDS = .82;
@@ -344,17 +344,41 @@ function worldHash(x: number, y: number) {
 
 function deepMudPatchForCell(cellX: number, cellY: number): DeepMudPatch | null {
   const hash = worldHash(cellX + 91, cellY - 37);
-  if (hash < .48) return null;
-  const offsetX = (worldHash(cellX - 17, cellY + 23) - .5) * DEEP_MUD_TILE * .5;
-  const offsetY = (worldHash(cellX + 29, cellY - 11) - .5) * DEEP_MUD_TILE * .46;
+  if (hash < .32) return null;
+  const offsetX = (worldHash(cellX - 17, cellY + 23) - .5) * DEEP_MUD_TILE * .62;
+  const offsetY = (worldHash(cellX + 29, cellY - 11) - .5) * DEEP_MUD_TILE * .58;
   return {
     x: cellX * DEEP_MUD_TILE + DEEP_MUD_TILE / 2 + offsetX,
     y: cellY * DEEP_MUD_TILE + DEEP_MUD_TILE / 2 + offsetY,
-    radiusX: 96 + hash * 58,
-    radiusY: 48 + worldHash(cellX + 7, cellY + 13) * 34,
+    radiusX: 72 + hash * 56,
+    radiusY: 38 + worldHash(cellX + 7, cellY + 13) * 34,
     angle: (worldHash(cellY - 19, cellX + 5) - .5) * Math.PI * .82,
     hash,
   };
+}
+
+function deepMudBoundaryScale(patch: DeepMudPatch, angle: number) {
+  return Math.max(.7, Math.min(1.18,
+    .92
+    + Math.sin(angle * 3 + patch.hash * 18.4) * .13
+    + Math.sin(angle * 5 - patch.hash * 27.7) * .08
+    + Math.sin(angle * 8 + patch.hash * 43.1) * .045));
+}
+
+function traceDeepMudBlobPath(context: CanvasRenderingContext2D, patch: DeepMudPatch, scale = 1) {
+  const points = Array.from({ length: 30 }, (_, index) => {
+    const angle = index / 30 * Math.PI * 2;
+    const edge = deepMudBoundaryScale(patch, angle) * scale;
+    return { x: Math.cos(angle) * patch.radiusX * edge, y: Math.sin(angle) * patch.radiusY * edge };
+  });
+  const first = points[0]!, last = points.at(-1)!;
+  context.beginPath();
+  context.moveTo((last.x + first.x) / 2, (last.y + first.y) / 2);
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index]!, next = points[(index + 1) % points.length]!;
+    context.quadraticCurveTo(point.x, point.y, (point.x + next.x) / 2, (point.y + next.y) / 2);
+  }
+  context.closePath();
 }
 
 function deepMudPatchesInView(minX: number, maxX: number, minY: number, maxY: number) {
@@ -388,8 +412,9 @@ function deepMudStrengthAtPoint(point: Point, stage: number) {
       const localX = dx * cos - dy * sin;
       const localY = dx * sin + dy * cos;
       const distance = Math.hypot(localX / patch.radiusX, localY / patch.radiusY);
-      if (distance < 1) {
-        const strength = Math.min(1, (1 - distance) / .74 + .22);
+      const boundary = deepMudBoundaryScale(patch, Math.atan2(localY / patch.radiusY, localX / patch.radiusX));
+      if (distance < boundary) {
+        const strength = Math.min(1, (boundary - distance) / .74 + .22);
         if (strength > bestStrength) { bestStrength = strength; bestPatch = patch; }
       }
     }
@@ -401,8 +426,8 @@ function randomDeepMudPointNear(player: Point, width: number, height: number) {
   const patches = deepMudPatchesInView(player.x - width * .7, player.x + width * .7, player.y - height * .7, player.y + height * .7);
   if (!patches.length) return null;
   const patch = patches[Math.floor(Math.random() * patches.length)]!;
-  const radius = Math.sqrt(Math.random()) * .72;
   const angle = Math.random() * Math.PI * 2;
+  const radius = Math.sqrt(Math.random()) * deepMudBoundaryScale(patch, angle) * .72;
   const localX = Math.cos(angle) * patch.radiusX * radius;
   const localY = Math.sin(angle) * patch.radiusY * radius;
   const cos = Math.cos(patch.angle), sin = Math.sin(patch.angle);
@@ -521,24 +546,61 @@ function drawDeepMudPatches(context: CanvasRenderingContext2D, width: number, he
     context.save();
     context.translate(screenX, screenY);
     context.rotate(patch.angle);
-    const mud = context.createRadialGradient(-patch.radiusX * .18, -patch.radiusY * .28, 4, 0, 0, patch.radiusX * 1.12);
-    mud.addColorStop(0, `rgba(38,26,22,${.78 + tide * .08})`);
-    mud.addColorStop(.58, `rgba(48,35,29,${.66 + tide * .12})`);
-    mud.addColorStop(1, "rgba(24,19,17,0)");
+    traceDeepMudBlobPath(context, patch, 1.07);
+    context.fillStyle = "rgba(5,4,3,.22)";
+    context.fill();
+    const mud = context.createRadialGradient(-patch.radiusX * .28, -patch.radiusY * .32, 4, 0, 0, patch.radiusX * 1.16);
+    mud.addColorStop(0, `rgba(30,20,17,${.86 + tide * .08})`);
+    mud.addColorStop(.42, `rgba(45,31,26,${.78 + tide * .1})`);
+    mud.addColorStop(.74, `rgba(24,18,16,${.58 + tide * .08})`);
+    mud.addColorStop(1, "rgba(20,15,13,.06)");
     context.fillStyle = mud;
-    context.beginPath(); context.ellipse(0, 0, patch.radiusX, patch.radiusY, 0, 0, Math.PI * 2); context.fill();
-    context.strokeStyle = "rgba(234,207,152,.15)";
-    context.lineWidth = 2;
-    context.beginPath(); context.ellipse(0, 0, patch.radiusX * .96, patch.radiusY * .91, 0, 0, Math.PI * 2); context.stroke();
-    context.strokeStyle = "rgba(174,216,203,.16)";
-    context.lineWidth = 1.4;
-    for (let ring = 0; ring < 3; ring += 1) {
+    traceDeepMudBlobPath(context, patch, 1);
+    context.fill();
+    context.save();
+    traceDeepMudBlobPath(context, patch, .96);
+    context.clip();
+    for (let pool = 0; pool < 4; pool += 1) {
+      const poolHash = worldHash(patch.hash * 131 + pool * 17, patch.hash * 53 - pool * 19);
+      const poolX = (worldHash(pool - patch.hash * 7, patch.hash * 11 + pool) - .5) * patch.radiusX * 1.02;
+      const poolY = (worldHash(patch.hash * 13 + pool, pool - patch.hash * 5) - .5) * patch.radiusY * .78;
+      const poolGradient = context.createRadialGradient(poolX - patch.radiusX * .08, poolY - patch.radiusY * .1, 3, poolX, poolY, patch.radiusX * (.3 + poolHash * .18));
+      poolGradient.addColorStop(0, "rgba(10,12,10,.32)");
+      poolGradient.addColorStop(.68, "rgba(31,23,20,.28)");
+      poolGradient.addColorStop(1, "rgba(31,23,20,0)");
+      context.fillStyle = poolGradient;
+      context.beginPath(); context.ellipse(poolX, poolY, patch.radiusX * (.2 + poolHash * .15), patch.radiusY * (.14 + poolHash * .08), (poolHash - .5) * .9, 0, Math.PI * 2); context.fill();
+    }
+    context.strokeStyle = "rgba(174,216,203,.18)";
+    context.lineWidth = 1.2;
+    context.lineCap = "round";
+    for (let ring = 0; ring < 5; ring += 1) {
+      const base = patch.hash * 21 + ring * 1.7;
+      const startX = (worldHash(base, ring) - .5) * patch.radiusX * 1.18;
+      const startY = (worldHash(ring, base) - .5) * patch.radiusY * .95;
+      const bend = (worldHash(base + 3, ring - 5) - .5) * patch.radiusY * .45;
       context.beginPath();
-      context.ellipse(-patch.radiusX * .24 + ring * patch.radiusX * .22, -patch.radiusY * .16 + ring * 7, patch.radiusX * (.18 + ring * .07), patch.radiusY * (.12 + ring * .025), 0, Math.PI * .08, Math.PI * .92);
+      context.moveTo(startX - patch.radiusX * .18, startY);
+      context.bezierCurveTo(startX - patch.radiusX * .06, startY + bend, startX + patch.radiusX * .18, startY - bend, startX + patch.radiusX * .32, startY + bend * .22);
       context.stroke();
     }
-    context.fillStyle = "rgba(16,12,10,.2)";
-    context.beginPath(); context.ellipse(patch.radiusX * .25, patch.radiusY * .2, patch.radiusX * .32, patch.radiusY * .22, 0, 0, Math.PI * 2); context.fill();
+    context.restore();
+    context.strokeStyle = "rgba(234,207,152,.16)";
+    context.lineWidth = 2.2;
+    traceDeepMudBlobPath(context, patch, 1);
+    context.stroke();
+    context.strokeStyle = "rgba(8,6,5,.28)";
+    context.lineWidth = 5;
+    traceDeepMudBlobPath(context, patch, .86);
+    context.stroke();
+    context.fillStyle = "rgba(230,218,170,.2)";
+    for (let bubble = 0; bubble < 5; bubble += 1) {
+      const angle = patch.hash * 14 + bubble * 1.91;
+      const distance = .35 + worldHash(bubble, patch.hash * 17) * .45;
+      context.beginPath();
+      context.arc(Math.cos(angle) * patch.radiusX * distance, Math.sin(angle) * patch.radiusY * distance, 1.6 + worldHash(angle, bubble) * 2.2, 0, Math.PI * 2);
+      context.fill();
+    }
     context.restore();
   }
 }
