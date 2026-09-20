@@ -1377,6 +1377,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /MUDFLAT_FIXED_GENERAL_SKILL_IDS/);
   assert.match(source, /선택 기술 \{normalSkills\.length\} \/ 6/);
   assert.match(source, /className="ms-base-tools"/);
+  assert.match(source, /basket: "담기"/);
+  assert.match(source, /<b>채집 \{hud\.caught\}<\/b><span>\(최대 \{hud\.catchCapacity\}\)<\/span>/);
+  assert.doesNotMatch(source, /<small>한 바구니<\/small>/);
+  assert.match(styles, /\.ms-base-tools\{position:absolute;z-index:4;left:14px;top:auto;bottom:10px/);
+  assert.match(styles, /\.ms-caught\{z-index:4;right:14px;top:auto;bottom:10px/);
   assert.match(source, /className="ms-skill-detail"/);
   assert.match(source, /onClick=\{\(\) => setSelectedSkillId\(skill\.id\)\}/);
   assert.match(styles, /\.ms-skill-detail\{position:fixed/);
