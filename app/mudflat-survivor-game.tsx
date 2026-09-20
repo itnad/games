@@ -117,6 +117,9 @@ const DEEP_MUD_TILE = 310;
 const DEEP_MUD_GAUGE_RISE = .42;
 const DEEP_MUD_GAUGE_DECAY = .36;
 const DEEP_MUD_STUCK_SECONDS = .82;
+const MUDFLAT_DEFEAT_ART_SRC = "/mudflat-illustrations/defeat-gatherer.webp";
+const MUDFLAT_DEFEAT_ART_WIDTH = 980;
+const MUDFLAT_DEFEAT_ART_HEIGHT = 404;
 let mudflatDarknessCanvas: HTMLCanvasElement | null = null;
 let mudflatDarknessContext: CanvasRenderingContext2D | null = null;
 type Runtime = {
@@ -1229,6 +1232,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const sequenceRef = useRef(1);
   const lumiHoldTimerRef = useRef<number | null>(null);
   const defeatRetryRef = useRef<ReturnType<typeof createDefeatRetrySnapshot> | null>(null);
+  const defeatArtPreloadRef = useRef<HTMLImageElement | null>(null);
   const [screen, setScreen] = useState<Screen>("setup");
   const [mode, setMode] = useState<GameMode>("normal");
   const [characterId, setCharacterId] = useState(defaultCharacterId("normal"));
@@ -1268,6 +1272,27 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   useEffect(() => {
     if (characterId === "lumi") loadLumiArt();
   }, [characterId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const preloadDefeatArt = () => {
+      if (cancelled || defeatArtPreloadRef.current) return;
+      const image = new Image();
+      image.decoding = "async";
+      image.src = MUDFLAT_DEFEAT_ART_SRC;
+      defeatArtPreloadRef.current = image;
+    };
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(preloadDefeatArt, { timeout: 2800 });
+      return () => { cancelled = true; idleWindow.cancelIdleCallback?.(handle); };
+    }
+    const timer = window.setTimeout(preloadDefeatArt, 1400);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, []);
 
   const startLumiPointerHold = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!event.isPrimary || event.button !== 0) return;
@@ -2929,7 +2954,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     </main>;
   }
 
-  if (screen === "defeat") return <main className="ms-shell ms-result defeat"><MudflatTopbar onExit={onExit} /><section><img className="ms-defeat-art" src="/mudflat-illustrations/defeat-gatherer.png" width="1470" height="606" decoding="async" alt="갯벌에 쓰러진 해루질럿" /><small>EXPEDITION ENDED</small><h1><span>갯벌에서</span>{" "}<span>힘이 다했습니다</span></h1><p><span>갯벌에는 여러가지 위험이 도사리고 있습니다.</span><br /><span>절대로 자만하지 말고 안전한 해루질 하세요.</span></p><div className="ms-result-grid"><span><small>도전 스테이지</small><b>{hud.stage}</b></span><span><small>잡은 수</small><b>{hud.caught}</b></span><span><small>레벨</small><b>{hud.level}</b></span><span><small>대왕 박하지</small><b>{hud.bossCaught ? "포획" : "놓침"}</b></span></div><p className="ms-reentry-note">한 번 성공한 스테이지는 언제든 재도전 가능합니다.<br />하지만 장비·기술·경험치·코인은 모두 초기화됩니다.</p><div className="ms-result-actions"><button onClick={reset}>메인 화면으로</button><MudflatRetryButton onRetry={() => beginAtStage(hud.stage)} onSecretRetry={retryWithProgress}>{hud.stage === 9 ? "끝없는 물때 재도전" : `${hud.stage}단계 재도전`}</MudflatRetryButton></div></section></main>;
+  if (screen === "defeat") return <main className="ms-shell ms-result defeat"><MudflatTopbar onExit={onExit} /><section><img className="ms-defeat-art" src={MUDFLAT_DEFEAT_ART_SRC} width={MUDFLAT_DEFEAT_ART_WIDTH} height={MUDFLAT_DEFEAT_ART_HEIGHT} decoding="async" alt="갯벌에 쓰러진 해루질럿" /><small>EXPEDITION ENDED</small><h1><span>갯벌에서</span>{" "}<span>힘이 다했습니다</span></h1><p><span>갯벌에는 여러가지 위험이 도사리고 있습니다.</span><br /><span>절대로 자만하지 말고 안전한 해루질 하세요.</span></p><div className="ms-result-grid"><span><small>도전 스테이지</small><b>{hud.stage}</b></span><span><small>잡은 수</small><b>{hud.caught}</b></span><span><small>레벨</small><b>{hud.level}</b></span><span><small>대왕 박하지</small><b>{hud.bossCaught ? "포획" : "놓침"}</b></span></div><p className="ms-reentry-note">한 번 성공한 스테이지는 언제든 재도전 가능합니다.<br />하지만 장비·기술·경험치·코인은 모두 초기화됩니다.</p><div className="ms-result-actions"><button onClick={reset}>메인 화면으로</button><MudflatRetryButton onRetry={() => beginAtStage(hud.stage)} onSecretRetry={retryWithProgress}>{hud.stage === 9 ? "끝없는 물때 재도전" : `${hud.stage}단계 재도전`}</MudflatRetryButton></div></section></main>;
 
   const pauseLayer = screen === "paused" ? (
     <div className="ms-layer pause"><section>
