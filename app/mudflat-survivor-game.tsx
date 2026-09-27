@@ -120,6 +120,7 @@ const DEEP_MUD_TILE = 250;
 const DEEP_MUD_GAUGE_RISE = .42;
 const DEEP_MUD_GAUGE_DECAY = .36;
 const DEEP_MUD_STUCK_SECONDS = .82;
+const FIRST_MOVE_GUIDE_SECONDS = 10;
 const MUDFLAT_DEFEAT_ART_SRC = "/mudflat-illustrations/defeat-gatherer.webp";
 const MUDFLAT_DEFEAT_ART_WIDTH = 980;
 const MUDFLAT_DEFEAT_ART_HEIGHT = 404;
@@ -563,6 +564,94 @@ function drawBaseCampDirectionGuide(context: CanvasRenderingContext2D, width: nu
   context.beginPath(); context.moveTo(11, 0); context.lineTo(-8, -8); context.lineTo(-3, 0); context.lineTo(-8, 8); context.closePath(); context.fill(); context.restore();
   context.save(); context.fillStyle = "#f8ffff"; context.font = "900 13px system-ui"; context.textAlign = "left";
   context.fillText(`${tideActive ? "밀물 속 귀환" : "베이스캠프"} · ${Math.round(distance / 10)}m`, panelLeft + 47, panelTop + 24); context.restore();
+}
+
+function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, height: number, elapsed: number) {
+  const guideAlpha = Math.min(1, elapsed * 2.8, (FIRST_MOVE_GUIDE_SECONDS - elapsed) * 1.7);
+  if (guideAlpha <= 0) return;
+  const phase = elapsed < 3.4 ? 0 : elapsed < 6.9 ? 1 : 2;
+  const localTime = phase === 0 ? elapsed : phase === 1 ? elapsed - 3.4 : elapsed - 6.9;
+  const pulse = .5 + .5 * Math.sin(elapsed * 5.2);
+  const centerX = width / 2, centerY = height / 2;
+  const cardWidth = Math.min(width - 28, 360);
+  const cardLeft = width / 2 - cardWidth / 2;
+  const cardTop = Math.min(height - 166, Math.max(104, height * .16));
+  const guides = [
+    { step: "1 / 3", title: "터치한 채 끌면 이동합니다", body: "누른 채 끌면 캐릭터가 따라갑니다." },
+    { step: "2 / 3", title: "집게 끝을 게에게 닿게 하세요", body: "집게가 게에 닿으면 자동 채집됩니다." },
+    { step: "3 / 3", title: "돌은 피해 가세요", body: "돌은 체력을 깎으니 옆으로 돌아가세요." },
+  ] as const;
+  const guide = guides[phase]!;
+  context.save();
+  context.globalAlpha = guideAlpha;
+  if (phase === 0) {
+    const startX = centerX - 76, startY = centerY + 90;
+    const endX = centerX + 78, endY = centerY - 38;
+    const travel = Math.min(1, localTime / 2.8);
+    const fingerX = startX + (endX - startX) * (.18 + .64 * travel);
+    const fingerY = startY + (endY - startY) * (.18 + .64 * travel) + Math.sin(elapsed * 4) * 5;
+    context.strokeStyle = "rgba(255,226,161,.72)";
+    context.lineWidth = 4;
+    context.lineCap = "round";
+    context.setLineDash([9, 9]);
+    context.lineDashOffset = -elapsed * 22;
+    context.beginPath(); context.moveTo(startX, startY); context.quadraticCurveTo(centerX - 6, centerY + 18, endX, endY); context.stroke();
+    context.setLineDash([]);
+    context.fillStyle = `rgba(255,246,219,${.9 - pulse * .12})`;
+    context.strokeStyle = "rgba(52,42,36,.42)";
+    context.lineWidth = 2;
+    context.beginPath(); context.arc(fingerX, fingerY, 18 + pulse * 4, 0, Math.PI * 2); context.fill(); context.stroke();
+    context.fillStyle = "#46372c"; context.font = "900 18px system-ui"; context.textAlign = "center"; context.fillText("손", fingerX, fingerY + 6);
+    context.strokeStyle = "rgba(255,255,255,.34)";
+    context.lineWidth = 2;
+    context.beginPath(); context.arc(centerX, centerY, 64 + pulse * 6, 0, Math.PI * 2); context.stroke();
+  } else if (phase === 1) {
+    const crabX = centerX + 118, crabY = centerY - 22 + Math.sin(elapsed * 6) * 3;
+    const tipX = centerX + 76 + Math.cos(elapsed * 4) * 9;
+    const tipY = centerY - 18 + Math.sin(elapsed * 4) * 9;
+    context.strokeStyle = "rgba(255,226,161,.72)";
+    context.lineWidth = 3;
+    context.lineCap = "round";
+    context.beginPath(); context.moveTo(centerX + 18, centerY - 7); context.quadraticCurveTo(centerX + 58, centerY - 42, crabX - 18, crabY); context.stroke();
+    context.fillStyle = `rgba(255,218,125,${.22 + pulse * .18})`;
+    context.beginPath(); context.arc(tipX, tipY, 20 + pulse * 5, 0, Math.PI * 2); context.fill();
+    context.strokeStyle = "#ffdf8f";
+    context.lineWidth = 2.5;
+    context.beginPath(); context.arc(tipX, tipY, 18 + pulse * 4, 0, Math.PI * 2); context.stroke();
+    context.save(); context.translate(crabX, crabY);
+    context.strokeStyle = "#b95642"; context.lineWidth = 3; context.lineCap = "round";
+    for (const side of [-1, 1]) {
+      context.beginPath(); context.moveTo(side * 12, -2); context.lineTo(side * 24, -14); context.stroke();
+      context.fillStyle = "#ee8b66"; context.beginPath(); context.arc(side * 28, -17, 7, 0, Math.PI * 2); context.fill();
+    }
+    context.fillStyle = "#df7658"; context.beginPath(); context.ellipse(0, 0, 24, 16, 0, 0, Math.PI * 2); context.fill();
+    context.strokeStyle = "rgba(255,244,226,.76)"; context.lineWidth = 2; context.stroke();
+    context.fillStyle = "#fff8eb"; context.beginPath(); context.arc(-8, -12, 4, 0, Math.PI * 2); context.arc(8, -12, 4, 0, Math.PI * 2); context.fill();
+    context.fillStyle = "#34261f"; context.beginPath(); context.arc(-8, -12, 1.7, 0, Math.PI * 2); context.arc(8, -12, 1.7, 0, Math.PI * 2); context.fill();
+    context.restore();
+  } else {
+    const rockX = centerX + 94, rockY = centerY + 38;
+    context.save(); context.translate(rockX, rockY); context.rotate(-.18);
+    context.fillStyle = "rgba(29,25,22,.32)"; context.beginPath(); context.ellipse(5, 22, 38, 13, 0, 0, Math.PI * 2); context.fill();
+    context.fillStyle = "#7c766b"; context.strokeStyle = "rgba(244,228,199,.32)"; context.lineWidth = 2;
+    context.beginPath(); context.moveTo(-32, 8); context.lineTo(-17, -27); context.lineTo(12, -34); context.lineTo(38, -8); context.lineTo(28, 28); context.lineTo(-6, 36); context.closePath(); context.fill(); context.stroke();
+    context.restore();
+    context.strokeStyle = "rgba(255,116,91,.82)";
+    context.lineWidth = 4;
+    context.lineCap = "round";
+    context.beginPath(); context.arc(rockX, rockY, 54 + pulse * 5, -.92, Math.PI * .8); context.stroke();
+    context.fillStyle = "#ff765f"; context.beginPath(); context.moveTo(rockX - 42, rockY + 44); context.lineTo(rockX - 20, rockY + 40); context.lineTo(rockX - 32, rockY + 22); context.closePath(); context.fill();
+    context.fillStyle = "rgba(255,244,218,.95)";
+    context.font = "900 18px system-ui"; context.textAlign = "center"; context.fillText("!", rockX, rockY - 58);
+  }
+  context.fillStyle = "rgba(20,27,29,.9)";
+  roundedRect(context, cardLeft, cardTop, cardWidth, 72, 18); context.fill();
+  context.strokeStyle = "rgba(255,220,139,.48)"; context.lineWidth = 1.4; context.stroke();
+  context.fillStyle = "#ffcf78"; context.font = "900 11px system-ui"; context.textAlign = "left";
+  context.fillText(`첫 움직임 가이드 · ${guide.step}`, cardLeft + 18, cardTop + 21);
+  context.fillStyle = "#fff8e9"; context.font = "900 15px system-ui"; context.fillText(guide.title, cardLeft + 18, cardTop + 43);
+  context.fillStyle = "#d9d2c4"; context.font = "800 12px system-ui"; context.fillText(guide.body, cardLeft + 18, cardTop + 61);
+  context.restore();
 }
 
 function drawDeepMudPatches(context: CanvasRenderingContext2D, width: number, height: number, player: Point, tide: number) {
@@ -2775,18 +2864,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.fillStyle = "#fff8e9"; context.font = "900 23px system-ui"; context.fillText(stageProfile.name, 38, height - 94);
         context.fillStyle = "#d8d3c6"; context.font = "700 13px system-ui"; context.fillText(stageProfile.subtitle, 38, height - 67); context.restore();
       }
-      if (runtime.stage === 1 && runtime.elapsed < 3) {
-        const message = "일단 저 구멍들을 파봐야겠다.";
-        const alpha = Math.min(1, runtime.elapsed * 4, (3 - runtime.elapsed) * 3);
-        context.save(); context.globalAlpha = alpha; context.font = "900 14px system-ui"; context.textAlign = "center";
-        const bubbleWidth = Math.min(width - 28, context.measureText(message).width + 34);
-        const bubbleTop = height / 2 - 116;
-        context.shadowColor = "rgba(25,18,15,.34)"; context.shadowBlur = 12; context.shadowOffsetY = 5;
-        context.fillStyle = "rgba(255,248,223,.96)"; roundedRect(context, width / 2 - bubbleWidth / 2, bubbleTop, bubbleWidth, 40, 16); context.fill();
-        context.shadowColor = "transparent"; context.beginPath(); context.moveTo(width / 2 - 8, bubbleTop + 39); context.lineTo(width / 2 + 8, bubbleTop + 39); context.lineTo(width / 2, bubbleTop + 50); context.closePath(); context.fill();
-        context.strokeStyle = "rgba(75,57,44,.28)"; context.lineWidth = 1.5; roundedRect(context, width / 2 - bubbleWidth / 2, bubbleTop, bubbleWidth, 40, 16); context.stroke();
-        context.fillStyle = "#46372c"; context.fillText(message, width / 2, bubbleTop + 26); context.restore();
-      }
+      if (runtime.stage === 1 && runtime.elapsed < FIRST_MOVE_GUIDE_SECONDS) drawFirstMoveGuide(context, width, height, runtime.elapsed);
       if (runtime.playerMessageLife > 0) {
         const message = runtime.playerMessage;
         const isCatchFullMessage = message === CATCH_FULL_MESSAGE;

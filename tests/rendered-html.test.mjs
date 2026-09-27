@@ -1436,7 +1436,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-setup-details\{margin-top:10px/);
   assert.match(styles, /\.ms-stage-route-list\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.ms-setup \.ms-character-select>\.ms-primary\{margin:18px auto 0/);
-  assert.match(source, /runtime\.stage === 1 && runtime\.elapsed < 3[\s\S]*?일단 저 구멍들을 파봐야겠다\./);
+  assert.match(source, /const FIRST_MOVE_GUIDE_SECONDS = 10/);
+  assert.match(source, /function drawFirstMoveGuide\(/);
+  assert.match(source, /첫 움직임 가이드/);
+  assert.match(source, /터치한 채 끌면 이동합니다/);
+  assert.match(source, /집게 끝을 게에게 닿게 하세요/);
+  assert.match(source, /돌은 피해 가세요/);
+  assert.match(source, /runtime\.stage === 1 && runtime\.elapsed < FIRST_MOVE_GUIDE_SECONDS[\s\S]*?drawFirstMoveGuide\(context, width, height, runtime\.elapsed\)/);
+  assert.doesNotMatch(source, /일단 저 구멍들을 파봐야겠다\./);
   assert.match(source, /앗 따가워, 몸이 이상해\./);
   assert.match(source, /아 깜짝이야, 여기 돌이 있었네!/);
   assert.match(source, /HIGHEST_STAGE_KEY/);
