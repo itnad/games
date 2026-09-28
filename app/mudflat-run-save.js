@@ -64,6 +64,12 @@ export function decodeMudflatRun(serialized, makeRuntime) {
       || campaign.coins < 0 || !positive(campaign.hp) || !positive(campaign.maxHp) || campaign.hp > campaign.maxHp
       || ![campaign.levels, campaign.equipment, campaign.inventory, campaign.lastHaul].every(countMap)) return null;
     if (!record(runtime) || runtime.ended !== false || runtime.stage !== campaign.stage || runtime.mode !== campaign.mode) return null;
+    const runtimeTemplate = makeRuntime(campaign);
+    // Older active-run autosaves did not know about the interactive first-run
+    // guide. It is an opening tutorial layer, so backfill it from the current
+    // runtime template instead of discarding an otherwise valid expedition.
+    if (!finite(runtime.tutorialElapsed)) runtime.tutorialElapsed = 0;
+    if (!("firstMoveGuide" in runtime)) runtime.firstMoveGuide = runtimeTemplate.firstMoveGuide;
     // Older active-run autosaves did not know about stage-five deep-mud
     // visuals/state. They are cosmetic or transient, so backfill defaults
     // instead of discarding an otherwise valid expedition.
@@ -71,9 +77,14 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     for (const key of ["deepMudGauge", "deepMudLock", "deepMudStepClock"]) {
       if (!finite(runtime[key])) runtime[key] = 0;
     }
-    if (!matchesShape(runtime, makeRuntime(campaign)) || !positive(runtime.player.hp)
-      || runtime.player.hp > runtime.player.maxHp || runtime.elapsed < 0
+    if (!matchesShape(runtime, runtimeTemplate) || !positive(runtime.player.hp)
+      || runtime.player.hp > runtime.player.maxHp || runtime.elapsed < 0 || runtime.tutorialElapsed < 0
       || ![runtime.levels, runtime.equipment, runtime.basket].every(countMap)) return null;
+    if (runtime.firstMoveGuide !== null) {
+      if (!record(runtime.firstMoveGuide) || !["move", "catch", "dig", "avoid", "done"].includes(runtime.firstMoveGuide.step)
+        || !numericFields(runtime.firstMoveGuide, "stepClock catchCreatureId digHoleId avoidRockId")
+        || ![runtime.firstMoveGuide.moveTarget, runtime.firstMoveGuide.catchPoint, runtime.firstMoveGuide.digPoint, runtime.firstMoveGuide.avoidRockPoint, runtime.firstMoveGuide.avoidTarget].every(point)) return null;
+    }
     for (const [key, fields] of Object.entries(ENTITY_FIELDS)) {
       if (!Array.isArray(runtime[key]) || !runtime[key].every((entity) => point(entity) && Number.isInteger(entity.id) && entity.id > 0 && numericFields(entity, fields))) return null;
     }

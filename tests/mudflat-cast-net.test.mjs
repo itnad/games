@@ -204,7 +204,7 @@ test("game wiring keeps nets paused with the game and uses normal collection and
   const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
   assert.match(source, /if \(runtime.paused \|\| runtime.ended\) return/);
   assert.match(source, /isCreatureRevealed\(creature\) && castNetOnScreen\(creature, runtime.player, width, height\)/);
-  assert.match(source, /advanceCastNets\(runtime.castNets, runtime.creatures, dt, runtime.elapsed, canNetCatch, damageCreature\)/);
+  assert.match(source, /advanceCastNets\(runtime.castNets, runtime.creatures, dt, actionTime, canNetCatch, damageCreature\)/);
   assert.match(source, /campObstacleAllowed\(net, net.radius \+ 8\)/);
   assert.match(source, /runtime.castNetClock = CAST_NET_RETRY/);
   assert.match(source, /\* castNetMovementMultiplier\(creature, runtime.castNets\)/);

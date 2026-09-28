@@ -98,6 +98,13 @@ type MudPrint = Point & { id: number; life: number; maxLife: number; angle: numb
 type RockFlipEffect = Point & { rockId: number; life: number; maxLife: number };
 type FallingRock = Point & { id: number; life: number; maxLife: number; radius: number };
 type DeepMudPatch = Point & { radiusX: number; radiusY: number; angle: number; hash: number };
+type FirstMoveGuideStep = "move" | "catch" | "dig" | "avoid" | "done";
+type FirstMoveGuide = {
+  step: FirstMoveGuideStep; stepClock: number;
+  moveTarget: Point; catchPoint: Point; catchCreatureId: number;
+  digPoint: Point; digHoleId: number;
+  avoidRockPoint: Point; avoidRockId: number; avoidTarget: Point;
+};
 
 const ACTION_PROGRESS_RING_RADIUS = 18;
 const BASE_CAMP = { x: 0, y: 250 };
@@ -120,7 +127,8 @@ const DEEP_MUD_TILE = 250;
 const DEEP_MUD_GAUGE_RISE = .42;
 const DEEP_MUD_GAUGE_DECAY = .36;
 const DEEP_MUD_STUCK_SECONDS = .82;
-const FIRST_MOVE_GUIDE_SECONDS = 10;
+const FIRST_MOVE_GUIDE_TARGET_RADIUS = 38;
+const FIRST_MOVE_GUIDE_DANGER_RADIUS = 62;
 const MUDFLAT_DEFEAT_ART_SRC = "/mudflat-illustrations/defeat-gatherer.webp";
 const MUDFLAT_DEFEAT_ART_WIDTH = 980;
 const MUDFLAT_DEFEAT_ART_HEIGHT = 404;
@@ -130,7 +138,7 @@ type Runtime = {
   mode: GameMode;
   stage: number;
   lumiMotion: ReturnType<typeof createLumiMotion>;
-  elapsed: number; player: Point & { hp: number; maxHp: number; baseMaxHp: number; speed: number; damageCooldown: number; facing: number; stride: number; walking: boolean };
+  elapsed: number; tutorialElapsed: number; firstMoveGuide: FirstMoveGuide | null; player: Point & { hp: number; maxHp: number; baseMaxHp: number; speed: number; damageCooldown: number; facing: number; stride: number; walking: boolean };
   creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; clamReveals: ClamReveal[]; mudPrints: MudPrint[]; levels: CountMap; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
   xpCollectLife: number;
@@ -262,10 +270,21 @@ function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[number], le
 
 function makeRuntime(campaign: Campaign): Runtime {
   const stats = mudflatEquipmentStats(campaign.equipment, campaign.baseMaxHp, campaign.mode === "normal" ? campaign.levels.snack : 0);
+  const firstMoveGuide = campaign.mode === "normal" && campaign.stage === 1 ? {
+    step: "move" as FirstMoveGuideStep, stepClock: 0,
+    moveTarget: { x: 92, y: -52 },
+    catchPoint: { x: 198, y: -54 },
+    catchCreatureId: 0,
+    digPoint: { x: 194, y: 48 },
+    digHoleId: 0,
+    avoidRockPoint: { x: 122, y: 104 },
+    avoidRockId: 0,
+    avoidTarget: { x: 22, y: 116 },
+  } : null;
   return {
     mode: campaign.mode, stage: campaign.stage, lumiMotion: createLumiMotion(),
     xpCollectLife: 0,
-    elapsed: 0, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
+    elapsed: 0, tutorialElapsed: 0, firstMoveGuide, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
     creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: { ...(campaign.mode === "normal" ? GENERAL_CHARACTER.levels : {}), ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, headlampSpawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, selfShockNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
     playerMessage: "", playerMessageLife: 0, playerMessageOpacity: 1, pufferTouching: false, hiddenRockClock: campaign.stage === 3 ? .5 : 0, hiddenRockIntroShown: false, catchFullNoticeClock: 0,
@@ -273,6 +292,14 @@ function makeRuntime(campaign: Campaign): Runtime {
     safeZone: { x: 90, y: 0 }, baseCamp: { ...BASE_CAMP }, baseCampGuideShown: false, tideDamageClock: 1, tideMessageClock: 0, lastTideCycle: 0, lastHillCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, waveClock: 10, rocksFlipped: 0,
     paused: false, ended: false,
   };
+}
+
+function firstMoveGuideActive(runtime: Runtime) {
+  return Boolean(runtime.firstMoveGuide && runtime.firstMoveGuide.step !== "done");
+}
+
+function runtimeActionTime(runtime: Runtime) {
+  return runtime.elapsed + runtime.tutorialElapsed;
 }
 
 function readSavedCampaign(): Campaign | null {
@@ -566,91 +593,101 @@ function drawBaseCampDirectionGuide(context: CanvasRenderingContext2D, width: nu
   context.fillText(`${tideActive ? "밀물 속 귀환" : "베이스캠프"} · ${Math.round(distance / 10)}m`, panelLeft + 47, panelTop + 24); context.restore();
 }
 
-function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, height: number, elapsed: number) {
-  const guideAlpha = Math.min(1, elapsed * 2.8, (FIRST_MOVE_GUIDE_SECONDS - elapsed) * 1.7);
-  if (guideAlpha <= 0) return;
-  const phase = elapsed < 3.4 ? 0 : elapsed < 6.9 ? 1 : 2;
-  const localTime = phase === 0 ? elapsed : phase === 1 ? elapsed - 3.4 : elapsed - 6.9;
-  const pulse = .5 + .5 * Math.sin(elapsed * 5.2);
-  const centerX = width / 2, centerY = height / 2;
-  const cardWidth = Math.min(width - 28, 360);
+function drawGuideMarker(context: CanvasRenderingContext2D, point: Point, radius: number, label: string, color: string, time: number) {
+  const pulse = .5 + .5 * Math.sin(time * 5.4);
+  context.save();
+  context.fillStyle = `${color}${Math.round(28 + pulse * 28).toString(16).padStart(2, "0")}`;
+  context.beginPath(); context.arc(point.x, point.y, radius + pulse * 5, 0, Math.PI * 2); context.fill();
+  context.strokeStyle = color; context.lineWidth = 3;
+  context.setLineDash([8, 7]); context.lineDashOffset = -time * 28;
+  context.beginPath(); context.arc(point.x, point.y, radius, 0, Math.PI * 2); context.stroke();
+  context.setLineDash([]);
+  context.fillStyle = "rgba(26,30,31,.9)"; roundedRect(context, point.x - 42, point.y - radius - 36, 84, 25, 12); context.fill();
+  context.fillStyle = "#fff9e8"; context.font = "900 12px system-ui"; context.textAlign = "center"; context.fillText(label, point.x, point.y - radius - 19);
+  context.restore();
+}
+
+function drawGuideArrow(context: CanvasRenderingContext2D, from: Point, to: Point, time: number, color = "rgba(255,224,148,.78)") {
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  context.save();
+  context.strokeStyle = color; context.lineWidth = 4; context.lineCap = "round";
+  context.setLineDash([10, 9]); context.lineDashOffset = -time * 24;
+  context.beginPath();
+  context.moveTo(from.x, from.y);
+  context.quadraticCurveTo((from.x + to.x) / 2, Math.min(from.y, to.y) - 28, to.x, to.y);
+  context.stroke();
+  context.setLineDash([]);
+  context.fillStyle = color;
+  context.beginPath();
+  context.moveTo(to.x, to.y);
+  context.lineTo(to.x - Math.cos(angle - .55) * 18, to.y - Math.sin(angle - .55) * 18);
+  context.lineTo(to.x - Math.cos(angle + .55) * 18, to.y - Math.sin(angle + .55) * 18);
+  context.closePath(); context.fill();
+  context.restore();
+}
+
+function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, height: number, runtime: Runtime, screenPoint: (point: Point) => Point, actionTime: number) {
+  const guide = runtime.firstMoveGuide;
+  if (!guide || guide.step === "done") return;
+  const guideAlpha = Math.min(1, runtime.tutorialElapsed * 2.4);
+  const center = { x: width / 2, y: height / 2 };
+  const cardWidth = Math.min(width - 28, 376);
   const cardLeft = width / 2 - cardWidth / 2;
-  const cardTop = Math.min(height - 166, Math.max(104, height * .16));
-  const guides = [
-    { step: "1 / 3", title: "터치한 채 끌면 이동합니다", body: "누른 채 끌면 캐릭터가 따라갑니다." },
-    { step: "2 / 3", title: "집게 끝을 게에게 닿게 하세요", body: "집게가 게에 닿으면 자동 채집됩니다." },
-    { step: "3 / 3", title: "돌은 피해 가세요", body: "돌은 체력을 깎으니 옆으로 돌아가세요." },
-  ] as const;
-  const guide = guides[phase]!;
+  const cardTop = Math.min(height - 174, Math.max(86, height * .13));
+  const steps: Record<Exclude<FirstMoveGuideStep, "done">, { step: string; title: string; body: string }> = {
+    move: { step: "1 / 4", title: "목표 지점까지 드래그해 이동해보세요", body: "튜토리얼 동안 1스테이지 시간은 줄지 않습니다." },
+    catch: { step: "2 / 4", title: "집게 끝으로 연습용 게를 건드리세요", body: "캐릭터 몸이 아니라 집게 끝이 닿아야 채집됩니다." },
+    dig: { step: "3 / 4", title: "구멍 위에 머물러 호미질하세요", body: "진행 원이 다 차면 조개가 채집됩니다." },
+    avoid: { step: "4 / 4", title: "돌을 피해 안전 지점까지 이동하세요", body: "돌에 부딪히면 체력이 줄어드니 옆으로 돌아가세요." },
+  };
+  const current = steps[guide.step];
   context.save();
   context.globalAlpha = guideAlpha;
-  if (phase === 0) {
-    const startX = centerX - 76, startY = centerY + 90;
-    const endX = centerX + 78, endY = centerY - 38;
-    const travel = Math.min(1, localTime / 2.8);
-    const fingerX = startX + (endX - startX) * (.18 + .64 * travel);
-    const fingerY = startY + (endY - startY) * (.18 + .64 * travel) + Math.sin(elapsed * 4) * 5;
-    context.strokeStyle = "rgba(255,226,161,.72)";
-    context.lineWidth = 4;
-    context.lineCap = "round";
-    context.setLineDash([9, 9]);
-    context.lineDashOffset = -elapsed * 22;
-    context.beginPath(); context.moveTo(startX, startY); context.quadraticCurveTo(centerX - 6, centerY + 18, endX, endY); context.stroke();
-    context.setLineDash([]);
-    context.fillStyle = `rgba(255,246,219,${.9 - pulse * .12})`;
+  if (guide.step === "move") {
+    const target = screenPoint(guide.moveTarget);
+    drawGuideArrow(context, center, target, actionTime);
+    drawGuideMarker(context, target, FIRST_MOVE_GUIDE_TARGET_RADIUS, "이동 목표", "#ffd873", actionTime);
+    const travel = .5 + .5 * Math.sin(actionTime * 2.2);
+    const finger = { x: center.x + (target.x - center.x) * (.28 + travel * .38), y: center.y + 58 + (target.y - center.y) * (.28 + travel * .38) };
+    context.fillStyle = "rgba(255,246,219,.92)";
     context.strokeStyle = "rgba(52,42,36,.42)";
     context.lineWidth = 2;
-    context.beginPath(); context.arc(fingerX, fingerY, 18 + pulse * 4, 0, Math.PI * 2); context.fill(); context.stroke();
-    context.fillStyle = "#46372c"; context.font = "900 18px system-ui"; context.textAlign = "center"; context.fillText("손", fingerX, fingerY + 6);
-    context.strokeStyle = "rgba(255,255,255,.34)";
-    context.lineWidth = 2;
-    context.beginPath(); context.arc(centerX, centerY, 64 + pulse * 6, 0, Math.PI * 2); context.stroke();
-  } else if (phase === 1) {
-    const crabX = centerX + 118, crabY = centerY - 22 + Math.sin(elapsed * 6) * 3;
-    const tipX = centerX + 76 + Math.cos(elapsed * 4) * 9;
-    const tipY = centerY - 18 + Math.sin(elapsed * 4) * 9;
-    context.strokeStyle = "rgba(255,226,161,.72)";
-    context.lineWidth = 3;
-    context.lineCap = "round";
-    context.beginPath(); context.moveTo(centerX + 18, centerY - 7); context.quadraticCurveTo(centerX + 58, centerY - 42, crabX - 18, crabY); context.stroke();
-    context.fillStyle = `rgba(255,218,125,${.22 + pulse * .18})`;
-    context.beginPath(); context.arc(tipX, tipY, 20 + pulse * 5, 0, Math.PI * 2); context.fill();
-    context.strokeStyle = "#ffdf8f";
-    context.lineWidth = 2.5;
-    context.beginPath(); context.arc(tipX, tipY, 18 + pulse * 4, 0, Math.PI * 2); context.stroke();
-    context.save(); context.translate(crabX, crabY);
-    context.strokeStyle = "#b95642"; context.lineWidth = 3; context.lineCap = "round";
-    for (const side of [-1, 1]) {
-      context.beginPath(); context.moveTo(side * 12, -2); context.lineTo(side * 24, -14); context.stroke();
-      context.fillStyle = "#ee8b66"; context.beginPath(); context.arc(side * 28, -17, 7, 0, Math.PI * 2); context.fill();
-    }
-    context.fillStyle = "#df7658"; context.beginPath(); context.ellipse(0, 0, 24, 16, 0, 0, Math.PI * 2); context.fill();
-    context.strokeStyle = "rgba(255,244,226,.76)"; context.lineWidth = 2; context.stroke();
-    context.fillStyle = "#fff8eb"; context.beginPath(); context.arc(-8, -12, 4, 0, Math.PI * 2); context.arc(8, -12, 4, 0, Math.PI * 2); context.fill();
-    context.fillStyle = "#34261f"; context.beginPath(); context.arc(-8, -12, 1.7, 0, Math.PI * 2); context.arc(8, -12, 1.7, 0, Math.PI * 2); context.fill();
-    context.restore();
+    context.beginPath(); context.arc(finger.x, finger.y, 18, 0, Math.PI * 2); context.fill(); context.stroke();
+    context.fillStyle = "#46372c"; context.font = "900 18px system-ui"; context.textAlign = "center"; context.fillText("손", finger.x, finger.y + 6);
+  } else if (guide.step === "catch") {
+    const creature = runtime.creatures.find((item) => item.id === guide.catchCreatureId);
+    const target = screenPoint(creature ?? guide.catchPoint);
+    drawGuideArrow(context, center, target, actionTime);
+    drawGuideMarker(context, target, 31, "집게로 게", "#ff986f", actionTime);
+    const tong = mudflatTongStats(runtime.levels.tongs ?? 1);
+    const angle = actionTime * tong.rotationSpeed;
+    const tip = { x: center.x + Math.cos(angle) * tong.reach, y: center.y + Math.sin(angle) * tong.reach };
+    context.strokeStyle = "rgba(255,244,220,.82)"; context.lineWidth = 2.6;
+    context.beginPath(); context.arc(tip.x, tip.y, 17, 0, Math.PI * 2); context.stroke();
+  } else if (guide.step === "dig") {
+    const hole = runtime.clamHoles.find((item) => item.id === guide.digHoleId);
+    const target = screenPoint(hole ?? guide.digPoint);
+    drawGuideArrow(context, center, target, actionTime);
+    drawGuideMarker(context, target, 34, "구멍 호미질", "#8ff0cf", actionTime);
   } else {
-    const rockX = centerX + 94, rockY = centerY + 38;
-    context.save(); context.translate(rockX, rockY); context.rotate(-.18);
-    context.fillStyle = "rgba(29,25,22,.32)"; context.beginPath(); context.ellipse(5, 22, 38, 13, 0, 0, Math.PI * 2); context.fill();
-    context.fillStyle = "#7c766b"; context.strokeStyle = "rgba(244,228,199,.32)"; context.lineWidth = 2;
-    context.beginPath(); context.moveTo(-32, 8); context.lineTo(-17, -27); context.lineTo(12, -34); context.lineTo(38, -8); context.lineTo(28, 28); context.lineTo(-6, 36); context.closePath(); context.fill(); context.stroke();
-    context.restore();
-    context.strokeStyle = "rgba(255,116,91,.82)";
-    context.lineWidth = 4;
-    context.lineCap = "round";
-    context.beginPath(); context.arc(rockX, rockY, 54 + pulse * 5, -.92, Math.PI * .8); context.stroke();
-    context.fillStyle = "#ff765f"; context.beginPath(); context.moveTo(rockX - 42, rockY + 44); context.lineTo(rockX - 20, rockY + 40); context.lineTo(rockX - 32, rockY + 22); context.closePath(); context.fill();
-    context.fillStyle = "rgba(255,244,218,.95)";
-    context.font = "900 18px system-ui"; context.textAlign = "center"; context.fillText("!", rockX, rockY - 58);
+    const rock = runtime.rocks.find((item) => item.id === guide.avoidRockId);
+    const rockPoint = screenPoint(rock ?? guide.avoidRockPoint);
+    const target = screenPoint(guide.avoidTarget);
+    drawGuideMarker(context, target, FIRST_MOVE_GUIDE_TARGET_RADIUS, "안전 지점", "#8fd7ff", actionTime);
+    drawGuideArrow(context, { x: center.x - 12, y: center.y + 8 }, target, actionTime, "rgba(143,215,255,.78)");
+    context.strokeStyle = "rgba(255,105,82,.88)"; context.lineWidth = 4;
+    context.setLineDash([11, 8]); context.lineDashOffset = -actionTime * 30;
+    context.beginPath(); context.arc(rockPoint.x, rockPoint.y, FIRST_MOVE_GUIDE_DANGER_RADIUS, 0, Math.PI * 2); context.stroke();
+    context.setLineDash([]);
+    context.fillStyle = "#ff765f"; context.font = "900 20px system-ui"; context.textAlign = "center"; context.fillText("!", rockPoint.x, rockPoint.y - FIRST_MOVE_GUIDE_DANGER_RADIUS - 9);
   }
-  context.fillStyle = "rgba(20,27,29,.9)";
-  roundedRect(context, cardLeft, cardTop, cardWidth, 72, 18); context.fill();
-  context.strokeStyle = "rgba(255,220,139,.48)"; context.lineWidth = 1.4; context.stroke();
+  context.fillStyle = "rgba(20,27,29,.92)";
+  roundedRect(context, cardLeft, cardTop, cardWidth, 78, 18); context.fill();
+  context.strokeStyle = "rgba(255,220,139,.5)"; context.lineWidth = 1.4; context.stroke();
   context.fillStyle = "#ffcf78"; context.font = "900 11px system-ui"; context.textAlign = "left";
-  context.fillText(`첫 움직임 가이드 · ${guide.step}`, cardLeft + 18, cardTop + 21);
-  context.fillStyle = "#fff8e9"; context.font = "900 15px system-ui"; context.fillText(guide.title, cardLeft + 18, cardTop + 43);
-  context.fillStyle = "#d9d2c4"; context.font = "800 12px system-ui"; context.fillText(guide.body, cardLeft + 18, cardTop + 61);
+  context.fillText(`직접 해보는 첫 움직임 · ${current.step}`, cardLeft + 18, cardTop + 21);
+  context.fillStyle = "#fff8e9"; context.font = "900 15px system-ui"; context.fillText(current.title, cardLeft + 18, cardTop + 45);
+  context.fillStyle = "#d9d2c4"; context.font = "800 12px system-ui"; context.fillText(current.body, cardLeft + 18, cardTop + 64);
   context.restore();
 }
 
@@ -1969,6 +2006,87 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.catchFullNoticeClock = 15;
     };
 
+    const setFirstMoveGuideStep = (guide: FirstMoveGuide, step: FirstMoveGuideStep) => {
+      guide.step = step;
+      guide.stepClock = 0;
+      if (step === "catch") showPlayerMessage("좋아요. 이번엔 집게 끝으로 게를 건드려봐요.", 2.4);
+      else if (step === "dig") showPlayerMessage("잘했어요. 구멍 위에 서서 호미질해봐요.", 2.4);
+      else if (step === "avoid") showPlayerMessage("마지막으로 돌을 피해 안전 지점으로 가요.", 2.4);
+      else if (step === "done") showPlayerMessage("연습 완료! 이제 1스테이지 시간이 시작됩니다.", 2.8);
+    };
+
+    const ensureFirstMoveGuideObjects = () => {
+      const guide = runtime.firstMoveGuide;
+      if (!guide || guide.step === "done") return;
+      if (guide.step === "catch" && !runtime.creatures.some((item) => item.id === guide.catchCreatureId)) {
+        const template = MUDFLAT_CREATURES.find((item) => item.id === "small-crab")!;
+        guide.catchCreatureId = sequenceRef.current++;
+        runtime.creatures.push({
+          ...template,
+          id: guide.catchCreatureId,
+          type: template.id,
+          x: guide.catchPoint.x,
+          y: guide.catchPoint.y,
+          hp: 1.2,
+          maxHp: 1.2,
+          speed: 0,
+          saltHit: 0,
+          hitFlash: 0,
+          phase: 0,
+          age: 0,
+          movement: "still",
+          movementAngle: Math.PI,
+          movementClock: 99,
+        });
+      }
+      if (guide.step === "dig" && !runtime.clamHoles.some((hole) => hole.id === guide.digHoleId)) {
+        guide.digHoleId = sequenceRef.current++;
+        runtime.clamHoles.push({
+          id: guide.digHoleId,
+          x: guide.digPoint.x,
+          y: guide.digPoint.y,
+          radius: 10,
+          progress: 0,
+          kind: "clam",
+          angle: -.3,
+        });
+      }
+      if (guide.step === "avoid" && !runtime.rocks.some((rock) => rock.id === guide.avoidRockId)) {
+        guide.avoidRockId = sequenceRef.current++;
+        addRock({
+          id: guide.avoidRockId,
+          x: guide.avoidRockPoint.x,
+          y: guide.avoidRockPoint.y,
+          radius: 23,
+          tone: .72,
+        });
+      }
+    };
+
+    const advanceFirstMoveGuide = (dt: number) => {
+      const guide = runtime.firstMoveGuide;
+      if (!guide || guide.step === "done") return;
+      guide.stepClock += dt;
+      const caughtTutorialCrab = guide.step === "catch" && guide.catchCreatureId > 0 && !runtime.creatures.some((item) => item.id === guide.catchCreatureId);
+      const dugTutorialHole = guide.step === "dig" && guide.digHoleId > 0 && !runtime.clamHoles.some((hole) => hole.id === guide.digHoleId);
+      if (guide.step === "move" && Math.hypot(runtime.player.x - guide.moveTarget.x, runtime.player.y - guide.moveTarget.y) <= FIRST_MOVE_GUIDE_TARGET_RADIUS) {
+        setFirstMoveGuideStep(guide, "catch");
+        ensureFirstMoveGuideObjects();
+      } else if (caughtTutorialCrab) {
+        setFirstMoveGuideStep(guide, "dig");
+        ensureFirstMoveGuideObjects();
+      } else if (dugTutorialHole) {
+        setFirstMoveGuideStep(guide, "avoid");
+        ensureFirstMoveGuideObjects();
+      } else if (guide.step === "avoid" && Math.hypot(runtime.player.x - guide.avoidTarget.x, runtime.player.y - guide.avoidTarget.y) <= FIRST_MOVE_GUIDE_TARGET_RADIUS) {
+        runtime.rocks = runtime.rocks.filter((rock) => rock.id !== guide.avoidRockId);
+        setFirstMoveGuideStep(guide, "done");
+        runtime.spawnClock = 0;
+        runtime.clamSpawnClock = 0;
+        runtime.rockSpawnClock = 0;
+      } else ensureFirstMoveGuideObjects();
+    };
+
     const damageAndCollect = () => {
       const defeated = runtime.creatures.filter((item) => item.hp <= 0);
       if (defeated.length) {
@@ -1990,7 +2108,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
     const update = (dt: number, width: number, height: number) => {
       if (runtime.paused || runtime.ended) return;
-      runtime.elapsed += dt;
+      const tutorialActiveAtFrame = firstMoveGuideActive(runtime);
+      if (tutorialActiveAtFrame) runtime.tutorialElapsed += dt;
+      else runtime.elapsed += dt;
+      const actionTime = runtimeActionTime(runtime);
       runtime.player.damageCooldown = Math.max(0, runtime.player.damageCooldown - dt);
       runtime.headlampSpawnClock = Math.max(0, runtime.headlampSpawnClock - dt); runtime.hoeEffect = Math.max(0, runtime.hoeEffect - dt);
       runtime.electricPulseLife = Math.max(0, runtime.electricPulseLife - dt); runtime.discoveryMessageLife = Math.max(0, runtime.discoveryMessageLife - dt); runtime.playerMessageLife = Math.max(0, runtime.playerMessageLife - dt); runtime.catchFullNoticeClock = Math.max(0, runtime.catchFullNoticeClock - dt);
@@ -2143,7 +2264,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
       runtime.tideFlash = Math.max(0, runtime.tideFlash - dt);
 
-      if (runtime.mode === "normal" && runtime.stage === 3) {
+      if (!tutorialActiveAtFrame && runtime.mode === "normal" && runtime.stage === 3) {
         runtime.hiddenRockClock -= dt;
         if (runtime.hiddenRockClock <= 0 && runtime.rocks.length < stageStats.rockLimit) {
           const firstReveal = !runtime.hiddenRockIntroShown;
@@ -2161,7 +2282,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
       }
 
-      if (stageProfile.fallingRocks > 0) {
+      if (!tutorialActiveAtFrame && stageProfile.fallingRocks > 0) {
         runtime.fallClock -= dt;
         if (runtime.fallClock <= 0) {
           const angle = Math.random() * Math.PI * 2;
@@ -2182,7 +2303,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         runtime.fallingRocks = runtime.fallingRocks.filter((item) => item.life > 0);
       }
 
-      if (stageProfile.waves) {
+      if (!tutorialActiveAtFrame && stageProfile.waves) {
         runtime.waveClock -= dt;
         if (runtime.waveClock <= 0) {
           damagePlayer(4 + Math.floor(runtime.stage / 3), "#6ec4d4");
@@ -2191,27 +2312,29 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
       }
 
-      runtime.spawnClock -= dt;
-      if (runtime.spawnClock <= 0 && runtime.creatures.length < 180) {
-        spawnCreature(width, height); runtime.spawnClock = mudflatSpawnInterval(runtime.elapsed, runtime.mode) * stageStats.spawnIntervalMultiplier;
-      }
-      if (stageProfile.swarms) {
-        runtime.swarmClock -= dt;
-        if (runtime.swarmClock <= 0 && runtime.creatures.length < 165) {
-          for (let index = 0; index < 5; index += 1) spawnCreature(width, height);
-          runtime.swarmClock = 18 + Math.random() * 9;
-          runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y - 72, life: 1.15, text: "해산물 무리가 몰려옵니다!", color: "#fff1a8" });
+      if (!tutorialActiveAtFrame) {
+        runtime.spawnClock -= dt;
+        if (runtime.spawnClock <= 0 && runtime.creatures.length < 180) {
+          spawnCreature(width, height); runtime.spawnClock = mudflatSpawnInterval(runtime.elapsed, runtime.mode) * stageStats.spawnIntervalMultiplier;
         }
-      }
-      if (!runtime.bossSpawned && runtime.elapsed >= 200) { runtime.bossSpawned = true; spawnCreature(width, height, true); }
-      if (runtime.elapsed < .08 && runtime.clamHoles.length === 0) for (let index = 0; index < 12; index += 1) spawnClamHole(width, height);
-      runtime.clamSpawnClock -= dt;
-      if (runtime.clamSpawnClock <= 0 && runtime.clamHoles.length < 18) { spawnClamHole(width, height); runtime.clamSpawnClock = 4.8; }
-      if (runtime.mode === "normal") {
-        if (runtime.stage !== 3 && runtime.elapsed < .08 && runtime.rocks.length === 0) for (let index = 0; index < 12; index += 1) spawnRock(width, height);
-        runtime.rockSpawnClock -= dt;
-        if (runtime.stage !== 3 && runtime.rockSpawnClock <= 0 && runtime.rocks.length < stageStats.rockLimit) { spawnRock(width, height); runtime.rockSpawnClock = Math.max(2.4, 4.2 * stageStats.spawnIntervalMultiplier); }
-      }
+        if (stageProfile.swarms) {
+          runtime.swarmClock -= dt;
+          if (runtime.swarmClock <= 0 && runtime.creatures.length < 165) {
+            for (let index = 0; index < 5; index += 1) spawnCreature(width, height);
+            runtime.swarmClock = 18 + Math.random() * 9;
+            runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y - 72, life: 1.15, text: "해산물 무리가 몰려옵니다!", color: "#fff1a8" });
+          }
+        }
+        if (!runtime.bossSpawned && runtime.elapsed >= 200) { runtime.bossSpawned = true; spawnCreature(width, height, true); }
+        if (runtime.elapsed < .08 && runtime.clamHoles.length === 0) for (let index = 0; index < 12; index += 1) spawnClamHole(width, height);
+        runtime.clamSpawnClock -= dt;
+        if (runtime.clamSpawnClock <= 0 && runtime.clamHoles.length < 18) { spawnClamHole(width, height); runtime.clamSpawnClock = 4.8; }
+        if (runtime.mode === "normal") {
+          if (runtime.stage !== 3 && runtime.elapsed < .08 && runtime.rocks.length === 0) for (let index = 0; index < 12; index += 1) spawnRock(width, height);
+          runtime.rockSpawnClock -= dt;
+          if (runtime.stage !== 3 && runtime.rockSpawnClock <= 0 && runtime.rocks.length < stageStats.rockLimit) { spawnRock(width, height); runtime.rockSpawnClock = Math.max(2.4, 4.2 * stageStats.spawnIntervalMultiplier); }
+        }
+      } else ensureFirstMoveGuideObjects();
 
       let touching = false;
       let bleedingCreatureTouching = false;
@@ -2219,7 +2342,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const canNetCatch = (creature: Creature) => isCreatureRevealed(creature) && castNetOnScreen(creature, runtime.player, width, height);
       if (!inBaseCamp) {
         runtime.castNets = runtime.castNets.filter((net) => campObstacleAllowed(net, net.radius + 8));
-        runtime.castNets = advanceCastNets(runtime.castNets, runtime.creatures, dt, runtime.elapsed, canNetCatch, damageCreature);
+        runtime.castNets = advanceCastNets(runtime.castNets, runtime.creatures, dt, actionTime, canNetCatch, damageCreature);
       }
       for (const creature of runtime.creatures) {
         if (creature.hp <= 0) continue;
@@ -2461,7 +2584,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const castNet = mudflatCastNetStats(castNetLevel);
           const target = findCastNetTarget({
             creatures: runtime.creatures, player: runtime.player, width, height, stats: castNet,
-            nets: runtime.castNets, now: runtime.elapsed, canCatch: canNetCatch,
+            nets: runtime.castNets, now: actionTime, canCatch: canNetCatch,
             canPlace: (point: Point, radius: number) => campObstacleAllowed(point, radius + 8),
           });
           if (target) {
@@ -2476,7 +2599,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (saltLevel > 0) {
           const count = 1 + Math.floor(saltLevel / 2);
           for (let index = 0; index < count; index += 1) {
-            const spirit = saltSpiritPose(runtime.elapsed, saltLevel, index);
+            const spirit = saltSpiritPose(actionTime, saltLevel, index);
             const saltX = runtime.player.x + spirit.x;
             const saltY = runtime.player.y + spirit.y;
             for (const creature of revealedCreatures) if (creature.saltHit <= 0 && Math.hypot(creature.x - saltX, creature.y - saltY) < creature.size + 10) { damageCreature(creature, (3 + saltLevel * 2) * toolPower, .1); creature.saltHit = .22; }
@@ -2486,7 +2609,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const tongLevel = runtime.levels.tongs ?? 0;
         if (runtime.mode === "normal" && tongLevel > 0) {
           const tong = mudflatTongStats(tongLevel);
-          const angle = runtime.elapsed * tong.rotationSpeed;
+          const angle = actionTime * tong.rotationSpeed;
           const lumiTool = characterId === "lumi" ? lumiTongPose(runtime.lumiMotion, tong.reach) : null;
           const tipX = runtime.player.x + (lumiTool ? lumiTool.tipX : Math.cos(angle) * tong.reach);
           const tipY = runtime.player.y + (lumiTool ? lumiTool.tipY : Math.sin(angle) * tong.reach);
@@ -2510,6 +2633,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
         damageAndCollect();
       }
+      advanceFirstMoveGuide(dt);
 
       const hasVisibleSeafood = runtime.creatures.some((creature) => {
         if (!isCreatureRevealed(creature)) return false;
@@ -2518,7 +2642,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const margin = Math.max(10, creature.size * 1.6);
         return screenX >= -margin && screenX <= width + margin && screenY >= -margin && screenY <= height + margin;
       });
-      if (inBaseCamp || hasVisibleSeafood) {
+      if (tutorialActiveAtFrame || inBaseCamp || hasVisibleSeafood) {
         runtime.emptySeafoodSeconds = 0;
         runtime.emptySeafoodDamageClock = 0;
       } else {
@@ -2565,6 +2689,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
     const draw = (width: number, height: number) => {
       const inBaseCamp = runtime.baseCampGuideShown && isInsideBaseCamp(runtime.player, runtime.baseCamp, runtime.stage);
+      const actionTime = runtimeActionTime(runtime);
+      const tutorialActive = firstMoveGuideActive(runtime);
       context.clearRect(0, 0, width, height);
       const tide = Math.min(1, runtime.elapsed / MUDFLAT_RUN_SECONDS);
       drawMudflat(context, width, height, runtime.player, tide, stageProfile);
@@ -2583,10 +2709,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.fillStyle = `rgba(9,46,66,${waterFill * .18})`; context.fillRect(0, waterTop, width, waterHeight);
         context.strokeStyle = "rgba(222,250,255,.28)"; context.lineWidth = 2;
         for (let wave = 0; wave < 5; wave += 1) {
-          const y = waterTop + (runtime.elapsed * 26 + wave * (Math.max(42, waterHeight / 5) + 24)) % (waterHeight + 48) - 24;
+          const y = waterTop + (actionTime * 26 + wave * (Math.max(42, waterHeight / 5) + 24)) % (waterHeight + 48) - 24;
           context.beginPath();
           for (let x = -18; x <= width + 18; x += 18) {
-            const waveY = y + Math.sin(x * .045 + runtime.elapsed * 3 + wave) * 5;
+            const waveY = y + Math.sin(x * .045 + actionTime * 3 + wave) * 5;
             if (x === -18) context.moveTo(x, waveY); else context.lineTo(x, waveY);
           }
           context.stroke();
@@ -2597,7 +2723,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const tideSurge = stageTide.fill;
       if (stageProfile.waterChannels && tideSurge > 0) {
         context.save(); context.globalAlpha = tideSurge;
-        drawWaterChannelArrows(context, width, height, runtime.player, runtime.elapsed, stageProfile);
+        drawWaterChannelArrows(context, width, height, runtime.player, actionTime, stageProfile);
         context.restore();
       }
 
@@ -2613,8 +2739,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         for (let ridge = 0; ridge < 3; ridge += 1) { context.beginPath(); context.ellipse(0, 8 + ridge * 6, 76 - ridge * 14, 54 - ridge * 10, -.12, Math.PI * .1, Math.PI * .92); context.stroke(); }
         context.fillStyle = "rgba(245,248,250,.96)"; context.font = "900 12px system-ui"; context.textAlign = "center"; context.fillText("언덕배기 · 돌발 물살 대피처", 0, -126); context.restore();
       }
-      if (runtime.baseCampGuideShown) drawBaseCamp(context, screenPoint(runtime.baseCamp), returnTide.guideVisible, returnTide.active, runtime.elapsed, runtime.stage);
-      if (runtime.hoeEffect > 0) drawHarvestPulse(context, width / 2, height / 2, 78 + (runtime.levels.hoe ?? 0) * 12, runtime.hoeEffect, runtime.elapsed);
+      if (runtime.baseCampGuideShown) drawBaseCamp(context, screenPoint(runtime.baseCamp), returnTide.guideVisible, returnTide.active, actionTime, runtime.stage);
+      if (runtime.hoeEffect > 0) drawHarvestPulse(context, width / 2, height / 2, 78 + (runtime.levels.hoe ?? 0) * 12, runtime.hoeEffect, actionTime);
       for (const print of runtime.mudPrints) {
         const point = screenPoint(print); if (point.x < -35 || point.y < -35 || point.x > width + 35 || point.y > height + 35) continue;
         const alpha = Math.max(0, print.life / print.maxLife);
@@ -2647,7 +2773,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       for (const pickup of runtime.pickups) {
         if (pickup.phase !== "idle") continue;
         const point = screenPoint({ x: pickup.visualX, y: pickup.visualY });
-        context.save(); context.translate(point.x, point.y); drawExperiencePickup(context, pickup, runtime.elapsed); context.restore();
+        context.save(); context.translate(point.x, point.y); drawExperiencePickup(context, pickup, actionTime); context.restore();
       }
       for (const projectile of runtime.projectiles) {
         const point = screenPoint(projectile);
@@ -2664,8 +2790,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       for (const creature of runtime.creatures) {
         const visibility = creatureRevealStrength(creature);
         const point = screenPoint(creature); if (visibility <= 0 || point.x < -70 || point.y < -70 || point.x > width + 70 || point.y > height + 70) continue;
-        const netStruggle = castNetMovementMultiplier(creature, runtime.castNets) === 0 ? Math.sin(runtime.elapsed * 19 + creature.id) * .8 : 0;
-        context.save(); context.globalAlpha = visibility; context.translate(point.x + netStruggle, point.y); drawCreatureSprite(context, creature, runtime.elapsed, creatureSprites); context.restore();
+        const netStruggle = castNetMovementMultiplier(creature, runtime.castNets) === 0 ? Math.sin(actionTime * 19 + creature.id) * .8 : 0;
+        context.save(); context.globalAlpha = visibility; context.translate(point.x + netStruggle, point.y); drawCreatureSprite(context, creature, actionTime, creatureSprites); context.restore();
         if (creature.boss || creature.hp < creature.maxHp) {
           context.save(); context.globalAlpha = visibility;
           const visualSize = creature.size * (creature.visualScale ?? 1);
@@ -2731,12 +2857,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (!inBaseCamp && (runtime.levels.salt ?? 0) > 0) {
         const count = 1 + Math.floor((runtime.levels.salt ?? 0) / 2);
         for (let index = 0; index < count; index += 1) {
-          drawSaltSpirit(context, width / 2, height / 2, runtime.elapsed, runtime.levels.salt ?? 0, index);
+          drawSaltSpirit(context, width / 2, height / 2, actionTime, runtime.levels.salt ?? 0, index);
         }
       }
       if (!inBaseCamp && runtime.mode === "normal" && characterId !== "lumi" && (runtime.levels.tongs ?? 0) > 0) {
         const tong = mudflatTongStats(runtime.levels.tongs);
-        drawRotatingTongs(context, width / 2, height / 2, runtime.elapsed * tong.rotationSpeed, tong.reach);
+        drawRotatingTongs(context, width / 2, height / 2, actionTime * tong.rotationSpeed, tong.reach);
       }
       if (runtime.rockFlipEffect) {
         const point = screenPoint(runtime.rockFlipEffect);
@@ -2744,7 +2870,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
       const lumiTongReach = !inBaseCamp && runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).reach : 0;
       if (lumiArt) drawLumiGatherer(context, width / 2, height / 2, runtime.lumiMotion, lumiArt,
-        runtime.elapsed, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
+        actionTime, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
       if (characterId !== "lumi") drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);
       if (runtime.stage === GAEBUL_STAGE && runtime.deepMudGauge > .03) {
         const gaugeWidth = 94;
@@ -2761,7 +2887,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const reach = mudflatElectricStats(runtime.levels.electric ?? 0).reach;
         const pulse = Math.min(1, runtime.electricPulseLife / .42);
         const centerX = width / 2; const centerY = height / 2;
-        const phase = runtime.elapsed * 12;
+        const phase = actionTime * 12;
         context.save(); context.globalCompositeOperation = "lighter";
         const cloud = context.createRadialGradient(centerX, centerY, reach * .08, centerX, centerY, reach * 1.04);
         cloud.addColorStop(0, `rgba(250,245,255,${pulse * .42})`);
@@ -2821,7 +2947,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           context.translate(point.x, point.y);
           const scale = pickup.phase === "pull" ? 1 - .25 * pickup.pullTime / pickup.pullDuration : 1;
           context.scale(scale, scale);
-          drawExperiencePickup(context, pickup, runtime.elapsed);
+          drawExperiencePickup(context, pickup, actionTime);
           context.restore();
         }
         if (runtime.xpCollectLife > 0) {
@@ -2857,14 +2983,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
       }
       if (returnTide.guideVisible) drawBaseCampDirectionGuide(context, width, height, runtime.player, runtime.baseCamp, returnTide.active);
-      if (runtime.elapsed < 4.5) {
+      if (!tutorialActive && runtime.elapsed < 4.5) {
         const alpha = Math.min(1, runtime.elapsed * 2, (4.5 - runtime.elapsed) * 1.5);
         context.save(); context.globalAlpha = alpha; context.fillStyle = "rgba(21,27,29,.9)"; roundedRect(context, 18, height - 155, width - 36, 118, 22); context.fill();
         context.strokeStyle = "rgba(255,220,139,.55)"; context.lineWidth = 1.5; context.stroke(); context.fillStyle = "#ffcf78"; context.font = "900 12px system-ui"; context.textAlign = "left"; context.fillText(`STAGE ${runtime.stage}`, 38, height - 125);
         context.fillStyle = "#fff8e9"; context.font = "900 23px system-ui"; context.fillText(stageProfile.name, 38, height - 94);
         context.fillStyle = "#d8d3c6"; context.font = "700 13px system-ui"; context.fillText(stageProfile.subtitle, 38, height - 67); context.restore();
       }
-      if (runtime.stage === 1 && runtime.elapsed < FIRST_MOVE_GUIDE_SECONDS) drawFirstMoveGuide(context, width, height, runtime.elapsed);
+      drawFirstMoveGuide(context, width, height, runtime, screenPoint, actionTime);
       if (runtime.playerMessageLife > 0) {
         const message = runtime.playerMessage;
         const isCatchFullMessage = message === CATCH_FULL_MESSAGE;
