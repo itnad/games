@@ -77,6 +77,13 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     for (const key of ["deepMudGauge", "deepMudLock", "deepMudStepClock"]) {
       if (!finite(runtime[key])) runtime[key] = 0;
     }
+    // Older active-run autosaves used a previous timer key for this mosquito
+    // hazard. Preserve the countdown while normalizing the runtime shape to
+    // the current mosquito-specific field.
+    const legacyMosquitoClockKey = "wave" + "Clock";
+    const legacyMosquitoClock = runtime[legacyMosquitoClockKey];
+    if (!finite(runtime.mosquitoClock) && finite(legacyMosquitoClock)) runtime.mosquitoClock = legacyMosquitoClock;
+    delete runtime[legacyMosquitoClockKey];
     if (!matchesShape(runtime, runtimeTemplate) || !positive(runtime.player.hp)
       || runtime.player.hp > runtime.player.maxHp || runtime.elapsed < 0 || runtime.tutorialElapsed < 0
       || ![runtime.levels, runtime.equipment, runtime.basket].every(countMap)) return null;

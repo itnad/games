@@ -81,7 +81,7 @@ type GameMode = "kids" | "normal";
 type Point = { x: number; y: number };
 type CountMap = Record<string, number>;
 type StageObjective = { id: "catch" | "rocks" | "health"; label: string; target: number; bonus: number };
-type StageProfile = { stage: number; name: string; subtitle: string; modifiers: string[]; waterChannels: boolean; tideInterval: number; safeZone: string; rockMultiplier: number; fallingRocks: number; darkness: number; mudSlow: number; seafoodSpawnMultiplier: number; wind: number; waves: boolean; swarms: boolean; coldThresholdMultiplier: number; finalBoss: boolean; endless: boolean; objective: StageObjective | null };
+type StageProfile = { stage: number; name: string; subtitle: string; modifiers: string[]; waterChannels: boolean; tideInterval: number; safeZone: string; rockMultiplier: number; fallingRocks: number; darkness: number; mudSlow: number; seafoodSpawnMultiplier: number; wind: number; mosquitoes: boolean; swarms: boolean; coldThresholdMultiplier: number; finalBoss: boolean; endless: boolean; objective: StageObjective | null };
 type CreatureMovement = "chase" | "still" | "wander" | "flee" | "oval";
 type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; movementAngle: number; movementClock: number; facing?: 1 | -1; ovalDirection?: number; netReleaseUntil?: number };
 type Pickup = ReturnType<typeof createExperiencePickup>;
@@ -149,7 +149,7 @@ type Runtime = {
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
   bossSpawned: boolean; spawnClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
   deepMudGauge: number; deepMudLock: number; deepMudStepClock: number;
-  safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; waveClock: number; rocksFlipped: number;
+  safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; mosquitoClock: number; rocksFlipped: number;
   paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; xpCollecting?: boolean; tutorialActive?: boolean; mosquitoRepellent?: boolean; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
@@ -279,7 +279,7 @@ function mudflatHiddenRockStage(stage: number) {
 function mudflatStageHazardNotes(profile: StageProfile) {
   const notes: string[] = [];
   if (profile.tideInterval > 0) notes.push(`돌발 물살 · 약 ${profile.tideInterval}초 주기 대피`);
-  if (profile.waves) notes.push(`모기떼 · 16~24초마다 ${MOSQUITO_DAMAGE} 피해, 체력 ${MOSQUITO_LOW_HP_THRESHOLD} 미만은 피해 없음`);
+  if (profile.mosquitoes) notes.push(`모기떼 · 16~24초마다 ${MOSQUITO_DAMAGE} 피해, 체력 ${MOSQUITO_LOW_HP_THRESHOLD} 미만은 피해 없음`);
   if (profile.wind > 0) notes.push("바람 · 이동 방향이 흔들림");
   if (profile.swarms) notes.push("해산물 무리 · 추가 출현");
   if (profile.waterChannels) notes.push("물골 · 지나갈 때 이동 감속");
@@ -316,7 +316,7 @@ function makeRuntime(campaign: Campaign): Runtime {
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, spawnClock: 0, headlampSpawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, selfShockNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
     playerMessage: "", playerMessageLife: 0, playerMessageOpacity: 1, pufferTouching: false, hiddenRockClock: mudflatHiddenRockStage(campaign.stage) ? .5 : 0, hiddenRockIntroShown: false, catchFullNoticeClock: 0,
     hoeEffect: 0, rockFlipEffect: null, bleedSeconds: 0, bleedTickClock: 1, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0, deepMudGauge: 0, deepMudLock: 0, deepMudStepClock: 0,
-    safeZone: { x: 90, y: 0 }, baseCamp: { ...BASE_CAMP }, baseCampGuideShown: false, tideDamageClock: 1, tideMessageClock: 0, lastTideCycle: 0, lastHillCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, waveClock: 10, rocksFlipped: 0,
+    safeZone: { x: 90, y: 0 }, baseCamp: { ...BASE_CAMP }, baseCampGuideShown: false, tideDamageClock: 1, tideMessageClock: 0, lastTideCycle: 0, lastHillCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, mosquitoClock: 10, rocksFlipped: 0,
     paused: false, ended: false,
   };
 }
@@ -2455,16 +2455,16 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         runtime.fallingRocks = runtime.fallingRocks.filter((item) => item.life > 0);
       }
 
-      if (!tutorialActiveAtFrame && stageProfile.waves) {
-        runtime.waveClock -= dt;
-        if (runtime.waveClock <= 0) {
+      if (!tutorialActiveAtFrame && stageProfile.mosquitoes) {
+        runtime.mosquitoClock -= dt;
+        if (runtime.mosquitoClock <= 0) {
           if ((runtime.equipment[MOSQUITO_REPELLENT_KEY] ?? 0) > 0) showPlayerMessage("해충기피제 덕분에 모기떼를 피했다.", 2.2);
           else if (runtime.player.hp < MOSQUITO_LOW_HP_THRESHOLD) showPlayerMessage("모기떼가 성가시게 구네.", 2.2);
           else {
             damagePlayer(MOSQUITO_DAMAGE, "#d69d68");
             showPlayerMessage("모기떼에 물렸다!", 2.2);
           }
-          runtime.waveClock = 16 + Math.random() * 8;
+          runtime.mosquitoClock = 16 + Math.random() * 8;
         }
       }
 
@@ -3303,7 +3303,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const buyMosquitoRepellent = () => {
     const current = campaignRef.current; if (!current) return;
     const nextProfile = mudflatStageProfile(current.stage) as StageProfile;
-    if (!nextProfile.waves) { setCampNotice("이번 갯벌에는 모기떼 대비가 필요하지 않습니다."); return; }
+    if (!nextProfile.mosquitoes) { setCampNotice("이번 갯벌에는 모기떼 대비가 필요하지 않습니다."); return; }
     if ((current.equipment[MOSQUITO_REPELLENT_KEY] ?? 0) > 0) { setCampNotice("해충기피제를 이미 준비했습니다."); return; }
     if (current.coins < MOSQUITO_REPELLENT_PRICE) { setCampNotice("해충기피제를 구매할 코인이 부족합니다."); return; }
     const equipment = { ...current.equipment, [MOSQUITO_REPELLENT_KEY]: 1 };
@@ -3479,7 +3479,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const nextStageProfile = mudflatStageProfile(campaign.stage) as StageProfile;
     const nextStageObjective = nextStageProfile.objective;
     const mosquitoRepellentReady = (campaign.equipment[MOSQUITO_REPELLENT_KEY] ?? 0) > 0;
-    const mosquitoRepellentAvailable = nextStageProfile.waves;
+    const mosquitoRepellentAvailable = nextStageProfile.mosquitoes;
     const soldItems = MUDFLAT_SEAFOOD_MARKET.filter((item) => (campaign.lastHaul[item.type] ?? 0) > 0);
     const campHpPercent = Math.max(0, Math.min(100, campaign.hp / Math.max(1, campaign.maxHp) * 100));
     const campXpPercent = Math.max(0, Math.min(100, campaign.xp / Math.max(1, campaign.nextXp) * 100));

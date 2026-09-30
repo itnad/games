@@ -447,21 +447,21 @@ export function mudflatStageStats(stage = 1) {
 }
 
 export const MUDFLAT_REGULAR_STAGES = [
-  { stage: 1, name: "초입 갯벌", subtitle: "기본 조작과 채집 수단을 익히는 잔잔한 초입", modifiers: ["초입"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: .65, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
-  { stage: 2, name: "차오르는 물골", subtitle: "돌발 물살을 피해 밝은 언덕배기로 피하세요", modifiers: ["물골", "돌발 물살", "언덕배기"], waterChannels: true, tideInterval: 48, safeZone: "fixed", rockMultiplier: .8, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: .96, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
-  { stage: 3, name: "바위 갯벌", subtitle: "바위 사이 물골을 건너며 가까이 숨은 돌을 조심하세요", modifiers: ["바위 증가", "숨은 돌", "물골"], waterChannels: true, tideInterval: 0, safeZone: "none", rockMultiplier: 1.55, fallingRocks: 0, darkness: 0, mudSlow: .96, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
-  { stage: 4, name: "어두운 갯벌", subtitle: "좁아진 시야에서 가까이에 나타난 숨은 패류를 찾으세요", modifiers: ["시야 감소", "패류 가치 2배"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: 1, fallingRocks: 0, darkness: .78, mudSlow: 1, seafoodSpawnMultiplier: 1, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
-  { stage: 5, name: "깊은 펄", subtitle: "두 개의 숨구멍을 보고 깊이 숨어 있는 개불을 찾아보세요", modifiers: ["이동 감속", "빠른 추위", "개불 숨구멍"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: .9, fallingRocks: 0, darkness: .18, mudSlow: .78, seafoodSpawnMultiplier: 1.22, wind: 0, waves: false, swarms: false, coldThresholdMultiplier: .65, finalBoss: false },
-  { stage: 6, name: "거센 갯벌", subtitle: "바람과 모기떼 사이로 몰려오는 해산물 무리를 버티세요", modifiers: ["바람", "모기떼", "해산물 무리"], waterChannels: true, tideInterval: 43, safeZone: "fixed", rockMultiplier: 1, fallingRocks: 0, darkness: 0, mudSlow: .93, seafoodSpawnMultiplier: .92, wind: 32, waves: true, swarms: true, coldThresholdMultiplier: .9, finalBoss: false },
-  { stage: 7, name: "대조기 갯벌", subtitle: "잦은 돌발 물살과 모기떼를 피해 바뀌는 언덕배기를 따라가세요", modifiers: ["잦은 돌발 물살", "바뀌는 언덕배기", "모기떼"], waterChannels: true, tideInterval: 27, safeZone: "moving", rockMultiplier: 1.08, fallingRocks: 0, darkness: .08, mudSlow: .9, seafoodSpawnMultiplier: .88, wind: 18, waves: true, swarms: false, coldThresholdMultiplier: .85, finalBoss: false },
-  { stage: 8, name: "마지막 물때", subtitle: "모든 환경과 강화된 대왕 박하지를 넘어 귀환하세요", modifiers: ["복합 환경", "모기떼", "강화 대왕 박하지", "최종 귀환"], waterChannels: true, tideInterval: 31, safeZone: "moving", rockMultiplier: 1.35, fallingRocks: 22, darkness: .62, mudSlow: .84, seafoodSpawnMultiplier: .82, wind: 30, waves: true, swarms: true, coldThresholdMultiplier: .72, finalBoss: true },
+  { stage: 1, name: "초입 갯벌", subtitle: "기본 조작과 채집 수단을 익히는 잔잔한 초입", modifiers: ["초입"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: .65, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: 1, wind: 0, mosquitoes: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
+  { stage: 2, name: "차오르는 물골", subtitle: "돌발 물살을 피해 밝은 언덕배기로 피하세요", modifiers: ["물골", "돌발 물살", "언덕배기"], waterChannels: true, tideInterval: 48, safeZone: "fixed", rockMultiplier: .8, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: .96, wind: 0, mosquitoes: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
+  { stage: 3, name: "바위 갯벌", subtitle: "바위 사이 물골을 건너며 가까이 숨은 돌을 조심하세요", modifiers: ["바위 증가", "숨은 돌", "물골"], waterChannels: true, tideInterval: 0, safeZone: "none", rockMultiplier: 1.55, fallingRocks: 0, darkness: 0, mudSlow: .96, seafoodSpawnMultiplier: 1, wind: 0, mosquitoes: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
+  { stage: 4, name: "어두운 갯벌", subtitle: "좁아진 시야에서 가까이에 나타난 숨은 패류를 찾으세요", modifiers: ["시야 감소", "패류 가치 2배"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: 1, fallingRocks: 0, darkness: .78, mudSlow: 1, seafoodSpawnMultiplier: 1, wind: 0, mosquitoes: false, swarms: false, coldThresholdMultiplier: 1, finalBoss: false },
+  { stage: 5, name: "깊은 펄", subtitle: "두 개의 숨구멍을 보고 깊이 숨어 있는 개불을 찾아보세요", modifiers: ["이동 감속", "빠른 추위", "개불 숨구멍"], waterChannels: false, tideInterval: 0, safeZone: "none", rockMultiplier: .9, fallingRocks: 0, darkness: .18, mudSlow: .78, seafoodSpawnMultiplier: 1.22, wind: 0, mosquitoes: false, swarms: false, coldThresholdMultiplier: .65, finalBoss: false },
+  { stage: 6, name: "거센 갯벌", subtitle: "바람과 모기떼 사이로 몰려오는 해산물 무리를 버티세요", modifiers: ["바람", "모기떼", "해산물 무리"], waterChannels: true, tideInterval: 43, safeZone: "fixed", rockMultiplier: 1, fallingRocks: 0, darkness: 0, mudSlow: .93, seafoodSpawnMultiplier: .92, wind: 32, mosquitoes: true, swarms: true, coldThresholdMultiplier: .9, finalBoss: false },
+  { stage: 7, name: "대조기 갯벌", subtitle: "잦은 돌발 물살과 모기떼를 피해 바뀌는 언덕배기를 따라가세요", modifiers: ["잦은 돌발 물살", "바뀌는 언덕배기", "모기떼"], waterChannels: true, tideInterval: 27, safeZone: "moving", rockMultiplier: 1.08, fallingRocks: 0, darkness: .08, mudSlow: .9, seafoodSpawnMultiplier: .88, wind: 18, mosquitoes: true, swarms: false, coldThresholdMultiplier: .85, finalBoss: false },
+  { stage: 8, name: "마지막 물때", subtitle: "모든 환경과 강화된 대왕 박하지를 넘어 귀환하세요", modifiers: ["복합 환경", "모기떼", "강화 대왕 박하지", "최종 귀환"], waterChannels: true, tideInterval: 31, safeZone: "moving", rockMultiplier: 1.35, fallingRocks: 22, darkness: .62, mudSlow: .84, seafoodSpawnMultiplier: .82, wind: 30, mosquitoes: true, swarms: true, coldThresholdMultiplier: .72, finalBoss: true },
 ];
 
 const MUDFLAT_ENDLESS_MODIFIERS = [
   { id: "channels", name: "깊은 물골", patch: { waterChannels: true, mudSlow: .9 } },
   { id: "dark", name: "짙은 어둠", patch: { darkness: .7 } },
   { id: "rocks", name: "낙석 지대", patch: { rockMultiplier: 1.5, fallingRocks: 18 } },
-  { id: "wind", name: "돌풍과 모기떼", patch: { wind: 38, waves: true } },
+  { id: "wind", name: "돌풍과 모기떼", patch: { wind: 38, mosquitoes: true } },
   { id: "tide", name: "거센 돌발 물살", patch: { tideInterval: 25, safeZone: "moving" } },
   { id: "swarm", name: "해산물 대이동", patch: { swarms: true, seafoodSpawnMultiplier: .78 } },
   { id: "mud", name: "끝없는 깊은 펄", patch: { mudSlow: .74, coldThresholdMultiplier: .62 } },
@@ -482,7 +482,7 @@ export function mudflatStageProfile(stage = 1) {
     stage: safeStage, name: "끝없는 물때", subtitle: "지형·날씨·생물이 다시 섞인 끝없는 원정",
     modifiers: chosen.map((item) => item.name), waterChannels: false, tideInterval: 0, safeZone: "none",
     rockMultiplier: 1, fallingRocks: 0, darkness: 0, mudSlow: 1, seafoodSpawnMultiplier: .86,
-    wind: 0, waves: false, swarms: false, coldThresholdMultiplier: .82, finalBoss: safeStage % 3 === 0,
+    wind: 0, mosquitoes: false, swarms: false, coldThresholdMultiplier: .82, finalBoss: safeStage % 3 === 0,
     endless: true,
   };
   for (const modifier of chosen) Object.assign(profile, modifier.patch);

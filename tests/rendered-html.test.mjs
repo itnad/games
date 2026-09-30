@@ -1359,6 +1359,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /showPlayerMessage\("모기떼가 성가시게 구네\.", 2\.2\)/);
   assert.match(source, /damagePlayer\(MOSQUITO_DAMAGE, "#d69d68"\)/);
   assert.match(source, /showPlayerMessage\("모기떼에 물렸다!", 2\.2\)/);
+  assert.match(source, /mosquitoClock: 10/);
+  assert.match(source, /stageProfile\.mosquitoes/);
+  assert.match(source, /nextProfile\.mosquitoes/);
+  assert.match(source, /nextStageProfile\.mosquitoes/);
   assert.match(source, /function withoutMosquitoRepellent\(equipment: CountMap\)/);
   assert.match(source, /equipment: withoutMosquitoRepellent\(runtime\.equipment\)/);
   assert.match(source, /mosquitoRepellent: \(runtime\.equipment\[MOSQUITO_REPELLENT_KEY\] \?\? 0\) > 0/);
@@ -1372,6 +1376,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(engineSource, /바람과 모기떼 사이로/);
   assert.match(engineSource, /잦은 돌발 물살과 모기떼/);
   assert.match(engineSource, /name: "돌풍과 모기떼"/);
+  assert.doesNotMatch(source, /\bwaves\b|waveClock/);
+  assert.doesNotMatch(engineSource, /\bwaves\b/);
   assert.match(source, /function mudflatHiddenRockStage\(stage: number\)/);
   assert.match(source, /return stage === 3 \|\| stage === 4/);
   assert.match(source, /hiddenRockClock: mudflatHiddenRockStage\(campaign\.stage\) \? \.5 : 0/);
@@ -1594,7 +1600,7 @@ test("distributes persistent stage-three water channels without adding recurring
   assert.equal(profile.rockMultiplier, 1.55);
   assert.equal(profile.tideInterval, 0);
   assert.equal(profile.safeZone, "none");
-  assert.equal(profile.waves, false);
+  assert.equal(profile.mosquitoes, false);
   const lanes = mudflatWaterChannelLanes(-3000, 3000, 3);
   assert.ok(lanes.length > 6 && lanes.some((lane) => lane < 0) && lanes.some((lane) => lane > 0));
   for (const y of [-2400, -173, 0, 417, 3200]) {
