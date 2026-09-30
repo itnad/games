@@ -1440,17 +1440,32 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawGuideDragHand\(/);
   assert.match(source, /function drawFirstMoveGuide\(/);
   assert.match(source, /tutorialElapsed: 0, firstMoveGuide/);
+  assert.match(source, /const shouldAutoStartTutorial = \(stage: number, secretEntry: boolean, tutorialEntry: boolean\) => \(/);
+  assert.match(source, /tutorialEntry \|\| \(!secretEntry && highestUnlockedStage <= 1\)/);
+  assert.match(source, /if \(!shouldAutoStartTutorial\(entryStage, secretEntry, tutorialEntry\)\) runtime\.firstMoveGuide = null/);
+  assert.match(source, /const beginWithTutorial = \(\) => beginAtStage\(1, false, true\)/);
+  assert.match(source, /className="ms-tutorial-start"[\s\S]*튜토리얼부터/);
+  assert.match(source, /hud\.tutorialActive && <button type="button" className="ms-tutorial-skip" onClick=\{skipFirstMoveGuide\}>튜토리얼 건너뛰기<\/button>/);
+  assert.match(source, /const showTutorialDamageAndReset = \(message: string, safePoint: Point\) => \{/);
+  assert.match(source, /damagePlayer\(1, "#ff7868"\);[\s\S]*?runtime\.player\.hp = runtime\.player\.maxHp/);
+  assert.match(source, /해산물에 몸이 닿으면 피해를 입을 수 있어요/);
+  assert.match(source, /돌이나 장애물에 부딪히면 피해를 입을 수 있어요/);
+  assert.match(styles, /\.ms-tutorial-start\{/);
+  assert.match(styles, /\.ms-tutorial-skip\{/);
   assert.match(source, /직접 해보는 첫 움직임/);
   assert.match(source, /목표 지점까지 드래그해 이동해보세요/);
   assert.match(source, /집게 끝으로 연습용 게를 건드리세요/);
   assert.match(source, /구멍 위에 머물러 호미질하세요/);
+  assert.match(source, /호미질 레벨이 높을수록 좋은 결과 확률이 올라갑니다/);
   assert.match(source, /돌을 피해 안전 지점까지 이동하세요/);
-  assert.match(source, /if \(tutorialActiveAtFrame\) runtime\.tutorialElapsed \+= dt;\s*else runtime\.elapsed \+= dt/);
+  assert.match(source, /if \(tutorialActiveAtFrame\) runtime\.tutorialElapsed \+= dt;\s*else \{\s*runtime\.elapsed \+= dt/);
+  assert.match(source, /showPlayerMessage\("일단 저 구멍들을 파봐야겠다\.", 3\)/);
   assert.match(source, /setFirstMoveGuideStep\(guide, "done"\)[\s\S]*?runtime\.spawnClock = 0/);
   assert.match(source, /drawGuideDragHand\(context, hand, Math\.atan2\(target\.y - center\.y, target\.x - center\.x\), actionTime\)/);
   assert.match(source, /drawFirstMoveGuide\(context, width, height, runtime, screenPoint, actionTime\)/);
   assert.doesNotMatch(source, /fillText\("손"/);
-  assert.doesNotMatch(source, /일단 저 구멍들을 파봐야겠다\./);
+  const characterLayer = source.slice(source.indexOf("const lumiTongReach"), source.indexOf("if (runtime.stage === GAEBUL_STAGE"));
+  assert.ok(characterLayer.indexOf("drawGatherer") < characterLayer.indexOf("for (const reveal of runtime.clamReveals)"), "clam reveal rewards draw above the gatherer");
   assert.match(source, /앗 따가워, 몸이 이상해\./);
   assert.match(source, /아 깜짝이야, 여기 돌이 있었네!/);
   assert.match(source, /HIGHEST_STAGE_KEY/);
@@ -2968,7 +2983,7 @@ test("secret defeat retry preserves progression, restores full HP, and resets th
   const defeat = source.slice(source.indexOf('if (screen === "defeat") return'), source.indexOf('const pauseLayer ='));
   assert.match(defeat, /onClick=\{reset\}>메인 화면으로/);
   assert.doesNotMatch(defeat, /onClick=\{onExit\}>메인 화면으로|3초|비밀|길게 누르/);
-  assert.match(source, /const beginAtStage = \(stage: number, secretEntry = false\) => \{\s*defeatRetryRef.current = null/);
+  assert.match(source, /const beginAtStage = \(stage: number, secretEntry = false, tutorialEntry = false\) => \{\s*defeatRetryRef.current = null/);
   assert.match(source, /const reset = \(\) => \{ defeatRetryRef.current = null/);
   assert.match(source, /restoreDefeatRetryRuntime\(makeRuntime\(next\), saved\)/);
 });
@@ -3000,6 +3015,7 @@ test("secret route entry sets only the requested skills and leaves ordinary star
   assert.match(source, /Math.min\(highestUnlockedStage, Math.floor\(stage\)\)/);
   assert.match(source, /secretEntry \? withSecretExpeditionSkills\(freshCampaign\) : freshCampaign/);
   assert.match(source, /const begin = \(\) => beginAtStage\(selectedStage\)/);
+  assert.match(source, /const beginWithTutorial = \(\) => beginAtStage\(1, false, true\)/);
 });
 
 test("secret retry hold fires once after three seconds and cancels without falling back", async () => {
