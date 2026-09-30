@@ -1437,6 +1437,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-stage-route-list\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.ms-setup \.ms-character-select>\.ms-primary\{margin:18px auto 0/);
   assert.match(source, /const FIRST_MOVE_GUIDE_TARGET_RADIUS = 38/);
+  assert.match(source, /function drawGuideDragHand\(/);
   assert.match(source, /function drawFirstMoveGuide\(/);
   assert.match(source, /tutorialElapsed: 0, firstMoveGuide/);
   assert.match(source, /직접 해보는 첫 움직임/);
@@ -1446,7 +1447,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /돌을 피해 안전 지점까지 이동하세요/);
   assert.match(source, /if \(tutorialActiveAtFrame\) runtime\.tutorialElapsed \+= dt;\s*else runtime\.elapsed \+= dt/);
   assert.match(source, /setFirstMoveGuideStep\(guide, "done"\)[\s\S]*?runtime\.spawnClock = 0/);
+  assert.match(source, /drawGuideDragHand\(context, hand, Math\.atan2\(target\.y - center\.y, target\.x - center\.x\), actionTime\)/);
   assert.match(source, /drawFirstMoveGuide\(context, width, height, runtime, screenPoint, actionTime\)/);
+  assert.doesNotMatch(source, /fillText\("손"/);
   assert.doesNotMatch(source, /일단 저 구멍들을 파봐야겠다\./);
   assert.match(source, /앗 따가워, 몸이 이상해\./);
   assert.match(source, /아 깜짝이야, 여기 돌이 있었네!/);

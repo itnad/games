@@ -626,6 +626,54 @@ function drawGuideArrow(context: CanvasRenderingContext2D, from: Point, to: Poin
   context.restore();
 }
 
+function drawGuideDragHand(context: CanvasRenderingContext2D, point: Point, angle: number, time: number) {
+  const bob = Math.sin(time * 7) * 1.8;
+  context.save();
+  context.translate(point.x, point.y + bob);
+  context.rotate(angle + Math.PI / 2);
+  context.scale(1.06 + Math.sin(time * 4.4) * .035, 1.06 + Math.sin(time * 4.4) * .035);
+  context.lineJoin = "round";
+  context.lineCap = "round";
+  context.fillStyle = "rgba(17,18,20,.2)";
+  context.beginPath(); context.ellipse(1, 18, 20, 9, 0, 0, Math.PI * 2); context.fill();
+  context.fillStyle = "#fff2dc";
+  context.strokeStyle = "rgba(65,46,33,.62)";
+  context.lineWidth = 2.2;
+  roundedRect(context, -7, -46, 14, 48, 7);
+  context.fill(); context.stroke();
+  context.fillStyle = "#f7dfbf";
+  roundedRect(context, 6, -9, 10, 29, 5);
+  context.fill(); context.stroke();
+  roundedRect(context, -16, -5, 10, 29, 5);
+  context.fill(); context.stroke();
+  context.fillStyle = "#fff2dc";
+  context.beginPath();
+  context.moveTo(-11, -2);
+  context.bezierCurveTo(-26, 2, -27, 18, -17, 24);
+  context.bezierCurveTo(-7, 18, -4, 8, -2, -1);
+  context.closePath(); context.fill(); context.stroke();
+  context.beginPath();
+  context.moveTo(-14, 3);
+  context.bezierCurveTo(-16, 22, -6, 36, 9, 34);
+  context.bezierCurveTo(24, 32, 25, 14, 16, 1);
+  context.bezierCurveTo(9, 8, -4, 8, -14, 3);
+  context.closePath(); context.fill(); context.stroke();
+  context.fillStyle = "#f3d8b7";
+  roundedRect(context, -10, 28, 22, 18, 7);
+  context.fill(); context.stroke();
+  context.strokeStyle = "rgba(115,82,57,.38)";
+  context.lineWidth = 1.25;
+  for (const x of [-3, 4]) {
+    context.beginPath(); context.moveTo(x, -33); context.lineTo(x, -8); context.stroke();
+  }
+  context.beginPath(); context.moveTo(9, 1); context.quadraticCurveTo(13, 10, 12, 21); context.stroke();
+  context.beginPath(); context.moveTo(-12, 4); context.quadraticCurveTo(-17, 12, -15, 22); context.stroke();
+  context.strokeStyle = `rgba(255,246,222,${.58 + Math.sin(time * 5) * .16})`;
+  context.lineWidth = 2;
+  context.beginPath(); context.arc(0, -48, 11, Math.PI * .12, Math.PI * .88); context.stroke();
+  context.restore();
+}
+
 function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, height: number, runtime: Runtime, screenPoint: (point: Point) => Point, actionTime: number) {
   const guide = runtime.firstMoveGuide;
   if (!guide || guide.step === "done") return;
@@ -648,12 +696,8 @@ function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, he
     drawGuideArrow(context, center, target, actionTime);
     drawGuideMarker(context, target, FIRST_MOVE_GUIDE_TARGET_RADIUS, "이동 목표", "#ffd873", actionTime);
     const travel = .5 + .5 * Math.sin(actionTime * 2.2);
-    const finger = { x: center.x + (target.x - center.x) * (.28 + travel * .38), y: center.y + 58 + (target.y - center.y) * (.28 + travel * .38) };
-    context.fillStyle = "rgba(255,246,219,.92)";
-    context.strokeStyle = "rgba(52,42,36,.42)";
-    context.lineWidth = 2;
-    context.beginPath(); context.arc(finger.x, finger.y, 18, 0, Math.PI * 2); context.fill(); context.stroke();
-    context.fillStyle = "#46372c"; context.font = "900 18px system-ui"; context.textAlign = "center"; context.fillText("손", finger.x, finger.y + 6);
+    const hand = { x: center.x + (target.x - center.x) * (.28 + travel * .38), y: center.y + 58 + (target.y - center.y) * (.28 + travel * .38) };
+    drawGuideDragHand(context, hand, Math.atan2(target.y - center.y, target.x - center.x), actionTime);
   } else if (guide.step === "catch") {
     const creature = runtime.creatures.find((item) => item.id === guide.catchCreatureId);
     const target = screenPoint(creature ?? guide.catchPoint);
