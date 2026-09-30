@@ -11,9 +11,9 @@ import { createExperiencePickup, advanceExperiencePickup } from "../app/mudflat-
 const game = readFileSync(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
 // Exercise the real runtime initializer without mounting React/canvas in Node.
 const initializer = game.match(/function makeRuntime\(campaign: Campaign\): Runtime \{[\s\S]*?\n\}/)[0];
-const makeRuntime = new Function("mudflatEquipmentStats", "createLumiMotion", "GENERAL_CHARACTER", "BASE_CAMP",
+const makeRuntime = new Function("mudflatEquipmentStats", "createLumiMotion", "GENERAL_CHARACTER", "BASE_CAMP", "mudflatHiddenRockStage",
   ts.transpileModule(initializer, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText + "\nreturn makeRuntime;")
-  (mudflatEquipmentStats, createLumiMotion, { levels: { tongs: 1, digging: 1 } }, { x: 0, y: 250 });
+  (mudflatEquipmentStats, createLumiMotion, { levels: { tongs: 1, digging: 1 } }, { x: 0, y: 250 }, (stage) => stage === 3 || stage === 4);
 
 function fixture(mode = "normal") {
   const campaign = { version: 1, mode, characterId: "lumi", stage: 4, coins: 1380,
