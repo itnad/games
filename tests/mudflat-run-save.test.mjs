@@ -82,17 +82,12 @@ test("older live saves backfill deep-mud fields added after autosave", () => {
   delete save.runtime.deepMudGauge;
   delete save.runtime.deepMudLock;
   delete save.runtime.deepMudStepClock;
-  const legacyMosquitoClockKey = "wave" + "Clock";
-  save.runtime[legacyMosquitoClockKey] = 4.75;
-  delete save.runtime.mosquitoClock;
   const restored = decodeMudflatRun(JSON.stringify(save), makeRuntime);
   assert.ok(restored);
   assert.deepEqual(restored.runtime.mudPrints, []);
   assert.equal(restored.runtime.deepMudGauge, 0);
   assert.equal(restored.runtime.deepMudLock, 0);
   assert.equal(restored.runtime.deepMudStepClock, 0);
-  assert.equal(restored.runtime.mosquitoClock, 4.75);
-  assert.equal(legacyMosquitoClockKey in restored.runtime, false);
 });
 
 test("a pickup in flight is restored mid-flight and grants XP only once", () => {

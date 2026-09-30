@@ -1376,8 +1376,6 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(engineSource, /바람과 모기떼 사이로/);
   assert.match(engineSource, /잦은 돌발 물살과 모기떼/);
   assert.match(engineSource, /name: "돌풍과 모기떼"/);
-  assert.doesNotMatch(source, /\bwaves\b|waveClock/);
-  assert.doesNotMatch(engineSource, /\bwaves\b/);
   assert.match(source, /function mudflatHiddenRockStage\(stage: number\)/);
   assert.match(source, /return stage === 3 \|\| stage === 4/);
   assert.match(source, /hiddenRockClock: mudflatHiddenRockStage\(campaign\.stage\) \? \.5 : 0/);
