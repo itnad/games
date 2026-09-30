@@ -181,7 +181,7 @@ const GENERAL_CHARACTER = { id: "beginner", name: "기본 스킨", levels: { ton
 const defaultCharacterId = (mode: GameMode) => mode === "normal" ? "beginner" : "digger";
 const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "boots", "snack", "basket"];
 const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", boots: "장화", snack: "간식", basket: "담기" };
-const DIRECTIONAL_SEAFOOD_TYPES = new Set(["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp"]);
+const DIRECTIONAL_SEAFOOD_TYPES = new Set(["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp", "large-shrimp"]);
 const CATCH_FULL_MESSAGE = "더 담을 수가 없어. 다음에는 큰 통을 가져와야겠다.";
 const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, catchCapacity: 500, score: 0, levels: {}, basket: {}, bossCaught: false };
 
@@ -583,6 +583,59 @@ function drawBaseCamp(context: CanvasRenderingContext2D, point: Point, guideVisi
 function drawBaseCampDirectionGuide(context: CanvasRenderingContext2D, width: number, height: number, player: Point, baseCamp: Point, tideActive: boolean) {
   const deltaX = baseCamp.x - player.x; const deltaY = baseCamp.y - player.y;
   const distance = Math.hypot(deltaX, deltaY); const angle = Math.atan2(deltaY, deltaX);
+  const centerX = width / 2; const centerY = height / 2;
+  const radius = Math.max(98, Math.min(152, Math.min(width, height) * .26));
+  context.save();
+  context.translate(centerX, centerY);
+  context.globalAlpha = tideActive ? .58 : .48;
+  const compass = context.createRadialGradient(0, 0, radius * .16, 0, 0, radius);
+  compass.addColorStop(0, tideActive ? "rgba(140,218,255,.42)" : "rgba(255,230,155,.36)");
+  compass.addColorStop(.6, "rgba(24,31,36,.18)");
+  compass.addColorStop(1, tideActive ? "rgba(88,188,226,.08)" : "rgba(255,212,112,.07)");
+  context.fillStyle = compass;
+  context.beginPath(); context.arc(0, 0, radius, 0, Math.PI * 2); context.fill();
+  context.strokeStyle = tideActive ? "rgba(184,234,255,.64)" : "rgba(255,224,160,.62)";
+  context.lineWidth = 2.6;
+  context.beginPath(); context.arc(0, 0, radius * .82, 0, Math.PI * 2); context.stroke();
+  context.strokeStyle = tideActive ? "rgba(235,251,255,.34)" : "rgba(255,247,222,.32)";
+  context.lineWidth = 1.4;
+  for (let tick = 0; tick < 32; tick += 1) {
+    const tickAngle = tick / 32 * Math.PI * 2;
+    const inner = radius * (tick % 4 === 0 ? .68 : .74);
+    const outer = radius * .82;
+    context.beginPath();
+    context.moveTo(Math.cos(tickAngle) * inner, Math.sin(tickAngle) * inner);
+    context.lineTo(Math.cos(tickAngle) * outer, Math.sin(tickAngle) * outer);
+    context.stroke();
+  }
+  context.fillStyle = "rgba(255,250,229,.56)";
+  context.font = `900 ${Math.max(12, radius * .11)}px system-ui`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText("N", 0, -radius * .58);
+  context.fillText("S", 0, radius * .58);
+  context.fillText("W", -radius * .58, 0);
+  context.fillText("E", radius * .58, 0);
+  context.rotate(angle);
+  context.globalAlpha = tideActive ? .82 : .74;
+  context.fillStyle = tideActive ? "rgba(184,234,255,.88)" : "rgba(255,224,128,.88)";
+  context.strokeStyle = "rgba(28,24,22,.62)";
+  context.lineWidth = 2.2;
+  context.beginPath();
+  context.moveTo(radius * .78, 0);
+  context.lineTo(radius * .14, -radius * .18);
+  context.lineTo(radius * .26, 0);
+  context.lineTo(radius * .14, radius * .18);
+  context.closePath(); context.fill(); context.stroke();
+  context.fillStyle = "rgba(255,255,255,.88)";
+  context.beginPath(); context.arc(0, 0, radius * .085, 0, Math.PI * 2); context.fill();
+  context.restore();
+  context.save();
+  context.fillStyle = "rgba(18,23,27,.56)";
+  roundedRect(context, centerX - 78, centerY + radius * .48, 156, 31, 15); context.fill();
+  context.fillStyle = "#fff8df"; context.font = "900 12px system-ui"; context.textAlign = "center";
+  context.fillText(`${tideActive ? "귀환 방향" : "캠프 방향"} · ${Math.round(distance / 10)}m`, centerX, centerY + radius * .48 + 20);
+  context.restore();
   const panelWidth = 226; const panelLeft = width / 2 - panelWidth / 2; const panelTop = height - 58;
   context.save(); context.fillStyle = tideActive ? "rgba(42,73,102,.94)" : "rgba(29,54,57,.92)";
   roundedRect(context, panelLeft, panelTop, panelWidth, 38, 17); context.fill();
@@ -989,7 +1042,7 @@ function drawMudflat(
 
 function creatureSpriteHorizontalScale(creature: Creature) {
   const facesRight = (creature.facing ?? 1) > 0;
-  const artworkFacesRight = creature.type !== "shrimp";
+  const artworkFacesRight = creature.type !== "large-shrimp";
   return facesRight === artworkFacesRight ? 1 : -1;
 }
 
@@ -1600,7 +1653,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [savedCampaign, setSavedCampaign] = useState<Campaign | null>(null);
   const [departureSpace, setDepartureSpace] = useState(220);
-  const [departureCollapsed, setDepartureCollapsed] = useState(false);
+  const [departureCollapsed, setDepartureCollapsed] = useState(true);
   const [highestUnlockedStage, setHighestUnlockedStage] = useState(1);
   const [selectedStage, setSelectedStage] = useState(1);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
@@ -1704,7 +1757,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
   useEffect(() => {
     if (screen !== "camp") {
-      setDepartureCollapsed(false);
+      setDepartureCollapsed(true);
       return;
     }
     const panel = departureRef.current;
@@ -1966,7 +2019,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         y: rock.y + Math.sin(revealAngle) * offset,
         hp: template.hp,
         maxHp: template.hp,
-        speed: finding.type === "pufferfish" ? template.speed : (finding.type === "shrimp" ? crabSpeed * (1 + runtime.elapsed / 750) * 1.12 : template.speed) * stageStats.creatureSpeedMultiplier,
+        speed: finding.type === "pufferfish" ? template.speed : ((finding.type === "shrimp" || finding.type === "large-shrimp") ? crabSpeed * (1 + runtime.elapsed / 750) * 1.12 : template.speed) * stageStats.creatureSpeedMultiplier,
         saltHit: 0,
         hitFlash: .18,
         phase: Math.random() * Math.PI * 2,

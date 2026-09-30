@@ -414,8 +414,8 @@ test("folds the mudflat departure panel and keeps its guide out of the active HU
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/game-objective-guide.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(source, /\[departureCollapsed, setDepartureCollapsed\] = useState\(false\)/);
-  assert.match(source, /screen !== "camp"\) \{\s*setDepartureCollapsed\(false\)/);
+  assert.match(source, /\[departureCollapsed, setDepartureCollapsed\] = useState\(true\)/);
+  assert.match(source, /screen !== "camp"\) \{\s*setDepartureCollapsed\(true\)/);
   assert.match(source, /aria-expanded=\{!departureCollapsed\} aria-controls="ms-departure-details"/);
   assert.match(source, /setDepartureCollapsed\(\(collapsed\) => !collapsed\)/);
   assert.match(source, /departureCollapsed \? "▲" : "▼"/);
@@ -938,7 +938,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
 
   assert.equal(mudflatCreatureForTime(0, 0.99).id, "small-crab");
   assert.notEqual(mudflatCreatureForTime(130, 0.99).id, "small-crab");
-  assert.equal(mudflatCreatureForTime(80, 0.99).id, "shrimp");
+  assert.equal(mudflatCreatureForTime(80, 0.989).id, "shrimp");
+  assert.equal(mudflatCreatureForTime(80, 0.99).id, "large-shrimp");
   assert.equal(mudflatCreatureForTime(80, 0.99, { headlamp: true }).id, "whelk");
   assert.equal(mudflatCreatureForTime(80, 0.834, { headlamp: true }).id, "fist-whelk");
   assert.equal(mudflatCreatureForTime(80, 0.851, { headlamp: true }).id, "whelk");
@@ -1004,14 +1005,18 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatRockTurnerStats(level).cooldown), [2, 1.7, 1.4, 1.1, .8, .5]);
   assert.equal(mudflatRockTurnerStats(2).activationsPerSecond, 1 / 2.5);
   assert.equal(mudflatRockCreatureForRoll(0).type, "shrimp");
-  assert.equal(mudflatRockCreatureForRoll(.1999, 1).type, "shrimp");
+  assert.equal(mudflatRockCreatureForRoll(.1899, 1).type, "shrimp");
+  assert.equal(mudflatRockCreatureForRoll(.1901, 1).type, "large-shrimp");
+  assert.equal(mudflatRockCreatureForRoll(.1999, 1).type, "large-shrimp");
   assert.equal(mudflatRockCreatureForRoll(.2001, 1).type, "small-crab");
   assert.equal(mudflatRockCreatureForRoll(.5001, 1).type, "crab");
   assert.equal(mudflatRockCreatureForRoll(.6001, 1).type, "blue-crab");
   assert.equal(mudflatRockCreatureForRoll(.7001, 1).type, "octopus");
   assert.equal(mudflatRockCreatureForRoll(.8001, 1).type, "pufferfish");
   assert.equal(mudflatRockCreatureForRoll(.8501, 1), null);
-  assert.equal(mudflatRockCreatureForRoll(.0999, 6).type, "shrimp");
+  assert.equal(mudflatRockCreatureForRoll(.0949, 6).type, "shrimp");
+  assert.equal(mudflatRockCreatureForRoll(.0951, 6).type, "large-shrimp");
+  assert.equal(mudflatRockCreatureForRoll(.0999, 6).type, "large-shrimp");
   assert.equal(mudflatRockCreatureForRoll(.1001, 6).type, "small-crab");
   assert.equal(mudflatRockCreatureForRoll(.3001, 6).type, "crab");
   assert.equal(mudflatRockCreatureForRoll(.4001, 6).type, "blue-crab");
@@ -1043,6 +1048,17 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual(mudflatEmptySeafoodHazard(10), { damagePerSecond: 1, message: "너무 깊게 들어온 것 같다." });
   assert.deepEqual(mudflatEmptySeafoodHazard(30), { damagePerSecond: 10, message: "너무 춥다. 되돌아가야해" });
   assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "razor-clam").image, "/mudflat-creatures/razor-clam.svg");
+  const smallShrimp = MUDFLAT_CREATURES.find((creature) => creature.id === "shrimp");
+  const largeShrimp = MUDFLAT_CREATURES.find((creature) => creature.id === "large-shrimp");
+  assert.equal(smallShrimp.name, "작은 새우");
+  assert.equal(smallShrimp.sprite, "/mudflat-creatures/small-shrimp.svg");
+  assert.equal(smallShrimp.size, 14 * .8);
+  assert.equal(largeShrimp.name, "새우");
+  assert.equal(largeShrimp.sprite, "/mudflat-creatures/shrimp.png");
+  assert.equal(largeShrimp.hp, 5 * 1.5);
+  assert.equal(largeShrimp.size, 14 * 1.2);
+  assert.equal(largeShrimp.xp, 5);
+  assert.equal(largeShrimp.spawnVariant, true);
   assert.deepEqual(mudflatBossPulse(0, 0), { wave: .5, scaleX: 1.02, scaleY: 1.02, color: "rgb(38,34,84)" });
   const swollenBoss = mudflatBossPulse(0, Math.PI / 2);
   assert.equal(swollenBoss.scaleX, 1.08);
@@ -1052,7 +1068,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
     Object.fromEntries(MUDFLAT_SEAFOOD_MARKET.map((item) => [item.type, item.price])),
     {
       "small-crab": 2, crab: 3, "shore-crab": 4, "fiddler-crab": 5, "blue-crab": 7, "purple-crab": 9,
-      shrimp: 1, whelk: 2, "fist-whelk": 8, octopus: 20, golbaengi: 6, flounder: 50, pufferfish: 15,
+      shrimp: 1, "large-shrimp": 8, whelk: 2, "fist-whelk": 8, octopus: 20, golbaengi: 6, flounder: 50, pufferfish: 15,
       "small-clam": 0, clam: 1, dongjuk: 2, "hard-clam": 3, "ark-shell": 10, "razor-clam": 12,
       pearl: 10000, gaebul: 24, "king-crab": 100,
     },
@@ -1071,7 +1087,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(mudflatMarketImageScale("dongjuk") < mudflatMarketImageScale("hard-clam"));
   assert.ok(mudflatMarketImageScale("hard-clam") < mudflatMarketImageScale("ark-shell"));
   assert.ok(mudflatMarketImageScale("razor-clam") < mudflatMarketImageScale("ark-shell"));
-  assert.equal(mudflatMarketImageScale("shrimp"), 1);
+  assert.equal(mudflatMarketImageScale("shrimp"), .82);
+  assert.equal(mudflatMarketImageScale("large-shrimp"), 1);
   assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "pearl").unit, "개");
   assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "gaebul").image, "/mudflat-creatures/gaebul.svg");
   assert.equal(MUDFLAT_CREATURES.find((item) => item.id === "whelk").size, 9);
@@ -1197,9 +1214,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.doesNotMatch(source, /rgba\(111,174,170,\$\{\.27 \+ tide \* \.12\}\)/);
   assert.doesNotMatch(source, /context\.ellipse\(0, 0, 67 \+ hash \* 28, 25 \+ hash \* 17/);
   assert.match(source, /function drawCreatureSprite\(/);
-  assert.match(source, /const DIRECTIONAL_SEAFOOD_TYPES = new Set\(\["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp"\]\)/);
+  assert.match(source, /const DIRECTIONAL_SEAFOOD_TYPES = new Set\(\["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp", "large-shrimp"\]\)/);
   assert.match(source, /function creatureSpriteHorizontalScale\(creature: Creature\)/);
-  assert.match(source, /const artworkFacesRight = creature\.type !== "shrimp"/);
+  assert.match(source, /const artworkFacesRight = creature\.type !== "large-shrimp"/);
   assert.match(source, /context\.scale\(creatureSpriteHorizontalScale\(creature\), 1\)/);
   assert.match(source, /const previousX = creature\.x/);
   assert.match(source, /creature\.facing = creature\.x > previousX \? 1 : -1/);
@@ -1264,6 +1281,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /if \(tutorialActiveAtFrame \|\| inBaseCamp \|\| hasVisibleSeafood\)/);
   assert.match(source, /if \(tide\.active && inBaseCamp\) \{ completeStage\(runtime\); return; \}/);
   assert.match(source, /drawBaseCampDirectionGuide\(context, width, height, runtime\.player, runtime\.baseCamp, returnTide\.active\)/);
+  assert.match(source, /const radius = Math\.max\(98, Math\.min\(152, Math\.min\(width, height\) \* \.26\)\)/);
+  assert.match(source, /context\.fillText\(`\$\{tideActive \? "귀환 방향" : "캠프 방향"\} · \$\{Math\.round\(distance \/ 10\)\}m`/);
   assert.equal(MUDFLAT_TIDE_FILL_SECONDS, 1);
   assert.match(source, /const returnTideFill = returnTide\.active \? returnTideFillProgress\(runtime\.elapsed\) : 0;/);
   assert.match(source, /const waterFill = returnTide\.active \? returnTideFill : stageTide\.fill;/);
@@ -1483,6 +1502,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.doesNotMatch(source, /paperoid · MUDFLAT ACTION/);
   assert.match(source, /creature\.family === "crab"/);
   assert.match(await readFile(new URL("../app/page.tsx", import.meta.url), "utf8"), /mudflat-creatures\/crab\.png/);
+  assert.match(engineSource, /mudflat-creatures\/small-shrimp\.svg/);
   assert.match(engineSource, /mudflat-creatures\/shrimp\.png/);
   assert.match(engineSource, /mudflat-creatures\/whelk\.png/);
   assert.match(engineSource, /mudflat-creatures\/golbaengi-v2\.png/);

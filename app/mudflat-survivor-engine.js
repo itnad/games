@@ -13,7 +13,8 @@ export const MUDFLAT_CREATURES = [
   { id: "fiddler-crab", name: "농게", family: "crab", sprite: "/mudflat-creatures/fiddler-crab.svg", icon: "♋", color: "#e3a449", hp: 12, speed: 43, size: 17, xp: 4, score: 38, unlock: 70 },
   { id: "blue-crab", name: "민꽃게", family: "crab", sprite: "/mudflat-creatures/blue-crab.svg", icon: "♋", color: "#6bafa7", hp: 20, speed: 46, size: 20, xp: 6, score: 62, unlock: 105 },
   { id: "purple-crab", name: "보라돌이", family: "crab", sprite: "/mudflat-creatures/purple-crab.svg", icon: "♋", color: "#a66cb0", hp: 36, speed: 40, size: 24, xp: 10, score: 110, unlock: 150 },
-  { id: "shrimp", name: "새우", family: "seafood", sprite: "/mudflat-creatures/shrimp.png", icon: "⌁", color: "#eda584", hp: 5, speed: 34, size: 14, xp: 3, score: 22, unlock: 32, movement: "wander" },
+  { id: "shrimp", name: "작은 새우", family: "seafood", sprite: "/mudflat-creatures/small-shrimp.svg", icon: "⌁", color: "#c8b7a0", hp: 5, speed: 34, size: 14 * .8, xp: 3, score: 22, unlock: 32, movement: "wander" },
+  { id: "large-shrimp", name: "새우", family: "seafood", sprite: "/mudflat-creatures/shrimp.png", icon: "⌁", color: "#eda584", hp: 5 * 1.5, speed: 34, size: 14 * 1.2, xp: 5, score: 22, unlock: 32, movement: "wander", spawnVariant: true },
   { id: "whelk", name: "소라", family: "seafood", sprite: "/mudflat-creatures/whelk.png", icon: "@", color: "#c99a68", hp: 14, speed: 7.75, size: 9, visualScale: 1.2, xp: 5, score: 45, unlock: 65, movement: "flee", requiresHeadlamp: true },
   { id: "octopus", name: "낙지", family: "seafood", sprite: "/mudflat-creatures/octopus.png", icon: "✣", color: "#c9cdd0", hp: 22, speed: 38, size: 20, xp: 8, score: 75, unlock: 110, movement: "flee" },
   { id: "golbaengi", name: "골뱅이", family: "seafood", sprite: "/mudflat-creatures/golbaengi-v2.png", icon: "@", color: "#b97b42", hp: 16, speed: 7.75, size: 19, visualScale: .8, xp: 6, score: 52, unlock: 90, movement: "chase", requiresHeadlamp: true },
@@ -24,7 +25,8 @@ export const MUDFLAT_CREATURES = [
 ];
 
 export const MUDFLAT_ROCK_FINDINGS = [
-  { type: "shrimp", name: "새우", movement: "wander", level1Chance: 0.2, level6Chance: 0.1 },
+  { type: "shrimp", name: "작은 새우", movement: "wander", level1Chance: 0.2 * .95, level6Chance: 0.1 * .95 },
+  { type: "large-shrimp", name: "새우", movement: "wander", level1Chance: 0.2 * .05, level6Chance: 0.1 * .05 },
   { type: "small-crab", name: "작은게", movement: "chase", level1Chance: 0.3, level6Chance: 0.2 },
   { type: "crab", name: "칠게", movement: "chase", level1Chance: 0.1, level6Chance: 0.1 },
   { type: "blue-crab", name: "민꽃게", movement: "chase", level1Chance: 0.1, level6Chance: 0.1 },
@@ -62,7 +64,8 @@ export const MUDFLAT_SEAFOOD_MARKET = [
   { type: "fiddler-crab", name: "농게", image: "/mudflat-creatures/fiddler-crab.svg", price: 5 },
   { type: "blue-crab", name: "민꽃게", image: "/mudflat-creatures/blue-crab.svg", price: 7 },
   { type: "purple-crab", name: "보라돌이", image: "/mudflat-creatures/purple-crab.svg", price: 9 },
-  { type: "shrimp", name: "새우", image: "/mudflat-creatures/shrimp.png", price: 1 },
+  { type: "shrimp", name: "작은 새우", image: "/mudflat-creatures/small-shrimp.svg", price: 1 },
+  { type: "large-shrimp", name: "새우", image: "/mudflat-creatures/shrimp.png", price: 8 },
   { type: "whelk", name: "소라", image: "/mudflat-creatures/whelk.png", price: 2 },
   { type: "fist-whelk", name: "주먹소라", image: "/mudflat-creatures/whelk.png", price: 8 },
   { type: "octopus", name: "낙지", image: "/mudflat-creatures/octopus.png", price: 20 },
@@ -93,6 +96,8 @@ export function mudflatMarketImageScale(type) {
   if (type === "fist-whelk") return .82;
   if (type === "golbaengi") return .76;
   if (type === "gaebul") return .9;
+  if (type === "shrimp") return .82;
+  if (type === "large-shrimp") return 1;
 
   const clamGrade = MUDFLAT_CLAM_GRADES.find((item) => item.id === type);
   if (clamGrade) {
@@ -289,6 +294,10 @@ export function mudflatCreatureForTime(elapsedSeconds, roll = 0, options = {}) {
   const scaledRoll = safeRoll * available.length;
   const index = Math.min(available.length - 1, Math.floor(scaledRoll));
   const selected = available[Math.max(0, index)];
+  const localRoll = scaledRoll - Math.floor(scaledRoll);
+  if (selected?.id === "shrimp" && localRoll >= .95) {
+    return MUDFLAT_CREATURES.find((item) => item.id === "large-shrimp") ?? selected;
+  }
   if (selected?.id === "whelk" && scaledRoll - Math.floor(scaledRoll) < 0.1) {
     return MUDFLAT_CREATURES.find((item) => item.id === "fist-whelk") ?? selected;
   }
