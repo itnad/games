@@ -461,6 +461,25 @@ test("folds the mudflat departure panel and keeps its guide out of the active HU
   assert.match(guide, /modal && inline \? createPortal\(modal, document.body\) : modal/);
 });
 
+test("shows an in-game mudflat seafood guide with market-backed table data", async () => {
+  const [source, styles] = await Promise.all([
+    readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(source, /function MudflatSeafoodGuide\(\{ activeStage, onClose \}/);
+  assert.match(source, /const MUDFLAT_SEAFOOD_GUIDE: SeafoodGuideEntry\[\] = \(MUDFLAT_SEAFOOD_MARKET as SeafoodMarketItem\[\]\)\.map/);
+  assert.match(source, /aria-label="해산물 도감 열기"/);
+  assert.match(source, /className="ms-seafood-guide-link"/);
+  assert.match(source, /className="ms-pause-guide-button"[\s\S]*해산물 도감 보기/);
+  assert.match(source, /<th>해산물<\/th><th>분류<\/th><th>체력<\/th><th>경험치·점수<\/th><th>판매가<\/th><th>등장·채집<\/th><th>특징과 팁<\/th>/);
+  assert.match(source, /if \(type === MUDFLAT_GAEBUL\.id\) return "5단계 깊은 펄"/);
+  assert.match(source, /if \(type === MUDFLAT_PEARL\.id\) return "호미질 희귀 보상"/);
+  assert.match(styles, /\.ms-layer\.ms-seafood-guide\{z-index:80/);
+  assert.match(styles, /\.ms-seafood-table\{width:100%;border-collapse:separate/);
+  assert.match(styles, /\.ms-seafood-table td::before\{content:attr\(data-label\)/);
+  assert.match(styles, /\.ms-seafood-thumb\{width:42px;height:42px/);
+});
+
 test("provides a complete objective and victory guide for every game", async () => {
   const expectedGameIds = [
     "gomoku",

@@ -19,6 +19,7 @@ import {
   MUDFLAT_FIXED_GENERAL_SKILL_IDS,
   MUDFLAT_GAEBUL,
   MUDFLAT_GENERAL_UPGRADES,
+  MUDFLAT_PEARL,
   MUDFLAT_RECOVERY_FOODS,
   MUDFLAT_REGULAR_STAGES,
   MUDFLAT_TIDE_MESSAGE_INTERVAL,
@@ -1653,6 +1654,130 @@ function drawDipNetSlam(context: CanvasRenderingContext2D, origin: Point, target
   }
 }
 
+type SeafoodGuideEntry = {
+  type: string; name: string; image: string; category: string; hp: string; xp: string; price: string;
+  appears: string; feature: string; tip: string; focus?: string;
+};
+type SeafoodMarketItem = { type: string; name: string; image: string; price: number; unit?: string };
+type SeafoodCreatureTemplate = { id: string; family?: string; hp: number; xp: number; score: number; unlock: number; movement?: CreatureMovement; requiresHeadlamp?: boolean; spawnVariant?: boolean; boss?: boolean };
+type SeafoodClamTemplate = { id: string; xp: number; score: number; price: number; vertical?: boolean };
+
+const SEAFOOD_MOVEMENT_LABELS: Record<string, string> = {
+  chase: "다가옴",
+  flee: "도망감",
+  oval: "급회전",
+  still: "고정",
+  wander: "배회",
+};
+
+function seafoodGuideCategory(type: string, creature?: SeafoodCreatureTemplate, clamGrade?: SeafoodClamTemplate) {
+  if (creature?.boss) return "대형 목표";
+  if (creature?.family === "crab") return "게류";
+  if (type === "shrimp" || type === "large-shrimp") return "새우류";
+  if (type === "whelk" || type === "fist-whelk" || type === "golbaengi") return "고둥·소라류";
+  if (type === "octopus" || type === "gaebul") return "연체류";
+  if (type === "flounder") return "어류";
+  if (type === "pufferfish") return "위험 생물";
+  if (clamGrade) return "조개류";
+  if (type === MUDFLAT_PEARL.id) return "희귀 보상";
+  return "기타";
+}
+
+function seafoodGuideAppears(type: string, creature?: SeafoodCreatureTemplate, clamGrade?: SeafoodClamTemplate) {
+  if (type === MUDFLAT_GAEBUL.id) return "5단계 깊은 펄";
+  if (type === MUDFLAT_PEARL.id) return "호미질 희귀 보상";
+  if (clamGrade) return "조개 구멍 호미질";
+  if (creature?.boss) return "마지막 물때 목표";
+  if (creature?.spawnVariant) return type === "large-shrimp" ? "새우 출현 중 5%" : "특수 변종 출현";
+  if (creature?.requiresHeadlamp) return "헤드랜턴으로 발견";
+  if (!creature || creature.unlock <= 0) return "원정 시작부터";
+  if (creature.unlock <= 45) return "원정 초반";
+  if (creature.unlock <= 105) return "원정 중반";
+  return "원정 후반";
+}
+
+function seafoodGuideFeature(type: string, creature?: SeafoodCreatureTemplate, clamGrade?: SeafoodClamTemplate) {
+  if (type === MUDFLAT_GAEBUL.id) return "깊은 펄 보상";
+  if (type === MUDFLAT_PEARL.id) return "고가 희귀품";
+  if (clamGrade?.vertical) return "길게 솟는 조개";
+  if (clamGrade) return "호미질 보상";
+  const parts: string[] = [];
+  if (creature?.boss) parts.push("대왕 목표");
+  if (creature?.requiresHeadlamp) parts.push("랜턴 필요");
+  if (creature?.spawnVariant && type !== "large-shrimp") parts.push("특수 변종");
+  if (type === "large-shrimp") parts.push("큰 새우");
+  if (type === "pufferfish") parts.push("접촉 위험");
+  if (creature?.movement) parts.push(SEAFOOD_MOVEMENT_LABELS[creature.movement] ?? creature.movement);
+  return parts.join(" · ") || "일반 채집";
+}
+
+function seafoodGuideTip(type: string, creature?: SeafoodCreatureTemplate, clamGrade?: SeafoodClamTemplate) {
+  if (type === MUDFLAT_GAEBUL.id) return "깊은 펄 감속을 감수하고 구멍을 오래 파면 노릴 수 있습니다.";
+  if (type === MUDFLAT_PEARL.id) return "호미질 레벨이 높을수록 더 좋은 결과를 기대할 수 있습니다.";
+  if (clamGrade) return "구멍 위에서 호미질을 유지하면 채집됩니다.";
+  if (type === "pufferfish") return "몸으로 부딪히지 말고 원거리 기술이나 그물로 처리하세요.";
+  if (creature?.requiresHeadlamp) return "랜턴 범위 안에서 드러난 뒤 채집 판정이 쉬워집니다.";
+  if (creature?.boss) return "충분한 기술 레벨과 체력을 갖춘 뒤 오래 추적해야 합니다.";
+  return "집게로 체력을 깎고 자동 기술로 마무리하면 안정적입니다.";
+}
+
+const MUDFLAT_SEAFOOD_GUIDE: SeafoodGuideEntry[] = (MUDFLAT_SEAFOOD_MARKET as SeafoodMarketItem[]).map((marketItem) => {
+  const creature = MUDFLAT_CREATURES.find((item) => item.id === marketItem.type) as SeafoodCreatureTemplate | undefined;
+  const clamGrade = MUDFLAT_CLAM_GRADES.find((item) => item.id === marketItem.type) as SeafoodClamTemplate | undefined;
+  const isGaebul = marketItem.type === MUDFLAT_GAEBUL.id;
+  const isPearl = marketItem.type === MUDFLAT_PEARL.id;
+  const xp = creature?.xp ?? clamGrade?.xp ?? (isGaebul ? MUDFLAT_GAEBUL.xp : isPearl ? MUDFLAT_PEARL.xp : 0);
+  const score = creature?.score ?? clamGrade?.score ?? (isGaebul ? MUDFLAT_GAEBUL.score : isPearl ? MUDFLAT_PEARL.score : 0);
+  return {
+    type: marketItem.type,
+    name: marketItem.name,
+    image: marketItem.image,
+    category: seafoodGuideCategory(marketItem.type, creature, clamGrade),
+    hp: creature ? String(Math.ceil(creature.hp)) : isPearl ? "희귀" : "호미질",
+    xp: `${xp} / ${score}점`,
+    price: `${marketItem.price.toLocaleString()}C`,
+    appears: seafoodGuideAppears(marketItem.type, creature, clamGrade),
+    feature: seafoodGuideFeature(marketItem.type, creature, clamGrade),
+    tip: seafoodGuideTip(marketItem.type, creature, clamGrade),
+    focus: marketItem.type === MUDFLAT_GAEBUL.id ? "5단계 핵심" : creature?.boss ? "최종 목표" : undefined,
+  };
+});
+
+function MudflatSeafoodGuide({ activeStage, onClose }: { activeStage: number; onClose: () => void }) {
+  const stage = Math.max(1, Math.floor(activeStage || 1));
+  const profile = mudflatStageProfile(stage) as StageProfile;
+  return (
+    <div className="ms-layer ms-seafood-guide" role="dialog" aria-modal="true" aria-label="해산물 도감" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section>
+        <button type="button" className="ms-seafood-close" aria-label="해산물 도감 닫기" onClick={onClose}>×</button>
+        <small>SEAFOOD GUIDE</small>
+        <h2>해산물 도감</h2>
+        <p>채집 대상별 체력, 경험치·점수, 판매가와 등장 방식을 한눈에 확인할 수 있습니다.</p>
+        <div className="ms-seafood-stage-note">
+          <span><b>현재 확인 중</b>{stage}단계 · {profile.name}</span>
+          <em>{profile.modifiers.slice(0, 3).join(" · ") || "기본 갯벌"}</em>
+        </div>
+        <div className="ms-seafood-table-wrap" role="region" aria-label="해산물 목록 표" tabIndex={0}>
+          <table className="ms-seafood-table">
+            <thead><tr><th>해산물</th><th>분류</th><th>체력</th><th>경험치·점수</th><th>판매가</th><th>등장·채집</th><th>특징과 팁</th></tr></thead>
+            <tbody>{MUDFLAT_SEAFOOD_GUIDE.map((entry) => (
+              <tr key={entry.type} className={entry.focus ? "is-focus" : undefined}>
+                <td data-label="해산물"><span className="ms-seafood-name"><img className="ms-seafood-thumb" src={entry.image} alt="" /> <b>{entry.name}</b>{entry.focus && <em>{entry.focus}</em>}</span></td>
+                <td data-label="분류">{entry.category}</td>
+                <td data-label="체력">{entry.hp}</td>
+                <td data-label="경험치·점수">{entry.xp}</td>
+                <td data-label="판매가"><strong>{entry.price}</strong></td>
+                <td data-label="등장·채집">{entry.appears}</td>
+                <td data-label="특징과 팁"><span className="ms-seafood-tip"><b>{entry.feature}</b><small>{entry.tip}</small></span></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const runtimeRef = useRef<Runtime | null>(null);
@@ -1684,6 +1809,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [highestUnlockedStage, setHighestUnlockedStage] = useState(1);
   const [selectedStage, setSelectedStage] = useState(1);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+  const [seafoodGuideOpen, setSeafoodGuideOpen] = useState(false);
   const [lumiLoadStatus, setLumiLoadStatus] = useState<"loading" | "ready" | "error">("loading");
 
   const clearLumiHold = useCallback(() => {
@@ -3371,6 +3497,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (destination === "home") onExit();
     else reset();
   };
+  const seafoodGuideStage = screen === "running" || screen === "paused" || screen === "upgrade" ? hud.stage : campaign?.stage ?? savedCampaign?.stage ?? selectedStage;
+  const seafoodGuideLayer = seafoodGuideOpen ? <MudflatSeafoodGuide activeStage={seafoodGuideStage} onClose={() => setSeafoodGuideOpen(false)} /> : null;
 
   if (screen === "setup") return (
     <main className="ms-shell ms-setup" data-game-menu>
@@ -3453,6 +3581,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           {selectedStage > 1 ? `${selectedStage === 9 ? "끝없는 물때" : `${selectedStage}단계`} 새 원정 시작` : mode === "normal" ? "새 일반 원정 시작" : "새 어린이 원정 시작"} <span>→</span>
         </button>
         {mode === "normal" && <button className="ms-tutorial-start" type="button" onClick={beginWithTutorial}>튜토리얼부터 <span aria-hidden="true">→</span></button>}
+        <button className="ms-seafood-guide-open" type="button" aria-label="해산물 도감 열기" onClick={() => setSeafoodGuideOpen(true)}>해산물 도감 <span aria-hidden="true">↗</span></button>
         {savedCampaign && !savedRun && <details className="ms-setup-details ms-saved-expedition">
           <summary><span><small>SAVED EXPEDITION</small><b>저장된 원정 이어하기</b></span><i>⌄</i></summary>
           <button type="button" className="ms-continue" onClick={continueCampaign}><span><b>{savedCampaign.stage}단계 정비소</b><em>{savedCampaign.coins.toLocaleString()}코인 · LV.{savedCampaign.level}</em></span><strong>→</strong></button>
@@ -3469,6 +3598,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           </div>
         </details>
       </section>
+      {seafoodGuideLayer}
     </main>
   );
 
@@ -3497,7 +3627,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       </section>
       <section className="ms-camp-layout">
         <article className="ms-market">
-          <header><div><small>CATCH SUMMARY</small><h2>해산물 정산 내역</h2></div><span>{haulCount}마리 · 판매 완료</span></header>
+          <header><div><small>CATCH SUMMARY</small><h2>해산물 정산 내역</h2></div><span>{haulCount}마리 · 판매 완료</span><button type="button" className="ms-seafood-guide-link" onClick={() => setSeafoodGuideOpen(true)}>도감 보기</button></header>
           <div className="ms-market-table" role="table" aria-label="해산물별 판매 내역">
             {soldItems.length > 0 ? soldItems.map((item) => {
               const count = campaign.lastHaul[item.type] ?? 0;
@@ -3549,6 +3679,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         {!departureCollapsed && <button type="button" className="ms-clear-save" onClick={clearCampaign}>새 원정으로 초기화</button>}
         <button type="button" className="ms-primary" onClick={startNextStage}>{departureCollapsed ? "출정" : "다음 갯벌 출정"} <span aria-hidden="true">→</span></button>
       </section>
+      {seafoodGuideLayer}
     </main>;
   }
 
@@ -3620,9 +3751,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       <GameObjectiveGuide gameId="mudflat-survivor" inline />
       <div className="ms-pause-actions">
         <button className="ms-primary" onClick={resume}>계속 채집하기</button>
+        <button type="button" className="ms-pause-guide-button" onClick={() => setSeafoodGuideOpen(true)}>해산물 도감 보기</button>
         <button className="ms-quit" onClick={openExitDialog}>저장하고 나가기</button>
       </div>
     </section></div>
   ) : null;
-  return <main className={`ms-shell ms-game${hud.mode === "kids" ? " ms-kids-game" : ""}`}><header className="ms-game-head"><button onClick={openExitDialog} aria-label="나가기 선택">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {activeStageProfile.name}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label="해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다." /><div className="ms-hud-bars" data-xp-collecting={hud.xpCollecting || undefined}><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.floor(hud.hp)} / {Math.floor(hud.maxHp)}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div></div>{hud.mode === "normal" && <div className="ms-base-tools" aria-label="기본 채집 도구">{fixedNormalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)}><i>{skill.icon}</i><span>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name} <em>Lv.{hud.levels[skill.id] ?? 0}</em></span></button>)}</div>}<div className="ms-caught"><b>채집 {hud.caught}</b><span>(최대 {hud.catchCapacity})</span></div>{activeStageObjective && <div className="ms-stage-objective"><small>보조 목표</small><b>{activeStageObjective.label}</b></div>}<div className="ms-touch-hint">아무 곳이나 누르고 드래그</div>{hud.tutorialActive && <button type="button" className="ms-tutorial-skip" onClick={skipFirstMoveGuide}>튜토리얼 건너뛰기</button>}</section><section className={`ms-tools${hud.mode === "kids" ? " ms-kids-tools" : ""}`} aria-label="선택 기술">{hud.mode === "normal" ? <>{normalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)} aria-label={`${skill.name} 상세 보기`}><i>{skill.icon}</i><b>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name}</b><em>Lv.{hud.levels[skill.id] ?? 0}</em></button>)}{Array.from({ length: Math.max(0, 6 - normalSkills.length) }, (_, index) => <span className="ms-tool-empty" key={`empty-${index}`} aria-label="비어 있는 선택 기술 칸">+</span>)}</> : <><span><i>⌁</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "hoe")?.name}</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "net")?.name}</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>소금 결정의 정령</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>쓸어담기</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{lumiLoadingLayer}{selectedSkill && selectedSkillDetail && <aside className="ms-skill-detail" role="dialog" aria-label={`${selectedSkill.name} 상세`}><button type="button" aria-label="기술 상세 닫기" onClick={() => setSelectedSkillId(null)}>×</button><i>{selectedSkill.icon}</i><div><small>{MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(selectedSkill.id) ? "기본 채집 도구" : "선택 기술"} · Lv.{hud.levels[selectedSkill.id] ?? 0}</small><b>{selectedSkill.name}</b><p>{selectedSkillDetail.current}</p><strong>{selectedSkillDetail.next}</strong></div></aside>}{screen === "upgrade" && <div className="ms-layer"><section><small>LEVEL {hud.level}</small><h2>새 채집 기술을 고르세요</h2><p>선택하는 동안 갯벌의 시간은 멈춥니다.</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div><button type="button" className="ms-reroll" disabled={!canReroll} onClick={rerollUpgradeChoices}>새로고침 · 최대 체력 20% ({rerollCost}) 사용</button><small className="ms-skill-slots">선택 기술 {normalSkills.length} / 6 · 집게와 호미질은 기본 기술입니다.</small></section></div>}{pauseLayer}{saveError && !exitOpen && <p className="ms-live-save-warning" role="status">{saveError}</p>}{exitOpen && <MudflatExitDialog onMain={() => leaveGame("main")} onHome={() => leaveGame("home")} onCancel={cancelExit} error={saveError} />}</main>;
+  return <main className={`ms-shell ms-game${hud.mode === "kids" ? " ms-kids-game" : ""}`}><header className="ms-game-head"><button onClick={openExitDialog} aria-label="나가기 선택">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {activeStageProfile.name}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label="해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다." /><div className="ms-hud-bars" data-xp-collecting={hud.xpCollecting || undefined}><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.floor(hud.hp)} / {Math.floor(hud.maxHp)}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div></div>{hud.mode === "normal" && <div className="ms-base-tools" aria-label="기본 채집 도구">{fixedNormalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)}><i>{skill.icon}</i><span>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name} <em>Lv.{hud.levels[skill.id] ?? 0}</em></span></button>)}</div>}<div className="ms-caught"><b>채집 {hud.caught}</b><span>(최대 {hud.catchCapacity})</span></div>{activeStageObjective && <div className="ms-stage-objective"><small>보조 목표</small><b>{activeStageObjective.label}</b></div>}<div className="ms-touch-hint">아무 곳이나 누르고 드래그</div>{hud.tutorialActive && <button type="button" className="ms-tutorial-skip" onClick={skipFirstMoveGuide}>튜토리얼 건너뛰기</button>}</section><section className={`ms-tools${hud.mode === "kids" ? " ms-kids-tools" : ""}`} aria-label="선택 기술">{hud.mode === "normal" ? <>{normalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)} aria-label={`${skill.name} 상세 보기`}><i>{skill.icon}</i><b>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name}</b><em>Lv.{hud.levels[skill.id] ?? 0}</em></button>)}{Array.from({ length: Math.max(0, 6 - normalSkills.length) }, (_, index) => <span className="ms-tool-empty" key={`empty-${index}`} aria-label="비어 있는 선택 기술 칸">+</span>)}</> : <><span><i>⌁</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "hoe")?.name}</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "net")?.name}</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>소금 결정의 정령</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>쓸어담기</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{lumiLoadingLayer}{selectedSkill && selectedSkillDetail && <aside className="ms-skill-detail" role="dialog" aria-label={`${selectedSkill.name} 상세`}><button type="button" aria-label="기술 상세 닫기" onClick={() => setSelectedSkillId(null)}>×</button><i>{selectedSkill.icon}</i><div><small>{MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(selectedSkill.id) ? "기본 채집 도구" : "선택 기술"} · Lv.{hud.levels[selectedSkill.id] ?? 0}</small><b>{selectedSkill.name}</b><p>{selectedSkillDetail.current}</p><strong>{selectedSkillDetail.next}</strong></div></aside>}{screen === "upgrade" && <div className="ms-layer"><section><small>LEVEL {hud.level}</small><h2>새 채집 기술을 고르세요</h2><p>선택하는 동안 갯벌의 시간은 멈춥니다.</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div><button type="button" className="ms-reroll" disabled={!canReroll} onClick={rerollUpgradeChoices}>새로고침 · 최대 체력 20% ({rerollCost}) 사용</button><small className="ms-skill-slots">선택 기술 {normalSkills.length} / 6 · 집게와 호미질은 기본 기술입니다.</small></section></div>}{pauseLayer}{seafoodGuideLayer}{saveError && !exitOpen && <p className="ms-live-save-warning" role="status">{saveError}</p>}{exitOpen && <MudflatExitDialog onMain={() => leaveGame("main")} onHome={() => leaveGame("home")} onCancel={cancelExit} error={saveError} />}</main>;
 }
