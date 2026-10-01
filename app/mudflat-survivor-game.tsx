@@ -3578,6 +3578,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const pauseHazards = mudflatStageHazardNotes(activeStageProfile);
   const pauseSkills = (hud.mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES).filter((skill) => (hud.levels[skill.id] ?? 0) > 0);
   const pauseClockLabel = hud.elapsed >= MUDFLAT_RUN_SECONDS ? formatClock(hud.elapsed) : `${formatClock(hud.elapsed)} 남음`;
+  const pauseTimeRemaining = Math.max(0, MUDFLAT_RUN_SECONDS - Math.min(hud.elapsed, MUDFLAT_RUN_SECONDS));
+  const pauseTimePercent = hud.elapsed >= MUDFLAT_RUN_SECONDS ? 100 : Math.max(0, Math.min(100, pauseTimeRemaining / MUDFLAT_RUN_SECONDS * 100));
+  const pauseHpPercent = Math.max(0, Math.min(100, hud.hp / Math.max(1, hud.maxHp) * 100));
+  const pauseXpPercent = Math.max(0, Math.min(100, hud.xp / Math.max(1, hud.nextXp) * 100));
+  const pauseCatchPercent = Math.max(0, Math.min(100, hud.caught / Math.max(1, hud.catchCapacity) * 100));
   const pauseLayer = screen === "paused" ? (
     <div className="ms-layer pause"><section className="ms-pause-panel">
       <small>PAUSED</small><h2>잠시 쉬어갈까요?</h2>
@@ -3594,11 +3599,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         <article className="ms-pause-card">
           <small>STATUS</small>
           <h3>현재 상태</h3>
-          <div className="ms-pause-status-grid">
-            <span><small>남은 시간</small><b>{pauseClockLabel}</b></span>
-            <span><small>체력</small><b>{Math.floor(hud.hp)} / {Math.floor(hud.maxHp)}</b></span>
-            <span><small>경험치</small><b>Lv.{hud.level} · {hud.xp} / {hud.nextXp}</b></span>
-            <span><small>채집</small><b>{hud.caught} / {hud.catchCapacity}</b></span>
+          <div className="ms-pause-meters">
+            <span className={`ms-pause-meter time${hud.elapsed >= MUDFLAT_RUN_SECONDS ? " is-return" : ""}`}><small><b>{hud.elapsed >= MUDFLAT_RUN_SECONDS ? "귀환 상태" : "남은 시간"}</b><em>{pauseClockLabel}</em></small><i role="progressbar" aria-label="일시정지 남은 시간" aria-valuemin={0} aria-valuemax={MUDFLAT_RUN_SECONDS} aria-valuenow={Math.floor(pauseTimeRemaining)}><span style={{ width: `${pauseTimePercent}%` }} /></i></span>
+            <span className="ms-pause-meter hp"><small><b>체력</b><em>{Math.floor(hud.hp)} / {Math.floor(hud.maxHp)}</em></small><i role="progressbar" aria-label="일시정지 체력" aria-valuemin={0} aria-valuemax={Math.floor(hud.maxHp)} aria-valuenow={Math.floor(hud.hp)}><span style={{ width: `${pauseHpPercent}%` }} /></i></span>
+            <span className="ms-pause-meter xp"><small><b>경험치 · Lv.{hud.level}</b><em>{hud.xp} / {hud.nextXp}</em></small><i role="progressbar" aria-label="일시정지 경험치" aria-valuemin={0} aria-valuemax={hud.nextXp} aria-valuenow={hud.xp}><span style={{ width: `${pauseXpPercent}%` }} /></i></span>
+            <span className="ms-pause-meter catch"><small><b>채집</b><em>{hud.caught} / {hud.catchCapacity}</em></small><i role="progressbar" aria-label="일시정지 채집량" aria-valuemin={0} aria-valuemax={hud.catchCapacity} aria-valuenow={hud.caught}><span style={{ width: `${pauseCatchPercent}%` }} /></i></span>
+          </div>
+          <div className="ms-pause-stat-chips">
             <span><small>점수</small><b>{hud.score.toLocaleString()}</b></span>
             <span><small>접촉 피해</small><b>+{activeStageStats.contactDamageBonus}</b></span>
             <span><small>해충기피제</small><b>{hud.mosquitoRepellent ? "사용 중" : "없음"}</b></span>
