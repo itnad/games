@@ -2705,9 +2705,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         runtime.clamSpawnClock -= dt;
         if (runtime.clamSpawnClock <= 0 && runtime.clamHoles.length < 18) { spawnClamHole(width, height); runtime.clamSpawnClock = 4.8; }
         if (runtime.mode === "normal") {
-          if (!mudflatHiddenRockStage(runtime.stage) && runtime.elapsed < .08 && runtime.rocks.length === 0) for (let index = 0; index < 12; index += 1) spawnRock(width, height);
+          if (runtime.elapsed < .08 && runtime.rocks.length === 0) for (let index = 0; index < 12; index += 1) spawnRock(width, height);
           runtime.rockSpawnClock -= dt;
-          if (!mudflatHiddenRockStage(runtime.stage) && runtime.rockSpawnClock <= 0 && runtime.rocks.length < stageStats.rockLimit) { spawnRock(width, height); runtime.rockSpawnClock = Math.max(2.4, 4.2 * stageStats.spawnIntervalMultiplier); }
+          if (runtime.rockSpawnClock <= 0 && runtime.rocks.length < stageStats.rockLimit) { spawnRock(width, height); runtime.rockSpawnClock = Math.max(2.4, 4.2 * stageStats.spawnIntervalMultiplier); }
         }
       } else ensureFirstMoveGuideObjects();
 

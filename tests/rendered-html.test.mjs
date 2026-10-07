@@ -1420,7 +1420,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /return stage === 3 \|\| stage === 4/);
   assert.match(source, /hiddenRockClock: mudflatHiddenRockStage\(campaign\.stage\) \? \.5 : 0/);
   assert.match(source, /runtime\.mode === "normal" && mudflatHiddenRockStage\(runtime\.stage\)/);
-  assert.match(source, /!mudflatHiddenRockStage\(runtime\.stage\) && runtime\.elapsed < \.08/);
+  assert.match(source, /if \(runtime\.elapsed < \.08 && runtime\.rocks\.length === 0\) for \(let index = 0; index < 12; index \+= 1\) spawnRock\(width, height\)/);
+  assert.match(source, /if \(runtime\.rockSpawnClock <= 0 && runtime\.rocks\.length < stageStats\.rockLimit\)/);
+  assert.doesNotMatch(source, /!mudflatHiddenRockStage\(runtime\.stage\) && runtime\.(?:elapsed|rockSpawnClock)/);
   assert.match(source, /stageProfile\.safeZone/);
   assert.match(engineSource, /밝은 언덕배기로 피하세요/);
   assert.match(source, /돌발 물살에 휩쓸렸다! 밝은 언덕배기로!/);
@@ -1652,6 +1654,10 @@ test("distributes persistent stage-three water channels without adding recurring
   assert.equal(profile.waterChannels, true);
   assert.ok(profile.modifiers.includes("물골"));
   assert.equal(profile.rockMultiplier, 1.55);
+  assert.equal(mudflatStageStats(3).rockLimit, 100);
+  assert.equal(mudflatStageStats(4).rockLimit, 100);
+  assert.equal(mudflatStageStats(8).rockLimit, 100);
+  assert.equal(mudflatStageStats(1).rockLimit, 13);
   assert.equal(profile.tideInterval, 0);
   assert.equal(profile.safeZone, "none");
   assert.equal(profile.mosquitoes, false);

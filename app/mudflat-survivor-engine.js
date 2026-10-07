@@ -437,12 +437,14 @@ export function mudflatStageStats(stage = 1) {
   const safeStage = Math.max(1, Math.floor(stage));
   const profile = mudflatStageProfile(safeStage);
   const endlessDepth = Math.max(0, safeStage - 8);
+  const baseRockLimit = Math.round((20 + (safeStage - 1) * 2) * profile.rockMultiplier);
+  const rockHeavyStage = safeStage === 3 || safeStage === 4 || profile.fallingRocks > 0;
   return {
     creatureHpMultiplier: 1 + (safeStage - 1) * 0.16 + (profile.finalBoss ? .24 : 0),
     creatureSpeedMultiplier: 1 + (safeStage - 1) * 0.045,
     spawnIntervalMultiplier: Math.max(0.5, 1 - (safeStage - 1) * 0.04) * profile.seafoodSpawnMultiplier,
     contactDamageBonus: Math.min(24, (safeStage - 1) * 2 + Math.floor(endlessDepth / 3)),
-    rockLimit: Math.min(42, Math.round((20 + (safeStage - 1) * 2) * profile.rockMultiplier)),
+    rockLimit: rockHeavyStage ? 100 : Math.min(100, baseRockLimit),
   };
 }
 
