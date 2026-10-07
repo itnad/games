@@ -1532,8 +1532,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-stage-route-list\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.ms-setup \.ms-character-select>\.ms-primary\{margin:18px auto 0/);
   assert.match(source, /const FIRST_MOVE_GUIDE_TARGET_RADIUS = 38/);
+  assert.match(source, /const TUTORIAL_HAND_CURSOR_SRC = "\/mudflat-ui\/windows-hand-cursor\.svg"/);
+  assert.match(source, /function getTutorialHandCursorImage\(\)/);
   assert.match(source, /function drawCursorHandIcon\(/);
-  assert.match(source, /const strokeHand = \(strokeStyle: string, widthBoost: number\) => \{/);
+  assert.match(source, /context\.drawImage\(cursor, -width \* \(32 \/ 96\), -height \* \(4 \/ 112\), width, height\)/);
+  const cursorSvg = await readFile(new URL("../public/mudflat-ui/windows-hand-cursor.svg", import.meta.url), "utf8");
+  assert.match(cursorSvg, /aria-label="hand cursor"/);
+  assert.match(cursorSvg, /stroke="#fff8ea"/);
   assert.match(source, /function drawGuideDragHand\(/);
   assert.match(source, /function drawFirstMoveGuide\(/);
   assert.match(source, /tutorialElapsed: 0, firstMoveGuide/);

@@ -130,6 +130,7 @@ const DEEP_MUD_GAUGE_DECAY = .36;
 const DEEP_MUD_STUCK_SECONDS = .82;
 const FIRST_MOVE_GUIDE_TARGET_RADIUS = 38;
 const FIRST_MOVE_GUIDE_DANGER_RADIUS = 62;
+const TUTORIAL_HAND_CURSOR_SRC = "/mudflat-ui/windows-hand-cursor.svg";
 const MUDFLAT_DEFEAT_ART_SRC = "/mudflat-illustrations/defeat-gatherer.webp";
 const MUDFLAT_DEFEAT_ART_WIDTH = 980;
 const MUDFLAT_DEFEAT_ART_HEIGHT = 404;
@@ -139,6 +140,8 @@ const MOSQUITO_DAMAGE = 6;
 const MOSQUITO_LOW_HP_THRESHOLD = 10;
 let mudflatDarknessCanvas: HTMLCanvasElement | null = null;
 let mudflatDarknessContext: CanvasRenderingContext2D | null = null;
+let tutorialHandCursorImage: HTMLImageElement | null = null;
+let tutorialHandCursorReady = false;
 type Runtime = {
   mode: GameMode;
   stage: number;
@@ -710,12 +713,20 @@ function drawGuideArrow(context: CanvasRenderingContext2D, from: Point, to: Poin
   context.restore();
 }
 
-function drawCursorHandIcon(context: CanvasRenderingContext2D, point: Point, angle: number, alpha: number) {
-  context.save();
-  context.globalAlpha = Math.max(0, alpha);
-  context.translate(point.x, point.y);
-  context.rotate(angle + Math.PI / 2);
-  context.scale(.78, .78);
+function getTutorialHandCursorImage() {
+  if (typeof Image === "undefined") return null;
+  if (!tutorialHandCursorImage) {
+    const image = new Image();
+    image.onload = () => { tutorialHandCursorReady = true; };
+    image.onerror = () => { tutorialHandCursorImage = null; tutorialHandCursorReady = false; };
+    image.src = TUTORIAL_HAND_CURSOR_SRC;
+    tutorialHandCursorImage = image;
+  }
+  if (tutorialHandCursorReady || (tutorialHandCursorImage.complete && tutorialHandCursorImage.naturalWidth > 0)) return tutorialHandCursorImage;
+  return null;
+}
+
+function drawCursorHandFallback(context: CanvasRenderingContext2D, alpha: number) {
   context.fillStyle = `rgba(10,12,15,${.24 * alpha})`;
   context.beginPath(); context.ellipse(20, 76, 34, 13, .08, 0, Math.PI * 2); context.fill();
   const strokeHand = (strokeStyle: string, widthBoost: number) => {
@@ -739,14 +750,22 @@ function drawCursorHandIcon(context: CanvasRenderingContext2D, point: Point, ang
   };
   strokeHand("rgba(41,36,31,.9)", 7);
   strokeHand("#fff8ea", 0);
-  context.strokeStyle = "rgba(85,72,59,.32)";
-  context.lineWidth = 1.7;
-  context.beginPath(); context.moveTo(8, 29); context.lineTo(8, 55); context.stroke();
-  context.beginPath(); context.moveTo(21, 36); context.lineTo(21, 59); context.stroke();
-  context.beginPath(); context.moveTo(33, 44); context.lineTo(33, 59); context.stroke();
-  context.strokeStyle = "rgba(255,255,255,.9)";
-  context.lineWidth = 2;
-  context.beginPath(); context.moveTo(-4, 5); context.lineTo(-4, 39); context.stroke();
+}
+
+function drawCursorHandIcon(context: CanvasRenderingContext2D, point: Point, angle: number, alpha: number) {
+  context.save();
+  context.globalAlpha = Math.max(0, alpha);
+  context.translate(point.x, point.y);
+  context.rotate(angle + Math.PI / 2);
+  const cursor = getTutorialHandCursorImage();
+  if (cursor) {
+    const width = 76;
+    const height = 88;
+    context.drawImage(cursor, -width * (32 / 96), -height * (4 / 112), width, height);
+  } else {
+    context.scale(.78, .78);
+    drawCursorHandFallback(context, alpha);
+  }
   context.restore();
 }
 
