@@ -1014,6 +1014,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "rocker").description, "돌 밑에 숨어있는 해산물을 더 빨리 더 잘 찾아낼 수 있습니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "snack").description, "최대 체력이 기본 대비 20% 상승하며 현재 체력을 전부 회복합니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "electric").description, "기본 집게 사거리 안의 해산물 모두에 주기적으로 전기 피해를 줍니다.");
+  assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "boots").description, "깊은 펄에서 발 빠짐이 줄고, 이동속도가 빨라집니다.");
+  assert.equal(MUDFLAT_UPGRADES.find((upgrade) => upgrade.id === "boots").description, "진흙 저항이 줄고 이동속도가 빨라집니다.");
   const generalChoices = mudflatUpgradeChoices(2, {}, "normal");
   assert.equal(generalChoices.length, 3);
   assert.ok(generalChoices.every((choice) => ["basket", "tongs", "harpoon", "boots", "snack", "rocker", "net", "digging"].includes(choice.id)));
