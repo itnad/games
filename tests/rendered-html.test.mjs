@@ -1548,10 +1548,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function getTutorialHandCursorImage\(\)/);
   assert.match(source, /function drawCursorHandIcon\(/);
   assert.match(source, /const size = 74/);
-  assert.match(source, /context\.drawImage\(cursor, -size \* \.18, -size \* \.68, size, size\)/);
+  assert.match(source, /context\.drawImage\(cursor, -size \* \.74, -size \* \.08, size, size\)/);
   const cursorSvg = await readFile(new URL("../public/mudflat-ui/windows-hand-cursor.svg", import.meta.url), "utf8");
   assert.match(cursorSvg, /aria-label="Windows hand cursor"/);
   assert.match(cursorSvg, /viewBox="0 0 32 32"/);
+  assert.match(cursorSvg, /transform="rotate\(180 16 16\)"/);
   assert.match(cursorSvg, /fill:#FFFFFE;stroke:#000001/);
   assert.match(source, /function drawGuideDragHand\(/);
   assert.match(source, /function drawGuideDottedTipArrow\(/);

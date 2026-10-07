@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
 	 viewBox="0 0 32 32" style="enable-background:new 0 0 32 32;" xml:space="preserve" role="img" aria-label="Windows hand cursor">
-<g>
+<g transform="rotate(180 16 16)">
 	<path style="fill:#FFFFFE;stroke:#000001;stroke-miterlimit:10;" d="M8.95354,21.00077v4.01394c0,0,0,1.33798,1.33798,1.33798
 		s1.33798-1.33798,1.33798-1.33798v-4.01394"/>
 	<path style="fill:#FFFFFE;stroke:#000001;stroke-miterlimit:10;" d="M11.6295,21.00077v3.34495c0,0,0,1.33798,1.33798,1.33798

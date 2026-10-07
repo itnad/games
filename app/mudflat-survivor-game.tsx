@@ -805,7 +805,7 @@ function drawCursorHandIcon(context: CanvasRenderingContext2D, point: Point, ang
   const cursor = getTutorialHandCursorImage();
   if (cursor) {
     const size = 74;
-    context.drawImage(cursor, -size * .18, -size * .68, size, size);
+    context.drawImage(cursor, -size * .74, -size * .08, size, size);
   } else {
     context.rotate(angle + Math.PI / 2);
     context.scale(.78, .78);
