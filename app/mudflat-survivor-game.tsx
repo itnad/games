@@ -802,13 +802,12 @@ function drawCursorHandIcon(context: CanvasRenderingContext2D, point: Point, ang
   context.save();
   context.globalAlpha = Math.max(0, alpha);
   context.translate(point.x, point.y);
-  context.rotate(angle + Math.PI / 2);
   const cursor = getTutorialHandCursorImage();
   if (cursor) {
-    const width = 76;
-    const height = 88;
-    context.drawImage(cursor, -width * (32 / 96), -height * (4 / 112), width, height);
+    const size = 74;
+    context.drawImage(cursor, -size * .18, -size * .68, size, size);
   } else {
+    context.rotate(angle + Math.PI / 2);
     context.scale(.78, .78);
     drawCursorHandFallback(context, alpha);
   }

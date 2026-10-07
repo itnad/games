@@ -1,13 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="96" height="112" viewBox="0 0 96 112" role="img" aria-label="hand cursor">
-  <defs>
-    <filter id="cursorShadow" x="-35%" y="-18%" width="170%" height="145%">
-      <feDropShadow dx="4" dy="6" stdDeviation="2.5" flood-color="#000000" flood-opacity=".32"/>
-    </filter>
-  </defs>
-  <g filter="url(#cursorShadow)" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M32 5v56M46 30v35M59 37v31M71 47v23M32 52L5 31M30 60c7 24 21 36 43 31 19-4 20-26 9-39" stroke="#1d1714" stroke-width="25"/>
-    <path d="M32 5v56M46 30v35M59 37v31M71 47v23M32 52L5 31M30 60c7 24 21 36 43 31 19-4 20-26 9-39" stroke="#fff8ea" stroke-width="17"/>
-    <path d="M38 30v30M52 41v25M65 51v16" stroke="#b7aa99" stroke-width="2.5"/>
-    <path d="M28 10v36" stroke="#fff" stroke-width="2.6" opacity=".9"/>
-  </g>
+<?xml version="1.0" encoding="utf-8"?>
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 32 32" style="enable-background:new 0 0 32 32;" xml:space="preserve" role="img" aria-label="Windows hand cursor">
+<g>
+	<path style="fill:#FFFFFE;stroke:#000001;stroke-miterlimit:10;" d="M8.95354,21.00077v4.01394c0,0,0,1.33798,1.33798,1.33798
+		s1.33798-1.33798,1.33798-1.33798v-4.01394"/>
+	<path style="fill:#FFFFFE;stroke:#000001;stroke-miterlimit:10;" d="M11.6295,21.00077v3.34495c0,0,0,1.33798,1.33798,1.33798
+		s1.33798-1.33798,1.33798-1.33798v-3.34495"/>
+	<path style="fill:#FFFFFE;stroke:#000001;stroke-miterlimit:10;" d="M14.30546,21.00077v2.67596c0,0,0,1.33798,1.33798,1.33798
+		s1.33798-1.33798,1.33798-1.33798v-6.3554c0,0,0.66899-6.6899-6.02091-6.6899c0,0-2.46051-0.13066-4.68293,2.00697
+		l-4.68293,5.35192c0,0-1.33798,1.33798,0,2.67596c0,0,1.00348,1.00348,2.67596-0.66899l1.16162-1.16162
+		c0.31196-0.31196,0.84535-0.09102,0.84535,0.35016v10.8463c0,0,0,1.33798,1.33798,1.33798s1.33798-1.33798,1.33798-1.33798
+		v-9.03136"/>
+</g>
 </svg>
