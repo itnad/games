@@ -130,9 +130,6 @@ const DEEP_MUD_GAUGE_DECAY = .36;
 const DEEP_MUD_STUCK_SECONDS = .82;
 const FIRST_MOVE_GUIDE_TARGET_RADIUS = 38;
 const FIRST_MOVE_GUIDE_DANGER_RADIUS = 62;
-// Google Material Symbols "touch_app" hand icon path, Apache-2.0.
-// The vector replaces the previous hand-drawn canvas fingers in the tutorial.
-const MATERIAL_TOUCH_APP_PATH = "M800-80H361L107-403l64-67 129 78v-368h81v512l-97-60 116 148h320v-280H461v-80h339v440ZM167-620q-13-22-20-47.5t-7-52.5q0-83 58.5-141.5T340-920q83 0 141.5 58.5T540-720q0 27-7 52.5T513-620l-69-40q8-14 12-28.5t4-31.5q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 17 4 31.5t12 28.5l-69 40Zm393 320Z";
 const MUDFLAT_DEFEAT_ART_SRC = "/mudflat-illustrations/defeat-gatherer.webp";
 const MUDFLAT_DEFEAT_ART_WIDTH = 980;
 const MUDFLAT_DEFEAT_ART_HEIGHT = 404;
@@ -713,44 +710,43 @@ function drawGuideArrow(context: CanvasRenderingContext2D, from: Point, to: Poin
   context.restore();
 }
 
-function drawMaterialTouchIcon(context: CanvasRenderingContext2D, point: Point, angle: number, alpha: number) {
+function drawCursorHandIcon(context: CanvasRenderingContext2D, point: Point, angle: number, alpha: number) {
   context.save();
-  context.globalAlpha = alpha;
+  context.globalAlpha = Math.max(0, alpha);
   context.translate(point.x, point.y);
   context.rotate(angle + Math.PI / 2);
-  context.fillStyle = `rgba(12,15,18,${.24 * alpha})`;
-  context.beginPath(); context.ellipse(7, 32, 28, 12, 0, 0, Math.PI * 2); context.fill();
-  if (typeof Path2D === "undefined") {
-    context.fillStyle = "#fff7e8";
-    context.strokeStyle = "rgba(61,45,31,.72)";
-    context.lineWidth = 2.4;
-    roundedRect(context, -9, -44, 18, 58, 8);
-    context.fill(); context.stroke();
-    roundedRect(context, -21, -6, 42, 38, 13);
-    context.fill(); context.stroke();
-    context.restore();
-    return;
-  }
-  const scale = 74 / 960;
-  const icon = new Path2D(MATERIAL_TOUCH_APP_PATH);
-  context.scale(scale, scale);
-  context.translate(-480, 520);
-  context.lineJoin = "round";
-  context.lineCap = "round";
-  context.shadowColor = "rgba(0,0,0,.32)";
-  context.shadowBlur = 34;
-  context.shadowOffsetY = 28;
-  context.strokeStyle = "rgba(73,54,39,.82)";
-  context.fillStyle = "#fff7e8";
-  context.lineWidth = 38;
-  context.stroke(icon);
-  context.shadowColor = "transparent";
-  context.fill(icon);
-  context.strokeStyle = "rgba(255,232,185,.92)";
-  context.lineWidth = 13;
-  context.stroke(icon);
-  context.fillStyle = "rgba(255,203,116,.16)";
-  context.fill(icon);
+  context.scale(.78, .78);
+  context.fillStyle = `rgba(10,12,15,${.24 * alpha})`;
+  context.beginPath(); context.ellipse(20, 76, 34, 13, .08, 0, Math.PI * 2); context.fill();
+  const strokeHand = (strokeStyle: string, widthBoost: number) => {
+    context.strokeStyle = strokeStyle;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.lineWidth = 20 + widthBoost;
+    context.beginPath(); context.moveTo(0, 0); context.lineTo(0, 54); context.stroke();
+    context.lineWidth = 16 + widthBoost;
+    context.beginPath(); context.moveTo(14, 25); context.lineTo(14, 59); context.stroke();
+    context.beginPath(); context.moveTo(27, 31); context.lineTo(27, 62); context.stroke();
+    context.beginPath(); context.moveTo(39, 39); context.lineTo(39, 61); context.stroke();
+    context.lineWidth = 15 + widthBoost;
+    context.beginPath(); context.moveTo(0, 43); context.lineTo(-25, 25); context.stroke();
+    context.lineWidth = 23 + widthBoost;
+    context.beginPath();
+    context.moveTo(-2, 50);
+    context.bezierCurveTo(3, 65, 17, 78, 37, 76);
+    context.bezierCurveTo(53, 74, 55, 60, 49, 48);
+    context.stroke();
+  };
+  strokeHand("rgba(41,36,31,.9)", 7);
+  strokeHand("#fff8ea", 0);
+  context.strokeStyle = "rgba(85,72,59,.32)";
+  context.lineWidth = 1.7;
+  context.beginPath(); context.moveTo(8, 29); context.lineTo(8, 55); context.stroke();
+  context.beginPath(); context.moveTo(21, 36); context.lineTo(21, 59); context.stroke();
+  context.beginPath(); context.moveTo(33, 44); context.lineTo(33, 59); context.stroke();
+  context.strokeStyle = "rgba(255,255,255,.9)";
+  context.lineWidth = 2;
+  context.beginPath(); context.moveTo(-4, 5); context.lineTo(-4, 39); context.stroke();
   context.restore();
 }
 
@@ -783,7 +779,7 @@ function drawGuideDragHand(context: CanvasRenderingContext2D, from: Point, to: P
   context.fillStyle = `rgba(255,226,136,${.16 * (1 - dragProgress)})`;
   context.beginPath(); context.arc(current.x, current.y, 13 + release * 13, 0, Math.PI * 2); context.fill();
   context.restore();
-  drawMaterialTouchIcon(context, current, angle, alpha);
+  drawCursorHandIcon(context, current, angle, alpha);
 }
 
 function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, height: number, runtime: Runtime, screenPoint: (point: Point) => Point, actionTime: number) {
