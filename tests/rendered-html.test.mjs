@@ -2932,6 +2932,17 @@ test("opens public games from direct URLs and keeps history URLs in sync", async
   assert.match(pageSource, /syncGameUrl\(null\);/);
 });
 
+test("guards phone system back during a live Mudflat run with the same exit dialog", async () => {
+  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /const MUDFLAT_BACK_GUARD_STATE = "paperoidMudflatRunBackGuard"/);
+  assert.match(source, /const mudflatSystemBackGuardScreen = \(screen: Screen\) => screen === "running" \|\| screen === "paused" \|\| screen === "upgrade"/);
+  assert.match(source, /window\.history\.pushState\(\{ \.\.\.\(window\.history\.state \?\? \{\}\), \[MUDFLAT_BACK_GUARD_STATE\]: true \}, "", window\.location\.href\)/);
+  assert.match(source, /window\.addEventListener\("popstate", guardMudflatSystemBack\)/);
+  assert.match(source, /exitOriginRef\.current = screenRef\.current;[\s\S]*?runtime\.paused = true; resetMovementInput\(\); setSelectedSkillId\(null\);[\s\S]*?setExitOpen\(true\); persistActiveRun\(\)/);
+  assert.match(source, /if \(exitOpenRef\.current\) \{[\s\S]*?setExitOpen\(false\);[\s\S]*?setScreen\(origin\);/);
+});
+
 test("keeps Lumi's walk, turning, and tong collision in independent motion", () => {
   const motion = createLumiMotion();
   const tick = (values = {}) => advanceLumiMotion(motion, { facing: 0, distance: 0, walking: false, tongSpeed: 1.55, dt: .1, ...values });

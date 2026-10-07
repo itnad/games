@@ -167,6 +167,7 @@ const BEST_KEY = "paperoid-mudflat-survivor-best-v1";
 const CAMPAIGN_KEY = "paperoid-mudflat-survivor-campaign-v1";
 const LAST_MODE_KEY = "paperoid-mudflat-survivor-last-mode-v1";
 const HIGHEST_STAGE_KEY = "paperoid-mudflat-survivor-highest-stage-v1";
+const MUDFLAT_BACK_GUARD_STATE = "paperoidMudflatRunBackGuard";
 const DAMAGE_TEXT_COLOR = "#ffd29a";
 const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
 const LUMI_HOLD_MS = 3_000;
@@ -181,6 +182,8 @@ const GENERAL_APPEARANCES: CharacterOption[] = [
   { id: "beginner", icon: "⌁", name: "기본 스킨", description: "기본 장비로 단단하게 시작합니다.", startLabel: "집게·호미질 기본 장착 · 체력 100", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 },
   { ...LUMI_CHARACTER, description: "기술 구성은 그대로, 모습만 루미로 출발합니다.", startLabel: "집게·호미질 기본 장착 · 체력 100" },
 ];
+
+const mudflatSystemBackGuardScreen = (screen: Screen) => screen === "running" || screen === "paused" || screen === "upgrade";
 
 const GENERAL_CHARACTER = { id: "beginner", name: "기본 스킨", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 };
 const defaultCharacterId = (mode: GameMode) => mode === "normal" ? "beginner" : "digger";
@@ -1789,6 +1792,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const lumiHoldTimerRef = useRef<number | null>(null);
   const defeatRetryRef = useRef<ReturnType<typeof createDefeatRetrySnapshot> | null>(null);
   const defeatArtPreloadRef = useRef<HTMLImageElement | null>(null);
+  const screenRef = useRef<Screen>("setup");
+  const exitOpenRef = useRef(false);
+  const mudflatBackGuardRef = useRef(false);
   const [screen, setScreen] = useState<Screen>("setup");
   const [mode, setMode] = useState<GameMode>("normal");
   const [characterId, setCharacterId] = useState(defaultCharacterId("normal"));
@@ -1811,6 +1817,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [seafoodGuideOpen, setSeafoodGuideOpen] = useState(false);
   const [lumiLoadStatus, setLumiLoadStatus] = useState<"loading" | "ready" | "error">("loading");
+
+  useEffect(() => { screenRef.current = screen; }, [screen]);
+  useEffect(() => { exitOpenRef.current = exitOpen; }, [exitOpen]);
 
   const clearLumiHold = useCallback(() => {
     if (lumiHoldTimerRef.current !== null) window.clearTimeout(lumiHoldTimerRef.current);
@@ -3497,6 +3506,39 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (destination === "home") onExit();
     else reset();
   };
+  useEffect(() => {
+    if (!mudflatSystemBackGuardScreen(screen)) {
+      mudflatBackGuardRef.current = false;
+      return;
+    }
+
+    const pushMudflatBackGuard = () => {
+      window.history.pushState({ ...(window.history.state ?? {}), [MUDFLAT_BACK_GUARD_STATE]: true }, "", window.location.href);
+      mudflatBackGuardRef.current = true;
+    };
+    if (!mudflatBackGuardRef.current) pushMudflatBackGuard();
+
+    const guardMudflatSystemBack = () => {
+      const runtime = runtimeRef.current;
+      if (!runtime || runtime.ended || !mudflatSystemBackGuardScreen(screenRef.current)) {
+        mudflatBackGuardRef.current = false;
+        return;
+      }
+      pushMudflatBackGuard();
+      if (exitOpenRef.current) {
+        resetMovementInput(); setExitOpen(false);
+        const origin = exitOriginRef.current;
+        if (runtimeRef.current) runtimeRef.current.paused = origin !== "running";
+        setScreen(origin);
+        return;
+      }
+      exitOriginRef.current = screenRef.current;
+      runtime.paused = true; resetMovementInput(); setSelectedSkillId(null);
+      setExitOpen(true); persistActiveRun();
+    };
+    window.addEventListener("popstate", guardMudflatSystemBack);
+    return () => window.removeEventListener("popstate", guardMudflatSystemBack);
+  }, [persistActiveRun, resetMovementInput, screen]);
   const seafoodGuideStage = screen === "running" || screen === "paused" || screen === "upgrade" ? hud.stage : campaign?.stage ?? savedCampaign?.stage ?? selectedStage;
   const seafoodGuideLayer = seafoodGuideOpen ? <MudflatSeafoodGuide activeStage={seafoodGuideStage} onClose={() => setSeafoodGuideOpen(false)} /> : null;
 
