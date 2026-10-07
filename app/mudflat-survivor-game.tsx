@@ -713,6 +713,52 @@ function drawGuideArrow(context: CanvasRenderingContext2D, from: Point, to: Poin
   context.restore();
 }
 
+function drawGuideDottedTipArrow(context: CanvasRenderingContext2D, from: Point, to: Point, time: number) {
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const distance = Math.hypot(to.x - from.x, to.y - from.y);
+  const startOffset = Math.min(18, distance * .28);
+  const endOffset = Math.min(24, distance * .36);
+  const start = { x: from.x + Math.cos(angle) * startOffset, y: from.y + Math.sin(angle) * startOffset };
+  const end = { x: to.x - Math.cos(angle) * endOffset, y: to.y - Math.sin(angle) * endOffset };
+  const color = "rgba(255,226,136,.9)";
+  context.save();
+  context.strokeStyle = "rgba(87,55,34,.42)";
+  context.lineWidth = 5.2;
+  context.lineCap = "round";
+  context.setLineDash([4, 8]);
+  context.lineDashOffset = -time * 30;
+  context.beginPath(); context.moveTo(start.x, start.y); context.lineTo(end.x, end.y); context.stroke();
+  context.strokeStyle = color;
+  context.lineWidth = 2.4;
+  context.beginPath(); context.moveTo(start.x, start.y); context.lineTo(end.x, end.y); context.stroke();
+  context.setLineDash([]);
+  context.fillStyle = color;
+  context.beginPath();
+  context.moveTo(end.x, end.y);
+  context.lineTo(end.x - Math.cos(angle - .5) * 11, end.y - Math.sin(angle - .5) * 11);
+  context.lineTo(end.x - Math.cos(angle + .5) * 11, end.y - Math.sin(angle + .5) * 11);
+  context.closePath(); context.fill();
+  context.restore();
+}
+
+function wrapCanvasText(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
+  const lines: string[] = [];
+  for (const paragraph of text.split(/\n/)) {
+    let line = "";
+    for (const char of Array.from(paragraph)) {
+      const nextLine = line + char;
+      if (line && context.measureText(nextLine).width > maxWidth) {
+        lines.push(line.trimEnd());
+        line = char.trimStart();
+      } else {
+        line = nextLine;
+      }
+    }
+    if (line.trim()) lines.push(line.trim());
+  }
+  return lines.length > 0 ? lines : [text];
+}
+
 function getTutorialHandCursorImage() {
   if (typeof Image === "undefined") return null;
   if (!tutorialHandCursorImage) {
@@ -826,13 +872,11 @@ function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, he
   } else if (guide.step === "catch") {
     const creature = runtime.creatures.find((item) => item.id === guide.catchCreatureId);
     const target = screenPoint(creature ?? guide.catchPoint);
-    drawGuideArrow(context, center, target, actionTime);
-    drawGuideMarker(context, target, 31, "집게로 게", "#ff986f", actionTime);
     const tong = mudflatTongStats(runtime.levels.tongs ?? 1);
     const angle = actionTime * tong.rotationSpeed;
     const tip = { x: center.x + Math.cos(angle) * tong.reach, y: center.y + Math.sin(angle) * tong.reach };
-    context.strokeStyle = "rgba(255,244,220,.82)"; context.lineWidth = 2.6;
-    context.beginPath(); context.arc(tip.x, tip.y, 17, 0, Math.PI * 2); context.stroke();
+    drawGuideDottedTipArrow(context, tip, target, actionTime);
+    drawGuideMarker(context, target, 31, "집게 끝으로", "#ff986f", actionTime);
   } else if (guide.step === "dig") {
     const hole = runtime.clamHoles.find((item) => item.id === guide.digHoleId);
     const target = screenPoint(hole ?? guide.digPoint);
@@ -3343,9 +3387,16 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const isCatchFullMessage = message === CATCH_FULL_MESSAGE;
         const messageAlpha = (isCatchFullMessage ? Math.min(1, runtime.playerMessageLife / .45) : Math.min(1, runtime.playerMessageLife * 2)) * runtime.playerMessageOpacity;
         context.save(); context.globalAlpha = messageAlpha; context.font = "900 14px system-ui"; context.textAlign = "center";
-        const bubbleWidth = Math.min(width - 28, context.measureText(message).width + 36); const bubbleTop = height / 2 - 116;
-        context.fillStyle = "rgba(255,244,218,.97)"; roundedRect(context, width / 2 - bubbleWidth / 2, bubbleTop, bubbleWidth, 40, 16); context.fill();
-        context.strokeStyle = "rgba(134,76,48,.48)"; context.lineWidth = 1.5; context.stroke(); context.fillStyle = "#512f25"; context.fillText(message, width / 2, bubbleTop + 26); context.restore();
+        const messageLines = wrapCanvasText(context, message, width - 72);
+        const lineHeight = 18;
+        const messageWidth = Math.max(...messageLines.map((line) => context.measureText(line).width));
+        const bubbleWidth = Math.min(width - 28, Math.max(120, messageWidth + 36));
+        const bubbleHeight = Math.max(40, 22 + messageLines.length * lineHeight);
+        const bubbleTop = Math.max(18, height / 2 - 116 - Math.max(0, messageLines.length - 1) * 9);
+        context.fillStyle = "rgba(255,244,218,.97)"; roundedRect(context, width / 2 - bubbleWidth / 2, bubbleTop, bubbleWidth, bubbleHeight, 16); context.fill();
+        context.strokeStyle = "rgba(134,76,48,.48)"; context.lineWidth = 1.5; context.stroke(); context.fillStyle = "#512f25";
+        messageLines.forEach((line, index) => context.fillText(line, width / 2, bubbleTop + 24 + index * lineHeight));
+        context.restore();
       }
       if (runtime.discoveryMessageLife > 0) {
         const message = "신기술을 알게되었다.";

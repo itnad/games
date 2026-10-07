@@ -1540,6 +1540,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(cursorSvg, /aria-label="hand cursor"/);
   assert.match(cursorSvg, /stroke="#fff8ea"/);
   assert.match(source, /function drawGuideDragHand\(/);
+  assert.match(source, /function drawGuideDottedTipArrow\(/);
   assert.match(source, /function drawFirstMoveGuide\(/);
   assert.match(source, /tutorialElapsed: 0, firstMoveGuide/);
   assert.match(source, /const shouldAutoStartTutorial = \(stage: number, secretEntry: boolean, tutorialEntry: boolean\) => \(/);
@@ -1554,9 +1555,12 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /돌이나 장애물에 부딪히면 피해를 입을 수 있어요/);
   assert.match(styles, /\.ms-tutorial-start\{/);
   assert.match(styles, /\.ms-tutorial-skip\{/);
+  assert.match(styles, /\.ms-tutorial-skip\{[^}]*bottom:54px;[^}]*color:#4d3824;[^}]*background:linear-gradient\(135deg,#fff8df,#f2d99f\)/);
   assert.match(source, /직접 해보는 첫 움직임/);
   assert.match(source, /목표 지점까지 드래그해 이동해보세요/);
   assert.match(source, /집게 끝으로 연습용 게를 건드리세요/);
+  assert.match(source, /drawGuideDottedTipArrow\(context, tip, target, actionTime\)/);
+  assert.doesNotMatch(source, /context\.arc\(tip\.x, tip\.y, 17/);
   assert.match(source, /구멍 위에 머물러 호미질하세요/);
   assert.match(source, /호미질 레벨이 높을수록 좋은 결과 확률이 올라갑니다/);
   assert.match(source, /돌을 피해 안전 지점까지 이동하세요/);
@@ -1577,7 +1581,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /장비·기술·경험치·코인은 모두 초기화됩니다/);
   assert.match(source, /\{Math\.floor\(hud\.hp\)\} \/ \{Math\.floor\(hud\.maxHp\)\}/);
   assert.match(source, /createRadialGradient[\s\S]*?rgba\(3,8,15,0\)/);
-  assert.match(source, /const bubbleTop = height \/ 2 - 116/);
+  assert.match(source, /const bubbleTop = Math\.max\(18, height \/ 2 - 116/);
   assert.match(styles, /\.ms-touch-hint\{display:none\}/);
   assert.match(source, /function MudflatTopbar/);
   assert.match(source, /className="game-topbar ms-topbar"/);
@@ -3481,5 +3485,8 @@ test("uses a throttled character speech bubble when the Mudflat haul container i
   assert.match(source, /showPlayerMessage\(CATCH_FULL_MESSAGE, 1\.2\)/);
   assert.match(source, /runtime\.catchFullNoticeClock = 15/);
   assert.match(source, /isCatchFullMessage \? Math\.min\(1, runtime\.playerMessageLife \/ \.45\)/);
+  assert.match(source, /function wrapCanvasText\(/);
+  assert.match(source, /const messageLines = wrapCanvasText\(context, message, width - 72\)/);
+  assert.match(source, /messageLines\.forEach\(\(line, index\) => context\.fillText\(line, width \/ 2, bubbleTop \+ 24 \+ index \* lineHeight\)\)/);
   assert.doesNotMatch(source, /조과통이 가득 찼습니다/);
 });
