@@ -31,13 +31,14 @@ export function MudflatExitDialog({ onMain, onHome, onCancel, error }: Props) {
   return <div className="ms-exit-dialog">
     <section ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="ms-exit-title" aria-describedby="ms-exit-description">
       <span className="ms-exit-symbol" aria-hidden="true">Ⅱ</span>
-      <small>EXPEDITION SAVED ON EXIT</small>
-      <h2 id="ms-exit-title">어디로 돌아갈까요?</h2>
-      <p id="ms-exit-description">지금은 게임이 멈춰 있습니다.<br />나가면 현재 상태를 이 기기에 저장하며,<br />해루질럿 메인에서 이어할 수 있습니다.</p>
+      <small className="ms-exit-kicker">원정 기록 보관 준비</small>
+      <h2 id="ms-exit-title">잠시 어디로 물러날까요?</h2>
+      <p id="ms-exit-description">나가도 현재 원정 상태는 이 기기에 저장돼요.<br />해루질럿 메인에서 바로 이어할 수 있습니다.</p>
+      <div className="ms-exit-note" aria-hidden="true"><span>일시정지 중</span><span>저장 후 이동</span></div>
       {error && <p className="ms-save-error" role="alert">{error}</p>}
       <div className="ms-exit-actions">
-        <button type="button" className="ms-exit-main" onClick={onMain}>해루질럿 메인 <span aria-hidden="true">→</span></button>
-        <button type="button" className="ms-exit-home" onClick={onHome}>홈 화면</button>
+        <button type="button" className="ms-exit-main" onClick={onMain}><span><small>이어하기 위치</small><b>해루질럿 메인</b></span><i aria-hidden="true">갯벌</i></button>
+        <button type="button" className="ms-exit-home" onClick={onHome}><span><small>전체 게임 목록</small><b>홈 화면</b></span></button>
         <button type="button" className="ms-exit-cancel" ref={cancelRef} onClick={onCancel}>취소</button>
       </div>
     </section>
