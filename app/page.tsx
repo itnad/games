@@ -2388,9 +2388,10 @@ function HomeContent({
   );
 }
 
-function AppUpdateNotice({ onUpdate }: { onUpdate: () => void }) {
+function AppUpdateNotice({ onUpdate, placement = "home" }: { onUpdate: () => void; placement?: "home" | "game" }) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const isGamePlacement = placement === "game";
   useEffect(() => {
     const collapseTimer = window.setTimeout(() => setIsCollapsed(true), 2000);
     return () => window.clearTimeout(collapseTimer);
@@ -2402,10 +2403,10 @@ function AppUpdateNotice({ onUpdate }: { onUpdate: () => void }) {
     window.requestAnimationFrame(() => window.requestAnimationFrame(onUpdate));
   };
   return (
-    <aside className={`app-update-notice ${isCollapsed ? "is-collapsed" : ""}`} role="status" aria-live="polite">
+    <aside className={`app-update-notice ${isGamePlacement ? "is-game" : ""} ${isCollapsed ? "is-collapsed" : ""}`} role="status" aria-live="polite">
       <span>
         <b>새 버전이 준비되었습니다</b>
-        <small>게임 나가기나 새 게임 시작 시 자동으로 반영됩니다.</small>
+        <small>{isGamePlacement ? "게임 버튼은 가리지 않고, 나가거나 새 게임을 시작할 때 자동 반영됩니다." : "게임 나가기나 새 게임 시작 시 자동으로 반영됩니다."}</small>
       </span>
       <button type="button" title={isUpdating ? "새로고침 중" : "새 버전으로 새로고침"} onClick={beginUpdate} disabled={isUpdating} aria-busy={isUpdating} aria-label={isUpdating ? "새로고침 중" : "새 버전으로 새로고침"}>
         {isUpdating ? <i className="app-update-spinner" aria-hidden="true" /> : <i className="app-update-refresh-icon" aria-hidden="true">
@@ -2422,12 +2423,14 @@ function AppUpdateNotice({ onUpdate }: { onUpdate: () => void }) {
 
 export default function Home({ requestedGameId }: { requestedGameId?: string }) {
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [activeGameForUpdate, setActiveGameForUpdate] = useState<GameId | null>(null);
   const latestBuildIdRef = useRef("");
   const checkingForUpdateRef = useRef(false);
   const activeGameRef = useRef<GameId | null>(null);
 
   const rememberActiveGame = useCallback((game: GameId | null) => {
     activeGameRef.current = game;
+    setActiveGameForUpdate(game);
   }, []);
 
   const checkForUpdate = useCallback(async () => {
@@ -2491,7 +2494,7 @@ export default function Home({ requestedGameId }: { requestedGameId?: string }) 
   return (
     <>
       <HomeContent updateAvailable={updateAvailable} applyUpdate={applyUpdate} onActiveGameChange={rememberActiveGame} requestedGameId={requestedGameId} />
-      {updateAvailable && <AppUpdateNotice onUpdate={() => applyUpdate()} />}
+      {updateAvailable && <AppUpdateNotice placement={activeGameForUpdate ? "game" : "home"} onUpdate={() => applyUpdate()} />}
     </>
   );
 }

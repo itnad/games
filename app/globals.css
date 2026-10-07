@@ -259,6 +259,62 @@ a:focus-visible {
   display: none;
 }
 
+.app-update-notice.is-game {
+  width: auto;
+  min-height: 46px;
+  max-width: calc(100vw - 32px);
+  top: max(96px, calc(env(safe-area-inset-top) + 82px));
+  right: max(18px, env(safe-area-inset-right));
+  bottom: auto;
+  padding: 6px;
+  gap: 0;
+  border-color: rgba(255, 226, 153, .44);
+  border-radius: 999px;
+  color: #332417;
+  background: rgba(18, 30, 31, .72);
+  box-shadow: 0 10px 28px rgba(6, 10, 12, .24), inset 0 1px 0 rgba(255, 255, 255, .12);
+  backdrop-filter: blur(12px);
+  transform-origin: right top;
+}
+
+.app-update-notice.is-game > span {
+  display: none;
+}
+
+.app-update-notice.is-game button {
+  min-width: 106px;
+  min-height: 42px;
+  margin-left: 0;
+  border-color: rgba(255, 255, 255, .38);
+  border-radius: 999px;
+  color: #382618;
+  background: linear-gradient(135deg, #fff4c7 0%, #ffd479 58%, #ffb061 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .42), 0 6px 16px rgba(93, 59, 28, .22);
+}
+
+.app-update-notice.is-game .app-update-refresh-icon {
+  color: #4a2e19;
+}
+
+.app-update-notice.is-game.is-collapsed {
+  width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border: 1px solid rgba(255, 226, 153, .44);
+  border-radius: 16px;
+  background: rgba(18, 30, 31, .72);
+  box-shadow: 0 10px 28px rgba(6, 10, 12, .24), inset 0 1px 0 rgba(255, 255, 255, .12);
+  backdrop-filter: blur(12px);
+}
+
+.app-update-notice.is-game.is-collapsed button {
+  width: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: 16px;
+}
+
 .app-update-notice button:disabled {
   cursor: wait;
   opacity: .82;
@@ -298,6 +354,30 @@ a:focus-visible {
   .app-update-notice.is-collapsed { width: 56px; padding: 0; }
   .app-update-notice button { min-width: 96px; padding-inline: 10px; }
   .app-update-notice.is-collapsed button { min-width: 56px; padding: 0; }
+  .app-update-notice.is-game {
+    width: auto;
+    max-width: calc(100vw - 20px);
+    top: max(154px, calc(env(safe-area-inset-top) + 142px));
+    right: 10px;
+    bottom: auto;
+    padding: 5px;
+  }
+  .app-update-notice.is-game button {
+    min-width: 92px;
+    min-height: 40px;
+    padding-inline: 11px;
+  }
+  .app-update-notice.is-game.is-collapsed {
+    width: 46px;
+    min-height: 46px;
+    padding: 0;
+  }
+  .app-update-notice.is-game.is-collapsed button {
+    width: 46px;
+    min-width: 46px;
+    min-height: 46px;
+    padding: 0;
+  }
 }
 
 .hero {

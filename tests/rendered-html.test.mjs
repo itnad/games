@@ -735,8 +735,14 @@ test("detects published site updates and refreshes only through safe user action
   assert.match(pageSource, /onExit=\{exitGame\}/);
   assert.match(pageSource, /PENDING_GAME_AFTER_UPDATE_KEY/);
   assert.match(pageSource, /const activeGameRef = useRef<GameId \| null>\(null\)/);
+  assert.match(pageSource, /const \[activeGameForUpdate, setActiveGameForUpdate\] = useState<GameId \| null>\(null\)/);
+  assert.match(pageSource, /setActiveGameForUpdate\(game\)/);
   assert.match(pageSource, /const gameToRestore = pendingGame === undefined \? activeGameRef\.current : pendingGame/);
   assert.match(pageSource, /onActiveGameChange\(activeGame\)/);
+  assert.match(pageSource, /placement=\{activeGameForUpdate \? "game" : "home"\}/);
+  assert.match(pageSource, /placement\?: "home" \| "game"/);
+  assert.match(pageSource, /isGamePlacement \? "게임 버튼은 가리지 않고/);
+  assert.match(pageSource, /app-update-notice \$\{isGamePlacement \? "is-game" : ""\}/);
   assert.match(pageSource, /새 버전이 준비되었습니다/);
   assert.match(pageSource, /const \[isUpdating, setIsUpdating\] = useState\(false\)/);
   assert.match(pageSource, /const \[isCollapsed, setIsCollapsed\] = useState\(false\)/);
@@ -753,6 +759,10 @@ test("detects published site updates and refreshes only through safe user action
   assert.match(styles, /\.app-update-notice\.is-collapsed button\s*\{[\s\S]*?display:\s*grid;[\s\S]*?place-items:\s*center;[\s\S]*?gap:\s*0;/);
   assert.match(styles, /\.app-update-notice\.is-collapsed \.app-update-label\s*\{[^}]*display:\s*none;/);
   assert.match(styles, /\.app-update-notice\.is-collapsed > span\s*\{[^}]*display:\s*none;/);
+  assert.match(styles, /\.app-update-notice\.is-game\s*\{[\s\S]*?top:\s*max\(96px,[\s\S]*?bottom:\s*auto;/);
+  assert.match(styles, /\.app-update-notice\.is-game > span\s*\{[^}]*display:\s*none;/);
+  assert.match(styles, /\.app-update-notice\.is-game\.is-collapsed\s*\{[\s\S]*?width:\s*48px;[\s\S]*?min-height:\s*48px;/);
+  assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.app-update-notice\.is-game\s*\{[\s\S]*?top:\s*max\(154px,[\s\S]*?bottom:\s*auto;/);
   assert.match(styles, /\.app-update-refresh-icon svg\s*\{[\s\S]*?width:\s*22px;[\s\S]*?height:\s*22px;[\s\S]*?stroke:\s*currentColor;/);
   assert.doesNotMatch(styles, /\.app-update-notice\.is-collapsed \.app-update-refresh-icon\s*\{\s*translate:/);
   assert.match(styles, /transition:\s*width \.5s/);
