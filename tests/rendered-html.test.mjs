@@ -1532,6 +1532,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-stage-route-list\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.ms-setup \.ms-character-select>\.ms-primary\{margin:18px auto 0/);
   assert.match(source, /const FIRST_MOVE_GUIDE_TARGET_RADIUS = 38/);
+  assert.match(source, /const MATERIAL_TOUCH_APP_PATH = "M800-80H361L107-403/);
+  assert.match(source, /function drawMaterialTouchIcon\(/);
   assert.match(source, /function drawGuideDragHand\(/);
   assert.match(source, /function drawFirstMoveGuide\(/);
   assert.match(source, /tutorialElapsed: 0, firstMoveGuide/);
@@ -1556,7 +1558,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /if \(tutorialActiveAtFrame\) runtime\.tutorialElapsed \+= dt;\s*else \{\s*runtime\.elapsed \+= dt/);
   assert.match(source, /showPlayerMessage\("일단 저 구멍들을 파봐야겠다\.", 3\)/);
   assert.match(source, /setFirstMoveGuideStep\(guide, "done"\)[\s\S]*?runtime\.spawnClock = 0/);
-  assert.match(source, /drawGuideDragHand\(context, hand, Math\.atan2\(target\.y - center\.y, target\.x - center\.x\), actionTime\)/);
+  assert.match(source, /const cycleSeconds = 2\.25/);
+  assert.match(source, /const current = \{ x: from\.x \+ \(to\.x - from\.x\) \* dragProgress, y: from\.y \+ \(to\.y - from\.y\) \* dragProgress \}/);
+  assert.match(source, /drawMaterialTouchIcon\(context, current, angle, alpha\)/);
+  assert.match(source, /drawGuideDragHand\(context, \{ x: center\.x, y: center\.y \+ 34 \}, target, actionTime\)/);
   assert.match(source, /drawFirstMoveGuide\(context, width, height, runtime, screenPoint, actionTime\)/);
   assert.doesNotMatch(source, /fillText\("손"/);
   const characterLayer = source.slice(source.indexOf("const lumiTongReach"), source.indexOf("if (runtime.stage === GAEBUL_STAGE"));
