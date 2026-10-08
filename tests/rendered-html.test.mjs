@@ -1112,6 +1112,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(smallShrimp.name, "작은 새우");
   assert.equal(smallShrimp.sprite, "/mudflat-creatures/small-shrimp.svg");
   assert.equal(smallShrimp.size, 14 * .8);
+  const smallShrimpSvg = await readFile(new URL("../public/mudflat-creatures/small-shrimp.svg", import.meta.url), "utf8");
+  assert.match(smallShrimpSvg, /id="curved-body"/);
+  assert.match(smallShrimpSvg, /id="tail-fan"/);
+  assert.match(smallShrimpSvg, /id="antennae"/);
   assert.equal(largeShrimp.name, "새우");
   assert.equal(largeShrimp.sprite, "/mudflat-creatures/shrimp.png");
   assert.equal(largeShrimp.hp, 5 * 1.5);
