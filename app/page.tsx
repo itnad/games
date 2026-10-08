@@ -2392,6 +2392,7 @@ function AppUpdateNotice({ onUpdate, placement = "home" }: { onUpdate: () => voi
   const [isUpdating, setIsUpdating] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const isGamePlacement = placement === "game";
+  const shouldCollapse = isCollapsed && !isGamePlacement;
   useEffect(() => {
     const collapseTimer = window.setTimeout(() => setIsCollapsed(true), 2000);
     return () => window.clearTimeout(collapseTimer);
@@ -2403,10 +2404,10 @@ function AppUpdateNotice({ onUpdate, placement = "home" }: { onUpdate: () => voi
     window.requestAnimationFrame(() => window.requestAnimationFrame(onUpdate));
   };
   return (
-    <aside className={`app-update-notice ${isGamePlacement ? "is-game" : ""} ${isCollapsed ? "is-collapsed" : ""}`} role="status" aria-live="polite">
+    <aside className={`app-update-notice ${isGamePlacement ? "is-game" : ""} ${shouldCollapse ? "is-collapsed" : ""}`} role="status" aria-live="polite">
       <span>
         <b>새 버전이 준비되었습니다</b>
-        <small>{isGamePlacement ? "게임 버튼은 가리지 않고, 나가거나 새 게임을 시작할 때 자동 반영됩니다." : "게임 나가기나 새 게임 시작 시 자동으로 반영됩니다."}</small>
+        <small>게임 나가기나 새 게임 시작 시 자동으로 반영됩니다.</small>
       </span>
       <button type="button" title={isUpdating ? "새로고침 중" : "새 버전으로 새로고침"} onClick={beginUpdate} disabled={isUpdating} aria-busy={isUpdating} aria-label={isUpdating ? "새로고침 중" : "새 버전으로 새로고침"}>
         {isUpdating ? <i className="app-update-spinner" aria-hidden="true" /> : <i className="app-update-refresh-icon" aria-hidden="true">

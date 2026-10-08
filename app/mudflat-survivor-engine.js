@@ -111,8 +111,8 @@ export function mudflatMarketImageScale(type) {
 }
 
 export const MUDFLAT_SHOP_EQUIPMENT = [
-  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "소라·골뱅이 발견 범위와 어두운 갯벌 시야가 넓어집니다.", max: 6 },
   { id: "cooler", icon: "▣", name: "조과통 업그레이드", description: "한 번에 담을 수 있는 채집 한도를 늘립니다.", max: 6 },
+  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "소라·골뱅이 발견 범위와 어두운 갯벌 시야가 넓어집니다.", max: 6 },
   { id: "vest", icon: "♥", name: "작업 조끼", description: "최대 체력이 늘고 복어 접촉 출혈 시간이 줄어듭니다.", max: 6 },
   { id: "gloves", icon: "⌁", name: "장갑 업그레이드", description: "집게·호미질·뜰채·작살·전기·그물 피해가 상승합니다.", max: 6 },
   { id: "waders", icon: "≫", name: "장화 밑창 업그레이드", description: "물골·깊은 펄 이동 페널티가 줄고 최대 체력이 늘어납니다.", max: 6 },

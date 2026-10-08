@@ -2578,6 +2578,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             if (finding) revealRockCreature(target, finding);
           }
           runtime.rockFlipEffect = null;
+          runtime.rockTurnClock = mudflatRockTurnerStats(runtime.levels.rocker ?? 1).cooldown;
         }
       }
       if (tide.active) {
@@ -3533,13 +3534,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   };
   const buyMosquitoRepellent = () => {
     const current = campaignRef.current; if (!current) return;
-    const nextProfile = mudflatStageProfile(current.stage) as StageProfile;
-    if (!nextProfile.mosquitoes) { setCampNotice("이번 갯벌에는 모기떼 대비가 필요하지 않습니다."); return; }
     if ((current.equipment[MOSQUITO_REPELLENT_KEY] ?? 0) > 0) { setCampNotice("해충기피제를 이미 준비했습니다."); return; }
     if (current.coins < MOSQUITO_REPELLENT_PRICE) { setCampNotice("해충기피제를 구매할 코인이 부족합니다."); return; }
     const equipment = { ...current.equipment, [MOSQUITO_REPELLENT_KEY]: 1 };
     const next = { ...current, coins: current.coins - MOSQUITO_REPELLENT_PRICE, equipment };
-    storeCampaign(next); setCampNotice("해충기피제 구매 완료 · 다음 갯벌에서 모기떼 피해를 막습니다.");
+    storeCampaign(next); setCampNotice("해충기피제 구매 완료 · 다음 갯벌에서 모기떼 피해를 1회 대비합니다.");
   };
   const trainSkill = (id: string) => {
     const current = campaignRef.current; if (!current) return;
@@ -3763,7 +3762,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const nextStageProfile = mudflatStageProfile(campaign.stage) as StageProfile;
     const nextStageObjective = nextStageProfile.objective;
     const mosquitoRepellentReady = (campaign.equipment[MOSQUITO_REPELLENT_KEY] ?? 0) > 0;
-    const mosquitoRepellentAvailable = nextStageProfile.mosquitoes;
     const soldItems = MUDFLAT_SEAFOOD_MARKET.filter((item) => (campaign.lastHaul[item.type] ?? 0) > 0);
     const campHpPercent = Math.max(0, Math.min(100, campaign.hp / Math.max(1, campaign.maxHp) * 100));
     const campXpPercent = Math.max(0, Math.min(100, campaign.xp / Math.max(1, campaign.nextXp) * 100));
@@ -3806,7 +3804,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         </article>
         <div className="ms-shop-stack">
           <article className="ms-shop"><header><small>EQUIPMENT SHOP</small><h2>장비 물품</h2></header><div>{MUDFLAT_SHOP_EQUIPMENT.map((item) => { const level = campaign.equipment[item.id] ?? 0; const price = mudflatEquipmentPrice(item.id, level); const effectLevel = Math.max(1, Math.min(item.max, level >= item.max ? level : level + 1)); const effectDescription = `Lv.${effectLevel} 효과 · ${mudflatEquipmentDescription(item.id, effectLevel)}`; return <button type="button" key={item.id} disabled={level >= item.max || campaign.coins < price} onClick={() => buyEquipment(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{effectDescription}</small></span><em>{level >= item.max ? "최고 단계" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
-          <article className="ms-shop"><header><small>FIELD SUPPLY</small><h2>소모품</h2></header><div><button type="button" disabled={!mosquitoRepellentAvailable || mosquitoRepellentReady || campaign.coins < MOSQUITO_REPELLENT_PRICE} onClick={buyMosquitoRepellent}><i>✹</i><span><b>해충기피제</b><small>{mosquitoRepellentAvailable ? "다음 갯벌 1회 동안 모기떼 피해를 막습니다." : "모기떼가 있는 갯벌에서 사용할 수 있습니다."}</small></span><em>{mosquitoRepellentReady ? "준비 완료" : mosquitoRepellentAvailable ? `${MOSQUITO_REPELLENT_PRICE}코인` : "필요 없음"}</em></button></div></article>
+          <article className="ms-shop"><header><small>FIELD SUPPLY</small><h2>소모품</h2></header><div><button type="button" disabled={mosquitoRepellentReady || campaign.coins < MOSQUITO_REPELLENT_PRICE} onClick={buyMosquitoRepellent}><i>✹</i><span><b>해충기피제</b><small>언제 나타날지 모를 모기떼에 대비합니다. 다음 갯벌 1회 동안 피해를 막습니다.</small></span><em>{mosquitoRepellentReady ? "준비 완료" : `${MOSQUITO_REPELLENT_PRICE}코인`}</em></button></div></article>
           <article className="ms-shop"><header><small>RECOVERY FOOD</small><h2>체력 회복 음식</h2></header><div>{MUDFLAT_RECOVERY_FOODS.map((food) => <button type="button" key={food.id} disabled={campaign.hp >= campaign.maxHp || campaign.coins < food.price} onClick={() => buyFood(food.id)}><i>{food.icon}</i><span><b>{food.name}</b><small>{food.description} 구매 즉시 먹습니다.</small></span><em>{food.price}코인</em></button>)}</div></article>
           <article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const level = campaign.levels[skill.id] ?? 0; const price = mudflatTrainingPrice(level); return <button type="button" key={skill.id} disabled={level >= skill.max || campaign.coins < price} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{level >= skill.max ? "최고 레벨" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
         </div>
