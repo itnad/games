@@ -1265,6 +1265,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /className="ms-camp-skill-levels" aria-label="채집기술 레벨"/);
   assert.match(source, /<h3>채집기술<\/h3>/);
   assert.match(source, /GENERAL_SKILL_LABELS\[skill\.id\] \?\? skill\.name/);
+  assert.match(source, /<p>선택 기술 \{normalSkills\.length\} \/ 6 · 집게와 호미질은 기본 기술입니다\.<\/p>/);
+  assert.match(source, /className="ms-skill-slots">기본 기술 이외에 6개의 채집 기술을 익힐 수 있습니다\.<\/small>/);
+  assert.doesNotMatch(source, /선택하는 동안 갯벌의 시간은 멈춥니다/);
   assert.match(styles, /\.ms-camp-skill-levels\{/);
   assert.match(styles, /\.ms-camp-skill-levels span\.is-empty/);
   assert.match(styles, /\.ms-layer button:not\(:disabled\)\{-webkit-tap-highlight-color:transparent;touch-action:manipulation/);
