@@ -1272,6 +1272,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-camp-skill-levels span\.is-empty/);
   assert.match(styles, /\.ms-layer button:not\(:disabled\)\{-webkit-tap-highlight-color:transparent;touch-action:manipulation/);
   assert.match(styles, /\.ms-defeat-art\{display:block;width:min\(310px,76vw\);height:auto;aspect-ratio:980\/404;object-fit:contain;margin:0 auto 16px;/);
+  assert.match(styles, /\.ms-result\.defeat \.ms-result-grid\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(styles, /@media\(max-width:600px\)\{[\s\S]*?\.ms-result\.defeat \.ms-result-grid\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.ms-layer section>div button:not\(:disabled\):active\{transform:translateY\(1px\) scale\(\.982\)/);
   assert.match(styles, /\.ms-layer\.pause \.ms-primary:not\(:disabled\):active/);
   assert.match(source, /function drawMudflat\(/);
