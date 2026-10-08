@@ -111,11 +111,11 @@ export function mudflatMarketImageScale(type) {
 }
 
 export const MUDFLAT_SHOP_EQUIPMENT = [
-  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "소라와 골뱅이를 밝혀 내는 범위가 넓어집니다.", max: 6 },
-  { id: "cooler", icon: "▣", name: "조과통 업그레이드", description: "채집 한도를 늘립니다.", max: 6 },
-  { id: "vest", icon: "♥", name: "작업 조끼", description: "최대 체력과 출혈 저항을 높입니다.", max: 6 },
-  { id: "gloves", icon: "⌁", name: "장갑 업그레이드", description: "모든 채집 도구의 위력을 높입니다.", max: 6 },
-  { id: "waders", icon: "≫", name: "장화 밑창 업그레이드", description: "지형 이동 저항과 최대 체력을 개선합니다.", max: 6 },
+  { id: "headlamp", icon: "◉", name: "헤드랜턴", description: "소라·골뱅이 발견 범위와 어두운 갯벌 시야가 넓어집니다.", max: 6 },
+  { id: "cooler", icon: "▣", name: "조과통 업그레이드", description: "한 번에 담을 수 있는 채집 한도를 늘립니다.", max: 6 },
+  { id: "vest", icon: "♥", name: "작업 조끼", description: "최대 체력이 늘고 복어 접촉 출혈 시간이 줄어듭니다.", max: 6 },
+  { id: "gloves", icon: "⌁", name: "장갑 업그레이드", description: "집게·호미질·뜰채·작살·전기·그물 피해가 상승합니다.", max: 6 },
+  { id: "waders", icon: "≫", name: "장화 밑창 업그레이드", description: "물골·깊은 펄 이동 페널티가 줄고 최대 체력이 늘어납니다.", max: 6 },
 ];
 
 export const MUDFLAT_CATCH_CAPACITIES = [500, 800, 1200, 1700, 2300, 3000, 3800];
@@ -143,15 +143,15 @@ export const MUDFLAT_UPGRADES = [
 
 export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "basket", icon: "◉", name: "쓸어담기", description: "경험치와 보상을 끌어당기는 범위가 넓어집니다.", max: 6 },
-  { id: "tongs", icon: "⌁", name: "집게 숙련도", description: "집게를 쓰는 방식과 파워가 상승합니다.", max: 6 },
+  { id: "tongs", icon: "⌁", name: "집게 숙련도", description: "집게 회전 속도와 위력이 상승합니다.", max: 6 },
   { id: "harpoon", icon: "➶", name: "작살던지기", description: "가장 가까운 해산물을 향해 여러 대상을 관통하는 작살을 던집니다.", max: 6 },
   { id: "boots", icon: "≫", name: "갯벌 장화", description: "깊은 펄에서 발 빠짐이 줄고, 이동속도가 빨라집니다.", max: 6 },
   { id: "snack", icon: "♥", name: "든든한 간식", description: "최대 체력이 기본 대비 20% 상승하며 현재 체력을 전부 회복합니다.", max: 6 },
   { id: "rocker", icon: "◆", name: "돌뒤집개", description: "돌 밑에 숨어있는 해산물을 더 빨리 더 잘 찾아낼 수 있습니다.", max: 6 },
-  { id: "net", icon: "◇", name: "뜰채", description: "넓은 범위의 채집이 가능합니다.", max: 6 },
+  { id: "net", icon: "◇", name: "뜰채", description: "화면 안의 가까운 해산물에게 자동으로 뜰채를 던집니다.", max: 6 },
   { id: "digging", icon: "⌁", name: "호미질", description: "조개 구멍에서 더 좋은 조개를 찾을 확률이 높아집니다.", max: 6 },
-  { id: "electric", icon: "ϟ", name: "전기 스파크", description: "기본 집게 사거리 안의 해산물 모두에 주기적으로 전기 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 1 },
-  { id: "cast-net", icon: "⌗", name: "그물 투척", description: "떨어진 해산물 무리에 그물을 펼쳐 잠시 붙잡고, 조여서 한꺼번에 채집합니다.", max: 6, advanced: true, requiredMasteries: 2 },
+  { id: "electric", icon: "ϟ", name: "전기 스파크", description: "체력이 충분할 때 집게 범위의 해산물에게 주기적으로 전기 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 1 },
+  { id: "cast-net", icon: "⌗", name: "그물 투척", description: "해산물이 모인 빈 갯벌에 그물을 펼쳐 잠시 붙잡고 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 2 },
 ];
 
 // 집게와 호미질은 모든 일반 원정에 기본으로 장착되는 채집 도구다.

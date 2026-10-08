@@ -267,7 +267,7 @@ function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[number], le
   }
   if (skill.id === "electric") {
     const current = mudflatElectricStats(safeLevel); const next = mudflatElectricStats(nextLevel);
-    return { current: `기본 집게 사거리 ${current.reach}px · ${current.interval.toFixed(1)}초마다 ${current.damage} 피해`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 기본 집게 사거리 ${next.reach}px · ${next.interval.toFixed(1)}초마다 ${next.damage} 피해` };
+    return { current: `체력 50 초과 시 기본 집게 사거리 ${current.reach}px · ${current.interval.toFixed(1)}초마다 ${current.damage} 피해`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.interval.toFixed(1)}초마다 ${next.damage} 피해 · 10초마다 체력 5 소모` };
   }
   if (skill.id === "cast-net") {
     const current = mudflatCastNetStats(safeLevel); const next = mudflatCastNetStats(nextLevel);
@@ -295,6 +295,11 @@ function mudflatStageHazardNotes(profile: StageProfile) {
   if (profile.darkness >= DARK_STAGE_VISION_DARKNESS) notes.push("어둠 · 시야 제한");
   if (profile.stage === GAEBUL_STAGE) notes.push("깊은 펄 · 감속과 발 빠짐");
   return notes;
+}
+
+function mudflatStageRouteSummary(profile: StageProfile) {
+  const notes = mudflatStageHazardNotes(profile);
+  return notes.length > 0 ? notes.slice(0, 2).join(" · ") : "기본 이동과 채집 흐름을 익히는 단계";
 }
 
 function withoutMosquitoRepellent(equipment: CountMap) {
@@ -3632,6 +3637,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   }, [persistActiveRun, resetMovementInput, screen]);
   const seafoodGuideStage = screen === "running" || screen === "paused" || screen === "upgrade" ? hud.stage : campaign?.stage ?? savedCampaign?.stage ?? selectedStage;
   const seafoodGuideLayer = seafoodGuideOpen ? <MudflatSeafoodGuide activeStage={seafoodGuideStage} onClose={() => setSeafoodGuideOpen(false)} /> : null;
+  const routeStageProfiles = [...MUDFLAT_REGULAR_STAGES.map((stage) => mudflatStageProfile(stage.stage) as StageProfile), mudflatStageProfile(9) as StageProfile];
+  const selectedRouteProfile = routeStageProfiles.find((stage) => stage.stage === selectedStage) ?? (mudflatStageProfile(1) as StageProfile);
+  const selectedRouteStats = mudflatStageStats(selectedRouteProfile.stage);
+  const selectedRouteHazards = mudflatStageHazardNotes(selectedRouteProfile);
 
   if (screen === "setup") return (
     <main className="ms-shell ms-setup" data-game-menu>
@@ -3723,11 +3732,23 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <summary><span><small>EXPEDITION ROUTE</small><b>원정 경로·단계 선택</b></span><i>⌄</i></summary>
           <div className="ms-stage-route">
             <p>열린 갯벌을 골라 새 원정을 시작하세요. 재도전하면 장비·기술·경험치·코인은 모두 처음 상태입니다.</p>
-            <div className="ms-stage-route-list">{[...MUDFLAT_REGULAR_STAGES, { stage: 9, name: "끝없는 물때", modifiers: ["지형·날씨·생물·보조 목표 무작위 조합"] }].map((stage) => {
+            <div className="ms-stage-route-list">{routeStageProfiles.map((stage) => {
               const unlocked = stage.stage <= highestUnlockedStage;
               const selected = selectedStage === stage.stage;
-              return <MudflatHoldButton key={`${mode}:${stage.stage}`} className={`${stage.stage === 9 ? "endless " : ""}${selected ? "selected " : ""}${unlocked ? "unlocked" : "locked"}`} disabled={!unlocked} aria-pressed={selected} onShort={() => setSelectedStage(stage.stage)} onLong={() => { if (mode === "normal") beginAtStage(stage.stage, true); else setSelectedStage(stage.stage); }}><i>{stage.stage === 9 ? "9+" : stage.stage}</i><span><b>{stage.name}</b><small>{stage.modifiers.join(" · ")}</small></span><em>{unlocked ? (selected ? "선택됨" : "선택") : "잠김"}</em></MudflatHoldButton>;
+              return <MudflatHoldButton key={`${mode}:${stage.stage}`} className={`${stage.stage === 9 ? "endless " : ""}${selected ? "selected " : ""}${unlocked ? "unlocked" : "locked"}`} disabled={!unlocked} aria-pressed={selected} onShort={() => setSelectedStage(stage.stage)} onLong={() => { if (mode === "normal") beginAtStage(stage.stage, true); else setSelectedStage(stage.stage); }}><i>{stage.stage === 9 ? "9+" : stage.stage}</i><span><b>{stage.name}</b><small>{stage.subtitle}</small><strong>{stage.modifiers.slice(0, 4).join(" · ")}</strong></span><em>{unlocked ? (selected ? "선택됨" : "선택") : "잠김"}</em></MudflatHoldButton>;
             })}</div>
+            <aside className="ms-stage-route-preview" aria-live="polite">
+              <small>선택한 갯벌 요약</small>
+              <b>{selectedRouteProfile.stage === 9 ? "끝없는 물때" : `${selectedRouteProfile.stage}단계 · ${selectedRouteProfile.name}`}</b>
+              <p>{selectedRouteProfile.subtitle}</p>
+              <div className="ms-stage-modifiers">{selectedRouteProfile.modifiers.map((modifier: string) => <em key={modifier}>{modifier}</em>)}</div>
+              <ul>{selectedRouteHazards.length > 0 ? selectedRouteHazards.map((note) => <li key={note}>{note}</li>) : <li>{mudflatStageRouteSummary(selectedRouteProfile)}</li>}</ul>
+              <div className="ms-stage-route-stats">
+                <span><small>해산물 체력</small><b>×{selectedRouteStats.creatureHpMultiplier.toFixed(2)}</b></span>
+                <span><small>접촉 피해</small><b>+{selectedRouteStats.contactDamageBonus}</b></span>
+                <span><small>바위 한도</small><b>{selectedRouteStats.rockLimit}</b></span>
+              </div>
+            </aside>
           </div>
         </details>
       </section>
