@@ -3436,6 +3436,7 @@ test("experience attraction respects its radius, tracks movement, and freezes sa
 
 test("keeps experience flights above gameplay art and uses the requested two-line retry note", async () => {
   const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
   assert.equal((source.match(/runtime\.pickups\.push\(createExperiencePickup\(/g) ?? []).length, 2, "both creature and clam rewards use the animation");
   assert.match(source, /advanceExperiencePickup\(pickup, runtime\.player, pickupRadius, dt, inBaseCamp\)/);
   assert.doesNotMatch(source, /if \(distance < 22\).*runtime\.xp/);
@@ -3444,6 +3445,7 @@ test("keeps experience flights above gameplay art and uses the requested two-lin
   assert.match(source, /if \(earnedExperience > 0\) \{ hudClock = 0; snapshot\(runtime\); \}/);
   assert.match(source, /data-xp-collecting=\{hud\.xpCollecting \|\| undefined\}/);
   assert.match(source, /<p className="ms-reentry-note">한 번 성공한 스테이지는 언제든 재도전 가능합니다\.<br \/>하지만 장비·기술·경험치·코인은 모두 초기화됩니다\.<\/p>/);
+  assert.match(styles, /\.ms-result\.defeat \.ms-reentry-note\{margin:10px 0 18px!important;color:#d6cbc7!important\}/);
   assert.doesNotMatch(source, /한 번 연 스테이지는 유지됩니다/);
 });
 
