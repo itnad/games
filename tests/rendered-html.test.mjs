@@ -461,7 +461,7 @@ test("folds the mudflat departure panel and keeps its guide out of the active HU
   assert.match(guide, /modal && inline \? createPortal\(modal, document.body\) : modal/);
 });
 
-test("shows an in-game mudflat seafood guide with market-backed table data", async () => {
+test("shows an in-game mudflat seafood guide with collapsible market-backed entries", async () => {
   const [source, styles] = await Promise.all([
     readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8"),
@@ -471,12 +471,17 @@ test("shows an in-game mudflat seafood guide with market-backed table data", asy
   assert.match(source, /aria-label="해산물 도감 열기"/);
   assert.match(source, /className="ms-seafood-guide-link"/);
   assert.match(source, /className="ms-pause-guide-button"[\s\S]*해산물 도감 보기/);
-  assert.match(source, /<th>해산물<\/th><th>분류<\/th><th>체력<\/th><th>경험치·점수<\/th><th>판매가<\/th><th>등장·채집<\/th><th>특징과 팁<\/th>/);
+  assert.match(source, /전체 해산물 목록을 먼저 훑어보고/);
+  assert.match(source, /className="ms-seafood-list" role="list" aria-label="해산물 요약 목록"/);
+  assert.match(source, /<details key=\{entry\.type\} className=\{`ms-seafood-card\$\{entry\.focus \? " is-focus" : ""\}`\} role="listitem">/);
+  assert.match(source, /<summary>[\s\S]*className="ms-seafood-summary"[\s\S]*자세히/);
+  assert.match(source, /className="ms-seafood-detail"[\s\S]*<small>체력<\/small>[\s\S]*<small>경험치·점수<\/small>[\s\S]*<small>등장·채집<\/small>/);
   assert.match(source, /if \(type === MUDFLAT_GAEBUL\.id\) return "5단계 깊은 펄"/);
   assert.match(source, /if \(type === MUDFLAT_PEARL\.id\) return "호미질 희귀 보상"/);
   assert.match(styles, /\.ms-layer\.ms-seafood-guide\{z-index:80/);
-  assert.match(styles, /\.ms-seafood-table\{width:100%;border-collapse:separate/);
-  assert.match(styles, /\.ms-seafood-table td::before\{content:attr\(data-label\)/);
+  assert.match(styles, /\.ms-seafood-list\{min-height:0;overflow:auto;[\s\S]*?gap:8px/);
+  assert.match(styles, /\.ms-seafood-card summary\{[\s\S]*?grid-template-columns:minmax\(170px,1\.35fr\) minmax\(150px,1fr\) auto 72px/);
+  assert.match(styles, /\.ms-seafood-detail\{[\s\S]*?grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.ms-seafood-thumb\{width:42px;height:42px/);
 });
 

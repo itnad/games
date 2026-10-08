@@ -1844,26 +1844,29 @@ function MudflatSeafoodGuide({ activeStage, onClose }: { activeStage: number; on
         <button type="button" className="ms-seafood-close" aria-label="해산물 도감 닫기" onClick={onClose}>×</button>
         <small>SEAFOOD GUIDE</small>
         <h2>해산물 도감</h2>
-        <p>채집 대상별 체력, 경험치·점수, 판매가와 등장 방식을 한눈에 확인할 수 있습니다.</p>
+        <p>전체 해산물 목록을 먼저 훑어보고, 궁금한 항목을 눌러 체력·보상·채집 팁을 펼쳐볼 수 있습니다.</p>
         <div className="ms-seafood-stage-note">
           <span><b>현재 확인 중</b>{stage}단계 · {profile.name}</span>
           <em>{profile.modifiers.slice(0, 3).join(" · ") || "기본 갯벌"}</em>
         </div>
-        <div className="ms-seafood-table-wrap" role="region" aria-label="해산물 목록 표" tabIndex={0}>
-          <table className="ms-seafood-table">
-            <thead><tr><th>해산물</th><th>분류</th><th>체력</th><th>경험치·점수</th><th>판매가</th><th>등장·채집</th><th>특징과 팁</th></tr></thead>
-            <tbody>{MUDFLAT_SEAFOOD_GUIDE.map((entry) => (
-              <tr key={entry.type} className={entry.focus ? "is-focus" : undefined}>
-                <td data-label="해산물"><span className="ms-seafood-name"><img className="ms-seafood-thumb" src={entry.image} alt="" /> <b>{entry.name}</b>{entry.focus && <em>{entry.focus}</em>}</span></td>
-                <td data-label="분류">{entry.category}</td>
-                <td data-label="체력">{entry.hp}</td>
-                <td data-label="경험치·점수">{entry.xp}</td>
-                <td data-label="판매가"><strong>{entry.price}</strong></td>
-                <td data-label="등장·채집">{entry.appears}</td>
-                <td data-label="특징과 팁"><span className="ms-seafood-tip"><b>{entry.feature}</b><small>{entry.tip}</small></span></td>
-              </tr>
-            ))}</tbody>
-          </table>
+        <div className="ms-seafood-list" role="list" aria-label="해산물 요약 목록" tabIndex={0}>
+          {MUDFLAT_SEAFOOD_GUIDE.map((entry) => (
+            <details key={entry.type} className={`ms-seafood-card${entry.focus ? " is-focus" : ""}`} role="listitem">
+              <summary>
+                <span className="ms-seafood-name"><img className="ms-seafood-thumb" src={entry.image} alt="" /> <b>{entry.name}</b>{entry.focus && <em>{entry.focus}</em>}</span>
+                <span className="ms-seafood-summary"><b>{entry.category}</b><small>{entry.appears}</small></span>
+                <strong>{entry.price}</strong>
+                <i aria-hidden="true">자세히</i>
+              </summary>
+              <div className="ms-seafood-detail">
+                <span><small>체력</small><b>{entry.hp}</b></span>
+                <span><small>경험치·점수</small><b>{entry.xp}</b></span>
+                <span><small>판매가</small><b>{entry.price}</b></span>
+                <span><small>등장·채집</small><b>{entry.appears}</b></span>
+                <p><b>{entry.feature}</b><small>{entry.tip}</small></p>
+              </div>
+            </details>
+          ))}
         </div>
       </section>
     </div>
