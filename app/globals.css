@@ -298,6 +298,40 @@ a:focus-visible {
   color: white;
 }
 
+.app-update-notice.is-game.is-collapsed {
+  width: 56px;
+  min-height: 56px;
+  max-width: 56px;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  box-shadow: 0 8px 24px rgba(45, 25, 83, .22);
+  backdrop-filter: none;
+  overflow: visible;
+}
+
+.app-update-notice.is-game.is-collapsed > span {
+  display: none;
+}
+
+.app-update-notice.is-game.is-collapsed button {
+  width: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  margin-left: 0;
+  padding: 0;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  gap: 0;
+}
+
+.app-update-notice.is-game.is-collapsed .app-update-label {
+  display: none;
+}
+
 .app-update-notice button:disabled {
   cursor: wait;
   opacity: .82;
@@ -350,6 +384,20 @@ a:focus-visible {
     min-width: 96px;
     min-height: 46px;
     padding-inline: 10px;
+  }
+  .app-update-notice.is-game.is-collapsed {
+    width: 56px;
+    min-height: 56px;
+    max-width: 56px;
+    padding: 0;
+    gap: 0;
+  }
+  .app-update-notice.is-game.is-collapsed button {
+    width: 56px;
+    min-width: 56px;
+    min-height: 56px;
+    margin-left: 0;
+    padding: 0;
   }
 }
 

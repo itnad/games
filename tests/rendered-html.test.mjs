@@ -746,7 +746,7 @@ test("detects published site updates and refreshes only through safe user action
   assert.match(pageSource, /onActiveGameChange\(activeGame\)/);
   assert.match(pageSource, /placement=\{activeGameForUpdate \? "game" : "home"\}/);
   assert.match(pageSource, /placement\?: "home" \| "game"/);
-  assert.match(pageSource, /const shouldCollapse = isCollapsed && !isGamePlacement/);
+  assert.match(pageSource, /const shouldCollapse = isCollapsed/);
   assert.match(pageSource, /app-update-notice \$\{isGamePlacement \? "is-game" : ""\} \$\{shouldCollapse \? "is-collapsed" : ""\}/);
   assert.match(pageSource, /새 버전이 준비되었습니다/);
   assert.match(pageSource, /게임 나가기나 새 게임 시작 시 자동으로 반영됩니다\./);
@@ -767,7 +767,10 @@ test("detects published site updates and refreshes only through safe user action
   assert.match(styles, /\.app-update-notice\.is-collapsed > span\s*\{[^}]*display:\s*none;/);
   assert.match(styles, /\.app-update-notice\.is-game\s*\{[\s\S]*?width:\s*min\(440px,[\s\S]*?top:\s*max\(96px,[\s\S]*?bottom:\s*auto;[\s\S]*?background:\s*rgba\(35,\s*29,\s*48,\s*\.96\);/);
   assert.match(styles, /\.app-update-notice\.is-game > span\s*\{[^}]*display:\s*grid;/);
-  assert.doesNotMatch(styles, /\.app-update-notice\.is-game\.is-collapsed/);
+  assert.match(styles, /\.app-update-notice\.is-game\.is-collapsed\s*\{[\s\S]*?width:\s*56px;[\s\S]*?max-width:\s*56px;[\s\S]*?background:\s*transparent;/);
+  assert.match(styles, /\.app-update-notice\.is-game\.is-collapsed > span\s*\{[^}]*display:\s*none;/);
+  assert.match(styles, /\.app-update-notice\.is-game\.is-collapsed button\s*\{[\s\S]*?width:\s*56px;[\s\S]*?display:\s*grid;[\s\S]*?place-items:\s*center;/);
+  assert.match(styles, /\.app-update-notice\.is-game\.is-collapsed \.app-update-label\s*\{[^}]*display:\s*none;/);
   assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.app-update-notice\.is-game\s*\{[\s\S]*?top:\s*max\(154px,[\s\S]*?bottom:\s*auto;/);
   assert.match(styles, /\.app-update-refresh-icon svg\s*\{[\s\S]*?width:\s*22px;[\s\S]*?height:\s*22px;[\s\S]*?stroke:\s*currentColor;/);
   assert.doesNotMatch(styles, /\.app-update-notice\.is-collapsed \.app-update-refresh-icon\s*\{\s*translate:/);

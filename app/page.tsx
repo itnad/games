@@ -2392,7 +2392,7 @@ function AppUpdateNotice({ onUpdate, placement = "home" }: { onUpdate: () => voi
   const [isUpdating, setIsUpdating] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const isGamePlacement = placement === "game";
-  const shouldCollapse = isCollapsed && !isGamePlacement;
+  const shouldCollapse = isCollapsed;
   useEffect(() => {
     const collapseTimer = window.setTimeout(() => setIsCollapsed(true), 2000);
     return () => window.clearTimeout(collapseTimer);
