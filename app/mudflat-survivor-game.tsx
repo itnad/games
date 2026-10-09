@@ -1162,7 +1162,7 @@ function drawMudflat(
 
 function creatureSpriteHorizontalScale(creature: Creature) {
   const facesRight = (creature.facing ?? 1) > 0;
-  const artworkFacesRight = creature.type !== "large-shrimp";
+  const artworkFacesRight = creature.type !== "large-shrimp" && creature.type !== "shrimp";
   return facesRight === artworkFacesRight ? 1 : -1;
 }
 
@@ -1186,7 +1186,8 @@ function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creatur
     const scale = Math.min(maxWidth / sprite.naturalWidth, maxHeight / sprite.naturalHeight);
     const drawWidth = sprite.naturalWidth * scale;
     const drawHeight = sprite.naturalHeight * scale;
-    context.filter = creature.hitFlash > 0 ? "brightness(1.8) saturate(.6)" : "none";
+    const smallShrimpTone = creature.type === "shrimp" ? "sepia(.24) saturate(.55) hue-rotate(336deg) brightness(1.14) contrast(.92)" : "none";
+    context.filter = creature.hitFlash > 0 ? "brightness(1.8) saturate(.6)" : smallShrimpTone;
     context.drawImage(sprite, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
     context.restore();
     return;
@@ -1853,7 +1854,7 @@ function MudflatSeafoodGuide({ activeStage, onClose }: { activeStage: number; on
           {MUDFLAT_SEAFOOD_GUIDE.map((entry) => (
             <details key={entry.type} className={`ms-seafood-card${entry.focus ? " is-focus" : ""}`} role="listitem">
               <summary>
-                <span className="ms-seafood-name"><img className="ms-seafood-thumb" src={entry.image} alt="" /> <b>{entry.name}</b>{entry.focus && <em>{entry.focus}</em>}</span>
+                <span className="ms-seafood-name"><img className={`ms-seafood-thumb${entry.type === "shrimp" ? " is-small-shrimp" : ""}`} src={entry.image} alt="" /> <b>{entry.name}</b>{entry.focus && <em>{entry.focus}</em>}</span>
                 <span className="ms-seafood-summary"><b>{entry.category}</b><small>{entry.appears}</small></span>
                 <strong>{entry.price}</strong>
                 <i aria-hidden="true">자세히</i>
@@ -3789,7 +3790,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
               const marketScale = mudflatMarketImageScale(item.type);
               const isVertical = MUDFLAT_CLAM_GRADES.find((grade) => grade.id === item.type)?.vertical;
               return <div className={`ms-market-cell${marketScale !== 1 ? " is-scaled" : ""}${isVertical ? " is-vertical" : ""}`} role="cell" key={item.type} style={{ "--ms-market-scale": marketScale } as CSSProperties}>
-                <img src={item.image} alt="" />
+                <img className={item.type === "shrimp" ? "is-small-shrimp" : undefined} src={item.image} alt="" />
                 <b>{item.name}</b>
                 <small>{count.toLocaleString()}×{item.price}C</small>
               </div>;

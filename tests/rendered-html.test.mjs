@@ -479,10 +479,12 @@ test("shows an in-game mudflat seafood guide with collapsible market-backed entr
   assert.match(source, /if \(type === MUDFLAT_GAEBUL\.id\) return "5단계 깊은 펄"/);
   assert.match(source, /if \(type === MUDFLAT_PEARL\.id\) return "호미질 희귀 보상"/);
   assert.match(styles, /\.ms-layer\.ms-seafood-guide\{z-index:80/);
-  assert.match(styles, /\.ms-seafood-list\{min-height:0;overflow:auto;[\s\S]*?gap:8px/);
+  assert.match(styles, /\.ms-layer\.ms-seafood-guide>section\{[\s\S]*?grid-template-rows:auto auto auto auto minmax\(0,1fr\)/);
+  assert.match(styles, /\.ms-seafood-list\{min-height:0;overflow:auto;[\s\S]*?grid-template-columns:1fr;[\s\S]*?gap:8px/);
   assert.match(styles, /\.ms-seafood-card summary\{[\s\S]*?grid-template-columns:minmax\(170px,1\.35fr\) minmax\(150px,1fr\) auto 72px/);
   assert.match(styles, /\.ms-seafood-detail\{[\s\S]*?grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.ms-seafood-thumb\{width:42px;height:42px/);
+  assert.match(styles, /\.ms-seafood-thumb\.is-small-shrimp\{filter:sepia\(\.24\) saturate\(\.55\)/);
 });
 
 test("provides a complete objective and victory guide for every game", async () => {
@@ -1113,12 +1115,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   const smallShrimp = MUDFLAT_CREATURES.find((creature) => creature.id === "shrimp");
   const largeShrimp = MUDFLAT_CREATURES.find((creature) => creature.id === "large-shrimp");
   assert.equal(smallShrimp.name, "작은 새우");
-  assert.equal(smallShrimp.sprite, "/mudflat-creatures/small-shrimp.svg");
+  assert.equal(smallShrimp.sprite, "/mudflat-creatures/shrimp.png");
   assert.equal(smallShrimp.size, 14 * .8);
-  const smallShrimpSvg = await readFile(new URL("../public/mudflat-creatures/small-shrimp.svg", import.meta.url), "utf8");
-  assert.match(smallShrimpSvg, /id="curved-body"/);
-  assert.match(smallShrimpSvg, /id="tail-fan"/);
-  assert.match(smallShrimpSvg, /id="antennae"/);
+  assert.equal(MUDFLAT_SEAFOOD_MARKET.find((item) => item.type === "shrimp").image, "/mudflat-creatures/shrimp.png");
   assert.equal(largeShrimp.name, "새우");
   assert.equal(largeShrimp.sprite, "/mudflat-creatures/shrimp.png");
   assert.equal(largeShrimp.hp, 5 * 1.5);
@@ -1295,7 +1294,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawCreatureSprite\(/);
   assert.match(source, /const DIRECTIONAL_SEAFOOD_TYPES = new Set\(\["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp", "large-shrimp"\]\)/);
   assert.match(source, /function creatureSpriteHorizontalScale\(creature: Creature\)/);
-  assert.match(source, /const artworkFacesRight = creature\.type !== "large-shrimp"/);
+  assert.match(source, /const artworkFacesRight = creature\.type !== "large-shrimp" && creature\.type !== "shrimp"/);
+  assert.match(source, /const smallShrimpTone = creature\.type === "shrimp" \? "sepia\(\.24\) saturate\(\.55\) hue-rotate\(336deg\) brightness\(1\.14\) contrast\(\.92\)" : "none"/);
   assert.match(source, /context\.scale\(creatureSpriteHorizontalScale\(creature\), 1\)/);
   assert.match(source, /const previousX = creature\.x/);
   assert.match(source, /creature\.facing = creature\.x > previousX \? 1 : -1/);
@@ -1640,7 +1640,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.doesNotMatch(source, /paperoid · MUDFLAT ACTION/);
   assert.match(source, /creature\.family === "crab"/);
   assert.match(await readFile(new URL("../app/page.tsx", import.meta.url), "utf8"), /mudflat-creatures\/crab\.png/);
-  assert.match(engineSource, /mudflat-creatures\/small-shrimp\.svg/);
+  assert.doesNotMatch(engineSource, /mudflat-creatures\/small-shrimp\.svg/);
   assert.match(engineSource, /mudflat-creatures\/shrimp\.png/);
   assert.match(engineSource, /mudflat-creatures\/whelk\.png/);
   assert.match(engineSource, /mudflat-creatures\/golbaengi-v2\.png/);
