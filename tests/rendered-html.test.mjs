@@ -179,6 +179,7 @@ import {
   mudflatTrainingPrice,
   mudflatUpgradeChoices,
 } from "../app/mudflat-survivor-engine.js";
+
 import {
   EPIC_DUELS_MAPS,
   EPIC_DUELS_TEAMS,
@@ -281,6 +282,17 @@ import {
   baccaratResolveHands,
   baccaratShouldBankerDraw,
 } from "../app/baccarat-engine.js";
+
+async function readMudflatSourceBundle() {
+  const files = [
+    "../app/mudflat-survivor-game.tsx",
+    "../app/mudflat-survivor-model.ts",
+    "../app/mudflat-survivor-types.ts",
+    "../app/mudflat-canvas-utils.ts",
+    "../app/mudflat-seafood-guide.tsx",
+  ];
+  return (await Promise.all(files.map((file) => readFile(new URL(file, import.meta.url), "utf8")))).join("\n");
+}
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -409,7 +421,7 @@ test("uses the game guide as a normal topbar action instead of a duplicate exit 
 
 test("folds the mudflat departure panel and keeps its guide out of the active HUD", async () => {
   const [source, styles, page, guide] = await Promise.all([
-    readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8"),
+    readMudflatSourceBundle(),
     readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/game-objective-guide.tsx", import.meta.url), "utf8"),
@@ -463,7 +475,7 @@ test("folds the mudflat departure panel and keeps its guide out of the active HU
 
 test("shows an in-game mudflat seafood guide with collapsible market-backed entries", async () => {
   const [source, styles] = await Promise.all([
-    readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8"),
+    readMudflatSourceBundle(),
     readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8"),
   ]);
   assert.match(source, /function MudflatSeafoodGuide\(\{ activeStage, onClose \}/);
@@ -1227,7 +1239,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatEndlessObjectiveResult({ objective: { id: "rocks", label: "돌 3개", target: 3, bonus: 50 } }, { rocksFlipped: 3 }).bonus, 50);
   assert.ok(mudflatFinalScore({ catchScore: 1000, caught: 50, elapsed: 240, bossCaught: true }) > 4000);
 
-  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const source = await readMudflatSourceBundle();
   const engineSource = await readFile(new URL("../app/mudflat-survivor-engine.js", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
   const defeatPng = await readFile(new URL("../public/mudflat-illustrations/defeat-gatherer.png", import.meta.url));
@@ -1264,7 +1276,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /hud\.stage === 9 \? "끝없는 물때 재도전" : `\$\{hud\.stage\}단계 재도전`/);
   assert.doesNotMatch(source, /onClick=\{\(\) => setScreen\("camp"\)\}>정비소에서 재도전/);
   assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
-  assert.match(source, /totalScore: number; lastBossCaught: boolean/);
+  assert.match(source, /totalScore: number;\s*lastBossCaught: boolean/);
   assert.match(source, /lastBossCaught: runtime\.bossCaught/);
   assert.match(source, /단계에서 잡은 \$\{settlement\.catchCount\}마리를 판매해서 \$\{autoSale\.value\}코인을 얻었습니다/);
   assert.match(source, /<small>대왕 박하지<\/small><b>\{campaign\.lastBossCaught \? "포획" : "미포획"\}<\/b>/);
@@ -2999,7 +3011,7 @@ test("opens public games from direct URLs and keeps history URLs in sync", async
 });
 
 test("guards phone system back during a live Mudflat run with the same exit dialog", async () => {
-  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const source = await readMudflatSourceBundle();
 
   assert.match(source, /const MUDFLAT_BACK_GUARD_STATE = "paperoidMudflatRunBackGuard"/);
   assert.match(source, /const mudflatSystemBackGuardScreen = \(screen: Screen\) => screen === "running" \|\| screen === "paused" \|\| screen === "upgrade"/);
@@ -3151,7 +3163,7 @@ test("secret defeat retry preserves progression, restores full HP, and resets th
     assert.equal(saved.progress.basket.crab, 9);
     assert.equal(fresh.player.hp, 140, "restoring does not mutate the template");
   }
-  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const source = await readMudflatSourceBundle();
   assert.match(source, /defeatRetryRef.current = campaignRef.current \? createDefeatRetrySnapshot\(campaignRef.current, runtime\) : null/);
   const defeat = source.slice(source.indexOf('if (screen === "defeat") return'), source.indexOf('const pauseLayer ='));
   assert.match(defeat, /onClick=\{reset\}>메인 화면으로/);
@@ -3178,7 +3190,7 @@ test("secret route entry sets only the requested skills and leaves ordinary star
   }
   const kids = { mode: "kids", levels: { hoe: 2, basket: 0 } };
   assert.equal(withSecretExpeditionSkills(kids), kids, "normal-mode-only skills must not leak into kids mode");
-  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const source = await readMudflatSourceBundle();
   const route = source.slice(source.indexOf('<div className="ms-stage-route-list">'), source.indexOf('if (screen === "camp" && campaign)'));
   assert.match(route, /<MudflatHoldButton key=\{`\$\{mode\}:\$\{stage.stage\}`\}/);
   assert.match(route, /disabled=\{!unlocked\}/);
@@ -3249,7 +3261,7 @@ test("children's automatic net only acquires and follows targets inside the live
     assert.equal(mudflatKidsNetCanTarget(target, { ...player, x: player.x - 10 }, width, height), false);
     assert.equal(mudflatKidsNetCanTarget(target, player, width / 2, height), false);
   }
-  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const source = await readMudflatSourceBundle();
   assert.match(source, /const netTargets = runtime.mode === "kids"[\s\S]*?revealedCreatures.filter\(\(creature\) => creature.hp > 0 && mudflatKidsNetCanTarget\(creature, runtime.player, width, height\)\)[\s\S]*?: revealedCreatures/);
   assert.match(source, /runtime.netClock <= 0 && netTargets.length/);
   assert.match(source, /const target = netTargets.reduce/);
@@ -3303,7 +3315,7 @@ test("children's collection effects preserve range, orbit, and canvas state", as
 });
 
 test("uses the salt spirit name throughout the children's mode without renaming normal digging", async () => {
-  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const source = await readMudflatSourceBundle();
   assert.equal(MUDFLAT_UPGRADES.find((skill) => skill.id === "salt").name, "소금 결정의 정령");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === "digging").name, "호미질");
   assert.equal(MUDFLAT_UPGRADES.find((skill) => skill.id === "hoe").name, "갯벌 파동");
@@ -3368,7 +3380,7 @@ test("preloads and caches Lumi art, reports failures, and retries without a defa
       else delete globalThis[key];
     }
   }
-  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const source = await readMudflatSourceBundle();
   assert.match(source, /const startLumiHold[\s\S]*?loadLumiArt\(\);[\s\S]*?window\.setTimeout/);
   assert.match(source, /if \(lumiArt && lumiArt\.status !== "ready"\) \{[\s\S]*?return;\s*\}\s*update\(dt/);
   assert.match(source, /if \(characterId !== "lumi"\) drawGatherer/);
@@ -3438,7 +3450,7 @@ test("experience attraction respects its radius, tracks movement, and freezes sa
 });
 
 test("keeps experience flights above gameplay art and uses the requested two-line retry note", async () => {
-  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const source = await readMudflatSourceBundle();
   const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
   assert.equal((source.match(/runtime\.pickups\.push\(createExperiencePickup\(/g) ?? []).length, 2, "both creature and clam rewards use the animation");
   assert.match(source, /advanceExperiencePickup\(pickup, runtime\.player, pickupRadius, dt, inBaseCamp\)/);
@@ -3521,7 +3533,7 @@ test("camp obstacle exclusion accounts for the full footprint at every stage siz
 });
 
 test("all rock, hole, and falling-rock spawn paths respect the camp exclusion", async () => {
-  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const source = await readMudflatSourceBundle();
   assert.equal((source.match(/runtime\.rocks\.push\(/g) ?? []).length, 1, "all rocks use the guarded addRock helper");
   assert.match(source, /if \(!campObstacleAllowed\(rock, rock\.radius \+ 20\)\) return false;\s*runtime\.rocks\.push\(rock\)/);
   assert.match(source, /if \(campObstacleAllowed\(hole, 48\)\) runtime\.clamHoles\.push\(hole\)/);
@@ -3533,7 +3545,7 @@ test("all rock, hole, and falling-rock spawn paths respect the camp exclusion", 
 });
 
 test("uses a throttled character speech bubble when the Mudflat haul container is full", async () => {
-  const source = await readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8");
+  const source = await readMudflatSourceBundle();
   assert.match(source, /const showCatchFullMessage = \(\) =>/);
   assert.match(source, /const CATCH_FULL_MESSAGE = "더 담을 수가 없어\. 다음에는 큰 통을 가져와야겠다\."/);
   assert.match(source, /showPlayerMessage\(CATCH_FULL_MESSAGE, 1\.2\)/);

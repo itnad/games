@@ -10,16 +10,54 @@ import { withSecretExpeditionSkills } from "./mudflat-secret-entry.js";
 import { CAST_NET_RETRY, advanceCastNets, castNetMovementMultiplier, castNetOnScreen, createCastNet, findCastNetTarget } from "./mudflat-cast-net.js";
 import { drawCastNetThrow } from "./mudflat-cast-net-renderer.js";
 import { MudflatExitDialog } from "./mudflat-exit-dialog";
+import { MudflatSeafoodGuide } from "./mudflat-seafood-guide";
 import { MUDFLAT_AUTOSAVE_MS, clearMudflatRun, readMudflatRun, writeMudflatRun } from "./mudflat-run-save.js";
 import { HARVEST_PULSE_SECONDS, drawHarvestPulse, drawSaltSpirit, saltSpiritPose } from "./mudflat-kids-effects.js";
 import { EXPERIENCE_FLASH_SECONDS, createExperiencePickup, advanceExperiencePickup } from "./mudflat-experience.js";
+import { roundedRect, wrapCanvasText } from "./mudflat-canvas-utils";
+import type { Campaign, CountMap, CreatureMovement, DeepMudPatch, GameMode, Point, Screen, StageProfile } from "./mudflat-survivor-types";
+import {
+  BEST_KEY,
+  CAMPAIGN_KEY,
+  CATCH_FULL_MESSAGE,
+  CHARACTERS,
+  DAMAGE_TEXT_COLOR,
+  DARK_STAGE_VISION_DARKNESS,
+  DIRECTIONAL_SEAFOOD_TYPES,
+  GAEBUL_STAGE,
+  GENERAL_APPEARANCES,
+  GENERAL_CHARACTER,
+  GENERAL_SKILL_LABELS,
+  GENERAL_SKILL_ORDER,
+  HIGHEST_STAGE_KEY,
+  LAST_MODE_KEY,
+  LUMI_CHARACTER,
+  LUMI_HOLD_MS,
+  MOSQUITO_DAMAGE,
+  MOSQUITO_LOW_HP_THRESHOLD,
+  MOSQUITO_REPELLENT_KEY,
+  MOSQUITO_REPELLENT_PRICE,
+  MUDFLAT_BACK_GUARD_STATE,
+  PLAYER_DAMAGE_TEXT_COLOR,
+  createCampaign,
+  defaultCharacterId,
+  derivedMaxHp,
+  formatClock,
+  mudflatHiddenRockStage,
+  mudflatSkillDetail,
+  mudflatStageHazardNotes,
+  mudflatStageRouteSummary,
+  mudflatSystemBackGuardScreen,
+  unlockedNormalUpgrades,
+  withoutMosquitoRepellent,
+  type UpgradeChoice,
+} from "./mudflat-survivor-model";
 import {
   MUDFLAT_CREATURES,
   MUDFLAT_CLAM_GRADES,
   MUDFLAT_FIXED_GENERAL_SKILL_IDS,
   MUDFLAT_GAEBUL,
   MUDFLAT_GENERAL_UPGRADES,
-  MUDFLAT_PEARL,
   MUDFLAT_RECOVERY_FOODS,
   MUDFLAT_REGULAR_STAGES,
   MUDFLAT_TIDE_MESSAGE_INTERVAL,
@@ -77,13 +115,6 @@ import {
 } from "./mudflat-survivor-engine.js";
 
 type ExitProps = { onExit: () => void };
-type Screen = "setup" | "running" | "upgrade" | "paused" | "camp" | "defeat";
-type GameMode = "kids" | "normal";
-type Point = { x: number; y: number };
-type CountMap = Record<string, number>;
-type StageObjective = { id: "catch" | "rocks" | "health"; label: string; target: number; bonus: number };
-type StageProfile = { stage: number; name: string; subtitle: string; modifiers: string[]; waterChannels: boolean; tideInterval: number; safeZone: string; rockMultiplier: number; fallingRocks: number; darkness: number; mudSlow: number; seafoodSpawnMultiplier: number; wind: number; mosquitoes: boolean; swarms: boolean; coldThresholdMultiplier: number; finalBoss: boolean; endless: boolean; objective: StageObjective | null };
-type CreatureMovement = "chase" | "still" | "wander" | "flee" | "oval";
 type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; movementAngle: number; movementClock: number; facing?: 1 | -1; ovalDirection?: number; netReleaseUntil?: number };
 type Pickup = ReturnType<typeof createExperiencePickup>;
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
@@ -98,7 +129,6 @@ type ClamReveal = Point & { id: number; life: number; maxLife: number; type: str
 type MudPrint = Point & { id: number; life: number; maxLife: number; angle: number; side: number };
 type RockFlipEffect = Point & { rockId: number; life: number; maxLife: number };
 type FallingRock = Point & { id: number; life: number; maxLife: number; radius: number };
-type DeepMudPatch = Point & { radiusX: number; radiusY: number; angle: number; hash: number };
 type FirstMoveGuideStep = "move" | "catch" | "dig" | "avoid" | "done";
 type FirstMoveGuide = {
   step: FirstMoveGuideStep; stepClock: number;
@@ -113,14 +143,12 @@ const BASE_CAMP_RADIUS = 92;
 const BASE_CAMP_STAGE_ONE_WIDTH_MULTIPLIER = 5;
 const BASE_CAMP_FINAL_WIDTH_MULTIPLIER = 1.8;
 const TIDE_RETURN_MESSAGE = "물이 가득찼어. 빨리 복귀해야해!";
-const DARK_STAGE_VISION_DARKNESS = .6;
 const DARK_STAGE_VISIBLE_DIAMETER_RATIO = 2 / 3;
 const DARK_STAGE_HIDDEN_COLOR = "#03080f";
 const HEADLAMP_MIN_CONE_HALF_ANGLE = Math.PI / 18;
 const HEADLAMP_MAX_CONE_HALF_ANGLE = Math.PI / 4;
 const HEADLAMP_MIN_VISUAL_RANGE = 34;
 const HEADLAMP_MAX_VISUAL_RANGE = 155;
-const GAEBUL_STAGE = 5;
 const GAEBUL_DIG_SECONDS = 3.1;
 const CLAM_DIG_SECONDS = 2;
 const GAEBUL_SPAWN_CHANCE = .24;
@@ -134,10 +162,6 @@ const TUTORIAL_HAND_CURSOR_SRC = "/mudflat-ui/windows-hand-cursor.svg";
 const MUDFLAT_DEFEAT_ART_SRC = "/mudflat-illustrations/defeat-gatherer.webp";
 const MUDFLAT_DEFEAT_ART_WIDTH = 980;
 const MUDFLAT_DEFEAT_ART_HEIGHT = 404;
-const MOSQUITO_REPELLENT_KEY = "mosquitoRepellent";
-const MOSQUITO_REPELLENT_PRICE = 100;
-const MOSQUITO_DAMAGE = 6;
-const MOSQUITO_LOW_HP_THRESHOLD = 10;
 let mudflatDarknessCanvas: HTMLCanvasElement | null = null;
 let mudflatDarknessContext: CanvasRenderingContext2D | null = null;
 let tutorialHandCursorImage: HTMLImageElement | null = null;
@@ -157,43 +181,8 @@ type Runtime = {
   paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; xpCollecting?: boolean; tutorialActive?: boolean; mosquitoRepellent?: boolean; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
-type CharacterOption = { id: string; icon: string; sprite?: string; portrait?: string; spriteSheet?: boolean; name: string; description: string; startLabel: string; levels: CountMap; hp: number };
-type Campaign = {
-  version: 1; mode: GameMode; characterId: string; stage: number; coins: number; hp: number; maxHp: number; baseMaxHp: number;
-  level: number; xp: number; nextXp: number; levels: CountMap; equipment: CountMap; inventory: CountMap; lastHaul: CountMap; lastSaleValue: number; totalScore: number; lastBossCaught: boolean;
-  lastObjectiveLabel?: string; lastObjectiveComplete?: boolean; lastObjectiveBonus?: number; pendingSkillDiscovery?: boolean;
-};
-type UpgradeChoice = { id: string; icon: string; name: string; description: string; max: number };
 type SavedRun = { version: 1; savedAt: number; campaign: Campaign; runtime: Runtime; choiceIds: string[]; nextSequence: number };
 
-const BEST_KEY = "paperoid-mudflat-survivor-best-v1";
-const CAMPAIGN_KEY = "paperoid-mudflat-survivor-campaign-v1";
-const LAST_MODE_KEY = "paperoid-mudflat-survivor-last-mode-v1";
-const HIGHEST_STAGE_KEY = "paperoid-mudflat-survivor-highest-stage-v1";
-const MUDFLAT_BACK_GUARD_STATE = "paperoidMudflatRunBackGuard";
-const DAMAGE_TEXT_COLOR = "#ffd29a";
-const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
-const LUMI_HOLD_MS = 3_000;
-const LUMI_CHARACTER: CharacterOption = { id: "lumi", icon: "●", sprite: "/mudflat-illustrations/lumi-side-tongs-walk-transparent.png", portrait: "/mudflat-illustrations/lumi-front-tongs-walk-transparent.png", spriteSheet: true, name: "탐험가 루미", description: "한 손의 집게와 3방향 걸음으로 갯벌을 누빕니다.", startLabel: "기본 장비 · 체력 100", levels: { hoe: 1, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 };
-const CHARACTERS: CharacterOption[] = [
-  { id: "digger", icon: "⌁", name: "갯벌소년 펄럭", description: "넓은 갯벌 파동으로 시작합니다.", startLabel: "갯벌 파동 Lv.2", levels: { hoe: 2, net: 0, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 115 },
-  { id: "netter", icon: "◇", name: "뜰채장인 채리", description: "장거리 자동 뜰채를 빠르게 던집니다.", startLabel: "장거리 자동 뜰채 Lv.2", levels: { hoe: 1, net: 2, salt: 0, boots: 0, basket: 0, stamina: 0 }, hp: 100 },
-  { id: "salter", icon: "✦", name: "바다요정 바요", description: "반짝이는 소금 결정의 정령과 함께 채집합니다.", startLabel: "소금 결정의 정령 Lv.2", levels: { hoe: 1, net: 0, salt: 2, boots: 0, basket: 0, stamina: 0 }, hp: 105 },
-  LUMI_CHARACTER,
-];
-const GENERAL_APPEARANCES: CharacterOption[] = [
-  { id: "beginner", icon: "⌁", name: "기본 스킨", description: "기본 장비로 단단하게 시작합니다.", startLabel: "집게·호미질 기본 장착 · 체력 100", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 },
-  { ...LUMI_CHARACTER, description: "기술 구성은 그대로, 모습만 루미로 출발합니다.", startLabel: "집게·호미질 기본 장착 · 체력 100" },
-];
-
-const mudflatSystemBackGuardScreen = (screen: Screen) => screen === "running" || screen === "paused" || screen === "upgrade";
-
-const GENERAL_CHARACTER = { id: "beginner", name: "기본 스킨", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 };
-const defaultCharacterId = (mode: GameMode) => mode === "normal" ? "beginner" : "digger";
-const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "boots", "snack", "basket"];
-const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", boots: "장화", snack: "간식", basket: "담기" };
-const DIRECTIONAL_SEAFOOD_TYPES = new Set(["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp", "large-shrimp"]);
-const CATCH_FULL_MESSAGE = "더 담을 수가 없어. 다음에는 큰 통을 가져와야겠다.";
 const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, catchCapacity: 500, score: 0, levels: {}, basket: {}, bossCaught: false };
 
 function MudflatBrand() {
@@ -214,97 +203,6 @@ function MudflatTopbar({ onExit }: ExitProps) {
     <GameObjectiveGuide gameId="mudflat-survivor" />
     </>
   );
-}
-
-function formatClock(seconds: number) {
-  if (seconds >= MUDFLAT_RUN_SECONDS) {
-    const tideElapsed = Math.floor(seconds - MUDFLAT_RUN_SECONDS);
-    return `밀물 ${Math.floor(tideElapsed / 60)}:${String(tideElapsed % 60).padStart(2, "0")}`;
-  }
-  const remaining = Math.max(0, MUDFLAT_RUN_SECONDS - seconds);
-  return `${Math.floor(remaining / 60)}:${String(Math.floor(remaining % 60)).padStart(2, "0")}`;
-}
-
-function createCampaign(characterId: string, mode: GameMode, stage = 1): Campaign {
-  const character = mode === "normal" ? GENERAL_CHARACTER : (CHARACTERS.find((item) => item.id === characterId) ?? CHARACTERS[0]);
-  return {
-    version: 1, mode, characterId, stage: Math.max(1, Math.floor(stage)), coins: 0, hp: character.hp, maxHp: character.hp, baseMaxHp: character.hp,
-    level: 1, xp: 0, nextXp: mode === "normal" ? 10 : 8, levels: { ...character.levels },
-    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false,
-    lastObjectiveLabel: "", lastObjectiveComplete: false, lastObjectiveBonus: 0,
-  };
-}
-
-function derivedMaxHp(baseMaxHp: number, equipment: CountMap, levels: CountMap, mode: GameMode) {
-  if (mode !== "normal") return Math.max(1, baseMaxHp + Math.max(0, levels.stamina ?? 0) * 18);
-  return mudflatEquipmentStats(equipment, baseMaxHp, levels.snack ?? 0).maxHp;
-}
-
-function unlockedNormalUpgrades(levels: CountMap) {
-  const unlocks = mudflatAdvancedSkillUnlocks(levels);
-  return MUDFLAT_GENERAL_UPGRADES.filter((skill) => !skill.advanced || (skill.id === "electric" ? unlocks.electric : unlocks.castNet));
-}
-
-function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[number], level: number) {
-  const safeLevel = Math.max(1, level);
-  const nextLevel = Math.min(skill.max, safeLevel + 1);
-  const nextLabel = safeLevel >= skill.max ? "최고 레벨에 도달했습니다." : `다음 강화 · Lv.${nextLevel}`;
-  if (skill.id === "tongs") {
-    const current = mudflatTongStats(safeLevel); const next = mudflatTongStats(nextLevel);
-    return { current: `회전 속도 ${current.rotationSpeed.toFixed(1)} · 위력 ${current.power.toFixed(1)}`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 회전 속도 ${next.rotationSpeed.toFixed(1)} · 위력 ${next.power.toFixed(1)}` };
-  }
-  if (skill.id === "net") {
-    const current = mudflatNetStats(safeLevel); const next = mudflatNetStats(nextLevel);
-    return { current: `집게 사거리의 ${Math.round(current.scale * 100)}% · 뜰채 크기 ${Math.round(current.scale * 100)}%`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 사거리와 뜰채 크기 ${Math.round(next.scale * 100)}%` };
-  }
-  if (skill.id === "harpoon") {
-    const current = mudflatHarpoonStats(safeLevel, 1); const next = mudflatHarpoonStats(nextLevel, 1);
-    return { current: `피해 ${Math.round(current.damage)} · 사거리 ${Math.round(current.range)}px`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 피해 ${Math.round(next.damage)} · 사거리 ${Math.round(next.range)}px` };
-  }
-  if (skill.id === "rocker") {
-    const current = mudflatRockTurnerStats(safeLevel); const next = mudflatRockTurnerStats(nextLevel);
-    return { current: `처리 ${current.processingTime.toFixed(1)}초 · 재사용 ${current.cooldown.toFixed(1)}초`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 처리 ${next.processingTime.toFixed(1)}초 · 재사용 ${next.cooldown.toFixed(1)}초` };
-  }
-  if (skill.id === "electric") {
-    const current = mudflatElectricStats(safeLevel); const next = mudflatElectricStats(nextLevel);
-    return { current: `체력 50 초과 시 기본 집게 사거리 ${current.reach}px · ${current.interval.toFixed(1)}초마다 ${current.damage} 피해`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.interval.toFixed(1)}초마다 ${next.damage} 피해 · 10초마다 체력 5 소모` };
-  }
-  if (skill.id === "cast-net") {
-    const current = mudflatCastNetStats(safeLevel); const next = mudflatCastNetStats(nextLevel);
-    return { current: `무리 조준 · 반경 ${current.radius}px · ${current.holdSeconds.toFixed(1)}초 구속 후 ${current.damage} 피해 · 투척 간격 ${current.interval.toFixed(1)}초`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 반경 ${next.radius}px · 구속 ${next.holdSeconds.toFixed(1)}초 · 간격 ${next.interval.toFixed(1)}초` };
-  }
-  if (skill.id === "boots") return { current: `이동속도와 진흙 저항 완화가 Lv.${safeLevel} 단계로 강화되었습니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 이동속도와 깊은 펄 저항이 한 단계 더 좋아집니다.` };
-  if (skill.id === "snack") return { current: `기본 최대 체력의 ${safeLevel * 20}%만큼 증가합니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 기본 최대 체력 +${nextLevel * 20}%` };
-  if (skill.id === "basket") return { current: `획득물 흡입 범위 Lv.${safeLevel}`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 더 먼 거리의 획득물을 끌어옵니다.` };
-  return { current: "조개 구멍에서 채집할 때 더 좋은 조개를 얻을 확률이 적용됩니다.", next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 상위 조개와 진주 발견 확률이 높아집니다.` };
-}
-
-function mudflatHiddenRockStage(stage: number) {
-  return stage === 3 || stage === 4;
-}
-
-function mudflatStageHazardNotes(profile: StageProfile) {
-  const notes: string[] = [];
-  if (profile.tideInterval > 0) notes.push(`돌발 물살 · 약 ${profile.tideInterval}초 주기 대피`);
-  if (profile.mosquitoes) notes.push(`모기떼 · 16~24초마다 ${MOSQUITO_DAMAGE} 피해, 체력 ${MOSQUITO_LOW_HP_THRESHOLD} 미만은 피해 없음`);
-  if (profile.wind > 0) notes.push("바람 · 이동 방향이 흔들림");
-  if (profile.swarms) notes.push("해산물 무리 · 추가 출현");
-  if (profile.waterChannels) notes.push("물골 · 지나갈 때 이동 감속");
-  if (mudflatHiddenRockStage(profile.stage)) notes.push("숨은 돌 · 가까운 곳에 갑자기 등장");
-  if (profile.fallingRocks > 0) notes.push("낙석 · 충돌 피해와 바위 생성");
-  if (profile.darkness >= DARK_STAGE_VISION_DARKNESS) notes.push("어둠 · 시야 제한");
-  if (profile.stage === GAEBUL_STAGE) notes.push("깊은 펄 · 감속과 발 빠짐");
-  return notes;
-}
-
-function mudflatStageRouteSummary(profile: StageProfile) {
-  const notes = mudflatStageHazardNotes(profile);
-  return notes.length > 0 ? notes.slice(0, 2).join(" · ") : "기본 이동과 채집 흐름을 익히는 단계";
-}
-
-function withoutMosquitoRepellent(equipment: CountMap) {
-  const { [MOSQUITO_REPELLENT_KEY]: _repellent, ...rest } = equipment;
-  return rest;
 }
 
 function makeRuntime(campaign: Campaign): Runtime {
@@ -358,12 +256,6 @@ function readSavedCampaign(): Campaign | null {
     if (unsold.count === 0) return restored;
     return { ...restored, coins: restored.coins + unsold.value, inventory: {}, lastHaul: unsold.haul as CountMap, lastSaleValue: unsold.value };
   } catch { return null; }
-}
-
-function roundedRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
-  const safeRadius = Math.min(radius, width / 2, height / 2);
-  context.beginPath();
-  context.roundRect(x, y, width, height, safeRadius);
 }
 
 function readActiveRun(): SavedRun | null {
@@ -744,24 +636,6 @@ function drawGuideDottedTipArrow(context: CanvasRenderingContext2D, from: Point,
   context.lineTo(end.x - Math.cos(angle + .5) * 11, end.y - Math.sin(angle + .5) * 11);
   context.closePath(); context.fill();
   context.restore();
-}
-
-function wrapCanvasText(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
-  const lines: string[] = [];
-  for (const paragraph of text.split(/\n/)) {
-    let line = "";
-    for (const char of Array.from(paragraph)) {
-      const nextLine = line + char;
-      if (line && context.measureText(nextLine).width > maxWidth) {
-        lines.push(line.trimEnd());
-        line = char.trimStart();
-      } else {
-        line = nextLine;
-      }
-    }
-    if (line.trim()) lines.push(line.trim());
-  }
-  return lines.length > 0 ? lines : [text];
 }
 
 function getTutorialHandCursorImage() {
@@ -1745,133 +1619,6 @@ function drawDipNetSlam(context: CanvasRenderingContext2D, origin: Point, target
     }
     context.restore();
   }
-}
-
-type SeafoodGuideEntry = {
-  type: string; name: string; image: string; category: string; hp: string; xp: string; price: string;
-  appears: string; feature: string; tip: string; focus?: string;
-};
-type SeafoodMarketItem = { type: string; name: string; image: string; price: number; unit?: string };
-type SeafoodCreatureTemplate = { id: string; family?: string; hp: number; xp: number; score: number; unlock: number; movement?: CreatureMovement; requiresHeadlamp?: boolean; spawnVariant?: boolean; boss?: boolean };
-type SeafoodClamTemplate = { id: string; xp: number; score: number; price: number; vertical?: boolean };
-
-const SEAFOOD_MOVEMENT_LABELS: Record<string, string> = {
-  chase: "다가옴",
-  flee: "도망감",
-  oval: "급회전",
-  still: "고정",
-  wander: "배회",
-};
-
-function seafoodGuideCategory(type: string, creature?: SeafoodCreatureTemplate, clamGrade?: SeafoodClamTemplate) {
-  if (creature?.boss) return "대형 목표";
-  if (creature?.family === "crab") return "게류";
-  if (type === "shrimp" || type === "large-shrimp") return "새우류";
-  if (type === "whelk" || type === "fist-whelk" || type === "golbaengi") return "고둥·소라류";
-  if (type === "octopus" || type === "gaebul") return "연체류";
-  if (type === "flounder") return "어류";
-  if (type === "pufferfish") return "위험 생물";
-  if (clamGrade) return "조개류";
-  if (type === MUDFLAT_PEARL.id) return "희귀 보상";
-  return "기타";
-}
-
-function seafoodGuideAppears(type: string, creature?: SeafoodCreatureTemplate, clamGrade?: SeafoodClamTemplate) {
-  if (type === MUDFLAT_GAEBUL.id) return "5단계 깊은 펄";
-  if (type === MUDFLAT_PEARL.id) return "호미질 희귀 보상";
-  if (clamGrade) return "조개 구멍 호미질";
-  if (creature?.boss) return "마지막 물때 목표";
-  if (creature?.spawnVariant) return type === "large-shrimp" ? "새우 출현 중 5%" : "특수 변종 출현";
-  if (creature?.requiresHeadlamp) return "헤드랜턴으로 발견";
-  if (!creature || creature.unlock <= 0) return "원정 시작부터";
-  if (creature.unlock <= 45) return "원정 초반";
-  if (creature.unlock <= 105) return "원정 중반";
-  return "원정 후반";
-}
-
-function seafoodGuideFeature(type: string, creature?: SeafoodCreatureTemplate, clamGrade?: SeafoodClamTemplate) {
-  if (type === MUDFLAT_GAEBUL.id) return "깊은 펄 보상";
-  if (type === MUDFLAT_PEARL.id) return "고가 희귀품";
-  if (clamGrade?.vertical) return "길게 솟는 조개";
-  if (clamGrade) return "호미질 보상";
-  const parts: string[] = [];
-  if (creature?.boss) parts.push("대왕 목표");
-  if (creature?.requiresHeadlamp) parts.push("랜턴 필요");
-  if (creature?.spawnVariant && type !== "large-shrimp") parts.push("특수 변종");
-  if (type === "large-shrimp") parts.push("큰 새우");
-  if (type === "pufferfish") parts.push("접촉 위험");
-  if (creature?.movement) parts.push(SEAFOOD_MOVEMENT_LABELS[creature.movement] ?? creature.movement);
-  return parts.join(" · ") || "일반 채집";
-}
-
-function seafoodGuideTip(type: string, creature?: SeafoodCreatureTemplate, clamGrade?: SeafoodClamTemplate) {
-  if (type === MUDFLAT_GAEBUL.id) return "깊은 펄 감속을 감수하고 구멍을 오래 파면 노릴 수 있습니다.";
-  if (type === MUDFLAT_PEARL.id) return "호미질 레벨이 높을수록 더 좋은 결과를 기대할 수 있습니다.";
-  if (clamGrade) return "구멍 위에서 호미질을 유지하면 채집됩니다.";
-  if (type === "pufferfish") return "몸으로 부딪히지 말고 원거리 기술이나 그물로 처리하세요.";
-  if (creature?.requiresHeadlamp) return "랜턴 범위 안에서 드러난 뒤 채집 판정이 쉬워집니다.";
-  if (creature?.boss) return "충분한 기술 레벨과 체력을 갖춘 뒤 오래 추적해야 합니다.";
-  return "집게로 체력을 깎고 자동 기술로 마무리하면 안정적입니다.";
-}
-
-const MUDFLAT_SEAFOOD_GUIDE: SeafoodGuideEntry[] = (MUDFLAT_SEAFOOD_MARKET as SeafoodMarketItem[]).map((marketItem) => {
-  const creature = MUDFLAT_CREATURES.find((item) => item.id === marketItem.type) as SeafoodCreatureTemplate | undefined;
-  const clamGrade = MUDFLAT_CLAM_GRADES.find((item) => item.id === marketItem.type) as SeafoodClamTemplate | undefined;
-  const isGaebul = marketItem.type === MUDFLAT_GAEBUL.id;
-  const isPearl = marketItem.type === MUDFLAT_PEARL.id;
-  const xp = creature?.xp ?? clamGrade?.xp ?? (isGaebul ? MUDFLAT_GAEBUL.xp : isPearl ? MUDFLAT_PEARL.xp : 0);
-  const score = creature?.score ?? clamGrade?.score ?? (isGaebul ? MUDFLAT_GAEBUL.score : isPearl ? MUDFLAT_PEARL.score : 0);
-  return {
-    type: marketItem.type,
-    name: marketItem.name,
-    image: marketItem.image,
-    category: seafoodGuideCategory(marketItem.type, creature, clamGrade),
-    hp: creature ? String(Math.ceil(creature.hp)) : isPearl ? "희귀" : "호미질",
-    xp: `${xp} / ${score}점`,
-    price: `${marketItem.price.toLocaleString()}C`,
-    appears: seafoodGuideAppears(marketItem.type, creature, clamGrade),
-    feature: seafoodGuideFeature(marketItem.type, creature, clamGrade),
-    tip: seafoodGuideTip(marketItem.type, creature, clamGrade),
-    focus: marketItem.type === MUDFLAT_GAEBUL.id ? "5단계 핵심" : creature?.boss ? "최종 목표" : undefined,
-  };
-});
-
-function MudflatSeafoodGuide({ activeStage, onClose }: { activeStage: number; onClose: () => void }) {
-  const stage = Math.max(1, Math.floor(activeStage || 1));
-  const profile = mudflatStageProfile(stage) as StageProfile;
-  return (
-    <div className="ms-layer ms-seafood-guide" role="dialog" aria-modal="true" aria-label="해산물 도감" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section>
-        <button type="button" className="ms-seafood-close" aria-label="해산물 도감 닫기" onClick={onClose}>×</button>
-        <small>SEAFOOD GUIDE</small>
-        <h2>해산물 도감</h2>
-        <p>전체 해산물 목록을 먼저 훑어보고, 궁금한 항목을 눌러 체력·보상·채집 팁을 펼쳐볼 수 있습니다.</p>
-        <div className="ms-seafood-stage-note">
-          <span><b>현재 확인 중</b>{stage}단계 · {profile.name}</span>
-          <em>{profile.modifiers.slice(0, 3).join(" · ") || "기본 갯벌"}</em>
-        </div>
-        <div className="ms-seafood-list" role="list" aria-label="해산물 요약 목록" tabIndex={0}>
-          {MUDFLAT_SEAFOOD_GUIDE.map((entry) => (
-            <details key={entry.type} className={`ms-seafood-card${entry.focus ? " is-focus" : ""}`} role="listitem">
-              <summary>
-                <span className="ms-seafood-name"><img className={`ms-seafood-thumb${entry.type === "shrimp" ? " is-small-shrimp" : ""}`} src={entry.image} alt="" /> <b>{entry.name}</b>{entry.focus && <em>{entry.focus}</em>}</span>
-                <span className="ms-seafood-summary"><b>{entry.category}</b><small>{entry.appears}</small></span>
-                <strong>{entry.price}</strong>
-                <i aria-hidden="true">자세히</i>
-              </summary>
-              <div className="ms-seafood-detail">
-                <span><small>체력</small><b>{entry.hp}</b></span>
-                <span><small>경험치·점수</small><b>{entry.xp}</b></span>
-                <span><small>판매가</small><b>{entry.price}</b></span>
-                <span><small>등장·채집</small><b>{entry.appears}</b></span>
-                <p><b>{entry.feature}</b><small>{entry.tip}</small></p>
-              </div>
-            </details>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
 }
 
 export function MudflatSurvivorGame({ onExit }: ExitProps) {
