@@ -315,6 +315,26 @@ async function render() {
   );
 }
 
+test("provides a direct-only mudflat developer tool route with local QA presets", async () => {
+  const [route, tools, model, game, styles] = await Promise.all([
+    readFile(new URL("../app/haeru-dev/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/mudflat-dev-tools.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/mudflat-survivor-model.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(route, /robots: \{ index: false, follow: false \}/);
+  assert.match(route, /<MudflatDevTools \/>/);
+  assert.match(model, /MUDFLAT_DEV_LAUNCH_KEY = "paperoid-mudflat-dev-launch-v1"/);
+  assert.match(tools, /HAERUJILOT INTERNAL DEV/);
+  assert.match(tools, /DEV_PRESETS[\s\S]*?4단계 어두운 갯벌 · 랜턴 Lv\.1/);
+  assert.match(tools, /window\.sessionStorage\.setItem\(MUDFLAT_DEV_LAUNCH_KEY/);
+  assert.match(tools, /window\.location\.assign\("\/haeru"\)/);
+  assert.match(game, /JSON\.parse\(window\.sessionStorage\.getItem\(MUDFLAT_DEV_LAUNCH_KEY\)/);
+  assert.match(game, /setScreen\(launch\.run \? "running" : "setup"\)/);
+  assert.match(styles, /\.mudflat-dev-shell/);
+});
+
 test("implements legal chess movement, special moves, and game-ending checks", () => {
   const coordinates = (square) => ({ x: square.charCodeAt(0) - 97, y: 8 - Number(square[1]) });
   const play = (state, from, to, promotion = "q") => {

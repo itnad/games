@@ -38,6 +38,7 @@ import {
   MOSQUITO_REPELLENT_KEY,
   MOSQUITO_REPELLENT_PRICE,
   MUDFLAT_BACK_GUARD_STATE,
+  MUDFLAT_DEV_LAUNCH_KEY,
   PLAYER_DAMAGE_TEXT_COLOR,
   createCampaign,
   defaultCharacterId,
@@ -182,6 +183,7 @@ type Runtime = {
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; xpCollecting?: boolean; tutorialActive?: boolean; mosquitoRepellent?: boolean; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
 type SavedRun = { version: 1; savedAt: number; campaign: Campaign; runtime: Runtime; choiceIds: string[]; nextSequence: number };
+type MudflatDevLaunch = { version: 1; campaign: Campaign; run?: boolean; tutorial?: boolean; label?: string };
 
 const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, catchCapacity: 500, score: 0, levels: {}, basket: {}, bossCaught: false };
 
@@ -1835,6 +1837,43 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       levels: { ...runtime.levels }, basket: { ...runtime.basket }, bossCaught: runtime.bossCaught,
     });
   }, []);
+
+  useEffect(() => {
+    let launch: MudflatDevLaunch | null = null;
+    try {
+      launch = JSON.parse(window.sessionStorage.getItem(MUDFLAT_DEV_LAUNCH_KEY) ?? "null") as MudflatDevLaunch | null;
+      window.sessionStorage.removeItem(MUDFLAT_DEV_LAUNCH_KEY);
+    } catch {
+      try { window.sessionStorage.removeItem(MUDFLAT_DEV_LAUNCH_KEY); } catch { /* Ignore unavailable session storage. */ }
+    }
+    if (!launch || launch.version !== 1 || !launch.campaign || launch.campaign.version !== 1) return;
+    const nextCampaign: Campaign = {
+      ...launch.campaign,
+      stage: Math.max(1, Math.floor(launch.campaign.stage)),
+      hp: Math.max(1, Math.min(launch.campaign.hp, launch.campaign.maxHp)),
+      pendingSkillDiscovery: false,
+    };
+    const runtime = makeRuntime(nextCampaign);
+    if (!launch.tutorial) runtime.firstMoveGuide = null;
+    setMode(nextCampaign.mode);
+    setCharacterId(nextCampaign.characterId);
+    setSelectedStage(Math.min(9, nextCampaign.stage));
+    setHighestUnlockedStage((previous) => {
+      const highest = Math.max(previous, Math.min(9, nextCampaign.stage));
+      try { window.localStorage.setItem(HIGHEST_STAGE_KEY, String(highest)); } catch { /* Ignore unavailable local storage. */ }
+      return highest;
+    });
+    try { window.localStorage.setItem(LAST_MODE_KEY, nextCampaign.mode); } catch { /* Ignore unavailable local storage. */ }
+    discardActiveRun();
+    storeCampaign(nextCampaign, Boolean(launch.run));
+    resetMovementInput();
+    runtimeRef.current = runtime;
+    snapshot(runtime);
+    setChoices([]);
+    setSelectedSkillId(null);
+    setScreen(launch.run ? "running" : "setup");
+    if (launch.run) setRunId((value) => value + 1);
+  }, [discardActiveRun, resetMovementInput, snapshot, storeCampaign]);
 
   const shouldAutoStartTutorial = (stage: number, secretEntry: boolean, tutorialEntry: boolean) => (
     mode === "normal" && stage === 1 && (tutorialEntry || (!secretEntry && highestUnlockedStage <= 1))

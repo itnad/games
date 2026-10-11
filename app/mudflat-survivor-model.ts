@@ -17,6 +17,7 @@ export const BEST_KEY = "paperoid-mudflat-survivor-best-v1";
 export const CAMPAIGN_KEY = "paperoid-mudflat-survivor-campaign-v1";
 export const LAST_MODE_KEY = "paperoid-mudflat-survivor-last-mode-v1";
 export const HIGHEST_STAGE_KEY = "paperoid-mudflat-survivor-highest-stage-v1";
+export const MUDFLAT_DEV_LAUNCH_KEY = "paperoid-mudflat-dev-launch-v1";
 export const MUDFLAT_BACK_GUARD_STATE = "paperoidMudflatRunBackGuard";
 export const DAMAGE_TEXT_COLOR = "#ffd29a";
 export const PLAYER_DAMAGE_TEXT_COLOR = "#ff695f";
