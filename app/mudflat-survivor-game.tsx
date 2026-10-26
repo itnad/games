@@ -3547,7 +3547,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
   if (screen === "camp" && campaign) {
     const haulCount = Object.values(campaign.lastHaul).reduce((sum, count) => sum + count, 0);
-    const upgrades = campaign.mode === "normal" ? unlockedNormalUpgrades(campaign.levels) : MUDFLAT_UPGRADES;
+    const unlockedUpgrades = campaign.mode === "normal" ? unlockedNormalUpgrades(campaign.levels) : MUDFLAT_UPGRADES;
+    const upgrades = campaign.mode === "normal"
+      ? GENERAL_SKILL_ORDER.map((id) => unlockedUpgrades.find((skill) => skill.id === id)).filter((skill): skill is (typeof MUDFLAT_GENERAL_UPGRADES)[number] => Boolean(skill))
+      : unlockedUpgrades;
     const nextStageStats = mudflatStageStats(campaign.stage);
     const nextStageProfile = mudflatStageProfile(campaign.stage) as StageProfile;
     const nextStageObjective = nextStageProfile.objective;
@@ -3588,7 +3591,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             <div>{upgrades.map((skill) => {
               const level = campaign.levels[skill.id] ?? 0;
               const label = campaign.mode === "normal" ? (GENERAL_SKILL_LABELS[skill.id] ?? skill.name) : skill.name;
-              return <span key={skill.id} className={level > 0 ? "is-learned" : "is-empty"}><i>{skill.icon}</i><b>{label}</b><em>Lv.{level}</em></span>;
+              const isBasic = campaign.mode === "normal" && MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id);
+              return <span key={skill.id} className={`${level > 0 ? "is-learned" : "is-empty"}${isBasic ? " is-basic" : ""}`} aria-label={`${label} ${isBasic ? "기본 기술 " : ""}레벨 ${level}`}><i>{skill.icon}</i><b>{label}</b>{isBasic && <small className="ms-skill-kind">기본</small>}<em>Lv.{level}</em></span>;
             })}</div>
           </div>
         </article>
@@ -3649,7 +3653,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const activeStageObjective = activeStageProfile.objective;
   const activeStageStats = mudflatStageStats(hud.stage);
   const pauseHazards = mudflatStageHazardNotes(activeStageProfile);
-  const pauseSkills = (hud.mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES).filter((skill) => (hud.levels[skill.id] ?? 0) > 0);
+  const learnedPauseSkills = (hud.mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES).filter((skill) => (hud.levels[skill.id] ?? 0) > 0);
+  const pauseSkills = hud.mode === "normal"
+    ? GENERAL_SKILL_ORDER.map((id) => learnedPauseSkills.find((skill) => skill.id === id)).filter((skill): skill is (typeof MUDFLAT_GENERAL_UPGRADES)[number] => Boolean(skill))
+    : learnedPauseSkills;
   const pauseClockLabel = hud.elapsed >= MUDFLAT_RUN_SECONDS ? formatClock(hud.elapsed) : `${formatClock(hud.elapsed)} 남음`;
   const pauseTimeRemaining = Math.max(0, MUDFLAT_RUN_SECONDS - Math.min(hud.elapsed, MUDFLAT_RUN_SECONDS));
   const pauseTimePercent = hud.elapsed >= MUDFLAT_RUN_SECONDS ? 100 : Math.max(0, Math.min(100, pauseTimeRemaining / MUDFLAT_RUN_SECONDS * 100));
@@ -3687,7 +3694,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         <article className="ms-pause-card ms-pause-skills">
           <small>SKILL LEVEL</small>
           <h3>채집기술</h3>
-          <div>{pauseSkills.length > 0 ? pauseSkills.map((skill) => <span key={skill.id}><i>{skill.icon}</i><b>{hud.mode === "normal" ? (GENERAL_SKILL_LABELS[skill.id] ?? skill.name) : skill.name}</b><em>Lv.{hud.levels[skill.id] ?? 0}</em></span>) : <p>아직 배운 기술이 없습니다.</p>}</div>
+          <div>{pauseSkills.length > 0 ? pauseSkills.map((skill) => {
+            const label = hud.mode === "normal" ? (GENERAL_SKILL_LABELS[skill.id] ?? skill.name) : skill.name;
+            const level = hud.levels[skill.id] ?? 0;
+            const isBasic = hud.mode === "normal" && MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id);
+            return <span key={skill.id} className={isBasic ? "is-basic" : undefined} aria-label={`${label} ${isBasic ? "기본 기술 " : ""}레벨 ${level}`}><i>{skill.icon}</i><b>{label}</b>{isBasic && <small className="ms-skill-kind">기본</small>}<em>Lv.{level}</em></span>;
+          }) : <p>아직 배운 기술이 없습니다.</p>}</div>
         </article>
       </div>
       <GameObjectiveGuide gameId="mudflat-survivor" inline />
