@@ -2751,7 +2751,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           if (runtime.selfShockClock <= 0) {
             damagePlayer(electric.selfDamage, "#79ddff");
             const hasSelfShockMessage = runtime.selfShockNotified;
-            showPlayerMessage(hasSelfShockMessage ? "악 찌릿찌릿해!" : "악 찌릿찌릿해, 이거 계속 쓸 수는 없겠네.", hasSelfShockMessage ? 1 : 3, hasSelfShockMessage ? .7 : 1);
+            showPlayerMessage(hasSelfShockMessage ? "악 찌릿찌릿해!" : "악 찌릿찌릿해, 전기를 계속 쓸 수는 없겠네.", hasSelfShockMessage ? 1 : 3, hasSelfShockMessage ? .7 : 1);
             runtime.selfShockNotified = true;
             runtime.selfShockClock = electric.selfInterval;
           }

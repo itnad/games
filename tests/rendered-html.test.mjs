@@ -1409,7 +1409,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /runtime\.player\.hp > 50/);
   assert.match(source, /runtime\.selfShockClock = electric\.selfInterval/);
   assert.match(source, /selfShockNotified: false/);
-  assert.match(source, /악 찌릿찌릿해, 이거 계속 쓸 수는 없겠네\./);
+  assert.match(source, /악 찌릿찌릿해, 전기를 계속 쓸 수는 없겠네\./);
   assert.match(source, /악 찌릿찌릿해!/);
   assert.match(source, /hasSelfShockMessage \? 1 : 3, hasSelfShockMessage \? \.7 : 1/);
   assert.match(source, /runtime\.playerMessageOpacity/);
