@@ -1,0 +1,9 @@
+/* 단독 실행 전용: 사이트의 globals.css 없이도 같은 화면이 되도록 최소한의 바탕만 깐다. */
+:root { color-scheme: dark; --fl-standalone-bg: #0b1210; --fl-standalone-fg: #eef3ee; }
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #frontline-root { height: 100%; }
+body { margin: 0; overflow: hidden; overscroll-behavior: none; color: var(--fl-standalone-fg); background: var(--fl-standalone-bg); font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+#frontline-root { overflow-y: auto; }
+.fl-shell { font-family: inherit; }
+.fl-play-shell { height: 100%; }
+.fl-topbar { padding-right: 14px; }

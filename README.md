@@ -78,6 +78,14 @@ tests/                           게임 규칙·저장·렌더링 회귀 테스�
 
 `/frontline`에서 실행되는 모바일 실시간 전략 게임입니다. 모든 소스는 `app/frontline/` 폴더에 있고, 기획과 규칙은 [전선 지휘관 기획·구현 문서](docs/frontline-design.md)에 정리되어 있습니다. 엔진과 AI 테스트는 `tests/frontline-engine.test.mjs`에 있습니다.
 
+사이트 없이 휴대폰에서 바로 시험하려면 HTML 파일 하나로 묶을 수 있습니다. 결과는 Git에 올라가지 않는 `dist-standalone/` 폴더에 생깁니다.
+
+```bash
+npm run build:frontline-html
+```
+
+`dist-standalone/frontline.html`은 React까지 포함해 인터넷 없이 열립니다. `-- --artifact`를 붙이면 React를 cdnjs에서 불러오는 가벼운 `frontline-artifact.html`을 만듭니다.
+
 ## 4. 해루질럿 코드 구조
 
 | 파일 | 책임 |
