@@ -768,10 +768,17 @@ test("keeps Frontline Commander in its own app/frontline folder and publishes it
     "frontline-data.js",
     "frontline-engine.js",
     "frontline-game.tsx",
+    "frontline-pixi.ts",
     "frontline-renderer.js",
+    "frontline-sprites.ts",
     "frontline-types.ts",
     "frontline.css",
   ]);
+  const pixiSource = await readFile(new URL("../app/frontline/frontline-pixi.ts", import.meta.url), "utf8");
+  assert.match(pixiSource, /await import\("pixi\.js"\)/, "PixiJS는 브라우저에서만 동적으로 불러온다");
+  assert.match(pixiSource, /pixi\.js\/unsafe-eval/);
+  const rendererGameSource = await readFile(new URL("../app/frontline/frontline-game.tsx", import.meta.url), "utf8");
+  assert.match(rendererGameSource, /setRenderer\("canvas"\)/, "WebGL 실패 시 2D 렌더러로 전환");
   assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^frontline-/.test(file)), false);
   assert.match(pageSource, /import \{ FrontlineGame \} from "\.\/frontline\/frontline-game";/);
   assert.match(layoutSource, /import "\.\/frontline\/frontline\.css";/);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { withKoreanDirection, withKoreanObject } from "../korean-particles.js";
 import {
   FRONTLINE_BUILDABLE_IDS,
@@ -31,7 +31,8 @@ import {
   frontlineZoneOwner,
 } from "./frontline-engine.js";
 import { frontlineAiStatus, frontlineAiThink } from "./frontline-ai.js";
-import { drawFrontline, frontlineCenterTop, frontlineScreenToMap, frontlineViewport } from "./frontline-renderer.js";
+import { FRONTLINE_MAX_ZOOM, drawFrontline, frontlineFillZoom, frontlineFitScale, frontlineIsVisible, frontlineScreenToMap, frontlineViewport } from "./frontline-renderer.js";
+import { createFrontlinePixiRenderer, type FrontlinePixiRenderer } from "./frontline-pixi";
 import type {
   FrontlineBuilding,
   FrontlineBuildingType,
@@ -105,15 +106,20 @@ export function FrontlineGame({ onExit }: { onExit: () => void }) {
   const [record, setRecord] = useState<BattleRecord>(() => (typeof window === "undefined" ? { wins: 0, losses: 0, best: {} } : readRecord()));
   // 엔진 상태는 게임 루프가 직접 바꾸는 가변 객체다. 화면은 game 상태로 읽고, 0.25초마다 frame을 올려 다시 그린다.
   const [game, setGame] = useState<FrontlineState | null>(null);
-  const [mapMode, setMapMode] = useState<"fill" | "fit">("fill");
+  const [mapZoomed, setMapZoomed] = useState(false);
 
   const gameRef = useRef<FrontlineState | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const pixiRef = useRef<FrontlinePixiRenderer | null>(null);
+  const [renderer, setRenderer] = useState<"loading" | "pixi" | "canvas">("loading");
   const viewRef = useRef(frontlineViewport(1, 1));
   const sizeRef = useRef({ width: 1, height: 1 });
-  const cameraRef = useRef({ mode: "fill" as "fill" | "fit", top: Infinity });
-  const dragRef = useRef<{ id: number; y: number; top: number; moved: boolean } | null>(null);
+  // 카메라: 확대 배율(1 = 지도 전체)과 화면 중심의 지도 좌표.
+  const cameraRef = useRef({ zoom: 1, cx: 50, cy: 150, ready: false, lastZoom: 2 });
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const gestureRef = useRef<{ moved: boolean; pinch: boolean; x: number; y: number; cx: number; cy: number; zoom: number; distance: number; anchor: { x: number; y: number } } | null>(null);
   const pausedRef = useRef(paused);
   const speedRef = useRef(speed);
   const uiRef = useRef({ selectedZone, selectedSquad });
@@ -123,17 +129,17 @@ export function FrontlineGame({ onExit }: { onExit: () => void }) {
     pausedRef.current = paused || confirmExit;
     speedRef.current = speed;
     uiRef.current = { selectedZone, selectedSquad };
-    cameraRef.current.mode = mapMode;
-  }, [confirmExit, mapMode, paused, selectedSquad, selectedZone, speed]);
+  }, [confirmExit, paused, selectedSquad, selectedZone, speed]);
 
   useEffect(() => {
     // 칩으로 고른 지역이 화면 밖이면 카메라를 그 지역으로 옮긴다.
     const zone = FRONTLINE_ZONES.find((item) => item.id === selectedZone);
     const view = viewRef.current;
-    if (!zone || !view.maxTop) return;
-    const visibleTop = view.top;
-    const visibleBottom = view.top + view.height / view.scale;
-    if (zone.y - zone.radius < visibleTop || zone.y + zone.radius > visibleBottom) cameraRef.current.top = frontlineCenterTop(view, zone.y);
+    if (!zone || view.zoom <= 1.01) return;
+    if (!frontlineIsVisible(view, zone.x, zone.y, -zone.radius * view.scale * 0.6)) {
+      cameraRef.current.cx = zone.x;
+      cameraRef.current.cy = zone.y;
+    }
   }, [selectedZone]);
 
   const refresh = useCallback(() => setFrame((value) => value + 1), []);
@@ -153,8 +159,7 @@ export function FrontlineGame({ onExit }: { onExit: () => void }) {
     gameRef.current = next;
     setGame(next);
     recordedRef.current = false;
-    cameraRef.current.top = Infinity;
-    setMapMode(window.matchMedia("(min-width: 900px)").matches ? "fit" : "fill");
+    cameraRef.current.ready = false;
     setSelectedZone("center");
     setSelectedSquad(1);
     setTab("squad");
@@ -165,19 +170,66 @@ export function FrontlineGame({ onExit }: { onExit: () => void }) {
   };
 
   const draw = useCallback((clock: number) => {
-    const canvas = canvasRef.current;
     const game = gameRef.current;
-    if (!canvas || !game) return;
-    const context = canvas.getContext("2d");
+    if (!game) return;
+    const camera = cameraRef.current;
+    const { width, height } = sizeRef.current;
+    if (!camera.ready && width > 1) {
+      // 휴대폰은 화면 폭을 채운 확대 지도로 아군 본진에서 시작하고, 넓은 화면은 지도 전체를 보여 준다.
+      camera.zoom = width < 900 ? frontlineFillZoom(width, height) : 1;
+      camera.lastZoom = Math.max(2, camera.zoom);
+      camera.cx = 50;
+      camera.cy = 150;
+      camera.ready = true;
+      setMapZoomed(camera.zoom > 1.05);
+    }
+    const view = frontlineViewport(width, height, camera);
+    camera.zoom = view.zoom;
+    camera.cx = view.cx;
+    camera.cy = view.cy;
+    viewRef.current = view;
+    const pixi = pixiRef.current;
+    if (pixi) {
+      pixi.render(game, view, { ...uiRef.current, clock, timeScale: pausedRef.current ? 0 : speedRef.current });
+      return;
+    }
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
     if (!context) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const camera = cameraRef.current;
-    const view = frontlineViewport(sizeRef.current.width, sizeRef.current.height, camera.mode, camera.top);
-    camera.top = view.top;
-    viewRef.current = view;
     drawFrontline(context, game, view, { ...uiRef.current, clock });
   }, []);
+
+  useEffect(() => {
+    // PixiJS(WebGL)로 그리고, 실패하면 2D 캔버스 렌더러로 돌아간다.
+    if (screen !== "play") return;
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    let cancelled = false;
+    let created: FrontlinePixiRenderer | null = null;
+    const rect = surface.getBoundingClientRect();
+    createFrontlinePixiRenderer(surface, rect.width, rect.height)
+      .then((pixi) => {
+        if (cancelled) {
+          pixi.destroy();
+          return;
+        }
+        created = pixi;
+        pixiRef.current = pixi;
+        pixi.resize(sizeRef.current.width, sizeRef.current.height);
+        setRenderer("pixi");
+      })
+      .catch(() => {
+        if (!cancelled) setRenderer("canvas");
+      });
+    return () => {
+      cancelled = true;
+      pixiRef.current = null;
+      created?.destroy();
+      setRenderer("loading");
+    };
+  }, [screen]);
 
   useEffect(() => {
     if (screen !== "play") return;
@@ -192,6 +244,7 @@ export function FrontlineGame({ onExit }: { onExit: () => void }) {
       canvas.style.width = `${rect.width}px`;
       canvas.style.height = `${rect.height}px`;
       sizeRef.current = { width: rect.width, height: rect.height };
+      pixiRef.current?.resize(rect.width, rect.height);
     };
     resize();
     const observer = new ResizeObserver(resize);
@@ -250,32 +303,112 @@ export function FrontlineGame({ onExit }: { onExit: () => void }) {
     refresh();
   };
 
-  const handlePointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  const localPoint = (event: { clientX: number; clientY: number; currentTarget: Element }) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  };
+
+  const beginGesture = (pinch: boolean) => {
+    const points = [...pointersRef.current.values()];
+    const camera = cameraRef.current;
+    const mid = points.length >= 2 ? { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 } : points[0];
+    gestureRef.current = {
+      moved: pinch || Boolean(gestureRef.current?.moved),
+      pinch: pinch || Boolean(gestureRef.current?.pinch),
+      x: mid.x,
+      y: mid.y,
+      cx: camera.cx,
+      cy: camera.cy,
+      zoom: camera.zoom,
+      distance: points.length >= 2 ? Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y)) : 1,
+      anchor: frontlineScreenToMap(viewRef.current, mid.x, mid.y),
+    };
+  };
+
+  const zoomAround = (screen: { x: number; y: number }, anchor: { x: number; y: number }, zoom: number) => {
+    const camera = cameraRef.current;
+    const { width, height } = sizeRef.current;
+    camera.zoom = Math.min(FRONTLINE_MAX_ZOOM, Math.max(1, zoom));
+    const scale = frontlineFitScale(width, height) * camera.zoom;
+    camera.cx = anchor.x - (screen.x - width / 2) / scale;
+    camera.cy = anchor.y - (screen.y - height / 2) / scale;
+    setMapZoomed(camera.zoom > 1.05);
+  };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    dragRef.current = { id: event.pointerId, y: event.clientY, top: viewRef.current.top, moved: false };
+    pointersRef.current.set(event.pointerId, localPoint(event));
+    if (pointersRef.current.size === 1) gestureRef.current = null;
+    beginGesture(pointersRef.current.size >= 2);
   };
 
-  const handlePointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.id !== event.pointerId) return;
-    const dy = event.clientY - drag.y;
-    if (!drag.moved && Math.abs(dy) < 8) return;
-    drag.moved = true;
-    cameraRef.current.top = drag.top - dy / viewRef.current.scale;
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!pointersRef.current.has(event.pointerId)) return;
+    pointersRef.current.set(event.pointerId, localPoint(event));
+    const gesture = gestureRef.current;
+    if (!gesture) return;
+    const points = [...pointersRef.current.values()];
+    if (points.length >= 2) {
+      // 두 손가락: 손가락 사이 지점을 고정한 채 확대·축소하고 함께 이동한다.
+      const mid = { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 };
+      const distance = Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y));
+      zoomAround(mid, gesture.anchor, gesture.zoom * (distance / gesture.distance));
+      return;
+    }
+    const dx = points[0].x - gesture.x;
+    const dy = points[0].y - gesture.y;
+    if (!gesture.moved && Math.hypot(dx, dy) < 8) return;
+    gesture.moved = true;
+    const scale = viewRef.current.scale;
+    cameraRef.current.cx = gesture.cx - dx / scale;
+    cameraRef.current.cy = gesture.cy - dy / scale;
   };
 
-  const handlePointerUp = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    const drag = dragRef.current;
-    dragRef.current = null;
-    if (!drag || drag.moved) return;
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = gestureRef.current;
+    pointersRef.current.delete(event.pointerId);
+    if (pointersRef.current.size > 0) {
+      beginGesture(false);
+      return;
+    }
+    gestureRef.current = null;
+    if (!gesture || gesture.moved || gesture.pinch) return;
     selectAt(event);
   };
 
-  const selectAt = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+  const handlePointerCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
+    pointersRef.current.delete(event.pointerId);
+    if (!pointersRef.current.size) gestureRef.current = null;
+  };
+
+  const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    const point = localPoint(event);
+    const anchor = frontlineScreenToMap(viewRef.current, point.x, point.y);
+    zoomAround(point, anchor, cameraRef.current.zoom * Math.exp(-event.deltaY * 0.0015));
+  };
+
+  const toggleMapZoom = () => {
+    const camera = cameraRef.current;
+    if (camera.zoom > 1.05) {
+      camera.lastZoom = camera.zoom;
+      camera.zoom = 1;
+      setMapZoomed(false);
+      return;
+    }
+    const zone = FRONTLINE_ZONES.find((item) => item.id === selectedZone);
+    camera.zoom = Math.max(camera.lastZoom, frontlineFillZoom(sizeRef.current.width, sizeRef.current.height));
+    if (zone) {
+      camera.cx = zone.x;
+      camera.cy = zone.y;
+    }
+    setMapZoomed(true);
+  };
+
+  const selectAt = (event: ReactPointerEvent<HTMLDivElement>) => {
     const current = game;
     if (!current) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const point = frontlineScreenToMap(viewRef.current, event.clientX - rect.left, event.clientY - rect.top);
+    const local = localPoint(event);
+    const point = frontlineScreenToMap(viewRef.current, local.x, local.y);
     const touchSlack = 14 / viewRef.current.scale;
     const unit = current.units
       .filter((item) => item.side === "player")
@@ -361,16 +494,22 @@ export function FrontlineGame({ onExit }: { onExit: () => void }) {
       </section>
       <div className="fl-body">
         <div className="fl-map" ref={mapRef}>
-          <canvas
-            ref={canvasRef}
+          <div
+            ref={surfaceRef}
+            className="fl-map-surface"
+            data-renderer={renderer}
+            role="application"
+            aria-label="전장 지도. 지역을 눌러 목표로 선택하고, 끌어서 이동하고, 두 손가락으로 확대합니다."
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
-            onPointerCancel={() => { dragRef.current = null; }}
-            aria-label="전장 지도. 지역을 눌러 목표로 선택하고 위아래로 끌어 이동합니다."
-          />
-          <button type="button" className="fl-map-mode" onClick={() => setMapMode((value) => (value === "fill" ? "fit" : "fill"))}>
-            {mapMode === "fill" ? "전체 지도" : "확대 지도"}
+            onPointerCancel={handlePointerCancel}
+            onWheel={handleWheel}
+          >
+            <canvas ref={canvasRef} className="fl-2d-canvas" aria-hidden="true" />
+          </div>
+          <button type="button" className="fl-map-mode" onClick={toggleMapZoom}>
+            {mapZoomed ? "전체 지도" : "확대 지도"}
           </button>
           <span className="fl-enemy-chip">적 · {enemyStatus}</span>
           <ul className="fl-log" aria-live="polite">

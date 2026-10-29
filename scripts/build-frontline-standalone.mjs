@@ -1,11 +1,12 @@
 // 전선 지휘관을 HTML 파일 하나로 묶는다.
 //   node scripts/build-frontline-standalone.mjs            → dist-standalone/frontline.html (React 포함, 오프라인 실행)
-//   node scripts/build-frontline-standalone.mjs --artifact → dist-standalone/frontline-artifact.html (React는 cdnjs에서 로드)
+//   node scripts/build-frontline-standalone.mjs --artifact → dist-standalone/frontline-artifact.html (React는 cdnjs, PixiJS는 jsDelivr에서 로드)
 import { build } from "esbuild";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const artifact = process.argv.includes("--artifact");
+const pixiVersion = JSON.parse(await readFile(new URL("../node_modules/pixi.js/package.json", import.meta.url), "utf8")).version;
 const here = fileURLToPath(new URL("./frontline-standalone/", import.meta.url));
 const outDir = fileURLToPath(new URL("../dist-standalone/", import.meta.url));
 
@@ -13,11 +14,15 @@ const globalsPlugin = {
   name: "react-umd-globals",
   setup(context) {
     context.onResolve({ filter: /^react\/jsx-runtime$/ }, () => ({ path: `${here}jsx-runtime-shim.js` }));
-    context.onResolve({ filter: /^(react|react-dom\/client)$/ }, (args) => ({ path: args.path, namespace: "umd-global" }));
-    context.onLoad({ filter: /.*/, namespace: "umd-global" }, (args) => ({
-      contents: args.path === "react" ? "module.exports = window.React;" : "module.exports = window.ReactDOM;",
-      loader: "js",
-    }));
+    context.onResolve({ filter: /^(react|react-dom\/client|pixi\.js|pixi\.js\/unsafe-eval)$/ }, (args) => ({ path: args.path, namespace: "umd-global" }));
+    const globals = {
+      react: "module.exports = window.React;",
+      "react-dom/client": "module.exports = window.ReactDOM;",
+      "pixi.js": "module.exports = window.PIXI;",
+      // jsDelivr의 unsafe-eval 패키지가 PIXI 전역에 직접 설치되므로 번들 쪽은 비워 둔다.
+      "pixi.js/unsafe-eval": "module.exports = {};",
+    };
+    context.onLoad({ filter: /.*/, namespace: "umd-global" }, (args) => ({ contents: globals[args.path], loader: "js" }));
   },
 };
 
@@ -43,6 +48,8 @@ const react = artifact
   ? [
       '<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>',
       '<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>',
+      `<script src="https://cdn.jsdelivr.net/npm/pixi.js@${pixiVersion}/dist/pixi.min.js"></script>`,
+      `<script src="https://cdn.jsdelivr.net/npm/pixi.js@${pixiVersion}/dist/packages/unsafe-eval.min.js"></script>`,
     ].join("\n")
   : "";
 

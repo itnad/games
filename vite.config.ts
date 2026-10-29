@@ -1,5 +1,5 @@
 import vinext from "vinext";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
 
@@ -38,6 +38,20 @@ const localBindingConfig = {
     : [],
 };
 
+// PixiJS는 브라우저에서만 동적으로 불러온다. 서버(rsc·ssr) 번들에는 빈 모듈을 넣어 Worker 크기를 지킨다.
+const PIXI_SERVER_STUB = "\0paperoid-pixi-server-stub";
+const clientOnlyPixi: Plugin = {
+  name: "paperoid-client-only-pixi",
+  enforce: "pre",
+  resolveId(id) {
+    if (this.environment?.config.consumer === "server" && /^pixi\.js(?:\/|$)/.test(id)) return PIXI_SERVER_STUB;
+    return null;
+  },
+  load(id) {
+    return id === PIXI_SERVER_STUB ? "export {};" : null;
+  },
+};
+
 export default defineConfig(async () => {
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
@@ -56,6 +70,7 @@ export default defineConfig(async () => {
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
     plugins: [
+      clientOnlyPixi,
       vinext(),
       sites(),
       cloudflare({

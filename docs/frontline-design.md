@@ -97,7 +97,8 @@
 
 - 상단: 나가기, 전투 시간, 게임 설명
 - 자원 줄: 광석과 분당 수입, 보급, 일꾼 수, 일시정지, 1배/2배속
-- 지도: 지역 터치로 목표·건설 지역 선택, 아군 유닛 터치로 부대 선택
+- 지도: 지역 터치로 목표·건설 지역 선택, 아군 유닛 터치로 부대 선택, 한 손가락으로 끌어 이동, 두 손가락으로 확대·축소(PC는 마우스 휠)
+- 휴대폰은 화면 폭을 채운 확대 지도로 아군 본진에서 시작한다. "전체 지도" 버튼으로 지도 전체 보기와 확대 보기를 오간다
 - 지휘 패널 탭: 부대 / 건설 / 생산 / 일꾼
 - 화면 폭 900px 이상에서는 지도 왼쪽, 지휘 패널 오른쪽
 
@@ -108,7 +109,9 @@ app/frontline/
   frontline-data.js      지도·유닛·건물·대열·난이도 수치
   frontline-engine.js    순수 규칙 엔진: 명령, 경제, 생산, 이동, 전투, 승패
   frontline-ai.js        적 AI (엔진 명령만 사용)
-  frontline-renderer.js  Canvas 렌더링 (상태 읽기 전용)
+  frontline-pixi.ts      PixiJS 렌더러: 스프라이트, 파티클, 자국, 화면 고정 표시 (상태 읽기 전용)
+  frontline-sprites.ts   유닛·건물·지형 텍스처 공장 (그림 파일 없이 코드로 그림)
+  frontline-renderer.js  카메라 계산과 2D Canvas 예비 렌더러
   frontline-types.ts     화면에서 쓰는 상태 타입
   frontline-game.tsx     메뉴·전투·결과 화면과 지휘 패널
   frontline.css          전용 스타일 (fl- 접두어)
@@ -117,7 +120,20 @@ tests/frontline-engine.test.mjs   엔진·AI 회귀 테스트
 
 수치를 바꿀 때는 `frontline-data.js`만 고친다. 규칙을 바꿀 때는 엔진에 순수 함수로 넣고 테스트를 추가한다.
 
-## 10. 다음 확장 후보
+## 10. 그래픽 구조
+
+- 렌더링은 PixiJS 8을 쓴다. PixiJS는 브라우저에서만 동적으로 불러오고, 서버 번들에는 `vite.config.ts`의 빈 모듈이 들어간다
+- WebGL을 쓸 수 없으면 PixiJS가 자체 Canvas 렌더러로 내려가고, PixiJS 초기화 자체가 실패하면 `frontline-renderer.js`의 2D 렌더러를 쓴다
+- 지형은 결정적 시드로 한 번만 그려 텍스처로 굽는다. 풀밭, 흙길, 고지 등고선, 바위, 나무가 들어 있다
+- 유닛과 건물은 진영 색을 입힌 텍스처를 지도 1칸당 32픽셀로 구워 확대해도 선명하다
+- 효과: 총구 섬광, 예광탄, 포탄 궤적, 폭발 불꽃·연기·파편, 그을음 자국, 전차 잔해, 건물 잔해, 군수공장 굴뚝 연기
+- 엔진은 0.1초 단위로 움직이고, 렌더러는 유닛 위치와 방향을 부드럽게 보간한다
+
+### 외부 그림(예: Kenney 에셋)으로 바꾸는 방법
+
+`frontline-sprites.ts`의 `createFrontlineTextures`가 돌려주는 `FrontlineTextureSet`의 키(`rifle`, `guard`, `tank`, `tankTurret`, `worker`, `hq`, `outpost`, `depot`, `barracks`, `factory`, `turret`, `turretGun`, `terrain` 등)에 같은 크기 기준의 텍스처를 넣으면 된다. 유닛 그림은 오른쪽(+x)을 바라보게 두고, 크기는 `SPRITE_PX`(지도 1칸 = 16 논리 픽셀) 기준으로 맞춘다. 그림 파일은 `public/frontline-assets/`에 두고 출처와 라이선스를 함께 적는다.
+
+## 11. 다음 확장 후보
 
 - 전장의 안개와 정찰
 - 업그레이드 연구(무기, 방어력)

@@ -21,6 +21,9 @@ export type FrontlineUnit = {
   maxHp: number;
   squad: FrontlineSquadId;
   mode: "travel" | "station";
+  heading: number;
+  radius: number;
+  targetId: number | string | null;
 };
 
 export type FrontlineBuilding = {
@@ -35,6 +38,20 @@ export type FrontlineBuilding = {
   maxHp: number;
   progress: number;
   queue: { unit: FrontlineTrainable; remaining: number }[];
+  radius: number;
+  targetId: number | string | null;
+};
+
+export type FrontlineEffect = {
+  kind: "shot" | "slash" | "shell" | "boom" | "death" | "collapse";
+  side: FrontlineSide;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  ttl: number;
+  max: number;
+  radius?: number;
 };
 
 export type FrontlineSquad = {
@@ -77,8 +94,12 @@ export type FrontlineState = {
   sides: Record<FrontlineSide, FrontlineSideState>;
   buildings: FrontlineBuilding[];
   units: FrontlineUnit[];
+  effects: FrontlineEffect[];
   log: FrontlineLogEntry[];
 };
+
+export type FrontlineView = { width: number; height: number; scale: number; ox: number; oy: number; top: number; maxTop: number };
+export type FrontlineUiState = { selectedZone: string; selectedSquad: FrontlineSquadId; clock: number; timeScale: number };
 
 export type FrontlineSquadSummary = {
   id: FrontlineSquadId;

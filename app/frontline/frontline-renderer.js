@@ -7,41 +7,56 @@ export const FRONTLINE_COLORS = {
   enemy: { main: "#ff5d4f", light: "#ffc8c0", dark: "#661c16", shot: "#ffd27a" },
 };
 
-/**
- * 캔버스 CSS 크기에 맞춰 지도를 배치한다.
- * fit: 지도 전체를 한 화면에 넣는다. fill: 화면 폭을 채우고 세로는 top(지도 좌표)부터 보여 준다.
- * @param {number} width
- * @param {number} height
- * @param {"fit" | "fill"} [mode]
- * @param {number} [top]
- */
-export function frontlineViewport(width, height, mode = "fit", top = 0) {
-  const fitScale = Math.min(width / FRONTLINE_MAP_WIDTH, height / FRONTLINE_MAP_HEIGHT);
-  // 확대 지도는 화면 폭을 채우되 지도 세로의 60% 이상은 항상 보이게 한다.
-  const fillScale = Math.min(width / FRONTLINE_MAP_WIDTH, height / (FRONTLINE_MAP_HEIGHT * 0.6));
-  if (mode === "fit" || fillScale <= fitScale * 1.05) {
-    return {
-      width,
-      height,
-      scale: fitScale,
-      ox: (width - FRONTLINE_MAP_WIDTH * fitScale) / 2,
-      oy: (height - FRONTLINE_MAP_HEIGHT * fitScale) / 2,
-      top: 0,
-      maxTop: 0,
-    };
-  }
-  const maxTop = Math.max(0, FRONTLINE_MAP_HEIGHT - height / fillScale);
-  const clamped = Math.min(maxTop, Math.max(0, top));
-  return { width, height, scale: fillScale, ox: (width - FRONTLINE_MAP_WIDTH * fillScale) / 2, oy: -clamped * fillScale, top: clamped, maxTop };
+/** 지도 전체가 들어가는 배율. 확대 배율(zoom)은 이 값의 배수다. */
+export function frontlineFitScale(width, height) {
+  return Math.min(width / FRONTLINE_MAP_WIDTH, height / FRONTLINE_MAP_HEIGHT);
 }
 
-/** 지정한 지도 y를 화면 가운데에 두는 top 값. */
-export function frontlineCenterTop(view, y) {
-  return Math.min(view.maxTop, Math.max(0, y - view.height / view.scale / 2));
+/** 화면 폭을 꽉 채우는 확대 배율. */
+export function frontlineFillZoom(width, height) {
+  return Math.max(1, width / FRONTLINE_MAP_WIDTH / frontlineFitScale(width, height));
+}
+
+export const FRONTLINE_MAX_ZOOM = 4;
+
+/**
+ * 카메라(확대 배율과 화면 중심의 지도 좌표)로 화면 배치를 계산한다. 지도 밖이 보이지 않게 중심을 붙잡는다.
+ * @param {number} width
+ * @param {number} height
+ * @param {{ zoom: number, cx: number, cy: number }} camera
+ */
+export function frontlineViewport(width, height, camera = { zoom: 1, cx: FRONTLINE_MAP_WIDTH / 2, cy: FRONTLINE_MAP_HEIGHT / 2 }) {
+  const zoom = Math.min(FRONTLINE_MAX_ZOOM, Math.max(1, camera.zoom || 1));
+  const scale = frontlineFitScale(width, height) * zoom;
+  const visibleW = width / scale;
+  const visibleH = height / scale;
+  const clampAxis = (value, visible, size) => (visible >= size ? size / 2 : Math.min(size - visible / 2, Math.max(visible / 2, value)));
+  const cx = clampAxis(camera.cx, visibleW, FRONTLINE_MAP_WIDTH);
+  const cy = clampAxis(camera.cy, visibleH, FRONTLINE_MAP_HEIGHT);
+  const maxTop = Math.max(0, FRONTLINE_MAP_HEIGHT - visibleH);
+  return {
+    width,
+    height,
+    scale,
+    zoom,
+    cx,
+    cy,
+    ox: width / 2 - cx * scale,
+    oy: height / 2 - cy * scale,
+    top: Math.max(0, cy - visibleH / 2),
+    maxTop,
+  };
 }
 
 export function frontlineScreenToMap(view, sx, sy) {
   return { x: (sx - view.ox) / view.scale, y: (sy - view.oy) / view.scale };
+}
+
+/** 지도 좌표가 지금 화면 안에 보이는지. */
+export function frontlineIsVisible(view, x, y, margin = 0) {
+  const sx = view.ox + x * view.scale;
+  const sy = view.oy + y * view.scale;
+  return sx >= -margin && sy >= -margin && sx <= view.width + margin && sy <= view.height + margin;
 }
 
 function sx(view, x) { return view.ox + x * view.scale; }

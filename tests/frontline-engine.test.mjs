@@ -26,6 +26,7 @@ import {
   stepFrontline,
 } from "../app/frontline/frontline-engine.js";
 import { frontlineAiThink } from "../app/frontline/frontline-ai.js";
+import { FRONTLINE_MAX_ZOOM, frontlineFillZoom, frontlineScreenToMap, frontlineViewport } from "../app/frontline/frontline-renderer.js";
 
 const run = (state, seconds, ai = null) => {
   const steps = Math.round(seconds * 10);
@@ -196,4 +197,23 @@ test("frontline reinforcements leave a crowded base and reach their squad", () =
   assert.deepEqual(state.units.filter((unit) => unit.mode === "travel").map((unit) => unit.type), []);
   const south = frontlineZone("south");
   assert.ok(state.units.every((unit) => Math.hypot(unit.x - south.x, unit.y - south.y) <= south.radius + 6), "모두 남부 광산에 주둔");
+});
+
+test("frontline camera fits the whole map, clamps panning, and zooms around a fixed point", () => {
+  const full = frontlineViewport(390, 480, { zoom: 1, cx: 0, cy: 0 });
+  assert.equal(full.zoom, 1);
+  assert.ok(Math.abs(full.scale - 480 / 150) < 1e-9, "세로가 꽉 차는 전체 지도");
+  assert.equal(full.cx, 50);
+  assert.equal(full.cy, 75);
+
+  const fill = frontlineFillZoom(390, 480);
+  assert.ok(Math.abs(fill * full.scale - 3.9) < 1e-9, "확대 지도는 화면 폭을 채움");
+  const bottom = frontlineViewport(390, 480, { zoom: fill, cx: 50, cy: 999 });
+  assert.ok(Math.abs(bottom.oy + 150 * bottom.scale - 480) < 1e-9, "지도 아래 끝에서 멈춤");
+  assert.equal(bottom.maxTop > 0, true);
+
+  const capped = frontlineViewport(390, 480, { zoom: 99, cx: 50, cy: 136 });
+  assert.equal(capped.zoom, FRONTLINE_MAX_ZOOM);
+  const center = frontlineScreenToMap(capped, 195, 240);
+  assert.ok(Math.abs(center.x - 50) < 1e-9 && Math.abs(center.y - capped.cy) < 1e-9, "화면 중심이 카메라 중심");
 });

@@ -45,7 +45,9 @@
 
 .fl-body { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
 .fl-map { position:relative; flex:1 1 auto; min-height:240px; overflow:hidden; background:#0d1512; }
-.fl-map canvas { position:absolute; inset:0; display:block; touch-action:none; }
+.fl-map-surface { position:absolute; inset:0; touch-action:none; }
+.fl-map-surface canvas { position:absolute; inset:0; display:block; touch-action:none; }
+.fl-map-surface[data-renderer="pixi"] .fl-2d-canvas { visibility:hidden; }
 .fl-log { position:absolute; left:8px; right:16px; bottom:8px; margin:0; padding:0; list-style:none; display:grid; gap:4px; pointer-events:none; }
 .fl-log li { width:max-content; max-width:100%; overflow:hidden; padding:4px 9px; text-overflow:ellipsis; white-space:nowrap; border-radius:9px; color:#e9f1ec; background:#071009c7; font-size:13px !important; line-height:1.35 !important; }
 .fl-log li span { margin-right:6px; color:var(--fl-muted); font-variant-numeric:tabular-nums; }
