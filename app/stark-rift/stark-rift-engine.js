@@ -6,7 +6,6 @@ import {
   withKoreanSubject,
 } from "../korean-particles.js";
 import {
-  STARK_RIFT_BUILDINGS,
   STARK_RIFT_DIFFICULTIES,
   STARK_RIFT_ECONOMY,
   STARK_RIFT_EDGES,
@@ -18,9 +17,13 @@ import {
   STARK_RIFT_SQUAD_IDS,
   STARK_RIFT_STRATEGIES,
   STARK_RIFT_TICK,
-  STARK_RIFT_UNITS,
   STARK_RIFT_ZONES,
 } from "./stark-rift-data.js";
+import {
+  starkRiftBuildingDefinition as catalogBuildingDefinition,
+  starkRiftUnitDefinition as catalogUnitDefinition,
+} from "./stark-rift-catalog.js";
+import { createStarkRiftIntel, refreshStarkRiftVision } from "./stark-rift-vision.js";
 
 export const STARK_RIFT_SIDES = ["player", "enemy"];
 const ROLE_ORDER = { melee: 0, ranged: 1, siege: 2 };
@@ -184,6 +187,7 @@ function createSide(id, faction, strategy) {
     id,
     faction,
     strategy,
+    intel: createStarkRiftIntel(),
     ore: STARK_RIFT_ECONOMY.startOre,
     workers: { [home]: STARK_RIFT_ECONOMY.startWorkers },
     transit: [],
@@ -207,16 +211,16 @@ export function createStarkRiftGame({
   seed = 20261029,
   aiSides = ["enemy"],
   playerFaction = "vanguard",
-  enemyFaction = "brood",
+  enemyFaction = "vanguard",
   playerStrategy = "balanced",
   enemyStrategy = "balanced",
 } = {}) {
   const validPlayerFaction = STARK_RIFT_FACTIONS[playerFaction] ? playerFaction : "vanguard";
-  const validEnemyFaction = STARK_RIFT_FACTIONS[enemyFaction] ? enemyFaction : "brood";
+  const validEnemyFaction = STARK_RIFT_FACTIONS[enemyFaction] ? enemyFaction : "vanguard";
   const validPlayerStrategy = STARK_RIFT_STRATEGIES[playerStrategy] ? playerStrategy : "balanced";
   const validEnemyStrategy = STARK_RIFT_STRATEGIES[enemyStrategy] ? enemyStrategy : "balanced";
   const state = {
-    version: 2,
+    version: 3,
     time: 0,
     difficulty: STARK_RIFT_DIFFICULTIES[difficulty] ? difficulty : "normal",
     rngState: seed >>> 0,
@@ -242,6 +246,7 @@ export function createStarkRiftGame({
     hq.progress = 1;
     hq.hp = hq.maxHp;
   }
+  for (const side of STARK_RIFT_SIDES) refreshStarkRiftVision(state, side, starkRiftNeighbors);
   pushLog(state, "player", `${STARK_RIFT_FACTIONS[validPlayerFaction].name} 출격. 일꾼을 늘리고 병영을 세워 전선을 준비하세요.`, "info");
   return state;
 }
@@ -254,16 +259,24 @@ export function starkRiftModifiers(state, side) {
   return Object.fromEntries(Object.keys(faction.modifiers).map((key) => [key, faction.modifiers[key] * strategy.modifiers[key]]));
 }
 
+export function starkRiftUnitDefinition(state, side, type) {
+  return catalogUnitDefinition(state.sides[side].faction, type);
+}
+
+export function starkRiftBuildingDefinition(state, side, type) {
+  return catalogBuildingDefinition(state.sides[side].faction, type);
+}
+
 export function starkRiftUnitCost(state, side, type) {
-  return Math.max(1, Math.round(STARK_RIFT_UNITS[type].cost * starkRiftModifiers(state, side).unitCost));
+  return Math.max(1, Math.round(starkRiftUnitDefinition(state, side, type).cost * starkRiftModifiers(state, side).unitCost));
 }
 
 export function starkRiftBuildingCost(state, side, type) {
-  return Math.max(1, Math.round(STARK_RIFT_BUILDINGS[type].cost * starkRiftModifiers(state, side).buildCost));
+  return Math.max(1, Math.round(starkRiftBuildingDefinition(state, side, type).cost * starkRiftModifiers(state, side).buildCost));
 }
 
 function placeBuilding(state, side, type, zoneId, slot) {
-  const def = STARK_RIFT_BUILDINGS[type];
+  const def = starkRiftBuildingDefinition(state, side, type);
   const modifiers = starkRiftModifiers(state, side);
   const position = starkRiftSlotPosition(zoneId, slot);
   const maxHp = Math.round(def.hp * modifiers.buildingHp);
@@ -323,10 +336,10 @@ export function starkRiftSupply(state, side) {
   let used = starkRiftWorkerTotal(state, side);
   for (const building of state.buildings) {
     if (building.side !== side) continue;
-    if (starkRiftBuildingDone(building)) cap += STARK_RIFT_BUILDINGS[building.type].supply ?? 0;
-    for (const item of building.queue) used += STARK_RIFT_UNITS[item.unit].supply;
+    if (starkRiftBuildingDone(building)) cap += starkRiftBuildingDefinition(state, side, building.type).supply ?? 0;
+    for (const item of building.queue) used += starkRiftUnitDefinition(state, side, item.unit).supply;
   }
-  for (const unit of state.units) if (unit.side === side) used += STARK_RIFT_UNITS[unit.type].supply;
+  for (const unit of state.units) if (unit.side === side) used += starkRiftUnitDefinition(state, side, unit.type).supply;
   return { used, cap: Math.min(STARK_RIFT_ECONOMY.supplyLimit, cap) };
 }
 
@@ -366,7 +379,7 @@ export function starkRiftSquadUnits(state, side, squadId) {
 }
 
 export function starkRiftArmySupply(state, side) {
-  return state.units.filter((unit) => unit.side === side).reduce((sum, unit) => sum + STARK_RIFT_UNITS[unit.type].supply, 0);
+  return state.units.filter((unit) => unit.side === side).reduce((sum, unit) => sum + starkRiftUnitDefinition(state, side, unit.type).supply, 0);
 }
 
 /** UI용 부대 요약. */
@@ -386,7 +399,8 @@ export function starkRiftSquadSummary(state, side, squadId) {
   let status = "대기";
   if (!units.length) status = "병력 없음";
   else if (state.time - squad.engagedAt < 1.5) status = "교전 중";
-  else if (traveling) status = squad.order === "attack" ? "진격 중" : "이동 중";
+  else if (traveling) status = squad.order === "attack" ? "진격 중" : squad.order === "scout" ? "정찰 중" : "이동 중";
+  else if (squad.order === "scout") status = "정찰 완료";
   else status = "주둔";
   return {
     id: squadId,
@@ -397,7 +411,7 @@ export function starkRiftSquadSummary(state, side, squadId) {
     formation: squad.formation,
     counts,
     size: units.length,
-    supply: units.reduce((sum, unit) => sum + STARK_RIFT_UNITS[unit.type].supply, 0),
+    supply: units.reduce((sum, unit) => sum + starkRiftUnitDefinition(state, side, unit.type).supply, 0),
     health: maxHp ? hp / maxHp : 0,
     status,
   };
@@ -458,10 +472,10 @@ export function starkRiftCommand(state, side, command) {
 /** 생산 가능 여부와 이유. 상태를 바꾸지 않는다. */
 export function starkRiftTrainCheck(state, side, buildingId, unit) {
   const building = state.buildings.find((item) => item.id === buildingId && item.side === side);
-  const def = STARK_RIFT_UNITS[unit];
+  const def = starkRiftUnitDefinition(state, side, unit);
   if (!building || !def) return fail("생산 건물을 찾을 수 없습니다.");
   if (!starkRiftBuildingDone(building)) return fail("건설이 끝나야 생산할 수 있습니다.");
-  if (!(STARK_RIFT_BUILDINGS[building.type].trains ?? []).includes(unit)) return fail("이 건물에서는 생산할 수 없습니다.");
+  if (!(starkRiftBuildingDefinition(state, side, building.type).trains ?? []).includes(unit)) return fail("이 건물에서는 생산할 수 없습니다.");
   if (building.queue.length >= STARK_RIFT_ECONOMY.queueLimit) return fail("생산 대기열이 가득 찼습니다.");
   const cost = starkRiftUnitCost(state, side, unit);
   if (state.sides[side].ore < cost) return fail(`광석이 ${cost - Math.floor(state.sides[side].ore)} 부족합니다.`);
@@ -474,7 +488,7 @@ function trainCommand(state, side, record, { buildingId, unit }) {
   const check = starkRiftTrainCheck(state, side, buildingId, unit);
   if (!check.ok) return check;
   const building = state.buildings.find((item) => item.id === buildingId);
-  const def = STARK_RIFT_UNITS[unit];
+  const def = starkRiftUnitDefinition(state, side, unit);
   const cost = starkRiftUnitCost(state, side, unit);
   record.ore -= cost;
   const duration = def.time * starkRiftModifiers(state, side).trainTime;
@@ -498,7 +512,7 @@ function cancelCommand(state, side, record, { buildingId }) {
 
 /** 특정 지역에 건물을 지을 수 있는지와 이유. */
 export function starkRiftBuildCheck(state, side, zoneId, type) {
-  const def = STARK_RIFT_BUILDINGS[type];
+  const def = starkRiftBuildingDefinition(state, side, type);
   const zone = ZONE_BY_ID[zoneId];
   if (!def || !zone || type === "hq") return fail("지을 수 없는 건물입니다.");
   if (type === "outpost") {
@@ -512,7 +526,7 @@ export function starkRiftBuildCheck(state, side, zoneId, type) {
     if (!starkRiftOwnsZone(state, side, zoneId)) return fail("완성된 아군 기지가 있는 지역에만 지을 수 있습니다.");
     if (!starkRiftSlotsFree(state, zoneId).length) return fail("이 지역에는 빈 건설 부지가 없습니다.");
     if (def.requires && !state.buildings.some((item) => item.side === side && item.type === def.requires && starkRiftBuildingDone(item))) {
-      return fail(`${withKoreanSubject(STARK_RIFT_BUILDINGS[def.requires].name)} 먼저 필요합니다.`);
+      return fail(`${withKoreanSubject(starkRiftBuildingDefinition(state, side, def.requires).name)} 먼저 필요합니다.`);
     }
   }
   const cost = starkRiftBuildingCost(state, side, type);
@@ -523,7 +537,7 @@ export function starkRiftBuildCheck(state, side, zoneId, type) {
 function buildCommand(state, side, record, { zone, building: type }) {
   const check = starkRiftBuildCheck(state, side, zone, type);
   if (!check.ok) return check;
-  const def = STARK_RIFT_BUILDINGS[type];
+  const def = starkRiftBuildingDefinition(state, side, type);
   record.ore -= starkRiftBuildingCost(state, side, type);
   const slot = type === "outpost" ? 0 : starkRiftSlotsFree(state, zone)[0];
   placeBuilding(state, side, type, zone, slot);
@@ -535,13 +549,13 @@ function orderCommand(state, side, record, { squad: squadId, order, zone }) {
   const squad = record.squads[squadId];
   if (!squad) return fail("알 수 없는 부대입니다.");
   if (!ZONE_BY_ID[zone]) return fail("목표 지역을 고르세요.");
-  if (order !== "attack" && order !== "move") return fail("알 수 없는 명령입니다.");
+  if (order !== "attack" && order !== "move" && order !== "scout") return fail("알 수 없는 명령입니다.");
   squad.order = order;
   squad.zone = zone;
   for (const unit of starkRiftSquadUnits(state, side, squadId)) routeUnit(unit, zone);
   if (side === "player") {
     const units = starkRiftSquadUnits(state, side, squadId).length;
-    const verb = order === "attack" ? "진격합니다" : "이동합니다";
+    const verb = order === "attack" ? "진격합니다" : order === "scout" ? "정찰합니다" : "이동합니다";
     pushLog(state, side, units
       ? `${withKoreanSubject(starkRiftSquadName(squadId))} ${withKoreanDirection(ZONE_BY_ID[zone].name)} ${verb}.`
       : `${starkRiftSquadName(squadId)} 집결지를 ${withKoreanDirection(ZONE_BY_ID[zone].name)} 지정했습니다.`, "order");
@@ -613,12 +627,12 @@ export function starkRiftFormationSlots(side, zoneId, formationId, units) {
   const zone = ZONE_BY_ID[zoneId];
   const facing = squadFacing(side, zoneId);
   const lateral = { x: -facing.y, y: facing.x };
-  const ordered = [...units].sort((a, b) => (ROLE_ORDER[STARK_RIFT_UNITS[a.type].role] - ROLE_ORDER[STARK_RIFT_UNITS[b.type].role]) || a.id - b.id);
+  const ordered = [...units].sort((a, b) => (ROLE_ORDER[a.role] - ROLE_ORDER[b.role]) || a.id - b.id);
   // 병종마다 새 줄에서 시작한다: 근접 → 원거리 → 공성 순으로 앞에서 뒤.
   const rowsOf = [];
   let previousRole = null;
   for (const unit of ordered) {
-    const role = STARK_RIFT_UNITS[unit.type].role;
+    const role = unit.role;
     const last = rowsOf.at(-1);
     if (!last || role !== previousRole || last.length >= formation.rowWidth) rowsOf.push([unit]);
     else last.push(unit);
@@ -671,6 +685,7 @@ export function stepStarkRift(state, aiThink = null) {
   const dt = STARK_RIFT_TICK;
   state.time = Math.round((state.time + dt) * 1000) / 1000;
   if (aiThink) for (const side of state.aiSides) aiThink(state, side);
+  for (const side of STARK_RIFT_SIDES) refreshStarkRiftVision(state, side, starkRiftNeighbors);
   for (const side of STARK_RIFT_SIDES) {
     stepEconomy(state, side, dt);
   }
@@ -692,7 +707,7 @@ function stepEconomy(state, side, dt) {
     if (!starkRiftOwnsZone(state, side, zoneId) || zone.ore <= 0) continue;
     const def = ZONE_BY_ID[zoneId];
     const threatened = state.units.some((unit) => unit.side !== side && distance(unit.x, unit.y, def.x, def.y) <= def.radius);
-    const mined = Math.min(zone.ore, starkRiftMiningRate(count) * dt * incomeMultiplier(state, side) * (threatened ? 0.3 : 1));
+    const mined = Math.min(zone.ore, starkRiftMiningRate(count) * dt * (threatened ? 0.3 : 1));
     zone.ore -= mined;
     record.ore += mined * multiplier;
     record.stats.oreMined += mined * multiplier;
@@ -761,7 +776,7 @@ function balanceWorkers(state, side) {
 
 function stepBuildings(state, dt) {
   for (const building of [...state.buildings]) {
-    const def = STARK_RIFT_BUILDINGS[building.type];
+    const def = starkRiftBuildingDefinition(state, building.side, building.type);
     if (!starkRiftBuildingDone(building)) {
       building.progress = Math.min(1, building.progress + dt / building.buildTime);
       building.hp = Math.min(building.maxHp, building.hp + (building.maxHp * 0.9 * dt) / building.buildTime);
@@ -790,7 +805,7 @@ function spawnUnit(state, building, type) {
     record.workers[building.zone] = (record.workers[building.zone] ?? 0) + 1;
     return;
   }
-  const def = STARK_RIFT_UNITS[type];
+  const def = starkRiftUnitDefinition(state, building.side, type);
   const maxHp = Math.round(def.hp * starkRiftModifiers(state, building.side).unitHp);
   const spread = (starkRiftRandom(state) - 0.5) * 3;
   const facing = squadFacing(building.side, building.zone);
@@ -805,6 +820,7 @@ function spawnUnit(state, building, type) {
     maxHp,
     armor: def.armor,
     radius: def.radius,
+    role: def.role,
     cooldown: 0,
     squad: record.rallySquad,
     path: [],
@@ -822,7 +838,7 @@ function spawnUnit(state, building, type) {
 
 /** 지정 위치에 유닛을 바로 배치한다. 테스트와 내부 점검용. */
 export function starkRiftSpawnUnitAt(state, side, type, x, y, squad = 1) {
-  const def = STARK_RIFT_UNITS[type];
+  const def = starkRiftUnitDefinition(state, side, type);
   const maxHp = Math.round(def.hp * starkRiftModifiers(state, side).unitHp);
   const unit = {
     id: state.nextId++,
@@ -835,6 +851,7 @@ export function starkRiftSpawnUnitAt(state, side, type, x, y, squad = 1) {
     maxHp,
     armor: def.armor,
     radius: def.radius,
+    role: def.role,
     cooldown: 0,
     squad,
     path: [],
@@ -865,7 +882,7 @@ function findTarget(state, attacker, radius, { unitsOnly = false } = {}) {
     if (building.side !== foe || building.hp <= 0) continue;
     const d = distance(attacker.x, attacker.y, building.x, building.y) - building.radius;
     if (d > radius) continue;
-    const score = d + (STARK_RIFT_BUILDINGS[building.type].damage ? 0 : 6);
+    const score = d + (starkRiftBuildingDefinition(state, building.side, building.type).damage ? 0 : 6);
     if (score < bestScore) {
       best = building;
       bestScore = score;
@@ -917,7 +934,9 @@ function formationOf(state, unit) {
 /** 공격 1회의 피해량. 대형·고지·방어력·건물 보정을 모두 반영한다. */
 export function starkRiftDamage(state, attacker, target, { splash = false } = {}) {
   const isUnit = attacker.kind === "unit";
-  const def = isUnit ? STARK_RIFT_UNITS[attacker.type] : STARK_RIFT_BUILDINGS[attacker.type];
+  const def = isUnit
+    ? starkRiftUnitDefinition(state, attacker.side, attacker.type)
+    : starkRiftBuildingDefinition(state, attacker.side, attacker.type);
   let damage = def.damage;
   damage *= starkRiftModifiers(state, attacker.side).damage;
   if (isUnit) {
@@ -1023,13 +1042,13 @@ function stepUnits(state, dt) {
       const key = `${side}:${squadId}`;
       squadSlots.set(key, starkRiftFormationSlots(side, squad.zone, squad.formation, units));
       const travelling = units.filter((unit) => unit.mode === "travel");
-      squadSpeed.set(key, travelling.length ? Math.min(...travelling.map((unit) => STARK_RIFT_UNITS[unit.type].speed)) : Infinity);
+      squadSpeed.set(key, travelling.length ? Math.min(...travelling.map((unit) => starkRiftUnitDefinition(state, side, unit.type).speed)) : Infinity);
     }
   }
 
   for (const unit of state.units) {
     if (unit.hp <= 0) continue;
-    const def = STARK_RIFT_UNITS[unit.type];
+    const def = starkRiftUnitDefinition(state, unit.side, unit.type);
     const squad = state.sides[unit.side].squads[unit.squad];
     const formation = STARK_RIFT_FORMATIONS[squad.formation] ?? STARK_RIFT_FORMATIONS.line;
     const key = `${unit.side}:${unit.squad}`;
@@ -1038,7 +1057,7 @@ function stepUnits(state, dt) {
     const speed = (unit.mode === "travel" ? groupSpeed : def.speed) * formation.speed;
     unit.cooldown = Math.max(0, unit.cooldown - dt);
 
-    const fighting = !(unit.mode === "travel" && squad.order === "move");
+    const fighting = unit.mode !== "travel" || squad.order === "attack";
     let target = fighting ? resolveTarget(state, unit.targetId, unit.side) : null;
     const acquire = def.range + (unit.mode === "station" ? 7 : 5);
     if (target) {
@@ -1154,7 +1173,7 @@ function cleanupDead(state) {
   const deadBuildings = state.buildings.filter((building) => building.hp <= 0);
   if (deadBuildings.length) {
     for (const building of deadBuildings) {
-      const name = STARK_RIFT_BUILDINGS[building.type].name;
+      const name = starkRiftBuildingDefinition(state, building.side, building.type).name;
       state.sides[building.side].stats.buildingsLost += 1;
       state.sides[starkRiftOpponent(building.side)].stats.buildingsDestroyed += 1;
       state.effects.push({ kind: "collapse", side: building.side, x1: building.x, y1: building.y, x2: building.x, y2: building.y, ttl: 1.1, max: 1.1, radius: building.radius * 1.6 });

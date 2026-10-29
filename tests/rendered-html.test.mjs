@@ -765,11 +765,13 @@ test("keeps Stark Rift in its own app/stark-rift folder and publishes it as a mo
 
   assert.deepEqual(folder, [
     "stark-rift-ai.js",
+    "stark-rift-catalog.js",
     "stark-rift-data.js",
     "stark-rift-engine.js",
     "stark-rift-game.tsx",
     "stark-rift-renderer.js",
     "stark-rift-types.ts",
+    "stark-rift-vision.js",
     "stark-rift.css",
   ]);
   assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^stark-rift-/.test(file)), false);
@@ -779,7 +781,7 @@ test("keeps Stark Rift in its own app/stark-rift folder and publishes it as a mo
   assert.doesNotMatch(hiddenSet, /"stark-rift"/);
 
   const gameSource = await readFile(new URL("../app/stark-rift/stark-rift-game.tsx", import.meta.url), "utf8");
-  for (const label of ["종족 선택", "개전 전략", "진격", "이동", "후퇴", "대열", "빠른 생산", "자동 배치", "출격"]) assert.match(gameSource, new RegExp(label));
+  for (const label of ["종족 선택", "개전 전략", "진격", "이동", "정찰", "후퇴", "대열", "빠른 생산", "자동 배치", "출격"]) assert.match(gameSource, new RegExp(label));
   assert.match(gameSource, /data-game-menu="true"/);
   const brief = await readFile(new URL("../docs/stark-rift-design.md", import.meta.url), "utf8");
   assert.match(brief, /app\/stark-rift\//);

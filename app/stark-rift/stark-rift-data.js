@@ -14,7 +14,7 @@ export const STARK_RIFT_FACTIONS = {
     icon: "◆",
     color: "#56b8ff",
     tagline: "균형 잡힌 기동 전단",
-    note: "표준 비용과 생산 속도 · 안정적인 초반 운영",
+    note: "기동과 화력의 균형 · 안정적인 초반 운영",
     modifiers: { mining: 1, unitCost: 1, trainTime: 1, buildCost: 1, buildTime: 1, buildingHp: 1, unitHp: 1, damage: 1 },
   },
   brood: {
@@ -23,8 +23,8 @@ export const STARK_RIFT_FACTIONS = {
     icon: "●",
     color: "#ef6cff",
     tagline: "빠르게 번지는 생체 군세",
-    note: "병력 비용 −15% · 생산 속도 +20% · 병력 체력 −10%",
-    modifiers: { mining: 1, unitCost: 0.85, trainTime: 0.8, buildCost: 1, buildTime: 0.9, buildingHp: 0.9, unitHp: 0.9, damage: 0.96 },
+    note: "저렴하고 빠른 군체 병력 · 가벼운 내구력",
+    modifiers: { mining: 1.05, unitCost: 1, trainTime: 1, buildCost: 1, buildTime: 1, buildingHp: 1, unitHp: 1, damage: 1 },
   },
   conclave: {
     id: "conclave",
@@ -32,8 +32,8 @@ export const STARK_RIFT_FACTIONS = {
     icon: "△",
     color: "#f2c55c",
     tagline: "소수 정예의 공명 병기",
-    note: "병력 체력 +12% · 화력 +15% · 병력 비용 +15%",
-    modifiers: { mining: 0.95, unitCost: 1.15, trainTime: 1.1, buildCost: 1.05, buildTime: 1, buildingHp: 1.08, unitHp: 1.12, damage: 1.15 },
+    note: "비싸고 느리지만 강한 소수 정예 병력",
+    modifiers: { mining: 0.95, unitCost: 1, trainTime: 1, buildCost: 1, buildTime: 1, buildingHp: 1, unitHp: 1, damage: 1 },
   },
 };
 

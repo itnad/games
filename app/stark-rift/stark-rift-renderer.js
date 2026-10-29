@@ -1,6 +1,7 @@
 // Stark Rift Canvas 렌더러. 상태를 읽기만 하고 바꾸지 않는다.
-import { STARK_RIFT_BUILDINGS, STARK_RIFT_EDGES, STARK_RIFT_MAP_HEIGHT, STARK_RIFT_MAP_WIDTH, STARK_RIFT_UNITS, STARK_RIFT_ZONES } from "./stark-rift-data.js";
-import { starkRiftBaseAt, starkRiftBuildingDone, starkRiftMinePosition, starkRiftWorkerPoint, starkRiftZone } from "./stark-rift-engine.js";
+import { STARK_RIFT_EDGES, STARK_RIFT_MAP_HEIGHT, STARK_RIFT_MAP_WIDTH, STARK_RIFT_ZONES } from "./stark-rift-data.js";
+import { starkRiftBaseAt, starkRiftBuildingDefinition, starkRiftBuildingDone, starkRiftMinePosition, starkRiftUnitDefinition, starkRiftWorkerPoint, starkRiftZone } from "./stark-rift-engine.js";
+import { starkRiftEntityVisible, starkRiftZoneIntel } from "./stark-rift-vision.js";
 
 export const STARK_RIFT_COLORS = {
   player: { main: "#4aa8ff", light: "#bfe0ff", dark: "#123c66", shot: "#d8f0ff" },
@@ -105,7 +106,8 @@ function drawRoads(ctx, view) {
 
 function drawZones(ctx, state, view, ui) {
   for (const zone of STARK_RIFT_ZONES) {
-    const owner = starkRiftBaseAt(state, zone.id)?.side ?? null;
+    const actualOwner = starkRiftBaseAt(state, zone.id)?.side ?? null;
+    const owner = actualOwner === "player" || starkRiftZoneIntel(state, "player", zone.id) === "visible" ? actualOwner : null;
     const x = sx(view, zone.x);
     const y = sy(view, zone.y);
     const r = zone.radius * view.scale;
@@ -140,7 +142,7 @@ function drawZones(ctx, state, view, ui) {
 function drawMines(ctx, state, view) {
   for (const zone of STARK_RIFT_ZONES) {
     if (!zone.mine) continue;
-    const remaining = state.zones[zone.id].ore / zone.mine;
+    const remaining = starkRiftZoneIntel(state, "player", zone.id) === "visible" ? state.zones[zone.id].ore / zone.mine : 1;
     const position = starkRiftMinePosition(zone.id);
     const x = sx(view, position.x);
     const y = sy(view, position.y);
@@ -177,6 +179,7 @@ function drawWorkers(ctx, state, view, ui) {
     const record = state.sides[side];
     for (const [zoneId, count] of Object.entries(record.workers)) {
       if (!count) continue;
+      if (side !== "player" && starkRiftZoneIntel(state, "player", zoneId) !== "visible") continue;
       const base = starkRiftBaseAt(state, zoneId);
       if (!base) continue;
       const mine = starkRiftMinePosition(zoneId);
@@ -215,7 +218,8 @@ function drawBar(ctx, x, y, width, ratio, color) {
 
 function drawBuildings(ctx, state, view) {
   for (const building of state.buildings) {
-    const def = STARK_RIFT_BUILDINGS[building.type];
+    if (!starkRiftEntityVisible(state, "player", building)) continue;
+    const def = starkRiftBuildingDefinition(state, building.side, building.type);
     const colors = STARK_RIFT_COLORS[building.side];
     const size = def.size * view.scale;
     const x = sx(view, building.x);
@@ -253,7 +257,7 @@ function drawBuildings(ctx, state, view) {
       ctx.beginPath(); ctx.arc(x, y, size * 0.62, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * building.progress); ctx.stroke();
     } else if (building.queue.length) {
       const item = building.queue[0];
-      const total = item.duration ?? STARK_RIFT_UNITS[item.unit].time;
+      const total = item.duration ?? starkRiftUnitDefinition(state, building.side, item.unit).time;
       drawBar(ctx, x, y + size / 2 + 2, size, 1 - item.remaining / total, "#ffe48a");
     }
     if (building.hp < building.maxHp * 0.98 && done) drawBar(ctx, x, y - size / 2 - 6, size, building.hp / building.maxHp, building.hp / building.maxHp > 0.4 ? "#71e08a" : "#ff7a5c");
@@ -263,6 +267,7 @@ function drawBuildings(ctx, state, view) {
 
 function drawUnits(ctx, state, view, ui) {
   for (const unit of state.units) {
+    if (!starkRiftEntityVisible(state, "player", unit)) continue;
     const colors = STARK_RIFT_COLORS[unit.side];
     const x = sx(view, unit.x);
     const y = sy(view, unit.y);
@@ -339,6 +344,7 @@ function drawSquadMarkers(ctx, state, view, ui) {
 
 function drawEffects(ctx, state, view) {
   for (const effect of state.effects) {
+    if (!starkRiftEntityVisible(state, "player", effect)) continue;
     const t = 1 - effect.ttl / effect.max;
     const colors = STARK_RIFT_COLORS[effect.side];
     ctx.save();
@@ -376,16 +382,49 @@ function drawLabels(ctx, state, view) {
     const x = sx(view, zone.x);
     const below = zone.y < STARK_RIFT_MAP_HEIGHT / 2 || zone.id === "home" ? -1 : 1;
     const y = sy(view, zone.y + (zone.id === "home" ? -zone.radius - 2.5 : zone.id === "enemy" ? zone.radius + 2.5 : below * (zone.radius + 2.5)));
-    const label = zone.name;
+    const intel = starkRiftZoneIntel(state, "player", zone.id);
+    const label = intel === "unknown" ? "미탐색" : zone.name;
     const width = ctx.measureText(label).width + 12;
     ctx.fillStyle = "#0b1110cc";
     roundRect(ctx, x - width / 2, y - 9, width, 18, 9);
     ctx.fill();
-    const owner = starkRiftBaseAt(state, zone.id)?.side;
+    const actualOwner = starkRiftBaseAt(state, zone.id)?.side;
+    const owner = actualOwner === "player" || starkRiftZoneIntel(state, "player", zone.id) === "visible" ? actualOwner : null;
     ctx.fillStyle = owner ? STARK_RIFT_COLORS[owner].light : "#e8e2cf";
     ctx.fillText(label, x, y + 0.5);
   }
   ctx.restore();
+}
+
+function drawFog(ctx, state, view) {
+  for (const zone of STARK_RIFT_ZONES) {
+    const intel = starkRiftZoneIntel(state, "player", zone.id);
+    if (intel === "visible") continue;
+    const x = sx(view, zone.x);
+    const y = sy(view, zone.y);
+    const radius = (zone.radius + 4) * view.scale;
+    const fog = ctx.createRadialGradient(x, y, radius * 0.2, x, y, radius);
+    if (intel === "unknown") {
+      fog.addColorStop(0, "rgba(3, 7, 9, .96)");
+      fog.addColorStop(0.72, "rgba(4, 9, 11, .9)");
+      fog.addColorStop(1, "rgba(4, 9, 11, .18)");
+    } else {
+      fog.addColorStop(0, "rgba(7, 14, 16, .72)");
+      fog.addColorStop(0.72, "rgba(7, 14, 16, .58)");
+      fog.addColorStop(1, "rgba(7, 14, 16, .1)");
+    }
+    ctx.fillStyle = fog;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    if (intel === "unknown") {
+      ctx.fillStyle = "#93a19b";
+      ctx.font = `900 ${Math.max(13, view.scale * 4)}px system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("?", x, y);
+    }
+  }
 }
 
 function drawScrollHint(ctx, view) {
@@ -411,6 +450,7 @@ export function drawStarkRift(ctx, state, view, ui) {
   drawBuildings(ctx, state, view);
   drawUnits(ctx, state, view, ui);
   drawEffects(ctx, state, view);
+  drawFog(ctx, state, view);
   drawSquadMarkers(ctx, state, view, ui);
   drawLabels(ctx, state, view);
   drawScrollHint(ctx, view);

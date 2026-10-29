@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Poin
 import { withKoreanDirection, withKoreanObject } from "../korean-particles.js";
 import {
   STARK_RIFT_BUILDABLE_IDS,
-  STARK_RIFT_BUILDINGS,
   STARK_RIFT_COMBAT_UNIT_IDS,
   STARK_RIFT_DIFFICULTIES,
   STARK_RIFT_ECONOMY,
@@ -12,13 +11,13 @@ import {
   STARK_RIFT_FORMATIONS,
   STARK_RIFT_SQUAD_IDS,
   STARK_RIFT_STRATEGIES,
-  STARK_RIFT_UNITS,
   STARK_RIFT_ZONES,
 } from "./stark-rift-data.js";
 import {
   advanceStarkRift,
   createStarkRiftGame,
   starkRiftBuildCheck,
+  starkRiftBuildingDefinition,
   starkRiftBuildingCost,
   starkRiftBuildingDone,
   starkRiftClock,
@@ -31,6 +30,7 @@ import {
   starkRiftSquadSummary,
   starkRiftSupply,
   starkRiftTrainCheck,
+  starkRiftUnitDefinition,
   starkRiftUnitCost,
   starkRiftZoneAt,
   starkRiftZoneOwner,
@@ -52,6 +52,7 @@ import type {
   StarkRiftTrainable,
   StarkRiftUnitType,
 } from "./stark-rift-types";
+import { starkRiftHasVisibleEnemy, starkRiftZoneIntel } from "./stark-rift-vision.js";
 
 type Screen = "menu" | "play";
 type Tab = "squad" | "build" | "train" | "workers";
@@ -374,8 +375,9 @@ export function StarkRiftGame({ onExit }: { onExit: () => void }) {
           </section>
           <ol className="sr-howto">
             <li><b>경제</b><span>일꾼은 자동으로 광산에 배치됩니다. 사령부에서 일꾼을 늘리고 보급고로 보급 한도를 올리세요.</span></li>
-            <li><b>건설·생산</b><span>병영과 군수공장을 짓고 생산 탭에서 소총병, 방패병, 공성 전차를 훈련하세요.</span></li>
-            <li><b>부대 지휘</b><span>지도에서 지역을 누른 뒤 진격, 이동, 후퇴 중 하나를 고르세요. 대형은 횡대, 쐐기, 산개 중에서 바꿀 수 있습니다.</span></li>
+            <li><b>건설·생산</b><span>생산 건물을 세우고 선택한 종족의 주력병·전열병·포격병을 편성하세요.</span></li>
+            <li><b>정찰</b><span>미탐색 지역에 부대를 보내 시야를 확보하세요. 정찰한 지역과 주변 정보는 24초 동안 유지됩니다.</span></li>
+            <li><b>부대 지휘</b><span>지도에서 지역을 누른 뒤 진격, 이동, 후퇴 중 하나를 고르세요. 대열은 횡대, 쐐기, 산개 중에서 바꿀 수 있습니다.</span></li>
             <li><b>승리</b><span>적 본진의 사령부를 파괴하면 승리합니다. 아군 사령부를 잃으면 패배합니다.</span></li>
           </ol>
           <button type="button" className="sr-start" onClick={startBattle}>{STARK_RIFT_FACTIONS[faction].name} 출격</button>
@@ -389,7 +391,7 @@ export function StarkRiftGame({ onExit }: { onExit: () => void }) {
   const income = starkRiftIncomePerMinute(game, "player") as number;
   const workers = Object.values(game.sides.player.workers).reduce((sum, count) => sum + count, 0) + game.sides.player.transit.length;
   const recentLog = game.log.filter((entry) => entry.side === "player" && game.time - entry.time < 10).slice(-2);
-  const enemyStatus = starkRiftAiStatus(game, "enemy") as string;
+  const enemyStatus = starkRiftHasVisibleEnemy(game, "player") ? starkRiftAiStatus(game, "enemy") as string : "정찰 정보 없음";
 
   return (
     <main className="sr-shell sr-play-shell" data-game-menu={finished ? "true" : undefined}>
@@ -499,18 +501,19 @@ function SquadPanel({ game, selectedSquad, selectedZone, onSelectSquad, onSelect
       </div>
       <div className="sr-squad-summary">
         <p className="sr-squad-where">
-          <b>{current.zoneName}</b> {current.order === "attack" ? "진격 목표" : "집결지"}{current.size ? ` · 체력 ${Math.round(current.health * 100)}%` : " · 병력 없음"}
+          <b>{current.zoneName}</b> {current.order === "attack" ? "진격 목표" : current.order === "scout" ? "정찰 목표" : "집결지"}{current.size ? ` · 체력 ${Math.round(current.health * 100)}%` : " · 병력 없음"}
         </p>
         <div className="sr-unit-counts">
-          {COMBAT_IDS.map((type) => <span key={type}><i className={`sr-icon ${type}`} aria-hidden="true" />{STARK_RIFT_UNITS[type].name} <b>{current.counts[type]}</b></span>)}
+          {COMBAT_IDS.map((type) => <span key={type}><i className={`sr-icon ${type}`} aria-hidden="true" />{starkRiftUnitDefinition(game, "player", type).name} <b>{current.counts[type]}</b></span>)}
         </div>
       </div>
       <div className="sr-zone-picker">
         <small>목표 지역 · 지도에서 눌러도 됩니다</small>
         <div>
-          {STARK_RIFT_ZONES.map((zone) => (
-            <button key={zone.id} type="button" aria-pressed={zone.id === selectedZone} className={zone.id === selectedZone ? "active" : ""} onClick={() => onSelectZone(zone.id)}>{zone.short}</button>
-          ))}
+          {STARK_RIFT_ZONES.map((zone) => {
+            const intel = starkRiftZoneIntel(game, "player", zone.id);
+            return <button key={zone.id} type="button" aria-pressed={zone.id === selectedZone} className={`${zone.id === selectedZone ? "active" : ""} intel-${intel}`} onClick={() => onSelectZone(zone.id)}>{intel === "unknown" ? "?" : zone.short}</button>;
+          })}
         </div>
       </div>
       <p className="sr-order-target">{orderHint}</p>
@@ -520,6 +523,9 @@ function SquadPanel({ game, selectedSquad, selectedZone, onSelectSquad, onSelect
         </button>
         <button type="button" className="sr-order" onClick={() => issue({ type: "order", squad: current.id, order: "move", zone: selectedZone })}>
           <b>이동</b><small>교전 없이 이동</small>
+        </button>
+        <button type="button" className="sr-order scout" onClick={() => issue({ type: "order", squad: current.id, order: "scout", zone: selectedZone })}>
+          <b>정찰</b><small>24초간 주변 공개</small>
         </button>
         <button type="button" className="sr-order retreat" onClick={() => issue({ type: "order", squad: current.id, order: "move", zone: "home" })}>
           <b>후퇴</b><small>본진으로 철수</small>
@@ -544,7 +550,7 @@ function SquadPanel({ game, selectedSquad, selectedZone, onSelectSquad, onSelect
             {[null, ...COMBAT_IDS].map((type) => {
               const count = type ? current.counts[type] : current.size;
               if (!count) return null;
-              const label = type ? `${STARK_RIFT_UNITS[type].name} ${count}` : `전체 ${count}`;
+              const label = type ? `${starkRiftUnitDefinition(game, "player", type).name} ${count}` : `전체 ${count}`;
               return (
                 <div key={type ?? "all"} className="sr-transfer-row">
                   <span>{label}</span>
@@ -563,12 +569,14 @@ function SquadPanel({ game, selectedSquad, selectedZone, onSelectSquad, onSelect
 
 function BuildPanel({ game, selectedZone, onSelectZone, issue }: { game: StarkRiftState; selectedZone: string; onSelectZone: (id: string) => void; issue: IssueFn }) {
   const zone = STARK_RIFT_ZONES.find((item) => item.id === selectedZone) ?? STARK_RIFT_ZONES[0];
-  const owner = starkRiftZoneOwner(game, zone.id) as string | null;
+  const intel = starkRiftZoneIntel(game, "player", zone.id);
+  const actualOwner = starkRiftZoneOwner(game, zone.id) as string | null;
+  const owner = actualOwner === "player" || intel === "visible" ? actualOwner : null;
   const owned = starkRiftOwnsZone(game, "player", zone.id) as boolean;
   const free = (starkRiftSlotsFree(game, zone.id) as number[]).length;
   const options = owned ? BUILDABLE_IDS.filter((id) => id !== "outpost") : BUILDABLE_IDS.filter((id) => id === "outpost");
   const here = game.buildings.filter((building) => building.zone === zone.id && building.side === "player");
-  const ownerLabel = owner === "player" ? (owned ? "아군 기지" : "아군 기지 건설 중") : owner === "enemy" ? "적 기지" : "중립 지역";
+  const ownerLabel = owner === "player" ? (owned ? "아군 기지" : "아군 기지 건설 중") : owner === "enemy" ? "적 기지" : intel === "unknown" ? "미탐색 지역" : intel === "explored" ? "최근 정보 없음" : "중립 지역";
   return (
     <div className="sr-build">
       <div className="sr-zone-picker">
@@ -579,10 +587,10 @@ function BuildPanel({ game, selectedZone, onSelectZone, issue }: { game: StarkRi
           ))}
         </div>
       </div>
-      <p className="sr-zone-meta"><b>{zone.name}</b> · {ownerLabel}{owned ? ` · 빈 부지 ${free}` : ""}{zone.mine ? ` · 광석 ${Math.floor(game.zones[zone.id].ore)}` : " · 광산 없음"}{"highGround" in zone && zone.highGround ? " · 고지 (받는 피해 −20%)" : ""}</p>
+      <p className="sr-zone-meta"><b>{intel === "unknown" ? "미탐색 구역" : zone.name}</b> · {ownerLabel}{owned ? ` · 빈 부지 ${free}` : ""}{zone.mine && (owned || intel === "visible") ? ` · 광석 ${Math.floor(game.zones[zone.id].ore)}` : zone.mine ? " · 광석 정보 없음" : " · 광산 없음"}{"highGround" in zone && zone.highGround ? " · 고지 (받는 피해 −20%)" : ""}</p>
       <div className="sr-build-list">
         {options.map((type) => {
-          const def = STARK_RIFT_BUILDINGS[type];
+          const def = starkRiftBuildingDefinition(game, "player", type);
           const check = starkRiftBuildCheck(game, "player", zone.id, type) as StarkRiftCheck;
           return (
             <button key={type} type="button" className="sr-build-option" disabled={!check.ok} onClick={() => issue({ type: "build", zone: zone.id, building: type })}>
@@ -599,7 +607,7 @@ function BuildPanel({ game, selectedZone, onSelectZone, issue }: { game: StarkRi
           <ul>
             {here.map((building) => (
               <li key={building.id}>
-                <span>{STARK_RIFT_BUILDINGS[building.type].name}</span>
+                <span>{starkRiftBuildingDefinition(game, "player", building.type).name}</span>
                 {starkRiftBuildingDone(building) ? <em>체력 {Math.round((building.hp / building.maxHp) * 100)}%</em> : (
                   <>
                     <em>건설 {Math.round(building.progress * 100)}%</em>
@@ -617,18 +625,18 @@ function BuildPanel({ game, selectedZone, onSelectZone, issue }: { game: StarkRi
 
 function bestProducer(game: StarkRiftState, unit: StarkRiftTrainable) {
   return playerBuildings(game)
-    .filter((building) => starkRiftBuildingDone(building) && ((STARK_RIFT_BUILDINGS[building.type] as { trains?: string[] }).trains ?? []).includes(unit))
+    .filter((building) => starkRiftBuildingDone(building) && ((starkRiftBuildingDefinition(game, "player", building.type) as { trains?: string[] }).trains ?? []).includes(unit))
     .sort((a, b) => a.queue.length - b.queue.length || a.id - b.id)[0] ?? null;
 }
 
 function TrainPanel({ game, issue }: { game: StarkRiftState; issue: IssueFn }) {
-  const producers = playerBuildings(game).filter((building) => (STARK_RIFT_BUILDINGS[building.type] as { trains?: string[] }).trains);
+  const producers = playerBuildings(game).filter((building) => (starkRiftBuildingDefinition(game, "player", building.type) as { trains?: string[] }).trains);
   return (
     <div className="sr-train">
       <small className="sr-section-label">빠른 생산 · 가장 한가한 건물에 맡깁니다</small>
       <div className="sr-quick-train">
         {TRAINABLE_IDS.map((unit) => {
-          const def = STARK_RIFT_UNITS[unit];
+          const def = starkRiftUnitDefinition(game, "player", unit);
           const producer = bestProducer(game, unit);
           const check: StarkRiftCheck = producer ? starkRiftTrainCheck(game, "player", producer.id, unit) : { ok: false, reason: unit === "tank" ? "군수공장이 필요합니다." : "병영이 필요합니다." };
           return (
@@ -648,7 +656,7 @@ function TrainPanel({ game, issue }: { game: StarkRiftState; issue: IssueFn }) {
 }
 
 function ProducerRow({ game, building, issue }: { game: StarkRiftState; building: StarkRiftBuilding; issue: IssueFn }) {
-  const def = STARK_RIFT_BUILDINGS[building.type] as { name: string; trains?: StarkRiftTrainable[] };
+  const def = starkRiftBuildingDefinition(game, "player", building.type) as { name: string; trains?: StarkRiftTrainable[] };
   const done = starkRiftBuildingDone(building);
   const head = building.queue[0];
   const progress = head ? 1 - head.remaining / head.duration : 0;
@@ -663,7 +671,7 @@ function ProducerRow({ game, building, issue }: { game: StarkRiftState; building
           <div className="sr-queue" aria-label={`생산 대기열 ${building.queue.length}개`}>
             {Array.from({ length: STARK_RIFT_ECONOMY.queueLimit }, (_, index) => {
               const item = building.queue[index];
-              return <i key={index} className={item ? `filled ${item.unit}` : ""}>{item ? STARK_RIFT_UNITS[item.unit].short : ""}</i>;
+              return <i key={index} className={item ? `filled ${item.unit}` : ""}>{item ? starkRiftUnitDefinition(game, "player", item.unit).short : ""}</i>;
             })}
             <span className="sr-queue-bar"><span style={{ width: `${Math.round(progress * 100)}%` }} /></span>
           </div>
@@ -672,7 +680,7 @@ function ProducerRow({ game, building, issue }: { game: StarkRiftState; building
               const check = starkRiftTrainCheck(game, "player", building.id, unit) as StarkRiftCheck;
               return (
                 <button key={unit} type="button" disabled={!check.ok} title={check.reason} onClick={() => issue({ type: "train", buildingId: building.id, unit })}>
-                  {STARK_RIFT_UNITS[unit].name} <small>{starkRiftUnitCost(game, "player", unit)}</small>
+                  {starkRiftUnitDefinition(game, "player", unit).name} <small>{starkRiftUnitCost(game, "player", unit)}</small>
                 </button>
               );
             })}

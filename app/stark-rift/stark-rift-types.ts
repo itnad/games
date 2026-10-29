@@ -7,7 +7,7 @@ export type StarkRiftUnitType = "rifle" | "guard" | "tank";
 export type StarkRiftTrainable = StarkRiftUnitType | "worker";
 export type StarkRiftBuildingType = "hq" | "outpost" | "depot" | "barracks" | "factory" | "turret";
 export type StarkRiftFormation = "line" | "wedge" | "spread";
-export type StarkRiftOrder = "attack" | "move";
+export type StarkRiftOrder = "attack" | "move" | "scout";
 export type StarkRiftSquadId = 1 | 2 | 3;
 
 export type StarkRiftCheck = { ok: boolean; reason?: string };
@@ -21,6 +21,7 @@ export type StarkRiftUnit = {
   y: number;
   hp: number;
   maxHp: number;
+  role: "melee" | "ranged" | "siege";
   squad: StarkRiftSquadId;
   mode: "travel" | "station";
 };
@@ -63,6 +64,10 @@ export type StarkRiftSideState = {
   id: StarkRiftSide;
   faction: StarkRiftFaction;
   strategy: StarkRiftStrategy;
+  intel: {
+    lastSeen: Record<string, number>;
+    scoutedUntil: Record<string, number>;
+  };
   ore: number;
   workers: Record<string, number>;
   transit: { from: string; to: string; eta: number; start: number }[];

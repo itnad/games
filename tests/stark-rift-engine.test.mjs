@@ -24,12 +24,14 @@ import {
   starkRiftSquadSummary,
   starkRiftSupply,
   starkRiftUnitCost,
+  starkRiftUnitDefinition,
   starkRiftTrainCheck,
   starkRiftWorkerPoint,
   starkRiftZone,
   stepStarkRift,
 } from "../app/stark-rift/stark-rift-engine.js";
 import { starkRiftAiThink } from "../app/stark-rift/stark-rift-ai.js";
+import { starkRiftEntityVisible, starkRiftZoneIntel } from "../app/stark-rift/stark-rift-vision.js";
 
 const run = (state, seconds, ai = null) => {
   const steps = Math.round(seconds * 10);
@@ -47,12 +49,31 @@ test("Stark Rift offers three original factions and applies faction and strategy
   assert.equal(swarm.sides.player.strategy, "assault");
   assert.ok(starkRiftUnitCost(swarm, "player", "rifle") < starkRiftUnitCost(elite, "player", "rifle"));
   assert.ok(starkRiftModifiers(swarm, "player").trainTime < 1);
-  assert.ok(starkRiftModifiers(elite, "player").damage > 1);
+  assert.ok(starkRiftUnitDefinition(elite, "player", "rifle").damage > starkRiftUnitDefinition(swarm, "player", "rifle").damage);
+  assert.notEqual(starkRiftUnitDefinition(elite, "player", "rifle").name, starkRiftUnitDefinition(swarm, "player", "rifle").name);
   assert.equal(starkRiftBuildingCost(quietGame(), "player", "barracks"), 150);
 
   const swarmUnit = starkRiftSpawnUnitAt(swarm, "player", "rifle", 20, 20);
   const eliteUnit = starkRiftSpawnUnitAt(elite, "player", "rifle", 20, 20);
   assert.ok(swarmUnit.maxHp < eliteUnit.maxHp);
+});
+
+test("scouting reveals neighboring zones without leaking unseen enemy state", () => {
+  const state = quietGame();
+  assert.equal(starkRiftZoneIntel(state, "player", "home"), "visible");
+  assert.equal(starkRiftZoneIntel(state, "player", "enemy"), "unknown");
+
+  const hiddenEnemy = starkRiftSpawnUnitAt(state, "enemy", "rifle", 80, 40);
+  assert.equal(starkRiftEntityVisible(state, "player", hiddenEnemy), false);
+
+  const scout = starkRiftSpawnUnitAt(state, "player", "rifle", 50, 75);
+  assert.equal(starkRiftCommand(state, "player", { type: "order", squad: scout.squad, order: "scout", zone: "center" }).ok, true);
+  run(state, 5);
+
+  assert.equal(starkRiftZoneIntel(state, "player", "center"), "visible");
+  assert.equal(starkRiftZoneIntel(state, "player", "north"), "visible");
+  assert.equal(starkRiftEntityVisible(state, "player", hiddenEnemy), true);
+  assert.equal(state.sides.player.squads[1].order, "scout");
 });
 
 test("starkRift map is point-symmetric, connected, and mirrored for both commanders", () => {
@@ -86,7 +107,7 @@ test("starkRift mining saturates at eight workers and pays exactly over time", (
 test("starkRift validates construction, tech requirements, outposts, and supply", () => {
   const state = quietGame();
   state.sides.player.ore = 2000;
-  assert.match(starkRiftBuildCheck(state, "player", "home", "factory").reason, /병영이 먼저 필요합니다/);
+  assert.match(starkRiftBuildCheck(state, "player", "home", "factory").reason, /먼저 필요합니다/);
   assert.match(starkRiftBuildCheck(state, "player", "west", "outpost").reason, /맞닿은 지역/);
   assert.match(starkRiftBuildCheck(state, "player", "enemy", "outpost").reason, /적 기지/);
   assert.equal(starkRiftBuildCheck(state, "player", "south", "outpost").ok, true);

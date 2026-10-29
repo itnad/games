@@ -1,9 +1,10 @@
 // Stark Rift AI. 플레이어와 같은 starkRiftCommand만 사용하므로 규칙상 반칙이 없다.
 // 난이도는 수입 보정, 판단 주기, 공격 시점과 규모로만 조절한다.
-import { STARK_RIFT_BUILDINGS, STARK_RIFT_DIFFICULTIES, STARK_RIFT_UNITS, STARK_RIFT_ZONES } from "./stark-rift-data.js";
+import { STARK_RIFT_DIFFICULTIES, STARK_RIFT_ZONES } from "./stark-rift-data.js";
 import {
   starkRiftArmySupply,
   starkRiftBaseAt,
+  starkRiftBuildingCost,
   starkRiftBuildingDone,
   starkRiftCommand,
   starkRiftHomeZone,
@@ -13,6 +14,8 @@ import {
   starkRiftPathLength,
   starkRiftSideZone,
   starkRiftSupply,
+  starkRiftUnitCost,
+  starkRiftUnitDefinition,
   starkRiftWorkerTotal,
   starkRiftZone,
 } from "./stark-rift-engine.js";
@@ -47,7 +50,7 @@ function manageEconomy(state, side, settings) {
   let reserve = 0;
   const tryBuild = (type, zoneId) => {
     const result = starkRiftCommand(state, side, { type: "build", zone: zoneId, building: type });
-    if (!result.ok && /광석/.test(result.reason ?? "")) reserve = Math.max(reserve, STARK_RIFT_BUILDINGS[type].cost);
+    if (!result.ok && /광석/.test(result.reason ?? "")) reserve = Math.max(reserve, starkRiftBuildingCost(state, side, type));
     return result.ok;
   };
 
@@ -102,7 +105,7 @@ function manageArmyProduction(state, side, reserve) {
     let unit = null;
     if (building.type === "factory") unit = "tank";
     if (building.type === "barracks") unit = guards * 2 < rifles ? "guard" : "rifle";
-    if (!unit || record.ore - reserve < STARK_RIFT_UNITS[unit].cost) continue;
+    if (!unit || record.ore - reserve < starkRiftUnitCost(state, side, unit)) continue;
     starkRiftCommand(state, side, { type: "train", buildingId: building.id, unit });
   }
 }
@@ -121,7 +124,7 @@ function threatenedZone(state, side) {
     if (!base || base.side !== side) continue;
     const supply = state.units
       .filter((unit) => unit.side === foe && Math.hypot(unit.x - zone.x, unit.y - zone.y) <= zone.radius + 5)
-      .reduce((sum, unit) => sum + STARK_RIFT_UNITS[unit.type].supply, 0);
+      .reduce((sum, unit) => sum + starkRiftUnitDefinition(state, side, unit.type).supply, 0);
     if (supply > bestSupply) {
       best = zone.id;
       bestSupply = supply;
