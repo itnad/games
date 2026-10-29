@@ -220,7 +220,7 @@ export function createStarkRiftGame({
   const validPlayerStrategy = STARK_RIFT_STRATEGIES[playerStrategy] ? playerStrategy : "balanced";
   const validEnemyStrategy = STARK_RIFT_STRATEGIES[enemyStrategy] ? enemyStrategy : "balanced";
   const state = {
-    version: 3,
+    version: 4,
     time: 0,
     difficulty: STARK_RIFT_DIFFICULTIES[difficulty] ? difficulty : "normal",
     rngState: seed >>> 0,
@@ -246,7 +246,7 @@ export function createStarkRiftGame({
     hq.progress = 1;
     hq.hp = hq.maxHp;
   }
-  for (const side of STARK_RIFT_SIDES) refreshStarkRiftVision(state, side, starkRiftNeighbors);
+  for (const side of STARK_RIFT_SIDES) refreshStarkRiftVision(state, side);
   pushLog(state, "player", `${STARK_RIFT_FACTIONS[validPlayerFaction].name} 출격. 일꾼을 늘리고 병영을 세워 전선을 준비하세요.`, "info");
   return state;
 }
@@ -685,7 +685,7 @@ export function stepStarkRift(state, aiThink = null) {
   const dt = STARK_RIFT_TICK;
   state.time = Math.round((state.time + dt) * 1000) / 1000;
   if (aiThink) for (const side of state.aiSides) aiThink(state, side);
-  for (const side of STARK_RIFT_SIDES) refreshStarkRiftVision(state, side, starkRiftNeighbors);
+  for (const side of STARK_RIFT_SIDES) refreshStarkRiftVision(state, side);
   for (const side of STARK_RIFT_SIDES) {
     stepEconomy(state, side, dt);
   }

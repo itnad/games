@@ -31,7 +31,12 @@ import {
   stepStarkRift,
 } from "../app/stark-rift/stark-rift-engine.js";
 import { starkRiftAiThink } from "../app/stark-rift/stark-rift-ai.js";
-import { starkRiftEntityVisible, starkRiftZoneIntel } from "../app/stark-rift/stark-rift-vision.js";
+import {
+  STARK_RIFT_CONTACT_MEMORY,
+  starkRiftEntityVisible,
+  starkRiftRememberedContacts,
+  starkRiftZoneIntel,
+} from "../app/stark-rift/stark-rift-vision.js";
 
 const run = (state, seconds, ai = null) => {
   const steps = Math.round(seconds * 10);
@@ -58,7 +63,7 @@ test("Stark Rift offers three original factions and applies faction and strategy
   assert.ok(swarmUnit.maxHp < eliteUnit.maxHp);
 });
 
-test("scouting reveals neighboring zones without leaking unseen enemy state", () => {
+test("scouting ends live vision immediately and keeps only a fixed last-known contact", () => {
   const state = quietGame();
   assert.equal(starkRiftZoneIntel(state, "player", "home"), "visible");
   assert.equal(starkRiftZoneIntel(state, "player", "enemy"), "unknown");
@@ -74,6 +79,25 @@ test("scouting reveals neighboring zones without leaking unseen enemy state", ()
   assert.equal(starkRiftZoneIntel(state, "player", "north"), "visible");
   assert.equal(starkRiftEntityVisible(state, "player", hiddenEnemy), true);
   assert.equal(state.sides.player.squads[1].order, "scout");
+
+  scout.hp = 0;
+  stepStarkRift(state);
+  assert.equal(starkRiftZoneIntel(state, "player", "north"), "explored");
+  assert.equal(starkRiftEntityVisible(state, "player", hiddenEnemy), false);
+
+  const firstMemory = starkRiftRememberedContacts(state, "player").find((contact) => contact.entity.id === hiddenEnemy.id);
+  assert.ok(firstMemory);
+  const lastKnown = { x: firstMemory.entity.x, y: firstMemory.entity.y };
+
+  hiddenEnemy.x = 50;
+  hiddenEnemy.y = 14;
+  stepStarkRift(state);
+  const remembered = starkRiftRememberedContacts(state, "player").find((contact) => contact.entity.id === hiddenEnemy.id);
+  assert.ok(remembered);
+  assert.deepEqual({ x: remembered.entity.x, y: remembered.entity.y }, lastKnown);
+
+  run(state, STARK_RIFT_CONTACT_MEMORY + 0.1);
+  assert.equal(starkRiftRememberedContacts(state, "player").some((contact) => contact.entity.id === hiddenEnemy.id), false);
 });
 
 test("starkRift map is point-symmetric, connected, and mirrored for both commanders", () => {

@@ -52,7 +52,7 @@ import type {
   StarkRiftTrainable,
   StarkRiftUnitType,
 } from "./stark-rift-types";
-import { starkRiftHasVisibleEnemy, starkRiftZoneIntel } from "./stark-rift-vision.js";
+import { starkRiftHasVisibleEnemy, starkRiftRememberedContacts, starkRiftZoneIntel } from "./stark-rift-vision.js";
 
 type Screen = "menu" | "play";
 type Tab = "squad" | "build" | "train" | "workers";
@@ -376,7 +376,7 @@ export function StarkRiftGame({ onExit }: { onExit: () => void }) {
           <ol className="sr-howto">
             <li><b>경제</b><span>일꾼은 자동으로 광산에 배치됩니다. 사령부에서 일꾼을 늘리고 보급고로 보급 한도를 올리세요.</span></li>
             <li><b>건설·생산</b><span>생산 건물을 세우고 선택한 종족의 주력병·전열병·포격병을 편성하세요.</span></li>
-            <li><b>정찰</b><span>미탐색 지역에 부대를 보내 시야를 확보하세요. 정찰한 지역과 주변 정보는 24초 동안 유지됩니다.</span></li>
+            <li><b>정찰</b><span>주둔 중인 정찰 부대는 주변을 실시간으로 관측합니다. 시야가 끊기면 마지막 적 위치만 30초 동안 잔상으로 남습니다.</span></li>
             <li><b>부대 지휘</b><span>지도에서 지역을 누른 뒤 진격, 이동, 후퇴 중 하나를 고르세요. 대열은 횡대, 쐐기, 산개 중에서 바꿀 수 있습니다.</span></li>
             <li><b>승리</b><span>적 본진의 사령부를 파괴하면 승리합니다. 아군 사령부를 잃으면 패배합니다.</span></li>
           </ol>
@@ -391,7 +391,11 @@ export function StarkRiftGame({ onExit }: { onExit: () => void }) {
   const income = starkRiftIncomePerMinute(game, "player") as number;
   const workers = Object.values(game.sides.player.workers).reduce((sum, count) => sum + count, 0) + game.sides.player.transit.length;
   const recentLog = game.log.filter((entry) => entry.side === "player" && game.time - entry.time < 10).slice(-2);
-  const enemyStatus = starkRiftHasVisibleEnemy(game, "player") ? starkRiftAiStatus(game, "enemy") as string : "정찰 정보 없음";
+  const rememberedContacts = starkRiftRememberedContacts(game, "player");
+  const freshestContact = rememberedContacts.length ? Math.floor(Math.min(...rememberedContacts.map((contact) => contact.age))) : null;
+  const enemyStatus = starkRiftHasVisibleEnemy(game, "player")
+    ? starkRiftAiStatus(game, "enemy") as string
+    : freshestContact === null ? "정찰 정보 없음" : `마지막 접촉 ${freshestContact}초 전`;
 
   return (
     <main className="sr-shell sr-play-shell" data-game-menu={finished ? "true" : undefined}>
@@ -525,7 +529,7 @@ function SquadPanel({ game, selectedSquad, selectedZone, onSelectSquad, onSelect
           <b>이동</b><small>교전 없이 이동</small>
         </button>
         <button type="button" className="sr-order scout" onClick={() => issue({ type: "order", squad: current.id, order: "scout", zone: selectedZone })}>
-          <b>정찰</b><small>24초간 주변 공개</small>
+          <b>정찰</b><small>주변 관측 · 적 잔상 30초</small>
         </button>
         <button type="button" className="sr-order retreat" onClick={() => issue({ type: "order", squad: current.id, order: "move", zone: "home" })}>
           <b>후퇴</b><small>본진으로 철수</small>

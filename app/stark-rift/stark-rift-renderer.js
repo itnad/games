@@ -1,7 +1,7 @@
 // Stark Rift Canvas 렌더러. 상태를 읽기만 하고 바꾸지 않는다.
 import { STARK_RIFT_EDGES, STARK_RIFT_MAP_HEIGHT, STARK_RIFT_MAP_WIDTH, STARK_RIFT_ZONES } from "./stark-rift-data.js";
 import { starkRiftBaseAt, starkRiftBuildingDefinition, starkRiftBuildingDone, starkRiftMinePosition, starkRiftUnitDefinition, starkRiftWorkerPoint, starkRiftZone } from "./stark-rift-engine.js";
-import { starkRiftEntityVisible, starkRiftZoneIntel } from "./stark-rift-vision.js";
+import { starkRiftEntityVisible, starkRiftRememberedContacts, starkRiftZoneIntel } from "./stark-rift-vision.js";
 
 export const STARK_RIFT_COLORS = {
   player: { main: "#4aa8ff", light: "#bfe0ff", dark: "#123c66", shot: "#d8f0ff" },
@@ -427,6 +427,54 @@ function drawFog(ctx, state, view) {
   }
 }
 
+function drawRememberedContacts(ctx, state, view) {
+  for (const contact of starkRiftRememberedContacts(state, "player")) {
+    const entity = contact.entity;
+    const x = sx(view, entity.x);
+    const y = sy(view, entity.y);
+    const fade = Math.max(0.28, 1 - contact.age / 42);
+    const size = Math.max(5, (entity.radius ?? 2.5) * view.scale);
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = "#ffb4a8";
+    ctx.fillStyle = "#301b1dcc";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    if (contact.kind === "building") {
+      const def = starkRiftBuildingDefinition(state, entity.side, entity.type);
+      roundRect(ctx, x - size / 2, y - size / 2, size, size, Math.max(2, size * 0.2));
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#ffd0c9";
+      ctx.font = `900 ${Math.max(10, Math.min(16, size * 0.5))}px system-ui, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(def.short, x, y + 1);
+    } else {
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "#ffd0c9";
+      ctx.beginPath();
+      ctx.moveTo(x - size * 0.55, y - size * 0.55);
+      ctx.lineTo(x + size * 0.55, y + size * 0.55);
+      ctx.moveTo(x + size * 0.55, y - size * 0.55);
+      ctx.lineTo(x - size * 0.55, y + size * 0.55);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = Math.min(0.9, fade + 0.15);
+    ctx.fillStyle = "#ffd0c9";
+    ctx.font = "800 9px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(`${Math.floor(contact.age)}초 전`, x, y + size + 3);
+    ctx.restore();
+  }
+}
+
 function drawScrollHint(ctx, view) {
   if (!view.maxTop) return;
   const visible = view.height / view.scale;
@@ -451,6 +499,7 @@ export function drawStarkRift(ctx, state, view, ui) {
   drawUnits(ctx, state, view, ui);
   drawEffects(ctx, state, view);
   drawFog(ctx, state, view);
+  drawRememberedContacts(ctx, state, view);
   drawSquadMarkers(ctx, state, view, ui);
   drawLabels(ctx, state, view);
   drawScrollHint(ctx, view);

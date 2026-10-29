@@ -66,7 +66,23 @@ export type StarkRiftSideState = {
   strategy: StarkRiftStrategy;
   intel: {
     lastSeen: Record<string, number>;
-    scoutedUntil: Record<string, number>;
+    contacts: Record<string, {
+      key: string;
+      kind: "unit" | "building";
+      seenAt: number;
+      expiresAt: number;
+      entity: {
+        id: number;
+        kind: "unit" | "building";
+        side: StarkRiftSide;
+        type: string;
+        zone?: string;
+        x: number;
+        y: number;
+        radius?: number;
+        heading?: number;
+      };
+    }>;
   };
   ore: number;
   workers: Record<string, number>;
