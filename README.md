@@ -43,7 +43,7 @@ npm run dev
 | `npm ci` | `package-lock.json`과 동일한 의존성 설치 |
 | `npm run dev` | Vinext 로컬 개발 서버 실행 |
 | `npm run build` | 프로덕션 빌드 생성 |
-| `npm test` | 프로덕션 빌드 후 전체 104개 회귀 테스트 실행 |
+| `npm test` | 프로덕션 빌드 후 전체 113개 회귀 테스트 실행 |
 | `npm run lint` | ESLint 검사 |
 | `npm run db:generate` | `db/schema.ts` 변경분으로 D1 마이그레이션 생성 |
 
@@ -58,6 +58,7 @@ app/
   api/version/route.ts           배포 버전 확인
   api/game-suggestions/route.ts  D1 기반 게임 추천 게시판 API
   mudflat-*.{ts,tsx,js,css}      해루질럿 구현
+  frontline/                     전선 지휘관 (모바일 실시간 전략) 전용 폴더
   haeru-dev/page.tsx             내부 QA 도구 라우트
 public/
   mudflat-creatures/             해산물 이미지
@@ -72,6 +73,10 @@ build/sites-vite-plugin.ts       Sites 빌드 산출물 패키징
 tests/                           게임 규칙·저장·렌더링 회귀 테스트
 .openai/hosting.json             기존 Sites 프로젝트와 D1 바인딩 선언
 ```
+
+## 3-1. 전선 지휘관
+
+`/frontline`에서 실행되는 모바일 실시간 전략 게임입니다. 모든 소스는 `app/frontline/` 폴더에 있고, 기획과 규칙은 [전선 지휘관 기획·구현 문서](docs/frontline-design.md)에 정리되어 있습니다. 엔진과 AI 테스트는 `tests/frontline-engine.test.mjs`에 있습니다.
 
 ## 4. 해루질럿 코드 구조
 

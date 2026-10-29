@@ -3,6 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import "./mudflat-cast-net.test.mjs";
 import "./mudflat-run-save.test.mjs";
+import "./frontline-engine.test.mjs";
 import { installGameRefreshGuard } from "../app/game-refresh.js";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { advanceLumiMotion, clearLumiAtlasMatte, createLumiMotion, lumiPose, lumiTongPose } from "../app/mudflat-lumi-animation.js";
@@ -563,6 +564,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "ten-seconds",
     "mudflat-survivor",
     "tetris",
+    "frontline",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -753,6 +755,34 @@ test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
   assert.ok(pageSource.includes(`const CATEGORIES: Category[] = ${categoryOrder}`));
   assert.match(pageSource, /id: "mudflat-survivor",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(hiddenSet, /"mudflat-survivor"/);
+});
+
+test("keeps Frontline Commander in its own app/frontline folder and publishes it as a mobile game", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const hiddenSet = pageSource.match(/const DEFAULT_HIDDEN_GAME_IDS[\s\S]*?\]\);/)?.[0] ?? "";
+  const folder = (await readdir(new URL("../app/frontline/", import.meta.url))).sort();
+
+  assert.deepEqual(folder, [
+    "frontline-ai.js",
+    "frontline-data.js",
+    "frontline-engine.js",
+    "frontline-game.tsx",
+    "frontline-renderer.js",
+    "frontline-types.ts",
+    "frontline.css",
+  ]);
+  assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^frontline-/.test(file)), false);
+  assert.match(pageSource, /import \{ FrontlineGame \} from "\.\/frontline\/frontline-game";/);
+  assert.match(layoutSource, /import "\.\/frontline\/frontline\.css";/);
+  assert.match(pageSource, /id: "frontline",[\s\S]*?title: "전선 지휘관",[\s\S]*?category: "모바일"/);
+  assert.doesNotMatch(hiddenSet, /"frontline"/);
+
+  const gameSource = await readFile(new URL("../app/frontline/frontline-game.tsx", import.meta.url), "utf8");
+  for (const label of ["진격", "이동", "후퇴", "대열", "빠른 생산", "자동 배치", "전투 시작"]) assert.match(gameSource, new RegExp(label));
+  assert.match(gameSource, /data-game-menu="true"/);
+  const brief = await readFile(new URL("../docs/frontline-design.md", import.meta.url), "utf8");
+  assert.match(brief, /app\/frontline\//);
 });
 
 test("detects published site updates and refreshes only through safe user actions", async () => {
