@@ -3,7 +3,6 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import "./mudflat-cast-net.test.mjs";
 import "./mudflat-run-save.test.mjs";
-import "./stark-rift-engine.test.mjs";
 import { installGameRefreshGuard } from "../app/game-refresh.js";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { advanceLumiMotion, clearLumiAtlasMatte, createLumiMotion, lumiPose, lumiTongPose } from "../app/mudflat-lumi-animation.js";
@@ -564,7 +563,6 @@ test("provides a complete objective and victory guide for every game", async () 
     "ten-seconds",
     "mudflat-survivor",
     "tetris",
-    "stark-rift",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -654,7 +652,7 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /<html lang="ko">/i);
   assert.match(html, /<title>paperoid — AI 보드게임 아지트<\/title>/i);
   assert.match(html, /paperoid/);
-  const quickStartTitles = ["해루질럿", "Stark Rift", "잉카의 다이아몬드", "오목", "러브레터", "큐윅스"];
+  const quickStartTitles = ["해루질럿", "잉카의 다이아몬드", "오목", "러브레터", "큐윅스"];
   let quickStartCursor = -1;
   for (const title of quickStartTitles) {
     const titleIndex = html.indexOf(`<h3>${title}</h3>`, quickStartCursor + 1);
@@ -759,36 +757,6 @@ test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
   assert.ok(pageSource.includes(`const CATEGORIES: Category[] = ${categoryOrder}`));
   assert.match(pageSource, /id: "mudflat-survivor",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(hiddenSet, /"mudflat-survivor"/);
-});
-
-test("keeps Stark Rift in its own app/stark-rift folder and publishes it as a mobile game", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
-  const hiddenSet = pageSource.match(/const DEFAULT_HIDDEN_GAME_IDS[\s\S]*?\]\);/)?.[0] ?? "";
-  const folder = (await readdir(new URL("../app/stark-rift/", import.meta.url))).sort();
-
-  assert.deepEqual(folder, [
-    "stark-rift-ai.js",
-    "stark-rift-catalog.js",
-    "stark-rift-data.js",
-    "stark-rift-engine.js",
-    "stark-rift-game.tsx",
-    "stark-rift-renderer.js",
-    "stark-rift-types.ts",
-    "stark-rift-vision.js",
-    "stark-rift.css",
-  ]);
-  assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^stark-rift-/.test(file)), false);
-  assert.match(pageSource, /import \{ StarkRiftGame \} from "\.\/stark-rift\/stark-rift-game";/);
-  assert.match(layoutSource, /import "\.\/stark-rift\/stark-rift\.css";/);
-  assert.match(pageSource, /id: "stark-rift",[\s\S]*?title: "Stark Rift",[\s\S]*?category: "모바일"/);
-  assert.doesNotMatch(hiddenSet, /"stark-rift"/);
-
-  const gameSource = await readFile(new URL("../app/stark-rift/stark-rift-game.tsx", import.meta.url), "utf8");
-  for (const label of ["종족 선택", "개전 전략", "진격", "이동", "정찰", "후퇴", "대열", "빠른 생산", "자동 배치", "출격"]) assert.match(gameSource, new RegExp(label));
-  assert.match(gameSource, /data-game-menu="true"/);
-  const brief = await readFile(new URL("../docs/stark-rift-design.md", import.meta.url), "utf8");
-  assert.match(brief, /app\/stark-rift\//);
 });
 
 test("detects published site updates and refreshes only through safe user actions", async () => {

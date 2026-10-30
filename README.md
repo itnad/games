@@ -58,7 +58,6 @@ app/
   api/version/route.ts           배포 버전 확인
   api/game-suggestions/route.ts  D1 기반 게임 추천 게시판 API
   mudflat-*.{ts,tsx,js,css}      해루질럿 구현
-  stark-rift/                    Stark Rift (모바일 실시간 전략) 전용 폴더
   haeru-dev/page.tsx             내부 QA 도구 라우트
 public/
   mudflat-creatures/             해산물 이미지
@@ -73,10 +72,6 @@ build/sites-vite-plugin.ts       Sites 빌드 산출물 패키징
 tests/                           게임 규칙·저장·렌더링 회귀 테스트
 .openai/hosting.json             기존 Sites 프로젝트와 D1 바인딩 선언
 ```
-
-## 3-1. Stark Rift
-
-`/stark-rift`에서 실행되는 모바일 실시간 전략 게임입니다. 모든 소스는 `app/stark-rift/` 폴더에 있고, 기획과 규칙은 [Stark Rift 기획·구현 문서](docs/stark-rift-design.md)에 정리되어 있습니다. 엔진과 AI 테스트는 `tests/stark-rift-engine.test.mjs`에 있습니다.
 
 ## 4. 해루질럿 코드 구조
 

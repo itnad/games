@@ -39,7 +39,6 @@ import { PaperDungeonGame } from "./paper-dungeon-game";
 import { TenSecondsGame } from "./ten-seconds-game";
 import { MudflatSurvivorGame } from "./mudflat-survivor-game";
 import { TetrisGame } from "./tetris-game";
-import { StarkRiftGame } from "./stark-rift/stark-rift-game";
 import { ChessGame } from "./chess-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import { PAPEROID_BUILD_ID } from "./app-version";
@@ -94,8 +93,7 @@ type GameId =
   | "paper-dungeon"
   | "ten-seconds"
   | "mudflat-survivor"
-  | "tetris"
-  | "stark-rift";
+  | "tetris";
 type Category = "전체" | "전략" | "모바일" | "카드" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
 
 const CATEGORIES: Category[] = ["전체", "전략", "모바일", "고전게임", "주사위", "터치류", "카드", "기억력", "추리", "퍼즐", "경주", "RPG"];
@@ -446,14 +444,6 @@ const GAMES: GameDefinition[] = [
     players: "1인 기록 도전",
     tone: "violet",
   },
-  {
-    id: "stark-rift",
-    title: "Stark Rift",
-    subtitle: "자원·건설·부대 명령만으로 적 사령부를 무너뜨리세요",
-    category: "모바일",
-    players: "AI 1:1 실시간 전략",
-    tone: "green",
-  },
 ];
 
 const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
@@ -480,7 +470,6 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
 
 const DEFAULT_QUICK_START_GAME_IDS: readonly GameId[] = [
   "mudflat-survivor",
-  "stark-rift",
   "incan-gold",
   "gomoku",
   "love-letter",
@@ -891,10 +880,6 @@ function GameArtwork({ game }: { game: GameDefinition }) {
 
   if (game.id === "mudflat-survivor") {
     return <div className="card-art casual-card-art mudflat" aria-hidden="true"><img src="/mudflat-creatures/crab.png" alt="" /><i /><span className="float-chip">2 MODES</span></div>;
-  }
-
-  if (game.id === "stark-rift") {
-    return <div className="card-art casual-card-art stark-rift" aria-hidden="true"><span>{"▲  ▲\n⚑\n■  ■"}</span><i /><span className="float-chip">3 FACTIONS · RTS</span></div>;
   }
 
   if (game.id === "tetris") {
@@ -2224,10 +2209,6 @@ function HomeContent({
   if (activeGame === "tetris") {
     return <GuidedGame gameId={activeGame}><TetrisGame onExit={exitGame} /></GuidedGame>;
   }
-  if (activeGame === "stark-rift") {
-    return <GuidedGame gameId={activeGame}><StarkRiftGame onExit={exitGame} /></GuidedGame>;
-  }
-
   return (
     <main className="hub-shell">
       <header className="hub-header">
