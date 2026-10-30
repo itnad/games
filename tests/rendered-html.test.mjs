@@ -654,12 +654,13 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /<html lang="ko">/i);
   assert.match(html, /<title>paperoid — AI 보드게임 아지트<\/title>/i);
   assert.match(html, /paperoid/);
-  assert.match(html, /오목/);
-  assert.match(html, /짝 맞추기/);
-  assert.match(html, /리버시/);
-  assert.match(html, /해전/);
-  assert.match(html, /주사위 대결 Yahtzee/);
-  assert.match(html, /체커/);
+  const quickStartTitles = ["해루질럿", "Stark Rift", "잉카의 다이아몬드", "오목", "러브레터", "큐윅스"];
+  let quickStartCursor = -1;
+  for (const title of quickStartTitles) {
+    const titleIndex = html.indexOf(`<h3>${title}</h3>`, quickStartCursor + 1);
+    assert.ok(titleIndex > quickStartCursor, `${title} 빠른 시작 순서`);
+    quickStartCursor = titleIndex;
+  }
   for (const title of [
     "체스",
     "장기",

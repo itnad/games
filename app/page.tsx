@@ -478,6 +478,15 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "tetris",
 ]);
 
+const DEFAULT_QUICK_START_GAME_IDS: readonly GameId[] = [
+  "mudflat-survivor",
+  "stark-rift",
+  "incan-gold",
+  "gomoku",
+  "love-letter",
+  "qwixx",
+];
+
 const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
 const PENDING_GAME_AFTER_UPDATE_KEY = "paperoid-pending-game-after-update";
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -2085,7 +2094,10 @@ function HomeContent({
   const favoriteGames = favorites
     .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => Boolean(game));
-  const quickStartGames = recentGames.length ? recentGames : availableGames.slice(0, 6);
+  const defaultQuickStartGames = DEFAULT_QUICK_START_GAME_IDS
+    .map((id) => availableGames.find((game) => game.id === id))
+    .filter((game): game is GameDefinition => Boolean(game));
+  const quickStartGames = recentGames.length ? recentGames : defaultQuickStartGames;
 
   if (activeGame === "gomoku") {
     return <GuidedGame gameId={activeGame}><GomokuGame onExit={exitGame} /></GuidedGame>;
