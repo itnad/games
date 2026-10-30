@@ -707,6 +707,9 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /모든 게임 표시/);
   assert.match(html, /게임 찾기/);
   assert.match(html, /전체 게임 보기/);
+  assert.match(pageSource, /recentGames\.length > 0 && \(/);
+  assert.match(pageSource, /title="이어서 하기"/);
+  assert.match(pageSource, /title="빠른 시작"/);
   assert.match(html, /사용자 의견/);
   assert.match(html, /개선안 또는 추가되면 좋을 게임을 남겨주세요/);
   assert.match(html, /의견 남기기/);
@@ -1971,7 +1974,8 @@ test("resets the home view and game shelves after a browser refresh", async () =
   assert.match(pageSource, /window\.addEventListener\("pageshow", resetHomeView\)/);
   assert.match(pageSource, /setShowAllGames\(false\)/);
   assert.match(pageSource, /window\.localStorage\.removeItem\(SHOW_ALL_GAMES_STORAGE_KEY\)/);
-  assert.match(pageSource, /key=\{recentGames\.length \? "recent-games" : "quick-start-games"\}/);
+  assert.match(pageSource, /key="recent-games"/);
+  assert.match(pageSource, /key="quick-start-games"/);
 });
 
 test("balances distinct AI personalities automatically in Seven Civilizations", async () => {

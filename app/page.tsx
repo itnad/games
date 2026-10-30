@@ -2097,7 +2097,6 @@ function HomeContent({
   const defaultQuickStartGames = DEFAULT_QUICK_START_GAME_IDS
     .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => Boolean(game));
-  const quickStartGames = recentGames.length ? recentGames : defaultQuickStartGames;
 
   if (activeGame === "gomoku") {
     return <GuidedGame gameId={activeGame}><GomokuGame onExit={exitGame} /></GuidedGame>;
@@ -2260,10 +2259,21 @@ function HomeContent({
 
       <section className="library">
         <div className="home-game-shelves">
+          {recentGames.length > 0 && (
+            <GameShelf
+              key="recent-games"
+              title="이어서 하기"
+              games={recentGames}
+              favorites={favorites}
+              onPlay={launchGame}
+              onToggleFavorite={toggleFavorite}
+            />
+          )}
+
           <GameShelf
-            key={recentGames.length ? "recent-games" : "quick-start-games"}
-            title={recentGames.length ? "이어서 하기" : "빠른 시작"}
-            games={quickStartGames}
+            key="quick-start-games"
+            title="빠른 시작"
+            games={defaultQuickStartGames}
             favorites={favorites}
             onPlay={launchGame}
             onToggleFavorite={toggleFavorite}
