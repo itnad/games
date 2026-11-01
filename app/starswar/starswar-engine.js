@@ -1123,10 +1123,15 @@ function stepUnits(state, dt) {
     const attackSlots = rallySlots(state, side, army.attack, 0);
     // 공격 병력은 가장 느린 지상 유닛에 맞춰 움직인다. 동행 오버로드도 같이 다니므로 속도에 포함한다.
     const speeds = army.attack.filter((unit) => !isFlying(unit) || unit.type === "overlord").map((unit) => unitSpeed(state, unit));
+    // 웨이브의 꼬리(가장 뒤처진 전투 유닛). 빠른 유닛은 여기서 WAVE_LEAD칸까지만 앞서 나간다.
+    const forwardSign = stwForward(side);
+    const marching = army.attack.filter((unit) => !isFlying(unit) || unit.type === "overlord");
+    const rearY = marching.length ? marching.reduce((rear, unit) => (unit.y * forwardSign < rear * forwardSign ? unit.y : rear), marching[0].y) : null;
     plans[side] = {
       rallySlots: rallySlots(state, side, army.rally, rallyY),
       attackSlots,
       waveSpeed: speeds.length ? Math.min(...speeds) : 3,
+      rearY,
       goal: stwPoint(side, { x: 20, y: 6 }),
       intruders: findIntruders(state, side, rallyY),
     };
@@ -1221,9 +1226,11 @@ function stepUnits(state, dt) {
       continue;
     }
     if (isAttack) {
-      // 공격 병력은 가장 느린 유닛 속도에 맞춰 함께 전진하고, 적 본진 넥서스까지 간다.
+      // 공격 병력은 함께 전진해 적 본진까지 간다. 빠른 유닛(발업 질럿, 벌처, 저글링)은 꼬리에서 WAVE_LEAD칸까지 앞서 달리고, 그 너머에서는 가장 느린 유닛 속도로 맞춘다.
       const x = slot ? slot.x : unit.x;
-      moveToward(unit, unit.x + (x - unit.x) * 0.15, plan.goal.y, Math.min(speed, plan.waveSpeed), dt);
+      // 물러나며 쏘는 유닛(해병·벌처)은 앞서 나가지 않는다. 먼저 닿아 혼자 카이팅하면 너무 유리하다.
+      const aheadBy = plan.rearY === null ? 0 : (plan.rearY - unit.y) * -stwForward(unit.side);
+      moveToward(unit, unit.x + (x - unit.x) * 0.15, plan.goal.y, aheadBy < (def.kite ? 0 : WAVE_LEAD) ? speed : Math.min(speed, plan.waveSpeed), dt);
     } else if (slot) {
       moveToward(unit, slot.x, slot.y, speed, dt);
     }
@@ -1414,6 +1421,8 @@ function supportFollow(state, unit, plan, speed, dt) {
 
 /** 대기 병력이 집결지에서 이만큼 넘게 떨어진 적은 쫓지 않는다. */
 const RALLY_LEASH = 12;
+/** 공격 웨이브에서 빠른 유닛이 가장 뒤처진 유닛보다 앞서 나갈 수 있는 거리. */
+const WAVE_LEAD = 6;
 
 /**
  * 집결지보다 적진 쪽으로 멀리 나가 있는 대기 병력은 후퇴 중으로 본다.

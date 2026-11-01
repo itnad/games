@@ -963,3 +963,21 @@ test("starswar map taps move the army: forward fights, backward retreats, enemy 
   assert.equal(stwRallyName(55), "중앙");
   assert.equal(stwRallyName("natural"), "앞마당");
 });
+
+test("starswar fast units lead the wave by a few tiles instead of crawling with the slowest", () => {
+  const trial = (charge) => {
+    const state = quiet();
+    if (charge) state.sides.player.research.charge = "done";
+    const zealot = stwSpawnUnitAt(state, "player", "zealot", 18, 77);
+    const dragoon = stwSpawnUnitAt(state, "player", "dragoon", 22, 77);
+    stwCommand(state, "player", { type: "attack" });
+    run(state, 10);
+    return { zealot: 77 - zealot.y, dragoon: 77 - dragoon.y, gap: dragoon.y - zealot.y };
+  };
+  const slow = trial(false);
+  const fast = trial(true);
+  assert.ok(slow.zealot >= 29, `발업 전 질럿도 드라군에 묶이지 않고 제 속도로 걸음 (${slow.zealot.toFixed(1)})`);
+  assert.ok(fast.zealot > slow.zealot + 1.5, `발업 질럿이 더 멀리 감 (${slow.zealot.toFixed(1)} → ${fast.zealot.toFixed(1)})`);
+  assert.ok(fast.gap > 5 && fast.gap < 8, `드라군보다 6칸 안팎 앞섬 (${fast.gap.toFixed(1)})`);
+  assert.ok(Math.abs(fast.dragoon - slow.dragoon) < 1, "드라군 속도는 그대로");
+});
