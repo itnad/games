@@ -7,6 +7,7 @@ import {
   stwCommand,
   stwDone,
   stwHas,
+  stwIncome,
   stwNexus,
   stwOpponent,
   stwOwnBuildings,
@@ -424,21 +425,28 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false }
     return;
   }
 
+  // 총공격: 광물이 바닥나 더 모을 수 없거나 인구가 거의 찼으면 기다릴 이유가 없다.
+  const supply = stwSupply(state, side);
+  const allIn = (stwIncome(state, side).minerals < 60 && record.minerals < 100) || supply.used >= 92;
+
   if (memory.attacking) {
-    if (army.attack.length < Math.max(1, memory.waveStart * 0.35)) {
+    if (!allIn && army.attack.length < Math.max(1, memory.waveStart * 0.35)) {
       if (army.attack.length) stwCommand(state, side, { type: "retreat" });
       memory.attacking = false;
       memory.wave += 1;
     }
+    if (allIn && army.rally.length >= 4 && army.attack.length) stwCommand(state, side, { type: "attack" });
     return;
   }
-  if (holdHome) {
+  if (holdHome && !allIn) {
     if (army.attack.length) stwCommand(state, side, { type: "retreat" });
     memory.attacking = false;
     return;
   }
   const waves = WAVES[persona];
-  const size = Math.round(waves[Math.min(memory.wave, waves.length - 1)] * settings.waveScale);
+  // 목록이 끝난 뒤에는 실패할 때마다 출격 규모를 4기씩 키운다(최대 40기).
+  const listed = waves[Math.min(memory.wave, waves.length - 1)] + Math.max(0, memory.wave - waves.length + 1) * 4;
+  const size = allIn ? 1 : Math.round(Math.min(40, listed) * settings.waveScale);
   if (army.rally.length >= size) {
     stwCommand(state, side, { type: "attack" });
     memory.attacking = true;

@@ -319,10 +319,12 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     if (!finished || !game || recordedRef.current) return;
     recordedRef.current = true;
     const won = game.winner === "player";
+    const lost = game.winner === "enemy";
     const current = readRecord();
     const best = { ...current.best };
     if (won && (!best[game.difficulty] || game.time < (best[game.difficulty] ?? Infinity))) best[game.difficulty] = Math.round(game.time);
-    const next = { wins: current.wins + (won ? 1 : 0), losses: current.losses + (won ? 0 : 1), best };
+    // 무승부는 전적에 넣지 않는다.
+    const next = { wins: current.wins + (won ? 1 : 0), losses: current.losses + (lost ? 1 : 0), best };
     writeRecord(next);
     setRecord(next);
   }, [finished, game]);
@@ -507,7 +509,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     <main className="stw-shell stw-play-shell" data-game-menu={finished ? "true" : undefined}>
       <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
-        <div><span className="stw-brand">스타즈워 · {STW_DIFFICULTIES[game.difficulty].name}</span><strong>{stwClock(game.time)}</strong></div>
+        <div><span className="stw-brand">{STW_DIFFICULTIES[game.difficulty].name} · {raceOf(game).name} 대 {intel?.race ? STW_RACES[intel.race].name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
       </header>
       <section className="stw-hud" aria-label="자원 현황">
         <span className="stw-res minerals"><i aria-hidden="true" /><b>{Math.floor(side.minerals)}</b><em>+{income.minerals}</em></span>
@@ -782,15 +784,16 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
 
 function ResultOverlay({ game, onRestart, onMenu, onExit }: { game: StwState; onRestart: () => void; onMenu: () => void; onExit: () => void }) {
   const won = game.winner === "player";
+  const draw = game.winner === "draw";
   const mine = game.sides.player.stats;
   const theirs = game.sides.enemy.stats;
   const persona = game.sides.enemy.persona;
   const matchup = `${raceOf(game, "player").name} 대 ${raceOf(game, "enemy").name}`;
   return (
     <div className="stw-overlay stw-overlay-full stw-result" role="dialog" aria-modal="true" aria-labelledby="stw-result-title">
-      <section className={won ? "won" : "lost"}>
-        <small>{won ? "VICTORY" : "DEFEAT"}</small>
-        <h2 id="stw-result-title">{won ? "적 본진 함락" : "아군 본진 함락"}</h2>
+      <section className={won ? "won" : draw ? "draw" : "lost"}>
+        <small>{won ? "VICTORY" : draw ? "DRAW" : "DEFEAT"}</small>
+        <h2 id="stw-result-title">{won ? "적 본진 함락" : draw ? "자원 고갈 무승부" : "아군 본진 함락"}</h2>
         <p>{STW_DIFFICULTIES[game.difficulty].name} · {matchup} · {stwClock(game.time)}{persona ? ` · 상대 전략: ${STW_AI_PERSONAS[persona].name}` : ""}</p>
         <dl>
           <div><dt>채취 광물</dt><dd>{Math.floor(mine.minerals)}</dd></div>

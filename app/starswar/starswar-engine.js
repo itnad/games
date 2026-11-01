@@ -684,6 +684,11 @@ function stepEconomy(state, side, dt) {
     record.bases[base].minerals -= mined;
     record.minerals += mined * multiplier;
     record.stats.minerals += mined * multiplier;
+    if (side === "player") {
+      const name = base === "main" ? "본진" : "앞마당";
+      if (record.bases[base].minerals <= 0) alertOnce(state, `dry:${base}`, Infinity, side, `${name} 광물이 바닥났습니다.`, "danger");
+      else if (record.bases[base].minerals < STW_ECONOMY.lowMinerals) alertOnce(state, `low:${base}`, Infinity, side, base === "main" && !stwNexus(state, side, "natural") ? "본진 광물이 곧 바닥납니다. 앞마당 확장을 생각하세요." : `${name} 광물이 곧 바닥납니다.`, "warn");
+    }
   }
   const gas = split.gas * STW_ECONOMY.gasPerProbe * dt * multiplier;
   record.gas += gas;
@@ -1591,10 +1596,26 @@ function autoWaves(state) {
   }
 }
 
+/** 양쪽 모두 수입·병력·생산이 없어 더 이상 승부가 날 수 없는 상태인지. */
+function exhausted(state, side) {
+  const record = state.sides[side];
+  if (stwIncome(state, side).minerals > 0 || record.minerals >= 50) return false;
+  if (state.units.some((unit) => unit.side === side && !isWorker(unit))) return false;
+  return !state.buildings.some((building) => building.side === side && (building.current || building.queue.length));
+}
+
 function checkVictory(state) {
   const playerMain = stwNexus(state, "player", "main");
   const enemyMain = stwNexus(state, "enemy", "main");
-  if (playerMain && enemyMain) return;
+  if (playerMain && enemyMain) {
+    // 양쪽 다 자원이 바닥나고 병력도 없으면 30초 뒤 무승부로 끝낸다.
+    state.stalemate = exhausted(state, "player") && exhausted(state, "enemy") ? (state.stalemate ?? 0) + STW_TICK : 0;
+    if (state.stalemate < 30) return;
+    state.status = "over";
+    state.winner = "draw";
+    pushLog(state, "player", "양쪽 모두 자원과 병력이 바닥나 무승부입니다.", "info");
+    return;
+  }
   state.status = "over";
   state.winner = playerMain ? "player" : enemyMain ? "enemy" : "draw";
   const lostBase = STW_BUILDINGS[stwRace(state, state.winner === "player" ? "enemy" : "player").base].name;

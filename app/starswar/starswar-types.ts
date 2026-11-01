@@ -98,6 +98,7 @@ export type StwState = {
   buildings: StwBuilding[];
   storms: StwStorm[];
   scans?: StwScan[];
+  stalemate?: number;
   effects: StwEffect[];
   log: StwLogEntry[];
 };

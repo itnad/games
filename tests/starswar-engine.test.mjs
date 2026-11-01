@@ -699,3 +699,45 @@ test("starswar protoss AI adapts its gateway mix to the enemy army it sees", () 
   const versusMarines = setup("terran", "marine");
   assert.ok(versusMarines.filter((line) => line === "zealot").length >= 2, `해병에는 질럿 (${versusMarines})`);
 });
+
+test("starswar warns about depleting minerals and ends an exhausted game as a draw", () => {
+  const state = quiet();
+  state.sides.player.bases.main.minerals = 1510;
+  run(state, 3);
+  assert.ok(state.log.some((entry) => /본진 광물이 곧 바닥납니다\. 앞마당 확장을 생각하세요\./.test(entry.text)), "고갈 경고");
+  state.sides.player.bases.main.minerals = 1;
+  run(state, 1);
+  assert.ok(state.log.some((entry) => entry.text === "본진 광물이 바닥났습니다."));
+  assert.equal(state.status, "playing");
+
+  for (const side of ["player", "enemy"]) {
+    state.sides[side].bases.main.minerals = 0;
+    state.sides[side].bases.natural.minerals = 0;
+    state.sides[side].minerals = 10;
+  }
+  run(state, 31);
+  assert.equal(state.status, "over");
+  assert.equal(state.winner, "draw");
+  assert.ok(state.log.some((entry) => /무승부/.test(entry.text)));
+
+  // 병력이 하나라도 있으면 무승부가 아니다.
+  const alive = quiet();
+  for (const side of ["player", "enemy"]) {
+    alive.sides[side].bases.main.minerals = 0;
+    alive.sides[side].bases.natural.minerals = 0;
+    alive.sides[side].minerals = 10;
+  }
+  stwSpawnUnitAt(alive, "player", "zealot", 20, 80);
+  run(alive, 31);
+  assert.equal(alive.status, "playing");
+});
+
+test("starswar AI attacks with everything once its minerals run dry", () => {
+  const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], personas: { enemy: "dragoon" } });
+  state.sides.enemy.bases.main.minerals = 0;
+  state.sides.enemy.bases.natural.minerals = 0;
+  state.sides.enemy.minerals = 0;
+  for (let index = 0; index < 3; index += 1) stwSpawnUnitAt(state, "enemy", "zealot", 14 + index * 4, 22);
+  run(state, 3, stwAiThink);
+  assert.equal(stwArmy(state, "enemy").attack.length, 3, "출격 규모와 상관없이 총공격");
+});

@@ -141,6 +141,7 @@
 .stw-secondary { border:1px solid #e9c77a40; background:#ffffff0c; }
 .stw-result section > small { color:var(--stw-gold); font-weight:900; letter-spacing:.2em; }
 .stw-result section.lost > small { color:#ff9a88; }
+.stw-result section.draw > small { color:#cfc4ad; }
 .stw-result dl { margin:4px 0 8px; display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
 .stw-result dl div { padding:8px; border-radius:10px; background:#ffffff0a; }
 .stw-result dt { color:var(--stw-muted); }
