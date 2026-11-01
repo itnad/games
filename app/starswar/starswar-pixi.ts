@@ -24,7 +24,7 @@ const isCloaked = (unit: StwUnit) => CLOAKED.has(unit.type) || (unit.type === "l
 const FONT = "system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
 const FOG_CELL = 2;
 
-type UnitView = { root: Container; body: Sprite; glow: Sprite; turret: Sprite | null; aim: number; sieged: boolean; x: number; y: number; heading: number; bob: number };
+type UnitView = { root: Container; body: Sprite; glow: Sprite; ring: Sprite; turret: Sprite | null; aim: number; sieged: boolean; x: number; y: number; heading: number; bob: number };
 type BuildingView = { root: Container; body: Sprite; glow: Sprite | null; ghost: boolean; lair: boolean };
 type Particle = { sprite: Sprite; x: number; y: number; vx: number; vy: number; life: number; max: number; s0: number; s1: number; a0: number; rise: number };
 type Decal = { sprite: Sprite; life: number; max: number; a0: number };
@@ -290,6 +290,13 @@ export class StwPixiRenderer {
     const body = this.sprite(this.tex.buildings[building.side][building.type], def.size);
     let glow: Sprite | null = null;
     root.addChild(shadow);
+    // 건물에도 진영 색 바닥 고리를 깐다.
+    const ring = this.sprite(this.tex.ring, def.size * 1.18);
+    ring.tint = STW_TEAM[building.side].glow;
+    ring.alpha = flying ? 0.3 : 0.42;
+    ring.position.copyFrom(shadow.position);
+    ring.scale.y *= 0.85;
+    root.addChild(ring);
     if (["nexus", "pylon", "cannon", "gateway"].includes(building.type)) {
       glow = this.sprite(this.tex.soft, def.size * 1.3);
       glow.tint = STW_TEAM[building.side].glow;
@@ -557,9 +564,15 @@ export class StwPixiRenderer {
     glow.tint = STW_TEAM[unit.side].glow;
     glow.blendMode = "add";
     glow.alpha = unit.type === "templar" ? 0.4 : unit.type === "archon" ? 0.6 : 0.16;
+    // 진영 고리: 같은 종족끼리 싸울 때 아군(파랑)과 적(빨강)을 발밑 색으로 가른다.
+    const ring = this.sprite(this.tex.ring, UNIT_SIZE[unit.type] * 1.12);
+    ring.tint = STW_TEAM[unit.side].glow;
+    ring.alpha = 0.75;
+    ring.position.copyFrom(shadow.position);
+    ring.scale.y *= 0.8;
     const body = this.sprite(this.tex.units[unit.side][unit.type], UNIT_SIZE[unit.type]);
     body.rotation = unit.heading;
-    root.addChild(shadow, glow, body);
+    root.addChild(shadow, ring, glow, body);
     let turret: Sprite | null = null;
     if (unit.type === "tank") {
       turret = this.sprite(this.tex.tankParts[unit.side].turret, UNIT_SIZE.tank * TURRET_RATIO);
@@ -568,7 +581,7 @@ export class StwPixiRenderer {
     }
     root.position.set(unit.x, unit.y);
     this.unitLayer.addChild(root);
-    const view = { root, body, glow, turret, aim: unit.heading, sieged: false, x: unit.x, y: unit.y, heading: unit.heading, bob: Math.random() * 6 };
+    const view = { root, body, glow, ring, turret, aim: unit.heading, sieged: false, x: unit.x, y: unit.y, heading: unit.heading, bob: Math.random() * 6 };
     this.unitViews.set(unit.id, view);
     return view;
   }
@@ -855,12 +868,15 @@ export class StwPixiRenderer {
     const sy = (y: number) => view.oy + y * view.scale;
     const g = this.bars;
     g.clear();
-    const bar = (x: number, y: number, width: number, hp: number, maxHp: number, shields: number, maxShields: number) => {
+    // 체력 막대도 진영별 색: 아군은 초록(위험하면 노랑), 적은 주황(위험하면 빨강).
+    const bar = (side: StwSide, x: number, y: number, width: number, hp: number, maxHp: number, shields: number, maxShields: number) => {
       const total = maxHp + maxShields;
       g.rect(x - width / 2 - 1, y - 1, width + 2, 5).fill({ color: 0x000000, alpha: 0.65 });
+      g.rect(x - width / 2 - 1, y - 1, width + 2, 5).stroke({ width: 1, color: STW_TEAM[side].glow, alpha: 0.9 });
       const hpW = (width * Math.max(0, hp)) / total;
       const shW = (width * Math.max(0, shields)) / total;
-      g.rect(x - width / 2, y, hpW, 3).fill(hp / maxHp > 0.4 ? 0x7ce08f : 0xff7a5c);
+      const healthy = hp / maxHp > 0.4;
+      g.rect(x - width / 2, y, hpW, 3).fill(side === "player" ? (healthy ? 0x7ce08f : 0xffd166) : healthy ? 0xff9a6e : 0xff3b2e);
       g.rect(x - width / 2 + (width * maxHp) / total, y, shW, 3).fill(0x63c6ff);
     };
     for (const building of state.buildings) {
@@ -875,7 +891,7 @@ export class StwPixiRenderer {
         g.moveTo(x, y - r).arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * building.progress).stroke({ width: 3, color: 0xffe08a });
         continue;
       }
-      if (building.hp < building.maxHp || building.shields < building.maxShields * 0.98) bar(x, y - half - 7, Math.max(20, half * 2), building.hp, building.maxHp, building.shields, building.maxShields);
+      if (building.hp < building.maxHp || building.shields < building.maxShields * 0.98) bar(building.side, x, y - half - 7, Math.max(20, half * 2), building.hp, building.maxHp, building.shields, building.maxShields);
       if (building.side === "player") {
         const progress = building.current ? 1 - building.current.remaining / building.current.total : building.queue.length ? 1 - building.queue[0].remaining / STW_UNITS[building.queue[0].unit].time : building.research ? null : null;
         if (progress !== null && progress !== undefined) {
@@ -890,7 +906,7 @@ export class StwPixiRenderer {
       if (unit.hp >= unit.maxHp && unit.shields >= unit.maxShields) continue;
       const x = sx(uv.x);
       const y = sy(uv.y) - (UNIT_SIZE[unit.type] / 2) * view.scale - 5;
-      bar(x, y, Math.max(14, UNIT_SIZE[unit.type] * view.scale * 0.8), unit.hp, unit.maxHp, unit.shields, unit.maxShields);
+      bar(unit.side, x, y, Math.max(14, UNIT_SIZE[unit.type] * view.scale * 0.8), unit.hp, unit.maxHp, unit.shields, unit.maxShields);
     }
     for (const label of this.labels) {
       label.root.position.set(Math.max(6, sx(0) + 6), sy(label.y));

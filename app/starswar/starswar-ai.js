@@ -26,22 +26,22 @@ const BUILD_ORDERS = {
   dragoon: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "pylon" },
     { build: "gateway" }, { research: "range" }, { build: "expand", at: 220 }, { build: "assimilator" }, { build: "gateway" },
-    { build: "forge" }, { research: "weapons1" }, { build: "gateway" }, { build: "citadel" }, { research: "charge" }, { research: "armor1" },
+    { build: "forge" }, { build: "cannon" }, { research: "weapons1" }, { build: "gateway" }, { build: "citadel" }, { research: "charge" }, { research: "armor1" },
   ],
   templar: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "pylon" },
     { build: "gateway" }, { build: "assimilator" }, { build: "citadel" }, { build: "archives" }, { research: "storm" },
-    { build: "forge" }, { research: "weapons1" }, { build: "expand", at: 300 }, { build: "gateway" }, { research: "charge" }, { build: "gateway" },
+    { build: "forge" }, { research: "weapons1" }, { build: "expand", at: 300 }, { build: "cannon" }, { build: "gateway" }, { research: "charge" }, { build: "gateway" },
   ],
   dark: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "pylon" },
     { build: "assimilator" }, { build: "citadel" }, { build: "archives" }, { build: "gateway" }, { build: "pylon" },
-    { build: "forge" }, { build: "expand", at: 330 }, { build: "gateway" }, { research: "weapons1" }, { research: "charge" },
+    { build: "forge" }, { build: "expand", at: 330 }, { build: "cannon" }, { build: "gateway" }, { research: "weapons1" }, { research: "charge" },
   ],
   robo: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "pylon" },
     { build: "assimilator" }, { build: "gateway" }, { research: "range" }, { build: "robo" }, { build: "bay" },
-    { build: "expand", at: 260 }, { build: "gateway" }, { build: "forge" }, { research: "weapons1" }, { research: "scarab" }, { build: "gateway" },
+    { build: "expand", at: 260 }, { build: "gateway" }, { build: "forge" }, { build: "cannon" }, { research: "weapons1" }, { research: "scarab" }, { build: "gateway" },
   ],
   bio: [
     { build: "depot" }, { build: "barracks" }, { build: "barracks" }, { build: "refinery" }, { build: "depot" },
@@ -205,10 +205,13 @@ export function stwAiThink(state, side) {
   // 3-1-1. 저그 상대: 저글링 물량에 대비해 테란은 벙커 하나를 세운다.
   const versusZerg = state.sides[stwOpponent(side)].race === "zerg";
   if (versusZerg && race.id === "terran" && stwHas(state, side, "barracks") && state.time > 150) {
-    // 저글링·울트라리스크가 많이 보이면 벙커를 하나 더.
-    const mix = foeMix(state, side);
-    const bunkers = mix && mix.zergling + mix.ultra > 0.5 ? 2 : 1;
-    if (stwOwnBuildings(state, side, "bunker").length < bunkers) stwCommand(state, side, { type: "build", building: "bunker" });
+    // 벙커는 기지 전체를 지키므로 하나면 된다.
+    if (!stwOwnBuildings(state, side, "bunker").length) stwCommand(state, side, { type: "build", building: "bunker" });
+  }
+
+  // 3-1-2. 프로토스 대 저그: 앞마당이 서면 캐논을 하나 더 세운다(저글링 물량 대비).
+  if (versusZerg && race.id === "protoss" && stwHas(state, side, "forge") && stwNexus(state, side, "natural") && stwOwnBuildings(state, side, "cannon").length < 2 && record.minerals > 300) {
+    stwCommand(state, side, { type: "build", building: "cannon" });
   }
 
   // 3-2. 하이템플러가 넷 이상 쌓이면 에너지가 적은 둘을 아콘으로 합친다.
@@ -454,7 +457,9 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false }
   const waves = WAVES[persona];
   // 목록이 끝난 뒤에는 실패할 때마다 출격 규모를 4기씩 키운다(최대 40기).
   const listed = waves[Math.min(memory.wave, waves.length - 1)] + Math.max(0, memory.wave - waves.length + 1) * 4;
-  const size = allIn ? 1 : Math.round(Math.min(40, listed) * settings.waveScale);
+  // 적 방어 건물(캐논·벙커·성큰)을 본 만큼 더 모아서 간다(하나당 3기, 최대 9기). 방어 건물은 기지 전체를 지키므로 소수로 찔러 봐야 손해다.
+  const defenses = Object.values(record.seen).filter((memoryItem) => STW_BUILDINGS[memoryItem.type]?.damage).length;
+  const size = allIn ? 1 : Math.round(Math.min(40, listed + Math.min(9, defenses * 3)) * settings.waveScale);
   if (army.fighters.length >= size) {
     stwCommand(state, side, { type: "attack" });
     memory.attacking = true;

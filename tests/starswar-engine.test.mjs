@@ -675,10 +675,33 @@ test("starswar terran and zerg each have four AI personas and the new ones field
     if (games.pool.time === 200) poolDronesAt200 = games.pool.sides.player.probes;
     if (!running) break;
   }
-  assert.ok(seen.tankbio.has("tank") && seen.tankbio.has("medic"), "탱크 바이오는 시즈 탱크와 메딕");
+  assert.ok(seen.tankbio.has("marine") && seen.tankbio.has("medic"), "탱크 바이오는 해병과 메딕");
+  // 팩토리와 머신 샵이 서면 탱크 바이오는 팩토리에서 시즈 탱크를 고른다.
+  const tb = createStarswarGame({ seed: 1, aiSides: ["player"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio" } });
+  tb.sides.player.minerals = 5000;
+  tb.sides.player.gas = 5000;
+  for (const building of ["depot", "barracks", "factory", "shop"]) {
+    assert.equal(stwCommand(tb, "player", { type: "build", building }).ok, true, building);
+    finishAll(tb);
+  }
+  stwAiThink(tb, "player");
+  assert.equal(stwOwnBuildings(tb, "player", "factory")[0].line, "tank", "탱크 바이오는 시즈 탱크");
   assert.ok(seen.vulture.has("vulture"), "벌처 러시는 벌처");
   assert.ok(seen.pool.has("zergling") && poolDronesAt200 <= 14, `빠른 저글링은 드론을 아낌 (${poolDronesAt200})`);
-  assert.ok(seen.ultra.has("ultra"), "울트라 운영은 울트라리스크");
+  assert.ok(seen.ultra.has("zergling") && seen.ultra.has("hydra"), "울트라 운영은 저글링과 히드라로 버팀");
+
+  // 울트라리스크 동굴이 서면 울트라 운영은 울트라리스크를 고른다(연구용 가스보다 먼저).
+  const late = createStarswarGame({ seed: 1, aiSides: ["player"], races: { player: "zerg", enemy: "terran" }, personas: { player: "ultra" } });
+  late.sides.player.minerals = 5000;
+  late.sides.player.gas = 5000;
+  late.sides.player.research.lair = "done";
+  for (const building of ["overlord", "pool", "den", "cavern"]) {
+    assert.equal(stwCommand(late, "player", { type: "build", building }).ok, true, building);
+    finishAll(late);
+  }
+  for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(late, "player", "zergling", 14 + index * 2, 80);
+  stwAiThink(late, "player");
+  assert.equal(stwNexus(late, "player", "main").line, "ultra", "울트라 운영은 울트라리스크");
 });
 
 test("starswar protoss AI adapts its gateway mix to the enemy army it sees", () => {
@@ -841,4 +864,29 @@ test("starswar keeps home overlords home and returns stranded support units to t
   run(ai, 2, stwAiThink);
   assert.equal(ai.sides.player.ai.attacking, false);
   assert.equal(ai.sides.player.ai.wave, 1);
+});
+
+test("starswar defensive buildings guard their whole base, not just their own range", () => {
+  const state = quiet();
+  state.sides.player.minerals = 9000;
+  for (const building of ["pylon", "forge", "expand", "cannon"]) {
+    assert.equal(stwCommand(state, "player", { type: "build", building }).ok, true, building);
+    finishAll(state);
+  }
+  const cannon = stwOwnBuildings(state, "player", "cannon")[0];
+  assert.equal(cannon.base, "natural");
+  const natural = stwNexus(state, "player", "natural");
+  // 사거리 8 드라군이 앞마당 넥서스를 때리는 자리: 넥서스에서 12칸, 캐논에서는 사거리 7 밖.
+  state.sides.enemy.research.range = "done";
+  const dragoon = stwSpawnUnitAt(state, "enemy", "dragoon", natural.x + (natural.x > cannon.x ? 8 : -8), natural.y - 9, "attack");
+  assert.ok(Math.hypot(dragoon.x - cannon.x, dragoon.y - cannon.y) - dragoon.radius > 7, "드라군은 캐논 사거리 밖에 있음");
+  run(state, 3);
+  assert.ok(natural.shields < natural.maxShields, "드라군이 넥서스를 때림");
+  assert.equal(cannon.targetId, dragoon.id, "캐논이 기지를 때리는 드라군을 노림");
+  assert.ok(dragoon.shields < dragoon.maxShields, "캐논에 맞음");
+
+  // 기지 건물 어디서도 멀면 쏘지 않는다.
+  const far = stwSpawnUnitAt(state, "enemy", "zealot", 20, 50);
+  run(state, 1);
+  assert.notEqual(cannon.targetId, far.id);
 });

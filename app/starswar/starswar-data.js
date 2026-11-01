@@ -186,7 +186,7 @@ export const STW_BUILDINGS = {
   forge: { unique: true, id: "forge", name: "포지", minerals: 150, gas: 0, time: 28, hp: 550, shields: 550, armor: 1, size: 4.6, requires: "pylon", sight: 8, note: "지상 공격·방어 업그레이드 · 포톤 캐논 해금" },
   cannon: {
     id: "cannon", name: "포톤 캐논", minerals: 150, gas: 0, time: 25, hp: 100, shields: 100, armor: 0, size: 3.2, requires: "forge", sight: 11,
-    damage: 20, hits: 1, damageType: "normal", range: 7, cooldown: 1.25, detector: 7, defense: true, note: "사거리 7 방어·은폐 탐지 · 앞마당이 있으면 앞마당에 세움",
+    damage: 20, hits: 1, damageType: "normal", range: 7, cooldown: 1.25, detector: 7, defense: true, note: "기지 전체를 지키는 방어 건물 · 은폐 탐지 · 앞마당이 있으면 앞마당에 세움",
   },
   citadel: { unique: true, id: "citadel", name: "아둔의 성소", minerals: 150, gas: 100, time: 35, hp: 450, shields: 450, armor: 1, size: 4.4, requires: "core", sight: 8, note: "질럿 다리 강화 연구 · 아카이브 해금" },
   archives: { unique: true, id: "archives", name: "템플러 아카이브", minerals: 150, gas: 200, time: 40, hp: 500, shields: 500, armor: 1, size: 4.6, requires: "citadel", sight: 8, note: "하이템플러·다크템플러 해금 · 사이오닉 스톰 연구" },
@@ -201,7 +201,7 @@ export const STW_BUILDINGS = {
   ebay: { unique: true, id: "ebay", race: "terran", name: "엔지니어링 베이", minerals: 125, gas: 0, time: 28, hp: 850, shields: 0, armor: 1, size: 4.6, requires: "depot", sight: 8, note: "보병 공격·방어 업그레이드 · 미사일 터렛 해금" },
   bunker: {
     id: "bunker", race: "terran", name: "벙커", minerals: 100, gas: 0, time: 22, hp: 350, shields: 0, armor: 1, size: 3.6, requires: "barracks", sight: 10,
-    damage: 6, hits: 4, damageType: "normal", range: 6, cooldown: 0.9, defense: true, note: "해병 4기 상당 화력의 방어 건물 · 앞마당이 있으면 앞마당에 세움",
+    damage: 6, hits: 4, damageType: "normal", range: 6, cooldown: 1.1, defense: true, note: "해병 4기 상당 화력으로 기지 전체를 지킴 · 앞마당이 있으면 앞마당에 세움",
   },
   turret: { id: "turret", race: "terran", name: "미사일 터렛", minerals: 75, gas: 0, time: 18, hp: 200, shields: 0, armor: 0, size: 3, requires: "ebay", sight: 11, detector: 7, defense: true, note: "은폐 탐지 전용(지상 공격 없음)" },
   academy: { unique: true, id: "academy", race: "terran", name: "아카데미", minerals: 150, gas: 0, time: 30, hp: 600, shields: 0, armor: 1, size: 4.6, requires: "barracks", sight: 8, note: "파이어뱃·메딕 해금 · 스팀팩·U-238 연구" },
@@ -221,7 +221,7 @@ export const STW_BUILDINGS = {
   evo: { unique: true, id: "evo", race: "zerg", name: "에볼루션 챔버", minerals: 75, gas: 0, time: 25, hp: 750, shields: 0, armor: 1, size: 4.4, sight: 8, note: "근접·원거리 공격과 갑피 업그레이드 · 스포어 콜로니 해금" },
   sunken: {
     id: "sunken", race: "zerg", name: "성큰 콜로니", minerals: 125, gas: 0, time: 25, hp: 300, shields: 0, armor: 2, size: 3.4, requires: "pool", sight: 10,
-    damage: 40, hits: 1, damageType: "explosive", range: 7, cooldown: 1.5, defense: true, note: "땅속 촉수로 사거리 7 공격 · 앞마당이 있으면 앞마당에 세움",
+    damage: 40, hits: 1, damageType: "explosive", range: 7, cooldown: 2, defense: true, note: "땅속 촉수로 기지 전체를 지킴 · 폭발형 40 · 앞마당이 있으면 앞마당에 세움",
   },
   spore: { id: "spore", race: "zerg", name: "스포어 콜로니", minerals: 75, gas: 0, time: 20, hp: 400, shields: 0, armor: 0, size: 3.2, requires: "evo", sight: 10, detector: 7, defense: true, note: "은폐 탐지 전용(지상 공격 없음)" },
   den: { unique: true, id: "den", race: "zerg", name: "히드라리스크 덴", minerals: 100, gas: 50, time: 30, hp: 850, shields: 0, armor: 1, size: 4.4, requires: "pool", sight: 8, note: "히드라리스크 해금 · 사거리·속도 연구 · 럴커 변태" },
@@ -298,6 +298,12 @@ export const STW_RACES = {
 
 /** 소환 중인 건물을 취소하면 돌려받는 비율. 프로브·유닛·연구 취소는 전액 환불. */
 export const STW_CANCEL_REFUND = 0.75;
+
+/**
+ * 지역 방어: 방어 건물은 자기 사거리 안의 적뿐 아니라, 같은 기지의 어떤 건물이든 이 거리 안에서 노릴 수 있는 적을 모두 쏜다.
+ * 사거리 8(드라군 특이점 충전, 리버)까지 덮고, 시즈 모드 탱크(12)만 밖에서 때릴 수 있다.
+ */
+export const STW_DEFENSE_REACH = 8.5;
 
 export const STW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 26, castRange: 9, minTargets: 3 };
 

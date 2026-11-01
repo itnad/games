@@ -5,6 +5,7 @@ import {
   STW_ARMY_UNITS,
   STW_BUILDINGS,
   STW_CANCEL_REFUND,
+  STW_DEFENSE_REACH,
   STW_DIFFICULTIES,
   STW_ECONOMY,
   STW_LANE_LENGTH,
@@ -970,13 +971,37 @@ function resolve(state, id, attacker = null) {
   return state.buildings.find((building) => building.id === id && building.hp > 0) ?? null;
 }
 
-/** 공격하는 방어 건물(포톤 캐논, 벙커). */
+/**
+ * 지역 방어: 방어 건물이 노릴 수 있는 적. 자기 사거리 안이거나, 같은 기지의 어떤 건물이든 STW_DEFENSE_REACH 안에서 때릴 수 있는 자리면 모두.
+ * 가장 가까운 적부터(일꾼·지원 유닛은 뒤로).
+ */
+function defenseTarget(state, building) {
+  const def = STW_BUILDINGS[building.type];
+  const guarded = state.buildings.filter((item) => item.side === building.side && item.base === building.base);
+  const inZone = (unit) => {
+    if (distance(building.x, building.y, unit.x, unit.y) - unit.radius <= def.range) return true;
+    return guarded.some((item) => distance(item.x, item.y, unit.x, unit.y) - item.radius - unit.radius * 0.5 <= STW_DEFENSE_REACH);
+  };
+  const current = resolve(state, building.targetId, building);
+  if (current && current.kind === "unit" && inZone(current)) return current;
+  let best = null;
+  let bestScore = Infinity;
+  for (const unit of state.units) {
+    if (unit.side === building.side || unit.hp <= 0 || !targetable(state, building, unit) || !inZone(unit)) continue;
+    const score = distance(building.x, building.y, unit.x, unit.y) + (isPassive(unit) ? 3 : 0);
+    if (score < bestScore) {
+      best = unit;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+/** 공격하는 방어 건물(포톤 캐논, 벙커, 성큰 콜로니). 자기 기지 전체를 지킨다. */
 function cannonStep(state, building, dt) {
   const def = STW_BUILDINGS[building.type];
   building.cooldown = Math.max(0, building.cooldown - dt);
-  let target = resolve(state, building.targetId, building);
-  if (target && (target.kind !== "unit" || distance(building.x, building.y, target.x, target.y) - target.radius > def.range)) target = null;
-  if (!target) target = findTarget(state, building, def.range, { unitsOnly: true });
+  const target = defenseTarget(state, building);
   building.targetId = target?.id ?? null;
   if (!target || building.cooldown > 0) return;
   building.cooldown = def.cooldown;
