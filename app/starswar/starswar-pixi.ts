@@ -1,7 +1,7 @@
 // 스타즈워 PixiJS 렌더러. 엔진 상태를 읽기만 하며, 플레이어 시야 밖의 적은 감춘다.
 import type { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_STORM, STW_UNITS } from "./starswar-data.js";
-import { stwDetected, stwDone, stwNexus, stwPoint, stwRace, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
+import { stwArmy, stwDetected, stwDone, stwNexus, stwPoint, stwRace, stwRallyName, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
 import { STW_TEAM, createStwTextures, type StwTextureSet } from "./starswar-sprites";
 import type { StwBuilding, StwEffect, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./starswar-types";
 
@@ -74,6 +74,10 @@ export class StwPixiRenderer {
   private readonly overlay: Container;
   private readonly bars: Graphics;
   private readonly rallyFlag: Sprite;
+  private readonly flagScale: number;
+  private readonly rallyLabel: { root: Container; bg: Graphics; text: Text; key: string };
+  private lastRally: StwUi["rally"] | null = null;
+  private flagPulse = 0;
   private readonly labels: { root: Container; text: Text; y: number }[] = [];
   private readonly unitViews = new Map<number, UnitView>();
   private readonly buildingViews = new Map<number, BuildingView>();
@@ -127,11 +131,23 @@ export class StwPixiRenderer {
     // 칸 단위로 그린 안개 경계를 흐려 부드러운 시야 가장자리로 만든다.
     this.fog.filters = [new PIXI.BlurFilter({ strength: 10, quality: 3 })];
     this.rallyFlag = this.sprite(this.tex.flag.player, 2.6);
+    this.rallyFlag.anchor.set(0.5, 0.9);
+    this.flagScale = this.rallyFlag.scale.x;
     this.workerLayer = new PIXI.Container();
     this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.rallyFlag, this.unitLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
     this.overlay = new PIXI.Container();
     this.bars = new PIXI.Graphics();
     this.overlay.addChild(this.bars);
+    {
+      // 집결지 라벨: "집결 · 대기 N".
+      const root = new PIXI.Container();
+      const bg = new PIXI.Graphics();
+      const text = new PIXI.Text({ text: "", style: { fontFamily: FONT, fontSize: 11, fontWeight: "800", fill: 0xc9ecff } });
+      text.anchor.set(0, 0.5);
+      root.addChild(bg, text);
+      this.overlay.addChild(root);
+      this.rallyLabel = { root, bg, text, key: "" };
+    }
     for (const [name, y] of [["적 본진", 6], ["적 앞마당", 27], ["중앙", 50], ["앞마당", 73], ["아군 본진", 94]] as [string, number][]) {
       const root = new PIXI.Container();
       const text = new PIXI.Text({ text: name, style: { fontFamily: FONT, fontSize: 12, fontWeight: "800", fill: 0xf3e6c4 } });
@@ -160,7 +176,13 @@ export class StwPixiRenderer {
     this.world.position.set(view.ox, view.oy);
     this.world.scale.set(view.scale);
     if (state.time - this.fogAt >= 0.25 || state.time < this.fogAt) this.refreshVision(state);
-    this.drawUnderlay(state);
+    if (ui.rally !== this.lastRally) {
+      this.lastRally = ui.rally;
+      this.flagPulse = 1;
+    }
+    this.flagPulse = Math.max(0, this.flagPulse - realDt * 2.5);
+    const rallyY = stwRallyY("player", ui.rally);
+    this.drawUnderlay(state, rallyY, ui.clock);
     this.syncBuildings(state);
     this.syncWorkers(state, ui.clock);
     this.syncUnits(state, realDt);
@@ -170,9 +192,10 @@ export class StwPixiRenderer {
     this.drawStorms(state, ui.clock);
     this.stepParticles(dt);
     this.stepDecals(dt);
-    const rally = stwRallyY("player", ui.rally);
-    this.rallyFlag.position.set(STW_LANE_WIDTH / 2 + 7, rally);
-    this.drawOverlay(state, view);
+    // 깃발은 대형 한가운데. 집결지를 옮기면 잠깐 튀어 오른다.
+    this.rallyFlag.position.set(STW_LANE_WIDTH / 2, rallyY - this.flagPulse * 1.5);
+    this.rallyFlag.scale.set(this.flagScale * (1 + this.flagPulse * 0.5));
+    this.drawOverlay(state, view, rallyY);
     this.app.render();
   }
 
@@ -224,9 +247,21 @@ export class StwPixiRenderer {
 
   /* ───────── 건물 ───────── */
 
-  private drawUnderlay(state: StwState) {
+  private drawUnderlay(state: StwState, rallyY: number, clock: number) {
     const g = this.underlay;
     g.clear();
+    // 집결 구역: 새 유닛과 대기 병력이 서는 자리.
+    const team = STW_TEAM.player;
+    g.ellipse(STW_LANE_WIDTH / 2, rallyY, 15, 4.5).fill({ color: team.glow, alpha: 0.07 }).stroke({ width: 0.18, color: team.glow, alpha: 0.35 });
+    // 본진에서 집결지로 가는 유닛이 있으면 점선이 흐른다.
+    const army = stwArmy(state, "player");
+    const transit = army.rally.some((unit) => Math.abs(unit.y - rallyY) > 6 && unit.y > rallyY + 6);
+    if (transit) {
+      const from = STW_LAYOUT.mainNexus.y - 6;
+      const to = rallyY + 5;
+      const phase = (clock * 3) % 2;
+      for (let y = from - phase; y > to; y -= 2) g.circle(STW_LANE_WIDTH / 2, y, 0.28).fill({ color: team.glow, alpha: 0.4 });
+    }
     for (const building of state.buildings) {
       // 저그 기지 주변의 크립.
       if ((building.type === "hatchery" || building.type === "hatch") && (building.side === "player" || this.buildingViews.has(building.id))) {
@@ -862,10 +897,22 @@ export class StwPixiRenderer {
 
   /* ───────── 화면 고정 표시 ───────── */
 
-  private drawOverlay(state: StwState, view: StwView) {
+  private drawOverlay(state: StwState, view: StwView, rallyY: number) {
     this.drawWorkerBadges(state, view);
     const sx = (x: number) => view.ox + x * view.scale;
     const sy = (y: number) => view.oy + y * view.scale;
+    {
+      const waiting = stwArmy(state, "player").rally.length;
+      const label = this.rallyLabel;
+      const text = `${stwRallyName(state.sides.player.rally)} 집결 · 대기 ${waiting}`;
+      if (label.key !== text) {
+        label.key = text;
+        label.text.text = text;
+        label.bg.clear().roundRect(-6, -9, label.text.width + 12, 18, 9).fill({ color: 0x0f2a3a, alpha: 0.8 }).stroke({ width: 1, color: STW_TEAM.player.glow, alpha: 0.7 });
+      }
+      label.root.position.set(sx(STW_LANE_WIDTH / 2) + 10, sy(rallyY) - 16);
+      label.root.visible = sy(rallyY) > -10 && sy(rallyY) < view.height + 10;
+    }
     const g = this.bars;
     g.clear();
     // 체력 막대도 진영별 색: 아군은 초록(위험하면 노랑), 적은 주황(위험하면 빨강).

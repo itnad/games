@@ -40,7 +40,7 @@ import {
 import { stwAiThink } from "./starswar-ai.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
 import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
-import type { StwArmyType, StwBuildChoice, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwRallyId, StwResearchId, StwState, StwView } from "./starswar-types";
+import type { StwArmyType, StwBuildChoice, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
 
 type Screen = "menu" | "play";
 type Tab = "build" | "produce" | "army";
@@ -88,7 +88,7 @@ const RACE_MENU: Record<StwRaceId, { hero: string; lead: string; howto: [string,
       ["경제", "프로브를 늘리고 파일런으로 인구를 확보하세요. 어시밀레이터를 지으면 가스가 들어옵니다."],
       ["테크", "게이트웨이를 늘리고, 코어로 드라군을, 아카이브로 하이템플러를 해금하세요."],
       ["생산 라인", "게이트웨이마다 소환할 유닛을 정하면 자원이 있는 한 계속 소환됩니다."],
-      ["웨이브", "집결지를 정하고 원할 때 출격시키세요. 적 본진 기지를 부수면 승리합니다."],
+      ["웨이브", "지도를 눌러 병력을 보내세요. 앞쪽은 싸우며 전진, 뒤쪽은 후퇴, 적 본진은 출격입니다."],
     ],
   },
   terran: {
@@ -98,7 +98,7 @@ const RACE_MENU: Record<StwRaceId, { hero: string; lead: string; howto: [string,
       ["경제", "SCV를 늘리고 서플라이 디팟으로 인구를 확보하세요. 리파이너리를 지으면 가스가 들어옵니다."],
       ["테크", "배럭을 늘리고, 아카데미로 파이어뱃·메딕을, 머신 샵으로 시즈 탱크를 해금하세요."],
       ["생산 라인", "배럭과 팩토리마다 생산할 유닛을 정하면 자원이 있는 한 계속 생산됩니다."],
-      ["웨이브", "스팀팩과 시즈 모드는 알아서 씁니다. 적 본진 기지를 부수면 승리합니다."],
+      ["웨이브", "지도를 눌러 병력을 보내세요. 스팀팩과 시즈 모드는 알아서 씁니다. 적 본진을 누르면 출격입니다."],
     ],
   },
   zerg: {
@@ -108,7 +108,7 @@ const RACE_MENU: Record<StwRaceId, { hero: string; lead: string; howto: [string,
       ["경제", "드론을 늘리고 오버로드로 인구를 확보하세요. 익스트랙터를 지으면 가스가 들어옵니다."],
       ["테크", "스포닝 풀로 저글링, 히드라리스크 덴으로 히드라를 열고, 레어 변태 뒤 럴커와 울트라리스크를 해금하세요."],
       ["생산 라인", "해처리마다 변태시킬 유닛을 정하세요. 해처리를 더 지으면 생산 라인이 늘어납니다."],
-      ["웨이브", "럴커는 적이 오면 알아서 땅속에 숨습니다. 적 본진 기지를 부수면 승리합니다."],
+      ["웨이브", "지도를 눌러 병력을 보내세요. 럴커는 적이 오면 알아서 땅속에 숨습니다. 적 본진을 누르면 출격입니다."],
     ],
   },
 };
@@ -130,12 +130,8 @@ function armyText(counts: Partial<Record<string, number>>) {
 }
 const RESEARCH_IDS = Object.keys(STW_RESEARCH) as StwResearchId[];
 const WAVE_SIZES = [0, 6, 10, 16];
-const RECALL_CHOICES: { point: StwRallyId; label: string; note: string }[] = [
-  { point: "main", label: "본진 수비", note: "본진 앞으로" },
-  { point: "natural", label: "앞마당 수비", note: "앞마당으로" },
-  { point: "center", label: "중앙 대기", note: "전장 가운데로" },
-  { point: "forward", label: "전진 대기", note: "적 앞마당 앞으로" },
-];
+/** "본진 수비" 버튼이 쓰는 집결 위치(본진 앞). */
+const HOME_Y = STW_RALLY_POINTS.find((point) => point.id === "main")!.y;
 
 function readRecord(): BattleRecord {
   try {
@@ -402,9 +398,19 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   };
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = gestureRef.current;
+    const point = localPoint(event);
     pointersRef.current.delete(event.pointerId);
-    if (pointersRef.current.size > 0) beginGesture();
-    else gestureRef.current = null;
+    if (pointersRef.current.size > 0) {
+      beginGesture();
+      return;
+    }
+    gestureRef.current = null;
+    // 끌거나 벌리지 않고 톡 눌렀으면 그 자리로 병력을 보낸다.
+    if (!gesture || gesture.moved || gesture.pinch || event.type === "pointercancel" || finished) return;
+    if (Math.hypot(point.x - gesture.x, point.y - gesture.y) > 10) return;
+    const target = stwScreenToMap(viewRef.current, point.x, point.y);
+    issue({ type: "move", y: target.y });
   };
 
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
@@ -526,7 +532,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             ref={surfaceRef}
             className="stw-map-surface"
             role="application"
-            aria-label="전장. 끌어서 이동하고 두 손가락으로 확대합니다."
+            aria-label="전장. 톡 누르면 병력을 그 자리로 보내고, 끌어서 이동하고 두 손가락으로 확대합니다."
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
@@ -745,21 +751,11 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
         <div><small>공격 병력</small><b>{army.attack.length}</b><span>{armyText(Object.fromEntries(ARMY_IDS.map((type) => [type, count(army.attack, type)])))}</span></div>
       </div>
       <button type="button" className="stw-attack" disabled={!army.fighters.length} onClick={() => issue({ type: "attack" })}>출격<small>{army.rally.length && !army.fighters.length ? "출격할 전투 병력이 없습니다" : "대기 병력을 적 본진으로"}</small></button>
-      <h3 className="stw-section">후퇴·수비</h3>
-      <p className="stw-hint">공격 중인 병력까지 모두 불러들입니다. 후퇴하는 동안에는 싸우지 않고 돌아옵니다.</p>
+      <h3 className="stw-section">병력 이동</h3>
+      <p className="stw-hint">지도를 톡 누르면 그 자리로 병력이 모입니다. 병력 앞쪽을 누르면 싸우며 전진하고, 뒤쪽을 누르면 교전을 끊고 물러납니다. 적 앞마당 안쪽을 누르면 출격입니다.</p>
       <div className="stw-recall">
-        {RECALL_CHOICES.map((choice) => (
-          <button key={choice.point} type="button" className={side.rally === choice.point && !army.attack.length ? "active" : ""} disabled={!army.rally.length && !army.attack.length} onClick={() => issue({ type: "recall", point: choice.point })}>
-            {choice.label}<small>{choice.note}</small>
-          </button>
-        ))}
-      </div>
-      <h3 className="stw-section">집결지</h3>
-      <p className="stw-hint">새 병력과 대기 병력이 모이는 곳입니다. 이곳 뒤쪽으로 들어온 적은 대기 병력이 자동으로 요격합니다.</p>
-      <div className="stw-segment">
-        {STW_RALLY_POINTS.map((point) => (
-          <button key={point.id} type="button" className={side.rally === point.id ? "active" : ""} aria-pressed={side.rally === point.id} onClick={() => issue({ type: "rally", point: point.id as StwRallyId })}>{point.short}</button>
-        ))}
+        <button type="button" disabled={!army.rally.length && !army.attack.length} onClick={() => issue({ type: "move", y: HOME_Y })}>본진 수비<small>전원 본진 앞으로</small></button>
+        <button type="button" disabled={!army.attack.length} onClick={() => issue({ type: "retreat" })}>후퇴<small>공격 병력을 집결지로</small></button>
       </div>
       <h3 className="stw-section">자동 출격</h3>
       <p className="stw-hint">집결지에 모인 전투 병력이 이 수에 이르면 자동으로 출격합니다. 옵저버·오버로드 같은 지원 유닛은 세지 않습니다.</p>

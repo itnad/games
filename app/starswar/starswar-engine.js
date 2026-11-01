@@ -15,7 +15,9 @@ import {
   STW_PRODUCERS,
   STW_PRODUCER_UNITS,
   STW_RACES,
+  STW_ATTACK_ZONE_Y,
   STW_RALLY_POINTS,
+  STW_RALLY_RANGE,
   STW_RESEARCH,
   STW_SIZE_MULTIPLIER,
   STW_STORM,
@@ -76,9 +78,16 @@ export function stwForward(side) {
   return side === "player" ? -1 : 1;
 }
 
-export function stwRallyY(side, rallyId) {
-  const point = STW_RALLY_POINTS.find((item) => item.id === rallyId) ?? STW_RALLY_POINTS[0];
-  return side === "player" ? point.y : STW_LANE_LENGTH - point.y;
+/** 집결지의 전장 세로 위치. rally는 이름표나 아군 기준 숫자. */
+export function stwRallyY(side, rally) {
+  const own = typeof rally === "number" ? rally : (STW_RALLY_POINTS.find((item) => item.id === rally) ?? STW_RALLY_POINTS[0]).y;
+  return side === "player" ? own : STW_LANE_LENGTH - own;
+}
+
+/** 아군 기준 세로 위치에 가장 가까운 집결 위치 이름(로그용). */
+export function stwRallyName(rally) {
+  if (typeof rally !== "number") return (STW_RALLY_POINTS.find((item) => item.id === rally) ?? STW_RALLY_POINTS[0]).name;
+  return STW_RALLY_POINTS.reduce((best, item) => (Math.abs(item.y - rally) < Math.abs(best.y - rally) ? item : best), STW_RALLY_POINTS[0]).name;
 }
 
 function distance(ax, ay, bx, by) {
@@ -511,6 +520,26 @@ export function stwCommand(state, side, command) {
         pushLog(state, side, `집결지를 ${withKoreanDirection(name)} 옮깁니다.`, "order");
       }
       return { ok: true };
+    }
+    case "move": {
+      // 지도 탭: 적 앞마당 안쪽이면 출격, 병력 앞쪽이면 싸우며 전진, 뒤쪽이면 교전을 끊고 후퇴.
+      if (typeof command.y !== "number" || Number.isNaN(command.y)) return fail("알 수 없는 위치입니다");
+      if (command.y <= STW_ATTACK_ZONE_Y) return stwCommand(state, side, { type: "attack" });
+      const y = Math.round(Math.min(STW_RALLY_RANGE.max, Math.max(STW_RALLY_RANGE.min, command.y)));
+      const army = stwArmy(state, side);
+      // 아군 기준 좌표로 병력 선두를 잰다(작을수록 앞).
+      const units = [...army.fighters, ...army.attackers];
+      const front = units.length ? Math.min(...units.map((unit) => (side === "player" ? unit.y : STW_LANE_LENGTH - unit.y))) : null;
+      const name = stwRallyName(y);
+      record.rally = y;
+      if (front !== null && y > front + 2 && (army.attack.length || units.some((unit) => (side === "player" ? unit.y : STW_LANE_LENGTH - unit.y) < y - 2))) {
+        // 뒤쪽: 전군 후퇴.
+        for (const unit of army.attack) unit.group = "rally";
+        if (side === "player") pushLog(state, side, `전군 ${army.attack.length + army.rally.length}기가 ${withKoreanDirection(name)} 물러납니다.`, "order");
+        return { ok: true, mode: "retreat", y };
+      }
+      if (side === "player") pushLog(state, side, units.length ? `병력이 ${withKoreanDirection(name)} 싸우며 전진합니다.` : `집결지를 ${withKoreanDirection(name)} 옮깁니다.`, "order");
+      return { ok: true, mode: "advance", y };
     }
     case "attack": {
       const army = stwArmy(state, side);
@@ -1146,7 +1175,9 @@ function stepUnits(state, dt) {
       // 자동 수비: 기지에 들어온 적을 거리와 상관없이 쫓아가 잡는다.
       if (!target || !intruders.includes(target)) target = nearestOf(unit, intruders);
     } else {
-      const leashed = (item) => !isAttack && slot && distance(item.x, item.y, slot.x, slot.y) - item.radius > RALLY_LEASH;
+      // 집결지에 와 있는 대기 병력은 멀리 있는 적을 쫓지 않는다. 집결지로 이동 중(싸우며 전진)일 때는 만나는 적과 모두 싸운다.
+      const settled = slot && distance(unit.x, unit.y, slot.x, slot.y) < RALLY_LEASH;
+      const leashed = (item) => !isAttack && settled && distance(item.x, item.y, slot.x, slot.y) - item.radius > RALLY_LEASH;
       if (target) {
         const d = distance(unit.x, unit.y, target.x, target.y) - target.radius;
         if (d > sight + 3 || leashed(target)) target = null;

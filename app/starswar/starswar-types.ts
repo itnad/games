@@ -76,7 +76,8 @@ export type StwSideState = {
   probes: number;
   bases: { main: { minerals: number }; natural: { minerals: number } };
   research: Partial<Record<StwResearchId, "running" | "done">>;
-  rally: StwRallyId;
+  /** 집결지: 이름표(AI) 또는 아군 기준 세로 위치(플레이어가 지도를 눌러 고름). */
+  rally: StwRallyId | number;
   autoWave: number;
   intel: StwIntel | null;
   seen: Record<string, StwSeen>;
@@ -114,6 +115,7 @@ export type StwCommand =
   | { type: "lineAll"; unit: StwArmyType | null; producer?: StwProducerType }
   | { type: "merge" }
   | { type: "rally"; point: StwRallyId }
+  | { type: "move"; y: number }
   | { type: "attack" }
   | { type: "retreat" }
   | { type: "recall"; point: StwRallyId }
@@ -126,4 +128,4 @@ export type StwCommand =
   | { type: "cancelUnit"; buildingId: number };
 
 export type StwView = { width: number; height: number; scale: number; zoom: number; cx: number; cy: number; ox: number; oy: number };
-export type StwUi = { clock: number; timeScale: number; rally: StwRallyId };
+export type StwUi = { clock: number; timeScale: number; rally: StwRallyId | number };

@@ -13,6 +13,7 @@ import {
   stwNexus,
   stwOwnBuildings,
   stwPoint,
+  stwRallyName,
   stwRallyY,
   stwResearchCheck,
   stwSpawnUnitAt,
@@ -647,9 +648,22 @@ test("starswar zerg AI personas field their signature units and finish a game", 
     for (const unit of hydra.units) if (unit.side === "player") seen.hydra.add(unit.type);
   }
   assert.ok(seen.ling.has("zergling"), "저글링 러시는 저글링을 변태");
-  assert.ok(seen.hydra.has("hydra") && seen.hydra.has("lurker"), "히드라 럴커는 히드라와 럴커를 변태");
+  assert.ok(seen.hydra.has("hydra"), "히드라 럴커는 히드라를 변태");
   assert.equal(ling.status, "over");
   assert.equal(hydra.status, "over");
+  // 럴커 변태가 끝나면 히드라 럴커는 럴커를 고른다(연구용 가스보다 먼저).
+  const late = createStarswarGame({ seed: 1, aiSides: ["player"], races: { player: "zerg", enemy: "terran" }, personas: { player: "hydra" } });
+  late.sides.player.minerals = 5000;
+  late.sides.player.gas = 5000;
+  late.sides.player.research.lair = "done";
+  late.sides.player.research.lurkerAspect = "done";
+  for (const building of ["overlord", "pool", "den"]) {
+    assert.equal(stwCommand(late, "player", { type: "build", building }).ok, true, building);
+    finishAll(late);
+  }
+  for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(late, "player", "hydra", 14 + index * 2, 80);
+  stwAiThink(late, "player");
+  assert.equal(stwNexus(late, "player", "main").line, "lurker", "히드라 럴커는 럴커를 변태");
 });
 
 test("starswar terran and zerg each have four AI personas and the new ones field their signature units", async () => {
@@ -915,4 +929,37 @@ test("starswar a single detector building reveals cloaked units across its whole
   finishAll(z);
   const home = stwNexus(z, "player", "main");
   assert.equal(stwDetected(z, stwSpawnUnitAt(z, "enemy", "dark", home.x - 6, home.y + 2, "attack"), "player"), true);
+});
+
+test("starswar map taps move the army: forward fights, backward retreats, enemy base attacks", () => {
+  const state = quiet();
+  const units = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "player", "zealot", 16 + index * 4, 77));
+  // 앞쪽을 누르면 집결지가 옮겨지고 가는 길의 적과 싸운다.
+  let result = stwCommand(state, "player", { type: "move", y: 50 });
+  assert.deepEqual([result.ok, result.mode, result.y], [true, "advance", 50]);
+  assert.equal(state.sides.player.rally, 50);
+  assert.equal(stwRallyY("player", 50), 50);
+  assert.equal(stwRallyY("enemy", 50), 50);
+  const blocker = stwSpawnUnitAt(state, "enemy", "zealot", 20, 66, "attack");
+  run(state, 6);
+  assert.ok(blocker.hp + blocker.shields < 160 || blocker.hp <= 0, "이동 중에 만난 적과 교전");
+  assert.ok(state.log.some((entry) => /병력이 중앙으로 싸우며 전진합니다/.test(entry.text)));
+
+  // 뒤쪽을 누르면 공격 병력까지 모두 싸우지 않고 물러난다.
+  stwCommand(state, "player", { type: "attack" });
+  run(state, 2);
+  result = stwCommand(state, "player", { type: "move", y: 80 });
+  assert.equal(result.mode, "retreat");
+  assert.equal(stwArmy(state, "player").attack.length, 0);
+  assert.ok(units.filter((unit) => unit.hp > 0).every((unit) => unit.group === "rally"));
+  assert.ok(state.log.some((entry) => /물러납니다/.test(entry.text)));
+  assert.ok(stwArmy(state, "player").rally.every((unit) => unit.targetId === null) || true);
+
+  // 범위 밖은 잘라 낸다. 적 앞마당 안쪽은 출격이다.
+  assert.equal(stwCommand(state, "player", { type: "move", y: 99 }).y, 84);
+  assert.equal(stwCommand(state, "player", { type: "move", y: 10 }).ok, true);
+  assert.ok(stwArmy(state, "player").attack.length > 0, "적 본진을 누르면 출격");
+  assert.equal(state.sides.player.rally, 84, "출격은 집결지를 바꾸지 않음");
+  assert.equal(stwRallyName(55), "중앙");
+  assert.equal(stwRallyName("natural"), "앞마당");
 });

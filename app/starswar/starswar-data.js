@@ -30,7 +30,12 @@ export const STW_LAYOUT = {
   naturalSlots: [{ x: 8, y: 70 }, { x: 32, y: 70 }, { x: 12, y: 66 }, { x: 28, y: 66 }, { x: 5, y: 76 }, { x: 35, y: 76 }],
 };
 
-/** 집결 위치. y는 아군 기준. */
+/**
+ * 집결 위치. y는 아군 기준(100이 아군 끝). AI는 이 이름표를 쓰고, 플레이어는 지도를 눌러 STW_RALLY_RANGE 안의 아무 세로 위치나 고른다.
+ * 아군 기준 y가 STW_ATTACK_ZONE_Y 이하(적 앞마당 안쪽)를 누르면 집결이 아니라 출격 명령이다.
+ */
+export const STW_RALLY_RANGE = { min: 34, max: 84 };
+export const STW_ATTACK_ZONE_Y = 30;
 export const STW_RALLY_POINTS = [
   { id: "main", name: "본진 앞", short: "본진", y: 77 },
   { id: "natural", name: "앞마당", short: "앞마당", y: 64 },
