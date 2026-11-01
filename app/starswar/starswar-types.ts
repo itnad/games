@@ -94,6 +94,7 @@ export type StwCommand =
   | { type: "rally"; point: StwRallyId }
   | { type: "attack" }
   | { type: "retreat" }
+  | { type: "recall"; point: StwRallyId }
   | { type: "autoWave"; size: number }
   | { type: "scout" }
   | { type: "cancelBuild"; buildingId: number }

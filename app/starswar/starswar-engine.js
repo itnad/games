@@ -435,6 +435,19 @@ export function stwCommand(state, side, command) {
       if (side === "player") pushLog(state, side, `공격 병력 ${army.attack.length}기를 집결지로 물립니다.`, "order");
       return { ok: true };
     }
+    case "recall": {
+      const point = STW_RALLY_POINTS.find((item) => item.id === command.point);
+      if (!point) return fail("알 수 없는 위치입니다");
+      const army = stwArmy(state, side);
+      record.rally = point.id;
+      for (const unit of army.attack) unit.group = "rally";
+      if (side === "player") {
+        const total = army.attack.length + army.rally.length;
+        const stance = point.id === "main" || point.id === "natural" ? "수비합니다" : "대기합니다";
+        pushLog(state, side, total ? `전군 ${total}기가 ${withKoreanDirection(point.name)} 물러나 ${stance}.` : `집결지를 ${withKoreanDirection(point.name)} 옮깁니다.`, "order");
+      }
+      return { ok: true, recalled: army.attack.length };
+    }
     case "autoWave": {
       record.autoWave = Math.max(0, Math.round(command.size ?? 0));
       return { ok: true };
@@ -830,7 +843,11 @@ function stepUnits(state, dt) {
       attackSlots,
       waveSpeed: speeds.length ? Math.min(...speeds) : 3,
       goal: stwPoint(side, { x: 20, y: 6 }),
+      intruders: findIntruders(state, side, rallyY),
     };
+    if (side === "player" && plans[side].intruders.length && army.rally.length) {
+      alertOnce(state, "defend", 15, "player", "대기 병력이 기지에 들어온 적을 요격합니다.", "order");
+    }
   }
   for (const unit of state.units) {
     if (unit.hp <= 0) continue;
@@ -850,13 +867,28 @@ function stepUnits(state, dt) {
     const isAttack = unit.group === "attack";
     const slot = isAttack ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
     const sight = range + (isAttack ? 6 : 7);
-    let target = resolve(state, unit.targetId);
-    if (target) {
-      const d = distance(unit.x, unit.y, target.x, target.y) - target.radius;
-      const leash = !isAttack && slot && Math.abs(unit.y - slot.y) > 12;
-      if (d > sight + 3 || leash) target = null;
+    if (!isAttack && slot && isRetreating(unit, slot)) {
+      // 후퇴 중: 교전을 끊고 전속력으로 집결지에 돌아온다.
+      unit.targetId = null;
+      moveToward(unit, slot.x, slot.y, speed, dt);
+      continue;
     }
-    if (!target) target = findTarget(state, unit, sight);
+    let target = resolve(state, unit.targetId);
+    const intruders = isAttack ? [] : plan.intruders;
+    if (intruders.length) {
+      // 자동 수비: 기지에 들어온 적을 거리와 상관없이 쫓아가 잡는다.
+      if (!target || !intruders.includes(target)) target = nearestOf(unit, intruders);
+    } else {
+      const leashed = (item) => !isAttack && slot && distance(item.x, item.y, slot.x, slot.y) - item.radius > RALLY_LEASH;
+      if (target) {
+        const d = distance(unit.x, unit.y, target.x, target.y) - target.radius;
+        if (d > sight + 3 || leashed(target)) target = null;
+      }
+      if (!target) {
+        target = findTarget(state, unit, sight);
+        if (target && leashed(target)) target = null;
+      }
+    }
     unit.targetId = target?.id ?? null;
     if (target) {
       const d = distance(unit.x, unit.y, target.x, target.y) - target.radius - unit.radius * 0.5;
@@ -883,6 +915,43 @@ function stepUnits(state, dt) {
   separate(state);
 }
 
+/** 대기 병력이 집결지에서 이만큼 넘게 떨어진 적은 쫓지 않는다. */
+const RALLY_LEASH = 12;
+
+/**
+ * 집결지보다 적진 쪽으로 멀리 나가 있는 대기 병력은 후퇴 중으로 본다.
+ * 한 번 후퇴를 시작하면 집결지 가까이 올 때까지 교전하지 않는다(경계에서 들락거리지 않도록 차이를 둔다).
+ */
+function isRetreating(unit, slot) {
+  const ahead = (unit.y - slot.y) * stwForward(unit.side);
+  unit.retreating = unit.retreating ? ahead > 4 : ahead > RALLY_LEASH + 2;
+  return unit.retreating;
+}
+
+/** 자동 수비 대상: 집결선 뒤(아군 기지 쪽)에 들어왔거나 아군 건물 가까이 있는 적 전투 유닛. 정찰 프로브는 제외. */
+function findIntruders(state, side, rallyY) {
+  const forward = stwForward(side);
+  const own = state.buildings.filter((building) => building.side === side);
+  return state.units.filter((unit) => {
+    if (unit.side === side || unit.type === "probe" || unit.hp <= 0) return false;
+    if ((unit.y - rallyY) * forward < 2) return true;
+    return own.some((building) => distance(unit.x, unit.y, building.x, building.y) < building.radius + 6);
+  });
+}
+
+function nearestOf(unit, list) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const item of list) {
+    const d = distance(unit.x, unit.y, item.x, item.y);
+    if (d < bestDistance) {
+      best = item;
+      bestDistance = d;
+    }
+  }
+  return best;
+}
+
 function templarStep(state, unit, plan, dt) {
   const slot = unit.group === "attack" ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
   const castable = stwResearchDone(state, unit.side, "storm") && unit.energy >= STW_STORM.energy;
@@ -896,6 +965,10 @@ function templarStep(state, unit, plan, dt) {
       if (unit.side === "player") alertOnce(state, "storm", 4, "player", "사이오닉 스톰!", "good");
       return;
     }
+  }
+  if (unit.group !== "attack" && slot && isRetreating(unit, slot)) {
+    moveToward(unit, slot.x, slot.y, STW_UNITS.templar.speed, dt);
+    return;
   }
   const nearest = findTarget(state, unit, 6, { unitsOnly: true });
   if (nearest) {

@@ -53,6 +53,12 @@ const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
 const BUILD_IDS = STW_BUILD_CHOICES as StwBuildChoice[];
 const RESEARCH_IDS = Object.keys(STW_RESEARCH) as StwResearchId[];
 const WAVE_SIZES = [0, 6, 10, 16];
+const RECALL_CHOICES: { point: StwRallyId; label: string; note: string }[] = [
+  { point: "main", label: "본진 수비", note: "본진 앞으로" },
+  { point: "natural", label: "앞마당 수비", note: "앞마당으로" },
+  { point: "center", label: "중앙 대기", note: "전장 가운데로" },
+  { point: "forward", label: "전진 대기", note: "적 앞마당 앞으로" },
+];
 
 function readRecord(): BattleRecord {
   try {
@@ -612,11 +618,18 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
         <div><small>대기 병력</small><b>{army.rally.length}</b><span>{ARMY_IDS.map((type) => `${STW_UNITS[type].name} ${count(army.rally, type)}`).join(" · ")}</span></div>
         <div><small>공격 병력</small><b>{army.attack.length}</b><span>{ARMY_IDS.map((type) => `${STW_UNITS[type].name} ${count(army.attack, type)}`).join(" · ")}</span></div>
       </div>
-      <div className="stw-orders">
-        <button type="button" className="stw-attack" disabled={!army.rally.length} onClick={() => issue({ type: "attack" })}>출격<small>대기 병력을 적 본진으로</small></button>
-        <button type="button" className="stw-retreat" disabled={!army.attack.length} onClick={() => issue({ type: "retreat" })}>후퇴<small>공격 병력을 집결지로</small></button>
+      <button type="button" className="stw-attack" disabled={!army.rally.length} onClick={() => issue({ type: "attack" })}>출격<small>대기 병력을 적 본진으로</small></button>
+      <h3 className="stw-section">후퇴·수비</h3>
+      <p className="stw-hint">공격 중인 병력까지 모두 불러들입니다. 후퇴하는 동안에는 싸우지 않고 돌아옵니다.</p>
+      <div className="stw-recall">
+        {RECALL_CHOICES.map((choice) => (
+          <button key={choice.point} type="button" className={side.rally === choice.point && !army.attack.length ? "active" : ""} disabled={!army.rally.length && !army.attack.length} onClick={() => issue({ type: "recall", point: choice.point })}>
+            {choice.label}<small>{choice.note}</small>
+          </button>
+        ))}
       </div>
       <h3 className="stw-section">집결지</h3>
+      <p className="stw-hint">새 병력과 대기 병력이 모이는 곳입니다. 이곳 뒤쪽으로 들어온 적은 대기 병력이 자동으로 요격합니다.</p>
       <div className="stw-segment">
         {STW_RALLY_POINTS.map((point) => (
           <button key={point.id} type="button" className={side.rally === point.id ? "active" : ""} aria-pressed={side.rally === point.id} onClick={() => issue({ type: "rally", point: point.id as StwRallyId })}>{point.short}</button>

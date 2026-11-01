@@ -12,6 +12,7 @@ import {
   stwNexus,
   stwOwnBuildings,
   stwPoint,
+  stwRallyY,
   stwResearchCheck,
   stwSpawnUnitAt,
   stwSupply,
@@ -254,4 +255,49 @@ test("starswar cancels buildings, probes, research, and units with the right ref
   run(state, 1);
   assert.equal(gateway.current, null, "정지한 라인은 다시 소환하지 않음");
   assert.match(stwCommand(state, "player", { type: "cancelUnit", gatewayId: gateway.id }).reason, /소환 중인 유닛이 없습니다/);
+});
+
+test("starswar rally units automatically defend buildings from flanking attackers", () => {
+  const state = quiet();
+  state.sides.player.minerals = 2000;
+  stwCommand(state, "player", { type: "build", building: "pylon" });
+  finishAll(state);
+  stwCommand(state, "player", { type: "build", building: "gateway" });
+  finishAll(state);
+  const gateway = stwOwnBuildings(state, "player", "gateway")[0];
+  stwCommand(state, "player", { type: "line", gatewayId: gateway.id, unit: null });
+  const defenders = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "player", "zealot", 16 + index * 2.7, 79));
+  const raider = stwSpawnUnitAt(state, "enemy", "zealot", gateway.x + 2, gateway.y - 3, "attack");
+  run(state, 30);
+  assert.ok(raider.hp <= 0 || !state.units.includes(raider), "옆으로 들어온 적을 요격");
+  assert.ok(gateway.hp + gateway.shields > (gateway.maxHp + gateway.maxShields) * 0.8, "건물이 거의 피해 없이 버팀");
+  assert.ok(state.log.some((entry) => entry.text === "대기 병력이 기지에 들어온 적을 요격합니다."));
+  run(state, 15);
+  const rallyY = stwRallyY("player", "main");
+  assert.ok(defenders.every((unit) => Math.abs(unit.y - rallyY) < 6), "처리 후 집결지로 복귀");
+
+  const scout = stwSpawnUnitAt(state, "enemy", "probe", 34, 93, "scout");
+  scout.scoutPhase = "back";
+  run(state, 2);
+  assert.ok(defenders.every((unit) => Math.abs(unit.y - rallyY) < 6), "정찰 프로브 하나에 전군이 끌려가지 않음");
+});
+
+test("starswar recall pulls attacking units out of a fight to any position", () => {
+  const state = quiet();
+  const attackers = [0, 1, 2, 3, 4, 5].map((index) => stwSpawnUnitAt(state, "player", "dragoon", 12 + index * 3, 30, "attack"));
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(state, "enemy", "zealot", 14 + index * 3, 24);
+  run(state, 2);
+  assert.ok(attackers.some((unit) => unit.targetId !== null), "적진에서 교전 중");
+  assert.match(stwCommand(state, "player", { type: "recall", point: "nowhere" }).reason, /알 수 없는 위치/);
+  assert.deepEqual(stwCommand(state, "player", { type: "recall", point: "natural" }), { ok: true, recalled: 6 });
+  assert.equal(state.sides.player.rally, "natural");
+  assert.equal(stwArmy(state, "player").attack.length, 0);
+  run(state, 1);
+  const alive = state.units.filter((unit) => attackers.includes(unit));
+  assert.ok(alive.every((unit) => unit.targetId === null), "후퇴 중에는 싸우지 않음");
+  run(state, 25);
+  const rallyY = stwRallyY("player", "natural");
+  assert.ok(alive.length >= 4, `살아 돌아온 드라군 ${alive.length}`);
+  assert.ok(alive.every((unit) => Math.abs(unit.y - rallyY) < 7), "앞마당 집결지에 도착");
+  assert.ok(state.log.some((entry) => /^전군 6기가 앞마당으로 물러나 수비합니다\.$/.test(entry.text)));
 });
