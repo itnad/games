@@ -1,7 +1,7 @@
 // 스타즈워 PixiJS 렌더러. 엔진 상태를 읽기만 하며, 플레이어 시야 밖의 적은 감춘다.
 import type { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
-import { STW_BUILDINGS, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_STORM } from "./starswar-data.js";
-import { stwDetected, stwDone, stwPoint, stwRallyY, stwVisible } from "./starswar-engine.js";
+import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_STORM } from "./starswar-data.js";
+import { stwDetected, stwDone, stwNexus, stwPoint, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
 import { STW_TEAM, createStwTextures, type StwTextureSet } from "./starswar-sprites";
 import type { StwBuilding, StwEffect, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./starswar-types";
 
@@ -16,6 +16,12 @@ type UnitView = { root: Container; body: Sprite; glow: Sprite; x: number; y: num
 type BuildingView = { root: Container; body: Sprite; glow: Sprite | null; ghost: boolean };
 type Particle = { sprite: Sprite; x: number; y: number; vx: number; vy: number; life: number; max: number; s0: number; s1: number; a0: number; rise: number };
 type Decal = { sprite: Sprite; life: number; max: number; a0: number };
+type WorkerView = { root: Container; body: Sprite; cargo: Sprite };
+type Badge = { root: Container; bg: Graphics; text: Text; key: string };
+
+const WORKER_SIZE = 1.6;
+const MINE_CYCLE = 3.4;
+const GAS_CYCLE = 3;
 
 export async function createStwPixiRenderer(host: HTMLElement, width: number, height: number) {
   const PIXI = await import("pixi.js");
@@ -62,6 +68,9 @@ export class StwPixiRenderer {
   private readonly particles: Particle[] = [];
   private readonly particlePool: Sprite[] = [];
   private readonly decalList: Decal[] = [];
+  private readonly workerLayer: Container;
+  private readonly workerPool: WorkerView[] = [];
+  private readonly badges = new Map<string, Badge>();
   private processed = new WeakSet<object>();
   private impacted = new WeakSet<object>();
   private lastClock = 0;
@@ -103,7 +112,8 @@ export class StwPixiRenderer {
     // 칸 단위로 그린 안개 경계를 흐려 부드러운 시야 가장자리로 만든다.
     this.fog.filters = [new PIXI.BlurFilter({ strength: 10, quality: 3 })];
     this.rallyFlag = this.sprite(this.tex.flag.player, 2.6);
-    this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.rallyFlag, this.unitLayer, this.stormLayer, this.fxLayer, this.fog);
+    this.workerLayer = new PIXI.Container();
+    this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.rallyFlag, this.unitLayer, this.stormLayer, this.fxLayer, this.fog);
     this.overlay = new PIXI.Container();
     this.bars = new PIXI.Graphics();
     this.overlay.addChild(this.bars);
@@ -137,6 +147,7 @@ export class StwPixiRenderer {
     if (state.time - this.fogAt >= 0.25 || state.time < this.fogAt) this.refreshVision(state);
     this.drawUnderlay(state);
     this.syncBuildings(state);
+    this.syncWorkers(state, ui.clock);
     this.syncUnits(state, realDt);
     this.spawnEffects(state);
     this.drawProjectiles(state);
@@ -253,6 +264,174 @@ export class StwPixiRenderer {
     const view = { root, body, glow, ghost: false };
     this.buildingViews.set(building.id, view);
     return view;
+  }
+
+  /* ───────── 일꾼(겉모습 전용) ───────── */
+
+  /**
+   * 엔진의 채취 인원 수만큼 프로브가 넥서스와 광물·어시밀레이터 사이를 오가는 모습을 그린다.
+   * 엔진 규칙에는 영향을 주지 않는다. 적 기지는 지금 보일 때만 그린다.
+   */
+  private syncWorkers(state: StwState, clock: number) {
+    let used = 0;
+    const take = (side: StwSide) => {
+      let view = this.workerPool[used];
+      if (!view) {
+        const PIXI = this.PIXI;
+        const root = new PIXI.Container();
+        const body = this.sprite(this.tex.units.player.probe, WORKER_SIZE);
+        const cargo = this.sprite(this.tex.spark, 0.6);
+        cargo.blendMode = "add";
+        root.addChild(body, cargo);
+        this.workerLayer.addChild(root);
+        view = { root, body, cargo };
+        this.workerPool.push(view);
+      }
+      view.body.texture = this.tex.units[side].probe;
+      view.root.visible = true;
+      view.root.alpha = 1;
+      view.cargo.visible = false;
+      used += 1;
+      return view;
+    };
+    const place = (view: WorkerView, x: number, y: number, heading: number) => {
+      view.root.position.set(x, y);
+      view.body.rotation = heading;
+      view.cargo.position.set(Math.cos(heading) * 0.7, Math.sin(heading) * 0.7);
+    };
+    for (const side of ["player", "enemy"] as StwSide[]) {
+      const split = stwWorkerSplit(state, side) as { gas: number; main: number; natural: number; idle: number };
+      const offset = side === "player" ? 0 : 0.5;
+      const assimilators = state.buildings.filter((building) => building.side === side && building.type === "assimilator" && stwDone(building));
+      for (const base of ["main", "natural"] as const) {
+        const nexus = stwNexus(state, side, base) as { x: number; y: number; radius: number } | null;
+        if (!nexus || !stwDone(nexus as never)) continue;
+        if (side !== "player" && !stwVisible(state, "player", nexus.x, nexus.y, 4)) continue;
+        const minerals = stwPoint(side, base === "main" ? STW_LAYOUT.mainMinerals : STW_LAYOUT.naturalMinerals);
+        const dir = Math.sign(minerals.y - nexus.y) || 1;
+        const threatened = state.units.some((unit) => unit.side !== side && unit.type !== "probe" && unit.type !== "observer" && Math.hypot(unit.x - nexus.x, unit.y - nexus.y) < 12);
+        const count = base === "main" ? split.main + split.idle : split.natural;
+        for (let index = 0; index < count; index += 1) {
+          const view = take(side);
+          const patch = (index % 8) - 3.5;
+          // 넥서스 가장자리(좁게)에서 광물 위(넓게)로 부채꼴로 오간다.
+          const dock = { x: nexus.x + patch * 0.6, y: nexus.y + dir * (nexus.radius - 0.4) };
+          if (threatened || (base === "main" && index >= split.main)) {
+            // 위협받거나 일이 없는 프로브는 넥서스 곁에 모여 있는다.
+            const a = index * 2.4 + clock * 0.6;
+            place(view, nexus.x + Math.cos(a) * (nexus.radius + 0.8), nexus.y - dir * 0.5 + Math.sin(a) * 1.2, a + Math.PI / 2);
+            continue;
+          }
+          const field = { x: minerals.x + patch * 1.6, y: minerals.y - dir * 0.3 };
+          const phase = ((clock / MINE_CYCLE + index * 0.618 + offset) % 1 + 1) % 1;
+          let x: number;
+          let y: number;
+          let heading: number;
+          if (phase < 0.35) {
+            const t = phase / 0.35;
+            x = dock.x + (field.x - dock.x) * t;
+            y = dock.y + (field.y - dock.y) * t;
+            heading = Math.atan2(field.y - dock.y, field.x - dock.x);
+          } else if (phase < 0.55) {
+            x = field.x + Math.sin(clock * 20 + index) * 0.08;
+            y = field.y;
+            heading = Math.atan2(dir, 0);
+          } else if (phase < 0.9) {
+            const t = (phase - 0.55) / 0.35;
+            x = field.x + (dock.x - field.x) * t;
+            y = field.y + (dock.y - field.y) * t;
+            heading = Math.atan2(dock.y - field.y, dock.x - field.x);
+            view.cargo.visible = true;
+            view.cargo.tint = 0x6fc4ff;
+          } else {
+            x = dock.x;
+            y = dock.y;
+            heading = Math.atan2(-dir, 0);
+          }
+          place(view, x, y, heading);
+        }
+      }
+      // 가스: 어시밀레이터마다 최대 3기가 넥서스와 오간다. 안에 들어가 있는 동안은 보이지 않는다.
+      const mainNexus = stwNexus(state, side, "main") as { x: number; y: number; radius: number } | null;
+      if (!mainNexus || (side !== "player" && !stwVisible(state, "player", mainNexus.x, mainNexus.y, 4))) continue;
+      let gasLeft = split.gas;
+      assimilators.forEach((assimilator, slot) => {
+        const crew = Math.min(STW_ECONOMY.probesPerGas, gasLeft);
+        gasLeft -= crew;
+        for (let index = 0; index < crew; index += 1) {
+          const view = take(side);
+          const dx = assimilator.x - mainNexus.x;
+          const dy = assimilator.y - mainNexus.y;
+          const length = Math.hypot(dx, dy) || 1;
+          const from = { x: mainNexus.x + (dx / length) * (mainNexus.radius + 0.3), y: mainNexus.y + (dy / length) * (mainNexus.radius + 0.3) };
+          const to = { x: assimilator.x - (dx / length) * assimilator.radius * 0.8, y: assimilator.y - (dy / length) * assimilator.radius * 0.8 };
+          const phase = ((clock / GAS_CYCLE + index / 3 + slot * 0.17 + offset) % 1 + 1) % 1;
+          if (phase < 0.4) {
+            const t = phase / 0.4;
+            place(view, from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t, Math.atan2(dy, dx));
+          } else if (phase < 0.6) {
+            view.root.visible = false;
+          } else {
+            const t = (phase - 0.6) / 0.4;
+            place(view, to.x + (from.x - to.x) * t, to.y + (from.y - to.y) * t, Math.atan2(-dy, -dx));
+            view.cargo.visible = true;
+            view.cargo.tint = 0x7fe08f;
+          }
+        }
+      });
+    }
+    for (let index = used; index < this.workerPool.length; index += 1) this.workerPool[index].root.visible = false;
+  }
+
+  /** 넥서스와 어시밀레이터 옆의 채취 인원 표시(아군만). */
+  private drawWorkerBadges(state: StwState, view: StwView) {
+    const sx = (x: number) => view.ox + x * view.scale;
+    const sy = (y: number) => view.oy + y * view.scale;
+    const live = new Set<string>();
+    const split = stwWorkerSplit(state, "player") as { gas: number; main: number; natural: number; idle: number };
+    const show = (key: string, text: string, color: number, x: number, y: number) => {
+      live.add(key);
+      let badge = this.badges.get(key);
+      if (!badge) {
+        const PIXI = this.PIXI;
+        const root = new PIXI.Container();
+        const bg = new PIXI.Graphics();
+        const label = new PIXI.Text({ text: "", style: { fontFamily: FONT, fontSize: 12, fontWeight: "800", fill: 0xffffff } });
+        label.anchor.set(0.5);
+        root.addChild(bg, label);
+        this.overlay.addChild(root);
+        badge = { root, bg, text: label, key: "" };
+        this.badges.set(key, badge);
+      }
+      const signature = `${text}|${color}`;
+      if (badge.key !== signature) {
+        badge.key = signature;
+        badge.text.text = text;
+        badge.text.style.fill = color;
+        const width = badge.text.width + 12;
+        badge.bg.clear().roundRect(-width / 2, -9.5, width, 19, 9.5).fill({ color: 0x120d07, alpha: 0.82 }).stroke({ width: 1, color, alpha: 0.6 });
+      }
+      badge.root.visible = true;
+      badge.root.position.set(sx(x), sy(y));
+    };
+    const tone = (count: number, full: number) => (count > full ? 0xffc46b : count === full ? 0x8fe8a0 : 0xf5ecd8);
+    for (const base of ["main", "natural"] as const) {
+      const nexus = stwNexus(state, "player", base) as { x: number; y: number; radius: number } | null;
+      if (!nexus || !stwDone(nexus as never)) continue;
+      const count = base === "main" ? split.main : split.natural;
+      // 넥서스 그림 아래쪽 위에 얹어 주변 건물·지역 이름과 겹치지 않게 한다.
+      show(`base:${base}`, `광물 ${count}/${STW_ECONOMY.fullSaturation}`, tone(count, STW_ECONOMY.fullSaturation), nexus.x, nexus.y + nexus.radius * 0.55);
+    }
+    let gasLeft = split.gas;
+    for (const assimilator of state.buildings.filter((building) => building.side === "player" && building.type === "assimilator" && stwDone(building))) {
+      const crew = Math.min(STW_ECONOMY.probesPerGas, gasLeft);
+      gasLeft -= crew;
+      show(`gas:${assimilator.id}`, `가스 ${crew}/${STW_ECONOMY.probesPerGas}`, tone(crew, STW_ECONOMY.probesPerGas), assimilator.x, assimilator.y);
+    }
+    for (const [key, badge] of this.badges) {
+      if (live.has(key)) continue;
+      badge.root.visible = false;
+    }
   }
 
   /* ───────── 유닛 ───────── */
@@ -516,6 +695,7 @@ export class StwPixiRenderer {
   /* ───────── 화면 고정 표시 ───────── */
 
   private drawOverlay(state: StwState, view: StwView) {
+    this.drawWorkerBadges(state, view);
     const sx = (x: number) => view.ox + x * view.scale;
     const sy = (y: number) => view.oy + y * view.scale;
     const g = this.bars;
