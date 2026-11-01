@@ -1,196 +1,78 @@
-import { COMMAND_KINDS, type GameCommand } from "../core/commands";
-import { STARK_RIFT_PROTOCOL_VERSION } from "../core/versions";
-import type { ValidationIssue, ValidationResult } from "../data/validation";
+import { COMMAND_FAILURE_CODES, MAX_COMMANDS_PER_BATCH, gameCommandSchema } from "../core/commands";
+import { factionSchema, persistenceEnvelopeSchema, phaseSchema } from "../core/state";
+import { STARK_RIFT_ENGINE_VERSION, STARK_RIFT_PROTOCOL_VERSION } from "../core/versions";
+import { array, boolean, dictionary, enumeration, integer, literal, nullable, object, optional, parse, refine, taggedUnion, text, unique, union, type Infer, type Schema } from "../core/validation";
 
-export const MAIN_TO_WORKER_KINDS = [
-  "init",
-  "commandBatch",
-  "releaseRenderBuffer",
-  "pause",
-  "resume",
-  "saveSnapshot",
-  "loadSnapshot",
-  "replaySeek",
-  "debugMetrics",
-  "dispose",
-] as const;
-
-export const WORKER_TO_MAIN_KINDS = [
-  "ready",
-  "commandAck",
-  "phaseChanged",
-  "snapshotLoaded",
-  "renderSnapshot",
-  "uiState",
-  "notification",
-  "saveSnapshotReady",
-  "fatalError",
-  "metrics",
-  "disposed",
-] as const;
-
-export type MainToWorkerKind = (typeof MAIN_TO_WORKER_KINDS)[number];
-export type WorkerToMainKind = (typeof WORKER_TO_MAIN_KINDS)[number];
-
-export type WorkerEnvelope<K extends string, P> = {
-  protocolVersion: number;
-  messageId: number;
-  kind: K;
-  payload: P;
+function message<const K extends string, S extends Schema<unknown>>(kind: K, payload: S) {
+  return object({ protocolVersion: literal(STARK_RIFT_PROTOCOL_VERSION), messageId: integer(), kind: literal(kind), payload });
+}
+export const playerSetupSchema = object({
+  id: integer(), faction: factionSchema, controller: enumeration(["human", "ai"]),
+});
+const initPayload = refine(object({
+  dataVersion: text, mapId: text, seed: integer(0, 0xffffffff),
+  players: array(playerSetupSchema, 2, 2),
+}), payload => new Set(payload.players.map(p => p.id)).size === payload.players.length, "Player IDs must be unique.");
+const batchPayload = refine(object({
+  commands: array(gameCommandSchema, 0, MAX_COMMANDS_PER_BATCH), lastSeenTick: integer(),
+}), payload => {
+  const sequences = new Set<string>();
+  for (const command of payload.commands) {
+    const key = `${command.playerId}:${command.sequence}`;
+    if (sequences.has(key) || command.issuedTick > payload.lastSeenTick) return false;
+    sequences.add(key);
+  }
+  return true;
+}, "Batch contains a duplicate player sequence or a command issued after lastSeenTick.");
+export const mainToWorkerSchemas = {
+  init: message("init", initPayload),
+  commandBatch: message("commandBatch", batchPayload),
+  releaseRenderBuffer: message("releaseRenderBuffer", object({ bufferId: integer() })),
+  pause: message("pause", object({ reason: text })),
+  resume: message("resume", object({ reason: text })),
+  saveSnapshot: message("saveSnapshot", object({ requestId: integer() })),
+  loadSnapshot: message("loadSnapshot", object({ snapshot: persistenceEnvelopeSchema })),
+  replaySeek: message("replaySeek", object({ tick: integer() })),
+  debugMetrics: message("debugMetrics", object({ windowTicks: integer(1) })),
+  dispose: message("dispose", object({})),
 };
+export const MAIN_TO_WORKER_KINDS = Object.keys(mainToWorkerSchemas) as (keyof typeof mainToWorkerSchemas)[];
+export const mainToWorkerMessageSchema = taggedUnion("kind", mainToWorkerSchemas);
+export type MainToWorkerMessage = Infer<typeof mainToWorkerMessageSchema>;
+export type MainToWorkerKind = MainToWorkerMessage["kind"];
+export const validateMainToWorkerMessage = (input: unknown) => parse(mainToWorkerMessageSchema, input);
 
-export type MainToWorkerMessage =
-  | WorkerEnvelope<"init", { dataVersion: string; mapId: string; seed: number; playerIds: number[] }>
-  | WorkerEnvelope<"commandBatch", { commands: GameCommand[]; lastSeenTick: number }>
-  | WorkerEnvelope<"releaseRenderBuffer", { bufferId: number }>
-  | WorkerEnvelope<"pause" | "resume", { reason: string }>
-  | WorkerEnvelope<"saveSnapshot", { requestId: number }>
-  | WorkerEnvelope<"loadSnapshot", { snapshot: unknown }>
-  | WorkerEnvelope<"replaySeek", { tick: number }>
-  | WorkerEnvelope<"debugMetrics", { windowTicks: number }>
-  | WorkerEnvelope<"dispose", Record<string, never>>;
-
-export type WorkerToMainMessage = WorkerEnvelope<WorkerToMainKind, Record<string, unknown>>;
-
-export function validateMainToWorkerMessage(input: unknown): ValidationResult<MainToWorkerMessage> {
-  if (!isRecord(input)) {
-    return invalid("$", "Message must be an object.");
-  }
-  if (input.protocolVersion !== STARK_RIFT_PROTOCOL_VERSION) {
-    return invalid("protocolVersion", `Expected protocol version ${STARK_RIFT_PROTOCOL_VERSION}.`);
-  }
-  if (!isNonNegativeInteger(input.messageId)) {
-    return invalid("messageId", "messageId must be a non-negative integer.");
-  }
-  if (typeof input.kind !== "string" || !isMainToWorkerKind(input.kind)) {
-    return invalid("kind", "Unknown main-to-worker message kind.");
-  }
-  if (!isRecord(input.payload)) {
-    return invalid("payload", "payload must be an object.");
-  }
-
-  const payloadIssue = validatePayload(input.kind, input.payload);
-  if (payloadIssue) {
-    return { ok: false, issues: [payloadIssue] };
-  }
-
-  return { ok: true, value: input as MainToWorkerMessage };
+const ackHeader = { playerId: integer(), sequence: integer(1) };
+const acknowledgementSchema = union(
+  object({ ...ackHeader, accepted: literalBoolean(true), executeTick: integer(1), executedEntityIds: unique(array(integer(1), 0, 200)) }),
+  object({ ...ackHeader, accepted: literalBoolean(false), code: enumeration(COMMAND_FAILURE_CODES), details: optional(dictionary(union(text, integer(-Number.MAX_SAFE_INTEGER)))) }),
+);
+function literalBoolean<T extends boolean>(expected: T): Schema<T> {
+  return refine(boolean, value => value === expected, `Expected ${expected}.`) as Schema<T>;
 }
-
+export const workerToMainSchemas = {
+  ready: message("ready", object({ tick: integer(), engineVersion: literal(STARK_RIFT_ENGINE_VERSION), dataVersion: text })),
+  commandAck: message("commandAck", acknowledgementSchema),
+  phaseChanged: message("phaseChanged", object({ tick: integer(), phase: phaseSchema })),
+  snapshotLoaded: message("snapshotLoaded", object({ tick: integer() })),
+  saveSnapshotReady: message("saveSnapshotReady", object({ requestId: integer(), snapshot: persistenceEnvelopeSchema })),
+  fatalError: message("fatalError", object({ code: text, recoverable: boolean, diagnosticId: nullable(text) })),
+  metrics: message("metrics", object({ tick: integer(), windowTicks: integer(1), entityCount: integer(), pendingCommands: integer() })),
+  disposed: message("disposed", object({})),
+};
+// These wire layouts depend on the renderer/UI stages and are deliberately not accepted yet.
+export const RESERVED_WORKER_TO_MAIN_KINDS = ["renderSnapshot", "uiState", "notification"] as const;
+export const WORKER_TO_MAIN_KINDS = Object.keys(workerToMainSchemas) as (keyof typeof workerToMainSchemas)[];
+export const workerToMainMessageSchema = taggedUnion("kind", workerToMainSchemas);
+export type WorkerToMainMessage = Infer<typeof workerToMainMessageSchema>;
+export type WorkerToMainKind = WorkerToMainMessage["kind"];
+export const validateWorkerToMainMessage = (input: unknown) => parse(workerToMainMessageSchema, input);
+type ResponseFor<K extends WorkerToMainKind> = Extract<WorkerToMainMessage, { kind: K }>;
 export function createWorkerEnvelope<K extends WorkerToMainKind>(
-  messageId: number,
-  kind: K,
-  payload: Record<string, unknown>,
-): WorkerEnvelope<K, Record<string, unknown>> {
-  if (!isNonNegativeInteger(messageId)) {
-    throw new TypeError("messageId must be a non-negative integer.");
-  }
-  return { protocolVersion: STARK_RIFT_PROTOCOL_VERSION, messageId, kind, payload };
-}
-
-function invalid(path: string, message: string): ValidationResult<never> {
-  const issue: ValidationIssue = { path, code: "invalid_value", message };
-  return { ok: false, issues: [issue] };
-}
-
-function isMainToWorkerKind(kind: string): kind is MainToWorkerKind {
-  return (MAIN_TO_WORKER_KINDS as readonly string[]).includes(kind);
-}
-
-function validatePayload(kind: MainToWorkerKind, payload: Record<string, unknown>): ValidationIssue | null {
-  switch (kind) {
-    case "init":
-      if (!isNonEmptyString(payload.dataVersion)) return payloadIssue("dataVersion", "must be a non-empty string");
-      if (!isNonEmptyString(payload.mapId)) return payloadIssue("mapId", "must be a non-empty string");
-      if (!isUint32(payload.seed)) return payloadIssue("seed", "must be a Uint32 integer");
-      if (!isIntegerArray(payload.playerIds)) return payloadIssue("playerIds", "must be an integer array");
-      return null;
-    case "commandBatch":
-      if (!Array.isArray(payload.commands)) return payloadIssue("commands", "must be an array");
-      for (let index = 0; index < payload.commands.length; index += 1) {
-        if (!isGameCommand(payload.commands[index])) {
-          return payloadIssue(`commands[${index}]`, "must be a valid GameCommand");
-        }
-      }
-      if (!isNonNegativeInteger(payload.lastSeenTick)) return payloadIssue("lastSeenTick", "must be a non-negative integer");
-      return null;
-    case "releaseRenderBuffer":
-      return isNonNegativeInteger(payload.bufferId) ? null : payloadIssue("bufferId", "must be a non-negative integer");
-    case "pause":
-    case "resume":
-      return isNonEmptyString(payload.reason) ? null : payloadIssue("reason", "must be a non-empty string");
-    case "saveSnapshot":
-      return isNonNegativeInteger(payload.requestId) ? null : payloadIssue("requestId", "must be a non-negative integer");
-    case "loadSnapshot":
-      return isRecord(payload.snapshot) ? null : payloadIssue("snapshot", "must be an object");
-    case "replaySeek":
-      return isNonNegativeInteger(payload.tick) ? null : payloadIssue("tick", "must be a non-negative integer");
-    case "debugMetrics":
-      return isPositiveInteger(payload.windowTicks) ? null : payloadIssue("windowTicks", "must be a positive integer");
-    case "dispose":
-      return Object.keys(payload).length === 0 ? null : payloadIssue("$", "must be empty");
-  }
-}
-
-function isGameCommand(value: unknown): value is GameCommand {
-  if (!isRecord(value)) return false;
-  return (
-    isNonNegativeInteger(value.sequence) &&
-    isNonNegativeInteger(value.issuedTick) &&
-    isNonNegativeInteger(value.executeTick) &&
-    value.executeTick >= value.issuedTick &&
-    isNonNegativeInteger(value.playerId) &&
-    (value.source === "player" || value.source === "ai" || value.source === "tutorial") &&
-    typeof value.kind === "string" &&
-    (COMMAND_KINDS as readonly string[]).includes(value.kind) &&
-    isPositiveIntegerArray(value.entityIds) &&
-    (value.target === undefined || isCommandTarget(value.target)) &&
-    (value.payload === undefined || isRecord(value.payload))
-  );
-}
-
-function isCommandTarget(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  if (value.kind === "entity") return isPositiveInteger(value.entityId);
-  return value.kind === "point" && isSafeInteger(value.x) && isSafeInteger(value.y);
-}
-
-function payloadIssue(path: string, requirement: string): ValidationIssue {
-  return {
-    path: path === "$" ? "payload" : `payload.${path}`,
-    code: "invalid_value",
-    message: `payload.${path} ${requirement}.`,
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isNonNegativeInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
-}
-
-function isPositiveInteger(value: unknown): value is number {
-  return isNonNegativeInteger(value) && value > 0;
-}
-
-function isUint32(value: unknown): value is number {
-  return isNonNegativeInteger(value) && value <= 0xffff_ffff;
-}
-
-function isIntegerArray(value: unknown): value is number[] {
-  return Array.isArray(value) && value.every(isNonNegativeInteger);
-}
-
-function isPositiveIntegerArray(value: unknown): value is number[] {
-  return Array.isArray(value) && value.every(isPositiveInteger);
-}
-
-function isSafeInteger(value: unknown): value is number {
-  return typeof value === "number" && Number.isSafeInteger(value);
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0;
+  messageId: number, kind: K, payload: ResponseFor<NoInfer<K>>["payload"],
+): ResponseFor<K> {
+  const input = { protocolVersion: STARK_RIFT_PROTOCOL_VERSION, messageId, kind, payload };
+  const result = validateWorkerToMainMessage(input);
+  if (!result.ok) throw new TypeError(JSON.stringify(result.issues));
+  return result.value as ResponseFor<K>;
 }

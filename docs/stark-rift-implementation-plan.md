@@ -3,7 +3,8 @@
 > 상태: 구현 기준안  
 > 작성일: 2026-10-30  
 > 구현 설계 고도화: 2026-11-01
-> 구현 진행: 단계 0 완료, 단계 1 대기
+> 구현 진행: 단계 0 검토·보강 완료, 단계 1 대기
+> 기반 검토: `docs/stark-rift-foundation-review.md` (초기 계약의 검증 범위와 미구현 경계)
 > 상위 기획: `docs/stark-rift-game-design.md`
 
 ## 1. 목표와 경계
@@ -991,9 +992,9 @@ IndexedDB 데이터베이스 `stark-rift`는 다음 저장소를 둔다.
 
 단계 0에서 배포 동기화, 버전·메시지·데이터 계약과 Stark Rift 전용 검증 명령을 고정했다. 다음은 단계 1의 엔진 기반이다.
 
-1. `app/stark-rift/core`와 `tests/stark-rift` 디렉터리 생성
+1. 기존 `app/stark-rift/core`와 `tests/stark-rift`의 단계 0 계약 위에서 구현
 2. 고정소수점, 결정적 난수, 엔티티 ID 구현
-3. 최소 `SimulationState`, `SessionState`와 `GameCommand` 구현
+3. 실제 엔티티·이벤트·AI 저장소, 명령 스케줄러와 경기 상태 의미 검증 구현; setup 전용 저장 스키마 확장 및 버전 갱신
 4. 20Hz 시뮬레이션 루프 구현
 5. 상태 체크섬과 10,000틱 반복 테스트 구현
 6. 저장·복원 체크섬 일치 테스트 구현
