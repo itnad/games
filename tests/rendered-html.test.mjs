@@ -513,6 +513,9 @@ test("shows an in-game mudflat seafood guide with collapsible market-backed entr
   assert.match(styles, /\.ms-layer\.ms-seafood-guide\{z-index:80/);
   assert.match(styles, /\.ms-layer\.ms-seafood-guide>section\{[\s\S]*?grid-template-rows:auto auto auto auto minmax\(0,1fr\)/);
   assert.match(styles, /\.ms-seafood-list\{min-height:0;overflow:auto;[\s\S]*?grid-template-columns:1fr;[\s\S]*?gap:8px/);
+  assert.match(styles, /\.ms-layer\.ms-seafood-guide \.ms-seafood-list\{min-height:0;margin-top:0;[\s\S]*?display:block;[\s\S]*?overflow-y:auto/);
+  assert.match(styles, /\.ms-layer\.ms-seafood-guide \.ms-seafood-card\{display:block;min-height:64px;margin:0 0 8px/);
+  assert.match(styles, /\.ms-layer\.ms-seafood-guide \.ms-seafood-card>summary\{min-height:64px;box-sizing:border-box/);
   assert.match(styles, /\.ms-seafood-card summary\{[\s\S]*?grid-template-columns:minmax\(170px,1\.35fr\) minmax\(150px,1fr\) auto 72px/);
   assert.match(styles, /\.ms-seafood-detail\{[\s\S]*?grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.ms-seafood-thumb\{width:42px;height:42px/);
