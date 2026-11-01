@@ -10,6 +10,7 @@ type PixiModule = typeof import("pixi.js");
 const UNIT_SIZE: Record<StwUnitType, number> = {
   zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9, dark: 3.3, archon: 4.8, observer: 2.4, reaver: 4.6,
   scv: 1.9, marine: 2.6, firebat: 2.9, medic: 2.5, vulture: 3.6, tank: 4.4,
+  drone: 1.9, zergling: 2.1, hydra: 3, lurker: 3.6, ultra: 5,
 };
 /** 다리 대신 바퀴·궤도·부양으로 움직여 걸음 흔들림이 없는 유닛. */
 type Flags = { refinery?: boolean; worker?: boolean; flying?: boolean };
@@ -18,11 +19,13 @@ const NO_BOB = new Set<StwUnitType>(["dragoon", "vulture", "tank"]);
 /** 포탑 텍스처(여백 40)와 차체 텍스처(여백 34)의 크기 비. */
 const TURRET_RATIO = 40 / 34;
 const CLOAKED = new Set<StwUnitType>(["dark", "observer"]);
+/** 지금 은폐 상태인지: 럴커는 땅속에 숨었을 때만. */
+const isCloaked = (unit: StwUnit) => CLOAKED.has(unit.type) || (unit.type === "lurker" && Boolean(unit.burrowed));
 const FONT = "system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
 const FOG_CELL = 2;
 
 type UnitView = { root: Container; body: Sprite; glow: Sprite; turret: Sprite | null; aim: number; sieged: boolean; x: number; y: number; heading: number; bob: number };
-type BuildingView = { root: Container; body: Sprite; glow: Sprite | null; ghost: boolean };
+type BuildingView = { root: Container; body: Sprite; glow: Sprite | null; ghost: boolean; lair: boolean };
 type Particle = { sprite: Sprite; x: number; y: number; vx: number; vy: number; life: number; max: number; s0: number; s1: number; a0: number; rise: number };
 type Decal = { sprite: Sprite; life: number; max: number; a0: number };
 type WorkerView = { root: Container; body: Sprite; cargo: Sprite };
@@ -225,6 +228,12 @@ export class StwPixiRenderer {
     const g = this.underlay;
     g.clear();
     for (const building of state.buildings) {
+      // 저그 기지 주변의 크립.
+      if ((building.type === "hatchery" || building.type === "hatch") && (building.side === "player" || this.buildingViews.has(building.id))) {
+        const r = building.radius * 2.1 * Math.min(1, 0.4 + building.progress);
+        g.ellipse(building.x, building.y, r, r * 0.85).fill({ color: 0x4a2a44, alpha: 0.32 });
+        g.ellipse(building.x, building.y, r * 0.7, r * 0.6).fill({ color: 0x5a3352, alpha: 0.22 });
+      }
       if (building.side !== "player" || building.type !== "pylon" || !stwDone(building)) continue;
       g.circle(building.x, building.y, 6.5).fill({ color: STW_TEAM.player.glow, alpha: 0.05 }).stroke({ width: 0.15, color: STW_TEAM.player.glow, alpha: 0.25 });
     }
@@ -248,6 +257,20 @@ export class StwPixiRenderer {
       view.body.alpha = view.ghost ? 0.5 : done ? 1 : 0.35 + building.progress * 0.5;
       view.body.tint = view.ghost ? 0x9a8f80 : 0xffffff;
       if (view.glow) view.glow.alpha = done && !view.ghost ? 0.22 + Math.sin(state.time * 3 + building.id) * 0.08 : 0;
+      // 레어 변태가 끝나면 본진 해처리 그림을 레어로 바꾼다.
+      const lair = building.type === "hatchery" && building.base === "main" && state.sides[building.side].research.lair === "done";
+      if (lair !== view.lair) {
+        view.lair = lair;
+        view.body.texture = lair ? this.tex.zergParts[building.side].lair : this.tex.buildings[building.side][building.type];
+      }
+      // 오버로드는 공중에 떠서 천천히 흔들린다.
+      if (building.type === "overlord") view.body.position.set(Math.sin(state.time * 0.7 + building.id) * 0.4, Math.cos(state.time * 0.9 + building.id) * 0.3 - 0.6);
+      // 저그 건물은 숨 쉬듯 살짝 부푼다.
+      if ((STW_BUILDINGS[building.type] as { race?: string }).race === "zerg" && done && building.type !== "overlord") {
+        const breathe = 1 + Math.sin(state.time * 1.6 + building.id) * 0.012;
+        const base = STW_BUILDINGS[building.type].size / Math.max(view.body.texture.width, view.body.texture.height);
+        view.body.scale.set(base * breathe, base / breathe);
+      }
     }
     for (const [id, view] of this.buildingViews) {
       if (alive.has(id)) continue;
@@ -261,8 +284,9 @@ export class StwPixiRenderer {
     const def = STW_BUILDINGS[building.type];
     const root = new PIXI.Container();
     root.position.set(building.x, building.y);
-    const shadow = this.sprite(this.tex.shadow, def.size * 1.45);
-    shadow.position.set(0.5, 0.8);
+    const flying = building.type === "overlord";
+    const shadow = this.sprite(this.tex.shadow, def.size * (flying ? 1.1 : 1.45));
+    shadow.position.set(flying ? 1.4 : 0.5, flying ? 2 : 0.8);
     const body = this.sprite(this.tex.buildings[building.side][building.type], def.size);
     let glow: Sprite | null = null;
     root.addChild(shadow);
@@ -274,7 +298,7 @@ export class StwPixiRenderer {
     }
     root.addChild(body);
     this.buildingLayer.addChild(root);
-    const view = { root, body, glow, ghost: false };
+    const view = { root, body, glow, ghost: false, lair: false };
     this.buildingViews.set(building.id, view);
     return view;
   }
@@ -456,7 +480,7 @@ export class StwPixiRenderer {
     for (const unit of state.units) {
       if (!this.visibleCache.has(unit.id) && unit.side !== "player") continue;
       // 은폐한 적은 아군 탐지기 범위 안에 있을 때만 보인다.
-      if (unit.side !== "player" && CLOAKED.has(unit.type) && !stwDetected(state, unit, "player")) continue;
+      if (unit.side !== "player" && isCloaked(unit) && !stwDetected(state, unit, "player")) continue;
       alive.add(unit.id);
       let view = this.unitViews.get(unit.id);
       if (!view) view = this.createUnitView(unit);
@@ -501,7 +525,18 @@ export class StwPixiRenderer {
         view.glow.alpha = 0.55 + Math.sin(state.time * 5 + unit.id) * 0.15;
         view.body.rotation = state.time * 0.8 + unit.id;
       }
-      if (CLOAKED.has(unit.type)) view.root.alpha = unit.side === "player" ? 0.5 : 0.45 + Math.sin(state.time * 9 + unit.id) * 0.15;
+      if (unit.type === "lurker") {
+        // 럴커: 땅속에 숨으면 가시 무덤 모양으로 바뀌고 반투명해진다.
+        const burrowed = Boolean(unit.burrowed);
+        if (burrowed !== view.sieged) {
+          view.sieged = burrowed;
+          view.body.texture = burrowed ? this.tex.zergParts[unit.side].lurkerBurrowed : this.tex.units[unit.side].lurker;
+          const scale = UNIT_SIZE.lurker / Math.max(view.body.texture.width, view.body.texture.height);
+          view.body.scale.set(scale);
+        }
+        if (burrowed) view.body.scale.set(UNIT_SIZE.lurker / Math.max(view.body.texture.width, view.body.texture.height));
+        view.root.alpha = burrowed ? (unit.side === "player" ? 0.6 : 0.5 + Math.sin(state.time * 9 + unit.id) * 0.15) : 1;
+      } else if (CLOAKED.has(unit.type)) view.root.alpha = unit.side === "player" ? 0.5 : 0.45 + Math.sin(state.time * 9 + unit.id) * 0.15;
     }
     for (const [id, view] of this.unitViews) {
       if (alive.has(id)) continue;
@@ -610,6 +645,28 @@ export class StwPixiRenderer {
         const y = effect.y1 + Math.sin(angle) * 0.8;
         this.particles.push({ sprite, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.28, max: 0.28, s0: 0.5 / 32, s1: 1.8 / 32, a0: 0.9, rise: 0 });
       }
+    } else if (effect.kind === "bite") {
+      // 저글링·울트라리스크의 물어뜯기.
+      const big = (effect.radius ?? 0) > 0;
+      for (let i = 0; i < (big ? 6 : 3); i += 1) this.spark(effect.x2, effect.y2, i % 2 ? 0xb8433a : 0xe6d6b2, big ? 5 : 3, 0.35);
+      this.flash(effect.x2, effect.y2, big ? 2.2 : 1.1, 0.08, 0xffb0a0);
+    } else if (effect.kind === "spines") {
+      // 럴커 가시: 줄을 따라 차례로 솟는 가시와 흙먼지.
+      const steps = 7;
+      for (let i = 1; i <= steps; i += 1) {
+        const t = i / steps;
+        const x = effect.x1 + (effect.x2 - effect.x1) * t;
+        const y = effect.y1 + (effect.y2 - effect.y1) * t;
+        const sprite = this.particle(this.tex.spark);
+        sprite.tint = 0xf0e2bf;
+        this.particles.push({ sprite, x, y, vx: 0, vy: 0, life: 0.18 + t * 0.25, max: 0.18 + t * 0.25, s0: 1.4 / 32, s1: 0.6 / 32, a0: 1, rise: 0 });
+        if (i % 2 === 0) this.smoke(x, y, 0.9, 0.6);
+      }
+    } else if (effect.kind === "tentacle") {
+      // 성큰 촉수: 대상 발밑에서 솟구친다.
+      this.flash(effect.x2, effect.y2, 2, 0.14, 0xe6d6b2);
+      for (let i = 0; i < 5; i += 1) this.spark(effect.x2, effect.y2, i % 2 ? 0x8a5468 : 0xe6d6b2, 4, 0.4);
+      this.smoke(effect.x2, effect.y2, 1.4, 0.8);
     } else if (effect.kind === "stim") {
       this.flash(effect.x1, effect.y1, 2.2, 0.2, 0xff4a4a);
       for (let i = 0; i < 3; i += 1) this.spark(effect.x1, effect.y1, 0xff7070, 2.5, 0.4);
@@ -718,7 +775,7 @@ export class StwPixiRenderer {
         } else if (effect.kind === "grenade" || effect.kind === "tankshot") {
           this.flash(effect.x2, effect.y2, effect.kind === "tankshot" ? 2.6 : 2, 0.12, 0xffd28a);
           for (let i = 0; i < 4; i += 1) this.spark(effect.x2, effect.y2, 0xffb050, 4, 0.35);
-        } else if (effect.kind === "bullet") {
+        } else if (effect.kind === "bullet" || effect.kind === "spine") {
           this.flash(effect.x2, effect.y2, 0.9, 0.06, 0xffe7a0);
         } else {
           this.flash(effect.x2, effect.y2, 1.8, 0.1, STW_TEAM[effect.side].light);
@@ -840,9 +897,9 @@ export class StwPixiRenderer {
   }
 }
 
-const PROJECTILES = new Set<StwEffect["kind"]>(["plasma", "photon", "scarab", "bullet", "grenade", "tankshot", "shell"]);
-const PROJECTILE_TINT: Partial<Record<StwEffect["kind"], number>> = { scarab: 0xffb347, bullet: 0xffe7a0, grenade: 0xff9a3c, tankshot: 0xffd28a, shell: 0xffc46b };
-const PROJECTILE_SIZE: Partial<Record<StwEffect["kind"], number>> = { scarab: 2.2, photon: 1.6, bullet: 0.7, grenade: 1.2, tankshot: 1.5, shell: 1.9 };
+const PROJECTILES = new Set<StwEffect["kind"]>(["plasma", "photon", "scarab", "bullet", "grenade", "tankshot", "shell", "spine"]);
+const PROJECTILE_TINT: Partial<Record<StwEffect["kind"], number>> = { scarab: 0xffb347, bullet: 0xffe7a0, grenade: 0xff9a3c, tankshot: 0xffd28a, shell: 0xffc46b, spine: 0xd8f09a };
+const PROJECTILE_SIZE: Partial<Record<StwEffect["kind"], number>> = { scarab: 2.2, photon: 1.6, bullet: 0.7, grenade: 1.2, tankshot: 1.5, shell: 1.9, spine: 0.9 };
 
 function pseudo(seed: number) {
   const x = Math.sin(seed * 12.9898) * 43758.5453;

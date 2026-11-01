@@ -555,3 +555,89 @@ test("starswar terran AI personas field their signature units and finish a game"
   assert.equal(bio.status, "over", "테란 대 프로토스 전투가 끝남");
   assert.equal(mech.status, "over", "테란 대 테란 전투가 끝남");
 });
+
+const zerg = (enemy = "protoss") => createStarswarGame({ seed: 5, aiSides: [], races: { player: "zerg", enemy } });
+
+test("starswar zerg hatcheries morph zerglings in pairs and gate the hive tech", () => {
+  const state = zerg();
+  const main = stwNexus(state, "player", "main");
+  assert.equal(main.type, "hatchery");
+  assert.equal(main.line, "zergling", "해처리는 저글링 라인으로 시작");
+  assert.ok(state.log.some((entry) => /^전투 개시\. 드론이 광물을 캐고 있습니다/.test(entry.text)));
+  state.sides.player.minerals = 9000;
+  state.sides.player.gas = 9000;
+  run(state, 0.2);
+  assert.equal(main.blocked, "스포닝 풀 필요");
+  assert.match(stwBuildCheck(state, "player", "den").reason, /스포닝 풀이 필요합니다/);
+  assert.match(stwBuildCheck(state, "player", "gateway").reason, /이 종족은 지을 수 없는 건물/);
+  for (const building of ["overlord", "pool", "den", "hatch"]) {
+    assert.equal(stwCommand(state, "player", { type: "build", building }).ok, true, building);
+    finishAll(state);
+  }
+  assert.ok(state.log.some((entry) => entry.text === "스포닝 풀을 변태합니다."));
+  assert.match(stwBuildCheck(state, "player", "cavern").reason, /레어 변태가 필요합니다/);
+  const before = state.units.length;
+  run(state, STW_UNITS.zergling.time + 0.3);
+  const lings = state.units.filter((unit) => unit.side === "player" && unit.type === "zergling");
+  assert.equal(lings.length, 4, "해처리 두 곳에서 2기씩");
+  assert.equal(state.units.length - before, 4);
+  assert.equal(stwSupply(state, "player").used, 4 + 2 + 2, "드론 4 + 저글링 4기(0.5씩) + 생산 중 2쌍");
+
+  const extra = stwOwnBuildings(state, "player", "hatch")[0];
+  assert.equal(stwCommand(state, "player", { type: "lineAll", unit: "hydra" }).ok, true);
+  assert.equal(main.line, "hydra");
+  assert.equal(extra.line, "hydra", "추가 해처리도 같은 묶음");
+  assert.equal(stwCommand(state, "player", { type: "line", buildingId: extra.id, unit: "lurker" }).ok, true);
+  run(state, STW_UNITS.zergling.time + 0.3);
+  assert.equal(extra.blocked, "럴커 변태 필요");
+  assert.match(stwResearchCheck(state, "player", "lurkerAspect").reason, /레어 변태 먼저/);
+  state.sides.player.research.lair = "done";
+  assert.equal(stwBuildCheck(state, "player", "cavern").ok, true);
+});
+
+test("starswar lurkers burrow, cloak, and spine every enemy on the line", () => {
+  const state = zerg("terran");
+  const lurker = stwSpawnUnitAt(state, "player", "lurker", 20, 60, "attack");
+  const line = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "enemy", "marine", 20, 53 - index * 1.8, "attack"));
+  run(state, 0.5);
+  assert.equal(lurker.burrowed, true, "사거리 안에 적이 오자 땅속에 숨음");
+  assert.equal(stwDetected(state, lurker, "enemy"), false, "숨은 럴커는 탐지기가 있어야 보임");
+  run(state, 1.6);
+  const hurt = line.filter((unit) => unit.hp < unit.maxHp).length;
+  assert.ok(hurt >= 2, `일직선 가시가 여러 기에 피해 (${hurt}기)`);
+  assert.ok(line.every((unit) => unit.targetId !== lurker.id), "해병은 숨은 럴커를 노리지 못함");
+  stwCommand(state, "player", { type: "recall", point: "main" });
+  run(state, 0.2);
+  assert.equal(lurker.burrowed, false, "후퇴 명령에 땅 위로");
+});
+
+test("starswar zerg units regenerate and use separate melee and missile upgrades", () => {
+  const state = zerg();
+  const ling = stwSpawnUnitAt(state, "player", "zergling", 20, 80);
+  const hydra = stwSpawnUnitAt(state, "player", "hydra", 24, 80);
+  ling.hp = 10;
+  run(state, 5);
+  assert.ok(ling.hp >= 12.5, `저그 유닛 재생 ${ling.hp}`);
+  const zealot = stwSpawnUnitAt(state, "enemy", "zealot", 20, 20);
+  const before = [stwHitDamage(state, ling, zealot)[0], stwHitDamage(state, hydra, zealot)[0]];
+  state.sides.player.research.zMelee1 = "done";
+  assert.deepEqual([stwHitDamage(state, ling, zealot)[0], stwHitDamage(state, hydra, zealot)[0]], [before[0] + 1, before[1]], "근접 공격은 저글링에만");
+  state.sides.player.research.zMissile1 = "done";
+  assert.equal(stwHitDamage(state, hydra, zealot)[0], before[1] + 0.5, "원거리 공격 +1이 폭발형이라 소형에게 절반");
+});
+
+test("starswar zerg AI personas field their signature units and finish a game", () => {
+  const ling = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "ling", enemy: "templar" } });
+  const hydra = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "terran" }, personas: { player: "hydra", enemy: "mech" } });
+  const seen = { ling: new Set(), hydra: new Set() };
+  for (let step = 0; step < 15000 && (ling.status === "playing" || hydra.status === "playing"); step += 1) {
+    if (ling.status === "playing") stepStarswar(ling, stwAiThink);
+    if (hydra.status === "playing") stepStarswar(hydra, stwAiThink);
+    for (const unit of ling.units) if (unit.side === "player") seen.ling.add(unit.type);
+    for (const unit of hydra.units) if (unit.side === "player") seen.hydra.add(unit.type);
+  }
+  assert.ok(seen.ling.has("zergling"), "저글링 러시는 저글링을 변태");
+  assert.ok(seen.hydra.has("hydra") && seen.hydra.has("lurker"), "히드라 럴커는 히드라와 럴커를 변태");
+  assert.equal(ling.status, "over");
+  assert.equal(hydra.status, "over");
+});

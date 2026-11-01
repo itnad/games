@@ -124,16 +124,52 @@ export const STW_UNITS = {
     siege: { damage: 70, range: 12, minRange: 2, cooldown: 3, setup: 2, splash: { radius: 2.2, factor: 0.5 } },
     note: "시즈 모드 연구 후 적이 오면 자동으로 시즈 · 사거리 12 범위 포격",
   },
+
+  // ───── 저그: 모든 유닛과 건물의 체력이 저절로 회복된다 ─────
+  drone: {
+    id: "drone", race: "zerg", name: "드론", short: "D", minerals: 50, gas: 0, time: 12, supply: 1, from: "hatchery", worker: true,
+    hp: 40, shields: 0, armor: 0, size: "small", speed: 3.4, radius: 0.9, sight: 8,
+  },
+  zergling: {
+    id: "zergling", race: "zerg", name: "저글링", short: "L", minerals: 50, gas: 0, time: 16, supply: 0.5, pair: true, from: "hatchery", requires: "pool",
+    hp: 35, shields: 0, armor: 0, size: "small", speed: 3.6, radius: 0.85, sight: 8,
+    damage: 5, hits: 1, damageType: "normal", range: 1, cooldown: 0.75, weaponStep: 1, weaponGroup: "melee", role: "melee",
+    note: "한 번에 2기 · 빠르고 값싼 근접 물량",
+  },
+  hydra: {
+    id: "hydra", race: "zerg", name: "히드라리스크", short: "H", minerals: 75, gas: 25, time: 15, supply: 1, from: "hatchery", requires: "den",
+    hp: 80, shields: 0, armor: 0, size: "medium", speed: 2.6, radius: 1.05, sight: 9,
+    damage: 12, hits: 1, damageType: "explosive", range: 4.5, cooldown: 0.75, weaponStep: 1, weaponGroup: "missile", role: "ranged",
+    note: "원거리 · 폭발형(소형에게 50%) · 저그의 주력",
+  },
+  lurker: {
+    id: "lurker", race: "zerg", name: "럴커", short: "R", minerals: 125, gas: 125, time: 24, supply: 2, from: "hatchery", requires: "den", requiresResearch: "lurkerAspect",
+    hp: 125, shields: 0, armor: 1, size: "medium", speed: 2.6, radius: 1.3, sight: 9,
+    damage: 20, hits: 1, damageType: "normal", range: 6, cooldown: 1.5, weaponStep: 2, weaponGroup: "missile", role: "siege",
+    burrow: { setup: 1, width: 1 },
+    note: "적이 오면 자동으로 땅속에 숨어 은폐 · 일직선 가시 범위 공격",
+  },
+  ultra: {
+    id: "ultra", race: "zerg", name: "울트라리스크", short: "U", minerals: 200, gas: 200, time: 30, supply: 4, from: "hatchery", requires: "cavern",
+    hp: 400, shields: 0, armor: 1, size: "large", speed: 3, radius: 1.9, sight: 9,
+    damage: 30, hits: 1, damageType: "normal", range: 1.4, cooldown: 1, weaponStep: 3, weaponGroup: "melee", role: "melee",
+    splash: { radius: 1.3, factor: 0.5 },
+    note: "체력 400 근접 괴수 · 앞쪽을 휩쓰는 범위 공격 · 키틴질 강화로 방어력 +2",
+  },
 };
 
-/** 병력 유닛(일꾼 제외). 두 종족 모두. */
-export const STW_ARMY_UNITS = ["zealot", "dragoon", "templar", "dark", "archon", "observer", "reaver", "marine", "firebat", "medic", "vulture", "tank"];
+/** 병력 유닛(일꾼 제외). 모든 종족. */
+export const STW_ARMY_UNITS = ["zealot", "dragoon", "templar", "dark", "archon", "observer", "reaver", "marine", "firebat", "medic", "vulture", "tank", "zergling", "hydra", "lurker", "ultra"];
+/** 저그 해처리는 본진·앞마당·추가 해처리가 같은 라바 목록을 쓴다. */
+const LARVA = ["zergling", "hydra", "lurker", "ultra"];
 /** 생산 건물별로 고를 수 있는 유닛. */
 export const STW_PRODUCER_UNITS = {
   gateway: ["zealot", "dragoon", "templar", "dark"],
   robo: ["observer", "reaver"],
   barracks: ["marine", "firebat", "medic"],
   factory: ["vulture", "tank"],
+  hatchery: LARVA,
+  hatch: LARVA,
 };
 
 export const STW_BUILDINGS = {
@@ -170,11 +206,26 @@ export const STW_BUILDINGS = {
   },
   factory: { id: "factory", race: "terran", name: "팩토리", minerals: 200, gas: 100, time: 40, hp: 1250, shields: 0, armor: 1, size: 5.2, requires: "barracks", sight: 8, note: "벌처·시즈 탱크 생산 라인" },
   shop: { unique: true, id: "shop", race: "terran", name: "머신 샵", minerals: 50, gas: 50, time: 20, hp: 750, shields: 0, armor: 1, size: 3.6, requires: "factory", sight: 8, note: "시즈 탱크 해금 · 시즈 모드·이온 추진기 연구" },
+
+  // ───── 저그: 드론이 건물로 변태한다. 건물도 체력이 저절로 회복된다 ─────
+  hatchery: { id: "hatchery", race: "zerg", name: "해처리", minerals: 300, gas: 0, time: 60, hp: 1250, shields: 0, armor: 1, size: 8, supply: 10, sight: 11, base: true },
+  hatch: { id: "hatch", race: "zerg", name: "해처리", minerals: 250, gas: 0, time: 40, hp: 1250, shields: 0, armor: 1, size: 6, supply: 2, sight: 9, note: "본진에 해처리 추가 · 생산 라인 +1" },
+  overlord: { id: "overlord", race: "zerg", name: "오버로드", minerals: 100, gas: 0, time: 18, hp: 200, shields: 0, armor: 0, size: 3.6, supply: 8, sight: 9, detector: 5, note: "인구 +8 · 주변 은폐 탐지" },
+  extractor: { id: "extractor", race: "zerg", name: "익스트랙터", minerals: 50, gas: 0, time: 20, hp: 750, shields: 0, armor: 1, size: 4.2, sight: 6, refinery: true, note: "가스 채취 · 드론 3기 배치" },
+  pool: { unique: true, id: "pool", race: "zerg", name: "스포닝 풀", minerals: 200, gas: 0, time: 40, hp: 750, shields: 0, armor: 1, size: 4.8, sight: 8, note: "저글링·성큰 콜로니 해금 · 대사 촉진 연구" },
+  evo: { unique: true, id: "evo", race: "zerg", name: "에볼루션 챔버", minerals: 75, gas: 0, time: 25, hp: 750, shields: 0, armor: 1, size: 4.4, sight: 8, note: "근접·원거리 공격과 갑피 업그레이드 · 스포어 콜로니 해금" },
+  sunken: {
+    id: "sunken", race: "zerg", name: "성큰 콜로니", minerals: 125, gas: 0, time: 25, hp: 300, shields: 0, armor: 2, size: 3.4, requires: "pool", sight: 10,
+    damage: 40, hits: 1, damageType: "explosive", range: 7, cooldown: 2, defense: true, note: "땅속 촉수로 사거리 7 공격 · 앞마당이 있으면 앞마당에 세움",
+  },
+  spore: { id: "spore", race: "zerg", name: "스포어 콜로니", minerals: 75, gas: 0, time: 20, hp: 400, shields: 0, armor: 0, size: 3.2, requires: "evo", sight: 10, detector: 7, defense: true, note: "은폐 탐지 전용(지상 공격 없음)" },
+  den: { unique: true, id: "den", race: "zerg", name: "히드라리스크 덴", minerals: 100, gas: 50, time: 30, hp: 850, shields: 0, armor: 1, size: 4.4, requires: "pool", sight: 8, note: "히드라리스크 해금 · 사거리·속도 연구 · 럴커 변태" },
+  cavern: { unique: true, id: "cavern", race: "zerg", name: "울트라리스크 동굴", minerals: 150, gas: 200, time: 45, hp: 600, shields: 0, armor: 1, size: 4.8, requires: "den", requiresResearch: "lair", sight: 8, note: "울트라리스크 해금 · 키틴질 강화 연구" },
 };
 
 
 /** 생산 라인이 있는 건물. */
-export const STW_PRODUCERS = ["gateway", "robo", "barracks", "factory"];
+export const STW_PRODUCERS = ["gateway", "robo", "barracks", "factory", "hatchery", "hatch"];
 
 export const STW_RESEARCH = {
   weapons1: { id: "weapons1", name: "지상 공격 1단계", at: "forge", minerals: 100, gas: 100, time: 40, note: "질럿 +1×2, 드라군 +2" },
@@ -194,6 +245,19 @@ export const STW_RESEARCH = {
   u238: { id: "u238", race: "terran", name: "U-238 탄", at: "academy", minerals: 150, gas: 150, time: 40, note: "해병 사거리 4.5 → 5.5" },
   siege: { id: "siege", race: "terran", name: "시즈 모드", at: "shop", minerals: 150, gas: 150, time: 50, note: "적이 오면 탱크가 자동으로 시즈 · 사거리 12 범위 포격" },
   ion: { id: "ion", race: "terran", name: "이온 추진기", at: "shop", minerals: 100, gas: 100, time: 35, note: "벌처 이동 속도 +40%" },
+
+  // ───── 저그 ─────
+  lair: { id: "lair", race: "zerg", name: "레어 변태", at: "hatchery", minerals: 150, gas: 100, time: 50, requires: ["pool"], note: "본진 해처리가 레어로 · 럴커·울트라리스크·2단계 업그레이드 해금" },
+  metabolic: { id: "metabolic", race: "zerg", name: "대사 촉진", at: "pool", minerals: 100, gas: 100, time: 40, note: "저글링 이동 속도 +50%" },
+  spines: { id: "spines", race: "zerg", name: "홈 갈퀴", at: "den", minerals: 150, gas: 150, time: 40, note: "히드라리스크 사거리 4.5 → 6" },
+  augments: { id: "augments", race: "zerg", name: "근육 강화", at: "den", minerals: 150, gas: 150, time: 40, requires: ["lair"], note: "히드라리스크 이동 속도 +35%" },
+  lurkerAspect: { id: "lurkerAspect", race: "zerg", name: "럴커 변태", at: "den", minerals: 200, gas: 200, time: 50, requires: ["lair"], note: "럴커 해금" },
+  chitin: { id: "chitin", race: "zerg", name: "키틴질 강화", at: "cavern", minerals: 150, gas: 150, time: 45, note: "울트라리스크 방어력 +2" },
+  zMelee1: { id: "zMelee1", race: "zerg", name: "근접 공격 1단계", at: "evo", minerals: 100, gas: 100, time: 40, note: "저글링 +1, 울트라리스크 +3" },
+  zMissile1: { id: "zMissile1", race: "zerg", name: "원거리 공격 1단계", at: "evo", minerals: 100, gas: 100, time: 40, note: "히드라리스크 +1, 럴커 +2" },
+  zCarapace1: { id: "zCarapace1", race: "zerg", name: "갑피 1단계", at: "evo", minerals: 150, gas: 150, time: 40, note: "저그 유닛 방어력 +1" },
+  zMelee2: { id: "zMelee2", race: "zerg", name: "근접 공격 2단계", at: "evo", minerals: 150, gas: 150, time: 50, requires: ["zMelee1", "lair"], note: "근접 공격력 한 단계 더" },
+  zMissile2: { id: "zMissile2", race: "zerg", name: "원거리 공격 2단계", at: "evo", minerals: 150, gas: 150, time: 50, requires: ["zMissile1", "lair"], note: "원거리 공격력 한 단계 더" },
 };
 
 // 종족 표시가 없는 항목은 모두 프로토스다.
@@ -216,6 +280,13 @@ export const STW_RACES = {
     builds: ["depot", "barracks", "refinery", "ebay", "bunker", "turret", "academy", "comsat", "factory", "shop", "expand"],
     weapons: ["infWeapons1", "infWeapons2"], armor: ["infArmor1"], shields: [],
     note: "값싼 보병과 메딕, 시즈 탱크의 포격 · 건물이 스스로 수리됨",
+  },
+  zerg: {
+    id: "zerg", name: "저그", worker: "drone", base: "hatchery", supply: "overlord", refinery: "extractor", buildVerb: "변태", trainVerb: "변태",
+    mainProducer: "hatchery", producers: ["hatchery", "hatch"], startLines: { hatchery: "zergling", hatch: "zergling" },
+    builds: ["overlord", "pool", "extractor", "hatch", "evo", "sunken", "spore", "den", "cavern", "expand"],
+    weapons: [], weaponGroups: { melee: ["zMelee1", "zMelee2"], missile: ["zMissile1", "zMissile2"] }, armor: ["zCarapace1"], shields: [],
+    note: "해처리마다 쏟아지는 값싼 물량 · 몸이 저절로 회복되고 럴커는 땅속에 숨음",
   },
 };
 
@@ -240,6 +311,7 @@ export const STW_ECONOMY = {
   probeQueueLimit: 5,
   shieldRegen: 2,
   shieldRegenDelay: 7,
+  zergRegen: 0.6,
 };
 
 export const STW_SIZE_MULTIPLIER = {
@@ -262,5 +334,7 @@ export const STW_AI_PERSONAS = {
   robo: { id: "robo", name: "로보 운영", note: "드라군과 리버, 옵저버로 천천히 밀어붙인다" },
   bio: { id: "bio", race: "terran", name: "바이오닉 러시", note: "해병과 메딕, 스팀팩으로 빠르게 몰아친다" },
   mech: { id: "mech", race: "terran", name: "메카닉 운영", note: "벌처로 버티며 시즈 탱크 포격선을 민다" },
+  ling: { id: "ling", race: "zerg", name: "저글링 러시", note: "해처리를 늘려 대사 촉진 저글링으로 휩쓴다" },
+  hydra: { id: "hydra", race: "zerg", name: "히드라 럴커", note: "히드라로 버티며 럴커와 울트라리스크까지 올린다" },
 };
 for (const persona of Object.values(STW_AI_PERSONAS)) persona.race ??= "protoss";

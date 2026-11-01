@@ -37,13 +37,24 @@ function isFlying(unit) {
   return Boolean(STW_UNITS[unit.type].flying);
 }
 
+/** 지금 은폐 상태인지: 다크템플러·옵저버는 항상, 럴커는 땅속에 숨어 있을 때. */
+function isCloaked(unit) {
+  const def = STW_UNITS[unit.type];
+  return Boolean(def?.cloaked || (def?.burrow && unit.burrowed));
+}
+
+/** 생산에 드는 인구: 저글링처럼 2기씩 나오면 두 배. */
+function batchSupply(def) {
+  return def.supply * (def.pair ? 2 : 1);
+}
+
 /** 전투에 직접 끼지 않는 유닛(일꾼, 비행 탐지기). */
 function isPassive(unit) {
   return isWorker(unit) || isFlying(unit);
 }
 
 /** 쉬움에서는 초반에 몰아치는 성향을 빼고 고른다. */
-const EASY_EXCLUDED_PERSONAS = ["rush", "dark", "bio"];
+const EASY_EXCLUDED_PERSONAS = ["rush", "dark", "bio", "ling"];
 
 export function stwOpponent(side) {
   return side === "player" ? "enemy" : "player";
@@ -202,10 +213,11 @@ export function stwSupply(state, side) {
     if (building.side !== side) continue;
     if (stwDone(building)) cap += STW_BUILDINGS[building.type].supply ?? 0;
     for (const item of building.queue) used += STW_UNITS[item.unit].supply;
-    if (building.current) used += STW_UNITS[building.current.unit].supply;
+    if (building.current) used += batchSupply(STW_UNITS[building.current.unit]);
   }
   for (const unit of state.units) if (unit.side === side) used += STW_UNITS[unit.type].supply;
-  return { used, cap: Math.min(STW_ECONOMY.supplyLimit, cap) };
+  // 저글링 반 칸은 올림해서 보여 준다.
+  return { used: Math.ceil(used - 1e-9), cap: Math.min(STW_ECONOMY.supplyLimit, cap) };
 }
 
 /** 프로브 배치: 가스, 본진 광물, 앞마당 광물, 놀고 있는 수. */
@@ -338,6 +350,7 @@ export function stwBuildCheck(state, side, type) {
   if (!def || def.base) return fail("지을 수 없는 건물입니다");
   if (def.race !== record.race) return fail("이 종족은 지을 수 없는 건물입니다");
   if (def.requires && !stwHas(state, side, def.requires)) return fail(`${withKoreanSubject(STW_BUILDINGS[def.requires].name)} 필요합니다`);
+  if (def.requiresResearch && !stwResearchDone(state, side, def.requiresResearch)) return fail(`${withKoreanSubject(STW_RESEARCH[def.requiresResearch].name)} 필요합니다`);
   if (def.unique && stwOwnBuildings(state, side, type).length) return fail("이미 있습니다");
   if (!placementFor(state, side, type)) return fail(def.refinery ? "가스 간헐천이 모두 찼습니다" : "지을 자리가 없습니다");
   return costCheck(record, def.minerals, def.gas);
@@ -380,8 +393,21 @@ export function stwScoutCheck(state, side) {
 
 /** 생산 라인 유닛이 지금 해금되어 있는지. */
 export function stwUnitUnlocked(state, side, unit) {
+  return stwUnitLock(state, side, unit) === null;
+}
+
+/** 생산 라인 유닛이 잠겨 있으면 "○○ 필요" 사유, 아니면 null. */
+export function stwUnitLock(state, side, unit) {
   const def = STW_UNITS[unit];
-  return !def.requires || stwHas(state, side, def.requires);
+  if (def.requires && !stwHas(state, side, def.requires)) return `${STW_BUILDINGS[def.requires].name} 필요`;
+  if (def.requiresResearch && !stwResearchDone(state, side, def.requiresResearch)) return `${STW_RESEARCH[def.requiresResearch].name} 필요`;
+  return null;
+}
+
+/** 같은 생산 목록을 쓰는 건물들(저그 해처리는 본진·앞마당·추가 해처리가 한 묶음). */
+function producerGroup(state, side, producer) {
+  const list = STW_PRODUCER_UNITS[producer];
+  return state.buildings.filter((building) => building.side === side && STW_PRODUCER_UNITS[building.type] === list);
 }
 
 /* ───────── 명령 ───────── */
@@ -440,7 +466,7 @@ export function stwCommand(state, side, command) {
     case "lineAll": {
       const producer = command.unit ? STW_UNITS[command.unit]?.from : command.producer ?? stwRace(state, side).mainProducer;
       if (!STW_PRODUCERS.includes(producer)) return fail("알 수 없는 유닛입니다");
-      const buildings = stwOwnBuildings(state, side, producer);
+      const buildings = producerGroup(state, side, producer);
       if (!buildings.length) return fail(`${withKoreanSubject(STW_BUILDINGS[producer].name)} 없습니다`);
       for (const building of buildings) building.line = command.unit ?? null;
       return { ok: true };
@@ -707,21 +733,25 @@ function stepProducer(state, building, record, dt) {
     const unitType = building.current.unit;
     building.current = null;
     const forward = stwForward(building.side);
-    const unit = spawnUnit(state, building.side, unitType, building.x + (nextRandom(state) - 0.5) * 2, building.y + forward * (building.radius + 1.5));
-    record.stats.produced += 1;
-    state.effects.push({ kind: "warp", side: building.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.6, max: 0.6, radius: unit.radius * 2 });
+    // 저글링은 한 번에 2기가 나온다.
+    for (let index = 0; index < (STW_UNITS[unitType].pair ? 2 : 1); index += 1) {
+      const unit = spawnUnit(state, building.side, unitType, building.x + (nextRandom(state) - 0.5) * 2 + index * 1.4, building.y + forward * (building.radius + 1.5));
+      record.stats.produced += 1;
+      state.effects.push({ kind: "warp", side: building.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.6, max: 0.6, radius: unit.radius * 2 });
+    }
   }
   if (!building.line) {
     building.blocked = "정지";
     return;
   }
   const def = STW_UNITS[building.line];
-  if (!stwUnitUnlocked(state, building.side, building.line)) {
-    building.blocked = `${STW_BUILDINGS[def.requires].name} 필요`;
+  const lock = stwUnitLock(state, building.side, building.line);
+  if (lock) {
+    building.blocked = lock;
     return;
   }
   const supply = stwSupply(state, building.side);
-  if (supply.used + def.supply > supply.cap) {
+  if (supply.used + batchSupply(def) > supply.cap) {
     building.blocked = "인구 부족";
     return;
   }
@@ -737,10 +767,10 @@ function stepProducer(state, building, record, dt) {
 
 /* ───────── 전투 ───────── */
 
-/** 업그레이드가 적용되는 유닛: 프로토스는 모든 지상 유닛, 테란은 보병(bio)만. */
+/** 업그레이드가 적용되는 유닛: 프로토스·저그는 모든 지상 유닛, 테란은 보병(bio)만. */
 function upgradable(unit) {
   const def = STW_UNITS[unit.type];
-  return def.race === "protoss" || Boolean(def.bio);
+  return def.race === "protoss" || def.race === "zerg" || Boolean(def.bio);
 }
 
 function researchCount(state, side, ids) {
@@ -748,12 +778,17 @@ function researchCount(state, side, ids) {
 }
 
 function weaponLevel(state, unit) {
-  return upgradable(unit) ? researchCount(state, unit.side, stwRace(state, unit.side).weapons) : 0;
+  if (!upgradable(unit)) return 0;
+  const race = stwRace(state, unit.side);
+  // 저그는 근접·원거리 공격 업그레이드가 따로 있다.
+  const group = race.weaponGroups?.[STW_UNITS[unit.type].weaponGroup];
+  return researchCount(state, unit.side, group ?? race.weapons);
 }
 
 function armorBonus(state, target) {
   if (target.kind !== "unit" || !upgradable(target)) return 0;
-  return researchCount(state, target.side, stwRace(state, target.side).armor);
+  const chitin = target.type === "ultra" && stwResearchDone(state, target.side, "chitin") ? 2 : 0;
+  return researchCount(state, target.side, stwRace(state, target.side).armor) + chitin;
 }
 
 function shieldArmor(state, target) {
@@ -798,7 +833,7 @@ function queueHit(state, attacker, target) {
 
 /** 은폐 유닛이 상대 진영의 탐지기(옵저버, 완성된 포톤 캐논) 범위 안에 있는지. */
 export function stwDetected(state, unit, bySide) {
-  if (!STW_UNITS[unit.type]?.cloaked) return true;
+  if (!isCloaked(unit)) return true;
   for (const scan of state.scans ?? []) {
     if (scan.side === bySide && distance(scan.x, scan.y, unit.x, unit.y) <= scan.radius) return true;
   }
@@ -825,6 +860,12 @@ function comsatScan(state, side, attacker) {
   if (side === "player") pushLog(state, side, "컴샛 스캔으로 은폐한 적을 드러냈습니다.", "good");
 }
 
+const DETECT_HINT = {
+  protoss: "보이지 않는 적에게 공격받고 있습니다! 포톤 캐논이나 옵저버로 탐지하세요.",
+  terran: "보이지 않는 적에게 공격받고 있습니다! 미사일 터렛이나 컴샛 스테이션으로 탐지하세요.",
+  zerg: "보이지 않는 적에게 공격받고 있습니다! 스포어 콜로니나 오버로드로 탐지하세요.",
+};
+
 /** 공격자가 대상을 노릴 수 있는지: 은폐 유닛은 탐지되어야 한다. */
 function targetable(state, attacker, target) {
   return target.kind !== "unit" || stwDetected(state, target, attacker.side);
@@ -835,11 +876,11 @@ function applyHits(state) {
     if (hit.target.hp <= 0) continue;
     for (const amount of hit.hits) applyDamage(state, hit.target, amount);
     hit.target.lastHit = state.time;
-    const unseen = hit.attacker.kind === "unit" && STW_UNITS[hit.attacker.type].cloaked && !stwDetected(state, hit.attacker, hit.target.side);
+    const unseen = hit.attacker.kind === "unit" && isCloaked(hit.attacker) && !stwDetected(state, hit.attacker, hit.target.side);
     if (unseen) {
       state.sides[hit.target.side].sawCloakAt = state.time;
       comsatScan(state, hit.target.side, hit.attacker);
-      if (hit.target.side === "player") alertOnce(state, "cloak", 20, "player", "보이지 않는 적에게 공격받고 있습니다! 포톤 캐논이나 옵저버로 탐지하세요.", "danger");
+      if (hit.target.side === "player") alertOnce(state, "cloak", 20, "player", DETECT_HINT[state.sides.player.race] ?? DETECT_HINT.protoss, "danger");
     }
     if (hit.target.kind === "building" && hit.target.side === "player") {
       alertOnce(state, `base:${hit.target.base}`, 12, "player", hit.target.base === "natural" ? "앞마당이 공격받고 있습니다!" : "본진이 공격받고 있습니다!", "danger");
@@ -893,8 +934,9 @@ function cannonStep(state, building, dt) {
   if (!target || building.cooldown > 0) return;
   building.cooldown = def.cooldown;
   queueHit(state, building, target);
-  const kind = building.type === "cannon" ? "photon" : "bullet";
-  state.effects.push({ kind, side: building.side, x1: building.x, y1: building.y, x2: target.x, y2: target.y, ttl: kind === "photon" ? 0.3 : 0.12, max: kind === "photon" ? 0.3 : 0.12 });
+  const kind = building.type === "cannon" ? "photon" : building.type === "sunken" ? "tentacle" : "bullet";
+  const ttl = kind === "photon" ? 0.3 : kind === "tentacle" ? 0.45 : 0.12;
+  state.effects.push({ kind, side: building.side, x1: building.x, y1: building.y, x2: target.x, y2: target.y, ttl, max: ttl });
 }
 
 function stimmed(state, unit) {
@@ -905,6 +947,7 @@ function unitRange(state, unit) {
   const def = STW_UNITS[unit.type];
   if (unit.type === "dragoon" && stwResearchDone(state, unit.side, "range")) return 8;
   if (unit.type === "marine" && stwResearchDone(state, unit.side, "u238")) return def.range + 1;
+  if (unit.type === "hydra" && stwResearchDone(state, unit.side, "spines")) return def.range + 1.5;
   return def.range ?? 0;
 }
 
@@ -912,6 +955,8 @@ function unitSpeed(state, unit) {
   const def = STW_UNITS[unit.type];
   if (unit.type === "zealot" && stwResearchDone(state, unit.side, "charge")) return def.speed * 1.5;
   if (unit.type === "vulture" && stwResearchDone(state, unit.side, "ion")) return def.speed * 1.4;
+  if (unit.type === "zergling" && stwResearchDone(state, unit.side, "metabolic")) return def.speed * 1.5;
+  if (unit.type === "hydra" && stwResearchDone(state, unit.side, "augments")) return def.speed * 1.35;
   if (stimmed(state, unit)) return def.speed * 1.5;
   return def.speed;
 }
@@ -929,8 +974,8 @@ function moveToward(unit, x, y, speed, dt) {
 }
 
 const ROLE_DEPTH = { melee: 2, ranged: 0, siege: -1.8, caster: -3.8, support: -5.5 };
-const ROLE_ORDER = { zealot: 0, dark: 1, archon: 2, firebat: 3, dragoon: 4, marine: 5, vulture: 6, reaver: 7, tank: 8, templar: 9, medic: 10, observer: 11 };
-const ATTACK_EFFECT = { zealot: "slash", dark: "slash", dragoon: "plasma", archon: "shock", reaver: "scarab", marine: "bullet", firebat: "flame", vulture: "grenade", tank: "tankshot" };
+const ROLE_ORDER = { ultra: -1, zealot: 0, zergling: 0.5, dark: 1, archon: 2, firebat: 3, dragoon: 4, hydra: 4.5, marine: 5, vulture: 6, reaver: 7, lurker: 7.5, tank: 8, templar: 9, medic: 10, observer: 11 };
+const ATTACK_EFFECT = { zealot: "slash", dark: "slash", dragoon: "plasma", archon: "shock", reaver: "scarab", marine: "bullet", firebat: "flame", vulture: "grenade", tank: "tankshot", zergling: "bite", ultra: "bite", hydra: "spine" };
 
 /** 집결지에서의 자리: 근접은 앞, 원거리는 가운데, 템플러는 뒤. 한 줄 12자리. */
 function rallySlots(state, side, units, anchorY) {
@@ -1002,7 +1047,8 @@ function stepUnits(state, dt) {
     const slot = isAttack ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
     const sight = range + (isAttack ? 6 : 7);
     const retreating = !isAttack && slot && isRetreating(unit, slot);
-    if (unit.type === "tank" && tankSiegeStep(state, unit, Boolean(retreating), dt)) continue;
+    if (unit.type === "tank" && tankSiegeStep(state, unit, Boolean(retreating))) continue;
+    if (unit.type === "lurker" && lurkerStep(state, unit, Boolean(retreating))) continue;
     if (retreating) {
       // 후퇴 중: 교전을 끊고 전속력으로 집결지에 돌아온다.
       unit.targetId = null;
@@ -1050,7 +1096,7 @@ function stepUnits(state, dt) {
           unit.cooldown = def.cooldown * (stimmed(state, unit) ? 0.67 : 1);
           queueHit(state, unit, target);
           const kind = ATTACK_EFFECT[unit.type] ?? "plasma";
-          const ttl = kind === "slash" || kind === "bullet" ? 0.15 : kind === "flame" ? 0.3 : kind === "scarab" ? 0.6 : kind === "shock" ? 0.25 : 0.35;
+          const ttl = kind === "slash" || kind === "bullet" || kind === "bite" ? 0.15 : kind === "flame" ? 0.3 : kind === "scarab" ? 0.6 : kind === "shock" || kind === "spine" ? 0.25 : 0.35;
           state.effects.push({ kind, side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl, max: ttl, radius: STW_UNITS[unit.type].splash?.radius });
         }
       } else {
@@ -1137,6 +1183,61 @@ function tankSiegeStep(state, unit, retreating) {
   unit.siegeUntil = state.time + siege.setup;
   unit.targetId = null;
   return true;
+}
+
+/**
+ * 럴커: 사거리 안에 적이 들어오면 1초 동안 땅속에 숨고(은폐), 숨은 동안만 일직선 가시로 공격한다.
+ * 가시는 대상 방향으로 사거리 끝까지 뻗어 그 줄 위의 모든 적 지상 유닛에 같은 피해를 준다.
+ * 후퇴 명령이 오거나 2초 넘게 대상이 없으면 1초 동안 땅 위로 나온다. 이 틱을 처리했으면 true.
+ */
+function lurkerStep(state, unit, retreating) {
+  const def = STW_UNITS.lurker;
+  const range = unitRange(state, unit);
+  if (unit.burrowUntil !== undefined && state.time < unit.burrowUntil) return true;
+  if (unit.burrowed) {
+    const target = findTargetBand(state, unit, 0, range + unit.radius * 0.5);
+    if (target) unit.lastBurrowTargetAt = state.time;
+    if (retreating || (!target && state.time - (unit.lastBurrowTargetAt ?? 0) > 2)) {
+      unit.burrowed = false;
+      unit.burrowUntil = state.time + def.burrow.setup;
+      unit.targetId = null;
+      return true;
+    }
+    unit.targetId = target?.id ?? null;
+    if (target && unit.cooldown <= 0) {
+      const angle = Math.atan2(target.y - unit.y, target.x - unit.x);
+      unit.heading = angle;
+      unit.cooldown = def.cooldown;
+      state.pendingHits.push({ attacker: unit, target, hits: stwHitDamage(state, unit, target) });
+      const reach = range + 1;
+      const end = { x: unit.x + Math.cos(angle) * reach, y: unit.y + Math.sin(angle) * reach };
+      for (const other of state.units) {
+        if (other === target || other.side === unit.side || other.hp <= 0 || isFlying(other)) continue;
+        if (segmentDistance(other.x, other.y, unit.x, unit.y, end.x, end.y) > def.burrow.width + other.radius * 0.5) continue;
+        state.pendingHits.push({ attacker: unit, target: other, hits: stwHitDamage(state, unit, other) });
+      }
+      state.effects.push({ kind: "spines", side: unit.side, x1: unit.x, y1: unit.y, x2: end.x, y2: end.y, ttl: 0.5, max: 0.5 });
+    }
+    return true;
+  }
+  if (retreating) return false;
+  const threat = findTargetBand(state, unit, 0, range + unit.radius * 0.5);
+  if (!threat) return false;
+  unit.burrowed = true;
+  unit.lastBurrowTargetAt = state.time;
+  unit.burrowUntil = state.time + def.burrow.setup;
+  unit.heading = Math.atan2(threat.y - unit.y, threat.x - unit.x);
+  unit.targetId = null;
+  return true;
+}
+
+/** 점과 선분 사이 거리. */
+function segmentDistance(px, py, ax, ay, bx, by) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const length = dx * dx + dy * dy || 1;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / length));
+  return distance(px, py, ax + dx * t, ay + dy * t);
 }
 
 /** 메딕: 하이템플러처럼 병력 뒤를 따라다니며 체력이 가장 많이 깎인 근처 보병을 치료한다. */
@@ -1371,10 +1472,12 @@ function regenerate(state, dt) {
     for (const item of list) {
       if (item.hp <= 0) continue;
       if (item.kind === "building" && !stwDone(item)) continue;
+      // 저그 유닛은 싸우는 중에도 체력이 조금씩 회복된다.
+      if (item.kind === "unit" && STW_UNITS[item.type].race === "zerg" && item.hp < item.maxHp) item.hp = Math.min(item.maxHp, item.hp + STW_ECONOMY.zergRegen * dt);
       if (state.time - item.lastHit < STW_ECONOMY.shieldRegenDelay) continue;
       if (item.shields < item.maxShields) item.shields = Math.min(item.maxShields, item.shields + STW_ECONOMY.shieldRegen * dt);
-      // 테란 건물: 공격받지 않으면 SCV가 수리하듯 체력이 천천히 회복된다.
-      if (item.kind === "building" && STW_BUILDINGS[item.type].race === "terran" && item.hp < item.maxHp) item.hp = Math.min(item.maxHp, item.hp + STW_ECONOMY.shieldRegen * dt);
+      // 테란·저그 건물: 공격받지 않으면 체력이 천천히 회복된다(테란은 SCV 수리, 저그는 재생).
+      if (item.kind === "building" && STW_BUILDINGS[item.type].race !== "protoss" && item.hp < item.maxHp) item.hp = Math.min(item.maxHp, item.hp + STW_ECONOMY.shieldRegen * dt);
     }
   }
   for (const scan of state.scans ?? []) scan.ttl -= dt;
@@ -1392,7 +1495,7 @@ function cleanup(state) {
     if (unit.returned) continue;
     state.sides[unit.side].stats.lost += 1;
     state.sides[stwOpponent(unit.side)].stats.kills += 1;
-    state.effects.push({ kind: "death", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.7, max: 0.7, radius: ["dragoon", "reaver", "archon", "tank", "vulture"].includes(unit.type) ? 3.6 : unit.radius * 2 });
+    state.effects.push({ kind: "death", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.7, max: 0.7, radius: ["dragoon", "reaver", "archon", "tank", "vulture", "lurker", "ultra"].includes(unit.type) ? 3.6 : unit.radius * 2 });
     if (isWorker(unit) && unit.group === "scout" && unit.side === "player") pushLog(state, "player", `정찰 ${withKoreanObject(STW_UNITS[unit.type].name)} 잃었습니다.`, "warn");
   }
   if (dead.length) state.units = state.units.filter((unit) => unit.hp > 0);
@@ -1463,6 +1566,7 @@ function takeIntel(state, foe) {
 const TECH_LADDER = {
   protoss: ["archives", "robo", "citadel", "core"],
   terran: ["shop", "factory", "academy", "barracks"],
+  zerg: ["cavern", "den", "pool"],
 };
 
 export function intelSummary(intel) {

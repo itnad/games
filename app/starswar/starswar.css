@@ -17,7 +17,7 @@
 .stw-menu-hero p { margin:0; color:#dccdaa; }
 .stw-race-pick { display:grid; gap:8px; }
 .stw-race-pick .stw-hint { margin:0 0 6px; }
-.stw-race-pick .stw-segment { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.stw-race-pick .stw-segment { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); }
 .stw-race-pick .stw-segment button { min-height:46px; font-size:15px !important; }
 .stw-difficulty { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
 .stw-difficulty button { min-height:104px; padding:14px; display:grid; align-content:start; gap:6px; text-align:left; border:1px solid var(--stw-line); border-radius:14px; background:#ffffff08; }

@@ -1,5 +1,5 @@
 // 스타즈워 AI. 플레이어와 같은 stwCommand만 쓴다.
-// 성향(질럿 러시, 드라군 운영, 템플러 테크)마다 빌드 순서와 출격 규모가 다르다.
+// 성향마다 빌드 순서와 출격 규모가 다르다. 프로토스·테란·저그가 같은 틀을 쓴다.
 import { STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
 import {
   stwArmy,
@@ -51,13 +51,27 @@ const BUILD_ORDERS = {
     { build: "refinery" }, { build: "shop" }, { build: "bunker" }, { research: "siege" }, { build: "factory" },
     { build: "expand", at: 280 }, { build: "academy" }, { research: "ion" }, { build: "comsat" }, { build: "ebay" }, { build: "turret" },
   ],
+  ling: [
+    { build: "pool" }, { build: "overlord" }, { build: "extractor" }, { research: "metabolic" }, { build: "hatch" },
+    { build: "overlord" }, { build: "evo", at: 220 }, { research: "zMelee1" }, { build: "expand", at: 280 }, { build: "hatch" },
+    { build: "den" }, { research: "zCarapace1" }, { build: "extractor" }, { research: "lair" }, { research: "spines" },
+  ],
+  hydra: [
+    { build: "overlord" }, { build: "pool" }, { build: "extractor" }, { build: "hatch" }, { build: "sunken" }, { build: "den" },
+    { build: "extractor" }, { build: "overlord" }, { research: "spines" }, { build: "hatch" }, { build: "expand", at: 300 },
+    { research: "lair", at: 300 }, { research: "lurkerAspect" }, { build: "evo" }, { research: "zMissile1" }, { research: "augments" },
+    { build: "cavern", at: 560 }, { research: "chitin" }, { research: "zCarapace1" },
+  ],
 };
 
-const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22], bio: [8, 12, 16, 22], mech: [8, 12, 16, 20] };
-const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4 };
+const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22], bio: [8, 12, 16, 22], mech: [8, 12, 16, 20], ling: [12, 16, 22, 28, 34], hydra: [14, 18, 24, 30] };
+const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, ling: 3, hydra: 3 };
 /** 빌드 순서가 끝난 뒤 남는 자원으로 더 짓는 생산 건물. */
-const EXTRA_PRODUCER = { bio: "barracks", mech: "factory" };
-const LATE_UPGRADES = { protoss: ["weapons2", "shields1", "armor1"], terran: ["infWeapons2", "infArmor1"] };
+const EXTRA_PRODUCER = { bio: "barracks", mech: "factory", ling: "hatch", hydra: "hatch" };
+/** 광물이 크게 쌓이면 성향과 상관없이 늘리는 기본 생산 건물. */
+const FALLBACK_PRODUCER = { terran: "barracks", zerg: "hatch" };
+const LATE_UPGRADES = { protoss: ["weapons2", "shields1", "armor1"], terran: ["infWeapons2", "infArmor1"], zerg: ["zMelee2", "zMissile2", "zCarapace1"] };
+const DEFAULT_PERSONA = { protoss: "dragoon", terran: "bio", zerg: "hydra" };
 
 export function stwAiThink(state, side) {
   const record = state.sides[side];
@@ -67,7 +81,7 @@ export function stwAiThink(state, side) {
   if (state.time < memory.nextThink) return;
   memory.nextThink = state.time + settings.thinkEvery;
   const race = STW_RACES[record.race ?? "protoss"];
-  const persona = record.persona ?? (race.id === "terran" ? "bio" : "dragoon");
+  const persona = record.persona ?? DEFAULT_PERSONA[race.id];
 
   // 다음 건물·연구에 필요한 자원만 아껴 둔다(모자란 쪽만).
   const reserve = { minerals: 0, gas: 0 };
@@ -113,7 +127,8 @@ export function stwAiThink(state, side) {
       memory.done.push(index);
       continue;
     }
-    if (/이미|완료|자리|찼습니다|연구 중/.test(check.reason ?? "")) {
+    // "다른 연구 중"은 건물이 비면 다시 시도해야 하므로 건너뛴 것으로 치지 않는다.
+    if (/이미|완료|자리|찼습니다|^연구 중$/.test(check.reason ?? "")) {
       memory.done.push(index);
       continue;
     }
@@ -123,9 +138,10 @@ export function stwAiThink(state, side) {
   memory.step = memory.done.length;
   const extra = EXTRA_PRODUCER[persona] ?? race.mainProducer;
   // 광물이 남으면 생산 건물을 더 짓는다. 빌드 순서가 끝나기 전이라도 크게 남으면 짓는다.
-  const floating = record.minerals > (memory.step >= order.length ? 350 : 600);
+  // 저그는 해처리 하나가 한 번에 한 마리씩만 만들므로 광물이 쌓이면 일찍 해처리를 늘린다.
+  const floating = record.minerals > (memory.step >= order.length || race.id === "zerg" ? 300 : 600);
   if (floating && stwOwnBuildings(state, side, extra).length < GATEWAY_CAP[persona]) stwCommand(state, side, { type: "build", building: extra });
-  else if (race.id === "terran" && record.minerals > 700 && stwOwnBuildings(state, side, "barracks").length < 5) stwCommand(state, side, { type: "build", building: "barracks" });
+  else if (FALLBACK_PRODUCER[race.id] && record.minerals > 700 && stwOwnBuildings(state, side, FALLBACK_PRODUCER[race.id]).length < 5) stwCommand(state, side, { type: "build", building: FALLBACK_PRODUCER[race.id] });
   if (memory.step >= order.length) {
     for (const research of LATE_UPGRADES[race.id]) {
       if (STW_RESEARCH[research] && stwResearchCheck(state, side, research).ok && record.gas > 200) stwCommand(state, side, { type: "research", research });
@@ -149,6 +165,17 @@ export function stwAiThink(state, side) {
     else if (stwOwnBuildings(state, side, "turret").length < 2) stwCommand(state, side, { type: "build", building: "turret" });
     if (stwHas(state, side, "academy") && !stwOwnBuildings(state, side, "comsat").length) stwCommand(state, side, { type: "build", building: "comsat" });
   }
+  if (needDetection && race.id === "zerg") {
+    // 저그: 에볼루션 챔버와 스포어 콜로니 2개.
+    if (!stwOwnBuildings(state, side, "evo").length) stwCommand(state, side, { type: "build", building: "evo" });
+    else if (stwOwnBuildings(state, side, "spore").length < 2) stwCommand(state, side, { type: "build", building: "spore" });
+  }
+
+  // 3-1-1. 저그 상대: 저글링 물량에 대비해 테란은 벙커 하나를 세운다.
+  const versusZerg = state.sides[stwOpponent(side)].race === "zerg";
+  if (versusZerg && race.id === "terran" && stwHas(state, side, "barracks") && !stwOwnBuildings(state, side, "bunker").length && state.time > 150) {
+    stwCommand(state, side, { type: "build", building: "bunker" });
+  }
 
   // 3-2. 하이템플러가 넷 이상 쌓이면 에너지가 적은 둘을 아콘으로 합친다.
   if (race.id === "protoss" && units.filter((unit) => unit.type === "templar").length >= 4) stwCommand(state, side, { type: "merge" });
@@ -156,6 +183,11 @@ export function stwAiThink(state, side) {
   // 3-4. 테란 생산 라인: 배럭(해병·메딕·파이어뱃), 팩토리(벌처·시즈 탱크).
   if (race.id === "terran") {
     terranLines(state, side, persona, units, reserve);
+    manageArmy(state, side, persona, memory, settings);
+    return;
+  }
+  if (race.id === "zerg") {
+    zergLines(state, side, persona, units, reserve);
     manageArmy(state, side, persona, memory, settings);
     return;
   }
@@ -174,7 +206,8 @@ export function stwAiThink(state, side) {
   const gatewayList = stwOwnBuildings(state, side, "gateway").sort((a, b) => a.id - b.id);
   gatewayList.forEach((gateway, index) => {
     let unit = "zealot";
-    if (persona === "dragoon" && stwHas(state, side, "core")) unit = index % 4 === 3 ? "zealot" : "dragoon";
+    // 저그 상대로는 저글링에 강한 질럿을 더 섞는다.
+    if (persona === "dragoon" && stwHas(state, side, "core")) unit = index % (versusZerg ? 3 : 4) === (versusZerg ? 2 : 3) ? "zealot" : "dragoon";
     if (persona === "templar") {
       if (stwHas(state, side, "archives")) unit = index % 3 === 0 ? "templar" : "zealot";
       else if (stwHas(state, side, "core")) unit = index % 2 ? "dragoon" : "zealot";
@@ -184,7 +217,7 @@ export function stwAiThink(state, side) {
       if (stwHas(state, side, "archives")) unit = index % 2 === 0 ? "dark" : stwHas(state, side, "core") ? "dragoon" : "zealot";
       else if (stwHas(state, side, "core")) unit = index % 2 ? "dragoon" : "zealot";
     }
-    if (persona === "robo" && stwHas(state, side, "core")) unit = index % 3 === 2 ? "zealot" : "dragoon";
+    if (persona === "robo" && stwHas(state, side, "core")) unit = index % (versusZerg ? 2 : 3) === (versusZerg ? 1 : 2) ? "zealot" : "dragoon";
     if (STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas && record.minerals > 250) unit = "zealot";
     const def = STW_UNITS[unit];
     const starving = (reserve.minerals && record.minerals - def.minerals < reserve.minerals) || (reserve.gas && def.gas && record.gas - def.gas < reserve.gas);
@@ -203,9 +236,11 @@ function terranLines(state, side, persona, units, reserve) {
   const marines = count("marine");
   const medics = count("medic");
   const academy = stwHas(state, side, "academy");
+  const versusZerg = state.sides[stwOpponent(side)].race === "zerg";
   stwOwnBuildings(state, side, "barracks").sort((a, b) => a.id - b.id).forEach((barracks, index) => {
     let unit = "marine";
-    if (academy && persona === "bio") unit = medics * 4 < marines ? "medic" : index % 4 === 3 ? "firebat" : "marine";
+    // 저그 상대로는 저글링에 강한 파이어뱃을 더 섞는다.
+    if (academy && persona === "bio") unit = medics * 4 < marines ? "medic" : index % (versusZerg ? 3 : 4) === (versusZerg ? 2 : 3) ? "firebat" : "marine";
     if (persona === "mech" && units.length > 10 && record.minerals < 300) unit = null;
     if (unit && STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas) unit = "marine";
     const starving = unit && reserve.minerals && record.minerals - STW_UNITS[unit].minerals < reserve.minerals && units.length >= 3;
@@ -213,9 +248,39 @@ function terranLines(state, side, persona, units, reserve) {
     if (barracks.line !== desired) stwCommand(state, side, { type: "line", buildingId: barracks.id, unit: desired });
   });
   stwOwnBuildings(state, side, "factory").sort((a, b) => a.id - b.id).forEach((factory, index) => {
-    let unit = persona === "mech" ? (stwHas(state, side, "shop") && (index % 2 === 0 || count("vulture") >= 4) ? "tank" : "vulture") : stwHas(state, side, "shop") ? "tank" : null;
+    let unit = persona === "mech" ? (stwHas(state, side, "shop") && (index % 2 === 0 || count("vulture") >= (versusZerg ? 8 : 4)) ? "tank" : "vulture") : stwHas(state, side, "shop") ? "tank" : null;
     if (unit === "tank" && record.gas < STW_UNITS.tank.gas + reserve.gas) unit = persona === "mech" ? "vulture" : null;
     if (factory.line !== unit) stwCommand(state, side, { type: "line", buildingId: factory.id, unit });
+  });
+}
+
+function zergLines(state, side, persona, units, reserve) {
+  const record = state.sides[side];
+  const count = (type) => units.filter((unit) => unit.type === type).length;
+  const hydras = count("hydra");
+  const army = units.filter((unit) => !STW_UNITS[unit.type].worker).length;
+  const den = stwHas(state, side, "den");
+  const lurkers = record.research.lurkerAspect === "done";
+  const cavern = stwHas(state, side, "cavern");
+  const hatcheries = state.buildings.filter((building) => building.side === side && (building.type === "hatchery" || building.type === "hatch")).sort((a, b) => a.id - b.id);
+  hatcheries.forEach((hatchery, index) => {
+    let unit = "zergling";
+    if (persona === "ling" && den && state.time > 420) unit = index % 3 === 2 ? "hydra" : "zergling";
+    if (persona === "hydra" && den) {
+      // 테란 보병은 소형이라 폭발형 히드라가 약하다: 저글링과 럴커를 더 섞는다.
+      const versusSmall = state.sides[stwOpponent(side)].race === "terran";
+      unit = "hydra";
+      if (lurkers && count("lurker") * (versusSmall ? 3 : 4) < hydras) unit = "lurker";
+      else if (cavern && count("ultra") * 6 < army) unit = "ultra";
+      else if (index % (versusSmall ? 2 : 3) === (versusSmall ? 1 : 2)) unit = "zergling";
+    }
+    // 히드라는 주력이라 초반(6분 전)에는 연구용 가스를 절반만 아끼고 만든다. 그 뒤에는 럴커 테크를 위해 다 아낀다. 럴커는 연구보다 먼저 만든다.
+    const gasFor = (type) => STW_UNITS[type].gas + (type === "lurker" ? 0 : type === "hydra" && state.time < 360 ? reserve.gas / 2 : reserve.gas);
+    if (STW_UNITS[unit].gas && record.gas < gasFor(unit)) unit = unit === "lurker" || unit === "ultra" ? "hydra" : "zergling";
+    if (STW_UNITS[unit].gas && record.gas < gasFor(unit)) unit = "zergling";
+    const starving = reserve.minerals && record.minerals - STW_UNITS[unit].minerals < reserve.minerals && army >= 4;
+    const desired = starving && !hatchery.current ? null : unit;
+    if (hatchery.line !== desired) stwCommand(state, side, { type: "line", buildingId: hatchery.id, unit: desired });
   });
 }
 

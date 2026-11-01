@@ -22,6 +22,8 @@ const INK = 0x2a2016;
 export type StwTextureSet = {
   units: Record<StwSide, Record<StwUnitType, Texture>>;
   tankParts: Record<StwSide, { hull: Texture; hullSieged: Texture; turret: Texture; turretSieged: Texture }>;
+  /** 저그 변형: 레어로 변태한 해처리, 땅속에 숨은 럴커. */
+  zergParts: Record<StwSide, { lair: Texture; lurkerBurrowed: Texture }>;
   buildings: Record<StwSide, Record<StwBuildingType, Texture>>;
   minerals: Texture;
   geyser: Texture;
@@ -538,6 +540,231 @@ function shop(PIXI: PixiModule, side: StwSide) {
   });
 }
 
+/* ───────── 저그 ───────── */
+
+const FLESH = 0x8a5468;
+const FLESH_DARK = 0x4a2436;
+const SHELL = 0x6e5236;
+const SHELL_DARK = 0x3a2918;
+const BONE = 0xe6d6b2;
+const CREEP = 0x5a3550;
+
+/** 등껍질 판 여러 장을 겹쳐 그린다. */
+function plates(g: Graphics, x: number, count: number, step: number, w: number, h: number, color: number, edge: number) {
+  for (let i = 0; i < count; i += 1) g.ellipse(x - i * step, 0, w - i * 0.6, h - i * 0.8).fill(color).stroke({ width: 1.2, color: edge });
+}
+
+function drone(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 20);
+  for (const y of [-5, 5]) g.moveTo(6, y).lineTo(13, y * 1.4).stroke({ width: 2, color: BONE, cap: "round" });
+  g.ellipse(-1, 0, 10, 7.5).fill(SHELL).stroke({ width: 1.6, color: SHELL_DARK });
+  g.ellipse(-3, 0, 6, 4.5).fill(team.deep);
+  g.circle(6, 0, 3.6).fill(FLESH).stroke({ width: 1, color: FLESH_DARK });
+  g.circle(7, -1.5, 1.2).fill(team.glow);
+  g.circle(7, 1.5, 1.2).fill(team.glow);
+  return g;
+}
+
+function zergling(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 18);
+  // 등에 솟은 낫 모양 날개 두 쌍.
+  for (const dir of [-1, 1]) {
+    g.moveTo(-2, dir * 3).quadraticCurveTo(-10, dir * 13, -15, dir * 9).quadraticCurveTo(-8, dir * 7, -2, dir * 3).fill(FLESH).stroke({ width: 1, color: FLESH_DARK });
+  }
+  g.ellipse(-2, 0, 8, 5).fill(SHELL).stroke({ width: 1.4, color: SHELL_DARK });
+  g.ellipse(-4, 0, 4, 2.6).fill(team.deep);
+  g.ellipse(6, 0, 5, 3.6).fill(FLESH).stroke({ width: 1, color: FLESH_DARK });
+  for (const y of [-2.4, 2.4]) g.moveTo(9, y).lineTo(13, y * 1.6).stroke({ width: 1.4, color: BONE, cap: "round" });
+  g.circle(7, -1.6, 1).fill(team.glow);
+  g.circle(7, 1.6, 1).fill(team.glow);
+  return g;
+}
+
+function hydra(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 24);
+  // 꼬리에서 머리로 이어지는 몸통, 머리 뒤 넓은 볏.
+  g.ellipse(-12, 0, 9, 5).fill(FLESH_DARK);
+  plates(g, -2, 3, 5, 9, 7.5, SHELL, SHELL_DARK);
+  g.moveTo(4, -15).quadraticCurveTo(-4, 0, 4, 15).quadraticCurveTo(12, 8, 12, 0).quadraticCurveTo(12, -8, 4, -15).fill(FLESH).stroke({ width: 1.4, color: FLESH_DARK });
+  for (const y of [-10, -5, 5, 10]) g.moveTo(5, y).lineTo(9, y * 0.7).stroke({ width: 1, color: team.deep });
+  g.ellipse(13, 0, 6, 4).fill(SHELL).stroke({ width: 1.2, color: SHELL_DARK });
+  g.circle(16, -1.8, 1.3).fill(team.glow);
+  g.circle(16, 1.8, 1.3).fill(team.glow);
+  for (const y of [-4, 4]) g.moveTo(17, y).lineTo(21, y * 1.3).stroke({ width: 1.4, color: BONE, cap: "round" });
+  return g;
+}
+
+function lurker(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 26);
+  // 등에서 뒤로 뻗은 가시 다발.
+  for (let i = -3; i <= 3; i += 1) {
+    const a = Math.PI + i * 0.32;
+    g.moveTo(-2, i * 2).lineTo(-2 + Math.cos(a) * 22, Math.sin(a) * 22).stroke({ width: 2.4, color: BONE, cap: "round" });
+  }
+  plates(g, 2, 3, 5, 11, 9, SHELL, SHELL_DARK);
+  g.ellipse(-4, 0, 6, 4).fill(team.deep);
+  g.ellipse(11, 0, 6, 5).fill(FLESH).stroke({ width: 1.2, color: FLESH_DARK });
+  g.circle(14, -2, 1.3).fill(team.glow);
+  g.circle(14, 2, 1.3).fill(team.glow);
+  return g;
+}
+
+function lurkerBurrowed(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 26);
+  g.ellipse(0, 0, 16, 13).fill({ color: 0x4a3a28, alpha: 0.9 });
+  for (let i = 0; i < 10; i += 1) {
+    const a = (Math.PI * 2 * i) / 10;
+    g.moveTo(Math.cos(a) * 4, Math.sin(a) * 4).lineTo(Math.cos(a) * 14, Math.sin(a) * 12).stroke({ width: 2, color: BONE, cap: "round" });
+  }
+  g.circle(0, 0, 5).fill(SHELL).stroke({ width: 1, color: SHELL_DARK });
+  g.circle(0, 0, 2).fill(team.glow);
+  return g;
+}
+
+function ultra(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 34);
+  for (const y of [-12, -4, 4, 12]) g.ellipse(-4 + Math.abs(y) * 0.2, y * 1.5, 4, 3).fill(FLESH_DARK);
+  plates(g, 0, 4, 6, 16, 13, SHELL, SHELL_DARK);
+  g.ellipse(-6, 0, 9, 6).fill(team.deep);
+  g.ellipse(14, 0, 8, 7).fill(FLESH).stroke({ width: 1.4, color: FLESH_DARK });
+  // 앞으로 휘어진 거대한 낫 송곳니.
+  for (const dir of [-1, 1]) {
+    g.moveTo(10, dir * 6).quadraticCurveTo(26, dir * 18, 32, dir * 4).quadraticCurveTo(24, dir * 10, 14, dir * 3).fill(BONE).stroke({ width: 1, color: 0x9c8a66 });
+  }
+  g.circle(18, -2.4, 1.6).fill(team.glow);
+  g.circle(18, 2.4, 1.6).fill(team.glow);
+  return g;
+}
+
+/** 저그 건물 바탕: 크립 위에 솟은 살덩이. */
+function zergMound(PIXI: PixiModule, r: number) {
+  const g = new PIXI.Graphics();
+  g.ellipse(0, 2, r * 1.1, r).fill({ color: CREEP, alpha: 0.85 });
+  for (let i = 0; i < 7; i += 1) {
+    const a = (Math.PI * 2 * i) / 7 + 0.3;
+    g.ellipse(Math.cos(a) * r * 0.85, Math.sin(a) * r * 0.75 + 2, r * 0.32, r * 0.22).fill({ color: FLESH_DARK, alpha: 0.9 });
+  }
+  return g;
+}
+
+function hatchery(PIXI: PixiModule, side: StwSide, lair = false) {
+  const team = STW_TEAM[side];
+  const g = zergMound(PIXI, 60);
+  g.ellipse(0, 0, 46, 40).fill(SHELL).stroke({ width: 3, color: SHELL_DARK });
+  for (let i = 0; i < (lair ? 12 : 8); i += 1) {
+    const a = (Math.PI * 2 * i) / (lair ? 12 : 8);
+    const r = lair ? 50 : 44;
+    g.moveTo(Math.cos(a) * 30, Math.sin(a) * 26).lineTo(Math.cos(a) * r, Math.sin(a) * (r - 6)).stroke({ width: lair ? 5 : 6, color: BONE, cap: "round" });
+  }
+  g.ellipse(0, 0, 30, 26).fill(lair ? 0x6a3c66 : FLESH).stroke({ width: 2, color: FLESH_DARK });
+  g.ellipse(0, 0, 16, 13).fill(team.deep);
+  g.ellipse(0, 0, 8, 6).fill(team.glow);
+  for (const [x, y] of [[-18, -8], [16, 10], [6, -18]]) g.circle(x, y, 3).fill(0xc9a0b8);
+  return g;
+}
+
+function overlord(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 30);
+  for (let i = 0; i < 6; i += 1) {
+    const x = -14 + i * 5;
+    g.moveTo(x, 12).quadraticCurveTo(x + 3, 22, x - 2, 28).stroke({ width: 2, color: FLESH, cap: "round" });
+  }
+  g.ellipse(0, 0, 24, 18).fill(SHELL).stroke({ width: 2.4, color: SHELL_DARK });
+  for (const x of [-12, 0, 12]) g.ellipse(x, -4, 7, 10).fill({ color: SHELL_DARK, alpha: 0.4 });
+  g.ellipse(0, 4, 16, 9).fill(FLESH).stroke({ width: 1.4, color: FLESH_DARK });
+  g.circle(-6, 4, 2.6).fill(team.glow);
+  g.circle(6, 4, 2.6).fill(team.glow);
+  return g;
+}
+
+function extractor(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = zergMound(PIXI, 32);
+  g.ellipse(0, 0, 26, 22).fill(SHELL).stroke({ width: 2.4, color: SHELL_DARK });
+  g.ellipse(0, -2, 15, 12).fill(FLESH).stroke({ width: 1.6, color: FLESH_DARK });
+  g.ellipse(0, -2, 7, 5).fill(0x7fe08f);
+  g.circle(14, 10, 3).fill(team.glow);
+  return g;
+}
+
+function pool(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = zergMound(PIXI, 38);
+  g.ellipse(0, 0, 34, 28).fill(SHELL).stroke({ width: 2.4, color: SHELL_DARK });
+  g.ellipse(0, 0, 24, 18).fill(0x6fbf4a).stroke({ width: 2, color: FLESH_DARK });
+  for (const [x, y, r] of [[-8, -4, 5], [7, 5, 4], [10, -6, 3]]) g.circle(x, y, r).fill({ color: 0xc8f08a, alpha: 0.8 });
+  g.circle(-20, 14, 3).fill(team.glow);
+  return g;
+}
+
+function evo(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = zergMound(PIXI, 36);
+  g.ellipse(0, 0, 30, 26).fill(SHELL).stroke({ width: 2.4, color: SHELL_DARK });
+  for (let i = 0; i < 5; i += 1) g.ellipse(0, -10 + i * 5, 22 - Math.abs(i - 2) * 4, 3).fill({ color: SHELL_DARK, alpha: 0.6 });
+  g.circle(0, 0, 9).fill(FLESH).stroke({ width: 1.4, color: FLESH_DARK });
+  g.circle(0, 0, 4).fill(team.glow);
+  return g;
+}
+
+function sunken(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = zergMound(PIXI, 26);
+  g.circle(0, 0, 20).fill(SHELL).stroke({ width: 2.4, color: SHELL_DARK });
+  for (let i = 0; i < 6; i += 1) {
+    const a = (Math.PI * 2 * i) / 6;
+    g.moveTo(Math.cos(a) * 8, Math.sin(a) * 8).lineTo(Math.cos(a) * 20, Math.sin(a) * 20).stroke({ width: 3, color: BONE, cap: "round" });
+  }
+  g.circle(0, 0, 9).fill(FLESH).stroke({ width: 1.4, color: FLESH_DARK });
+  g.circle(0, 0, 4).fill(team.glow);
+  return g;
+}
+
+function spore(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = zergMound(PIXI, 24);
+  g.circle(0, 0, 18).fill(SHELL).stroke({ width: 2.4, color: SHELL_DARK });
+  g.circle(0, -2, 12).fill(0xa86c8a).stroke({ width: 1.6, color: FLESH_DARK });
+  for (const [x, y] of [[-5, -5], [5, -4], [0, 3]]) g.circle(x, y, 3).fill(0xe8c0d8);
+  g.circle(0, -2, 3).fill(team.glow);
+  return g;
+}
+
+function den(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = zergMound(PIXI, 34);
+  g.ellipse(0, 0, 30, 24).fill(SHELL).stroke({ width: 2.4, color: SHELL_DARK });
+  for (let i = -2; i <= 2; i += 1) g.moveTo(i * 9, -4).lineTo(i * 11, -26).stroke({ width: 3.4, color: BONE, cap: "round" });
+  g.ellipse(0, 6, 16, 10).fill(FLESH).stroke({ width: 1.4, color: FLESH_DARK });
+  g.ellipse(0, 6, 6, 4).fill(team.glow);
+  return g;
+}
+
+function cavern(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = zergMound(PIXI, 38);
+  g.ellipse(0, 0, 34, 28).fill(SHELL).stroke({ width: 2.4, color: SHELL_DARK });
+  for (const dir of [-1, 1]) g.moveTo(dir * 8, -6).quadraticCurveTo(dir * 30, -18, dir * 22, 8).stroke({ width: 6, color: BONE, cap: "round" });
+  g.ellipse(0, 4, 14, 11).fill(0x2a1a22).stroke({ width: 2, color: FLESH_DARK });
+  g.circle(-4, 4, 2).fill(team.glow);
+  g.circle(4, 4, 2).fill(team.glow);
+  return g;
+}
+
 function mineralField(PIXI: PixiModule) {
   const g = new PIXI.Graphics();
   const rocks: [number, number, number][] = [[-38, 4, 1], [-24, -2, 1.2], [-10, 4, 0.95], [4, -3, 1.25], [18, 3, 1], [32, -1, 1.1], [44, 5, 0.85]];
@@ -720,6 +947,7 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
   const buildings = {} as StwTextureSet["buildings"];
   const flags = {} as StwTextureSet["flag"];
   const tankParts = {} as StwTextureSet["tankParts"];
+  const zergParts = {} as StwTextureSet["zergParts"];
   for (const side of sides) {
     units[side] = {
       zealot: bake(zealot(PIXI, side)),
@@ -736,7 +964,13 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       medic: bake(medic(PIXI, side)),
       vulture: bake(vulture(PIXI, side)),
       tank: bake(tankHull(PIXI, side, false)),
+      drone: bake(drone(PIXI, side)),
+      zergling: bake(zergling(PIXI, side)),
+      hydra: bake(hydra(PIXI, side)),
+      lurker: bake(lurker(PIXI, side)),
+      ultra: bake(ultra(PIXI, side)),
     };
+    zergParts[side] = { lair: bake(hatchery(PIXI, side, true)), lurkerBurrowed: bake(lurkerBurrowed(PIXI, side)) };
     tankParts[side] = {
       hull: units[side].tank,
       hullSieged: bake(tankHull(PIXI, side, true)),
@@ -766,12 +1000,23 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       comsat: bake(comsat(PIXI, side)),
       factory: bake(factoryT(PIXI, side)),
       shop: bake(shop(PIXI, side)),
+      hatchery: bake(hatchery(PIXI, side)),
+      hatch: bake(hatchery(PIXI, side)),
+      overlord: bake(overlord(PIXI, side)),
+      extractor: bake(extractor(PIXI, side)),
+      pool: bake(pool(PIXI, side)),
+      evo: bake(evo(PIXI, side)),
+      sunken: bake(sunken(PIXI, side)),
+      spore: bake(spore(PIXI, side)),
+      den: bake(den(PIXI, side)),
+      cavern: bake(cavern(PIXI, side)),
     };
     flags[side] = bake(flag(PIXI, side));
   }
   return {
     units,
     tankParts,
+    zergParts,
     buildings,
     flag: flags,
     minerals: bake(mineralField(PIXI)),

@@ -32,6 +32,7 @@ import {
   stwResearchCheck,
   stwScoutCheck,
   stwSupply,
+  stwUnitLock,
   stwUnitUnlocked,
   stwWorkerSplit,
   intelSummary,
@@ -54,16 +55,16 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard"];
 const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
-const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", barracks: "배럭", factory: "팩토리" };
-const RACE_IDS: StwRaceId[] = ["protoss", "terran"];
+const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", barracks: "배럭", factory: "팩토리", hatchery: "해처리", hatch: "해처리" };
+const RACE_IDS: StwRaceId[] = ["protoss", "terran", "zerg"];
 type EnemyRace = StwRaceId | "random";
-const ENEMY_RACE_IDS: EnemyRace[] = ["protoss", "terran", "random"];
+const ENEMY_RACE_IDS: EnemyRace[] = ["protoss", "terran", "zerg", "random"];
 const RACE_KEY = "paperoid-starswar-race";
 
 type RaceInfo = {
   id: StwRaceId;
   name: string;
-  worker: "probe" | "scv";
+  worker: "probe" | "scv" | "drone";
   base: StwBuildingType;
   supply: StwBuildingType;
   buildVerb: string;
@@ -98,6 +99,16 @@ const RACE_MENU: Record<StwRaceId, { hero: string; lead: string; howto: [string,
       ["테크", "배럭을 늘리고, 아카데미로 파이어뱃·메딕을, 머신 샵으로 시즈 탱크를 해금하세요."],
       ["생산 라인", "배럭과 팩토리마다 생산할 유닛을 정하면 자원이 있는 한 계속 생산됩니다."],
       ["웨이브", "스팀팩과 시즈 모드는 알아서 씁니다. 적 본진 기지를 부수면 승리합니다."],
+    ],
+  },
+  zerg: {
+    hero: "해처리가 무리를 깨웁니다.",
+    lead: "드론이 광물을 캐는 동안 무엇을 변태시키고, 무엇을 연구하고, 언제 출격할지만 고르세요. 해처리마다 저글링, 히드라리스크, 럴커, 울트라리스크가 꾸준히 태어나 몰려갑니다.",
+    howto: [
+      ["경제", "드론을 늘리고 오버로드로 인구를 확보하세요. 익스트랙터를 지으면 가스가 들어옵니다."],
+      ["테크", "스포닝 풀로 저글링, 히드라리스크 덴으로 히드라를 열고, 레어 변태 뒤 럴커와 울트라리스크를 해금하세요."],
+      ["생산 라인", "해처리마다 변태시킬 유닛을 정하세요. 해처리를 더 지으면 생산 라인이 늘어납니다."],
+      ["웨이브", "럴커는 적이 오면 알아서 땅속에 숨습니다. 적 본진 기지를 부수면 승리합니다."],
     ],
   },
 };
@@ -644,7 +655,8 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
   const mainName = PRODUCER_NAMES[race.mainProducer];
   const mainUnits = STW_PRODUCER_UNITS[race.mainProducer] as StwArmyType[];
   const producers = game.buildings.filter((building) => building.side === "player" && (STW_PRODUCERS as string[]).includes(building.type));
-  const gateways = producers.filter((building) => building.type === race.mainProducer);
+  // 저그 해처리처럼 같은 생산 목록을 쓰는 건물은 한 묶음으로 본다.
+  const gateways = producers.filter((building) => STW_PRODUCER_UNITS[building.type as StwProducerType] === STW_PRODUCER_UNITS[race.mainProducer]);
   const research = game.sides.player.research;
   const researchIds = RESEARCH_IDS.filter((id) => (STW_RESEARCH[id] as { race?: string }).race === race.id);
   const templars = game.units.filter((unit) => unit.side === "player" && unit.type === "templar").length;
@@ -662,8 +674,8 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
         {!producers.length ? <p className="stw-empty">{`${withKoreanObject(race.producers.map((type) => STW_BUILDINGS[type].name).join(" 또는 "))} 지으면 여기서 ${verb}할 유닛을 정할 수 있습니다.`}</p> : null}
         {producers.map((building) => {
           const type = building.type as StwProducerType;
-          counters[type] = (counters[type] ?? 0) + 1;
-          const label = `${PRODUCER_NAMES[type]} ${counters[type]}`;
+          counters[PRODUCER_NAMES[type]] = (counters[PRODUCER_NAMES[type]] ?? 0) + 1;
+          const label = `${PRODUCER_NAMES[type]} ${counters[PRODUCER_NAMES[type]]}`;
           const progress = building.current ? 1 - building.current.remaining / building.current.total : 0;
           const status = !stwDone(building) ? `${race.buildVerb} 중 ${Math.round(building.progress * 100)}%` : building.current ? `${STW_UNITS[building.current.unit].name} ${verb} ${Math.round(progress * 100)}%` : building.blocked ?? "대기";
           return (
@@ -675,11 +687,11 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
               <span className="stw-progress"><span style={{ width: `${Math.round(progress * 100)}%` }} /></span>
               <div className="stw-line-choices">
                 {(STW_PRODUCER_UNITS[type] as StwArmyType[]).map((unit) => {
-                  const unlocked = stwUnitUnlocked(game, "player", unit);
-                  const def = STW_UNITS[unit];
+                  const lock = stwUnitLock(game, "player", unit) as string | null;
+                  const def = STW_UNITS[unit] as { name: string; minerals: number; gas: number; pair?: boolean };
                   return (
-                    <button key={unit} type="button" disabled={!unlocked} className={building.line === unit ? "active" : ""} aria-pressed={building.line === unit} onClick={() => issue({ type: "line", buildingId: building.id, unit })}>
-                      {def.name}<small>{unlocked ? cost(def.minerals, def.gas) : `${STW_BUILDINGS[(def as { requires?: StwBuildingType }).requires ?? "core"].name} 필요`}</small>
+                    <button key={unit} type="button" disabled={Boolean(lock)} className={building.line === unit ? "active" : ""} aria-pressed={building.line === unit} onClick={() => issue({ type: "line", buildingId: building.id, unit })}>
+                      {def.name}<small>{lock ?? `${cost(def.minerals, def.gas)}${def.pair ? " · 2기" : ""}`}</small>
                     </button>
                   );
                 })}
