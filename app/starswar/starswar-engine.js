@@ -100,6 +100,7 @@ function createSide(id, persona, race) {
     intel: null,
     seen: {},
     persona,
+    escort: false,
     stats: { minerals: 0, gas: 0, produced: 0, lost: 0, kills: 0, buildingsLost: 0, buildingsDestroyed: 0, storms: 0 },
     ai: null,
   };
@@ -215,7 +216,12 @@ export function stwSupply(state, side) {
     for (const item of building.queue) used += STW_UNITS[item.unit].supply;
     if (building.current) used += batchSupply(STW_UNITS[building.current.unit]);
   }
-  for (const unit of state.units) if (unit.side === side) used += STW_UNITS[unit.type].supply;
+  for (const unit of state.units) {
+    if (unit.side !== side) continue;
+    used += STW_UNITS[unit.type].supply;
+    // 동행 중인 오버로드는 건물일 때처럼 인구를 제공한다.
+    cap += STW_UNITS[unit.type].supplyProvided ?? 0;
+  }
   // 저글링 반 칸은 올림해서 보여 준다.
   return { used: Math.ceil(used - 1e-9), cap: Math.min(STW_ECONOMY.supplyLimit, cap) };
 }
@@ -523,6 +529,16 @@ export function stwCommand(state, side, command) {
       }
       return { ok: true, recalled: army.attack.length };
     }
+    case "escort": {
+      // 오버로드 동행: 완성된 오버로드 1기가 떠올라 병력을 따라다닌다(저그 전용).
+      if (record.race !== "zerg") return fail("저그만 쓸 수 있습니다");
+      const on = Boolean(command.on);
+      if (on && !state.units.some((unit) => unit.side === side && unit.type === "overlord") && !stwOwnBuildings(state, side, "overlord", { doneOnly: true }).length) return fail("완성된 오버로드가 없습니다");
+      record.escort = on;
+      if (on) escortStep(state, side);
+      if (side === "player") pushLog(state, side, on ? "오버로드 1기가 병력과 동행합니다. 잃으면 인구 상한이 8 줄어듭니다." : "동행 오버로드가 기지로 돌아갑니다.", "order");
+      return { ok: true };
+    }
     case "autoWave": {
       record.autoWave = Math.max(0, Math.round(command.size ?? 0));
       return { ok: true };
@@ -658,7 +674,10 @@ export function stepStarswar(state, aiThink = null) {
   const dt = STW_TICK;
   state.time = Math.round((state.time + dt) * 1000) / 1000;
   if (aiThink) for (const side of state.aiSides) aiThink(state, side);
-  for (const side of STW_SIDES) stepEconomy(state, side, dt);
+  for (const side of STW_SIDES) {
+    stepEconomy(state, side, dt);
+    if (state.sides[side].escort) escortStep(state, side);
+  }
   state.pendingHits = [];
   stepBuildings(state, dt);
   stepUnits(state, dt);
@@ -768,6 +787,17 @@ function stepProducer(state, building, record, dt) {
   record.gas -= def.gas;
   building.current = { unit: building.line, remaining: def.time, total: def.time };
   building.blocked = null;
+}
+
+/** 동행이 켜져 있는데 떠 있는 오버로드가 없으면 완성된 오버로드 건물 하나를 유닛으로 띄운다. */
+function escortStep(state, side) {
+  if (state.units.some((unit) => unit.side === side && unit.type === "overlord")) return;
+  const building = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).sort((a, b) => b.id - a.id)[0];
+  if (!building) return;
+  state.buildings = state.buildings.filter((item) => item !== building);
+  const unit = spawnUnit(state, side, "overlord", building.x, building.y);
+  unit.hp = Math.min(unit.maxHp, building.hp);
+  unit.group = "rally";
 }
 
 /* ───────── 전투 ───────── */
@@ -962,6 +992,7 @@ function unitSpeed(state, unit) {
   if (unit.type === "vulture" && stwResearchDone(state, unit.side, "ion")) return def.speed * 1.4;
   if (unit.type === "zergling" && stwResearchDone(state, unit.side, "metabolic")) return def.speed * 1.5;
   if (unit.type === "hydra" && stwResearchDone(state, unit.side, "augments")) return def.speed * 1.35;
+  if (unit.type === "overlord" && stwResearchDone(state, unit.side, "pneumatized")) return def.speed * 1.5;
   if (stimmed(state, unit)) return def.speed * 1.5;
   return def.speed;
 }
@@ -979,7 +1010,7 @@ function moveToward(unit, x, y, speed, dt) {
 }
 
 const ROLE_DEPTH = { melee: 2, ranged: 0, siege: -1.8, caster: -3.8, support: -5.5 };
-const ROLE_ORDER = { ultra: -1, zealot: 0, zergling: 0.5, dark: 1, archon: 2, firebat: 3, dragoon: 4, hydra: 4.5, marine: 5, vulture: 6, reaver: 7, lurker: 7.5, tank: 8, templar: 9, medic: 10, observer: 11 };
+const ROLE_ORDER = { overlord: 12, ultra: -1, zealot: 0, zergling: 0.5, dark: 1, archon: 2, firebat: 3, dragoon: 4, hydra: 4.5, marine: 5, vulture: 6, reaver: 7, lurker: 7.5, tank: 8, templar: 9, medic: 10, observer: 11 };
 const ATTACK_EFFECT = { zealot: "slash", dark: "slash", dragoon: "plasma", archon: "shock", reaver: "scarab", marine: "bullet", firebat: "flame", vulture: "grenade", tank: "tankshot", zergling: "bite", ultra: "bite", hydra: "spine" };
 
 /** 집결지에서의 자리: 근접은 앞, 원거리는 가운데, 템플러는 뒤. 한 줄 12자리. */
@@ -1013,7 +1044,8 @@ function stepUnits(state, dt) {
     const army = stwArmy(state, side);
     const rallyY = stwRallyY(side, state.sides[side].rally);
     const attackSlots = rallySlots(state, side, army.attack, 0);
-    const speeds = army.attack.filter((unit) => !isFlying(unit)).map((unit) => unitSpeed(state, unit));
+    // 공격 병력은 가장 느린 지상 유닛에 맞춰 움직인다. 동행 오버로드도 같이 다니므로 속도에 포함한다.
+    const speeds = army.attack.filter((unit) => !isFlying(unit) || unit.type === "overlord").map((unit) => unitSpeed(state, unit));
     plans[side] = {
       rallySlots: rallySlots(state, side, army.rally, rallyY),
       attackSlots,
@@ -1040,7 +1072,7 @@ function stepUnits(state, dt) {
       templarStep(state, unit, plan, dt);
       continue;
     }
-    if (unit.type === "observer") {
+    if (unit.type === "observer" || unit.type === "overlord") {
       observerStep(state, unit, plan, dt);
       continue;
     }
@@ -1343,14 +1375,18 @@ function observerStep(state, unit, plan, dt) {
   const forward = stwForward(unit.side);
   const escort = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && !isPassive(ally));
   let goal;
-  if (escort.length) {
+  if (unit.type === "overlord" && !state.sides[unit.side].escort) {
+    // 동행을 끄면 본진 위로 돌아가 기지를 지킨다.
+    const home = stwNexus(state, unit.side, "main") ?? stwNexus(state, unit.side, "natural");
+    goal = home ? { x: home.x + 4, y: home.y - stwForward(unit.side) * 2 } : stwPoint(unit.side, { x: 20, y: 90 });
+  } else if (escort.length) {
     const cx = escort.reduce((sum, ally) => sum + ally.x, 0) / escort.length;
     const lead = escort.reduce((best, ally) => (forward < 0 ? Math.min(best, ally.y) : Math.max(best, ally.y)), escort[0].y);
     goal = { x: cx, y: lead - forward * 2 };
   } else {
     goal = plan.rallySlots.get(unit.id) ?? { x: 20, y: stwRallyY(unit.side, state.sides[unit.side].rally) };
   }
-  moveToward(unit, goal.x, goal.y, STW_UNITS.observer.speed, dt);
+  moveToward(unit, goal.x, goal.y, unitSpeed(state, unit), dt);
 }
 
 function templarStep(state, unit, plan, dt) {
@@ -1500,8 +1536,9 @@ function cleanup(state) {
     if (unit.returned) continue;
     state.sides[unit.side].stats.lost += 1;
     state.sides[stwOpponent(unit.side)].stats.kills += 1;
-    state.effects.push({ kind: "death", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.7, max: 0.7, radius: ["dragoon", "reaver", "archon", "tank", "vulture", "lurker", "ultra"].includes(unit.type) ? 3.6 : unit.radius * 2 });
+    state.effects.push({ kind: "death", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.7, max: 0.7, radius: ["dragoon", "reaver", "archon", "tank", "vulture", "lurker", "ultra", "overlord"].includes(unit.type) ? 3.6 : unit.radius * 2 });
     if (isWorker(unit) && unit.group === "scout" && unit.side === "player") pushLog(state, "player", `정찰 ${withKoreanObject(STW_UNITS[unit.type].name)} 잃었습니다.`, "warn");
+    if (unit.type === "overlord" && unit.side === "player") pushLog(state, "player", "동행 오버로드를 잃었습니다. 인구 상한이 8 줄었습니다.", "danger");
   }
   if (dead.length) state.units = state.units.filter((unit) => unit.hp > 0);
   const fallen = state.buildings.filter((building) => building.hp <= 0);

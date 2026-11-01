@@ -10,12 +10,12 @@ type PixiModule = typeof import("pixi.js");
 const UNIT_SIZE: Record<StwUnitType, number> = {
   zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9, dark: 3.3, archon: 4.8, observer: 2.4, reaver: 4.6,
   scv: 1.9, marine: 2.6, firebat: 2.9, medic: 2.5, vulture: 3.6, tank: 4.4,
-  drone: 1.9, zergling: 2.1, hydra: 3, lurker: 3.6, ultra: 5,
+  drone: 1.9, zergling: 2.1, hydra: 3, lurker: 3.6, ultra: 5, overlord: 3.6,
 };
 /** 다리 대신 바퀴·궤도·부양으로 움직여 걸음 흔들림이 없는 유닛. */
 type Flags = { refinery?: boolean; worker?: boolean; flying?: boolean };
 const flags = (def: object) => def as Flags;
-const NO_BOB = new Set<StwUnitType>(["dragoon", "vulture", "tank"]);
+const NO_BOB = new Set<StwUnitType>(["dragoon", "vulture", "tank", "overlord"]);
 /** 포탑 텍스처(여백 40)와 차체 텍스처(여백 34)의 크기 비. */
 const TURRET_RATIO = 40 / 34;
 const CLOAKED = new Set<StwUnitType>(["dark", "observer"]);
@@ -525,6 +525,7 @@ export class StwPixiRenderer {
         view.glow.alpha = 0.55 + Math.sin(state.time * 5 + unit.id) * 0.15;
         view.body.rotation = state.time * 0.8 + unit.id;
       }
+      if (unit.type === "overlord") view.body.position.set(Math.sin(state.time * 0.7 + unit.id) * 0.3, Math.cos(state.time * 0.9 + unit.id) * 0.25 - 0.5);
       if (unit.type === "lurker") {
         // 럴커: 땅속에 숨으면 가시 무덤 모양으로 바뀌고 반투명해진다.
         const burrowed = Boolean(unit.burrowed);
@@ -550,7 +551,8 @@ export class StwPixiRenderer {
     const root = new PIXI.Container();
     const shadow = this.sprite(this.tex.shadow, UNIT_SIZE[unit.type] * 1.05);
     // 옵저버는 떠 있으므로 그림자를 멀리 떨어뜨린다.
-    shadow.position.set(unit.type === "observer" ? 1.2 : 0.25, unit.type === "observer" ? 1.8 : 0.4);
+    const flying = unit.type === "observer" || unit.type === "overlord";
+    shadow.position.set(flying ? 1.2 : 0.25, flying ? 1.8 : 0.4);
     const glow = this.sprite(this.tex.soft, UNIT_SIZE[unit.type] * 1.4);
     glow.tint = STW_TEAM[unit.side].glow;
     glow.blendMode = "add";

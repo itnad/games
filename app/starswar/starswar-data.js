@@ -149,6 +149,11 @@ export const STW_UNITS = {
     burrow: { setup: 1, width: 1 },
     note: "적이 오면 자동으로 땅속에 숨어 은폐 · 일직선 가시 범위 공격",
   },
+  overlord: {
+    id: "overlord", race: "zerg", name: "오버로드", short: "O", minerals: 100, gas: 0, time: 0, supply: 0, supplyProvided: 8, from: "escort",
+    hp: 200, shields: 0, armor: 0, size: "large", speed: 2.4, radius: 1.6, sight: 9, role: "support", detector: 8, flying: true,
+    note: "병력과 동행하는 떠다니는 탐지기 · 잃으면 인구 상한 −8",
+  },
   ultra: {
     id: "ultra", race: "zerg", name: "울트라리스크", short: "U", minerals: 200, gas: 200, time: 30, supply: 4, from: "hatchery", requires: "cavern",
     hp: 400, shields: 0, armor: 1, size: "large", speed: 3, radius: 1.9, sight: 9,
@@ -159,7 +164,7 @@ export const STW_UNITS = {
 };
 
 /** 병력 유닛(일꾼 제외). 모든 종족. */
-export const STW_ARMY_UNITS = ["zealot", "dragoon", "templar", "dark", "archon", "observer", "reaver", "marine", "firebat", "medic", "vulture", "tank", "zergling", "hydra", "lurker", "ultra"];
+export const STW_ARMY_UNITS = ["zealot", "dragoon", "templar", "dark", "archon", "observer", "reaver", "marine", "firebat", "medic", "vulture", "tank", "zergling", "hydra", "lurker", "ultra", "overlord"];
 /** 저그 해처리는 본진·앞마당·추가 해처리가 같은 라바 목록을 쓴다. */
 const LARVA = ["zergling", "hydra", "lurker", "ultra"];
 /** 생산 건물별로 고를 수 있는 유닛. */
@@ -210,7 +215,7 @@ export const STW_BUILDINGS = {
   // ───── 저그: 드론이 건물로 변태한다. 건물도 체력이 저절로 회복된다 ─────
   hatchery: { id: "hatchery", race: "zerg", name: "해처리", minerals: 300, gas: 0, time: 60, hp: 1250, shields: 0, armor: 1, size: 8, supply: 10, sight: 11, base: true },
   hatch: { id: "hatch", race: "zerg", name: "해처리", minerals: 225, gas: 0, time: 40, hp: 1250, shields: 0, armor: 1, size: 6, supply: 2, sight: 9, note: "본진에 해처리 추가 · 생산 라인 +1" },
-  overlord: { id: "overlord", race: "zerg", name: "오버로드", minerals: 100, gas: 0, time: 18, hp: 200, shields: 0, armor: 0, size: 3.6, supply: 8, sight: 9, detector: 5, note: "인구 +8 · 주변 은폐 탐지" },
+  overlord: { id: "overlord", race: "zerg", name: "오버로드", minerals: 100, gas: 0, time: 18, hp: 200, shields: 0, armor: 0, size: 3.6, supply: 8, sight: 9, detector: 5, note: "인구 +8 · 주변 은폐 탐지 · 병력 탭에서 동행시킬 수 있음" },
   extractor: { id: "extractor", race: "zerg", name: "익스트랙터", minerals: 50, gas: 0, time: 20, hp: 750, shields: 0, armor: 1, size: 4.2, sight: 6, refinery: true, note: "가스 채취 · 드론 3기 배치" },
   pool: { unique: true, id: "pool", race: "zerg", name: "스포닝 풀", minerals: 200, gas: 0, time: 40, hp: 750, shields: 0, armor: 1, size: 4.8, sight: 8, note: "저글링·성큰 콜로니 해금 · 대사 촉진 연구" },
   evo: { unique: true, id: "evo", race: "zerg", name: "에볼루션 챔버", minerals: 75, gas: 0, time: 25, hp: 750, shields: 0, armor: 1, size: 4.4, sight: 8, note: "근접·원거리 공격과 갑피 업그레이드 · 스포어 콜로니 해금" },
@@ -252,6 +257,7 @@ export const STW_RESEARCH = {
   spines: { id: "spines", race: "zerg", name: "홈 갈퀴", at: "den", minerals: 150, gas: 150, time: 40, note: "히드라리스크 사거리 4.5 → 6" },
   augments: { id: "augments", race: "zerg", name: "근육 강화", at: "den", minerals: 150, gas: 150, time: 40, requires: ["lair"], note: "히드라리스크 이동 속도 +35%" },
   lurkerAspect: { id: "lurkerAspect", race: "zerg", name: "럴커 변태", at: "den", minerals: 200, gas: 200, time: 50, requires: ["lair"], note: "럴커 해금" },
+  pneumatized: { id: "pneumatized", race: "zerg", name: "기낭 갑피", at: "hatchery", minerals: 150, gas: 150, time: 40, requires: ["lair"], note: "동행 오버로드 이동 속도 +50%" },
   chitin: { id: "chitin", race: "zerg", name: "키틴질 강화", at: "cavern", minerals: 150, gas: 150, time: 45, note: "울트라리스크 방어력 +2" },
   zMelee1: { id: "zMelee1", race: "zerg", name: "근접 공격 1단계", at: "evo", minerals: 100, gas: 100, time: 40, note: "저글링 +1, 울트라리스크 +3" },
   zMissile1: { id: "zMissile1", race: "zerg", name: "원거리 공격 1단계", at: "evo", minerals: 100, gas: 100, time: 40, note: "히드라리스크 +1, 럴커 +2" },

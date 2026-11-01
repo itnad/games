@@ -732,8 +732,11 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
   const side = game.sides.player;
   const army = stwArmy(game, "player");
   const scout = stwScoutCheck(game, "player") as StwCheck;
-  const workerName = STW_UNITS[raceOf(game).worker].name;
+  const race = raceOf(game);
+  const workerName = STW_UNITS[race.worker].name;
   const count = (list: { type: string }[], type: StwArmyType) => list.filter((unit) => unit.type === type).length;
+  const overlordsReady = stwOwnBuildings(game, "player", "overlord").filter((item) => stwDone(item)).length;
+  const escorting = game.units.some((unit) => unit.side === "player" && unit.type === "overlord");
   const intel = side.intel;
   return (
     <div className="stw-tab">
@@ -764,6 +767,22 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
           <button key={size} type="button" className={side.autoWave === size ? "active" : ""} aria-pressed={side.autoWave === size} onClick={() => issue({ type: "autoWave", size }, size ? `대기 병력이 ${size}기 모이면 자동으로 출격합니다.` : "자동 출격을 껐습니다.")}>{size ? `${size}기` : "끔"}</button>
         ))}
       </div>
+      {race.id === "zerg" ? (
+        <>
+          <h3 className="stw-section">오버로드 동행</h3>
+          <p className="stw-hint">오버로드 1기가 떠올라 병력을 따라다니며 은폐 유닛을 탐지합니다. 인구 +8은 유지되지만 잃으면 상한이 8 줄어듭니다.</p>
+          <div className="stw-scout">
+            <Card
+              title={side.escort ? "동행 중" : "오버로드 동행"}
+              sub={`완성된 오버로드 ${overlordsReady}${escorting ? " · 동행 1" : ""}`}
+              note={side.escort ? "누르면 기지로 돌려보냅니다" : overlordsReady || escorting ? "누르면 오버로드 1기가 출발합니다" : "완성된 오버로드가 없습니다"}
+              tone={side.escort ? "done" : undefined}
+              disabled={!side.escort && !overlordsReady && !escorting}
+              onClick={() => issue({ type: "escort", on: !side.escort })}
+            />
+          </div>
+        </>
+      ) : null}
       <h3 className="stw-section">정찰</h3>
       <div className="stw-scout">
         <Card title={`${workerName} 정찰`} sub={`${workerName} 1기 잠시 이탈`} note={scout.ok ? "적 본진까지 다녀오며 건물과 병력을 확인" : scout.reason} disabled={!scout.ok} onClick={() => issue({ type: "scout" })} />

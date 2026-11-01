@@ -741,3 +741,64 @@ test("starswar AI attacks with everything once its minerals run dry", () => {
   run(state, 3, stwAiThink);
   assert.equal(stwArmy(state, "enemy").attack.length, 3, "출격 규모와 상관없이 총공격");
 });
+
+test("starswar zerg overlords can escort the army as mobile detectors at the cost of supply risk", () => {
+  const state = zerg("protoss");
+  state.sides.player.minerals = 9000;
+  assert.match(stwCommand(state, "player", { type: "escort", on: true }).reason, /완성된 오버로드가 없습니다/);
+  stwCommand(state, "player", { type: "build", building: "overlord" });
+  stwCommand(state, "player", { type: "build", building: "overlord" });
+  finishAll(state);
+  const capBefore = stwSupply(state, "player").cap;
+  assert.equal(capBefore, 26);
+  assert.equal(stwCommand(state, "player", { type: "escort", on: true }).ok, true);
+  const overlord = state.units.find((unit) => unit.side === "player" && unit.type === "overlord");
+  assert.ok(overlord, "오버로드 1기가 유닛으로 떠오름");
+  assert.equal(stwOwnBuildings(state, "player", "overlord").length, 1);
+  assert.equal(stwSupply(state, "player").cap, capBefore, "동행 중에도 인구 상한 유지");
+
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(state, "player", "hydra", 14 + index * 4, 77);
+  run(state, 12);
+  assert.ok(Math.abs(overlord.y - stwRallyY("player", "main")) < 8, `동행 오버로드는 집결지에서 기다림 (${overlord.y.toFixed(1)})`);
+  stwCommand(state, "player", { type: "attack" });
+  run(state, 12);
+  const front = Math.min(...state.units.filter((unit) => unit.side === "player" && unit.type === "hydra").map((unit) => unit.y));
+  assert.ok(Math.abs(overlord.y - (front + 2)) < 5, `오버로드가 선두를 따라감 (${overlord.y.toFixed(1)} / ${front.toFixed(1)})`);
+  const dark = stwSpawnUnitAt(state, "enemy", "dark", overlord.x, overlord.y - 3);
+  assert.equal(stwDetected(state, dark, "player"), true, "동행 오버로드가 다크템플러를 탐지");
+
+  const other = createStarswarGame({ seed: 5, aiSides: [], races: { player: "zerg", enemy: "protoss" } });
+  other.sides.player.research.pneumatized = "done";
+  const fast = stwSpawnUnitAt(other, "player", "overlord", 20, 80);
+  other.sides.player.escort = true;
+  stwSpawnUnitAt(other, "player", "zergling", 20, 60, "attack");
+  const y0 = fast.y;
+  run(other, 2);
+  assert.ok(y0 - fast.y > 6, `기낭 갑피로 빨라짐 (${(y0 - fast.y).toFixed(1)})`);
+
+  overlord.hp = 0;
+  run(state, 0.2);
+  assert.equal(stwSupply(state, "player").cap, capBefore - 8, "잃으면 인구 상한 −8");
+  assert.ok(state.log.some((entry) => /동행 오버로드를 잃었습니다/.test(entry.text)));
+  run(state, 0.2);
+  assert.ok(state.units.some((unit) => unit.side === "player" && unit.type === "overlord"), "동행이 켜져 있으면 다음 오버로드가 떠오름");
+  assert.equal(stwOwnBuildings(state, "player", "overlord").length, 0);
+  stwCommand(state, "player", { type: "escort", on: false });
+  run(state, 15);
+  const home = stwNexus(state, "player", "main");
+  const returned = state.units.find((unit) => unit.side === "player" && unit.type === "overlord");
+  assert.ok(Math.hypot(returned.x - home.x, returned.y - home.y) < 8, "동행을 끄면 본진으로 돌아감");
+});
+
+test("starswar zerg AI escorts an overlord once cloaked units hurt it", () => {
+  const state = createStarswarGame({ seed: 3, aiSides: ["player"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "hydra" } });
+  state.sides.player.minerals = 5000;
+  for (const building of ["overlord", "overlord", "pool"]) {
+    stwCommand(state, "player", { type: "build", building });
+    finishAll(state);
+  }
+  state.sides.player.sawCloakAt = state.time;
+  stwAiThink(state, "player");
+  assert.equal(state.sides.player.escort, true);
+  assert.ok(state.units.some((unit) => unit.side === "player" && unit.type === "overlord"));
+});

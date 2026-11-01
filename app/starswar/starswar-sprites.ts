@@ -969,6 +969,7 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       hydra: bake(hydra(PIXI, side)),
       lurker: bake(lurker(PIXI, side)),
       ultra: bake(ultra(PIXI, side)),
+      overlord: bake(overlord(PIXI, side)),
     };
     zergParts[side] = { lair: bake(hatchery(PIXI, side, true)), lurkerBurrowed: bake(lurkerBurrowed(PIXI, side)) };
     tankParts[side] = {

@@ -228,8 +228,14 @@ export function stwAiThink(state, side) {
       if (stwCommand(state, side, { type: "build", building: "sunken" }).ok) memory.extraSunkens += 1;
     }
     zergLines(state, side, persona, units, reserve);
-    // 저그는 들고 다닐 탐지기가 없으므로, 은폐 유닛에 당하는 동안에는 스포어가 있는 기지에서 기다린다.
-    manageArmy(state, side, persona, memory, settings, { holdHome: needDetection && units.filter((unit) => !STW_UNITS[unit.type].worker).length < 30 });
+    // 오버로드 동행: 은폐 유닛에 당하면 오버로드가 둘 이상일 때 하나를 병력에 붙인다. 하나뿐이면 끈다.
+    const overlordBuildings = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).length;
+    const escorting = units.some((unit) => unit.type === "overlord");
+    if (needDetection && !record.escort && overlordBuildings >= 2) stwCommand(state, side, { type: "escort", on: true });
+    else if (record.escort && !escorting && overlordBuildings < 2) stwCommand(state, side, { type: "escort", on: false });
+    if (record.escort && record.gas > 300 && stwResearchCheck(state, side, "pneumatized").ok) stwCommand(state, side, { type: "research", research: "pneumatized" });
+    // 동행 오버로드가 없는 동안 은폐 유닛에 당하면 스포어가 있는 기지에서 기다린다.
+    manageArmy(state, side, persona, memory, settings, { holdHome: needDetection && !escorting && units.filter((unit) => !STW_UNITS[unit.type].worker).length < 30 });
     return;
   }
 

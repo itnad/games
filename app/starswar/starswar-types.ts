@@ -3,7 +3,7 @@ export type StwSide = "player" | "enemy";
 export type StwDifficulty = "easy" | "normal" | "hard";
 export type StwRaceId = "protoss" | "terran" | "zerg";
 export type StwArmyType = "zealot" | "dragoon" | "templar" | "dark" | "archon" | "observer" | "reaver" | "marine" | "firebat" | "medic" | "vulture" | "tank"
-  | "zergling" | "hydra" | "lurker" | "ultra";
+  | "zergling" | "hydra" | "lurker" | "ultra" | "overlord";
 export type StwUnitType = StwArmyType | "probe" | "scv" | "drone";
 export type StwBuildingType = "nexus" | "pylon" | "gateway" | "assimilator" | "core" | "forge" | "cannon" | "citadel" | "archives" | "robo" | "bay"
   | "cc" | "depot" | "refinery" | "barracks" | "ebay" | "bunker" | "turret" | "academy" | "comsat" | "factory" | "shop"
@@ -12,7 +12,7 @@ export type StwProducerType = "gateway" | "robo" | "barracks" | "factory" | "hat
 export type StwBuildChoice = Exclude<StwBuildingType, "nexus"> | "expand";
 export type StwResearchId = "weapons1" | "armor1" | "weapons2" | "shields1" | "range" | "charge" | "storm" | "scarab"
   | "infWeapons1" | "infArmor1" | "infWeapons2" | "stim" | "u238" | "siege" | "ion"
-  | "lair" | "metabolic" | "spines" | "augments" | "lurkerAspect" | "chitin" | "zMelee1" | "zMissile1" | "zCarapace1" | "zMelee2" | "zMissile2";
+  | "lair" | "metabolic" | "spines" | "augments" | "lurkerAspect" | "pneumatized" | "chitin" | "zMelee1" | "zMissile1" | "zCarapace1" | "zMelee2" | "zMissile2";
 export type StwRallyId = "main" | "natural" | "center" | "forward";
 export type StwCheck = { ok: boolean; reason?: string };
 
@@ -81,6 +81,7 @@ export type StwSideState = {
   intel: StwIntel | null;
   seen: Record<string, StwSeen>;
   race: StwRaceId;
+  escort: boolean;
   persona: "rush" | "dragoon" | "templar" | "dark" | "robo" | "bio" | "mech" | "tankbio" | "vulture" | "ling" | "hydra" | "pool" | "ultra" | null;
   sawCloakAt?: number;
   stats: StwStats;
@@ -116,6 +117,7 @@ export type StwCommand =
   | { type: "retreat" }
   | { type: "recall"; point: StwRallyId }
   | { type: "autoWave"; size: number }
+  | { type: "escort"; on: boolean }
   | { type: "scout" }
   | { type: "cancelBuild"; buildingId: number }
   | { type: "cancelProbe" }
