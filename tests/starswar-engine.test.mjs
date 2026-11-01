@@ -890,3 +890,29 @@ test("starswar defensive buildings guard their whole base, not just their own ra
   run(state, 1);
   assert.notEqual(cannon.targetId, far.id);
 });
+
+test("starswar a single detector building reveals cloaked units across its whole base", () => {
+  const state = quiet();
+  state.sides.player.minerals = 9000;
+  for (const building of ["pylon", "forge", "expand", "cannon"]) {
+    assert.equal(stwCommand(state, "player", { type: "build", building }).ok, true, building);
+    finishAll(state);
+  }
+  const cannon = stwOwnBuildings(state, "player", "cannon")[0];
+  const natural = stwNexus(state, "player", "natural");
+  // 캐논 반대편에서 앞마당 넥서스를 치는 다크템플러: 캐논 탐지 반경 7 밖이지만 기지 구역 안.
+  const dark = stwSpawnUnitAt(state, "enemy", "dark", natural.x + (natural.x > cannon.x ? 5 : -5), natural.y, "attack");
+  assert.ok(Math.hypot(dark.x - cannon.x, dark.y - cannon.y) > 7, "캐논 자체 탐지 반경 밖");
+  assert.equal(stwDetected(state, dark, "player"), true, "지역 탐지로 드러남");
+  // 본진에는 탐지 건물이 없으므로 본진의 다크템플러는 보이지 않는다.
+  const main = stwNexus(state, "player", "main");
+  const sneaky = stwSpawnUnitAt(state, "enemy", "dark", main.x, main.y - 5, "attack");
+  assert.equal(stwDetected(state, sneaky, "player"), false);
+  // 저그는 오버로드가 기지에 있어 본진이 기본으로 탐지된다.
+  const z = zerg("protoss");
+  z.sides.player.minerals = 9000;
+  stwCommand(z, "player", { type: "build", building: "overlord" });
+  finishAll(z);
+  const home = stwNexus(z, "player", "main");
+  assert.equal(stwDetected(z, stwSpawnUnitAt(z, "enemy", "dark", home.x - 6, home.y + 2, "attack"), "player"), true);
+});

@@ -879,7 +879,10 @@ function queueHit(state, attacker, target) {
   }
 }
 
-/** 은폐 유닛이 상대 진영의 탐지기(옵저버, 완성된 포톤 캐논) 범위 안에 있는지. */
+/**
+ * 은폐 유닛이 상대 진영에 탐지되는지: 스캔 범위, 탐지 유닛(옵저버·동행 오버로드) 반경, 탐지 건물 반경,
+ * 그리고 지역 탐지 — 완성된 탐지 건물이 하나라도 있는 기지의 구역 안이면 드러난다.
+ */
 export function stwDetected(state, unit, bySide) {
   if (!isCloaked(unit)) return true;
   for (const scan of state.scans ?? []) {
@@ -891,7 +894,9 @@ export function stwDetected(state, unit, bySide) {
   }
   for (const building of state.buildings) {
     const radius = building.side === bySide && stwDone(building) ? STW_BUILDINGS[building.type].detector : 0;
-    if (radius && distance(building.x, building.y, unit.x, unit.y) <= radius) return true;
+    if (!radius) continue;
+    if (distance(building.x, building.y, unit.x, unit.y) <= radius) return true;
+    if (inBaseZone(state, bySide, building.base, unit)) return true;
   }
   return false;
 }
@@ -971,17 +976,18 @@ function resolve(state, id, attacker = null) {
   return state.buildings.find((building) => building.id === id && building.hp > 0) ?? null;
 }
 
+/** 기지 구역: 그 기지의 어떤 건물이든 STW_DEFENSE_REACH 안에서 때릴 수 있는 자리에 있는지. 지역 방어와 지역 탐지가 함께 쓴다. */
+function inBaseZone(state, side, base, unit) {
+  return state.buildings.some((item) => item.side === side && item.base === base && distance(item.x, item.y, unit.x, unit.y) - item.radius - unit.radius * 0.5 <= STW_DEFENSE_REACH);
+}
+
 /**
- * 지역 방어: 방어 건물이 노릴 수 있는 적. 자기 사거리 안이거나, 같은 기지의 어떤 건물이든 STW_DEFENSE_REACH 안에서 때릴 수 있는 자리면 모두.
+ * 지역 방어: 방어 건물이 노릴 수 있는 적. 자기 사거리 안이거나 기지 구역 안이면 모두.
  * 가장 가까운 적부터(일꾼·지원 유닛은 뒤로).
  */
 function defenseTarget(state, building) {
   const def = STW_BUILDINGS[building.type];
-  const guarded = state.buildings.filter((item) => item.side === building.side && item.base === building.base);
-  const inZone = (unit) => {
-    if (distance(building.x, building.y, unit.x, unit.y) - unit.radius <= def.range) return true;
-    return guarded.some((item) => distance(item.x, item.y, unit.x, unit.y) - item.radius - unit.radius * 0.5 <= STW_DEFENSE_REACH);
-  };
+  const inZone = (unit) => distance(building.x, building.y, unit.x, unit.y) - unit.radius <= def.range || inBaseZone(state, building.side, building.base, unit);
   const current = resolve(state, building.targetId, building);
   if (current && current.kind === "unit" && inZone(current)) return current;
   let best = null;
