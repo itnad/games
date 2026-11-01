@@ -3,6 +3,7 @@
 > 상태: 구현 기준안  
 > 작성일: 2026-10-30  
 > 구현 설계 고도화: 2026-11-01
+> 구현 진행: 단계 0 완료, 단계 1 대기
 > 상위 기획: `docs/stark-rift-game-design.md`
 
 ## 1. 목표와 경계
@@ -78,6 +79,7 @@ app/stark-rift/
     rng.ts
     simulation.ts
     state.ts
+    versions.ts
     world.ts
     systems/
       abilities.ts
@@ -985,9 +987,9 @@ IndexedDB 데이터베이스 `stark-rift`는 다음 저장소를 둔다.
 - D1 스키마 변경은 새 마이그레이션으로 추가한다.
 - R2를 도입할 때 기존 `.openai/hosting.json` 필드를 보존하고 바인딩만 추가한다.
 
-## 20. 첫 구현 작업
+## 20. 다음 구현 작업
 
-단계 0에서 배포 동기화와 개발 계약을 고정한 뒤 단계 1의 엔진 기반을 시작한다.
+단계 0에서 배포 동기화, 버전·메시지·데이터 계약과 Stark Rift 전용 검증 명령을 고정했다. 다음은 단계 1의 엔진 기반이다.
 
 1. `app/stark-rift/core`와 `tests/stark-rift` 디렉터리 생성
 2. 고정소수점, 결정적 난수, 엔티티 ID 구현

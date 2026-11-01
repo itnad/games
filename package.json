@@ -9,7 +9,9 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs && npm run test:stark-rift",
+    "test:stark-rift": "npm run typecheck:stark-rift && vitest run --config vitest.config.ts",
+    "typecheck:stark-rift": "tsc --project tsconfig.stark-rift.json",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },
@@ -35,6 +37,7 @@
     "typescript": "5.9.3",
     "vinext": "0.0.50",
     "vite": "8.0.13",
+    "vitest": "5.0.5",
     "wrangler": "4.92.0"
   },
   "type": "module"
