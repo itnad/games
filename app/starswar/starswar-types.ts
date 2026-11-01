@@ -81,7 +81,7 @@ export type StwSideState = {
   intel: StwIntel | null;
   seen: Record<string, StwSeen>;
   race: StwRaceId;
-  persona: "rush" | "dragoon" | "templar" | "dark" | "robo" | "bio" | "mech" | "ling" | "hydra" | null;
+  persona: "rush" | "dragoon" | "templar" | "dark" | "robo" | "bio" | "mech" | "tankbio" | "vulture" | "ling" | "hydra" | "pool" | "ultra" | null;
   sawCloakAt?: number;
   stats: StwStats;
 };

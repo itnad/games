@@ -94,7 +94,7 @@ export const STW_UNITS = {
   },
   marine: {
     id: "marine", race: "terran", name: "해병", short: "M", minerals: 50, gas: 0, time: 15, supply: 1, from: "barracks",
-    hp: 40, shields: 0, armor: 0, size: "small", speed: 2.6, radius: 0.9, sight: 9,
+    hp: 45, shields: 0, armor: 0, size: "small", speed: 2.6, radius: 0.9, sight: 9,
     damage: 6, hits: 1, damageType: "normal", range: 5, cooldown: 0.75, weaponStep: 1, role: "ranged", bio: true, stim: true, kite: true,
     note: "값싼 원거리 보병 · 스팀팩을 쓰면 근접 적에게 물러나며 사격 · 메딕과 함께하면 강함",
   },
@@ -209,14 +209,14 @@ export const STW_BUILDINGS = {
 
   // ───── 저그: 드론이 건물로 변태한다. 건물도 체력이 저절로 회복된다 ─────
   hatchery: { id: "hatchery", race: "zerg", name: "해처리", minerals: 300, gas: 0, time: 60, hp: 1250, shields: 0, armor: 1, size: 8, supply: 10, sight: 11, base: true },
-  hatch: { id: "hatch", race: "zerg", name: "해처리", minerals: 250, gas: 0, time: 40, hp: 1250, shields: 0, armor: 1, size: 6, supply: 2, sight: 9, note: "본진에 해처리 추가 · 생산 라인 +1" },
+  hatch: { id: "hatch", race: "zerg", name: "해처리", minerals: 225, gas: 0, time: 40, hp: 1250, shields: 0, armor: 1, size: 6, supply: 2, sight: 9, note: "본진에 해처리 추가 · 생산 라인 +1" },
   overlord: { id: "overlord", race: "zerg", name: "오버로드", minerals: 100, gas: 0, time: 18, hp: 200, shields: 0, armor: 0, size: 3.6, supply: 8, sight: 9, detector: 5, note: "인구 +8 · 주변 은폐 탐지" },
   extractor: { id: "extractor", race: "zerg", name: "익스트랙터", minerals: 50, gas: 0, time: 20, hp: 750, shields: 0, armor: 1, size: 4.2, sight: 6, refinery: true, note: "가스 채취 · 드론 3기 배치" },
   pool: { unique: true, id: "pool", race: "zerg", name: "스포닝 풀", minerals: 200, gas: 0, time: 40, hp: 750, shields: 0, armor: 1, size: 4.8, sight: 8, note: "저글링·성큰 콜로니 해금 · 대사 촉진 연구" },
   evo: { unique: true, id: "evo", race: "zerg", name: "에볼루션 챔버", minerals: 75, gas: 0, time: 25, hp: 750, shields: 0, armor: 1, size: 4.4, sight: 8, note: "근접·원거리 공격과 갑피 업그레이드 · 스포어 콜로니 해금" },
   sunken: {
     id: "sunken", race: "zerg", name: "성큰 콜로니", minerals: 125, gas: 0, time: 25, hp: 300, shields: 0, armor: 2, size: 3.4, requires: "pool", sight: 10,
-    damage: 40, hits: 1, damageType: "explosive", range: 7, cooldown: 2, defense: true, note: "땅속 촉수로 사거리 7 공격 · 앞마당이 있으면 앞마당에 세움",
+    damage: 40, hits: 1, damageType: "explosive", range: 7, cooldown: 1.5, defense: true, note: "땅속 촉수로 사거리 7 공격 · 앞마당이 있으면 앞마당에 세움",
   },
   spore: { id: "spore", race: "zerg", name: "스포어 콜로니", minerals: 75, gas: 0, time: 20, hp: 400, shields: 0, armor: 0, size: 3.2, requires: "evo", sight: 10, detector: 7, defense: true, note: "은폐 탐지 전용(지상 공격 없음)" },
   den: { unique: true, id: "den", race: "zerg", name: "히드라리스크 덴", minerals: 100, gas: 50, time: 30, hp: 850, shields: 0, armor: 1, size: 4.4, requires: "pool", sight: 8, note: "히드라리스크 해금 · 사거리·속도 연구 · 럴커 변태" },
@@ -334,7 +334,11 @@ export const STW_AI_PERSONAS = {
   robo: { id: "robo", name: "로보 운영", note: "드라군과 리버, 옵저버로 천천히 밀어붙인다" },
   bio: { id: "bio", race: "terran", name: "바이오닉 러시", note: "해병과 메딕, 스팀팩으로 빠르게 몰아친다" },
   mech: { id: "mech", race: "terran", name: "메카닉 운영", note: "벌처로 버티며 시즈 탱크 포격선을 민다" },
+  tankbio: { id: "tankbio", race: "terran", name: "탱크 바이오", note: "해병·메딕 뒤에 시즈 탱크를 받쳐 앞마당과 함께 민다" },
+  vulture: { id: "vulture", race: "terran", name: "벌처 러시", note: "팩토리 둘에서 빠른 벌처를 쏟아내 일찍 흔든다" },
   ling: { id: "ling", race: "zerg", name: "저글링 러시", note: "해처리를 늘려 대사 촉진 저글링으로 휩쓴다" },
   hydra: { id: "hydra", race: "zerg", name: "히드라 럴커", note: "히드라로 버티며 럴커와 울트라리스크까지 올린다" },
+  pool: { id: "pool", race: "zerg", name: "빠른 저글링", note: "스포닝 풀부터 올리고 드론을 아껴 이른 저글링으로 찌른다" },
+  ultra: { id: "ultra", race: "zerg", name: "울트라 운영", note: "앞마당을 빨리 먹고 성큰으로 버티며 울트라리스크와 저글링으로 민다" },
 };
 for (const persona of Object.values(STW_AI_PERSONAS)) persona.race ??= "protoss";

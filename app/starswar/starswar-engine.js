@@ -54,7 +54,7 @@ function isPassive(unit) {
 }
 
 /** 쉬움에서는 초반에 몰아치는 성향을 빼고 고른다. */
-const EASY_EXCLUDED_PERSONAS = ["rush", "dark", "bio", "ling"];
+const EASY_EXCLUDED_PERSONAS = ["rush", "dark", "bio", "ling", "vulture", "pool"];
 
 export function stwOpponent(side) {
   return side === "player" ? "enemy" : "player";

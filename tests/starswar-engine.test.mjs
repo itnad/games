@@ -402,16 +402,26 @@ test("starswar observers escort the attacking army", () => {
 
 test("starswar dark and robo AI personas field their signature units", () => {
   const dark = createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], personas: { player: "dark", enemy: "dragoon" } });
-  const robo = createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], personas: { player: "robo", enemy: "dragoon" } });
-  const seen = { dark: new Set(), robo: new Set() };
-  for (let step = 0; step < 6000 && (dark.status === "playing" || robo.status === "playing"); step += 1) {
-    if (dark.status === "playing") stepStarswar(dark, stwAiThink);
-    if (robo.status === "playing") stepStarswar(robo, stwAiThink);
-    for (const unit of dark.units) if (unit.side === "player") seen.dark.add(unit.type);
-    for (const unit of robo.units) if (unit.side === "player") seen.robo.add(unit.type);
+  const seen = new Set();
+  for (let step = 0; step < 6000 && dark.status === "playing"; step += 1) {
+    stepStarswar(dark, stwAiThink);
+    for (const unit of dark.units) if (unit.side === "player") seen.add(unit.type);
   }
-  assert.ok(seen.dark.has("dark"), "다크템플러 기습은 다크템플러를 소환");
-  assert.ok(seen.robo.has("observer") && seen.robo.has("reaver"), "로보 운영은 옵저버와 리버를 소환");
+  assert.ok(seen.has("dark"), "다크템플러 기습은 다크템플러를 소환");
+
+  // 로보 운영: 옵저버 1기를 갖춘 뒤 지원 베이가 있으면 리버를 고른다(연구용 가스보다 먼저).
+  const robo = createStarswarGame({ seed: 1, aiSides: ["player"], personas: { player: "robo" } });
+  robo.sides.player.minerals = 5000;
+  robo.sides.player.gas = 5000;
+  for (const building of ["pylon", "gateway", "core", "robo", "bay"]) {
+    stwCommand(robo, "player", { type: "build", building });
+    finishAll(robo);
+  }
+  robo.time = 500;
+  stwSpawnUnitAt(robo, "player", "observer", 20, 80);
+  stwSpawnUnitAt(robo, "player", "observer", 22, 80);
+  stwAiThink(robo, "player");
+  assert.equal(stwOwnBuildings(robo, "player", "robo")[0].line, "reaver", "로보 운영은 리버를 소환");
 });
 
 const terran = (enemy = "protoss") => createStarswarGame({ seed: 5, aiSides: [], races: { player: "terran", enemy } });
@@ -640,4 +650,52 @@ test("starswar zerg AI personas field their signature units and finish a game", 
   assert.ok(seen.hydra.has("hydra") && seen.hydra.has("lurker"), "히드라 럴커는 히드라와 럴커를 변태");
   assert.equal(ling.status, "over");
   assert.equal(hydra.status, "over");
+});
+
+test("starswar terran and zerg each have four AI personas and the new ones field their signature units", async () => {
+  const { STW_AI_PERSONAS } = await import("../app/starswar/starswar-data.js");
+  const byRace = Object.values(STW_AI_PERSONAS).reduce((map, persona) => ((map[persona.race] = (map[persona.race] ?? 0) + 1), map), {});
+  assert.deepEqual(byRace, { protoss: 5, terran: 4, zerg: 4 });
+  const games = {
+    tankbio: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio", enemy: "templar" } }),
+    vulture: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "vulture", enemy: "dragoon" } }),
+    pool: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "terran" }, personas: { player: "pool", enemy: "bio" } }),
+    ultra: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "terran" }, personas: { player: "ultra", enemy: "mech" } }),
+  };
+  const seen = Object.fromEntries(Object.keys(games).map((key) => [key, new Set()]));
+  let poolDronesAt200 = null;
+  for (let step = 0; step < 15000; step += 1) {
+    let running = false;
+    for (const [key, game] of Object.entries(games)) {
+      if (game.status !== "playing") continue;
+      running = true;
+      stepStarswar(game, stwAiThink);
+      for (const unit of game.units) if (unit.side === "player") seen[key].add(unit.type);
+    }
+    if (games.pool.time === 200) poolDronesAt200 = games.pool.sides.player.probes;
+    if (!running) break;
+  }
+  assert.ok(seen.tankbio.has("tank") && seen.tankbio.has("medic"), "탱크 바이오는 시즈 탱크와 메딕");
+  assert.ok(seen.vulture.has("vulture"), "벌처 러시는 벌처");
+  assert.ok(seen.pool.has("zergling") && poolDronesAt200 <= 14, `빠른 저글링은 드론을 아낌 (${poolDronesAt200})`);
+  assert.ok(seen.ultra.has("ultra"), "울트라 운영은 울트라리스크");
+});
+
+test("starswar protoss AI adapts its gateway mix to the enemy army it sees", () => {
+  const setup = (enemyRace, enemyType) => {
+    const state = createStarswarGame({ seed: 1, aiSides: ["player"], races: { player: "protoss", enemy: enemyRace }, personas: { player: "dragoon" } });
+    state.sides.player.minerals = 5000;
+    state.sides.player.gas = 5000;
+    for (const building of ["pylon", "gateway", "core", "gateway", "gateway", "gateway"]) {
+      stwCommand(state, "player", { type: "build", building });
+      finishAll(state);
+    }
+    for (let index = 0; index < 8; index += 1) stwSpawnUnitAt(state, "enemy", enemyType, 12 + index * 2, 76);
+    stwAiThink(state, "player");
+    return stwOwnBuildings(state, "player", "gateway").map((gateway) => gateway.line);
+  };
+  const versusVultures = setup("terran", "vulture");
+  assert.ok(versusVultures.filter((line) => line === "dragoon").length >= 3, `벌처에는 드라군 (${versusVultures})`);
+  const versusMarines = setup("terran", "marine");
+  assert.ok(versusMarines.filter((line) => line === "zealot").length >= 2, `해병에는 질럿 (${versusMarines})`);
 });
