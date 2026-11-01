@@ -3,7 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import "./mudflat-cast-net.test.mjs";
 import "./mudflat-run-save.test.mjs";
-import "./frontline-engine.test.mjs";
+import "./gatewar-engine.test.mjs";
 import { installGameRefreshGuard } from "../app/game-refresh.js";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { advanceLumiMotion, clearLumiAtlasMatte, createLumiMotion, lumiPose, lumiTongPose } from "../app/mudflat-lumi-animation.js";
@@ -564,7 +564,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "ten-seconds",
     "mudflat-survivor",
     "tetris",
-    "frontline",
+    "gatewar",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -757,39 +757,41 @@ test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
   assert.doesNotMatch(hiddenSet, /"mudflat-survivor"/);
 });
 
-test("keeps Frontline Commander in its own app/frontline folder and publishes it as a mobile game", async () => {
+test("keeps Gate War in its own app/gatewar folder and publishes it as a mobile game", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const viteConfig = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
   const hiddenSet = pageSource.match(/const DEFAULT_HIDDEN_GAME_IDS[\s\S]*?\]\);/)?.[0] ?? "";
-  const folder = (await readdir(new URL("../app/frontline/", import.meta.url))).sort();
+  const folder = (await readdir(new URL("../app/gatewar/", import.meta.url))).sort();
 
   assert.deepEqual(folder, [
-    "frontline-ai.js",
-    "frontline-data.js",
-    "frontline-engine.js",
-    "frontline-game.tsx",
-    "frontline-pixi.ts",
-    "frontline-renderer.js",
-    "frontline-sprites.ts",
-    "frontline-types.ts",
-    "frontline.css",
+    "gatewar-ai.js",
+    "gatewar-camera.js",
+    "gatewar-data.js",
+    "gatewar-engine.js",
+    "gatewar-game.tsx",
+    "gatewar-pixi.ts",
+    "gatewar-sprites.ts",
+    "gatewar-types.ts",
+    "gatewar.css",
   ]);
-  const pixiSource = await readFile(new URL("../app/frontline/frontline-pixi.ts", import.meta.url), "utf8");
+  assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^(gatewar|frontline)/.test(file) && file !== "gatewar"), false);
+  assert.match(pageSource, /import \{ GatewarGame \} from "\.\/gatewar\/gatewar-game";/);
+  assert.match(layoutSource, /import "\.\/gatewar\/gatewar\.css";/);
+  assert.match(pageSource, /id: "gatewar",[\s\S]*?title: "관문 전쟁",[\s\S]*?category: "모바일"/);
+  assert.doesNotMatch(pageSource, /frontline/i);
+  assert.doesNotMatch(hiddenSet, /"gatewar"/);
+
+  const pixiSource = await readFile(new URL("../app/gatewar/gatewar-pixi.ts", import.meta.url), "utf8");
   assert.match(pixiSource, /await import\("pixi\.js"\)/, "PixiJS는 브라우저에서만 동적으로 불러온다");
   assert.match(pixiSource, /pixi\.js\/unsafe-eval/);
-  const rendererGameSource = await readFile(new URL("../app/frontline/frontline-game.tsx", import.meta.url), "utf8");
-  assert.match(rendererGameSource, /setRenderer\("canvas"\)/, "WebGL 실패 시 2D 렌더러로 전환");
-  assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^frontline-/.test(file)), false);
-  assert.match(pageSource, /import \{ FrontlineGame \} from "\.\/frontline\/frontline-game";/);
-  assert.match(layoutSource, /import "\.\/frontline\/frontline\.css";/);
-  assert.match(pageSource, /id: "frontline",[\s\S]*?title: "전선 지휘관",[\s\S]*?category: "모바일"/);
-  assert.doesNotMatch(hiddenSet, /"frontline"/);
+  assert.match(viteConfig, /consumer === "server"/, "서버 번들에서는 PixiJS를 뺀다");
 
-  const gameSource = await readFile(new URL("../app/frontline/frontline-game.tsx", import.meta.url), "utf8");
-  for (const label of ["진격", "이동", "후퇴", "대열", "빠른 생산", "자동 배치", "전투 시작"]) assert.match(gameSource, new RegExp(label));
+  const gameSource = await readFile(new URL("../app/gatewar/gatewar-game.tsx", import.meta.url), "utf8");
+  for (const label of ["경제·건설", "생산·연구", "병력", "출격", "후퇴", "집결지", "자동 출격", "프로브 정찰", "모든 게이트웨이", "전투 시작"]) assert.match(gameSource, new RegExp(label));
   assert.match(gameSource, /data-game-menu="true"/);
-  const brief = await readFile(new URL("../docs/frontline-design.md", import.meta.url), "utf8");
-  assert.match(brief, /app\/frontline\//);
+  const brief = await readFile(new URL("../docs/gatewar-design.md", import.meta.url), "utf8");
+  assert.match(brief, /app\/gatewar\//);
 });
 
 test("detects published site updates and refreshes only through safe user actions", async () => {

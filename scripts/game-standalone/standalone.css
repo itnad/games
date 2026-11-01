@@ -1,0 +1,9 @@
+/* 단독 실행 전용: 사이트의 globals.css 없이도 같은 화면이 되도록 최소한의 바탕만 깐다. */
+:root { color-scheme: dark; --standalone-bg: #120d07; --standalone-fg: #f5ecd8; }
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #game-root { height: 100%; }
+body { margin: 0; overflow: hidden; overscroll-behavior: none; color: var(--standalone-fg); background: var(--standalone-bg); font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+#game-root { overflow-y: auto; }
+.gw-shell { font-family: inherit; }
+.gw-play-shell { height: 100%; }
+.gw-topbar { padding-right: 14px; }

@@ -1,13 +1,13 @@
-// 전선 지휘관을 HTML 파일 하나로 묶는다.
-//   node scripts/build-frontline-standalone.mjs            → dist-standalone/frontline.html (React 포함, 오프라인 실행)
-//   node scripts/build-frontline-standalone.mjs --artifact → dist-standalone/frontline-artifact.html (React는 cdnjs, PixiJS는 jsDelivr에서 로드)
+// 관문 전쟁을 HTML 파일 하나로 묶는다.
+//   node scripts/build-game-standalone.mjs            → dist-standalone/gatewar.html (React·PixiJS 포함, 오프라인 실행)
+//   node scripts/build-game-standalone.mjs --artifact → dist-standalone/gatewar-artifact.html (React는 cdnjs, PixiJS는 jsDelivr에서 로드)
 import { build } from "esbuild";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const artifact = process.argv.includes("--artifact");
 const pixiVersion = JSON.parse(await readFile(new URL("../node_modules/pixi.js/package.json", import.meta.url), "utf8")).version;
-const here = fileURLToPath(new URL("./frontline-standalone/", import.meta.url));
+const here = fileURLToPath(new URL("./game-standalone/", import.meta.url));
 const outDir = fileURLToPath(new URL("../dist-standalone/", import.meta.url));
 
 const globalsPlugin = {
@@ -42,8 +42,8 @@ const result = await build({
 
 const js = result.outputFiles.find((file) => file.path.endsWith(".js")).text.replace(/<\/script/gi, "<\\/script");
 const css = result.outputFiles.find((file) => file.path.endsWith(".css")).text.replace(/<\/style/gi, "<\\/style");
-const title = "<title>전선 지휘관</title>";
-const body = `<div id="frontline-root"></div>`;
+const title = "<title>관문 전쟁</title>";
+const body = `<div id="game-root"></div>`;
 const react = artifact
   ? [
       '<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>',
@@ -54,13 +54,13 @@ const react = artifact
   : "";
 
 const html = artifact
-  ? `${title}\n<meta name="theme-color" content="#0b1210">\n<style>${css}</style>\n${body}\n${react}\n<script>${js}</script>\n`
+  ? `${title}\n<meta name="theme-color" content="#120d07">\n<style>${css}</style>\n${body}\n${react}\n<script>${js}</script>\n`
   : `<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1210">
+<meta name="theme-color" content="#120d07">
 <meta name="apple-mobile-web-app-capable" content="yes">
 ${title}
 <style>${css}</style>
@@ -73,6 +73,6 @@ ${body}
 `;
 
 await mkdir(outDir, { recursive: true });
-const file = `${outDir}${artifact ? "frontline-artifact.html" : "frontline.html"}`;
+const file = `${outDir}${artifact ? "gatewar-artifact.html" : "gatewar.html"}`;
 await writeFile(file, html);
 console.log(`${file} (${Math.round(Buffer.byteLength(html) / 1024)}KB)`);
