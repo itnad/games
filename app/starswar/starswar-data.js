@@ -5,6 +5,19 @@ export const STW_LANE_WIDTH = 40;
 export const STW_LANE_LENGTH = 100;
 export const STW_TICK = 0.1;
 
+function mainGrid() {
+  const slots = [];
+  for (const y of [96, 91, 86, 81]) {
+    for (const x of [4, 9.2, 14.4, 19.6, 24.8, 30, 35.2]) {
+      const nexus = Math.abs(x - 20) < 6.5 && Math.abs(y - 94) < 6.5;
+      const minerals = Math.abs(x - 20) < 8 && y > 95;
+      const geyser = Math.hypot(x - 5, y - 98) < 4.5 || Math.hypot(x - 35, y - 98) < 4.5;
+      if (!nexus && !minerals && !geyser) slots.push({ x, y });
+    }
+  }
+  return slots;
+}
+
 /** 아군 기준 위치. 적은 (40 - x, 100 - y)로 점대칭. */
 export const STW_LAYOUT = {
   mainNexus: { x: 20, y: 94 },
@@ -12,13 +25,9 @@ export const STW_LAYOUT = {
   mainMinerals: { x: 20, y: 99.2 },
   naturalMinerals: { x: 20, y: 78.6 },
   geysers: [{ x: 5, y: 98 }, { x: 35, y: 98 }],
-  mainSlots: [
-    { x: 6, y: 86.5 }, { x: 34, y: 86.5 }, { x: 6, y: 92 }, { x: 34, y: 92 },
-    { x: 11.5, y: 89 }, { x: 28.5, y: 89 }, { x: 11.5, y: 95.5 }, { x: 28.5, y: 95.5 },
-    { x: 13, y: 83 }, { x: 27, y: 83 }, { x: 20, y: 85.2 },
-  ],
-  frontSlots: [{ x: 7, y: 81 }, { x: 33, y: 81 }],
-  naturalSlots: [{ x: 8, y: 70 }, { x: 32, y: 70 }, { x: 12, y: 66 }, { x: 28, y: 66 }],
+  // 본진 건물 자리: 넥서스·광물·간헐천을 피한 격자. 일반 건물은 뒤쪽부터, 포톤 캐논은 앞쪽부터 채운다.
+  mainSlots: mainGrid(),
+  naturalSlots: [{ x: 8, y: 70 }, { x: 32, y: 70 }, { x: 12, y: 66 }, { x: 28, y: 66 }, { x: 5, y: 76 }, { x: 35, y: 76 }],
 };
 
 /** 집결 위치. y는 아군 기준. */
@@ -52,9 +61,37 @@ export const STW_UNITS = {
     energy: 50, maxEnergy: 200, energyRegen: 0.8,
     note: "무기 없음 · 사이오닉 스톰으로 뭉친 적을 녹임",
   },
+  dark: {
+    id: "dark", name: "다크템플러", short: "K", minerals: 125, gas: 100, time: 26, supply: 2, from: "gateway", requires: "archives",
+    hp: 80, shields: 40, armor: 1, size: "small", speed: 3, radius: 1.1, sight: 8,
+    damage: 40, hits: 1, damageType: "normal", range: 1.2, cooldown: 1.25, weaponStep: 3, role: "melee", cloaked: true,
+    note: "은폐 근접 · 탐지기가 없으면 공격받지 않음",
+  },
+  archon: {
+    id: "archon", name: "아콘", short: "A", minerals: 100, gas: 300, time: 0, supply: 4, from: "merge",
+    hp: 10, shields: 350, armor: 0, size: "large", speed: 2.8, radius: 1.8, sight: 9,
+    damage: 30, hits: 1, damageType: "normal", range: 2.5, cooldown: 1.25, weaponStep: 3, role: "melee",
+    splash: { radius: 1.6, factor: 1 },
+    note: "하이템플러 2기 합체 · 보호막 350 · 근거리 범위 공격",
+  },
+  observer: {
+    id: "observer", name: "옵저버", short: "O", minerals: 25, gas: 75, time: 20, supply: 1, from: "robo",
+    hp: 40, shields: 20, armor: 0, size: "small", speed: 3.3, radius: 0.9, sight: 11, role: "support", cloaked: true, detector: 9,
+    note: "은폐 탐지기 · 공격 병력을 따라다니며 시야 제공",
+  },
+  reaver: {
+    id: "reaver", name: "리버", short: "R", minerals: 200, gas: 100, time: 35, supply: 4, from: "robo", requires: "bay",
+    hp: 100, shields: 80, armor: 0, size: "large", speed: 1.8, radius: 1.7, sight: 10,
+    damage: 100, hits: 1, damageType: "normal", range: 8, cooldown: 3.5, weaponStep: 0, role: "siege",
+    splash: { radius: 2.4, factor: 0.5 },
+    note: "느림 · 사거리 8 범위 포격 · 뭉친 적과 건물에 강함",
+  },
 };
 
-export const STW_ARMY_UNITS = ["zealot", "dragoon", "templar"];
+/** 플레이어 병력 유닛(프로브 제외). */
+export const STW_ARMY_UNITS = ["zealot", "dragoon", "templar", "dark", "archon", "observer", "reaver"];
+/** 생산 건물별로 고를 수 있는 유닛. */
+export const STW_PRODUCER_UNITS = { gateway: ["zealot", "dragoon", "templar", "dark"], robo: ["observer", "reaver"] };
 
 export const STW_BUILDINGS = {
   nexus: { id: "nexus", name: "넥서스", minerals: 400, gas: 0, time: 70, hp: 1000, shields: 1000, armor: 1, size: 8, supply: 10, sight: 11 },
@@ -65,14 +102,19 @@ export const STW_BUILDINGS = {
   forge: { id: "forge", name: "포지", minerals: 150, gas: 0, time: 28, hp: 550, shields: 550, armor: 1, size: 4.6, requires: "pylon", sight: 8, note: "지상 공격·방어 업그레이드 · 포톤 캐논 해금" },
   cannon: {
     id: "cannon", name: "포톤 캐논", minerals: 150, gas: 0, time: 25, hp: 100, shields: 100, armor: 0, size: 3.2, requires: "forge", sight: 11,
-    damage: 20, hits: 1, damageType: "normal", range: 7, cooldown: 1.25, note: "사거리 7 방어 건물 · 앞마당이 있으면 앞마당에 세움",
+    damage: 20, hits: 1, damageType: "normal", range: 7, cooldown: 1.25, detector: 7, note: "사거리 7 방어·은폐 탐지 · 앞마당이 있으면 앞마당에 세움",
   },
   citadel: { id: "citadel", name: "아둔의 성소", minerals: 150, gas: 100, time: 35, hp: 450, shields: 450, armor: 1, size: 4.4, requires: "core", sight: 8, note: "질럿 다리 강화 연구 · 아카이브 해금" },
-  archives: { id: "archives", name: "템플러 아카이브", minerals: 150, gas: 200, time: 40, hp: 500, shields: 500, armor: 1, size: 4.6, requires: "citadel", sight: 8, note: "하이템플러 해금 · 사이오닉 스톰 연구" },
+  archives: { id: "archives", name: "템플러 아카이브", minerals: 150, gas: 200, time: 40, hp: 500, shields: 500, armor: 1, size: 4.6, requires: "citadel", sight: 8, note: "하이템플러·다크템플러 해금 · 사이오닉 스톰 연구" },
+  robo: { id: "robo", name: "로보틱스 퍼실리티", minerals: 200, gas: 200, time: 40, hp: 500, shields: 500, armor: 1, size: 5, requires: "core", sight: 8, note: "옵저버·리버 생산 라인" },
+  bay: { id: "bay", name: "로보틱스 지원 베이", minerals: 150, gas: 100, time: 30, hp: 450, shields: 450, armor: 1, size: 4.4, requires: "robo", sight: 8, note: "리버 해금 · 스캐럽 강화 연구" },
 };
 
 /** 플레이어가 고를 수 있는 건설 목록. 앞마당 넥서스는 별도 키. */
-export const STW_BUILD_CHOICES = ["pylon", "gateway", "assimilator", "core", "forge", "cannon", "citadel", "archives", "expand"];
+export const STW_BUILD_CHOICES = ["pylon", "gateway", "assimilator", "core", "forge", "cannon", "citadel", "archives", "robo", "bay", "expand"];
+
+/** 생산 라인이 있는 건물. */
+export const STW_PRODUCERS = ["gateway", "robo"];
 
 export const STW_RESEARCH = {
   weapons1: { id: "weapons1", name: "지상 공격 1단계", at: "forge", minerals: 100, gas: 100, time: 40, note: "질럿 +1×2, 드라군 +2" },
@@ -82,6 +124,7 @@ export const STW_RESEARCH = {
   range: { id: "range", name: "특이점 충전", at: "core", minerals: 150, gas: 150, time: 45, note: "드라군 사거리 5.5 → 8" },
   charge: { id: "charge", name: "다리 강화", at: "citadel", minerals: 150, gas: 150, time: 45, note: "질럿 이동 속도 +50%" },
   storm: { id: "storm", name: "사이오닉 스톰", at: "archives", minerals: 200, gas: 200, time: 55, note: "하이템플러가 뭉친 적에게 스톰을 자동 시전" },
+  scarab: { id: "scarab", name: "스캐럽 강화", at: "bay", minerals: 100, gas: 100, time: 40, note: "리버 피해 100 → 125" },
 };
 
 /** 소환 중인 건물을 취소하면 돌려받는 비율. 프로브·유닛·연구 취소는 전액 환불. */
@@ -96,7 +139,7 @@ export const STW_ECONOMY = {
   fullSaturation: 16,
   maxSaturation: 24,
   overflowRate: 0.45,
-  gasPerProbe: 0.3,
+  gasPerProbe: 0.55,
   probesPerGas: 3,
   minMineralProbes: 4,
   mainMinerals: 9000,
@@ -122,4 +165,6 @@ export const STW_AI_PERSONAS = {
   rush: { id: "rush", name: "질럿 러시", note: "게이트웨이를 빨리 늘려 질럿으로 몰아친다" },
   dragoon: { id: "dragoon", name: "드라군 운영", note: "앞마당을 먹고 사거리 드라군으로 민다" },
   templar: { id: "templar", name: "템플러 테크", note: "질럿으로 버티며 스톰을 준비한다" },
+  dark: { id: "dark", name: "다크템플러 기습", note: "빠르게 아카이브를 올려 보이지 않는 칼날로 찌른다" },
+  robo: { id: "robo", name: "로보 운영", note: "드라군과 리버, 옵저버로 천천히 밀어붙인다" },
 };

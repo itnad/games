@@ -90,6 +90,63 @@ function templar(PIXI: PixiModule, side: StwSide) {
   return g;
 }
 
+function dark(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 26);
+  g.poly([4, 6, 24, 1, 25, 3, 6, 9]).fill({ color: team.glow, alpha: 0.95 });
+  g.poly([4, 6, 20, 2, 6, 10]).fill({ color: 0xffffff, alpha: 0.35 });
+  g.circle(-2, 0, 11).fill(0x241c30).stroke({ width: 1.8, color: 0x0e0a14 });
+  g.poly([-12, -7, -19, 0, -12, 7]).fill(0x1a1424);
+  g.ellipse(-2, -8, 4.5, 3).fill(0x3c3150);
+  g.ellipse(-2, 8, 4.5, 3).fill(0x3c3150);
+  g.circle(1, 0, 5.4).fill(0x120d18).stroke({ width: 1, color: 0x3c3150 });
+  g.rect(3.5, -1.6, 2.4, 3.2).fill(team.glow);
+  return g;
+}
+
+function archon(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 30);
+  g.circle(0, 0, 24).fill({ color: team.glow, alpha: 0.28 });
+  g.circle(0, 0, 18).fill({ color: team.glow, alpha: 0.45 });
+  for (let i = 0; i < 6; i += 1) {
+    const a = (Math.PI / 3) * i;
+    g.moveTo(Math.cos(a) * 6, Math.sin(a) * 6).quadraticCurveTo(Math.cos(a + 0.6) * 18, Math.sin(a + 0.6) * 18, Math.cos(a + 1.1) * 23, Math.sin(a + 1.1) * 23).stroke({ width: 2, color: team.light, alpha: 0.85 });
+  }
+  g.circle(0, 0, 11).fill(team.light);
+  g.circle(0, 0, 6).fill(0xffffff);
+  return g;
+}
+
+function observer(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 16);
+  g.poly([-12, -8, -4, -4, -4, 4, -12, 8]).fill(0x7d7564);
+  g.ellipse(0, 0, 10, 6.5).fill(0xb7aa8a).stroke({ width: 1.4, color: 0x5d553f });
+  g.ellipse(2, 0, 6, 4).fill(0xd8ccaa);
+  g.circle(6, 0, 2.8).fill(team.glow);
+  g.circle(6, 0, 1.2).fill(0xffffff);
+  return g;
+}
+
+function reaver(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 32);
+  for (const [x, r] of [[-18, 9], [-8, 12], [4, 13]] as [number, number][]) {
+    for (const y of [-r + 1, r - 1]) g.circle(x, y, 2.6).fill(GOLD_DARK);
+    g.ellipse(x, 0, r * 0.9, r).fill(GOLD).stroke({ width: 1.8, color: GOLD_DARK });
+    g.ellipse(x - 1, -r * 0.35, r * 0.5, r * 0.3).fill({ color: GOLD_LIGHT, alpha: 0.7 });
+  }
+  g.rect(-22, -2, 30, 4).fill(team.glow);
+  g.ellipse(17, 0, 6, 7).fill(0x3a2c1c).stroke({ width: 1.4, color: INK });
+  g.circle(18, 0, 3).fill(team.glow);
+  return g;
+}
+
 function probe(PIXI: PixiModule, side: StwSide) {
   const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
@@ -225,6 +282,32 @@ function archives(PIXI: PixiModule, side: StwSide) {
   g.circle(0, 0, 19).fill(0x3a2450).stroke({ width: 2, color: GOLD_DARK });
   g.circle(0, 0, 13).fill({ color: 0xb98cff, alpha: 0.75 });
   g.circle(0, 0, 6).fill(team.glow);
+  return g;
+}
+
+function robo(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  g.roundRect(-38, -36, 76, 72, 12).fill(GOLD_DARK).stroke({ width: 2.5, color: INK });
+  g.roundRect(-33, -31, 66, 62, 10).fill(GOLD);
+  g.circle(0, 2, 22).fill(0xa9b2ba).stroke({ width: 2, color: 0x4d5560 });
+  g.circle(0, 2, 22).stroke({ width: 3, color: team.glow, alpha: 0.8 });
+  g.circle(-6, -4, 7).fill({ color: 0xffffff, alpha: 0.35 });
+  g.roundRect(-6, -34, 12, 14, 3).fill(0x4d5560);
+  g.circle(0, 2, 6).fill(team.glow);
+  return g;
+}
+
+function bay(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  g.roundRect(-35, -30, 70, 60, 10).fill(GOLD_DARK).stroke({ width: 2.5, color: INK });
+  g.roundRect(-31, -26, 62, 52, 8).fill(GOLD);
+  for (const x of [-14, 14]) {
+    g.circle(x, 0, 12).fill(0x9aa3ab).stroke({ width: 2, color: 0x4d5560 });
+    g.circle(x, 0, 5).fill(team.glow);
+  }
+  g.rect(-4, -22, 8, 44).fill(GOLD_LIGHT);
   return g;
 }
 
@@ -415,6 +498,10 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       dragoon: bake(dragoon(PIXI, side)),
       templar: bake(templar(PIXI, side)),
       probe: bake(probe(PIXI, side)),
+      dark: bake(dark(PIXI, side)),
+      archon: bake(archon(PIXI, side)),
+      observer: bake(observer(PIXI, side)),
+      reaver: bake(reaver(PIXI, side)),
     };
     buildings[side] = {
       nexus: bake(nexus(PIXI, side)),
@@ -426,6 +513,8 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       cannon: bake(cannon(PIXI, side)),
       citadel: bake(citadel(PIXI, side)),
       archives: bake(archives(PIXI, side)),
+      robo: bake(robo(PIXI, side)),
+      bay: bake(bay(PIXI, side)),
     };
     flags[side] = bake(flag(PIXI, side));
   }

@@ -31,10 +31,20 @@ const BUILD_ORDERS = {
     { build: "gateway" }, { build: "assimilator" }, { build: "citadel" }, { build: "archives" }, { research: "storm" },
     { build: "forge" }, { research: "weapons1" }, { build: "expand", at: 300 }, { build: "gateway" }, { research: "charge" }, { build: "gateway" },
   ],
+  dark: [
+    { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "pylon" },
+    { build: "assimilator" }, { build: "citadel" }, { build: "archives" }, { build: "gateway" }, { build: "pylon" },
+    { build: "forge" }, { build: "expand", at: 330 }, { build: "gateway" }, { research: "weapons1" }, { research: "charge" },
+  ],
+  robo: [
+    { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "pylon" },
+    { build: "assimilator" }, { build: "gateway" }, { research: "range" }, { build: "robo" }, { build: "bay" },
+    { build: "expand", at: 260 }, { build: "gateway" }, { build: "forge" }, { research: "weapons1" }, { research: "scarab" }, { build: "gateway" },
+  ],
 };
 
-const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22] };
-const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5 };
+const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22] };
+const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4 };
 
 export function stwAiThink(state, side) {
   const record = state.sides[side];
@@ -104,6 +114,31 @@ export function stwAiThink(state, side) {
     }
   }
 
+  // 3-1. 은폐 유닛에 당했으면 탐지기를 갖춘다: 로보가 있으면 옵저버, 없으면 포지와 포톤 캐논.
+  const units = state.units.filter((unit) => unit.side === side);
+  const needDetection = record.sawCloakAt !== undefined && state.time - record.sawCloakAt < 150;
+  if (needDetection) {
+    const hasRobo = stwHas(state, side, "robo");
+    const cannons = stwOwnBuildings(state, side, "cannon").length;
+    if (!hasRobo && cannons < 2) {
+      if (!stwOwnBuildings(state, side, "forge").length) stwCommand(state, side, { type: "build", building: "forge" });
+      else stwCommand(state, side, { type: "build", building: "cannon" });
+    }
+  }
+
+  // 3-2. 하이템플러가 넷 이상 쌓이면 에너지가 적은 둘을 아콘으로 합친다.
+  if (units.filter((unit) => unit.type === "templar").length >= 4) stwCommand(state, side, { type: "merge" });
+
+  // 3-3. 로보틱스 라인: 옵저버 1~2기를 유지하고, 지원 베이가 있으면 리버.
+  const observers = units.filter((unit) => unit.type === "observer").length;
+  for (const robo of stwOwnBuildings(state, side, "robo", { doneOnly: true })) {
+    let unit = null;
+    if (observers < (needDetection || persona === "robo" ? 1 : 0) + (persona === "robo" && state.time > 480 ? 1 : 0)) unit = "observer";
+    else if (persona === "robo" && stwHas(state, side, "bay")) unit = "reaver";
+    if (unit && reserve.gas && record.gas - STW_UNITS[unit].gas < reserve.gas && unit !== "observer") unit = null;
+    if (robo.line !== unit) stwCommand(state, side, { type: "line", buildingId: robo.id, unit });
+  }
+
   // 4. 생산 라인: 테크를 모을 때는 잠시 멈춘다.
   const gatewayList = stwOwnBuildings(state, side, "gateway").sort((a, b) => a.id - b.id);
   gatewayList.forEach((gateway, index) => {
@@ -114,6 +149,11 @@ export function stwAiThink(state, side) {
       else if (stwHas(state, side, "core")) unit = index % 2 ? "dragoon" : "zealot";
     }
     if (persona === "rush" && stwHas(state, side, "core") && state.time > 360) unit = index % 2 ? "dragoon" : "zealot";
+    if (persona === "dark") {
+      if (stwHas(state, side, "archives")) unit = index % 2 === 0 ? "dark" : stwHas(state, side, "core") ? "dragoon" : "zealot";
+      else if (stwHas(state, side, "core")) unit = index % 2 ? "dragoon" : "zealot";
+    }
+    if (persona === "robo" && stwHas(state, side, "core")) unit = index % 3 === 2 ? "zealot" : "dragoon";
     if (STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas && record.minerals > 250) unit = "zealot";
     const def = STW_UNITS[unit];
     const starving = (reserve.minerals && record.minerals - def.minerals < reserve.minerals) || (reserve.gas && def.gas && record.gas - def.gas < reserve.gas);

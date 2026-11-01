@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { withKoreanDirection } from "../korean-particles.js";
 import {
+  STW_AI_PERSONAS,
   STW_ARMY_UNITS,
   STW_BUILDINGS,
   STW_BUILD_CHOICES,
   STW_CANCEL_REFUND,
   STW_DIFFICULTIES,
   STW_ECONOMY,
+  STW_PRODUCER_UNITS,
   STW_RALLY_POINTS,
   STW_RESEARCH,
   STW_UNITS,
@@ -35,7 +37,7 @@ import {
 import { stwAiThink } from "./starswar-ai.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
 import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
-import type { StwArmyType, StwBuildChoice, StwCheck, StwCommand, StwDifficulty, StwRallyId, StwResearchId, StwState, StwView } from "./starswar-types";
+import type { StwArmyType, StwBuildChoice, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRallyId, StwResearchId, StwState, StwView } from "./starswar-types";
 
 type Screen = "menu" | "play";
 type Tab = "build" | "produce" | "army";
@@ -50,6 +52,14 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard"];
 const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
+const GATEWAY_UNITS = STW_PRODUCER_UNITS.gateway as StwArmyType[];
+const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스" };
+
+/** "질럿 3 · 드라군 2"처럼 0이 아닌 유닛만 나열. */
+function armyText(counts: Partial<Record<string, number>>) {
+  const parts = ARMY_IDS.filter((type) => (counts[type] ?? 0) > 0).map((type) => `${STW_UNITS[type].name} ${counts[type]}`);
+  return parts.length ? parts.join(" · ") : "없음";
+}
 const BUILD_IDS = STW_BUILD_CHOICES as StwBuildChoice[];
 const RESEARCH_IDS = Object.keys(STW_RESEARCH) as StwResearchId[];
 const WAVE_SIZES = [0, 6, 10, 16];
@@ -543,44 +553,51 @@ function BuildTab({ game, issue }: { game: StwState; issue: Issue }) {
 }
 
 function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
-  const gateways = game.buildings.filter((building) => building.side === "player" && building.type === "gateway");
+  const producers = game.buildings.filter((building) => building.side === "player" && (building.type === "gateway" || building.type === "robo"));
+  const gateways = producers.filter((building) => building.type === "gateway");
   const research = game.sides.player.research;
+  const templars = game.units.filter((unit) => unit.side === "player" && unit.type === "templar").length;
+  const counters: Record<string, number> = {};
   return (
     <div className="stw-tab">
       <div className="stw-lines">
         <div className="stw-line-all">
           <span>모든 게이트웨이</span>
-          {ARMY_IDS.map((unit) => (
+          {GATEWAY_UNITS.map((unit) => (
             <button key={unit} type="button" disabled={!gateways.length || !stwUnitUnlocked(game, "player", unit)} onClick={() => issue({ type: "lineAll", unit }, `모든 게이트웨이가 ${withKoreanDirection(STW_UNITS[unit].name)} 소환을 시작합니다.`)}>{STW_UNITS[unit].name}</button>
           ))}
-          <button type="button" disabled={!gateways.length} onClick={() => issue({ type: "lineAll", unit: null }, "모든 게이트웨이를 멈췄습니다.")}>정지</button>
+          <button type="button" disabled={!gateways.length} onClick={() => issue({ type: "lineAll", unit: null, producer: "gateway" }, "모든 게이트웨이를 멈췄습니다.")}>정지</button>
         </div>
-        {!gateways.length ? <p className="stw-empty">게이트웨이를 지으면 여기서 소환할 유닛을 정할 수 있습니다.</p> : null}
-        {gateways.map((gateway, index) => {
-          const progress = gateway.current ? 1 - gateway.current.remaining / gateway.current.total : 0;
-          const status = !stwDone(gateway) ? `소환 중 ${Math.round(gateway.progress * 100)}%` : gateway.current ? `${STW_UNITS[gateway.current.unit].name} 소환 ${Math.round(progress * 100)}%` : gateway.blocked ?? "대기";
+        {!producers.length ? <p className="stw-empty">게이트웨이나 로보틱스 퍼실리티를 지으면 여기서 소환할 유닛을 정할 수 있습니다.</p> : null}
+        {producers.map((building) => {
+          const type = building.type as StwProducerType;
+          counters[type] = (counters[type] ?? 0) + 1;
+          const label = `${PRODUCER_NAMES[type]} ${counters[type]}`;
+          const progress = building.current ? 1 - building.current.remaining / building.current.total : 0;
+          const status = !stwDone(building) ? `소환 중 ${Math.round(building.progress * 100)}%` : building.current ? `${STW_UNITS[building.current.unit].name} 소환 ${Math.round(progress * 100)}%` : building.blocked ?? "대기";
           return (
-            <div key={gateway.id} className="stw-line">
+            <div key={building.id} className="stw-line">
               <header>
-                <b>게이트웨이 {index + 1}</b><span>{status}</span>
-                {gateway.current ? <button type="button" className="stw-cancel" onClick={() => issue({ type: "cancelUnit", gatewayId: gateway.id })} aria-label={`게이트웨이 ${index + 1}의 ${STW_UNITS[gateway.current.unit].name} 소환 취소`}>취소</button> : null}
+                <b>{label}</b><span>{status}</span>
+                {building.current ? <button type="button" className="stw-cancel" onClick={() => issue({ type: "cancelUnit", buildingId: building.id })} aria-label={`${label}의 ${STW_UNITS[building.current.unit].name} 소환 취소`}>취소</button> : null}
               </header>
               <span className="stw-progress"><span style={{ width: `${Math.round(progress * 100)}%` }} /></span>
               <div className="stw-line-choices">
-                {ARMY_IDS.map((unit) => {
+                {(STW_PRODUCER_UNITS[type] as StwArmyType[]).map((unit) => {
                   const unlocked = stwUnitUnlocked(game, "player", unit);
                   const def = STW_UNITS[unit];
                   return (
-                    <button key={unit} type="button" disabled={!unlocked} className={gateway.line === unit ? "active" : ""} aria-pressed={gateway.line === unit} onClick={() => issue({ type: "line", gatewayId: gateway.id, unit })}>
-                      {def.name}<small>{unlocked ? cost(def.minerals, def.gas) : `${STW_BUILDINGS[(def as { requires?: "core" | "archives" }).requires ?? "core"].name} 필요`}</small>
+                    <button key={unit} type="button" disabled={!unlocked} className={building.line === unit ? "active" : ""} aria-pressed={building.line === unit} onClick={() => issue({ type: "line", buildingId: building.id, unit })}>
+                      {def.name}<small>{unlocked ? cost(def.minerals, def.gas) : `${STW_BUILDINGS[(def as { requires?: "core" | "archives" | "bay" }).requires ?? "core"].name} 필요`}</small>
                     </button>
                   );
                 })}
-                <button type="button" className={gateway.line === null ? "active" : ""} aria-pressed={gateway.line === null} onClick={() => issue({ type: "line", gatewayId: gateway.id, unit: null })}>정지</button>
+                <button type="button" className={building.line === null ? "active" : ""} aria-pressed={building.line === null} onClick={() => issue({ type: "line", buildingId: building.id, unit: null })}>정지</button>
               </div>
             </div>
           );
         })}
+        <Card title="아콘 합체" sub={`하이템플러 2기 → 아콘 · 보유 ${templars}`} note={templars >= 2 ? STW_UNITS.archon.note : "하이템플러 2기가 필요합니다"} disabled={templars < 2} onClick={() => issue({ type: "merge" })} />
       </div>
       <h3 className="stw-section">연구</h3>
       {game.buildings.some((building) => building.side === "player" && building.research) ? (
@@ -615,8 +632,8 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
   return (
     <div className="stw-tab">
       <div className="stw-army-summary">
-        <div><small>대기 병력</small><b>{army.rally.length}</b><span>{ARMY_IDS.map((type) => `${STW_UNITS[type].name} ${count(army.rally, type)}`).join(" · ")}</span></div>
-        <div><small>공격 병력</small><b>{army.attack.length}</b><span>{ARMY_IDS.map((type) => `${STW_UNITS[type].name} ${count(army.attack, type)}`).join(" · ")}</span></div>
+        <div><small>대기 병력</small><b>{army.rally.length}</b><span>{armyText(Object.fromEntries(ARMY_IDS.map((type) => [type, count(army.rally, type)])))}</span></div>
+        <div><small>공격 병력</small><b>{army.attack.length}</b><span>{armyText(Object.fromEntries(ARMY_IDS.map((type) => [type, count(army.attack, type)])))}</span></div>
       </div>
       <button type="button" className="stw-attack" disabled={!army.rally.length} onClick={() => issue({ type: "attack" })}>출격<small>대기 병력을 적 본진으로</small></button>
       <h3 className="stw-section">후퇴·수비</h3>
@@ -649,7 +666,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
             <>
               <b>{stwClock(intel.time)} 정찰 기준</b>
               <span>건물: {Object.entries(intel.buildings).map(([type, value]) => `${STW_BUILDINGS[type as keyof typeof STW_BUILDINGS].name} ${value}`).join(", ")}</span>
-              <span>병력: {ARMY_IDS.map((type) => `${STW_UNITS[type].name} ${intel.units[type]}`).join(", ")}</span>
+              <span>병력: {armyText(intel.units)}</span>
               <span>연구: {intel.research.length ? intel.research.map((item) => `${STW_RESEARCH[item.id].name}${item.status === "running" ? "(진행 중)" : ""}`).join(", ") : "없음"}</span>
             </>
           ) : <span>아직 적 본진을 보지 못했습니다. 정찰을 보내면 적의 테크와 병력 구성을 알 수 있습니다.</span>}
@@ -669,7 +686,7 @@ function ResultOverlay({ game, onRestart, onMenu, onExit }: { game: StwState; on
       <section className={won ? "won" : "lost"}>
         <small>{won ? "VICTORY" : "DEFEAT"}</small>
         <h2 id="stw-result-title">{won ? "적 본진 함락" : "아군 본진 함락"}</h2>
-        <p>{STW_DIFFICULTIES[game.difficulty].name} · {stwClock(game.time)}{persona ? ` · 상대 전략: ${persona === "rush" ? "질럿 러시" : persona === "dragoon" ? "드라군 운영" : "템플러 테크"}` : ""}</p>
+        <p>{STW_DIFFICULTIES[game.difficulty].name} · {stwClock(game.time)}{persona ? ` · 상대 전략: ${STW_AI_PERSONAS[persona].name}` : ""}</p>
         <dl>
           <div><dt>채취 광물</dt><dd>{Math.floor(mine.minerals)}</dd></div>
           <div><dt>채취 가스</dt><dd>{Math.floor(mine.gas)}</dd></div>

@@ -6,6 +6,7 @@ import {
   stwArmy,
   stwBuildCheck,
   stwCommand,
+  stwDetected,
   stwDone,
   stwHitDamage,
   stwIncome,
@@ -71,7 +72,9 @@ test("starswar tech tree gates buildings, units, and research", () => {
   run(state, 46);
   assert.equal(state.sides.player.research.range, "done");
 
-  assert.deepEqual(stwArmy(state, "player").counts, { zealot: 0, dragoon: 2, templar: 0 }, "코어 완성 후 드라군 라인 가동");
+  const counts = stwArmy(state, "player").counts;
+  assert.equal(counts.dragoon, 2, "코어 완성 후 드라군 라인 가동");
+  assert.equal(counts.zealot, 0);
 });
 
 test("starswar production lines wait for supply and resources", () => {
@@ -300,4 +303,113 @@ test("starswar recall pulls attacking units out of a fight to any position", () 
   assert.ok(alive.length >= 4, `살아 돌아온 드라군 ${alive.length}`);
   assert.ok(alive.every((unit) => Math.abs(unit.y - rallyY) < 7), "앞마당 집결지에 도착");
   assert.ok(state.log.some((entry) => /^전군 6기가 앞마당으로 물러나 수비합니다\.$/.test(entry.text)));
+});
+
+test("starswar gates the new units behind their tech and producers", () => {
+  const state = quiet();
+  state.sides.player.minerals = 9000;
+  state.sides.player.gas = 9000;
+  stwCommand(state, "player", { type: "build", building: "pylon" });
+  finishAll(state);
+  stwCommand(state, "player", { type: "build", building: "gateway" });
+  finishAll(state);
+  assert.match(stwBuildCheck(state, "player", "robo").reason, /사이버네틱스 코어가 필요합니다/);
+  stwCommand(state, "player", { type: "build", building: "core" });
+  finishAll(state);
+  assert.equal(stwCommand(state, "player", { type: "build", building: "robo" }).ok, true);
+  assert.match(stwBuildCheck(state, "player", "bay").reason, /로보틱스 퍼실리티가 필요합니다/);
+  finishAll(state);
+  const gateway = stwOwnBuildings(state, "player", "gateway")[0];
+  const robo = stwOwnBuildings(state, "player", "robo")[0];
+  assert.equal(robo.line, null, "로보틱스는 정지 상태로 시작");
+  assert.match(stwCommand(state, "player", { type: "line", buildingId: gateway.id, unit: "reaver" }).reason, /소환할 수 없는 유닛/);
+  assert.equal(stwCommand(state, "player", { type: "line", buildingId: robo.id, unit: "reaver" }).ok, true);
+  run(state, 0.2);
+  assert.equal(robo.blocked, "로보틱스 지원 베이 필요");
+  stwCommand(state, "player", { type: "build", building: "bay" });
+  stwCommand(state, "player", { type: "line", buildingId: gateway.id, unit: "dark" });
+  finishAll(state);
+  run(state, 0.2);
+  assert.equal(robo.current.unit, "reaver");
+  run(state, STW_UNITS.zealot.time);
+  assert.equal(gateway.blocked, "템플러 아카이브 필요", "소환 중이던 질럿이 끝난 뒤 다크템플러는 아카이브를 기다림");
+  assert.equal(stwCommand(state, "player", { type: "lineAll", unit: "observer" }).ok, true);
+  assert.equal(robo.line, "observer");
+  assert.equal(gateway.line, "dark", "다른 종류의 생산 건물은 그대로");
+});
+
+test("starswar merges two high templar into an archon with the same supply", () => {
+  const state = quiet();
+  const a = stwSpawnUnitAt(state, "player", "templar", 18, 77);
+  const b = stwSpawnUnitAt(state, "player", "templar", 22, 77);
+  a.energy = 30;
+  b.energy = 120;
+  stwSpawnUnitAt(state, "player", "templar", 26, 77).energy = 200;
+  const before = stwSupply(state, "player").used;
+  assert.equal(stwCommand(state, "player", { type: "merge" }).ok, true);
+  run(state, 0.1);
+  const army = stwArmy(state, "player");
+  assert.equal(army.counts.archon, 1);
+  assert.equal(army.counts.templar, 1);
+  assert.equal(state.units.find((unit) => unit.type === "templar").energy > 150, true, "에너지가 많은 하이템플러는 남김");
+  assert.equal(stwSupply(state, "player").used, before);
+  assert.equal(state.sides.player.stats.lost, 0, "합체는 손실이 아님");
+  assert.match(stwCommand(state, "player", { type: "merge" }).reason, /하이템플러 2기가 필요합니다/);
+});
+
+test("starswar dark templar stay untargetable until a detector arrives", () => {
+  const state = quiet();
+  state.sides.player.minerals = 2000;
+  stwCommand(state, "player", { type: "build", building: "pylon" });
+  finishAll(state);
+  const defenders = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "player", "dragoon", 16 + index * 3, 79));
+  const dark = stwSpawnUnitAt(state, "enemy", "dark", 20, 84, "attack");
+  assert.equal(stwDetected(state, dark, "player"), false);
+  run(state, 4);
+  assert.ok(defenders.every((unit) => unit.targetId !== dark.id), "탐지 전에는 노릴 수 없음");
+  assert.equal(dark.hp, STW_UNITS.dark.hp);
+  assert.ok(state.log.some((entry) => /보이지 않는 적에게 공격받고 있습니다/.test(entry.text)));
+  assert.ok(state.sides.player.sawCloakAt > 0);
+  stwSpawnUnitAt(state, "player", "observer", dark.x, dark.y + 2);
+  assert.equal(stwDetected(state, dark, "player"), true);
+  run(state, 12);
+  assert.ok(dark.hp <= 0 || !state.units.includes(dark), "옵저버가 탐지하자 처치");
+});
+
+test("starswar reavers and archons deal splash damage to clumped enemies", () => {
+  const state = quiet();
+  const reaver = stwSpawnUnitAt(state, "player", "reaver", 20, 60, "attack");
+  const clump = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "enemy", "zealot", 19 + (index % 2) * 1.5, 52 + Math.floor(index / 2) * 1.5));
+  for (let index = 0; index < 30 && clump.every((unit) => unit.hp + unit.shields >= 160); index += 1) stepStarswar(state);
+  const hurt = clump.filter((unit) => unit.hp + unit.shields < 160).length;
+  assert.ok(hurt >= 3, `스캐럽 한 발에 여러 기가 피해 (${hurt}기)`);
+  assert.ok(reaver.targetId !== null);
+  state.sides.player.research.scarab = "done";
+  assert.deepEqual(stwHitDamage(state, reaver, clump[0]), [125]);
+});
+
+test("starswar observers escort the attacking army", () => {
+  const state = quiet();
+  const observer = stwSpawnUnitAt(state, "player", "observer", 20, 80);
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(state, "player", "zealot", 14 + index * 4, 77);
+  stwCommand(state, "player", { type: "attack" });
+  run(state, 12);
+  const front = state.units.filter((unit) => unit.side === "player" && unit.type === "zealot");
+  const lead = Math.min(...front.map((unit) => unit.y));
+  assert.ok(Math.abs(observer.y - (lead + 2)) < 4, `옵저버가 선두 뒤를 따라감 (${observer.y.toFixed(1)} / ${lead.toFixed(1)})`);
+  assert.equal(observer.targetId, null);
+});
+
+test("starswar dark and robo AI personas field their signature units", () => {
+  const dark = createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], personas: { player: "dark", enemy: "dragoon" } });
+  const robo = createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], personas: { player: "robo", enemy: "dragoon" } });
+  const seen = { dark: new Set(), robo: new Set() };
+  for (let step = 0; step < 6000 && (dark.status === "playing" || robo.status === "playing"); step += 1) {
+    if (dark.status === "playing") stepStarswar(dark, stwAiThink);
+    if (robo.status === "playing") stepStarswar(robo, stwAiThink);
+    for (const unit of dark.units) if (unit.side === "player") seen.dark.add(unit.type);
+    for (const unit of robo.units) if (unit.side === "player") seen.robo.add(unit.type);
+  }
+  assert.ok(seen.dark.has("dark"), "다크템플러 기습은 다크템플러를 소환");
+  assert.ok(seen.robo.has("observer") && seen.robo.has("reaver"), "로보 운영은 옵저버와 리버를 소환");
 });

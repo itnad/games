@@ -104,7 +104,7 @@
 .stw-line header span { color:var(--stw-muted); font-size:13px; }
 .stw-progress { height:5px; overflow:hidden; border-radius:3px; background:#ffffff14; }
 .stw-progress span { display:block; height:100%; background:var(--stw-gold); }
-.stw-line-choices { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
+.stw-line-choices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
 .stw-line-choices button { min-height:46px; padding:4px; display:grid; place-content:center; line-height:1.2; }
 .stw-line-choices small { color:var(--stw-muted); font-size:12px !important; font-weight:700; }
 .stw-line-choices button.active, .stw-segment button.active { color:#2a1c05; border-color:var(--stw-gold); background:var(--stw-gold); }

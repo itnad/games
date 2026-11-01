@@ -1,13 +1,14 @@
 // 스타즈워 PixiJS 렌더러. 엔진 상태를 읽기만 하며, 플레이어 시야 밖의 적은 감춘다.
 import type { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import { STW_BUILDINGS, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_STORM } from "./starswar-data.js";
-import { stwDone, stwPoint, stwRallyY, stwVisible } from "./starswar-engine.js";
+import { stwDetected, stwDone, stwPoint, stwRallyY, stwVisible } from "./starswar-engine.js";
 import { STW_TEAM, createStwTextures, type StwTextureSet } from "./starswar-sprites";
 import type { StwBuilding, StwEffect, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./starswar-types";
 
 type PixiModule = typeof import("pixi.js");
 
-const UNIT_SIZE: Record<StwUnitType, number> = { zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9 };
+const UNIT_SIZE: Record<StwUnitType, number> = { zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9, dark: 3.3, archon: 4.8, observer: 2.4, reaver: 4.6 };
+const CLOAKED = new Set<StwUnitType>(["dark", "observer"]);
 const FONT = "system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
 const FOG_CELL = 2;
 
@@ -261,6 +262,8 @@ export class StwPixiRenderer {
     const follow = 1 - Math.exp(-realDt * 16);
     for (const unit of state.units) {
       if (!this.visibleCache.has(unit.id) && unit.side !== "player") continue;
+      // 은폐한 적은 아군 탐지기 범위 안에 있을 때만 보인다.
+      if (unit.side !== "player" && CLOAKED.has(unit.type) && !stwDetected(state, unit, "player")) continue;
       alive.add(unit.id);
       let view = this.unitViews.get(unit.id);
       if (!view) view = this.createUnitView(unit);
@@ -282,6 +285,11 @@ export class StwPixiRenderer {
       const bob = unit.type === "dragoon" ? 1 + Math.sin(state.time * 6 + unit.id) * 0.02 : 1 + Math.sin(view.bob) * 0.045;
       view.body.scale.set(base * bob, base);
       if (unit.type === "templar") view.glow.alpha = 0.25 + (unit.energy / 200) * 0.45;
+      if (unit.type === "archon") {
+        view.glow.alpha = 0.55 + Math.sin(state.time * 5 + unit.id) * 0.15;
+        view.body.rotation = state.time * 0.8 + unit.id;
+      }
+      if (CLOAKED.has(unit.type)) view.root.alpha = unit.side === "player" ? 0.5 : 0.45 + Math.sin(state.time * 9 + unit.id) * 0.15;
     }
     for (const [id, view] of this.unitViews) {
       if (alive.has(id)) continue;
@@ -294,11 +302,12 @@ export class StwPixiRenderer {
     const PIXI = this.PIXI;
     const root = new PIXI.Container();
     const shadow = this.sprite(this.tex.shadow, UNIT_SIZE[unit.type] * 1.05);
-    shadow.position.set(0.25, 0.4);
+    // 옵저버는 떠 있으므로 그림자를 멀리 떨어뜨린다.
+    shadow.position.set(unit.type === "observer" ? 1.2 : 0.25, unit.type === "observer" ? 1.8 : 0.4);
     const glow = this.sprite(this.tex.soft, UNIT_SIZE[unit.type] * 1.4);
     glow.tint = STW_TEAM[unit.side].glow;
     glow.blendMode = "add";
-    glow.alpha = unit.type === "templar" ? 0.4 : 0.16;
+    glow.alpha = unit.type === "templar" ? 0.4 : unit.type === "archon" ? 0.6 : 0.16;
     const body = this.sprite(this.tex.units[unit.side][unit.type], UNIT_SIZE[unit.type]);
     body.rotation = unit.heading;
     root.addChild(shadow, glow, body);
@@ -329,6 +338,12 @@ export class StwPixiRenderer {
     if (effect.kind === "slash") {
       for (let i = 0; i < 4; i += 1) this.spark(effect.x2, effect.y2, team.glow, 4, 0.5);
       this.flash(effect.x2, effect.y2, 1.6, 0.1, team.light);
+    } else if (effect.kind === "shock") {
+      this.flash(effect.x2, effect.y2, (effect.radius ?? 1.6) * 2.4, 0.14, team.light);
+      for (let i = 0; i < 6; i += 1) this.spark(effect.x2, effect.y2, team.glow, 5, 0.4);
+    } else if (effect.kind === "scarab") {
+      const angle = Math.atan2(effect.y2 - effect.y1, effect.x2 - effect.x1);
+      this.flash(effect.x1 + Math.cos(angle) * 2, effect.y1 + Math.sin(angle) * 2, 1.8, 0.1, 0xffd28a);
     } else if (effect.kind === "plasma" || effect.kind === "photon") {
       const angle = Math.atan2(effect.y2 - effect.y1, effect.x2 - effect.x1);
       this.flash(effect.x1 + Math.cos(angle) * 1.4, effect.y1 + Math.sin(angle) * 1.4, 1.6, 0.08, team.light);
@@ -404,7 +419,7 @@ export class StwPixiRenderer {
   private drawProjectiles(state: StwState) {
     let used = 0;
     for (const effect of state.effects) {
-      if (effect.kind !== "plasma" && effect.kind !== "photon") continue;
+      if (effect.kind !== "plasma" && effect.kind !== "photon" && effect.kind !== "scarab") continue;
       const t = 1 - effect.ttl / effect.max;
       const x = effect.x1 + (effect.x2 - effect.x1) * t;
       const y = effect.y1 + (effect.y2 - effect.y1) * t;
@@ -417,13 +432,22 @@ export class StwPixiRenderer {
         this.projectilePool.push(sprite);
       }
       sprite.visible = true;
-      sprite.tint = STW_TEAM[effect.side].glow;
-      sprite.scale.set((effect.kind === "photon" ? 1.6 : 1.3) / 32);
+      sprite.tint = effect.kind === "scarab" ? 0xffb347 : STW_TEAM[effect.side].glow;
+      sprite.scale.set((effect.kind === "scarab" ? 2.2 : effect.kind === "photon" ? 1.6 : 1.3) / 32);
       sprite.position.set(x, y);
       used += 1;
       if (t > 0.7 && !this.impacted.has(effect)) {
         this.impacted.add(effect);
-        this.flash(effect.x2, effect.y2, 1.8, 0.1, STW_TEAM[effect.side].light);
+        if (effect.kind === "scarab") {
+          // 스캐럽 폭발: 큰 섬광, 불꽃, 연기, 그을음.
+          const radius = effect.radius ?? 2.4;
+          this.flash(effect.x2, effect.y2, radius * 3, 0.2, 0xfff0c0);
+          for (let i = 0; i < 10; i += 1) this.spark(effect.x2, effect.y2, i % 2 ? 0xffb050 : 0xff7a3c, 7, 0.6);
+          for (let i = 0; i < 4; i += 1) this.smoke(effect.x2, effect.y2, radius * 1.1, 1.3);
+          this.decal(this.tex.scorch, effect.x2, effect.y2, radius * 2, 25, 0.55, 0);
+        } else {
+          this.flash(effect.x2, effect.y2, 1.8, 0.1, STW_TEAM[effect.side].light);
+        }
       }
     }
     for (let index = used; index < this.projectilePool.length; index += 1) this.projectilePool[index].visible = false;

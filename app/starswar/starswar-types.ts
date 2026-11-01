@@ -1,11 +1,12 @@
 // 스타즈워 엔진 상태의 TypeScript 표면 타입.
 export type StwSide = "player" | "enemy";
 export type StwDifficulty = "easy" | "normal" | "hard";
-export type StwArmyType = "zealot" | "dragoon" | "templar";
+export type StwArmyType = "zealot" | "dragoon" | "templar" | "dark" | "archon" | "observer" | "reaver";
 export type StwUnitType = StwArmyType | "probe";
-export type StwBuildingType = "nexus" | "pylon" | "gateway" | "assimilator" | "core" | "forge" | "cannon" | "citadel" | "archives";
+export type StwBuildingType = "nexus" | "pylon" | "gateway" | "assimilator" | "core" | "forge" | "cannon" | "citadel" | "archives" | "robo" | "bay";
+export type StwProducerType = "gateway" | "robo";
 export type StwBuildChoice = Exclude<StwBuildingType, "nexus"> | "expand";
-export type StwResearchId = "weapons1" | "armor1" | "weapons2" | "shields1" | "range" | "charge" | "storm";
+export type StwResearchId = "weapons1" | "armor1" | "weapons2" | "shields1" | "range" | "charge" | "storm" | "scarab";
 export type StwRallyId = "main" | "natural" | "center" | "forward";
 export type StwCheck = { ok: boolean; reason?: string };
 
@@ -49,7 +50,7 @@ export type StwBuilding = {
   targetId: number | null;
 };
 
-export type StwEffect = { kind: "slash" | "plasma" | "photon" | "warp" | "death" | "collapse"; side: StwSide; x1: number; y1: number; x2: number; y2: number; ttl: number; max: number; radius?: number };
+export type StwEffect = { kind: "slash" | "plasma" | "photon" | "shock" | "scarab" | "warp" | "death" | "collapse"; side: StwSide; x1: number; y1: number; x2: number; y2: number; ttl: number; max: number; radius?: number };
 export type StwStorm = { id: number; side: StwSide; x: number; y: number; ttl: number };
 export type StwIntel = { time: number; buildings: Partial<Record<StwBuildingType, number>>; units: Record<StwArmyType, number>; research: { id: StwResearchId; status: string }[]; probes: number };
 export type StwSeen = { id: number; type: StwBuildingType; x: number; y: number; base: string; radius: number; at: number };
@@ -66,7 +67,8 @@ export type StwSideState = {
   autoWave: number;
   intel: StwIntel | null;
   seen: Record<string, StwSeen>;
-  persona: "rush" | "dragoon" | "templar" | null;
+  persona: "rush" | "dragoon" | "templar" | "dark" | "robo" | null;
+  sawCloakAt?: number;
   stats: StwStats;
 };
 
@@ -89,8 +91,9 @@ export type StwCommand =
   | { type: "probe" }
   | { type: "build"; building: StwBuildChoice }
   | { type: "research"; research: StwResearchId }
-  | { type: "line"; gatewayId: number; unit: StwArmyType | null }
-  | { type: "lineAll"; unit: StwArmyType | null }
+  | { type: "line"; buildingId: number; unit: StwArmyType | null }
+  | { type: "lineAll"; unit: StwArmyType | null; producer?: StwProducerType }
+  | { type: "merge" }
   | { type: "rally"; point: StwRallyId }
   | { type: "attack" }
   | { type: "retreat" }
@@ -100,7 +103,7 @@ export type StwCommand =
   | { type: "cancelBuild"; buildingId: number }
   | { type: "cancelProbe" }
   | { type: "cancelResearch"; research: StwResearchId }
-  | { type: "cancelUnit"; gatewayId: number };
+  | { type: "cancelUnit"; buildingId: number };
 
 export type StwView = { width: number; height: number; scale: number; zoom: number; cx: number; cy: number; ox: number; oy: number };
 export type StwUi = { clock: number; timeScale: number; rally: StwRallyId };
