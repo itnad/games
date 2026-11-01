@@ -802,3 +802,43 @@ test("starswar zerg AI escorts an overlord once cloaked units hurt it", () => {
   assert.equal(state.sides.player.escort, true);
   assert.ok(state.units.some((unit) => unit.side === "player" && unit.type === "overlord"));
 });
+
+test("starswar never sends only support units to attack", () => {
+  const state = zerg("protoss");
+  state.sides.player.escort = true;
+  stwSpawnUnitAt(state, "player", "overlord", 20, 77);
+  assert.match(stwCommand(state, "player", { type: "attack" }).reason, /출격할 전투 병력이 없습니다/);
+  state.sides.player.autoWave = 1;
+  run(state, 2);
+  assert.equal(stwArmy(state, "player").attack.length, 0, "자동 출격도 지원 유닛만으로는 나가지 않음");
+  stwSpawnUnitAt(state, "player", "zergling", 20, 77);
+  run(state, 1);
+  assert.equal(stwArmy(state, "player").attack.length, 2, "전투 유닛이 생기면 오버로드도 함께 출격");
+});
+
+test("starswar keeps home overlords home and returns stranded support units to the rally group", () => {
+  const state = zerg("protoss");
+  const home = stwSpawnUnitAt(state, "player", "overlord", 24, 92);
+  const ling = stwSpawnUnitAt(state, "player", "zergling", 20, 77);
+  stwCommand(state, "player", { type: "attack" });
+  assert.equal(home.group, "rally", "동행을 끈 오버로드는 출격에 끼지 않음");
+  assert.equal(ling.group, "attack");
+
+  state.sides.player.escort = true;
+  stwCommand(state, "player", { type: "retreat" });
+  stwCommand(state, "player", { type: "attack" });
+  assert.equal(home.group, "attack", "동행 중이면 함께 출격");
+  ling.hp = 0;
+  run(state, 0.3);
+  assert.equal(home.group, "rally", "싸울 유닛이 다 죽으면 지원 유닛은 대기 병력으로 돌아옴");
+  assert.equal(stwArmy(state, "player").attack.length, 0);
+
+  // AI: 지원 유닛만 남은 공격은 끝난 것으로 보고 다음 출격을 준비한다.
+  const ai = createStarswarGame({ seed: 1, aiSides: ["player"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "ling" } });
+  ai.sides.player.escort = true;
+  stwSpawnUnitAt(ai, "player", "overlord", 20, 50, "attack");
+  ai.sides.player.ai = { nextThink: 0, step: 0, wave: 0, attacking: true, waveStart: 2, done: [] };
+  run(ai, 2, stwAiThink);
+  assert.equal(ai.sides.player.ai.attacking, false);
+  assert.equal(ai.sides.player.ai.wave, 1);
+});

@@ -48,6 +48,11 @@ function batchSupply(def) {
   return def.supply * (def.pair ? 2 : 1);
 }
 
+/** 무기 없이 따라다니기만 하는 지원 유닛(옵저버, 동행 오버로드). */
+function isSupport(unit) {
+  return STW_UNITS[unit.type].role === "support";
+}
+
 /** 전투에 직접 끼지 않는 유닛(일꾼, 비행 탐지기). */
 function isPassive(unit) {
   return isWorker(unit) || isFlying(unit);
@@ -106,9 +111,10 @@ function createSide(id, persona, race) {
   };
 }
 
-export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {}, races = {} } = {}) {
+export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {}, races = {}, hiddenEnemyRace = false } = {}) {
   const state = {
     version: 1,
+    hiddenEnemyRace,
     time: 0,
     difficulty: STW_DIFFICULTIES[difficulty] ? difficulty : "normal",
     rngState: seed >>> 0,
@@ -271,13 +277,16 @@ export function stwIncome(state, side) {
 /**
  * @param {any} state
  * @param {string} side
- * @returns {{ rally: any[], attack: any[], counts: Record<string, number> }}
+ * @returns {{ rally: any[], attack: any[], fighters: any[], attackers: any[], counts: Record<string, number> }}
  */
 export function stwArmy(state, side) {
-  const army = { rally: [], attack: [], counts: Object.fromEntries(STW_ARMY_UNITS.map((type) => [type, 0])) };
+  // fighters: 대기 병력 가운데 실제로 싸우는 유닛. attackers: 공격 병력 가운데 싸우는 유닛. 지원 유닛(옵저버·동행 오버로드)은 뺀다.
+  const army = { rally: [], attack: [], fighters: [], attackers: [], counts: Object.fromEntries(STW_ARMY_UNITS.map((type) => [type, 0])) };
   for (const unit of state.units) {
     if (unit.side !== side || isWorker(unit)) continue;
-    army[unit.group === "attack" ? "attack" : "rally"].push(unit);
+    const attacking = unit.group === "attack";
+    army[attacking ? "attack" : "rally"].push(unit);
+    if (!isSupport(unit)) army[attacking ? "attackers" : "fighters"].push(unit);
     army.counts[unit.type] += 1;
   }
   return army;
@@ -505,8 +514,11 @@ export function stwCommand(state, side, command) {
     case "attack": {
       const army = stwArmy(state, side);
       if (!army.rally.length) return fail("출격할 대기 병력이 없습니다");
-      for (const unit of army.rally) unit.group = "attack";
-      if (side === "player") pushLog(state, side, `대기 병력 ${army.rally.length}기가 출격합니다!`, "order");
+      // 옵저버·오버로드만 있으면 혼자 나가 죽을 뿐이다. 동행을 끈 오버로드는 기지에 남는다.
+      if (!army.fighters.length) return fail("출격할 전투 병력이 없습니다");
+      const going = army.rally.filter((unit) => unit.type !== "overlord" || record.escort);
+      for (const unit of going) unit.group = "attack";
+      if (side === "player") pushLog(state, side, `대기 병력 ${going.length}기가 출격합니다!`, "order");
       return { ok: true };
     }
     case "retreat": {
@@ -1041,7 +1053,12 @@ function stepUnits(state, dt) {
   }
   const plans = {};
   for (const side of STW_SIDES) {
-    const army = stwArmy(state, side);
+    let army = stwArmy(state, side);
+    // 싸울 유닛이 다 죽고 지원 유닛만 공격 그룹에 남으면 대기 병력으로 되돌린다.
+    if (army.attack.length && !army.attackers.length) {
+      for (const unit of army.attack) unit.group = "rally";
+      army = stwArmy(state, side);
+    }
     const rallyY = stwRallyY(side, state.sides[side].rally);
     const attackSlots = rallySlots(state, side, army.attack, 0);
     // 공격 병력은 가장 느린 지상 유닛에 맞춰 움직인다. 동행 오버로드도 같이 다니므로 속도에 포함한다.
@@ -1628,7 +1645,7 @@ function autoWaves(state) {
     if (!record.autoWave) continue;
     const army = stwArmy(state, side);
     const rallyY = stwRallyY(side, record.rally);
-    const ready = army.rally.filter((unit) => Math.abs(unit.y - rallyY) < 8);
+    const ready = army.fighters.filter((unit) => Math.abs(unit.y - rallyY) < 8);
     if (ready.length >= record.autoWave) stwCommand(state, side, { type: "attack" });
   }
 }

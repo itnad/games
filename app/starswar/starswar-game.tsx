@@ -204,7 +204,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
 
   const startBattle = () => {
     const enemy = races.enemy === "random" ? RACE_IDS[Math.floor(Math.random() * RACE_IDS.length)] : races.enemy;
-    const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), races: { player: races.player, enemy } }) as unknown as StwState;
+    const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), races: { player: races.player, enemy }, hiddenEnemyRace: races.enemy === "random" }) as unknown as StwState;
     gameRef.current = next;
     setGame(next);
     recordedRef.current = false;
@@ -509,7 +509,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     <main className="stw-shell stw-play-shell" data-game-menu={finished ? "true" : undefined}>
       <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
-        <div><span className="stw-brand">{STW_DIFFICULTIES[game.difficulty].name} · {raceOf(game).name} 대 {intel?.race ? STW_RACES[intel.race].name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
+        <div><span className="stw-brand">{STW_DIFFICULTIES[game.difficulty].name} · {raceOf(game).name} 대 {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
       </header>
       <section className="stw-hud" aria-label="자원 현황">
         <span className="stw-res minerals"><i aria-hidden="true" /><b>{Math.floor(side.minerals)}</b><em>+{income.minerals}</em></span>
@@ -744,7 +744,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
         <div><small>대기 병력</small><b>{army.rally.length}</b><span>{armyText(Object.fromEntries(ARMY_IDS.map((type) => [type, count(army.rally, type)])))}</span></div>
         <div><small>공격 병력</small><b>{army.attack.length}</b><span>{armyText(Object.fromEntries(ARMY_IDS.map((type) => [type, count(army.attack, type)])))}</span></div>
       </div>
-      <button type="button" className="stw-attack" disabled={!army.rally.length} onClick={() => issue({ type: "attack" })}>출격<small>대기 병력을 적 본진으로</small></button>
+      <button type="button" className="stw-attack" disabled={!army.fighters.length} onClick={() => issue({ type: "attack" })}>출격<small>{army.rally.length && !army.fighters.length ? "출격할 전투 병력이 없습니다" : "대기 병력을 적 본진으로"}</small></button>
       <h3 className="stw-section">후퇴·수비</h3>
       <p className="stw-hint">공격 중인 병력까지 모두 불러들입니다. 후퇴하는 동안에는 싸우지 않고 돌아옵니다.</p>
       <div className="stw-recall">
@@ -762,9 +762,10 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
         ))}
       </div>
       <h3 className="stw-section">자동 출격</h3>
+      <p className="stw-hint">집결지에 모인 전투 병력이 이 수에 이르면 자동으로 출격합니다. 옵저버·오버로드 같은 지원 유닛은 세지 않습니다.</p>
       <div className="stw-segment">
         {WAVE_SIZES.map((size) => (
-          <button key={size} type="button" className={side.autoWave === size ? "active" : ""} aria-pressed={side.autoWave === size} onClick={() => issue({ type: "autoWave", size }, size ? `대기 병력이 ${size}기 모이면 자동으로 출격합니다.` : "자동 출격을 껐습니다.")}>{size ? `${size}기` : "끔"}</button>
+          <button key={size} type="button" className={side.autoWave === size ? "active" : ""} aria-pressed={side.autoWave === size} onClick={() => issue({ type: "autoWave", size }, size ? `전투 병력이 ${size}기 모이면 자동으로 출격합니다.` : "자동 출격을 껐습니다.")}>{size ? `${size}기` : "끔"}</button>
         ))}
       </div>
       {race.id === "zerg" ? (

@@ -252,6 +252,8 @@ export function stwAiThink(state, side) {
   // 4. 생산 라인(프로토스 게이트웨이): 테크를 모을 때는 셋 중 둘까지만 잠시 멈춘다.
   const gatewayList = stwOwnBuildings(state, side, "gateway").sort((a, b) => a.id - b.id);
   const counter = protossCounter(state, side);
+  const armyNow = stwArmy(state, side);
+  const thin = armyNow.fighters.length + armyNow.attackers.length < 3;
   gatewayList.forEach((gateway, index) => {
     let unit = "zealot";
     // 저그 상대로는 저글링에 강한 질럿을 더 섞는다.
@@ -276,7 +278,6 @@ export function stwAiThink(state, side) {
     if (STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas && record.minerals > 250) unit = "zealot";
     const def = STW_UNITS[unit];
     const starving = (reserve.minerals && record.minerals - def.minerals < reserve.minerals) || (reserve.gas && def.gas && record.gas - def.gas < reserve.gas);
-    const thin = stwArmy(state, side).rally.length + stwArmy(state, side).attack.length < 3;
     // 게이트웨이 셋 중 하나는 아끼는 중에도 계속 소환한다.
     const keepRunning = index < Math.floor(gatewayList.length / 3);
     const desired = starving && !thin && !keepRunning && !gateway.current ? null : unit;
@@ -436,12 +437,13 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false }
   const allIn = (stwIncome(state, side).minerals < 60 && record.minerals < 100) || supply.used >= 92;
 
   if (memory.attacking) {
-    if (!allIn && army.attack.length < Math.max(1, memory.waveStart * 0.35)) {
+    // 지원 유닛은 세지 않는다. 싸우는 유닛이 출격 때의 35% 아래로 줄면 후퇴.
+    if (!army.attackers.length || (!allIn && army.attackers.length < Math.max(1, memory.waveStart * 0.35))) {
       if (army.attack.length) stwCommand(state, side, { type: "retreat" });
       memory.attacking = false;
       memory.wave += 1;
     }
-    if (allIn && army.rally.length >= 4 && army.attack.length) stwCommand(state, side, { type: "attack" });
+    if (allIn && army.fighters.length >= 4 && army.attackers.length) stwCommand(state, side, { type: "attack" });
     return;
   }
   if (holdHome && !allIn) {
@@ -453,9 +455,9 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false }
   // 목록이 끝난 뒤에는 실패할 때마다 출격 규모를 4기씩 키운다(최대 40기).
   const listed = waves[Math.min(memory.wave, waves.length - 1)] + Math.max(0, memory.wave - waves.length + 1) * 4;
   const size = allIn ? 1 : Math.round(Math.min(40, listed) * settings.waveScale);
-  if (army.rally.length >= size) {
+  if (army.fighters.length >= size) {
     stwCommand(state, side, { type: "attack" });
     memory.attacking = true;
-    memory.waveStart = army.rally.length;
+    memory.waveStart = army.fighters.length;
   }
 }

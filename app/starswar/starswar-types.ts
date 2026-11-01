@@ -91,6 +91,7 @@ export type StwLogEntry = { id: number; time: number; side: StwSide; text: strin
 
 export type StwState = {
   time: number;
+  hiddenEnemyRace?: boolean;
   difficulty: StwDifficulty;
   status: "playing" | "over";
   winner: StwSide | "draw" | null;
