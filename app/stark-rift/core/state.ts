@@ -1,3 +1,6 @@
+import { checksum } from "./checksum";
+import { RNG_STREAM_IDS } from "./rng";
+import { entityStoreSchema, emptyEntityStore, type EntityStore } from "./world";
 import type { GameCommand } from "./commands";
 import { gameCommandSchema } from "./commands";
 import { array, enumeration, integer, literal, nullable, object, parse, refine, text, union, unique, type Schema } from "./validation";
@@ -52,7 +55,7 @@ export type MatchOutcome = {
 };
 
 // Concrete SoA stores are introduced with the phase 1 deterministic engine.
-export type EntityStore = Record<string, ArrayLike<number>>;
+export type { EntityStore } from "./world";
 export type ProjectileStore = Record<string, ArrayLike<number>>;
 export type GameplayEffectStore = Record<string, ArrayLike<number>>;
 export type ScheduledEventQueue = unknown[];
@@ -115,7 +118,7 @@ export function createEmptySimulationState(seed: number): SimulationState {
     phase: "setup",
     map: { definitionId: "", obstacleVersion: 0 },
     players: [],
-    entities: {},
+    entities: emptyEntityStore(),
     projectiles: {},
     gameplayEffects: {},
     scheduledEvents: [],
@@ -128,7 +131,6 @@ export function createPersistenceEnvelope(
   simulation: SimulationState,
   session: SessionState,
   recentCommands: GameCommand[],
-  checksum: string,
   savedAt: string,
 ): PersistenceEnvelope {
   const saved = {
@@ -139,7 +141,7 @@ export function createPersistenceEnvelope(
     simulation,
     session,
     recentCommands,
-    checksum,
+    checksum: checksum(simulation),
     checksumAlgorithm: STARK_RIFT_CHECKSUM_ALGORITHM,
     rngAlgorithm: STARK_RIFT_RNG_ALGORITHM,
   };
@@ -161,7 +163,7 @@ const rngSchema = refine(object({
 }), rng => rng.words.some(word => word !== 0), "RNG state cannot be all zero.");
 const emptyStore = object({});
 
-/** Phase 0 has no entity/event/AI storage layout yet. Never bless arbitrary blobs as valid saves. */
+/** Live entity storage is defined; projectile/effect/AI layouts remain reserved for their stages. */
 export const simulationStateSchema: Schema<SimulationState> = refine(object({
   schemaVersion: literal(STARK_RIFT_SCHEMA_VERSION), engineVersion: literal(STARK_RIFT_ENGINE_VERSION),
   dataVersion: text, tick: integer(), seed: integer(0, 0xffffffff),
@@ -171,11 +173,33 @@ export const simulationStateSchema: Schema<SimulationState> = refine(object({
   phase: phaseSchema,
   map: object({ definitionId: union(text, literal("")), obstacleVersion: integer() }),
   players: refine(array(playerSchema, 0, 2), players => new Set(players.map(p => p.id)).size === players.length, "Duplicate player ID."),
-  entities: emptyStore, projectiles: emptyStore, gameplayEffects: emptyStore,
+  entities: entityStoreSchema, projectiles: emptyStore, gameplayEffects: emptyStore,
   scheduledEvents: array(emptyStore, 0, 0), ai: array(emptyStore, 0, 0),
   outcome: nullable(object({ kind: enumeration(["victory", "defeat", "draw", "surrender"]), winnerPlayerId: nullable(integer()), decidedTick: integer() })),
-}), state => state.phase === "setup" && state.tick === 0 && state.outcome === null,
-"Phase 0 only supports setup snapshots; live simulation storage must be defined in phase 1.");
+}), state => {
+  const ids = state.players.map(p => p.id);
+  if (!ids.every((id, i) => id === i)) return false;
+  if (state.entities.id.some((id, i) => id >= state.counters.nextEntityId || !ids.includes(state.entities.owner[i]))) return false;
+  if (state.phase !== "setup" && (ids.length !== 2 || state.rngStreams.length !== 4 || !state.map.definitionId)) return false;
+  if (state.phase === "setup" && state.tick !== 0) return false;
+  if ((state.phase === "finished") !== (state.outcome !== null)) return false;
+  if (state.outcome && (state.outcome.decidedTick > state.tick ||
+      (state.outcome.winnerPlayerId !== null && !ids.includes(state.outcome.winnerPlayerId)))) return false;
+  if (state.commandState.lastAcceptedSequenceByPlayer.length !== ids.length) return false;
+  if (state.rngStreams.some((stream, index) => stream.id !== RNG_STREAM_IDS[index])) return false;
+  const keys = new Set<string>();
+  for (const [index, command] of state.commandState.pending.entries()) {
+    const previous = state.commandState.pending[index - 1];
+    if (previous && (previous.executeTick > command.executeTick ||
+        (previous.executeTick === command.executeTick && (previous.playerId > command.playerId ||
+        (previous.playerId === command.playerId && previous.sequence >= command.sequence))))) return false;
+    const key = `${command.playerId}:${command.sequence}`;
+    if (!ids.includes(command.playerId) || command.executeTick <= state.tick || command.issuedTick > state.tick ||
+        command.sequence > state.commandState.lastAcceptedSequenceByPlayer[command.playerId] || keys.has(key)) return false;
+    keys.add(key);
+  }
+  return true;
+}, "Invalid simulation ownership, counters, command scheduler or lifecycle.");
 
 export const sessionStateSchema: Schema<SessionState> = object({
   camera: object({ centerX: integer(-Number.MAX_SAFE_INTEGER), centerY: integer(-Number.MAX_SAFE_INTEGER), zoomLevel: integer(0, 2) as Schema<0 | 1 | 2> }),
@@ -190,6 +214,18 @@ export const persistenceEnvelopeSchema: Schema<PersistenceEnvelope> = refine(obj
   recentCommands: array(gameCommandSchema),
   checksum: refine(text, value => /^[0-9a-f]{8}$/.test(value), "Expected an xxhash32 hexadecimal digest."),
   checksumAlgorithm: literal(STARK_RIFT_CHECKSUM_ALGORITHM), rngAlgorithm: literal(STARK_RIFT_RNG_ALGORITHM),
-}), saved => saved.engineVersion === saved.simulation.engineVersion && saved.dataVersion === saved.simulation.dataVersion,
-"Envelope and simulation versions must match.");
+}), saved => saved.engineVersion === saved.simulation.engineVersion && saved.dataVersion === saved.simulation.dataVersion && saved.checksum === checksum(saved.simulation),
+"Envelope versions and simulation checksum must match.");
 export const validatePersistenceEnvelope = (input: unknown) => parse(persistenceEnvelopeSchema, input);
+
+export function serializeSnapshot(saved: PersistenceEnvelope): string {
+  const result = validatePersistenceEnvelope(saved);
+  if (!result.ok) throw new TypeError(JSON.stringify(result.issues));
+  return JSON.stringify(saved);
+}
+export function restoreSnapshot(serialized: string): PersistenceEnvelope {
+  if (serialized.length > 16 * 1024 * 1024) throw new RangeError("Snapshot exceeds 16 MiB.");
+  const result = validatePersistenceEnvelope(JSON.parse(serialized));
+  if (!result.ok) throw new TypeError(JSON.stringify(result.issues));
+  return structuredClone(result.value);
+}

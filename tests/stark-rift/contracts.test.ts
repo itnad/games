@@ -31,7 +31,7 @@ function saved() {
   return createPersistenceEnvelope(createEmptySimulationState(42), {
     camera: { centerX: 0, centerY: 0, zoomLevel: 1 },
     selection: { entityIds: [], controlGroupIds: [] }, openPanel: null,
-  }, [], "1234abcd", "2026-11-01T00:00:00.000Z");
+  }, [], "2026-11-01T00:00:00.000Z");
 }
 
 describe("command runtime boundary", () => {
@@ -60,7 +60,7 @@ describe("versioned snapshots", () => {
   it("takes an independent validated snapshot", () => {
     const simulation = createEmptySimulationState(42);
     const session = saved().session;
-    const result = createPersistenceEnvelope(simulation, session, [], "1234abcd", "2026-11-01T00:00:00.000Z");
+    const result = createPersistenceEnvelope(simulation, session, [], "2026-11-01T00:00:00.000Z");
     simulation.map.obstacleVersion = 99;
     session.camera.centerX = 123;
     expect(result.simulation.map.obstacleVersion).toBe(0);
@@ -79,8 +79,7 @@ describe("versioned snapshots", () => {
   });
   it("does not pretend to validate an undefined live entity storage format", () => {
     const snapshot = saved();
-    snapshot.simulation.entities = { arbitrary: [1] };
-    expect(validatePersistenceEnvelope(snapshot).ok).toBe(false);
+    expect(validatePersistenceEnvelope({ ...snapshot, simulation: { ...snapshot.simulation, entities: { arbitrary: [1] } } }).ok).toBe(false);
     snapshot.simulation = { ...createEmptySimulationState(1), phase: "running" };
     expect(validatePersistenceEnvelope(snapshot).ok).toBe(false);
   });

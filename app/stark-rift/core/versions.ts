@@ -1,10 +1,10 @@
-export const STARK_RIFT_ENGINE_VERSION = "0.2.0-stage0";
-export const STARK_RIFT_SCHEMA_VERSION = 2;
-export const STARK_RIFT_FORMAT_VERSION = 2;
-export const STARK_RIFT_PROTOCOL_VERSION = 2;
+export const STARK_RIFT_ENGINE_VERSION = "0.3.0-stage1";
+export const STARK_RIFT_SCHEMA_VERSION = 3;
+export const STARK_RIFT_FORMAT_VERSION = 3;
+export const STARK_RIFT_PROTOCOL_VERSION = 3;
 
-// The real value becomes the validated data bundle hash in phase 1.
-export const STARK_RIFT_DATA_VERSION = "stage0-unbuilt";
+// The content data stage replaces this marker with a validated bundle hash.
+export const STARK_RIFT_DATA_VERSION = "stage1-unbuilt";
 
 export const STARK_RIFT_RNG_ALGORITHM = "xoshiro128ss-v1";
 export const STARK_RIFT_CHECKSUM_ALGORITHM = "xxhash32-v1";
