@@ -58,7 +58,7 @@ app/
   api/version/route.ts           배포 버전 확인
   api/game-suggestions/route.ts  D1 기반 게임 추천 게시판 API
   mudflat-*.{ts,tsx,js,css}      해루질럿 구현
-  gatewar/                       관문 전쟁 (모바일 웨이브 전략) 전용 폴더
+  starswar/                       스타즈워 (모바일 웨이브 전략) 전용 폴더
   haeru-dev/page.tsx             내부 QA 도구 라우트
 public/
   mudflat-creatures/             해산물 이미지
@@ -74,9 +74,9 @@ tests/                           게임 규칙·저장·렌더링 회귀 테스�
 .openai/hosting.json             기존 Sites 프로젝트와 D1 바인딩 선언
 ```
 
-## 3-1. 관문 전쟁
+## 3-1. 스타즈워
 
-`/gatewar`에서 실행되는 모바일 웨이브 전략 게임입니다. 화면은 PixiJS로 그리며, PixiJS는 브라우저에서만 불러옵니다. 모든 소스는 `app/gatewar/` 폴더에 있고, 기획과 규칙은 [관문 전쟁 기획·구현 문서](docs/gatewar-design.md)에 있습니다. 엔진과 AI 테스트는 `tests/gatewar-engine.test.mjs`에 있습니다.
+`/starswar`에서 실행되는 모바일 웨이브 전략 게임입니다. 화면은 PixiJS로 그리며, PixiJS는 브라우저에서만 불러옵니다. 모든 소스는 `app/starswar/` 폴더에 있고, 기획과 규칙은 [스타즈워 기획·구현 문서](docs/starswar-design.md)에 있습니다. 엔진과 AI 테스트는 `tests/starswar-engine.test.mjs`에 있습니다.
 
 사이트 없이 휴대폰에서 바로 시험하려면 HTML 파일 하나로 묶을 수 있습니다. 결과는 Git에 올라가지 않는 `dist-standalone/` 폴더에 생깁니다.
 
@@ -84,7 +84,7 @@ tests/                           게임 규칙·저장·렌더링 회귀 테스�
 npm run build:game-html
 ```
 
-`dist-standalone/gatewar.html`은 React와 PixiJS까지 포함해 인터넷 없이 열립니다. `-- --artifact`를 붙이면 라이브러리를 CDN에서 불러오는 가벼운 `gatewar-artifact.html`을 만듭니다.
+`dist-standalone/starswar.html`은 React와 PixiJS까지 포함해 인터넷 없이 열립니다. `-- --artifact`를 붙이면 라이브러리를 CDN에서 불러오는 가벼운 `starswar-artifact.html`을 만듭니다.
 
 ## 4. 해루질럿 코드 구조
 

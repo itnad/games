@@ -1,13 +1,13 @@
-// 관문 전쟁 PixiJS 렌더러. 엔진 상태를 읽기만 하며, 플레이어 시야 밖의 적은 감춘다.
+// 스타즈워 PixiJS 렌더러. 엔진 상태를 읽기만 하며, 플레이어 시야 밖의 적은 감춘다.
 import type { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
-import { GW_BUILDINGS, GW_LANE_LENGTH, GW_LANE_WIDTH, GW_LAYOUT, GW_STORM } from "./gatewar-data.js";
-import { gwDone, gwPoint, gwRallyY, gwVisible } from "./gatewar-engine.js";
-import { GW_TEAM, createGwTextures, type GwTextureSet } from "./gatewar-sprites";
-import type { GwBuilding, GwEffect, GwSide, GwState, GwUi, GwUnit, GwUnitType, GwView } from "./gatewar-types";
+import { STW_BUILDINGS, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_STORM } from "./starswar-data.js";
+import { stwDone, stwPoint, stwRallyY, stwVisible } from "./starswar-engine.js";
+import { STW_TEAM, createStwTextures, type StwTextureSet } from "./starswar-sprites";
+import type { StwBuilding, StwEffect, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./starswar-types";
 
 type PixiModule = typeof import("pixi.js");
 
-const UNIT_SIZE: Record<GwUnitType, number> = { zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9 };
+const UNIT_SIZE: Record<StwUnitType, number> = { zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9 };
 const FONT = "system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
 const FOG_CELL = 2;
 
@@ -16,7 +16,7 @@ type BuildingView = { root: Container; body: Sprite; glow: Sprite | null; ghost:
 type Particle = { sprite: Sprite; x: number; y: number; vx: number; vy: number; life: number; max: number; s0: number; s1: number; a0: number; rise: number };
 type Decal = { sprite: Sprite; life: number; max: number; a0: number };
 
-export async function createGwPixiRenderer(host: HTMLElement, width: number, height: number) {
+export async function createStwPixiRenderer(host: HTMLElement, width: number, height: number) {
   const PIXI = await import("pixi.js");
   // CSP가 eval을 막는 환경에서도 동작하도록 eval 없는 구현을 켠다.
   // @ts-expect-error 이 하위 경로는 타입 선언 없이 배포된다.
@@ -34,15 +34,15 @@ export async function createGwPixiRenderer(host: HTMLElement, width: number, hei
     sharedTicker: false,
   });
   app.ticker?.stop();
-  app.canvas.classList.add("gw-pixi-canvas");
+  app.canvas.classList.add("stw-pixi-canvas");
   host.appendChild(app.canvas);
-  return new GwPixiRenderer(PIXI, app);
+  return new StwPixiRenderer(PIXI, app);
 }
 
-export class GwPixiRenderer {
+export class StwPixiRenderer {
   private readonly PIXI: PixiModule;
   private readonly app: Application;
-  private readonly tex: GwTextureSet;
+  private readonly tex: StwTextureSet;
   private readonly world: Container;
   private readonly decals: Container;
   private readonly underlay: Graphics;
@@ -64,29 +64,29 @@ export class GwPixiRenderer {
   private processed = new WeakSet<object>();
   private impacted = new WeakSet<object>();
   private lastClock = 0;
-  private lastState: GwState | null = null;
+  private lastState: StwState | null = null;
   private fogAt = -1;
   private visibleCache = new Set<number>();
 
   constructor(PIXI: PixiModule, app: Application) {
     this.PIXI = PIXI;
     this.app = app;
-    this.tex = createGwTextures(PIXI, app.renderer);
+    this.tex = createStwTextures(PIXI, app.renderer);
     this.world = new PIXI.Container();
     const ground = new PIXI.Sprite(this.tex.terrain);
-    ground.width = GW_LANE_WIDTH;
-    ground.height = GW_LANE_LENGTH;
+    ground.width = STW_LANE_WIDTH;
+    ground.height = STW_LANE_LENGTH;
     const resources = new PIXI.Container();
-    for (const side of ["player", "enemy"] as GwSide[]) {
-      for (const point of [GW_LAYOUT.mainMinerals, GW_LAYOUT.naturalMinerals]) {
+    for (const side of ["player", "enemy"] as StwSide[]) {
+      for (const point of [STW_LAYOUT.mainMinerals, STW_LAYOUT.naturalMinerals]) {
         const minerals = this.sprite(this.tex.minerals, 13);
-        const p = gwPoint(side, point);
+        const p = stwPoint(side, point);
         minerals.position.set(p.x, p.y);
         resources.addChild(minerals);
       }
-      for (const point of GW_LAYOUT.geysers) {
+      for (const point of STW_LAYOUT.geysers) {
         const geyser = this.sprite(this.tex.geyser, 4);
-        const p = gwPoint(side, point);
+        const p = stwPoint(side, point);
         geyser.position.set(p.x, p.y);
         resources.addChild(geyser);
       }
@@ -126,7 +126,7 @@ export class GwPixiRenderer {
     this.app.destroy({ removeView: true }, { children: true, texture: true, textureSource: true });
   }
 
-  render(state: GwState, view: GwView, ui: GwUi) {
+  render(state: StwState, view: StwView, ui: StwUi) {
     if (state !== this.lastState) this.reset(state);
     const realDt = Math.min(0.1, Math.max(0, ui.clock - this.lastClock));
     this.lastClock = ui.clock;
@@ -142,15 +142,15 @@ export class GwPixiRenderer {
     this.drawStorms(state, ui.clock);
     this.stepParticles(dt);
     this.stepDecals(dt);
-    const rally = gwRallyY("player", ui.rally);
-    this.rallyFlag.position.set(GW_LANE_WIDTH / 2 + 7, rally);
+    const rally = stwRallyY("player", ui.rally);
+    this.rallyFlag.position.set(STW_LANE_WIDTH / 2 + 7, rally);
     this.drawOverlay(state, view);
     this.app.render();
   }
 
   /* ───────── 준비 ───────── */
 
-  private reset(state: GwState) {
+  private reset(state: StwState) {
     this.lastState = state;
     this.processed = new WeakSet<object>();
     this.impacted = new WeakSet<object>();
@@ -175,14 +175,14 @@ export class GwPixiRenderer {
 
   /* ───────── 시야 ───────── */
 
-  private refreshVision(state: GwState) {
+  private refreshVision(state: StwState) {
     this.fogAt = state.time;
     const g = this.fog;
     g.clear();
-    for (let y = 0; y < GW_LANE_LENGTH; y += FOG_CELL) {
+    for (let y = 0; y < STW_LANE_LENGTH; y += FOG_CELL) {
       let runStart = -1;
-      for (let x = 0; x <= GW_LANE_WIDTH; x += FOG_CELL) {
-        const hidden = x < GW_LANE_WIDTH && !gwVisible(state, "player", x + FOG_CELL / 2, y + FOG_CELL / 2, 0.5);
+      for (let x = 0; x <= STW_LANE_WIDTH; x += FOG_CELL) {
+        const hidden = x < STW_LANE_WIDTH && !stwVisible(state, "player", x + FOG_CELL / 2, y + FOG_CELL / 2, 0.5);
         if (hidden && runStart < 0) runStart = x;
         if (!hidden && runStart >= 0) {
           g.rect(runStart, y, x - runStart, FOG_CELL);
@@ -191,34 +191,34 @@ export class GwPixiRenderer {
       }
     }
     g.fill({ color: 0x0b0805, alpha: 0.5 });
-    this.visibleCache = new Set(state.units.filter((unit) => unit.side === "player" || gwVisible(state, "player", unit.x, unit.y)).map((unit) => unit.id));
+    this.visibleCache = new Set(state.units.filter((unit) => unit.side === "player" || stwVisible(state, "player", unit.x, unit.y)).map((unit) => unit.id));
   }
 
   /* ───────── 건물 ───────── */
 
-  private drawUnderlay(state: GwState) {
+  private drawUnderlay(state: StwState) {
     const g = this.underlay;
     g.clear();
     for (const building of state.buildings) {
-      if (building.side !== "player" || building.type !== "pylon" || !gwDone(building)) continue;
-      g.circle(building.x, building.y, 6.5).fill({ color: GW_TEAM.player.glow, alpha: 0.05 }).stroke({ width: 0.15, color: GW_TEAM.player.glow, alpha: 0.25 });
+      if (building.side !== "player" || building.type !== "pylon" || !stwDone(building)) continue;
+      g.circle(building.x, building.y, 6.5).fill({ color: STW_TEAM.player.glow, alpha: 0.05 }).stroke({ width: 0.15, color: STW_TEAM.player.glow, alpha: 0.25 });
     }
   }
 
-  private syncBuildings(state: GwState) {
+  private syncBuildings(state: StwState) {
     const seen = state.sides.player.seen;
     const alive = new Set<number>();
     const visibleEnemy = new Set<number>();
     for (const building of state.buildings) {
       const own = building.side === "player";
       const remembered = !own && seen[building.id];
-      const visibleNow = own || gwVisible(state, "player", building.x, building.y, building.radius);
+      const visibleNow = own || stwVisible(state, "player", building.x, building.y, building.radius);
       if (!own && !visibleNow && !remembered) continue;
       alive.add(building.id);
       if (!own && visibleNow) visibleEnemy.add(building.id);
       let view = this.buildingViews.get(building.id);
       if (!view) view = this.createBuildingView(building);
-      const done = gwDone(building);
+      const done = stwDone(building);
       view.ghost = !own && !visibleNow;
       view.body.alpha = view.ghost ? 0.5 : done ? 1 : 0.35 + building.progress * 0.5;
       view.body.tint = view.ghost ? 0x9a8f80 : 0xffffff;
@@ -231,9 +231,9 @@ export class GwPixiRenderer {
     }
   }
 
-  private createBuildingView(building: GwBuilding): BuildingView {
+  private createBuildingView(building: StwBuilding): BuildingView {
     const PIXI = this.PIXI;
-    const def = GW_BUILDINGS[building.type];
+    const def = STW_BUILDINGS[building.type];
     const root = new PIXI.Container();
     root.position.set(building.x, building.y);
     const shadow = this.sprite(this.tex.shadow, def.size * 1.45);
@@ -243,7 +243,7 @@ export class GwPixiRenderer {
     root.addChild(shadow);
     if (["nexus", "pylon", "cannon", "gateway"].includes(building.type)) {
       glow = this.sprite(this.tex.soft, def.size * 1.3);
-      glow.tint = GW_TEAM[building.side].glow;
+      glow.tint = STW_TEAM[building.side].glow;
       glow.blendMode = "add";
       root.addChild(glow);
     }
@@ -256,7 +256,7 @@ export class GwPixiRenderer {
 
   /* ───────── 유닛 ───────── */
 
-  private syncUnits(state: GwState, realDt: number) {
+  private syncUnits(state: StwState, realDt: number) {
     const alive = new Set<number>();
     const follow = 1 - Math.exp(-realDt * 16);
     for (const unit of state.units) {
@@ -290,13 +290,13 @@ export class GwPixiRenderer {
     }
   }
 
-  private createUnitView(unit: GwUnit): UnitView {
+  private createUnitView(unit: StwUnit): UnitView {
     const PIXI = this.PIXI;
     const root = new PIXI.Container();
     const shadow = this.sprite(this.tex.shadow, UNIT_SIZE[unit.type] * 1.05);
     shadow.position.set(0.25, 0.4);
     const glow = this.sprite(this.tex.soft, UNIT_SIZE[unit.type] * 1.4);
-    glow.tint = GW_TEAM[unit.side].glow;
+    glow.tint = STW_TEAM[unit.side].glow;
     glow.blendMode = "add";
     glow.alpha = unit.type === "templar" ? 0.4 : 0.16;
     const body = this.sprite(this.tex.units[unit.side][unit.type], UNIT_SIZE[unit.type]);
@@ -311,11 +311,11 @@ export class GwPixiRenderer {
 
   /* ───────── 효과 ───────── */
 
-  private visiblePoint(state: GwState, x: number, y: number) {
-    return gwVisible(state, "player", x, y, 1);
+  private visiblePoint(state: StwState, x: number, y: number) {
+    return stwVisible(state, "player", x, y, 1);
   }
 
-  private spawnEffects(state: GwState) {
+  private spawnEffects(state: StwState) {
     for (const effect of state.effects) {
       if (this.processed.has(effect)) continue;
       this.processed.add(effect);
@@ -324,8 +324,8 @@ export class GwPixiRenderer {
     }
   }
 
-  private spawnEffect(effect: GwEffect) {
-    const team = GW_TEAM[effect.side];
+  private spawnEffect(effect: StwEffect) {
+    const team = STW_TEAM[effect.side];
     if (effect.kind === "slash") {
       for (let i = 0; i < 4; i += 1) this.spark(effect.x2, effect.y2, team.glow, 4, 0.5);
       this.flash(effect.x2, effect.y2, 1.6, 0.1, team.light);
@@ -401,7 +401,7 @@ export class GwPixiRenderer {
     if (this.decalList.length > 50) this.decalList.shift()?.sprite.destroy();
   }
 
-  private drawProjectiles(state: GwState) {
+  private drawProjectiles(state: StwState) {
     let used = 0;
     for (const effect of state.effects) {
       if (effect.kind !== "plasma" && effect.kind !== "photon") continue;
@@ -417,25 +417,25 @@ export class GwPixiRenderer {
         this.projectilePool.push(sprite);
       }
       sprite.visible = true;
-      sprite.tint = GW_TEAM[effect.side].glow;
+      sprite.tint = STW_TEAM[effect.side].glow;
       sprite.scale.set((effect.kind === "photon" ? 1.6 : 1.3) / 32);
       sprite.position.set(x, y);
       used += 1;
       if (t > 0.7 && !this.impacted.has(effect)) {
         this.impacted.add(effect);
-        this.flash(effect.x2, effect.y2, 1.8, 0.1, GW_TEAM[effect.side].light);
+        this.flash(effect.x2, effect.y2, 1.8, 0.1, STW_TEAM[effect.side].light);
       }
     }
     for (let index = used; index < this.projectilePool.length; index += 1) this.projectilePool[index].visible = false;
   }
 
-  private drawStorms(state: GwState, clock: number) {
+  private drawStorms(state: StwState, clock: number) {
     const g = this.stormLayer;
     g.clear();
     for (const storm of state.storms) {
       if (storm.side !== "player" && !this.visiblePoint(state, storm.x, storm.y)) continue;
-      const r = GW_STORM.radius;
-      const fade = Math.min(1, storm.ttl / 0.4, (GW_STORM.duration - storm.ttl + 0.15) / 0.3);
+      const r = STW_STORM.radius;
+      const fade = Math.min(1, storm.ttl / 0.4, (STW_STORM.duration - storm.ttl + 0.15) / 0.3);
       g.circle(storm.x, storm.y, r).fill({ color: 0x7a5cff, alpha: 0.22 * fade });
       g.circle(storm.x, storm.y, r).stroke({ width: 0.18, color: 0xc9b8ff, alpha: 0.7 * fade });
       for (let i = 0; i < 7; i += 1) {
@@ -491,7 +491,7 @@ export class GwPixiRenderer {
 
   /* ───────── 화면 고정 표시 ───────── */
 
-  private drawOverlay(state: GwState, view: GwView) {
+  private drawOverlay(state: StwState, view: StwView) {
     const sx = (x: number) => view.ox + x * view.scale;
     const sy = (y: number) => view.oy + y * view.scale;
     const g = this.bars;
@@ -507,10 +507,10 @@ export class GwPixiRenderer {
     for (const building of state.buildings) {
       const view2 = this.buildingViews.get(building.id);
       if (!view2 || view2.ghost) continue;
-      const half = (GW_BUILDINGS[building.type].size / 2) * view.scale;
+      const half = (STW_BUILDINGS[building.type].size / 2) * view.scale;
       const x = sx(building.x);
       const y = sy(building.y);
-      if (!gwDone(building)) {
+      if (!stwDone(building)) {
         const r = half * 0.8;
         g.moveTo(x + r, y).arc(x, y, r, 0, Math.PI * 2).stroke({ width: 4, color: 0x000000, alpha: 0.5 });
         g.moveTo(x, y - r).arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * building.progress).stroke({ width: 3, color: 0xffe08a });

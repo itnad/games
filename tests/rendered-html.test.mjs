@@ -3,7 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import "./mudflat-cast-net.test.mjs";
 import "./mudflat-run-save.test.mjs";
-import "./gatewar-engine.test.mjs";
+import "./starswar-engine.test.mjs";
 import { installGameRefreshGuard } from "../app/game-refresh.js";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { advanceLumiMotion, clearLumiAtlasMatte, createLumiMotion, lumiPose, lumiTongPose } from "../app/mudflat-lumi-animation.js";
@@ -564,7 +564,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "ten-seconds",
     "mudflat-survivor",
     "tetris",
-    "gatewar",
+    "starswar",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -757,41 +757,41 @@ test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
   assert.doesNotMatch(hiddenSet, /"mudflat-survivor"/);
 });
 
-test("keeps Gate War in its own app/gatewar folder and publishes it as a mobile game", async () => {
+test("keeps Gate War in its own app/starswar folder and publishes it as a mobile game", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const viteConfig = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
   const hiddenSet = pageSource.match(/const DEFAULT_HIDDEN_GAME_IDS[\s\S]*?\]\);/)?.[0] ?? "";
-  const folder = (await readdir(new URL("../app/gatewar/", import.meta.url))).sort();
+  const folder = (await readdir(new URL("../app/starswar/", import.meta.url))).sort();
 
   assert.deepEqual(folder, [
-    "gatewar-ai.js",
-    "gatewar-camera.js",
-    "gatewar-data.js",
-    "gatewar-engine.js",
-    "gatewar-game.tsx",
-    "gatewar-pixi.ts",
-    "gatewar-sprites.ts",
-    "gatewar-types.ts",
-    "gatewar.css",
+    "starswar-ai.js",
+    "starswar-camera.js",
+    "starswar-data.js",
+    "starswar-engine.js",
+    "starswar-game.tsx",
+    "starswar-pixi.ts",
+    "starswar-sprites.ts",
+    "starswar-types.ts",
+    "starswar.css",
   ]);
-  assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^(gatewar|frontline)/.test(file) && file !== "gatewar"), false);
-  assert.match(pageSource, /import \{ GatewarGame \} from "\.\/gatewar\/gatewar-game";/);
-  assert.match(layoutSource, /import "\.\/gatewar\/gatewar\.css";/);
-  assert.match(pageSource, /id: "gatewar",[\s\S]*?title: "관문 전쟁",[\s\S]*?category: "모바일"/);
+  assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^(starswar|frontline)/.test(file) && file !== "starswar"), false);
+  assert.match(pageSource, /import \{ StarswarGame \} from "\.\/starswar\/starswar-game";/);
+  assert.match(layoutSource, /import "\.\/starswar\/starswar\.css";/);
+  assert.match(pageSource, /id: "starswar",[\s\S]*?title: "스타즈워",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
-  assert.doesNotMatch(hiddenSet, /"gatewar"/);
+  assert.doesNotMatch(hiddenSet, /"starswar"/);
 
-  const pixiSource = await readFile(new URL("../app/gatewar/gatewar-pixi.ts", import.meta.url), "utf8");
+  const pixiSource = await readFile(new URL("../app/starswar/starswar-pixi.ts", import.meta.url), "utf8");
   assert.match(pixiSource, /await import\("pixi\.js"\)/, "PixiJS는 브라우저에서만 동적으로 불러온다");
   assert.match(pixiSource, /pixi\.js\/unsafe-eval/);
   assert.match(viteConfig, /consumer === "server"/, "서버 번들에서는 PixiJS를 뺀다");
 
-  const gameSource = await readFile(new URL("../app/gatewar/gatewar-game.tsx", import.meta.url), "utf8");
+  const gameSource = await readFile(new URL("../app/starswar/starswar-game.tsx", import.meta.url), "utf8");
   for (const label of ["경제·건설", "생산·연구", "병력", "출격", "후퇴", "집결지", "자동 출격", "프로브 정찰", "모든 게이트웨이", "전투 시작"]) assert.match(gameSource, new RegExp(label));
   assert.match(gameSource, /data-game-menu="true"/);
-  const brief = await readFile(new URL("../docs/gatewar-design.md", import.meta.url), "utf8");
-  assert.match(brief, /app\/gatewar\//);
+  const brief = await readFile(new URL("../docs/starswar-design.md", import.meta.url), "utf8");
+  assert.match(brief, /app\/starswar\//);
 });
 
 test("detects published site updates and refreshes only through safe user actions", async () => {

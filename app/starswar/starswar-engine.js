@@ -1,41 +1,41 @@
-// 관문 전쟁 규칙 엔진. React와 DOM에 의존하지 않는 결정적 시뮬레이션.
-// 플레이어와 AI는 같은 gwCommand만 쓴다.
+// 스타즈워 규칙 엔진. React와 DOM에 의존하지 않는 결정적 시뮬레이션.
+// 플레이어와 AI는 같은 stwCommand만 쓴다.
 import { withKoreanDirection, withKoreanObject, withKoreanSubject } from "../korean-particles.js";
 import {
-  GW_ARMY_UNITS,
-  GW_BUILDINGS,
-  GW_DIFFICULTIES,
-  GW_ECONOMY,
-  GW_LANE_LENGTH,
-  GW_LANE_WIDTH,
-  GW_LAYOUT,
-  GW_RALLY_POINTS,
-  GW_RESEARCH,
-  GW_SIZE_MULTIPLIER,
-  GW_STORM,
-  GW_TICK,
-  GW_UNITS,
-} from "./gatewar-data.js";
+  STW_ARMY_UNITS,
+  STW_BUILDINGS,
+  STW_DIFFICULTIES,
+  STW_ECONOMY,
+  STW_LANE_LENGTH,
+  STW_LANE_WIDTH,
+  STW_LAYOUT,
+  STW_RALLY_POINTS,
+  STW_RESEARCH,
+  STW_SIZE_MULTIPLIER,
+  STW_STORM,
+  STW_TICK,
+  STW_UNITS,
+} from "./starswar-data.js";
 
-export const GW_SIDES = ["player", "enemy"];
+export const STW_SIDES = ["player", "enemy"];
 
-export function gwOpponent(side) {
+export function stwOpponent(side) {
   return side === "player" ? "enemy" : "player";
 }
 
 /** 아군 기준 좌표를 진영 좌표로 바꾼다(적은 점대칭). */
-export function gwPoint(side, point) {
-  return side === "player" ? { x: point.x, y: point.y } : { x: GW_LANE_WIDTH - point.x, y: GW_LANE_LENGTH - point.y };
+export function stwPoint(side, point) {
+  return side === "player" ? { x: point.x, y: point.y } : { x: STW_LANE_WIDTH - point.x, y: STW_LANE_LENGTH - point.y };
 }
 
 /** 전진 방향: 아군은 y가 줄어드는 쪽, 적은 늘어나는 쪽. */
-export function gwForward(side) {
+export function stwForward(side) {
   return side === "player" ? -1 : 1;
 }
 
-export function gwRallyY(side, rallyId) {
-  const point = GW_RALLY_POINTS.find((item) => item.id === rallyId) ?? GW_RALLY_POINTS[0];
-  return side === "player" ? point.y : GW_LANE_LENGTH - point.y;
+export function stwRallyY(side, rallyId) {
+  const point = STW_RALLY_POINTS.find((item) => item.id === rallyId) ?? STW_RALLY_POINTS[0];
+  return side === "player" ? point.y : STW_LANE_LENGTH - point.y;
 }
 
 function distance(ax, ay, bx, by) {
@@ -52,10 +52,10 @@ function nextRandom(state) {
 function createSide(id, persona) {
   return {
     id,
-    minerals: GW_ECONOMY.startMinerals,
+    minerals: STW_ECONOMY.startMinerals,
     gas: 0,
-    probes: GW_ECONOMY.startProbes,
-    bases: { main: { minerals: GW_ECONOMY.mainMinerals }, natural: { minerals: GW_ECONOMY.naturalMinerals } },
+    probes: STW_ECONOMY.startProbes,
+    bases: { main: { minerals: STW_ECONOMY.mainMinerals }, natural: { minerals: STW_ECONOMY.naturalMinerals } },
     research: {},
     rally: "main",
     autoWave: 0,
@@ -67,11 +67,11 @@ function createSide(id, persona) {
   };
 }
 
-export function createGatewarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {} } = {}) {
+export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {} } = {}) {
   const state = {
     version: 1,
     time: 0,
-    difficulty: GW_DIFFICULTIES[difficulty] ? difficulty : "normal",
+    difficulty: STW_DIFFICULTIES[difficulty] ? difficulty : "normal",
     rngState: seed >>> 0,
     status: "playing",
     winner: null,
@@ -90,13 +90,13 @@ export function createGatewarGame({ difficulty = "normal", seed = 20261101, aiSi
     alerts: {},
     aiSides: [...aiSides],
   };
-  for (const side of GW_SIDES) {
+  for (const side of STW_SIDES) {
     if (!state.sides[side].persona && state.aiSides.includes(side)) {
       // 쉬움에서는 4분 질럿 러시가 나오지 않게 한다.
       const personas = state.difficulty === "easy" ? ["dragoon", "templar"] : ["rush", "dragoon", "templar"];
       state.sides[side].persona = personas[Math.floor(nextRandom(state) * personas.length)];
     }
-    const nexus = placeBuilding(state, side, "nexus", gwPoint(side, GW_LAYOUT.mainNexus), "main", "nexus-main");
+    const nexus = placeBuilding(state, side, "nexus", stwPoint(side, STW_LAYOUT.mainNexus), "main", "nexus-main");
     nexus.progress = 1;
     nexus.hp = nexus.maxHp;
     nexus.shields = nexus.maxShields;
@@ -106,7 +106,7 @@ export function createGatewarGame({ difficulty = "normal", seed = 20261101, aiSi
 }
 
 function placeBuilding(state, side, type, position, base, slot) {
-  const def = GW_BUILDINGS[type];
+  const def = STW_BUILDINGS[type];
   const building = {
     id: state.nextId++,
     kind: "building",
@@ -143,7 +143,7 @@ function defaultLine() {
 
 /* ───────── 조회 ───────── */
 
-export function gwDone(building) {
+export function stwDone(building) {
   return building.progress >= 1;
 }
 
@@ -154,44 +154,44 @@ export function gwDone(building) {
  * @param {{ doneOnly?: boolean }} [options]
  * @returns {any[]}
  */
-export function gwOwnBuildings(state, side, type = null, { doneOnly = false } = {}) {
-  return state.buildings.filter((building) => building.side === side && (!type || building.type === type) && (!doneOnly || gwDone(building)));
+export function stwOwnBuildings(state, side, type = null, { doneOnly = false } = {}) {
+  return state.buildings.filter((building) => building.side === side && (!type || building.type === type) && (!doneOnly || stwDone(building)));
 }
 
-export function gwHas(state, side, type) {
-  return state.buildings.some((building) => building.side === side && building.type === type && gwDone(building));
+export function stwHas(state, side, type) {
+  return state.buildings.some((building) => building.side === side && building.type === type && stwDone(building));
 }
 
-export function gwNexus(state, side, base) {
+export function stwNexus(state, side, base) {
   return state.buildings.find((building) => building.side === side && building.type === "nexus" && building.base === base) ?? null;
 }
 
-export function gwSupply(state, side) {
+export function stwSupply(state, side) {
   const record = state.sides[side];
   let cap = 0;
   let used = record.probes;
   for (const building of state.buildings) {
     if (building.side !== side) continue;
-    if (gwDone(building)) cap += GW_BUILDINGS[building.type].supply ?? 0;
-    for (const item of building.queue) used += GW_UNITS[item.unit].supply;
-    if (building.current) used += GW_UNITS[building.current.unit].supply;
+    if (stwDone(building)) cap += STW_BUILDINGS[building.type].supply ?? 0;
+    for (const item of building.queue) used += STW_UNITS[item.unit].supply;
+    if (building.current) used += STW_UNITS[building.current.unit].supply;
   }
-  for (const unit of state.units) if (unit.side === side) used += GW_UNITS[unit.type].supply;
-  return { used, cap: Math.min(GW_ECONOMY.supplyLimit, cap) };
+  for (const unit of state.units) if (unit.side === side) used += STW_UNITS[unit.type].supply;
+  return { used, cap: Math.min(STW_ECONOMY.supplyLimit, cap) };
 }
 
 /** 프로브 배치: 가스, 본진 광물, 앞마당 광물, 놀고 있는 수. */
-export function gwWorkerSplit(state, side) {
+export function stwWorkerSplit(state, side) {
   const record = state.sides[side];
-  const gasSlots = gwOwnBuildings(state, side, "assimilator", { doneOnly: true }).length * GW_ECONOMY.probesPerGas;
-  const gas = Math.min(gasSlots, Math.max(0, record.probes - GW_ECONOMY.minMineralProbes));
+  const gasSlots = stwOwnBuildings(state, side, "assimilator", { doneOnly: true }).length * STW_ECONOMY.probesPerGas;
+  const gas = Math.min(gasSlots, Math.max(0, record.probes - STW_ECONOMY.minMineralProbes));
   let mineral = record.probes - gas;
   const split = { gas, main: 0, natural: 0, idle: 0 };
   const bases = ["main", "natural"].filter((base) => {
-    const nexus = gwNexus(state, side, base);
-    return nexus && gwDone(nexus) && record.bases[base].minerals > 0;
+    const nexus = stwNexus(state, side, base);
+    return nexus && stwDone(nexus) && record.bases[base].minerals > 0;
   });
-  for (const cap of [GW_ECONOMY.fullSaturation, GW_ECONOMY.maxSaturation]) {
+  for (const cap of [STW_ECONOMY.fullSaturation, STW_ECONOMY.maxSaturation]) {
     for (const base of bases) {
       const add = Math.max(0, Math.min(cap - split[base], mineral));
       split[base] += add;
@@ -203,22 +203,22 @@ export function gwWorkerSplit(state, side) {
 }
 
 function mineralRate(count) {
-  const full = Math.min(count, GW_ECONOMY.fullSaturation);
-  const over = Math.max(0, Math.min(count, GW_ECONOMY.maxSaturation) - GW_ECONOMY.fullSaturation);
-  return (full + over * GW_ECONOMY.overflowRate) * GW_ECONOMY.mineralRate;
+  const full = Math.min(count, STW_ECONOMY.fullSaturation);
+  const over = Math.max(0, Math.min(count, STW_ECONOMY.maxSaturation) - STW_ECONOMY.fullSaturation);
+  return (full + over * STW_ECONOMY.overflowRate) * STW_ECONOMY.mineralRate;
 }
 
 function incomeMultiplier(state, side) {
-  return side === "enemy" && state.aiSides.includes("enemy") && !state.aiSides.includes("player") ? GW_DIFFICULTIES[state.difficulty].income : 1;
+  return side === "enemy" && state.aiSides.includes("enemy") && !state.aiSides.includes("player") ? STW_DIFFICULTIES[state.difficulty].income : 1;
 }
 
 /** 분당 예상 수입. */
-export function gwIncome(state, side) {
-  const split = gwWorkerSplit(state, side);
+export function stwIncome(state, side) {
+  const split = stwWorkerSplit(state, side);
   const multiplier = incomeMultiplier(state, side);
   return {
     minerals: Math.round((mineralRate(split.main) + mineralRate(split.natural)) * multiplier * 60),
-    gas: Math.round(split.gas * GW_ECONOMY.gasPerProbe * multiplier * 60),
+    gas: Math.round(split.gas * STW_ECONOMY.gasPerProbe * multiplier * 60),
   };
 }
 
@@ -227,7 +227,7 @@ export function gwIncome(state, side) {
  * @param {string} side
  * @returns {{ rally: any[], attack: any[], counts: Record<string, number> }}
  */
-export function gwArmy(state, side) {
+export function stwArmy(state, side) {
   const army = { rally: [], attack: [], counts: { zealot: 0, dragoon: 0, templar: 0 } };
   for (const unit of state.units) {
     if (unit.side !== side || unit.type === "probe") continue;
@@ -237,7 +237,7 @@ export function gwArmy(state, side) {
   return army;
 }
 
-export function gwResearchDone(state, side, id) {
+export function stwResearchDone(state, side, id) {
   return state.sides[side].research[id] === "done";
 }
 
@@ -269,117 +269,117 @@ function costCheck(record, minerals, gas) {
 function freeSlot(state, side, list, prefix) {
   const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
   const index = list.findIndex((_, i) => !used.has(`${prefix}-${i}`));
-  return index < 0 ? null : { key: `${prefix}-${index}`, point: gwPoint(side, list[index]) };
+  return index < 0 ? null : { key: `${prefix}-${index}`, point: stwPoint(side, list[index]) };
 }
 
 function placementFor(state, side, type) {
   if (type === "assimilator") {
-    const slot = freeSlot(state, side, GW_LAYOUT.geysers, "geyser");
+    const slot = freeSlot(state, side, STW_LAYOUT.geysers, "geyser");
     return slot ? { ...slot, base: "main" } : null;
   }
-  const natural = gwNexus(state, side, "natural");
+  const natural = stwNexus(state, side, "natural");
   if (type === "cannon") {
     if (natural) {
-      const slot = freeSlot(state, side, GW_LAYOUT.naturalSlots, "natural");
+      const slot = freeSlot(state, side, STW_LAYOUT.naturalSlots, "natural");
       if (slot) return { ...slot, base: "natural" };
     }
-    const front = freeSlot(state, side, GW_LAYOUT.frontSlots, "front");
+    const front = freeSlot(state, side, STW_LAYOUT.frontSlots, "front");
     if (front) return { ...front, base: "main" };
   }
-  const main = freeSlot(state, side, GW_LAYOUT.mainSlots, "main");
+  const main = freeSlot(state, side, STW_LAYOUT.mainSlots, "main");
   if (main) return { ...main, base: "main" };
-  if (natural && gwDone(natural)) {
-    const slot = freeSlot(state, side, GW_LAYOUT.naturalSlots, "natural");
+  if (natural && stwDone(natural)) {
+    const slot = freeSlot(state, side, STW_LAYOUT.naturalSlots, "natural");
     if (slot) return { ...slot, base: "natural" };
   }
   if (type !== "cannon") {
-    const front = freeSlot(state, side, GW_LAYOUT.frontSlots, "front");
+    const front = freeSlot(state, side, STW_LAYOUT.frontSlots, "front");
     if (front) return { ...front, base: "main" };
   }
   return null;
 }
 
-export function gwBuildCheck(state, side, type) {
+export function stwBuildCheck(state, side, type) {
   const record = state.sides[side];
   if (type === "expand") {
-    if (gwNexus(state, side, "natural")) return fail("이미 앞마당에 넥서스가 있습니다");
-    const point = gwPoint(side, GW_LAYOUT.naturalNexus);
+    if (stwNexus(state, side, "natural")) return fail("이미 앞마당에 넥서스가 있습니다");
+    const point = stwPoint(side, STW_LAYOUT.naturalNexus);
     if (state.units.some((unit) => unit.side !== side && distance(unit.x, unit.y, point.x, point.y) < 12)) return fail("앞마당에 적이 있습니다");
-    return costCheck(record, GW_BUILDINGS.nexus.minerals, 0);
+    return costCheck(record, STW_BUILDINGS.nexus.minerals, 0);
   }
-  const def = GW_BUILDINGS[type];
+  const def = STW_BUILDINGS[type];
   if (!def || type === "nexus") return fail("지을 수 없는 건물입니다");
-  if (def.requires && !gwHas(state, side, def.requires)) return fail(`${withKoreanSubject(GW_BUILDINGS[def.requires].name)} 필요합니다`);
-  if (type === "core" && gwOwnBuildings(state, side, "core").length) return fail("이미 있습니다");
-  if (type === "forge" && gwOwnBuildings(state, side, "forge").length) return fail("이미 있습니다");
-  if (type === "citadel" && gwOwnBuildings(state, side, "citadel").length) return fail("이미 있습니다");
-  if (type === "archives" && gwOwnBuildings(state, side, "archives").length) return fail("이미 있습니다");
+  if (def.requires && !stwHas(state, side, def.requires)) return fail(`${withKoreanSubject(STW_BUILDINGS[def.requires].name)} 필요합니다`);
+  if (type === "core" && stwOwnBuildings(state, side, "core").length) return fail("이미 있습니다");
+  if (type === "forge" && stwOwnBuildings(state, side, "forge").length) return fail("이미 있습니다");
+  if (type === "citadel" && stwOwnBuildings(state, side, "citadel").length) return fail("이미 있습니다");
+  if (type === "archives" && stwOwnBuildings(state, side, "archives").length) return fail("이미 있습니다");
   if (!placementFor(state, side, type)) return fail(type === "assimilator" ? "가스 간헐천이 모두 찼습니다" : "지을 자리가 없습니다");
   return costCheck(record, def.minerals, def.gas);
 }
 
-export function gwProbeCheck(state, side) {
-  const nexus = ["main", "natural"].map((base) => gwNexus(state, side, base)).filter((item) => item && gwDone(item)).sort((a, b) => a.queue.length - b.queue.length)[0];
+export function stwProbeCheck(state, side) {
+  const nexus = ["main", "natural"].map((base) => stwNexus(state, side, base)).filter((item) => item && stwDone(item)).sort((a, b) => a.queue.length - b.queue.length)[0];
   if (!nexus) return fail("넥서스가 없습니다");
-  if (nexus.queue.length >= GW_ECONOMY.probeQueueLimit) return fail("생산 대기열이 찼습니다");
-  const supply = gwSupply(state, side);
+  if (nexus.queue.length >= STW_ECONOMY.probeQueueLimit) return fail("생산 대기열이 찼습니다");
+  const supply = stwSupply(state, side);
   if (supply.used + 1 > supply.cap) return fail("인구 부족 · 파일런 필요");
-  const cost = costCheck(state.sides[side], GW_UNITS.probe.minerals, 0);
+  const cost = costCheck(state.sides[side], STW_UNITS.probe.minerals, 0);
   return cost.ok ? { ok: true, nexus } : cost;
 }
 
-export function gwResearchCheck(state, side, id) {
-  const def = GW_RESEARCH[id];
+export function stwResearchCheck(state, side, id) {
+  const def = STW_RESEARCH[id];
   const record = state.sides[side];
   if (!def) return fail("알 수 없는 연구입니다");
   if (record.research[id] === "done") return fail("완료됨");
   if (record.research[id] === "running") return fail("연구 중");
-  const building = gwOwnBuildings(state, side, def.at, { doneOnly: true }).find((item) => !item.research);
-  if (!gwHas(state, side, def.at)) return fail(`${withKoreanSubject(GW_BUILDINGS[def.at].name)} 필요합니다`);
+  const building = stwOwnBuildings(state, side, def.at, { doneOnly: true }).find((item) => !item.research);
+  if (!stwHas(state, side, def.at)) return fail(`${withKoreanSubject(STW_BUILDINGS[def.at].name)} 필요합니다`);
   for (const need of def.requires ?? []) {
-    if (GW_RESEARCH[need] && record.research[need] !== "done") return fail(`${GW_RESEARCH[need].name} 먼저`);
-    if (GW_BUILDINGS[need] && !gwHas(state, side, need)) return fail(`${withKoreanSubject(GW_BUILDINGS[need].name)} 필요합니다`);
+    if (STW_RESEARCH[need] && record.research[need] !== "done") return fail(`${STW_RESEARCH[need].name} 먼저`);
+    if (STW_BUILDINGS[need] && !stwHas(state, side, need)) return fail(`${withKoreanSubject(STW_BUILDINGS[need].name)} 필요합니다`);
   }
   if (!building) return fail("다른 연구 중");
   const cost = costCheck(record, def.minerals, def.gas);
   return cost.ok ? { ok: true, building } : cost;
 }
 
-export function gwScoutCheck(state, side) {
+export function stwScoutCheck(state, side) {
   if (state.units.some((unit) => unit.side === side && unit.group === "scout")) return fail("정찰 중");
   if (state.sides[side].probes < 5) return fail("프로브 5기 이상 필요");
   return { ok: true };
 }
 
 /** 생산 라인 유닛이 지금 해금되어 있는지. */
-export function gwUnitUnlocked(state, side, unit) {
-  const def = GW_UNITS[unit];
-  return !def.requires || gwHas(state, side, def.requires);
+export function stwUnitUnlocked(state, side, unit) {
+  const def = STW_UNITS[unit];
+  return !def.requires || stwHas(state, side, def.requires);
 }
 
 /* ───────── 명령 ───────── */
 
-export function gwCommand(state, side, command) {
+export function stwCommand(state, side, command) {
   if (state.status !== "playing") return fail("전투가 끝났습니다");
   const record = state.sides[side];
   switch (command.type) {
     case "probe": {
-      const check = gwProbeCheck(state, side);
+      const check = stwProbeCheck(state, side);
       if (!check.ok) return check;
-      record.minerals -= GW_UNITS.probe.minerals;
-      check.nexus.queue.push({ unit: "probe", remaining: GW_UNITS.probe.time });
+      record.minerals -= STW_UNITS.probe.minerals;
+      check.nexus.queue.push({ unit: "probe", remaining: STW_UNITS.probe.time });
       return { ok: true };
     }
     case "build": {
-      const check = gwBuildCheck(state, side, command.building);
+      const check = stwBuildCheck(state, side, command.building);
       if (!check.ok) return check;
       if (command.building === "expand") {
-        record.minerals -= GW_BUILDINGS.nexus.minerals;
-        placeBuilding(state, side, "nexus", gwPoint(side, GW_LAYOUT.naturalNexus), "natural", "nexus-natural");
+        record.minerals -= STW_BUILDINGS.nexus.minerals;
+        placeBuilding(state, side, "nexus", stwPoint(side, STW_LAYOUT.naturalNexus), "natural", "nexus-natural");
         if (side === "player") pushLog(state, side, "앞마당 넥서스 소환을 시작했습니다.", "info");
         return { ok: true };
       }
-      const def = GW_BUILDINGS[command.building];
+      const def = STW_BUILDINGS[command.building];
       const place = placementFor(state, side, command.building);
       record.minerals -= def.minerals;
       record.gas -= def.gas;
@@ -388,9 +388,9 @@ export function gwCommand(state, side, command) {
       return { ok: true };
     }
     case "research": {
-      const check = gwResearchCheck(state, side, command.research);
+      const check = stwResearchCheck(state, side, command.research);
       if (!check.ok) return check;
-      const def = GW_RESEARCH[command.research];
+      const def = STW_RESEARCH[command.research];
       record.minerals -= def.minerals;
       record.gas -= def.gas;
       record.research[def.id] = "running";
@@ -401,34 +401,34 @@ export function gwCommand(state, side, command) {
     case "line": {
       const building = state.buildings.find((item) => item.id === command.gatewayId && item.side === side && item.type === "gateway");
       if (!building) return fail("게이트웨이를 찾을 수 없습니다");
-      if (command.unit && !GW_ARMY_UNITS.includes(command.unit)) return fail("알 수 없는 유닛입니다");
+      if (command.unit && !STW_ARMY_UNITS.includes(command.unit)) return fail("알 수 없는 유닛입니다");
       building.line = command.unit ?? null;
       return { ok: true };
     }
     case "lineAll": {
-      const gateways = gwOwnBuildings(state, side, "gateway");
+      const gateways = stwOwnBuildings(state, side, "gateway");
       if (!gateways.length) return fail("게이트웨이가 없습니다");
       for (const gateway of gateways) gateway.line = command.unit ?? null;
       return { ok: true };
     }
     case "rally": {
-      if (!GW_RALLY_POINTS.some((point) => point.id === command.point)) return fail("알 수 없는 위치입니다");
+      if (!STW_RALLY_POINTS.some((point) => point.id === command.point)) return fail("알 수 없는 위치입니다");
       record.rally = command.point;
       if (side === "player") {
-        const name = GW_RALLY_POINTS.find((point) => point.id === command.point).name;
+        const name = STW_RALLY_POINTS.find((point) => point.id === command.point).name;
         pushLog(state, side, `집결지를 ${withKoreanDirection(name)} 옮깁니다.`, "order");
       }
       return { ok: true };
     }
     case "attack": {
-      const army = gwArmy(state, side);
+      const army = stwArmy(state, side);
       if (!army.rally.length) return fail("출격할 대기 병력이 없습니다");
       for (const unit of army.rally) unit.group = "attack";
       if (side === "player") pushLog(state, side, `대기 병력 ${army.rally.length}기가 출격합니다!`, "order");
       return { ok: true };
     }
     case "retreat": {
-      const army = gwArmy(state, side);
+      const army = stwArmy(state, side);
       if (!army.attack.length) return fail("공격 중인 병력이 없습니다");
       for (const unit of army.attack) unit.group = "rally";
       if (side === "player") pushLog(state, side, `공격 병력 ${army.attack.length}기를 집결지로 물립니다.`, "order");
@@ -439,10 +439,10 @@ export function gwCommand(state, side, command) {
       return { ok: true };
     }
     case "scout": {
-      const check = gwScoutCheck(state, side);
+      const check = stwScoutCheck(state, side);
       if (!check.ok) return check;
       record.probes -= 1;
-      const start = gwPoint(side, { x: 20, y: 88 });
+      const start = stwPoint(side, { x: 20, y: 88 });
       const unit = spawnUnit(state, side, "probe", start.x, start.y);
       unit.group = "scout";
       unit.scoutPhase = "out";
@@ -455,7 +455,7 @@ export function gwCommand(state, side, command) {
 }
 
 function spawnUnit(state, side, type, x, y) {
-  const def = GW_UNITS[type];
+  const def = STW_UNITS[type];
   const unit = {
     id: state.nextId++,
     kind: "unit",
@@ -483,7 +483,7 @@ function spawnUnit(state, side, type, x, y) {
 }
 
 /** 테스트와 점검용: 지정 위치에 유닛을 바로 배치. */
-export function gwSpawnUnitAt(state, side, type, x, y, group = "rally") {
+export function stwSpawnUnitAt(state, side, type, x, y, group = "rally") {
   const unit = spawnUnit(state, side, type, x, y);
   unit.group = group;
   return unit;
@@ -496,12 +496,12 @@ export function gwSpawnUnitAt(state, side, type, x, y, group = "rally") {
  * @param {number} seconds
  * @param {((state: any, side: string) => void) | null} [aiThink]
  */
-export function advanceGatewar(state, seconds, aiThink = null) {
+export function advanceStarswar(state, seconds, aiThink = null) {
   state.accumulator += Math.min(seconds, 1);
   let steps = 0;
-  while (state.accumulator >= GW_TICK && steps < 40) {
-    state.accumulator -= GW_TICK;
-    stepGatewar(state, aiThink);
+  while (state.accumulator >= STW_TICK && steps < 40) {
+    state.accumulator -= STW_TICK;
+    stepStarswar(state, aiThink);
     steps += 1;
   }
   return steps;
@@ -511,12 +511,12 @@ export function advanceGatewar(state, seconds, aiThink = null) {
  * @param {any} state
  * @param {((state: any, side: string) => void) | null} [aiThink]
  */
-export function stepGatewar(state, aiThink = null) {
+export function stepStarswar(state, aiThink = null) {
   if (state.status !== "playing") return;
-  const dt = GW_TICK;
+  const dt = STW_TICK;
   state.time = Math.round((state.time + dt) * 1000) / 1000;
   if (aiThink) for (const side of state.aiSides) aiThink(state, side);
-  for (const side of GW_SIDES) stepEconomy(state, side, dt);
+  for (const side of STW_SIDES) stepEconomy(state, side, dt);
   state.pendingHits = [];
   stepBuildings(state, dt);
   stepUnits(state, dt);
@@ -532,31 +532,31 @@ export function stepGatewar(state, aiThink = null) {
 
 function stepEconomy(state, side, dt) {
   const record = state.sides[side];
-  const split = gwWorkerSplit(state, side);
+  const split = stwWorkerSplit(state, side);
   const multiplier = incomeMultiplier(state, side);
   for (const base of ["main", "natural"]) {
     if (!split[base]) continue;
-    const nexus = gwNexus(state, side, base);
+    const nexus = stwNexus(state, side, base);
     const threatened = nexus && state.units.some((unit) => unit.side !== side && unit.type !== "probe" && distance(unit.x, unit.y, nexus.x, nexus.y) < 12);
     const mined = Math.min(record.bases[base].minerals, mineralRate(split[base]) * dt * (threatened ? 0.5 : 1));
     record.bases[base].minerals -= mined;
     record.minerals += mined * multiplier;
     record.stats.minerals += mined * multiplier;
   }
-  const gas = split.gas * GW_ECONOMY.gasPerProbe * dt * multiplier;
+  const gas = split.gas * STW_ECONOMY.gasPerProbe * dt * multiplier;
   record.gas += gas;
   record.stats.gas += gas;
 }
 
 function stepBuildings(state, dt) {
   for (const building of [...state.buildings]) {
-    const def = GW_BUILDINGS[building.type];
+    const def = STW_BUILDINGS[building.type];
     const record = state.sides[building.side];
-    if (!gwDone(building)) {
+    if (!stwDone(building)) {
       building.progress = Math.min(1, building.progress + dt / def.time);
       building.hp = Math.min(building.maxHp, building.hp + (building.maxHp * 0.9 * dt) / def.time);
       building.shields = Math.min(building.maxShields, building.shields + (building.maxShields * 0.9 * dt) / def.time);
-      if (gwDone(building) && building.side === "player") pushLog(state, "player", `${withKoreanSubject(def.name)} 완성되었습니다.`, "good");
+      if (stwDone(building) && building.side === "player") pushLog(state, "player", `${withKoreanSubject(def.name)} 완성되었습니다.`, "good");
       continue;
     }
     if (building.queue.length) {
@@ -575,7 +575,7 @@ function stepBuildings(state, dt) {
         const id = building.research.id;
         building.research = null;
         record.research[id] = "done";
-        if (building.side === "player") pushLog(state, "player", `${withKoreanSubject(GW_RESEARCH[id].name)} 완료되었습니다.`, "good");
+        if (building.side === "player") pushLog(state, "player", `${withKoreanSubject(STW_RESEARCH[id].name)} 완료되었습니다.`, "good");
       }
     }
     if (building.type === "cannon") cannonStep(state, building, dt);
@@ -588,7 +588,7 @@ function stepGateway(state, building, record, dt) {
     if (building.current.remaining > 0) return;
     const unitType = building.current.unit;
     building.current = null;
-    const forward = gwForward(building.side);
+    const forward = stwForward(building.side);
     const unit = spawnUnit(state, building.side, unitType, building.x + (nextRandom(state) - 0.5) * 2, building.y + forward * (building.radius + 1.5));
     record.stats.produced += 1;
     state.effects.push({ kind: "warp", side: building.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.6, max: 0.6, radius: unit.radius * 2 });
@@ -597,12 +597,12 @@ function stepGateway(state, building, record, dt) {
     building.blocked = "정지";
     return;
   }
-  const def = GW_UNITS[building.line];
-  if (!gwUnitUnlocked(state, building.side, building.line)) {
-    building.blocked = `${GW_BUILDINGS[def.requires].name} 필요`;
+  const def = STW_UNITS[building.line];
+  if (!stwUnitUnlocked(state, building.side, building.line)) {
+    building.blocked = `${STW_BUILDINGS[def.requires].name} 필요`;
     return;
   }
-  const supply = gwSupply(state, building.side);
+  const supply = stwSupply(state, building.side);
   if (supply.used + def.supply > supply.cap) {
     building.blocked = "인구 부족";
     return;
@@ -620,23 +620,23 @@ function stepGateway(state, building, record, dt) {
 /* ───────── 전투 ───────── */
 
 function weaponLevel(state, side) {
-  return (gwResearchDone(state, side, "weapons1") ? 1 : 0) + (gwResearchDone(state, side, "weapons2") ? 1 : 0);
+  return (stwResearchDone(state, side, "weapons1") ? 1 : 0) + (stwResearchDone(state, side, "weapons2") ? 1 : 0);
 }
 
 function armorBonus(state, target) {
   if (target.kind !== "unit") return 0;
-  return gwResearchDone(state, target.side, "armor1") ? 1 : 0;
+  return stwResearchDone(state, target.side, "armor1") ? 1 : 0;
 }
 
 function shieldArmor(state, target) {
-  return gwResearchDone(state, target.side, "shields1") ? 1 : 0;
+  return stwResearchDone(state, target.side, "shields1") ? 1 : 0;
 }
 
 /** 한 번 공격의 (보호막, 체력) 피해. 폭발형은 크기별 배율, 보호막 먼저, 체력에는 방어력 적용. */
-export function gwHitDamage(state, attacker, target) {
-  const def = attacker.kind === "unit" ? GW_UNITS[attacker.type] : GW_BUILDINGS[attacker.type];
+export function stwHitDamage(state, attacker, target) {
+  const def = attacker.kind === "unit" ? STW_UNITS[attacker.type] : STW_BUILDINGS[attacker.type];
   const perHit = def.damage + (attacker.kind === "unit" ? weaponLevel(state, attacker.side) * (def.weaponStep ?? 0) : 0);
-  const raw = perHit * GW_SIZE_MULTIPLIER[def.damageType][target.size ?? "large"];
+  const raw = perHit * STW_SIZE_MULTIPLIER[def.damageType][target.size ?? "large"];
   const hits = [];
   for (let i = 0; i < (def.hits ?? 1); i += 1) hits.push(raw);
   return hits;
@@ -656,7 +656,7 @@ function applyDamage(state, target, amount, { ignoreArmor = false } = {}) {
 }
 
 function queueHit(state, attacker, target) {
-  state.pendingHits.push({ attacker, target, hits: gwHitDamage(state, attacker, target) });
+  state.pendingHits.push({ attacker, target, hits: stwHitDamage(state, attacker, target) });
 }
 
 function applyHits(state) {
@@ -704,7 +704,7 @@ function resolve(state, id) {
 }
 
 function cannonStep(state, building, dt) {
-  const def = GW_BUILDINGS.cannon;
+  const def = STW_BUILDINGS.cannon;
   building.cooldown = Math.max(0, building.cooldown - dt);
   let target = resolve(state, building.targetId);
   if (target && (target.kind !== "unit" || distance(building.x, building.y, target.x, target.y) - target.radius > def.range)) target = null;
@@ -717,14 +717,14 @@ function cannonStep(state, building, dt) {
 }
 
 function unitRange(state, unit) {
-  const def = GW_UNITS[unit.type];
-  if (unit.type === "dragoon" && gwResearchDone(state, unit.side, "range")) return 8;
+  const def = STW_UNITS[unit.type];
+  if (unit.type === "dragoon" && stwResearchDone(state, unit.side, "range")) return 8;
   return def.range ?? 0;
 }
 
 function unitSpeed(state, unit) {
-  const def = GW_UNITS[unit.type];
-  if (unit.type === "zealot" && gwResearchDone(state, unit.side, "charge")) return def.speed * 1.5;
+  const def = STW_UNITS[unit.type];
+  if (unit.type === "zealot" && stwResearchDone(state, unit.side, "charge")) return def.speed * 1.5;
   return def.speed;
 }
 
@@ -744,19 +744,19 @@ const ROLE_DEPTH = { melee: 2, ranged: 0, caster: -3.5 };
 
 /** 집결지에서의 자리: 근접은 앞, 원거리는 가운데, 템플러는 뒤. 한 줄 12자리. */
 function rallySlots(state, side, units, anchorY) {
-  const forward = gwForward(side);
+  const forward = stwForward(side);
   const order = { zealot: 0, dragoon: 1, templar: 2 };
   const sorted = [...units].sort((a, b) => order[a.type] - order[b.type] || a.id - b.id);
   const slots = new Map();
   const byRole = { melee: [], ranged: [], caster: [] };
-  for (const unit of sorted) byRole[GW_UNITS[unit.type].role].push(unit);
+  for (const unit of sorted) byRole[STW_UNITS[unit.type].role].push(unit);
   for (const [role, list] of Object.entries(byRole)) {
     list.forEach((unit, index) => {
       const row = Math.floor(index / 12);
       const inRow = Math.min(12, list.length - row * 12);
       const column = index % 12;
       slots.set(unit.id, {
-        x: GW_LANE_WIDTH / 2 + (column - (inRow - 1) / 2) * 2.7,
+        x: STW_LANE_WIDTH / 2 + (column - (inRow - 1) / 2) * 2.7,
         y: anchorY + forward * (ROLE_DEPTH[role] - row * 2.6),
       });
     });
@@ -766,19 +766,19 @@ function rallySlots(state, side, units, anchorY) {
 
 function stepUnits(state, dt) {
   for (const unit of state.units) {
-    if (unit.type === "templar") unit.energy = Math.min(GW_UNITS.templar.maxEnergy, unit.energy + GW_UNITS.templar.energyRegen * dt);
+    if (unit.type === "templar") unit.energy = Math.min(STW_UNITS.templar.maxEnergy, unit.energy + STW_UNITS.templar.energyRegen * dt);
   }
   const plans = {};
-  for (const side of GW_SIDES) {
-    const army = gwArmy(state, side);
-    const rallyY = gwRallyY(side, state.sides[side].rally);
+  for (const side of STW_SIDES) {
+    const army = stwArmy(state, side);
+    const rallyY = stwRallyY(side, state.sides[side].rally);
     const attackSlots = rallySlots(state, side, army.attack, 0);
     const speeds = army.attack.map((unit) => unitSpeed(state, unit));
     plans[side] = {
       rallySlots: rallySlots(state, side, army.rally, rallyY),
       attackSlots,
       waveSpeed: speeds.length ? Math.min(...speeds) : 3,
-      goal: gwPoint(side, { x: 20, y: 6 }),
+      goal: stwPoint(side, { x: 20, y: 6 }),
     };
   }
   for (const unit of state.units) {
@@ -788,7 +788,7 @@ function stepUnits(state, dt) {
       scoutStep(state, unit, dt);
       continue;
     }
-    const def = GW_UNITS[unit.type];
+    const def = STW_UNITS[unit.type];
     const plan = plans[unit.side];
     const range = unitRange(state, unit);
     const speed = unitSpeed(state, unit);
@@ -834,13 +834,13 @@ function stepUnits(state, dt) {
 
 function templarStep(state, unit, plan, dt) {
   const slot = unit.group === "attack" ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
-  const castable = gwResearchDone(state, unit.side, "storm") && unit.energy >= GW_STORM.energy;
+  const castable = stwResearchDone(state, unit.side, "storm") && unit.energy >= STW_STORM.energy;
   if (castable) {
     const spot = stormSpot(state, unit);
     if (spot) {
-      unit.energy -= GW_STORM.energy;
+      unit.energy -= STW_STORM.energy;
       unit.heading = Math.atan2(spot.y - unit.y, spot.x - unit.x);
-      state.storms.push({ id: state.nextId++, side: unit.side, x: spot.x, y: spot.y, ttl: GW_STORM.duration });
+      state.storms.push({ id: state.nextId++, side: unit.side, x: spot.x, y: spot.y, ttl: STW_STORM.duration });
       state.sides[unit.side].stats.storms += 1;
       if (unit.side === "player") alertOnce(state, "storm", 4, "player", "사이오닉 스톰!", "good");
       return;
@@ -850,33 +850,33 @@ function templarStep(state, unit, plan, dt) {
   if (nearest) {
     // 무기가 없으므로 적과 거리를 벌린다.
     const away = Math.atan2(unit.y - nearest.y, unit.x - nearest.x);
-    moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, GW_UNITS.templar.speed, dt);
+    moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, STW_UNITS.templar.speed, dt);
     return;
   }
   if (unit.group === "attack") {
     const front = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && ally.type !== "templar");
-    const forward = gwForward(unit.side);
+    const forward = stwForward(unit.side);
     const lead = front.length ? front.reduce((best, ally) => (forward < 0 ? Math.min(best, ally.y) : Math.max(best, ally.y)), front[0].y) : plan.goal.y;
     const goalY = lead - forward * 5;
-    moveToward(unit, slot ? slot.x : unit.x, goalY, Math.min(GW_UNITS.templar.speed, plan.waveSpeed), dt);
+    moveToward(unit, slot ? slot.x : unit.x, goalY, Math.min(STW_UNITS.templar.speed, plan.waveSpeed), dt);
   } else if (slot) {
-    moveToward(unit, slot.x, slot.y, GW_UNITS.templar.speed, dt);
+    moveToward(unit, slot.x, slot.y, STW_UNITS.templar.speed, dt);
   }
 }
 
 function stormSpot(state, caster) {
   let best = null;
-  let bestCount = GW_STORM.minTargets - 1;
+  let bestCount = STW_STORM.minTargets - 1;
   for (const enemy of state.units) {
     if (enemy.side === caster.side || enemy.type === "probe") continue;
-    if (distance(caster.x, caster.y, enemy.x, enemy.y) > GW_STORM.castRange) continue;
-    if (state.storms.some((storm) => storm.side === caster.side && distance(storm.x, storm.y, enemy.x, enemy.y) < GW_STORM.radius)) continue;
+    if (distance(caster.x, caster.y, enemy.x, enemy.y) > STW_STORM.castRange) continue;
+    if (state.storms.some((storm) => storm.side === caster.side && distance(storm.x, storm.y, enemy.x, enemy.y) < STW_STORM.radius)) continue;
     let count = 0;
     let sx = 0;
     let sy = 0;
     for (const other of state.units) {
       if (other.side === caster.side) continue;
-      if (distance(enemy.x, enemy.y, other.x, other.y) <= GW_STORM.radius) {
+      if (distance(enemy.x, enemy.y, other.x, other.y) <= STW_STORM.radius) {
         count += 1;
         sx += other.x;
         sy += other.y;
@@ -897,22 +897,22 @@ function stepStorms(state, dt) {
   for (const storm of state.storms) {
     for (const unit of state.units) {
       if (unit.side === storm.side || hit.has(unit.id)) continue;
-      if (distance(unit.x, unit.y, storm.x, storm.y) > GW_STORM.radius + unit.radius * 0.5) continue;
+      if (distance(unit.x, unit.y, storm.x, storm.y) > STW_STORM.radius + unit.radius * 0.5) continue;
       hit.add(unit.id);
-      applyDamage(state, unit, GW_STORM.dps * dt, { ignoreArmor: true });
+      applyDamage(state, unit, STW_STORM.dps * dt, { ignoreArmor: true });
       unit.lastHit = state.time;
     }
   }
 }
 
 function scoutStep(state, unit, dt) {
-  const def = GW_UNITS.probe;
+  const def = STW_UNITS.probe;
   if (unit.scoutPhase === "out") {
-    const goal = gwPoint(unit.side, { x: 26, y: 9 });
+    const goal = stwPoint(unit.side, { x: 26, y: 9 });
     if (moveToward(unit, goal.x, goal.y, def.speed, dt)) unit.scoutPhase = "back";
     return;
   }
-  const home = gwPoint(unit.side, { x: 20, y: 90 });
+  const home = stwPoint(unit.side, { x: 20, y: 90 });
   if (moveToward(unit, home.x, home.y, def.speed, dt)) {
     unit.hp = 0;
     unit.returned = true;
@@ -940,8 +940,8 @@ function separate(state) {
       b.x += nx * push;
       b.y += ny * push;
     }
-    a.x = Math.min(GW_LANE_WIDTH - 1, Math.max(1, a.x));
-    a.y = Math.min(GW_LANE_LENGTH - 1, Math.max(1, a.y));
+    a.x = Math.min(STW_LANE_WIDTH - 1, Math.max(1, a.x));
+    a.y = Math.min(STW_LANE_LENGTH - 1, Math.max(1, a.y));
   }
 }
 
@@ -949,9 +949,9 @@ function regenerate(state, dt) {
   for (const list of [state.units, state.buildings]) {
     for (const item of list) {
       if (item.hp <= 0 || item.shields >= item.maxShields) continue;
-      if (item.kind === "building" && !gwDone(item)) continue;
-      if (state.time - item.lastHit < GW_ECONOMY.shieldRegenDelay) continue;
-      item.shields = Math.min(item.maxShields, item.shields + GW_ECONOMY.shieldRegen * dt);
+      if (item.kind === "building" && !stwDone(item)) continue;
+      if (state.time - item.lastHit < STW_ECONOMY.shieldRegenDelay) continue;
+      item.shields = Math.min(item.maxShields, item.shields + STW_ECONOMY.shieldRegen * dt);
     }
   }
 }
@@ -966,16 +966,16 @@ function cleanup(state) {
   for (const unit of dead) {
     if (unit.returned) continue;
     state.sides[unit.side].stats.lost += 1;
-    state.sides[gwOpponent(unit.side)].stats.kills += 1;
+    state.sides[stwOpponent(unit.side)].stats.kills += 1;
     state.effects.push({ kind: "death", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.7, max: 0.7, radius: unit.type === "dragoon" ? 3.6 : unit.radius * 2 });
     if (unit.type === "probe" && unit.group === "scout" && unit.side === "player") pushLog(state, "player", "정찰 프로브를 잃었습니다.", "warn");
   }
   if (dead.length) state.units = state.units.filter((unit) => unit.hp > 0);
   const fallen = state.buildings.filter((building) => building.hp <= 0);
   for (const building of fallen) {
-    const name = building.type === "nexus" && building.base === "natural" ? "앞마당 넥서스" : GW_BUILDINGS[building.type].name;
+    const name = building.type === "nexus" && building.base === "natural" ? "앞마당 넥서스" : STW_BUILDINGS[building.type].name;
     state.sides[building.side].stats.buildingsLost += 1;
-    state.sides[gwOpponent(building.side)].stats.buildingsDestroyed += 1;
+    state.sides[stwOpponent(building.side)].stats.buildingsDestroyed += 1;
     state.effects.push({ kind: "collapse", side: building.side, x1: building.x, y1: building.y, x2: building.x, y2: building.y, ttl: 1.1, max: 1.1, radius: building.radius * 1.5 });
     if (building.research) state.sides[building.side].research[building.research.id] = undefined;
     if (building.side === "player") pushLog(state, "player", `${withKoreanSubject(name)} 파괴되었습니다.`, "danger");
@@ -990,34 +990,34 @@ function cleanup(state) {
 /* ───────── 시야와 정찰 ───────── */
 
 /** 해당 진영이 지금 그 지점을 볼 수 있는지. */
-export function gwVisible(state, side, x, y, pad = 0) {
+export function stwVisible(state, side, x, y, pad = 0) {
   for (const unit of state.units) {
-    if (unit.side === side && distance(unit.x, unit.y, x, y) <= GW_UNITS[unit.type].sight + pad) return true;
+    if (unit.side === side && distance(unit.x, unit.y, x, y) <= STW_UNITS[unit.type].sight + pad) return true;
   }
   for (const building of state.buildings) {
-    if (building.side === side && distance(building.x, building.y, x, y) <= (GW_BUILDINGS[building.type].sight ?? 8) + pad) return true;
+    if (building.side === side && distance(building.x, building.y, x, y) <= (STW_BUILDINGS[building.type].sight ?? 8) + pad) return true;
   }
   return false;
 }
 
 function updateVision(state) {
-  for (const side of GW_SIDES) {
+  for (const side of STW_SIDES) {
     const record = state.sides[side];
-    const foe = gwOpponent(side);
+    const foe = stwOpponent(side);
     const alive = new Set();
     for (const building of state.buildings) {
       if (building.side !== foe) continue;
       alive.add(building.id);
-      if (gwVisible(state, side, building.x, building.y, building.radius)) {
+      if (stwVisible(state, side, building.x, building.y, building.radius)) {
         record.seen[building.id] = { id: building.id, type: building.type, x: building.x, y: building.y, base: building.base, radius: building.radius, at: state.time };
       }
     }
     for (const [id, memory] of Object.entries(record.seen)) {
       // 지금 보이는 자리에서 사라진 건물은 기억에서 지운다.
-      if (!alive.has(Number(id)) && gwVisible(state, side, memory.x, memory.y)) delete record.seen[id];
+      if (!alive.has(Number(id)) && stwVisible(state, side, memory.x, memory.y)) delete record.seen[id];
     }
-    const foeMain = gwNexus(state, foe, "main");
-    if (foeMain && gwVisible(state, side, foeMain.x, foeMain.y, 2)) {
+    const foeMain = stwNexus(state, foe, "main");
+    if (foeMain && stwVisible(state, side, foeMain.x, foeMain.y, 2)) {
       const fresh = !record.intel || state.time - record.intel.time > 20;
       record.intel = takeIntel(state, foe);
       if (fresh && side === "player") pushLog(state, "player", `정찰 성공: ${intelSummary(record.intel)}`, "good");
@@ -1039,31 +1039,31 @@ export function intelSummary(intel) {
   const gateways = intel.buildings.gateway ?? 0;
   const tech = intel.buildings.archives ? "템플러 테크" : intel.buildings.citadel ? "아둔의 성소" : intel.buildings.core ? "사이버네틱스 코어" : "기본 테크";
   const main = Object.entries(intel.units).sort((a, b) => b[1] - a[1])[0];
-  const army = main && main[1] > 0 ? `${GW_UNITS[main[0]].name} 위주` : "병력 거의 없음";
+  const army = main && main[1] > 0 ? `${STW_UNITS[main[0]].name} 위주` : "병력 거의 없음";
   return `게이트웨이 ${gateways} · ${tech} · ${army}${intel.buildings.nexus > 1 ? " · 앞마당 있음" : ""}`;
 }
 
 function autoWaves(state) {
-  for (const side of GW_SIDES) {
+  for (const side of STW_SIDES) {
     const record = state.sides[side];
     if (!record.autoWave) continue;
-    const army = gwArmy(state, side);
-    const rallyY = gwRallyY(side, record.rally);
+    const army = stwArmy(state, side);
+    const rallyY = stwRallyY(side, record.rally);
     const ready = army.rally.filter((unit) => Math.abs(unit.y - rallyY) < 8);
-    if (ready.length >= record.autoWave) gwCommand(state, side, { type: "attack" });
+    if (ready.length >= record.autoWave) stwCommand(state, side, { type: "attack" });
   }
 }
 
 function checkVictory(state) {
-  const playerMain = gwNexus(state, "player", "main");
-  const enemyMain = gwNexus(state, "enemy", "main");
+  const playerMain = stwNexus(state, "player", "main");
+  const enemyMain = stwNexus(state, "enemy", "main");
   if (playerMain && enemyMain) return;
   state.status = "over";
   state.winner = playerMain ? "player" : enemyMain ? "enemy" : "draw";
   pushLog(state, "player", state.winner === "player" ? "적 본진 넥서스를 파괴했습니다. 승리!" : "본진 넥서스가 파괴되었습니다.", state.winner === "player" ? "good" : "danger");
 }
 
-export function gwClock(seconds) {
+export function stwClock(seconds) {
   const whole = Math.max(0, Math.floor(seconds));
   return `${String(Math.floor(whole / 60)).padStart(2, "0")}:${String(whole % 60).padStart(2, "0")}`;
 }

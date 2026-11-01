@@ -373,8 +373,8 @@ export const GAME_OBJECTIVES = {
     victory: "정해진 끝은 없으며 더 많은 줄을 지우고 레벨을 높여 이전 최고 점수를 넘어서는 것이 목표입니다.",
     finish: "새 블록이 등장할 공간이 없어 블록이 게임판 위쪽에 쌓였을 때",
   },
-  gatewar: {
-    title: "관문 전쟁",
+  starswar: {
+    title: "스타즈워",
     icon: "◆",
     accent: "#c99a3a",
     summary: "유닛을 직접 조작하지 않고 건설, 테크, 생산 라인, 출격 시점만 골라 AI와 웨이브 싸움을 벌이는 모바일 전략 게임입니다.",

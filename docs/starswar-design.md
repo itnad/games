@@ -1,10 +1,12 @@
-# 관문 전쟁 기획·구현 문서
+# 스타즈워 기획·구현 문서
 
-스타크래프트 프로토스의 유닛과 테크트리를 빌려, 직접 조작 없이 전략 선택만으로 웨이브 싸움을 벌이는 모바일 게임이다. 가제이며, 공개 배포 전에는 유닛과 건물 이름을 독자 이름으로 바꾸는 것을 권장한다. 모든 이름은 `gatewar-data.js` 한 곳에 모여 있다.
+스타즈워는 스타크래프트 프로토스의 유닛과 테크트리를 빌려, 직접 조작 없이 전략 선택만으로 웨이브 싸움을 벌이는 모바일 게임이다. 유닛과 건물 이름은 아직 원작 이름을 쓰므로 공개 배포 전에는 독자 이름으로 바꾸는 것을 권장한다. 모든 이름은 `starswar-data.js` 한 곳에 모여 있다.
 
-- 주소: `/gatewar`
-- 소스 폴더: `app/gatewar/`
-- 테스트: `tests/gatewar-engine.test.mjs`
+- 코드 접두어: 함수 `stw…`, 상수 `STW_…`, 타입 `Stw…`, CSS 클래스 `stw-` (`sw-`는 7대 문명이 쓰고 있어 피한다)
+
+- 주소: `/starswar`
+- 소스 폴더: `app/starswar/`
+- 테스트: `tests/starswar-engine.test.mjs`
 
 ## 1. 핵심 반복
 
@@ -98,16 +100,16 @@ AI끼리 붙였을 때 질럿 러시가 가장 강하고, 템플러 테크는 �
 ## 9. 코드 구조
 
 ```text
-app/gatewar/
-  gatewar-data.js     이름, 수치, 위치, 난이도, AI 성향
-  gatewar-engine.js   규칙 엔진: 경제, 건설, 생산 라인, 연구, 전투, 스톰, 시야, 정찰, 승패
-  gatewar-ai.js       성향별 AI
-  gatewar-camera.js   카메라 계산
-  gatewar-sprites.ts  유닛·건물·지형 텍스처 공장
-  gatewar-pixi.ts     PixiJS 렌더러: 안개, 효과, 이중 체력 막대
-  gatewar-types.ts    화면용 타입
-  gatewar-game.tsx    메뉴, 전투, 결과 화면과 선택 패널
-  gatewar.css         전용 스타일 (gw- 접두어)
+app/starswar/
+  starswar-data.js     이름, 수치, 위치, 난이도, AI 성향
+  starswar-engine.js   규칙 엔진: 경제, 건설, 생산 라인, 연구, 전투, 스톰, 시야, 정찰, 승패
+  starswar-ai.js       성향별 AI
+  starswar-camera.js   카메라 계산
+  starswar-sprites.ts  유닛·건물·지형 텍스처 공장
+  starswar-pixi.ts     PixiJS 렌더러: 안개, 효과, 이중 체력 막대
+  starswar-types.ts    화면용 타입
+  starswar-game.tsx    메뉴, 전투, 결과 화면과 선택 패널
+  starswar.css         전용 스타일 (stw- 접두어)
 ```
 
 ## 10. 다음 확장 후보

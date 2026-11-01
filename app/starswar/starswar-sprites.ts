@@ -1,15 +1,15 @@
-// 관문 전쟁 텍스처 공장. 그림 파일 없이 PixiJS Graphics와 Canvas 2D로 그려 텍스처로 굽는다.
-// 외부 그림이 생기면 같은 키의 텍스처를 GwTextureSet에 넣어 바꿔 끼우면 된다.
+// 스타즈워 텍스처 공장. 그림 파일 없이 PixiJS Graphics와 Canvas 2D로 그려 텍스처로 굽는다.
+// 외부 그림이 생기면 같은 키의 텍스처를 StwTextureSet에 넣어 바꿔 끼우면 된다.
 import type { Container, Graphics, Renderer, Texture } from "pixi.js";
-import { GW_LANE_LENGTH, GW_LANE_WIDTH, GW_LAYOUT } from "./gatewar-data.js";
-import type { GwBuildingType, GwSide, GwUnitType } from "./gatewar-types";
+import { STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT } from "./starswar-data.js";
+import type { StwBuildingType, StwSide, StwUnitType } from "./starswar-types";
 
 type PixiModule = typeof import("pixi.js");
 
 /** 텍스처 논리 픽셀 16 = 전장 1칸. */
-export const GW_PX = 16;
+export const STW_PX = 16;
 
-export const GW_TEAM = {
+export const STW_TEAM = {
   player: { glow: 0x4fc3ff, deep: 0x1f5f9e, light: 0xc9ecff },
   enemy: { glow: 0xff6a4d, deep: 0x8a2a1a, light: 0xffd2c4 },
 } as const;
@@ -19,9 +19,9 @@ const GOLD_DARK = 0x8f6a26;
 const GOLD_LIGHT = 0xf3dc98;
 const INK = 0x2a2016;
 
-export type GwTextureSet = {
-  units: Record<GwSide, Record<GwUnitType, Texture>>;
-  buildings: Record<GwSide, Record<GwBuildingType, Texture>>;
+export type StwTextureSet = {
+  units: Record<StwSide, Record<StwUnitType, Texture>>;
+  buildings: Record<StwSide, Record<StwBuildingType, Texture>>;
   minerals: Texture;
   geyser: Texture;
   terrain: Texture;
@@ -31,15 +31,15 @@ export type GwTextureSet = {
   ring: Texture;
   scorch: Texture;
   rubble: Texture;
-  flag: Record<GwSide, Texture>;
+  flag: Record<StwSide, Texture>;
 };
 
 function pad(g: Graphics, half: number) {
   g.rect(-half, -half, half * 2, half * 2).fill({ color: 0x000000, alpha: 0.001 });
 }
 
-function zealot(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function zealot(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   pad(g, 28);
   for (const y of [-10, 10]) {
@@ -56,8 +56,8 @@ function zealot(PIXI: PixiModule, side: GwSide) {
   return g;
 }
 
-function dragoon(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function dragoon(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   pad(g, 30);
   for (const [x, y] of [[16, 15], [16, -15], [-14, 17], [-14, -17]]) {
@@ -74,8 +74,8 @@ function dragoon(PIXI: PixiModule, side: GwSide) {
   return g;
 }
 
-function templar(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function templar(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   pad(g, 24);
   g.circle(-2, 0, 11).fill(0x56406a).stroke({ width: 1.6, color: 0x2a1d36 });
@@ -90,8 +90,8 @@ function templar(PIXI: PixiModule, side: GwSide) {
   return g;
 }
 
-function probe(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function probe(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   pad(g, 14);
   g.poly([10, 0, 0, 7, -8, 0, 0, -7]).fill(GOLD).stroke({ width: 1.4, color: GOLD_DARK });
@@ -106,8 +106,8 @@ function crystal(g: Graphics, x: number, y: number, w: number, h: number, color:
   g.poly([x, y - h, x + w * 0.35, y - h * 0.1, x - w * 0.2, y]).fill({ color: light, alpha: 0.8 });
 }
 
-function nexus(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function nexus(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   const oct = (r: number) => Array.from({ length: 8 }, (_, i) => [Math.cos((Math.PI / 4) * i + Math.PI / 8) * r, Math.sin((Math.PI / 4) * i + Math.PI / 8) * r]).flat();
   g.poly(oct(64)).fill(GOLD_DARK).stroke({ width: 3, color: INK });
@@ -124,8 +124,8 @@ function nexus(PIXI: PixiModule, side: GwSide) {
   return g;
 }
 
-function pylon(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function pylon(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   g.roundRect(-22, -22, 44, 44, 8).fill(GOLD_DARK).stroke({ width: 2, color: INK });
   g.roundRect(-18, -18, 36, 36, 6).fill(GOLD);
@@ -135,8 +135,8 @@ function pylon(PIXI: PixiModule, side: GwSide) {
   return g;
 }
 
-function gateway(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function gateway(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   g.roundRect(-38, -32, 76, 64, 10).fill(GOLD_DARK).stroke({ width: 2.5, color: INK });
   g.roundRect(-34, -28, 68, 56, 8).fill(GOLD);
@@ -149,8 +149,8 @@ function gateway(PIXI: PixiModule, side: GwSide) {
   return g;
 }
 
-function assimilator(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function assimilator(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   g.circle(0, 0, 33).fill(0x2f3a2a).stroke({ width: 2, color: INK });
   g.circle(0, 0, 27).fill(GOLD_DARK);
@@ -163,8 +163,8 @@ function assimilator(PIXI: PixiModule, side: GwSide) {
   return g;
 }
 
-function core(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function core(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   g.roundRect(-36, -36, 72, 72, 12).fill(GOLD_DARK).stroke({ width: 2.5, color: INK });
   g.roundRect(-31, -31, 62, 62, 10).fill(GOLD);
@@ -175,8 +175,8 @@ function core(PIXI: PixiModule, side: GwSide) {
   return g;
 }
 
-function forge(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function forge(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   g.roundRect(-36, -30, 72, 60, 10).fill(GOLD_DARK).stroke({ width: 2.5, color: INK });
   g.roundRect(-32, -26, 64, 52, 8).fill(GOLD);
@@ -188,8 +188,8 @@ function forge(PIXI: PixiModule, side: GwSide) {
   return g;
 }
 
-function cannon(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function cannon(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   const oct = (r: number) => Array.from({ length: 8 }, (_, i) => [Math.cos((Math.PI / 4) * i + Math.PI / 8) * r, Math.sin((Math.PI / 4) * i + Math.PI / 8) * r]).flat();
   g.poly(oct(26)).fill(GOLD_DARK).stroke({ width: 2, color: INK });
@@ -204,8 +204,8 @@ function cannon(PIXI: PixiModule, side: GwSide) {
   return g;
 }
 
-function citadel(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function citadel(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   g.circle(0, 0, 34).fill(GOLD_DARK).stroke({ width: 2.5, color: INK });
   g.circle(0, 0, 29).fill(GOLD);
@@ -216,8 +216,8 @@ function citadel(PIXI: PixiModule, side: GwSide) {
   return g;
 }
 
-function archives(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function archives(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   g.roundRect(-36, -36, 72, 72, 14).fill(GOLD_DARK).stroke({ width: 2.5, color: INK });
   g.roundRect(-31, -31, 62, 62, 12).fill(GOLD);
@@ -246,8 +246,8 @@ function geyser(PIXI: PixiModule) {
   return g;
 }
 
-function flag(PIXI: PixiModule, side: GwSide) {
-  const team = GW_TEAM[side];
+function flag(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   g.moveTo(-6, 18).lineTo(-6, -18).stroke({ width: 2.5, color: 0xf1e6c8 });
   g.poly([-6, -18, 16, -11, -6, -4]).fill(team.glow).stroke({ width: 1.2, color: team.deep });
@@ -294,8 +294,8 @@ function radial(PIXI: PixiModule, size: number, stops: [number, string][]) {
 /** 아이어의 사암 평원: 양옆 절벽, 가운데 돌길, 기지마다 황금 바닥 타일, 풀숲과 바위. */
 function terrain(PIXI: PixiModule) {
   const unit = 16;
-  const width = GW_LANE_WIDTH * unit;
-  const height = GW_LANE_LENGTH * unit;
+  const width = STW_LANE_WIDTH * unit;
+  const height = STW_LANE_LENGTH * unit;
   return canvasTexture(PIXI, width, height, (ctx) => {
     let seed = 20261101;
     const rng = () => {
@@ -356,9 +356,9 @@ function terrain(PIXI: PixiModule) {
       ctx.arc(cx * unit, cy * unit, r * unit, 0, Math.PI * 2);
       ctx.stroke();
     };
-    for (const point of [GW_LAYOUT.mainNexus, GW_LAYOUT.naturalNexus]) {
-      plaza(point.x, point.y, point === GW_LAYOUT.mainNexus ? 17 : 10);
-      plaza(GW_LANE_WIDTH - point.x, GW_LANE_LENGTH - point.y, point === GW_LAYOUT.mainNexus ? 17 : 10);
+    for (const point of [STW_LAYOUT.mainNexus, STW_LAYOUT.naturalNexus]) {
+      plaza(point.x, point.y, point === STW_LAYOUT.mainNexus ? 17 : 10);
+      plaza(STW_LANE_WIDTH - point.x, STW_LANE_LENGTH - point.y, point === STW_LAYOUT.mainNexus ? 17 : 10);
     }
     // 중앙 제단
     ctx.strokeStyle = "rgba(240, 214, 140, 0.4)";
@@ -370,8 +370,8 @@ function terrain(PIXI: PixiModule) {
     }
     // 풀숲과 바위(가장자리 위주)
     for (let i = 0; i < 260; i += 1) {
-      const edge = rng() < 0.5 ? rng() * 7 : GW_LANE_WIDTH - rng() * 7;
-      const x = (rng() < 0.75 ? edge : rng() * GW_LANE_WIDTH) * unit;
+      const edge = rng() < 0.5 ? rng() * 7 : STW_LANE_WIDTH - rng() * 7;
+      const x = (rng() < 0.75 ? edge : rng() * STW_LANE_WIDTH) * unit;
       const y = rng() * height;
       const r = (0.5 + rng() * 1.3) * unit;
       if (rng() < 0.55) {
@@ -399,16 +399,16 @@ function terrain(PIXI: PixiModule) {
   });
 }
 
-export function createGwTextures(PIXI: PixiModule, renderer: Renderer): GwTextureSet {
+export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwTextureSet {
   const bake = (target: Graphics | Container) => {
     const texture = renderer.generateTexture({ target, resolution: 2, antialias: true });
     target.destroy({ children: true });
     return texture;
   };
-  const sides: GwSide[] = ["player", "enemy"];
-  const units = {} as GwTextureSet["units"];
-  const buildings = {} as GwTextureSet["buildings"];
-  const flags = {} as GwTextureSet["flag"];
+  const sides: StwSide[] = ["player", "enemy"];
+  const units = {} as StwTextureSet["units"];
+  const buildings = {} as StwTextureSet["buildings"];
+  const flags = {} as StwTextureSet["flag"];
   for (const side of sides) {
     units[side] = {
       zealot: bake(zealot(PIXI, side)),

@@ -1,12 +1,12 @@
-// 관문 전쟁 고정 데이터. 이름은 모두 여기 모여 있어 독자 이름으로 바꿀 때 이 파일만 고치면 된다.
+// 스타즈워 고정 데이터. 이름은 모두 여기 모여 있어 독자 이름으로 바꿀 때 이 파일만 고치면 된다.
 // 전장은 가로 40 × 세로 100의 한 줄 전선이다. 아군 본진은 아래(y=100 쪽), 적 본진은 위(y=0 쪽).
 
-export const GW_LANE_WIDTH = 40;
-export const GW_LANE_LENGTH = 100;
-export const GW_TICK = 0.1;
+export const STW_LANE_WIDTH = 40;
+export const STW_LANE_LENGTH = 100;
+export const STW_TICK = 0.1;
 
 /** 아군 기준 위치. 적은 (40 - x, 100 - y)로 점대칭. */
-export const GW_LAYOUT = {
+export const STW_LAYOUT = {
   mainNexus: { x: 20, y: 94 },
   naturalNexus: { x: 20, y: 73 },
   mainMinerals: { x: 20, y: 99.2 },
@@ -22,14 +22,14 @@ export const GW_LAYOUT = {
 };
 
 /** 집결 위치. y는 아군 기준. */
-export const GW_RALLY_POINTS = [
+export const STW_RALLY_POINTS = [
   { id: "main", name: "본진 앞", short: "본진", y: 77 },
   { id: "natural", name: "앞마당", short: "앞마당", y: 64 },
   { id: "center", name: "중앙", short: "중앙", y: 50 },
   { id: "forward", name: "적 앞마당 앞", short: "전진", y: 36 },
 ];
 
-export const GW_UNITS = {
+export const STW_UNITS = {
   probe: {
     id: "probe", name: "프로브", short: "P", minerals: 50, gas: 0, time: 12, supply: 1, from: "nexus",
     hp: 20, shields: 20, armor: 0, size: "small", speed: 3.4, radius: 0.9, sight: 8,
@@ -54,9 +54,9 @@ export const GW_UNITS = {
   },
 };
 
-export const GW_ARMY_UNITS = ["zealot", "dragoon", "templar"];
+export const STW_ARMY_UNITS = ["zealot", "dragoon", "templar"];
 
-export const GW_BUILDINGS = {
+export const STW_BUILDINGS = {
   nexus: { id: "nexus", name: "넥서스", minerals: 400, gas: 0, time: 70, hp: 1000, shields: 1000, armor: 1, size: 8, supply: 10, sight: 11 },
   pylon: { id: "pylon", name: "파일런", minerals: 100, gas: 0, time: 18, hp: 200, shields: 200, armor: 1, size: 3.4, supply: 8, sight: 8, note: "인구 +8" },
   gateway: { id: "gateway", name: "게이트웨이", minerals: 150, gas: 0, time: 30, hp: 500, shields: 500, armor: 1, size: 5, requires: "pylon", sight: 8, note: "전투 유닛 생산 라인 +1" },
@@ -72,9 +72,9 @@ export const GW_BUILDINGS = {
 };
 
 /** 플레이어가 고를 수 있는 건설 목록. 앞마당 넥서스는 별도 키. */
-export const GW_BUILD_CHOICES = ["pylon", "gateway", "assimilator", "core", "forge", "cannon", "citadel", "archives", "expand"];
+export const STW_BUILD_CHOICES = ["pylon", "gateway", "assimilator", "core", "forge", "cannon", "citadel", "archives", "expand"];
 
-export const GW_RESEARCH = {
+export const STW_RESEARCH = {
   weapons1: { id: "weapons1", name: "지상 공격 1단계", at: "forge", minerals: 100, gas: 100, time: 40, note: "질럿 +1×2, 드라군 +2" },
   armor1: { id: "armor1", name: "지상 방어 1단계", at: "forge", minerals: 100, gas: 100, time: 40, note: "모든 유닛 방어력 +1" },
   weapons2: { id: "weapons2", name: "지상 공격 2단계", at: "forge", minerals: 150, gas: 150, time: 50, requires: ["weapons1", "citadel"], note: "공격력 한 단계 더" },
@@ -84,9 +84,9 @@ export const GW_RESEARCH = {
   storm: { id: "storm", name: "사이오닉 스톰", at: "archives", minerals: 200, gas: 200, time: 55, note: "하이템플러가 뭉친 적에게 스톰을 자동 시전" },
 };
 
-export const GW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 26, castRange: 9, minTargets: 3 };
+export const STW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 26, castRange: 9, minTargets: 3 };
 
-export const GW_ECONOMY = {
+export const STW_ECONOMY = {
   startMinerals: 50,
   startProbes: 4,
   mineralRate: 0.95,
@@ -104,18 +104,18 @@ export const GW_ECONOMY = {
   shieldRegenDelay: 7,
 };
 
-export const GW_SIZE_MULTIPLIER = {
+export const STW_SIZE_MULTIPLIER = {
   normal: { small: 1, medium: 1, large: 1 },
   explosive: { small: 0.5, medium: 0.75, large: 1 },
 };
 
-export const GW_DIFFICULTIES = {
+export const STW_DIFFICULTIES = {
   easy: { id: "easy", name: "쉬움", note: "적 수입 −20% · 공격이 느림", income: 0.8, thinkEvery: 1.5, waveScale: 1.25 },
   normal: { id: "normal", name: "보통", note: "같은 규칙으로 싸우는 기본 난이도", income: 1, thinkEvery: 1, waveScale: 1 },
   hard: { id: "hard", name: "어려움", note: "적 수입 +15% · 빠르고 집요한 공격", income: 1.15, thinkEvery: 0.6, waveScale: 0.85 },
 };
 
-export const GW_AI_PERSONAS = {
+export const STW_AI_PERSONAS = {
   rush: { id: "rush", name: "질럿 러시", note: "게이트웨이를 빨리 늘려 질럿으로 몰아친다" },
   dragoon: { id: "dragoon", name: "드라군 운영", note: "앞마당을 먹고 사거리 드라군으로 민다" },
   templar: { id: "templar", name: "템플러 테크", note: "질럿으로 버티며 스톰을 준비한다" },

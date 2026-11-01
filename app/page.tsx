@@ -39,7 +39,7 @@ import { PaperDungeonGame } from "./paper-dungeon-game";
 import { TenSecondsGame } from "./ten-seconds-game";
 import { MudflatSurvivorGame } from "./mudflat-survivor-game";
 import { TetrisGame } from "./tetris-game";
-import { GatewarGame } from "./gatewar/gatewar-game";
+import { StarswarGame } from "./starswar/starswar-game";
 import { ChessGame } from "./chess-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import { PAPEROID_BUILD_ID } from "./app-version";
@@ -95,7 +95,7 @@ type GameId =
   | "ten-seconds"
   | "mudflat-survivor"
   | "tetris"
-  | "gatewar";
+  | "starswar";
 type Category = "전체" | "전략" | "모바일" | "카드" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
 
 const CATEGORIES: Category[] = ["전체", "전략", "모바일", "고전게임", "주사위", "터치류", "카드", "기억력", "추리", "퍼즐", "경주", "RPG"];
@@ -447,8 +447,8 @@ const GAMES: GameDefinition[] = [
     tone: "violet",
   },
   {
-    id: "gatewar",
-    title: "관문 전쟁",
+    id: "starswar",
+    title: "스타즈워",
     subtitle: "테크와 생산만 고르면 병력이 웨이브로 진격합니다",
     category: "모바일",
     players: "AI 1:1 웨이브 전략",
@@ -884,8 +884,8 @@ function GameArtwork({ game }: { game: GameDefinition }) {
     return <div className="card-art casual-card-art mudflat" aria-hidden="true"><img src="/mudflat-creatures/crab.png" alt="" /><i /><span className="float-chip">2 MODES</span></div>;
   }
 
-  if (game.id === "gatewar") {
-    return <div className="card-art casual-card-art gatewar" aria-hidden="true"><span>{"◆\nZ  D  H"}</span><i /><span className="float-chip">WARP · WAVE</span></div>;
+  if (game.id === "starswar") {
+    return <div className="card-art casual-card-art starswar" aria-hidden="true"><span>{"◆\nZ  D  H"}</span><i /><span className="float-chip">WARP · WAVE</span></div>;
   }
 
   if (game.id === "tetris") {
@@ -2213,8 +2213,8 @@ function HomeContent({
   if (activeGame === "tetris") {
     return <GuidedGame gameId={activeGame}><TetrisGame onExit={exitGame} /></GuidedGame>;
   }
-  if (activeGame === "gatewar") {
-    return <GuidedGame gameId={activeGame}><GatewarGame onExit={exitGame} /></GuidedGame>;
+  if (activeGame === "starswar") {
+    return <GuidedGame gameId={activeGame}><StarswarGame onExit={exitGame} /></GuidedGame>;
   }
 
   return (

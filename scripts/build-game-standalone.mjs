@@ -1,6 +1,6 @@
-// 관문 전쟁을 HTML 파일 하나로 묶는다.
-//   node scripts/build-game-standalone.mjs            → dist-standalone/gatewar.html (React·PixiJS 포함, 오프라인 실행)
-//   node scripts/build-game-standalone.mjs --artifact → dist-standalone/gatewar-artifact.html (React는 cdnjs, PixiJS는 jsDelivr에서 로드)
+// 스타즈워을 HTML 파일 하나로 묶는다.
+//   node scripts/build-game-standalone.mjs            → dist-standalone/starswar.html (React·PixiJS 포함, 오프라인 실행)
+//   node scripts/build-game-standalone.mjs --artifact → dist-standalone/starswar-artifact.html (React는 cdnjs, PixiJS는 jsDelivr에서 로드)
 import { build } from "esbuild";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -42,7 +42,7 @@ const result = await build({
 
 const js = result.outputFiles.find((file) => file.path.endsWith(".js")).text.replace(/<\/script/gi, "<\\/script");
 const css = result.outputFiles.find((file) => file.path.endsWith(".css")).text.replace(/<\/style/gi, "<\\/style");
-const title = "<title>관문 전쟁</title>";
+const title = "<title>스타즈워</title>";
 const body = `<div id="game-root"></div>`;
 const react = artifact
   ? [
@@ -73,6 +73,6 @@ ${body}
 `;
 
 await mkdir(outDir, { recursive: true });
-const file = `${outDir}${artifact ? "gatewar-artifact.html" : "gatewar.html"}`;
+const file = `${outDir}${artifact ? "starswar-artifact.html" : "starswar.html"}`;
 await writeFile(file, html);
 console.log(`${file} (${Math.round(Buffer.byteLength(html) / 1024)}KB)`);

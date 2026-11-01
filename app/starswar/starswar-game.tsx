@@ -3,54 +3,54 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { withKoreanDirection } from "../korean-particles.js";
 import {
-  GW_ARMY_UNITS,
-  GW_BUILDINGS,
-  GW_BUILD_CHOICES,
-  GW_DIFFICULTIES,
-  GW_ECONOMY,
-  GW_RALLY_POINTS,
-  GW_RESEARCH,
-  GW_UNITS,
-} from "./gatewar-data.js";
+  STW_ARMY_UNITS,
+  STW_BUILDINGS,
+  STW_BUILD_CHOICES,
+  STW_DIFFICULTIES,
+  STW_ECONOMY,
+  STW_RALLY_POINTS,
+  STW_RESEARCH,
+  STW_UNITS,
+} from "./starswar-data.js";
 import {
-  advanceGatewar,
-  createGatewarGame,
-  gwArmy,
-  gwBuildCheck,
-  gwClock,
-  gwCommand,
-  gwDone,
-  gwIncome,
-  gwOwnBuildings,
-  gwProbeCheck,
-  gwRallyY,
-  gwResearchCheck,
-  gwScoutCheck,
-  gwSupply,
-  gwUnitUnlocked,
-  gwWorkerSplit,
+  advanceStarswar,
+  createStarswarGame,
+  stwArmy,
+  stwBuildCheck,
+  stwClock,
+  stwCommand,
+  stwDone,
+  stwIncome,
+  stwOwnBuildings,
+  stwProbeCheck,
+  stwRallyY,
+  stwResearchCheck,
+  stwScoutCheck,
+  stwSupply,
+  stwUnitUnlocked,
+  stwWorkerSplit,
   intelSummary,
-} from "./gatewar-engine.js";
-import { gwAiThink } from "./gatewar-ai.js";
-import { GW_MAX_ZOOM, gwFillZoom, gwFitScale, gwScreenToMap, gwViewport } from "./gatewar-camera.js";
-import { createGwPixiRenderer, type GwPixiRenderer } from "./gatewar-pixi";
-import type { GwArmyType, GwBuildChoice, GwCheck, GwCommand, GwDifficulty, GwRallyId, GwResearchId, GwState, GwView } from "./gatewar-types";
+} from "./starswar-engine.js";
+import { stwAiThink } from "./starswar-ai.js";
+import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
+import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
+import type { StwArmyType, StwBuildChoice, StwCheck, StwCommand, StwDifficulty, StwRallyId, StwResearchId, StwState, StwView } from "./starswar-types";
 
 type Screen = "menu" | "play";
 type Tab = "build" | "produce" | "army";
 type Toast = { id: number; text: string; tone: "good" | "warn" };
-type BattleRecord = { wins: number; losses: number; best: Partial<Record<GwDifficulty, number>> };
+type BattleRecord = { wins: number; losses: number; best: Partial<Record<StwDifficulty, number>> };
 
-const RECORD_KEY = "paperoid-gatewar-record";
+const RECORD_KEY = "paperoid-starswar-record";
 const TABS: { id: Tab; label: string }[] = [
   { id: "build", label: "경제·건설" },
   { id: "produce", label: "생산·연구" },
   { id: "army", label: "병력" },
 ];
-const DIFFICULTY_IDS: GwDifficulty[] = ["easy", "normal", "hard"];
-const ARMY_IDS = GW_ARMY_UNITS as GwArmyType[];
-const BUILD_IDS = GW_BUILD_CHOICES as GwBuildChoice[];
-const RESEARCH_IDS = Object.keys(GW_RESEARCH) as GwResearchId[];
+const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard"];
+const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
+const BUILD_IDS = STW_BUILD_CHOICES as StwBuildChoice[];
+const RESEARCH_IDS = Object.keys(STW_RESEARCH) as StwResearchId[];
 const WAVE_SIZES = [0, 6, 10, 16];
 
 function readRecord(): BattleRecord {
@@ -75,10 +75,10 @@ function cost(minerals: number, gas: number) {
   return gas ? `${minerals} · 가스 ${gas}` : `${minerals}`;
 }
 
-export function GatewarGame({ onExit }: { onExit: () => void }) {
+export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [screen, setScreen] = useState<Screen>("menu");
-  const [difficulty, setDifficulty] = useState<GwDifficulty>("normal");
-  const [game, setGame] = useState<GwState | null>(null);
+  const [difficulty, setDifficulty] = useState<StwDifficulty>("normal");
+  const [game, setGame] = useState<StwState | null>(null);
   const [, setFrame] = useState(0);
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState<1 | 2>(1);
@@ -90,11 +90,11 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
   const [follow, setFollow] = useState(true);
   const [zoomed, setZoomed] = useState(false);
 
-  const gameRef = useRef<GwState | null>(null);
+  const gameRef = useRef<StwState | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const pixiRef = useRef<GwPixiRenderer | null>(null);
+  const pixiRef = useRef<StwPixiRenderer | null>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
-  const viewRef = useRef<GwView>(gwViewport(1, 1, { zoom: 1, cx: 20, cy: 50 }));
+  const viewRef = useRef<StwView>(stwViewport(1, 1, { zoom: 1, cx: 20, cy: 50 }));
   const cameraRef = useRef({ zoom: 1, cx: 20, cy: 94, ready: false, follow: true, lastZoom: 2 });
   const pausedRef = useRef(false);
   const speedRef = useRef(1);
@@ -118,7 +118,7 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
   }, [toast]);
 
   const startBattle = () => {
-    const next = createGatewarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31) }) as unknown as GwState;
+    const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31) }) as unknown as StwState;
     gameRef.current = next;
     setGame(next);
     recordedRef.current = false;
@@ -138,7 +138,7 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
     const camera = cameraRef.current;
     const { width, height } = sizeRef.current;
     if (!camera.ready && width > 1) {
-      camera.zoom = width < 700 ? gwFillZoom(width, height) : 1.2;
+      camera.zoom = width < 700 ? stwFillZoom(width, height) : 1.2;
       camera.lastZoom = Math.max(1.6, camera.zoom);
       camera.cx = 20;
       camera.cy = 94;
@@ -147,13 +147,13 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
     }
     if (camera.follow) {
       // 전선 따라가기: 공격 병력이 있으면 그 선두, 없으면 집결지를 화면 가운데로.
-      const army = gwArmy(current, "player");
+      const army = stwArmy(current, "player");
       const focus = army.attack.length
         ? army.attack.reduce((best, unit) => Math.min(best, unit.y), 100) + 6
-        : gwRallyY("player", current.sides.player.rally) + 4;
+        : stwRallyY("player", current.sides.player.rally) + 4;
       camera.cy += (focus - camera.cy) * 0.06;
     }
-    const view = gwViewport(width, height, camera) as GwView;
+    const view = stwViewport(width, height, camera) as StwView;
     camera.zoom = view.zoom;
     camera.cx = view.cx;
     camera.cy = view.cy;
@@ -166,7 +166,7 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
     const surface = surfaceRef.current;
     if (!surface) return;
     let cancelled = false;
-    let created: GwPixiRenderer | null = null;
+    let created: StwPixiRenderer | null = null;
     const resize = () => {
       const rect = surface.getBoundingClientRect();
       sizeRef.current = { width: rect.width, height: rect.height };
@@ -175,7 +175,7 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(surface);
-    createGwPixiRenderer(surface, sizeRef.current.width, sizeRef.current.height)
+    createStwPixiRenderer(surface, sizeRef.current.width, sizeRef.current.height)
       .then((pixi) => {
         if (cancelled) {
           pixi.destroy();
@@ -207,7 +207,7 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
       const dt = Math.min(0.25, (now - last) / 1000);
       last = now;
       const current = gameRef.current;
-      if (current && !pausedRef.current && current.status === "playing") advanceGatewar(current, dt * speedRef.current, gwAiThink);
+      if (current && !pausedRef.current && current.status === "playing") advanceStarswar(current, dt * speedRef.current, stwAiThink);
       draw(now / 1000);
       uiTimer += dt;
       if (uiTimer >= 0.25) {
@@ -241,9 +241,9 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
     setRecord(next);
   }, [finished, game]);
 
-  const issue = (command: GwCommand, success?: string) => {
+  const issue = (command: StwCommand, success?: string) => {
     if (!game) return;
-    const result = gwCommand(game, "player", command) as GwCheck;
+    const result = stwCommand(game, "player", command) as StwCheck;
     if (!result.ok) showToast(result.reason ?? "지금은 할 수 없습니다");
     else if (success) showToast(success, "good");
     refresh();
@@ -269,15 +269,15 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
       cy: camera.cy,
       zoom: camera.zoom,
       distance: points.length >= 2 ? Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y)) : 1,
-      anchor: gwScreenToMap(viewRef.current, mid.x, mid.y),
+      anchor: stwScreenToMap(viewRef.current, mid.x, mid.y),
     };
   };
 
   const zoomAround = (point: { x: number; y: number }, anchor: { x: number; y: number }, zoom: number) => {
     const camera = cameraRef.current;
     const { width, height } = sizeRef.current;
-    camera.zoom = Math.min(GW_MAX_ZOOM, Math.max(1, zoom));
-    const scale = gwFitScale(width, height) * camera.zoom;
+    camera.zoom = Math.min(STW_MAX_ZOOM, Math.max(1, zoom));
+    const scale = stwFitScale(width, height) * camera.zoom;
     camera.cx = anchor.x - (point.x - width / 2) / scale;
     camera.cy = anchor.y - (point.y - height / 2) / scale;
     setZoomed(camera.zoom > 1.05);
@@ -321,7 +321,7 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
 
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     const point = localPoint(event);
-    zoomAround(point, gwScreenToMap(viewRef.current, point.x, point.y), cameraRef.current.zoom * Math.exp(-event.deltaY * 0.0015));
+    zoomAround(point, stwScreenToMap(viewRef.current, point.x, point.y), cameraRef.current.zoom * Math.exp(-event.deltaY * 0.0015));
   };
 
   const toggleZoom = () => {
@@ -331,7 +331,7 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
       camera.zoom = 1;
       setZoomed(false);
     } else {
-      camera.zoom = Math.max(camera.lastZoom, gwFillZoom(sizeRef.current.width, sizeRef.current.height));
+      camera.zoom = Math.max(camera.lastZoom, stwFillZoom(sizeRef.current.width, sizeRef.current.height));
       setZoomed(true);
     }
   };
@@ -348,37 +348,37 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
 
   if (screen === "menu" || !game) {
     return (
-      <main className="gw-shell gw-menu-shell" data-game-menu="true">
-        <header className="gw-topbar">
+      <main className="stw-shell stw-menu-shell" data-game-menu="true">
+        <header className="stw-topbar">
           <button type="button" onClick={onExit} aria-label="게임 목록으로">←</button>
-          <div><span className="gw-brand">paperoid</span><strong>관문 전쟁</strong></div>
+          <div><span className="stw-brand">paperoid</span><strong>스타즈워</strong></div>
         </header>
-        <section className="gw-menu">
-          <div className="gw-menu-hero">
+        <section className="stw-menu">
+          <div className="stw-menu-hero">
             <small>WARP · TECH · WAVE</small>
             <h1>선택만 하세요.<br />관문이 군대를 소환합니다.</h1>
             <p>프로브가 광물을 캐는 동안 무엇을 짓고, 무엇을 연구하고, 언제 출격할지만 고르세요. 질럿, 드라군, 하이템플러가 게이트웨이에서 꾸준히 소환되어 전선으로 나아갑니다.</p>
           </div>
-          <div className="gw-difficulty" role="radiogroup" aria-label="난이도">
+          <div className="stw-difficulty" role="radiogroup" aria-label="난이도">
             {DIFFICULTY_IDS.map((id) => {
-              const item = GW_DIFFICULTIES[id];
+              const item = STW_DIFFICULTIES[id];
               return (
                 <button key={id} type="button" role="radio" aria-checked={difficulty === id} className={difficulty === id ? "active" : ""} onClick={() => setDifficulty(id)}>
                   <b>{item.name}</b>
                   <span>{item.note}</span>
-                  {record.best[id] ? <em>최단 승리 {gwClock(record.best[id] ?? 0)}</em> : null}
+                  {record.best[id] ? <em>최단 승리 {stwClock(record.best[id] ?? 0)}</em> : null}
                 </button>
               );
             })}
           </div>
-          <ol className="gw-howto">
+          <ol className="stw-howto">
             <li><b>경제</b><span>프로브를 늘리고 파일런으로 인구를 확보하세요. 어시밀레이터를 지으면 가스가 들어옵니다.</span></li>
             <li><b>테크</b><span>게이트웨이를 늘리고, 코어로 드라군을, 아카이브로 하이템플러를 해금하세요.</span></li>
             <li><b>생산 라인</b><span>게이트웨이마다 소환할 유닛을 정하면 자원이 있는 한 계속 소환됩니다.</span></li>
             <li><b>웨이브</b><span>집결지를 정하고 원할 때 출격시키세요. 적 본진 넥서스를 부수면 승리합니다.</span></li>
           </ol>
-          <button type="button" className="gw-start" onClick={startBattle}>전투 시작</button>
-          <p className="gw-record-line">전적 {record.wins}승 {record.losses}패</p>
+          <button type="button" className="stw-start" onClick={startBattle}>전투 시작</button>
+          <p className="stw-record-line">전적 {record.wins}승 {record.losses}패</p>
         </section>
       </main>
     );
@@ -387,32 +387,32 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
   /* ───────── 전투 ───────── */
 
   const side = game.sides.player;
-  const supply = gwSupply(game, "player") as { used: number; cap: number };
-  const income = gwIncome(game, "player") as { minerals: number; gas: number };
-  const army = gwArmy(game, "player");
+  const supply = stwSupply(game, "player") as { used: number; cap: number };
+  const income = stwIncome(game, "player") as { minerals: number; gas: number };
+  const army = stwArmy(game, "player");
   const recentLog = game.log.filter((entry) => entry.side === "player" && game.time - entry.time < 8).slice(-2);
   const intel = side.intel;
 
   return (
-    <main className="gw-shell gw-play-shell" data-game-menu={finished ? "true" : undefined}>
-      <header className="gw-topbar">
+    <main className="stw-shell stw-play-shell" data-game-menu={finished ? "true" : undefined}>
+      <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
-        <div><span className="gw-brand">관문 전쟁 · {GW_DIFFICULTIES[game.difficulty].name}</span><strong>{gwClock(game.time)}</strong></div>
+        <div><span className="stw-brand">스타즈워 · {STW_DIFFICULTIES[game.difficulty].name}</span><strong>{stwClock(game.time)}</strong></div>
       </header>
-      <section className="gw-hud" aria-label="자원 현황">
-        <span className="gw-res minerals"><i aria-hidden="true" /><b>{Math.floor(side.minerals)}</b><em>+{income.minerals}</em></span>
-        <span className="gw-res gas"><i aria-hidden="true" /><b>{Math.floor(side.gas)}</b><em>+{income.gas}</em></span>
-        <span className={supply.used >= supply.cap ? "gw-res supply full" : "gw-res supply"}><i aria-hidden="true" /><b>{supply.used}/{supply.cap}</b></span>
-        <div className="gw-speed">
+      <section className="stw-hud" aria-label="자원 현황">
+        <span className="stw-res minerals"><i aria-hidden="true" /><b>{Math.floor(side.minerals)}</b><em>+{income.minerals}</em></span>
+        <span className="stw-res gas"><i aria-hidden="true" /><b>{Math.floor(side.gas)}</b><em>+{income.gas}</em></span>
+        <span className={supply.used >= supply.cap ? "stw-res supply full" : "stw-res supply"}><i aria-hidden="true" /><b>{supply.used}/{supply.cap}</b></span>
+        <div className="stw-speed">
           <button type="button" onClick={() => setPaused((value) => !value)} aria-label={paused ? "계속하기" : "일시정지"}>{paused ? "▶" : "Ⅱ"}</button>
           <button type="button" onClick={() => setSpeed((value) => (value === 1 ? 2 : 1))} aria-label="게임 속도 전환">{speed}×</button>
         </div>
       </section>
-      <div className="gw-body">
-        <div className="gw-map">
+      <div className="stw-body">
+        <div className="stw-map">
           <div
             ref={surfaceRef}
-            className="gw-map-surface"
+            className="stw-map-surface"
             role="application"
             aria-label="전장. 끌어서 이동하고 두 손가락으로 확대합니다."
             onPointerDown={onPointerDown}
@@ -421,28 +421,28 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
             onPointerCancel={onPointerUp}
             onWheel={onWheel}
           />
-          {renderer === "failed" ? <p className="gw-map-error">이 기기에서 그래픽을 초기화하지 못했습니다.</p> : null}
-          <div className="gw-map-tools">
+          {renderer === "failed" ? <p className="stw-map-error">이 기기에서 그래픽을 초기화하지 못했습니다.</p> : null}
+          <div className="stw-map-tools">
             <button type="button" onClick={toggleZoom}>{zoomed ? "전체" : "확대"}</button>
             <button type="button" className={follow ? "active" : ""} aria-pressed={follow} onClick={() => setFollow((value) => !value)}>전선 따라가기</button>
           </div>
-          <p className="gw-intel-chip">{intel ? `적 ${gwClock(intel.time)} · ${intelSummary(intel)}` : "적 정보 없음 · 정찰 필요"}</p>
-          <ul className="gw-log" aria-live="polite">
+          <p className="stw-intel-chip">{intel ? `적 ${stwClock(intel.time)} · ${intelSummary(intel)}` : "적 정보 없음 · 정찰 필요"}</p>
+          <ul className="stw-log" aria-live="polite">
             {recentLog.map((entry) => <li key={entry.id} className={`tone-${entry.tone}`}>{entry.text}</li>)}
           </ul>
-          {toast ? <p key={toast.id} className={`gw-toast tone-${toast.tone}`} role="status">{toast.text}</p> : null}
+          {toast ? <p key={toast.id} className={`stw-toast tone-${toast.tone}`} role="status">{toast.text}</p> : null}
           {paused && !finished && !confirmExit ? (
-            <div className="gw-overlay">
+            <div className="stw-overlay">
               <section>
                 <h2>일시정지</h2>
-                <button type="button" className="gw-primary" onClick={() => setPaused(false)}>계속하기</button>
-                <button type="button" className="gw-secondary" onClick={() => setConfirmExit(true)}>전투 포기</button>
+                <button type="button" className="stw-primary" onClick={() => setPaused(false)}>계속하기</button>
+                <button type="button" className="stw-secondary" onClick={() => setConfirmExit(true)}>전투 포기</button>
               </section>
             </div>
           ) : null}
         </div>
-        <section className="gw-panel" aria-label="선택 패널">
-          <nav className="gw-tabs">
+        <section className="stw-panel" aria-label="선택 패널">
+          <nav className="stw-tabs">
             {TABS.map((item) => (
               <button key={item.id} type="button" aria-pressed={tab === item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>
                 {item.label}
@@ -450,7 +450,7 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
               </button>
             ))}
           </nav>
-          <div className="gw-panel-body" key={tab}>
+          <div className="stw-panel-body" key={tab}>
             {tab === "build" ? <BuildTab game={game} issue={issue} /> : null}
             {tab === "produce" ? <ProduceTab game={game} issue={issue} /> : null}
             {tab === "army" ? <ArmyTab game={game} issue={issue} /> : null}
@@ -458,13 +458,13 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
         </section>
       </div>
       {confirmExit ? (
-        <div className="gw-overlay gw-overlay-full" role="dialog" aria-modal="true" aria-labelledby="gw-exit-title">
+        <div className="stw-overlay stw-overlay-full" role="dialog" aria-modal="true" aria-labelledby="stw-exit-title">
           <section>
-            <h2 id="gw-exit-title">전투를 포기할까요?</h2>
+            <h2 id="stw-exit-title">전투를 포기할까요?</h2>
             <p>진행 중인 전투는 저장되지 않으며 패배로 기록되지 않습니다.</p>
-            <button type="button" className="gw-primary" onClick={() => setConfirmExit(false)}>계속 지휘하기</button>
-            <button type="button" className="gw-secondary" onClick={() => { setConfirmExit(false); setScreen("menu"); }}>난이도 선택으로</button>
-            <button type="button" className="gw-secondary" onClick={onExit}>게임 목록으로</button>
+            <button type="button" className="stw-primary" onClick={() => setConfirmExit(false)}>계속 지휘하기</button>
+            <button type="button" className="stw-secondary" onClick={() => { setConfirmExit(false); setScreen("menu"); }}>난이도 선택으로</button>
+            <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
           </section>
         </div>
       ) : null}
@@ -473,34 +473,34 @@ export function GatewarGame({ onExit }: { onExit: () => void }) {
   );
 }
 
-type Issue = (command: GwCommand, success?: string) => void;
+type Issue = (command: StwCommand, success?: string) => void;
 
 function Card({ title, sub, note, disabled, onClick, tone, badge }: { title: string; sub?: string; note?: string; disabled?: boolean; onClick: () => void; tone?: string; badge?: string }) {
   return (
-    <button type="button" className={`gw-card${tone ? ` ${tone}` : ""}`} disabled={disabled} onClick={onClick}>
-      <span className="gw-card-head"><b>{title}</b>{badge ? <em>{badge}</em> : null}</span>
-      {sub ? <span className="gw-card-cost">{sub}</span> : null}
+    <button type="button" className={`stw-card${tone ? ` ${tone}` : ""}`} disabled={disabled} onClick={onClick}>
+      <span className="stw-card-head"><b>{title}</b>{badge ? <em>{badge}</em> : null}</span>
+      {sub ? <span className="stw-card-cost">{sub}</span> : null}
       {note ? <small>{note}</small> : null}
     </button>
   );
 }
 
-function BuildTab({ game, issue }: { game: GwState; issue: Issue }) {
-  const split = gwWorkerSplit(game, "player") as { gas: number; main: number; natural: number; idle: number };
-  const probe = gwProbeCheck(game, "player") as GwCheck;
-  const queued = gwOwnBuildings(game, "player", "nexus").reduce((sum, nexus) => sum + (nexus as { queue: unknown[] }).queue.length, 0);
+function BuildTab({ game, issue }: { game: StwState; issue: Issue }) {
+  const split = stwWorkerSplit(game, "player") as { gas: number; main: number; natural: number; idle: number };
+  const probe = stwProbeCheck(game, "player") as StwCheck;
+  const queued = stwOwnBuildings(game, "player", "nexus").reduce((sum, nexus) => sum + (nexus as { queue: unknown[] }).queue.length, 0);
   return (
-    <div className="gw-tab">
-      <p className="gw-workers">
-        프로브 {game.sides.player.probes} · 본진 {split.main}/{GW_ECONOMY.fullSaturation}{gwOwnBuildings(game, "player", "nexus").length > 1 ? ` · 앞마당 ${split.natural}/${GW_ECONOMY.fullSaturation}` : ""} · 가스 {split.gas}{split.idle ? ` · 남는 ${split.idle}` : ""}
+    <div className="stw-tab">
+      <p className="stw-workers">
+        프로브 {game.sides.player.probes} · 본진 {split.main}/{STW_ECONOMY.fullSaturation}{stwOwnBuildings(game, "player", "nexus").length > 1 ? ` · 앞마당 ${split.natural}/${STW_ECONOMY.fullSaturation}` : ""} · 가스 {split.gas}{split.idle ? ` · 남는 ${split.idle}` : ""}
       </p>
-      <div className="gw-grid">
+      <div className="stw-grid">
         <Card title="프로브 +1" sub={cost(50, 0)} badge={queued ? `대기 ${queued}` : undefined} note={probe.ok ? "광물 채취 속도 증가" : probe.reason} disabled={!probe.ok} onClick={() => issue({ type: "probe" })} />
         {BUILD_IDS.map((id) => {
-          const def = id === "expand" ? GW_BUILDINGS.nexus : GW_BUILDINGS[id];
-          const check = gwBuildCheck(game, "player", id) as GwCheck;
-          const owned = id === "expand" ? gwOwnBuildings(game, "player", "nexus").filter((item) => (item as { base: string }).base === "natural") : gwOwnBuildings(game, "player", id);
-          const building = owned.filter((item) => !gwDone(item)).length;
+          const def = id === "expand" ? STW_BUILDINGS.nexus : STW_BUILDINGS[id];
+          const check = stwBuildCheck(game, "player", id) as StwCheck;
+          const owned = id === "expand" ? stwOwnBuildings(game, "player", "nexus").filter((item) => (item as { base: string }).base === "natural") : stwOwnBuildings(game, "player", id);
+          const building = owned.filter((item) => !stwDone(item)).length;
           const done = owned.length - building;
           const badge = building ? `소환 중 ${building}` : done ? `보유 ${done}` : undefined;
           const note = check.ok ? (id === "expand" ? "앞마당 광물 채취 · 인구 +10" : "note" in def ? def.note : "") : check.reason;
@@ -511,34 +511,34 @@ function BuildTab({ game, issue }: { game: GwState; issue: Issue }) {
   );
 }
 
-function ProduceTab({ game, issue }: { game: GwState; issue: Issue }) {
+function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
   const gateways = game.buildings.filter((building) => building.side === "player" && building.type === "gateway");
   const research = game.sides.player.research;
   return (
-    <div className="gw-tab">
-      <div className="gw-lines">
-        <div className="gw-line-all">
+    <div className="stw-tab">
+      <div className="stw-lines">
+        <div className="stw-line-all">
           <span>모든 게이트웨이</span>
           {ARMY_IDS.map((unit) => (
-            <button key={unit} type="button" disabled={!gateways.length || !gwUnitUnlocked(game, "player", unit)} onClick={() => issue({ type: "lineAll", unit }, `모든 게이트웨이가 ${withKoreanDirection(GW_UNITS[unit].name)} 소환을 시작합니다.`)}>{GW_UNITS[unit].name}</button>
+            <button key={unit} type="button" disabled={!gateways.length || !stwUnitUnlocked(game, "player", unit)} onClick={() => issue({ type: "lineAll", unit }, `모든 게이트웨이가 ${withKoreanDirection(STW_UNITS[unit].name)} 소환을 시작합니다.`)}>{STW_UNITS[unit].name}</button>
           ))}
           <button type="button" disabled={!gateways.length} onClick={() => issue({ type: "lineAll", unit: null }, "모든 게이트웨이를 멈췄습니다.")}>정지</button>
         </div>
-        {!gateways.length ? <p className="gw-empty">게이트웨이를 지으면 여기서 소환할 유닛을 정할 수 있습니다.</p> : null}
+        {!gateways.length ? <p className="stw-empty">게이트웨이를 지으면 여기서 소환할 유닛을 정할 수 있습니다.</p> : null}
         {gateways.map((gateway, index) => {
           const progress = gateway.current ? 1 - gateway.current.remaining / gateway.current.total : 0;
-          const status = !gwDone(gateway) ? `소환 중 ${Math.round(gateway.progress * 100)}%` : gateway.current ? `${GW_UNITS[gateway.current.unit].name} 소환 ${Math.round(progress * 100)}%` : gateway.blocked ?? "대기";
+          const status = !stwDone(gateway) ? `소환 중 ${Math.round(gateway.progress * 100)}%` : gateway.current ? `${STW_UNITS[gateway.current.unit].name} 소환 ${Math.round(progress * 100)}%` : gateway.blocked ?? "대기";
           return (
-            <div key={gateway.id} className="gw-line">
+            <div key={gateway.id} className="stw-line">
               <header><b>게이트웨이 {index + 1}</b><span>{status}</span></header>
-              <span className="gw-progress"><span style={{ width: `${Math.round(progress * 100)}%` }} /></span>
-              <div className="gw-line-choices">
+              <span className="stw-progress"><span style={{ width: `${Math.round(progress * 100)}%` }} /></span>
+              <div className="stw-line-choices">
                 {ARMY_IDS.map((unit) => {
-                  const unlocked = gwUnitUnlocked(game, "player", unit);
-                  const def = GW_UNITS[unit];
+                  const unlocked = stwUnitUnlocked(game, "player", unit);
+                  const def = STW_UNITS[unit];
                   return (
                     <button key={unit} type="button" disabled={!unlocked} className={gateway.line === unit ? "active" : ""} aria-pressed={gateway.line === unit} onClick={() => issue({ type: "line", gatewayId: gateway.id, unit })}>
-                      {def.name}<small>{unlocked ? cost(def.minerals, def.gas) : `${GW_BUILDINGS[(def as { requires?: "core" | "archives" }).requires ?? "core"].name} 필요`}</small>
+                      {def.name}<small>{unlocked ? cost(def.minerals, def.gas) : `${STW_BUILDINGS[(def as { requires?: "core" | "archives" }).requires ?? "core"].name} 필요`}</small>
                     </button>
                   );
                 })}
@@ -548,12 +548,12 @@ function ProduceTab({ game, issue }: { game: GwState; issue: Issue }) {
           );
         })}
       </div>
-      <h3 className="gw-section">연구</h3>
-      <div className="gw-grid">
+      <h3 className="stw-section">연구</h3>
+      <div className="stw-grid">
         {RESEARCH_IDS.map((id) => {
-          const def = GW_RESEARCH[id];
+          const def = STW_RESEARCH[id];
           const status = research[id];
-          const check = gwResearchCheck(game, "player", id) as GwCheck;
+          const check = stwResearchCheck(game, "player", id) as StwCheck;
           const running = game.buildings.find((building) => building.side === "player" && building.research?.id === id);
           const note = status === "done" ? "완료" : running ? `연구 중 ${Math.round((1 - (running.research?.remaining ?? 0) / def.time) * 100)}%` : check.ok ? def.note : check.reason;
           return <Card key={id} title={def.name} sub={cost(def.minerals, def.gas)} note={note} tone={status === "done" ? "done" : undefined} disabled={!check.ok} onClick={() => issue({ type: "research", research: id })} />;
@@ -563,44 +563,44 @@ function ProduceTab({ game, issue }: { game: GwState; issue: Issue }) {
   );
 }
 
-function ArmyTab({ game, issue }: { game: GwState; issue: Issue }) {
+function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
   const side = game.sides.player;
-  const army = gwArmy(game, "player");
-  const scout = gwScoutCheck(game, "player") as GwCheck;
-  const count = (list: { type: string }[], type: GwArmyType) => list.filter((unit) => unit.type === type).length;
+  const army = stwArmy(game, "player");
+  const scout = stwScoutCheck(game, "player") as StwCheck;
+  const count = (list: { type: string }[], type: StwArmyType) => list.filter((unit) => unit.type === type).length;
   const intel = side.intel;
   return (
-    <div className="gw-tab">
-      <div className="gw-army-summary">
-        <div><small>대기 병력</small><b>{army.rally.length}</b><span>{ARMY_IDS.map((type) => `${GW_UNITS[type].name} ${count(army.rally, type)}`).join(" · ")}</span></div>
-        <div><small>공격 병력</small><b>{army.attack.length}</b><span>{ARMY_IDS.map((type) => `${GW_UNITS[type].name} ${count(army.attack, type)}`).join(" · ")}</span></div>
+    <div className="stw-tab">
+      <div className="stw-army-summary">
+        <div><small>대기 병력</small><b>{army.rally.length}</b><span>{ARMY_IDS.map((type) => `${STW_UNITS[type].name} ${count(army.rally, type)}`).join(" · ")}</span></div>
+        <div><small>공격 병력</small><b>{army.attack.length}</b><span>{ARMY_IDS.map((type) => `${STW_UNITS[type].name} ${count(army.attack, type)}`).join(" · ")}</span></div>
       </div>
-      <div className="gw-orders">
-        <button type="button" className="gw-attack" disabled={!army.rally.length} onClick={() => issue({ type: "attack" })}>출격<small>대기 병력을 적 본진으로</small></button>
-        <button type="button" className="gw-retreat" disabled={!army.attack.length} onClick={() => issue({ type: "retreat" })}>후퇴<small>공격 병력을 집결지로</small></button>
+      <div className="stw-orders">
+        <button type="button" className="stw-attack" disabled={!army.rally.length} onClick={() => issue({ type: "attack" })}>출격<small>대기 병력을 적 본진으로</small></button>
+        <button type="button" className="stw-retreat" disabled={!army.attack.length} onClick={() => issue({ type: "retreat" })}>후퇴<small>공격 병력을 집결지로</small></button>
       </div>
-      <h3 className="gw-section">집결지</h3>
-      <div className="gw-segment">
-        {GW_RALLY_POINTS.map((point) => (
-          <button key={point.id} type="button" className={side.rally === point.id ? "active" : ""} aria-pressed={side.rally === point.id} onClick={() => issue({ type: "rally", point: point.id as GwRallyId })}>{point.short}</button>
+      <h3 className="stw-section">집결지</h3>
+      <div className="stw-segment">
+        {STW_RALLY_POINTS.map((point) => (
+          <button key={point.id} type="button" className={side.rally === point.id ? "active" : ""} aria-pressed={side.rally === point.id} onClick={() => issue({ type: "rally", point: point.id as StwRallyId })}>{point.short}</button>
         ))}
       </div>
-      <h3 className="gw-section">자동 출격</h3>
-      <div className="gw-segment">
+      <h3 className="stw-section">자동 출격</h3>
+      <div className="stw-segment">
         {WAVE_SIZES.map((size) => (
           <button key={size} type="button" className={side.autoWave === size ? "active" : ""} aria-pressed={side.autoWave === size} onClick={() => issue({ type: "autoWave", size }, size ? `대기 병력이 ${size}기 모이면 자동으로 출격합니다.` : "자동 출격을 껐습니다.")}>{size ? `${size}기` : "끔"}</button>
         ))}
       </div>
-      <h3 className="gw-section">정찰</h3>
-      <div className="gw-scout">
+      <h3 className="stw-section">정찰</h3>
+      <div className="stw-scout">
         <Card title="프로브 정찰" sub="프로브 1기 잠시 이탈" note={scout.ok ? "적 본진까지 다녀오며 건물과 병력을 확인" : scout.reason} disabled={!scout.ok} onClick={() => issue({ type: "scout" })} />
-        <div className="gw-intel">
+        <div className="stw-intel">
           {intel ? (
             <>
-              <b>{gwClock(intel.time)} 정찰 기준</b>
-              <span>건물: {Object.entries(intel.buildings).map(([type, value]) => `${GW_BUILDINGS[type as keyof typeof GW_BUILDINGS].name} ${value}`).join(", ")}</span>
-              <span>병력: {ARMY_IDS.map((type) => `${GW_UNITS[type].name} ${intel.units[type]}`).join(", ")}</span>
-              <span>연구: {intel.research.length ? intel.research.map((item) => `${GW_RESEARCH[item.id].name}${item.status === "running" ? "(진행 중)" : ""}`).join(", ") : "없음"}</span>
+              <b>{stwClock(intel.time)} 정찰 기준</b>
+              <span>건물: {Object.entries(intel.buildings).map(([type, value]) => `${STW_BUILDINGS[type as keyof typeof STW_BUILDINGS].name} ${value}`).join(", ")}</span>
+              <span>병력: {ARMY_IDS.map((type) => `${STW_UNITS[type].name} ${intel.units[type]}`).join(", ")}</span>
+              <span>연구: {intel.research.length ? intel.research.map((item) => `${STW_RESEARCH[item.id].name}${item.status === "running" ? "(진행 중)" : ""}`).join(", ") : "없음"}</span>
             </>
           ) : <span>아직 적 본진을 보지 못했습니다. 정찰을 보내면 적의 테크와 병력 구성을 알 수 있습니다.</span>}
         </div>
@@ -609,17 +609,17 @@ function ArmyTab({ game, issue }: { game: GwState; issue: Issue }) {
   );
 }
 
-function ResultOverlay({ game, onRestart, onMenu, onExit }: { game: GwState; onRestart: () => void; onMenu: () => void; onExit: () => void }) {
+function ResultOverlay({ game, onRestart, onMenu, onExit }: { game: StwState; onRestart: () => void; onMenu: () => void; onExit: () => void }) {
   const won = game.winner === "player";
   const mine = game.sides.player.stats;
   const theirs = game.sides.enemy.stats;
   const persona = game.sides.enemy.persona;
   return (
-    <div className="gw-overlay gw-overlay-full gw-result" role="dialog" aria-modal="true" aria-labelledby="gw-result-title">
+    <div className="stw-overlay stw-overlay-full stw-result" role="dialog" aria-modal="true" aria-labelledby="stw-result-title">
       <section className={won ? "won" : "lost"}>
         <small>{won ? "VICTORY" : "DEFEAT"}</small>
-        <h2 id="gw-result-title">{won ? "적 본진 함락" : "아군 본진 함락"}</h2>
-        <p>{GW_DIFFICULTIES[game.difficulty].name} · {gwClock(game.time)}{persona ? ` · 상대 전략: ${persona === "rush" ? "질럿 러시" : persona === "dragoon" ? "드라군 운영" : "템플러 테크"}` : ""}</p>
+        <h2 id="stw-result-title">{won ? "적 본진 함락" : "아군 본진 함락"}</h2>
+        <p>{STW_DIFFICULTIES[game.difficulty].name} · {stwClock(game.time)}{persona ? ` · 상대 전략: ${persona === "rush" ? "질럿 러시" : persona === "dragoon" ? "드라군 운영" : "템플러 테크"}` : ""}</p>
         <dl>
           <div><dt>채취 광물</dt><dd>{Math.floor(mine.minerals)}</dd></div>
           <div><dt>채취 가스</dt><dd>{Math.floor(mine.gas)}</dd></div>
@@ -630,9 +630,9 @@ function ResultOverlay({ game, onRestart, onMenu, onExit }: { game: GwState; onR
           <div><dt>파괴한 건물</dt><dd>{mine.buildingsDestroyed}</dd></div>
           <div><dt>적 채취 광물</dt><dd>{Math.floor(theirs.minerals)}</dd></div>
         </dl>
-        <button type="button" className="gw-primary" onClick={onRestart}>같은 난이도로 다시</button>
-        <button type="button" className="gw-secondary" onClick={onMenu}>난이도 선택</button>
-        <button type="button" className="gw-secondary" onClick={onExit}>게임 목록으로</button>
+        <button type="button" className="stw-primary" onClick={onRestart}>같은 난이도로 다시</button>
+        <button type="button" className="stw-secondary" onClick={onMenu}>난이도 선택</button>
+        <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
       </section>
     </div>
   );
