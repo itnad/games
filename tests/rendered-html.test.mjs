@@ -788,7 +788,7 @@ test("keeps Gate War in its own app/starswar folder and publishes it as a mobile
   assert.match(viteConfig, /consumer === "server"/, "서버 번들에서는 PixiJS를 뺀다");
 
   const gameSource = await readFile(new URL("../app/starswar/starswar-game.tsx", import.meta.url), "utf8");
-  for (const label of ["경제·건설", "생산·연구", "병력", "출격", "후퇴", "집결지", "자동 출격", "프로브 정찰", "모든 게이트웨이", "전투 시작"]) assert.match(gameSource, new RegExp(label));
+  for (const label of ["경제·건설", "생산·연구", "병력", "출격", "후퇴", "집결지", "자동 출격", "정찰", "모든 \\{mainName\\}", "내 종족", "상대 종족", "무작위", "전투 시작"]) assert.match(gameSource, new RegExp(label));
   assert.match(gameSource, /data-game-menu="true"/);
   const brief = await readFile(new URL("../docs/starswar-design.md", import.meta.url), "utf8");
   assert.match(brief, /app\/starswar\//);

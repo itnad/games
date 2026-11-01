@@ -40,7 +40,7 @@ export const STW_RALLY_POINTS = [
 
 export const STW_UNITS = {
   probe: {
-    id: "probe", name: "프로브", short: "P", minerals: 50, gas: 0, time: 12, supply: 1, from: "nexus",
+    id: "probe", name: "프로브", short: "P", minerals: 50, gas: 0, time: 12, supply: 1, from: "nexus", worker: true,
     hp: 20, shields: 20, armor: 0, size: "small", speed: 3.4, radius: 0.9, sight: 8,
   },
   zealot: {
@@ -76,7 +76,7 @@ export const STW_UNITS = {
   },
   observer: {
     id: "observer", name: "옵저버", short: "O", minerals: 25, gas: 75, time: 20, supply: 1, from: "robo",
-    hp: 40, shields: 20, armor: 0, size: "small", speed: 3.3, radius: 0.9, sight: 11, role: "support", cloaked: true, detector: 9,
+    hp: 40, shields: 20, armor: 0, size: "small", speed: 3.3, radius: 0.9, sight: 11, role: "support", cloaked: true, detector: 9, flying: true,
     note: "은폐 탐지기 · 공격 병력을 따라다니며 시야 제공",
   },
   reaver: {
@@ -86,35 +86,95 @@ export const STW_UNITS = {
     splash: { radius: 2.4, factor: 0.5 },
     note: "느림 · 사거리 8 범위 포격 · 뭉친 적과 건물에 강함",
   },
+
+  // ───── 테란 ─────
+  scv: {
+    id: "scv", race: "terran", name: "SCV", short: "S", minerals: 50, gas: 0, time: 12, supply: 1, from: "cc", worker: true,
+    hp: 60, shields: 0, armor: 0, size: "small", speed: 3.4, radius: 0.9, sight: 8,
+  },
+  marine: {
+    id: "marine", race: "terran", name: "해병", short: "M", minerals: 50, gas: 0, time: 15, supply: 1, from: "barracks",
+    hp: 40, shields: 0, armor: 0, size: "small", speed: 2.6, radius: 0.9, sight: 9,
+    damage: 6, hits: 1, damageType: "normal", range: 5, cooldown: 0.75, weaponStep: 1, role: "ranged", bio: true, stim: true, kite: true,
+    note: "값싼 원거리 보병 · 스팀팩을 쓰면 근접 적에게 물러나며 사격 · 메딕과 함께하면 강함",
+  },
+  firebat: {
+    id: "firebat", race: "terran", name: "파이어뱃", short: "F", minerals: 50, gas: 25, time: 16, supply: 1, from: "barracks", requires: "academy",
+    hp: 60, shields: 0, armor: 1, size: "small", speed: 2.6, radius: 1, sight: 8,
+    damage: 8, hits: 2, damageType: "concussive", range: 1.8, cooldown: 0.95, weaponStep: 1, role: "melee", bio: true, stim: true,
+    splash: { radius: 1.6, factor: 1 },
+    note: "근접 화염 범위 공격 · 진동형(소형에게 100%, 대형에게 25%)",
+  },
+  medic: {
+    id: "medic", race: "terran", name: "메딕", short: "+", minerals: 50, gas: 25, time: 18, supply: 1, from: "barracks", requires: "academy",
+    hp: 60, shields: 0, armor: 1, size: "small", speed: 2.6, radius: 0.95, sight: 9, role: "caster", bio: true,
+    heal: 10, healRange: 4.5,
+    note: "무기 없음 · 근처 보병의 체력을 초당 10 치료",
+  },
+  vulture: {
+    id: "vulture", race: "terran", name: "벌처", short: "V", minerals: 75, gas: 0, time: 18, supply: 2, from: "factory",
+    hp: 80, shields: 0, armor: 0, size: "medium", speed: 4.2, radius: 1.2, sight: 9,
+    damage: 20, hits: 1, damageType: "concussive", range: 5, cooldown: 1.4, weaponStep: 0, role: "ranged", kite: true,
+    note: "빠른 차량 · 진동형이라 소형 보병과 질럿에 강함 · 물러나며 사격",
+  },
+  tank: {
+    id: "tank", race: "terran", name: "시즈 탱크", short: "T", minerals: 150, gas: 100, time: 30, supply: 2, from: "factory", requires: "shop",
+    hp: 150, shields: 0, armor: 1, size: "large", speed: 2.2, radius: 1.6, sight: 11,
+    damage: 30, hits: 1, damageType: "explosive", range: 7, cooldown: 1.5, weaponStep: 0, role: "siege",
+    siege: { damage: 70, range: 12, minRange: 2, cooldown: 3, setup: 2, splash: { radius: 2.2, factor: 0.5 } },
+    note: "시즈 모드 연구 후 적이 오면 자동으로 시즈 · 사거리 12 범위 포격",
+  },
 };
 
-/** 플레이어 병력 유닛(프로브 제외). */
-export const STW_ARMY_UNITS = ["zealot", "dragoon", "templar", "dark", "archon", "observer", "reaver"];
+/** 병력 유닛(일꾼 제외). 두 종족 모두. */
+export const STW_ARMY_UNITS = ["zealot", "dragoon", "templar", "dark", "archon", "observer", "reaver", "marine", "firebat", "medic", "vulture", "tank"];
 /** 생산 건물별로 고를 수 있는 유닛. */
-export const STW_PRODUCER_UNITS = { gateway: ["zealot", "dragoon", "templar", "dark"], robo: ["observer", "reaver"] };
+export const STW_PRODUCER_UNITS = {
+  gateway: ["zealot", "dragoon", "templar", "dark"],
+  robo: ["observer", "reaver"],
+  barracks: ["marine", "firebat", "medic"],
+  factory: ["vulture", "tank"],
+};
 
 export const STW_BUILDINGS = {
-  nexus: { id: "nexus", name: "넥서스", minerals: 400, gas: 0, time: 70, hp: 1000, shields: 1000, armor: 1, size: 8, supply: 10, sight: 11 },
+  nexus: { id: "nexus", name: "넥서스", minerals: 400, gas: 0, time: 70, hp: 1000, shields: 1000, armor: 1, size: 8, supply: 10, sight: 11, base: true },
   pylon: { id: "pylon", name: "파일런", minerals: 100, gas: 0, time: 18, hp: 200, shields: 200, armor: 1, size: 3.4, supply: 8, sight: 8, note: "인구 +8" },
   gateway: { id: "gateway", name: "게이트웨이", minerals: 150, gas: 0, time: 30, hp: 500, shields: 500, armor: 1, size: 5, requires: "pylon", sight: 8, note: "전투 유닛 생산 라인 +1" },
-  assimilator: { id: "assimilator", name: "어시밀레이터", minerals: 75, gas: 0, time: 20, hp: 450, shields: 450, armor: 1, size: 4.2, sight: 6, note: "가스 채취 · 프로브 3기 배치" },
-  core: { id: "core", name: "사이버네틱스 코어", minerals: 150, gas: 0, time: 30, hp: 500, shields: 500, armor: 1, size: 4.6, requires: "gateway", sight: 8, note: "드라군 해금 · 사거리 연구" },
-  forge: { id: "forge", name: "포지", minerals: 150, gas: 0, time: 28, hp: 550, shields: 550, armor: 1, size: 4.6, requires: "pylon", sight: 8, note: "지상 공격·방어 업그레이드 · 포톤 캐논 해금" },
+  assimilator: { id: "assimilator", name: "어시밀레이터", minerals: 75, gas: 0, time: 20, hp: 450, shields: 450, armor: 1, size: 4.2, sight: 6, refinery: true, note: "가스 채취 · 프로브 3기 배치" },
+  core: { unique: true, id: "core", name: "사이버네틱스 코어", minerals: 150, gas: 0, time: 30, hp: 500, shields: 500, armor: 1, size: 4.6, requires: "gateway", sight: 8, note: "드라군 해금 · 사거리 연구" },
+  forge: { unique: true, id: "forge", name: "포지", minerals: 150, gas: 0, time: 28, hp: 550, shields: 550, armor: 1, size: 4.6, requires: "pylon", sight: 8, note: "지상 공격·방어 업그레이드 · 포톤 캐논 해금" },
   cannon: {
     id: "cannon", name: "포톤 캐논", minerals: 150, gas: 0, time: 25, hp: 100, shields: 100, armor: 0, size: 3.2, requires: "forge", sight: 11,
-    damage: 20, hits: 1, damageType: "normal", range: 7, cooldown: 1.25, detector: 7, note: "사거리 7 방어·은폐 탐지 · 앞마당이 있으면 앞마당에 세움",
+    damage: 20, hits: 1, damageType: "normal", range: 7, cooldown: 1.25, detector: 7, defense: true, note: "사거리 7 방어·은폐 탐지 · 앞마당이 있으면 앞마당에 세움",
   },
-  citadel: { id: "citadel", name: "아둔의 성소", minerals: 150, gas: 100, time: 35, hp: 450, shields: 450, armor: 1, size: 4.4, requires: "core", sight: 8, note: "질럿 다리 강화 연구 · 아카이브 해금" },
-  archives: { id: "archives", name: "템플러 아카이브", minerals: 150, gas: 200, time: 40, hp: 500, shields: 500, armor: 1, size: 4.6, requires: "citadel", sight: 8, note: "하이템플러·다크템플러 해금 · 사이오닉 스톰 연구" },
+  citadel: { unique: true, id: "citadel", name: "아둔의 성소", minerals: 150, gas: 100, time: 35, hp: 450, shields: 450, armor: 1, size: 4.4, requires: "core", sight: 8, note: "질럿 다리 강화 연구 · 아카이브 해금" },
+  archives: { unique: true, id: "archives", name: "템플러 아카이브", minerals: 150, gas: 200, time: 40, hp: 500, shields: 500, armor: 1, size: 4.6, requires: "citadel", sight: 8, note: "하이템플러·다크템플러 해금 · 사이오닉 스톰 연구" },
   robo: { id: "robo", name: "로보틱스 퍼실리티", minerals: 200, gas: 200, time: 40, hp: 500, shields: 500, armor: 1, size: 5, requires: "core", sight: 8, note: "옵저버·리버 생산 라인" },
-  bay: { id: "bay", name: "로보틱스 지원 베이", minerals: 150, gas: 100, time: 30, hp: 450, shields: 450, armor: 1, size: 4.4, requires: "robo", sight: 8, note: "리버 해금 · 스캐럽 강화 연구" },
+  bay: { unique: true, id: "bay", name: "로보틱스 지원 베이", minerals: 150, gas: 100, time: 30, hp: 450, shields: 450, armor: 1, size: 4.4, requires: "robo", sight: 8, note: "리버 해금 · 스캐럽 강화 연구" },
+
+  // ───── 테란: 보호막이 없고, 공격받지 않으면 SCV가 수리하듯 체력이 천천히 회복된다 ─────
+  cc: { id: "cc", race: "terran", name: "커맨드 센터", minerals: 400, gas: 0, time: 70, hp: 1500, shields: 0, armor: 1, size: 8, supply: 10, sight: 11, base: true },
+  depot: { id: "depot", race: "terran", name: "서플라이 디팟", minerals: 100, gas: 0, time: 18, hp: 500, shields: 0, armor: 1, size: 3.6, supply: 8, sight: 8, note: "인구 +8" },
+  refinery: { id: "refinery", race: "terran", name: "리파이너리", minerals: 75, gas: 0, time: 20, hp: 750, shields: 0, armor: 1, size: 4.2, sight: 6, refinery: true, note: "가스 채취 · SCV 3기 배치" },
+  barracks: { id: "barracks", race: "terran", name: "배럭", minerals: 150, gas: 0, time: 30, hp: 1000, shields: 0, armor: 1, size: 5, requires: "depot", sight: 8, note: "보병 생산 라인 +1" },
+  ebay: { unique: true, id: "ebay", race: "terran", name: "엔지니어링 베이", minerals: 125, gas: 0, time: 28, hp: 850, shields: 0, armor: 1, size: 4.6, requires: "depot", sight: 8, note: "보병 공격·방어 업그레이드 · 미사일 터렛 해금" },
+  bunker: {
+    id: "bunker", race: "terran", name: "벙커", minerals: 100, gas: 0, time: 22, hp: 350, shields: 0, armor: 1, size: 3.6, requires: "barracks", sight: 10,
+    damage: 6, hits: 4, damageType: "normal", range: 6, cooldown: 0.9, defense: true, note: "해병 4기 상당 화력의 방어 건물 · 앞마당이 있으면 앞마당에 세움",
+  },
+  turret: { id: "turret", race: "terran", name: "미사일 터렛", minerals: 75, gas: 0, time: 18, hp: 200, shields: 0, armor: 0, size: 3, requires: "ebay", sight: 11, detector: 7, defense: true, note: "은폐 탐지 전용(지상 공격 없음)" },
+  academy: { unique: true, id: "academy", race: "terran", name: "아카데미", minerals: 150, gas: 0, time: 30, hp: 600, shields: 0, armor: 1, size: 4.6, requires: "barracks", sight: 8, note: "파이어뱃·메딕 해금 · 스팀팩·U-238 연구" },
+  comsat: {
+    unique: true, id: "comsat", race: "terran", name: "컴샛 스테이션", minerals: 50, gas: 50, time: 20, hp: 500, shields: 0, armor: 1, size: 3.4, requires: "academy", sight: 8,
+    energy: 50, maxEnergy: 200, energyRegen: 0.8, note: "은폐 유닛에게 공격받으면 에너지 50으로 자동 스캔",
+  },
+  factory: { id: "factory", race: "terran", name: "팩토리", minerals: 200, gas: 100, time: 40, hp: 1250, shields: 0, armor: 1, size: 5.2, requires: "barracks", sight: 8, note: "벌처·시즈 탱크 생산 라인" },
+  shop: { unique: true, id: "shop", race: "terran", name: "머신 샵", minerals: 50, gas: 50, time: 20, hp: 750, shields: 0, armor: 1, size: 3.6, requires: "factory", sight: 8, note: "시즈 탱크 해금 · 시즈 모드·이온 추진기 연구" },
 };
 
-/** 플레이어가 고를 수 있는 건설 목록. 앞마당 넥서스는 별도 키. */
-export const STW_BUILD_CHOICES = ["pylon", "gateway", "assimilator", "core", "forge", "cannon", "citadel", "archives", "robo", "bay", "expand"];
 
 /** 생산 라인이 있는 건물. */
-export const STW_PRODUCERS = ["gateway", "robo"];
+export const STW_PRODUCERS = ["gateway", "robo", "barracks", "factory"];
 
 export const STW_RESEARCH = {
   weapons1: { id: "weapons1", name: "지상 공격 1단계", at: "forge", minerals: 100, gas: 100, time: 40, note: "질럿 +1×2, 드라군 +2" },
@@ -125,6 +185,38 @@ export const STW_RESEARCH = {
   charge: { id: "charge", name: "다리 강화", at: "citadel", minerals: 150, gas: 150, time: 45, note: "질럿 이동 속도 +50%" },
   storm: { id: "storm", name: "사이오닉 스톰", at: "archives", minerals: 200, gas: 200, time: 55, note: "하이템플러가 뭉친 적에게 스톰을 자동 시전" },
   scarab: { id: "scarab", name: "스캐럽 강화", at: "bay", minerals: 100, gas: 100, time: 40, note: "리버 피해 100 → 125" },
+
+  // ───── 테란 ─────
+  infWeapons1: { id: "infWeapons1", race: "terran", name: "보병 공격 1단계", at: "ebay", minerals: 100, gas: 100, time: 40, note: "해병 +1, 파이어뱃 +1×2" },
+  infArmor1: { id: "infArmor1", race: "terran", name: "보병 방어 1단계", at: "ebay", minerals: 100, gas: 100, time: 40, note: "보병 방어력 +1" },
+  infWeapons2: { id: "infWeapons2", race: "terran", name: "보병 공격 2단계", at: "ebay", minerals: 175, gas: 175, time: 50, requires: ["infWeapons1", "academy"], note: "보병 공격력 한 단계 더" },
+  stim: { id: "stim", race: "terran", name: "스팀팩", at: "academy", minerals: 100, gas: 100, time: 45, note: "교전 시 체력 10을 써서 10초간 공격·이동 속도 +50%" },
+  u238: { id: "u238", race: "terran", name: "U-238 탄", at: "academy", minerals: 150, gas: 150, time: 40, note: "해병 사거리 4.5 → 5.5" },
+  siege: { id: "siege", race: "terran", name: "시즈 모드", at: "shop", minerals: 150, gas: 150, time: 50, note: "적이 오면 탱크가 자동으로 시즈 · 사거리 12 범위 포격" },
+  ion: { id: "ion", race: "terran", name: "이온 추진기", at: "shop", minerals: 100, gas: 100, time: 35, note: "벌처 이동 속도 +40%" },
+};
+
+// 종족 표시가 없는 항목은 모두 프로토스다.
+for (const table of [STW_UNITS, STW_BUILDINGS, STW_RESEARCH]) {
+  for (const entry of Object.values(table)) entry.race ??= "protoss";
+}
+
+/** 종족별 기본 구성. */
+export const STW_RACES = {
+  protoss: {
+    id: "protoss", name: "프로토스", worker: "probe", base: "nexus", supply: "pylon", refinery: "assimilator", buildVerb: "소환", trainVerb: "소환",
+    mainProducer: "gateway", producers: ["gateway", "robo"], startLines: { gateway: "zealot" },
+    builds: ["pylon", "gateway", "assimilator", "core", "forge", "cannon", "citadel", "archives", "robo", "bay", "expand"],
+    weapons: ["weapons1", "weapons2"], armor: ["armor1"], shields: ["shields1"],
+    note: "보호막이 저절로 회복되는 정예 병력과 사이오닉 기술",
+  },
+  terran: {
+    id: "terran", name: "테란", worker: "scv", base: "cc", supply: "depot", refinery: "refinery", buildVerb: "건설", trainVerb: "생산",
+    mainProducer: "barracks", producers: ["barracks", "factory"], startLines: { barracks: "marine" },
+    builds: ["depot", "barracks", "refinery", "ebay", "bunker", "turret", "academy", "comsat", "factory", "shop", "expand"],
+    weapons: ["infWeapons1", "infWeapons2"], armor: ["infArmor1"], shields: [],
+    note: "값싼 보병과 메딕, 시즈 탱크의 포격 · 건물이 스스로 수리됨",
+  },
 };
 
 /** 소환 중인 건물을 취소하면 돌려받는 비율. 프로브·유닛·연구 취소는 전액 환불. */
@@ -153,6 +245,7 @@ export const STW_ECONOMY = {
 export const STW_SIZE_MULTIPLIER = {
   normal: { small: 1, medium: 1, large: 1 },
   explosive: { small: 0.5, medium: 0.75, large: 1 },
+  concussive: { small: 1, medium: 0.5, large: 0.25 },
 };
 
 export const STW_DIFFICULTIES = {
@@ -167,4 +260,7 @@ export const STW_AI_PERSONAS = {
   templar: { id: "templar", name: "템플러 테크", note: "질럿으로 버티며 스톰을 준비한다" },
   dark: { id: "dark", name: "다크템플러 기습", note: "빠르게 아카이브를 올려 보이지 않는 칼날로 찌른다" },
   robo: { id: "robo", name: "로보 운영", note: "드라군과 리버, 옵저버로 천천히 밀어붙인다" },
+  bio: { id: "bio", race: "terran", name: "바이오닉 러시", note: "해병과 메딕, 스팀팩으로 빠르게 몰아친다" },
+  mech: { id: "mech", race: "terran", name: "메카닉 운영", note: "벌처로 버티며 시즈 탱크 포격선을 민다" },
 };
+for (const persona of Object.values(STW_AI_PERSONAS)) persona.race ??= "protoss";

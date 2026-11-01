@@ -1,12 +1,15 @@
 // 스타즈워 엔진 상태의 TypeScript 표면 타입.
 export type StwSide = "player" | "enemy";
 export type StwDifficulty = "easy" | "normal" | "hard";
-export type StwArmyType = "zealot" | "dragoon" | "templar" | "dark" | "archon" | "observer" | "reaver";
-export type StwUnitType = StwArmyType | "probe";
-export type StwBuildingType = "nexus" | "pylon" | "gateway" | "assimilator" | "core" | "forge" | "cannon" | "citadel" | "archives" | "robo" | "bay";
-export type StwProducerType = "gateway" | "robo";
+export type StwRaceId = "protoss" | "terran";
+export type StwArmyType = "zealot" | "dragoon" | "templar" | "dark" | "archon" | "observer" | "reaver" | "marine" | "firebat" | "medic" | "vulture" | "tank";
+export type StwUnitType = StwArmyType | "probe" | "scv";
+export type StwBuildingType = "nexus" | "pylon" | "gateway" | "assimilator" | "core" | "forge" | "cannon" | "citadel" | "archives" | "robo" | "bay"
+  | "cc" | "depot" | "refinery" | "barracks" | "ebay" | "bunker" | "turret" | "academy" | "comsat" | "factory" | "shop";
+export type StwProducerType = "gateway" | "robo" | "barracks" | "factory";
 export type StwBuildChoice = Exclude<StwBuildingType, "nexus"> | "expand";
-export type StwResearchId = "weapons1" | "armor1" | "weapons2" | "shields1" | "range" | "charge" | "storm" | "scarab";
+export type StwResearchId = "weapons1" | "armor1" | "weapons2" | "shields1" | "range" | "charge" | "storm" | "scarab"
+  | "infWeapons1" | "infArmor1" | "infWeapons2" | "stim" | "u238" | "siege" | "ion";
 export type StwRallyId = "main" | "natural" | "center" | "forward";
 export type StwCheck = { ok: boolean; reason?: string };
 
@@ -26,6 +29,10 @@ export type StwUnit = {
   energy: number;
   group: "rally" | "attack" | "scout";
   targetId: number | null;
+  sieged?: boolean;
+  siegeUntil?: number;
+  healTargetId?: number | null;
+  stimAt?: number;
 };
 
 export type StwBuilding = {
@@ -42,7 +49,7 @@ export type StwBuilding = {
   shields: number;
   maxShields: number;
   progress: number;
-  queue: { unit: "probe"; remaining: number }[];
+  queue: { unit: "probe" | "scv"; remaining: number }[];
   line: StwArmyType | null;
   current: { unit: StwArmyType; remaining: number; total: number } | null;
   research: { id: StwResearchId; remaining: number } | null;
@@ -50,9 +57,10 @@ export type StwBuilding = {
   targetId: number | null;
 };
 
-export type StwEffect = { kind: "slash" | "plasma" | "photon" | "shock" | "scarab" | "warp" | "death" | "collapse"; side: StwSide; x1: number; y1: number; x2: number; y2: number; ttl: number; max: number; radius?: number };
+export type StwEffect = { kind: "slash" | "plasma" | "photon" | "shock" | "scarab" | "warp" | "death" | "collapse" | "bullet" | "flame" | "grenade" | "tankshot" | "shell" | "stim" | "scan"; side: StwSide; x1: number; y1: number; x2: number; y2: number; ttl: number; max: number; radius?: number };
+export type StwScan = { id: number; side: StwSide; x: number; y: number; radius: number; ttl: number };
 export type StwStorm = { id: number; side: StwSide; x: number; y: number; ttl: number };
-export type StwIntel = { time: number; buildings: Partial<Record<StwBuildingType, number>>; units: Record<StwArmyType, number>; research: { id: StwResearchId; status: string }[]; probes: number };
+export type StwIntel = { race?: StwRaceId; time: number; buildings: Partial<Record<StwBuildingType, number>>; units: Record<StwArmyType, number>; research: { id: StwResearchId; status: string }[]; probes: number };
 export type StwSeen = { id: number; type: StwBuildingType; x: number; y: number; base: string; radius: number; at: number };
 export type StwStats = { minerals: number; gas: number; produced: number; lost: number; kills: number; buildingsLost: number; buildingsDestroyed: number; storms: number };
 
@@ -67,7 +75,8 @@ export type StwSideState = {
   autoWave: number;
   intel: StwIntel | null;
   seen: Record<string, StwSeen>;
-  persona: "rush" | "dragoon" | "templar" | "dark" | "robo" | null;
+  race: StwRaceId;
+  persona: "rush" | "dragoon" | "templar" | "dark" | "robo" | "bio" | "mech" | null;
   sawCloakAt?: number;
   stats: StwStats;
 };
@@ -83,12 +92,14 @@ export type StwState = {
   units: StwUnit[];
   buildings: StwBuilding[];
   storms: StwStorm[];
+  scans?: StwScan[];
   effects: StwEffect[];
   log: StwLogEntry[];
 };
 
 export type StwCommand =
   | { type: "probe" }
+  | { type: "worker" }
   | { type: "build"; building: StwBuildChoice }
   | { type: "research"; research: StwResearchId }
   | { type: "line"; buildingId: number; unit: StwArmyType | null }

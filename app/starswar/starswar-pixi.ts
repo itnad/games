@@ -1,18 +1,27 @@
 // 스타즈워 PixiJS 렌더러. 엔진 상태를 읽기만 하며, 플레이어 시야 밖의 적은 감춘다.
 import type { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
-import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_STORM } from "./starswar-data.js";
-import { stwDetected, stwDone, stwNexus, stwPoint, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
+import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_STORM, STW_UNITS } from "./starswar-data.js";
+import { stwDetected, stwDone, stwNexus, stwPoint, stwRace, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
 import { STW_TEAM, createStwTextures, type StwTextureSet } from "./starswar-sprites";
 import type { StwBuilding, StwEffect, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./starswar-types";
 
 type PixiModule = typeof import("pixi.js");
 
-const UNIT_SIZE: Record<StwUnitType, number> = { zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9, dark: 3.3, archon: 4.8, observer: 2.4, reaver: 4.6 };
+const UNIT_SIZE: Record<StwUnitType, number> = {
+  zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9, dark: 3.3, archon: 4.8, observer: 2.4, reaver: 4.6,
+  scv: 1.9, marine: 2.6, firebat: 2.9, medic: 2.5, vulture: 3.6, tank: 4.4,
+};
+/** 다리 대신 바퀴·궤도·부양으로 움직여 걸음 흔들림이 없는 유닛. */
+type Flags = { refinery?: boolean; worker?: boolean; flying?: boolean };
+const flags = (def: object) => def as Flags;
+const NO_BOB = new Set<StwUnitType>(["dragoon", "vulture", "tank"]);
+/** 포탑 텍스처(여백 40)와 차체 텍스처(여백 34)의 크기 비. */
+const TURRET_RATIO = 40 / 34;
 const CLOAKED = new Set<StwUnitType>(["dark", "observer"]);
 const FONT = "system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
 const FOG_CELL = 2;
 
-type UnitView = { root: Container; body: Sprite; glow: Sprite; x: number; y: number; heading: number; bob: number };
+type UnitView = { root: Container; body: Sprite; glow: Sprite; turret: Sprite | null; aim: number; sieged: boolean; x: number; y: number; heading: number; bob: number };
 type BuildingView = { root: Container; body: Sprite; glow: Sprite | null; ghost: boolean };
 type Particle = { sprite: Sprite; x: number; y: number; vx: number; vy: number; life: number; max: number; s0: number; s1: number; a0: number; rise: number };
 type Decal = { sprite: Sprite; life: number; max: number; a0: number };
@@ -57,6 +66,7 @@ export class StwPixiRenderer {
   private readonly unitLayer: Container;
   private readonly fxLayer: Container;
   private readonly stormLayer: Graphics;
+  private readonly beamLayer: Graphics;
   private readonly fog: Graphics;
   private readonly overlay: Container;
   private readonly bars: Graphics;
@@ -107,13 +117,15 @@ export class StwPixiRenderer {
     this.unitLayer = new PIXI.Container();
     this.stormLayer = new PIXI.Graphics();
     this.stormLayer.blendMode = "add";
+    this.beamLayer = new PIXI.Graphics();
+    this.beamLayer.blendMode = "add";
     this.fxLayer = new PIXI.Container();
     this.fog = new PIXI.Graphics();
     // 칸 단위로 그린 안개 경계를 흐려 부드러운 시야 가장자리로 만든다.
     this.fog.filters = [new PIXI.BlurFilter({ strength: 10, quality: 3 })];
     this.rallyFlag = this.sprite(this.tex.flag.player, 2.6);
     this.workerLayer = new PIXI.Container();
-    this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.rallyFlag, this.unitLayer, this.stormLayer, this.fxLayer, this.fog);
+    this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.rallyFlag, this.unitLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
     this.overlay = new PIXI.Container();
     this.bars = new PIXI.Graphics();
     this.overlay.addChild(this.bars);
@@ -149,6 +161,7 @@ export class StwPixiRenderer {
     this.syncBuildings(state);
     this.syncWorkers(state, ui.clock);
     this.syncUnits(state, realDt);
+    this.drawBeams(state, ui.clock);
     this.spawnEffects(state);
     this.drawProjectiles(state);
     this.drawStorms(state, ui.clock);
@@ -287,7 +300,7 @@ export class StwPixiRenderer {
         view = { root, body, cargo };
         this.workerPool.push(view);
       }
-      view.body.texture = this.tex.units[side].probe;
+      view.body.texture = this.tex.units[side][stwRace(state, side).worker as StwUnitType];
       view.root.visible = true;
       view.root.alpha = 1;
       view.cargo.visible = false;
@@ -302,14 +315,14 @@ export class StwPixiRenderer {
     for (const side of ["player", "enemy"] as StwSide[]) {
       const split = stwWorkerSplit(state, side) as { gas: number; main: number; natural: number; idle: number };
       const offset = side === "player" ? 0 : 0.5;
-      const assimilators = state.buildings.filter((building) => building.side === side && building.type === "assimilator" && stwDone(building));
+      const assimilators = state.buildings.filter((building) => building.side === side && flags(STW_BUILDINGS[building.type]).refinery && stwDone(building));
       for (const base of ["main", "natural"] as const) {
         const nexus = stwNexus(state, side, base) as { x: number; y: number; radius: number } | null;
         if (!nexus || !stwDone(nexus as never)) continue;
         if (side !== "player" && !stwVisible(state, "player", nexus.x, nexus.y, 4)) continue;
         const minerals = stwPoint(side, base === "main" ? STW_LAYOUT.mainMinerals : STW_LAYOUT.naturalMinerals);
         const dir = Math.sign(minerals.y - nexus.y) || 1;
-        const threatened = state.units.some((unit) => unit.side !== side && unit.type !== "probe" && unit.type !== "observer" && Math.hypot(unit.x - nexus.x, unit.y - nexus.y) < 12);
+        const threatened = state.units.some((unit) => unit.side !== side && !flags(STW_UNITS[unit.type]).worker && !flags(STW_UNITS[unit.type]).flying && Math.hypot(unit.x - nexus.x, unit.y - nexus.y) < 12);
         const count = base === "main" ? split.main + split.idle : split.natural;
         for (let index = 0; index < count; index += 1) {
           const view = take(side);
@@ -423,7 +436,7 @@ export class StwPixiRenderer {
       show(`base:${base}`, `광물 ${count}/${STW_ECONOMY.fullSaturation}`, tone(count, STW_ECONOMY.fullSaturation), nexus.x, nexus.y + nexus.radius * 0.55);
     }
     let gasLeft = split.gas;
-    for (const assimilator of state.buildings.filter((building) => building.side === "player" && building.type === "assimilator" && stwDone(building))) {
+    for (const assimilator of state.buildings.filter((building) => building.side === "player" && flags(STW_BUILDINGS[building.type]).refinery && stwDone(building))) {
       const crew = Math.min(STW_ECONOMY.probesPerGas, gasLeft);
       gasLeft -= crew;
       show(`gas:${assimilator.id}`, `가스 ${crew}/${STW_ECONOMY.probesPerGas}`, tone(crew, STW_ECONOMY.probesPerGas), assimilator.x, assimilator.y);
@@ -439,6 +452,7 @@ export class StwPixiRenderer {
   private syncUnits(state: StwState, realDt: number) {
     const alive = new Set<number>();
     const follow = 1 - Math.exp(-realDt * 16);
+    let byId: Map<number, { x: number; y: number }> | null = null;
     for (const unit of state.units) {
       if (!this.visibleCache.has(unit.id) && unit.side !== "player") continue;
       // 은폐한 적은 아군 탐지기 범위 안에 있을 때만 보인다.
@@ -459,10 +473,29 @@ export class StwPixiRenderer {
       view.root.position.set(view.x, view.y);
       view.heading = turnToward(view.heading, unit.heading, realDt * 10);
       view.body.rotation = view.heading;
-      if (distance > 0.04 && unit.type !== "dragoon") view.bob += realDt * 13;
+      if (distance > 0.04 && !NO_BOB.has(unit.type)) view.bob += realDt * 13;
       const base = UNIT_SIZE[unit.type] / Math.max(view.body.texture.width, view.body.texture.height);
-      const bob = unit.type === "dragoon" ? 1 + Math.sin(state.time * 6 + unit.id) * 0.02 : 1 + Math.sin(view.bob) * 0.045;
+      const bob = unit.type === "dragoon" ? 1 + Math.sin(state.time * 6 + unit.id) * 0.02 : NO_BOB.has(unit.type) ? 1 : 1 + Math.sin(view.bob) * 0.045;
       view.body.scale.set(base * bob, base);
+      if (view.turret) {
+        // 시즈 탱크: 차체와 포탑을 따로 그리고, 포탑은 목표를 향해 돈다.
+        const sieged = Boolean(unit.sieged);
+        if (sieged !== view.sieged) {
+          view.sieged = sieged;
+          const parts = this.tex.tankParts[unit.side];
+          view.body.texture = sieged ? parts.hullSieged : parts.hull;
+          view.turret.texture = sieged ? parts.turretSieged : parts.turret;
+          view.turret.scale.set((UNIT_SIZE.tank * TURRET_RATIO) / Math.max(view.turret.texture.width, view.turret.texture.height));
+        }
+        let aim = view.heading;
+        if (unit.targetId !== null) {
+          byId ??= new Map([...state.units, ...state.buildings].map((item) => [item.id, item]));
+          const target = byId.get(unit.targetId);
+          if (target) aim = Math.atan2(target.y - unit.y, target.x - unit.x);
+        }
+        view.aim = turnToward(view.aim, aim, realDt * 5);
+        view.turret.rotation = view.aim;
+      }
       if (unit.type === "templar") view.glow.alpha = 0.25 + (unit.energy / 200) * 0.45;
       if (unit.type === "archon") {
         view.glow.alpha = 0.55 + Math.sin(state.time * 5 + unit.id) * 0.15;
@@ -490,11 +523,40 @@ export class StwPixiRenderer {
     const body = this.sprite(this.tex.units[unit.side][unit.type], UNIT_SIZE[unit.type]);
     body.rotation = unit.heading;
     root.addChild(shadow, glow, body);
+    let turret: Sprite | null = null;
+    if (unit.type === "tank") {
+      turret = this.sprite(this.tex.tankParts[unit.side].turret, UNIT_SIZE.tank * TURRET_RATIO);
+      turret.rotation = unit.heading;
+      root.addChild(turret);
+    }
     root.position.set(unit.x, unit.y);
     this.unitLayer.addChild(root);
-    const view = { root, body, glow, x: unit.x, y: unit.y, heading: unit.heading, bob: Math.random() * 6 };
+    const view = { root, body, glow, turret, aim: unit.heading, sieged: false, x: unit.x, y: unit.y, heading: unit.heading, bob: Math.random() * 6 };
     this.unitViews.set(unit.id, view);
     return view;
+  }
+
+  /** 메딕 치유 광선과 컴샛 스캔 범위. */
+  private drawBeams(state: StwState, clock: number) {
+    const g = this.beamLayer;
+    g.clear();
+    for (const unit of state.units) {
+      if (unit.type !== "medic" || !unit.healTargetId) continue;
+      const from = this.unitViews.get(unit.id);
+      const to = this.unitViews.get(unit.healTargetId);
+      if (!from || !to) continue;
+      const pulse = 0.55 + Math.sin(clock * 18 + unit.id) * 0.25;
+      g.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ width: 0.35, color: 0xfff3b0, alpha: 0.35 * pulse });
+      g.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ width: 0.12, color: 0xffffff, alpha: 0.8 * pulse });
+      g.circle(to.x, to.y, 0.9).fill({ color: 0xfff3b0, alpha: 0.25 * pulse });
+    }
+    for (const scan of state.scans ?? []) {
+      if (scan.side !== "player" && !this.visiblePoint(state, scan.x, scan.y)) continue;
+      const fade = Math.min(1, scan.ttl / 1.5);
+      const sweep = (clock * 2.4) % (Math.PI * 2);
+      g.circle(scan.x, scan.y, scan.radius).fill({ color: 0x7fd6ff, alpha: 0.05 * fade }).stroke({ width: 0.15, color: 0x9fe4ff, alpha: 0.55 * fade });
+      g.moveTo(scan.x, scan.y).lineTo(scan.x + Math.cos(sweep) * scan.radius, scan.y + Math.sin(sweep) * scan.radius).stroke({ width: 0.2, color: 0x9fe4ff, alpha: 0.5 * fade });
+    }
   }
 
   /* ───────── 효과 ───────── */
@@ -526,6 +588,33 @@ export class StwPixiRenderer {
     } else if (effect.kind === "plasma" || effect.kind === "photon") {
       const angle = Math.atan2(effect.y2 - effect.y1, effect.x2 - effect.x1);
       this.flash(effect.x1 + Math.cos(angle) * 1.4, effect.y1 + Math.sin(angle) * 1.4, 1.6, 0.08, team.light);
+    } else if (effect.kind === "bullet" || effect.kind === "tankshot" || effect.kind === "grenade") {
+      // 총구 섬광. 탄은 drawProjectiles가 그린다.
+      const angle = Math.atan2(effect.y2 - effect.y1, effect.x2 - effect.x1);
+      const reach = effect.kind === "tankshot" ? 2.4 : effect.kind === "grenade" ? 1.6 : 1.1;
+      this.flash(effect.x1 + Math.cos(angle) * reach, effect.y1 + Math.sin(angle) * reach, effect.kind === "tankshot" ? 2.2 : 1.1, 0.07, 0xffe7a0);
+    } else if (effect.kind === "shell") {
+      const angle = Math.atan2(effect.y2 - effect.y1, effect.x2 - effect.x1);
+      this.flash(effect.x1 + Math.cos(angle) * 3, effect.y1 + Math.sin(angle) * 3, 3, 0.12, 0xffe7a0);
+      this.smoke(effect.x1 + Math.cos(angle) * 3, effect.y1 + Math.sin(angle) * 3, 1.4, 0.8);
+    } else if (effect.kind === "flame") {
+      // 화염 방사: 대상 쪽으로 뻗는 불꽃 입자들.
+      const angle = Math.atan2(effect.y2 - effect.y1, effect.x2 - effect.x1);
+      const length = Math.max(1.2, Math.hypot(effect.x2 - effect.x1, effect.y2 - effect.y1));
+      for (let i = 0; i < 7; i += 1) {
+        const sprite = this.particle(this.tex.spark);
+        sprite.tint = i % 3 === 0 ? 0xfff0a0 : i % 3 === 1 ? 0xff9a3c : 0xff5a24;
+        const a = angle + (Math.random() - 0.5) * 0.55;
+        const v = (length / 0.28) * (0.7 + Math.random() * 0.5);
+        const x = effect.x1 + Math.cos(angle) * 0.8;
+        const y = effect.y1 + Math.sin(angle) * 0.8;
+        this.particles.push({ sprite, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.28, max: 0.28, s0: 0.5 / 32, s1: 1.8 / 32, a0: 0.9, rise: 0 });
+      }
+    } else if (effect.kind === "stim") {
+      this.flash(effect.x1, effect.y1, 2.2, 0.2, 0xff4a4a);
+      for (let i = 0; i < 3; i += 1) this.spark(effect.x1, effect.y1, 0xff7070, 2.5, 0.4);
+    } else if (effect.kind === "scan") {
+      this.flash(effect.x1, effect.y1, (effect.radius ?? 10) * 1.2, 0.5, 0x7fd6ff);
     } else if (effect.kind === "warp") {
       this.flash(effect.x1, effect.y1, 5, 0.4, team.glow);
       for (let i = 0; i < 8; i += 1) this.spark(effect.x1, effect.y1, team.light, 3, 0.6);
@@ -598,10 +687,12 @@ export class StwPixiRenderer {
   private drawProjectiles(state: StwState) {
     let used = 0;
     for (const effect of state.effects) {
-      if (effect.kind !== "plasma" && effect.kind !== "photon" && effect.kind !== "scarab") continue;
+      if (!PROJECTILES.has(effect.kind)) continue;
       const t = 1 - effect.ttl / effect.max;
       const x = effect.x1 + (effect.x2 - effect.x1) * t;
-      const y = effect.y1 + (effect.y2 - effect.y1) * t;
+      // 시즈 포탄은 포물선을 그리며 날아간다.
+      const arc = effect.kind === "shell" ? Math.sin(t * Math.PI) * Math.min(6, Math.hypot(effect.x2 - effect.x1, effect.y2 - effect.y1) * 0.35) : 0;
+      const y = effect.y1 + (effect.y2 - effect.y1) * t - arc;
       if (effect.side !== "player" && !this.visiblePoint(state, x, y)) continue;
       let sprite = this.projectilePool[used];
       if (!sprite) {
@@ -611,19 +702,24 @@ export class StwPixiRenderer {
         this.projectilePool.push(sprite);
       }
       sprite.visible = true;
-      sprite.tint = effect.kind === "scarab" ? 0xffb347 : STW_TEAM[effect.side].glow;
-      sprite.scale.set((effect.kind === "scarab" ? 2.2 : effect.kind === "photon" ? 1.6 : 1.3) / 32);
+      sprite.tint = PROJECTILE_TINT[effect.kind] ?? STW_TEAM[effect.side].glow;
+      sprite.scale.set((PROJECTILE_SIZE[effect.kind] ?? 1.3) / 32);
       sprite.position.set(x, y);
       used += 1;
-      if (t > 0.7 && !this.impacted.has(effect)) {
+      if (t > (effect.kind === "shell" ? 0.88 : 0.7) && !this.impacted.has(effect)) {
         this.impacted.add(effect);
-        if (effect.kind === "scarab") {
-          // 스캐럽 폭발: 큰 섬광, 불꽃, 연기, 그을음.
+        if (effect.kind === "scarab" || effect.kind === "shell") {
+          // 스캐럽·시즈 포탄 폭발: 큰 섬광, 불꽃, 연기, 그을음.
           const radius = effect.radius ?? 2.4;
           this.flash(effect.x2, effect.y2, radius * 3, 0.2, 0xfff0c0);
           for (let i = 0; i < 10; i += 1) this.spark(effect.x2, effect.y2, i % 2 ? 0xffb050 : 0xff7a3c, 7, 0.6);
           for (let i = 0; i < 4; i += 1) this.smoke(effect.x2, effect.y2, radius * 1.1, 1.3);
           this.decal(this.tex.scorch, effect.x2, effect.y2, radius * 2, 25, 0.55, 0);
+        } else if (effect.kind === "grenade" || effect.kind === "tankshot") {
+          this.flash(effect.x2, effect.y2, effect.kind === "tankshot" ? 2.6 : 2, 0.12, 0xffd28a);
+          for (let i = 0; i < 4; i += 1) this.spark(effect.x2, effect.y2, 0xffb050, 4, 0.35);
+        } else if (effect.kind === "bullet") {
+          this.flash(effect.x2, effect.y2, 0.9, 0.06, 0xffe7a0);
         } else {
           this.flash(effect.x2, effect.y2, 1.8, 0.1, STW_TEAM[effect.side].light);
         }
@@ -722,7 +818,7 @@ export class StwPixiRenderer {
       }
       if (building.hp < building.maxHp || building.shields < building.maxShields * 0.98) bar(x, y - half - 7, Math.max(20, half * 2), building.hp, building.maxHp, building.shields, building.maxShields);
       if (building.side === "player") {
-        const progress = building.current ? 1 - building.current.remaining / building.current.total : building.queue.length ? 1 - building.queue[0].remaining / 12 : building.research ? null : null;
+        const progress = building.current ? 1 - building.current.remaining / building.current.total : building.queue.length ? 1 - building.queue[0].remaining / STW_UNITS[building.queue[0].unit].time : building.research ? null : null;
         if (progress !== null && progress !== undefined) {
           g.rect(x - half * 0.8, y + half + 2, half * 1.6, 3).fill({ color: 0x000000, alpha: 0.6 });
           g.rect(x - half * 0.8, y + half + 2, half * 1.6 * progress, 3).fill(0xffe08a);
@@ -743,6 +839,10 @@ export class StwPixiRenderer {
     }
   }
 }
+
+const PROJECTILES = new Set<StwEffect["kind"]>(["plasma", "photon", "scarab", "bullet", "grenade", "tankshot", "shell"]);
+const PROJECTILE_TINT: Partial<Record<StwEffect["kind"], number>> = { scarab: 0xffb347, bullet: 0xffe7a0, grenade: 0xff9a3c, tankshot: 0xffd28a, shell: 0xffc46b };
+const PROJECTILE_SIZE: Partial<Record<StwEffect["kind"], number>> = { scarab: 2.2, photon: 1.6, bullet: 0.7, grenade: 1.2, tankshot: 1.5, shell: 1.9 };
 
 function pseudo(seed: number) {
   const x = Math.sin(seed * 12.9898) * 43758.5453;

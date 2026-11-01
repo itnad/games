@@ -10,8 +10,10 @@ import {
   STW_LANE_LENGTH,
   STW_LANE_WIDTH,
   STW_LAYOUT,
+  STW_AI_PERSONAS,
   STW_PRODUCERS,
   STW_PRODUCER_UNITS,
+  STW_RACES,
   STW_RALLY_POINTS,
   STW_RESEARCH,
   STW_SIZE_MULTIPLIER,
@@ -21,6 +23,27 @@ import {
 } from "./starswar-data.js";
 
 export const STW_SIDES = ["player", "enemy"];
+
+/** 진영의 종족 설정. */
+export function stwRace(state, side) {
+  return STW_RACES[state.sides[side].race ?? "protoss"];
+}
+
+function isWorker(unit) {
+  return Boolean(STW_UNITS[unit.type].worker);
+}
+
+function isFlying(unit) {
+  return Boolean(STW_UNITS[unit.type].flying);
+}
+
+/** 전투에 직접 끼지 않는 유닛(일꾼, 비행 탐지기). */
+function isPassive(unit) {
+  return isWorker(unit) || isFlying(unit);
+}
+
+/** 쉬움에서는 초반에 몰아치는 성향을 빼고 고른다. */
+const EASY_EXCLUDED_PERSONAS = ["rush", "dark", "bio"];
 
 export function stwOpponent(side) {
   return side === "player" ? "enemy" : "player";
@@ -52,9 +75,10 @@ function nextRandom(state) {
 
 /* ───────── 생성 ───────── */
 
-function createSide(id, persona) {
+function createSide(id, persona, race) {
   return {
     id,
+    race,
     minerals: STW_ECONOMY.startMinerals,
     gas: 0,
     probes: STW_ECONOMY.startProbes,
@@ -70,7 +94,7 @@ function createSide(id, persona) {
   };
 }
 
-export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {} } = {}) {
+export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {}, races = {} } = {}) {
   const state = {
     version: 1,
     time: 0,
@@ -81,12 +105,13 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
     nextId: 1,
     accumulator: 0,
     sides: {
-      player: createSide("player", personas.player ?? null),
-      enemy: createSide("enemy", personas.enemy ?? null),
+      player: createSide("player", personas.player ?? null, STW_RACES[races.player] ? races.player : "protoss"),
+      enemy: createSide("enemy", personas.enemy ?? null, STW_RACES[races.enemy] ? races.enemy : "protoss"),
     },
     units: [],
     buildings: [],
     storms: [],
+    scans: [],
     effects: [],
     pendingHits: [],
     log: [],
@@ -95,16 +120,19 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
   };
   for (const side of STW_SIDES) {
     if (!state.sides[side].persona && state.aiSides.includes(side)) {
-      // 쉬움에서는 4분 질럿 러시와 다크템플러 기습이 나오지 않게 한다.
-      const personas = state.difficulty === "easy" ? ["dragoon", "templar", "robo"] : ["rush", "dragoon", "templar", "dark", "robo"];
+      const race = state.sides[side].race;
+      const personas = Object.values(STW_AI_PERSONAS)
+        .filter((persona) => persona.race === race && !(state.difficulty === "easy" && EASY_EXCLUDED_PERSONAS.includes(persona.id)))
+        .map((persona) => persona.id);
       state.sides[side].persona = personas[Math.floor(nextRandom(state) * personas.length)];
     }
-    const nexus = placeBuilding(state, side, "nexus", stwPoint(side, STW_LAYOUT.mainNexus), "main", "nexus-main");
+    const nexus = placeBuilding(state, side, stwRace(state, side).base, stwPoint(side, STW_LAYOUT.mainNexus), "main", "nexus-main");
     nexus.progress = 1;
     nexus.hp = nexus.maxHp;
     nexus.shields = nexus.maxShields;
   }
-  pushLog(state, "player", "전투 개시. 프로브가 광물을 캐고 있습니다. 첫 선택을 내리세요.", "info");
+  const workerName = STW_UNITS[stwRace(state, "player").worker].name;
+  pushLog(state, "player", `전투 개시. ${withKoreanSubject(workerName)} 광물을 캐고 있습니다. 첫 선택을 내리세요.`, "info");
   return state;
 }
 
@@ -128,7 +156,8 @@ function placeBuilding(state, side, type, position, base, slot) {
     size: "large",
     progress: 0,
     queue: [],
-    line: type === "gateway" ? "zealot" : null,
+    line: STW_RACES[state.sides[side].race ?? "protoss"].startLines[type] ?? null,
+    energy: def.energy ?? 0,
     current: null,
     research: null,
     blocked: null,
@@ -162,7 +191,7 @@ export function stwHas(state, side, type) {
 }
 
 export function stwNexus(state, side, base) {
-  return state.buildings.find((building) => building.side === side && building.type === "nexus" && building.base === base) ?? null;
+  return state.buildings.find((building) => building.side === side && STW_BUILDINGS[building.type].base && building.base === base) ?? null;
 }
 
 export function stwSupply(state, side) {
@@ -182,7 +211,7 @@ export function stwSupply(state, side) {
 /** 프로브 배치: 가스, 본진 광물, 앞마당 광물, 놀고 있는 수. */
 export function stwWorkerSplit(state, side) {
   const record = state.sides[side];
-  const gasSlots = stwOwnBuildings(state, side, "assimilator", { doneOnly: true }).length * STW_ECONOMY.probesPerGas;
+  const gasSlots = state.buildings.filter((building) => building.side === side && STW_BUILDINGS[building.type].refinery && stwDone(building)).length * STW_ECONOMY.probesPerGas;
   const gas = Math.min(gasSlots, Math.max(0, record.probes - STW_ECONOMY.minMineralProbes));
   let mineral = record.probes - gas;
   const split = { gas, main: 0, natural: 0, idle: 0 };
@@ -229,7 +258,7 @@ export function stwIncome(state, side) {
 export function stwArmy(state, side) {
   const army = { rally: [], attack: [], counts: Object.fromEntries(STW_ARMY_UNITS.map((type) => [type, 0])) };
   for (const unit of state.units) {
-    if (unit.side !== side || unit.type === "probe") continue;
+    if (unit.side !== side || isWorker(unit)) continue;
     army[unit.group === "attack" ? "attack" : "rally"].push(unit);
     army.counts[unit.type] += 1;
   }
@@ -275,12 +304,12 @@ function freeSlot(state, side, list, prefix, { frontFirst = false } = {}) {
 }
 
 function placementFor(state, side, type) {
-  if (type === "assimilator") {
+  if (STW_BUILDINGS[type]?.refinery) {
     const slot = freeSlot(state, side, STW_LAYOUT.geysers, "geyser");
     return slot ? { ...slot, base: "main" } : null;
   }
   const natural = stwNexus(state, side, "natural");
-  if (type === "cannon") {
+  if (STW_BUILDINGS[type]?.defense) {
     if (natural) {
       const slot = freeSlot(state, side, STW_LAYOUT.naturalSlots, "natural");
       if (slot) return { ...slot, base: "natural" };
@@ -300,29 +329,28 @@ function placementFor(state, side, type) {
 export function stwBuildCheck(state, side, type) {
   const record = state.sides[side];
   if (type === "expand") {
-    if (stwNexus(state, side, "natural")) return fail("이미 앞마당에 넥서스가 있습니다");
+    if (stwNexus(state, side, "natural")) return fail("이미 앞마당에 기지가 있습니다");
     const point = stwPoint(side, STW_LAYOUT.naturalNexus);
     if (state.units.some((unit) => unit.side !== side && distance(unit.x, unit.y, point.x, point.y) < 12)) return fail("앞마당에 적이 있습니다");
-    return costCheck(record, STW_BUILDINGS.nexus.minerals, 0);
+    return costCheck(record, STW_BUILDINGS[stwRace(state, side).base].minerals, 0);
   }
   const def = STW_BUILDINGS[type];
-  if (!def || type === "nexus") return fail("지을 수 없는 건물입니다");
+  if (!def || def.base) return fail("지을 수 없는 건물입니다");
+  if (def.race !== record.race) return fail("이 종족은 지을 수 없는 건물입니다");
   if (def.requires && !stwHas(state, side, def.requires)) return fail(`${withKoreanSubject(STW_BUILDINGS[def.requires].name)} 필요합니다`);
-  if (type === "core" && stwOwnBuildings(state, side, "core").length) return fail("이미 있습니다");
-  if (type === "forge" && stwOwnBuildings(state, side, "forge").length) return fail("이미 있습니다");
-  if (type === "citadel" && stwOwnBuildings(state, side, "citadel").length) return fail("이미 있습니다");
-  if (type === "archives" && stwOwnBuildings(state, side, "archives").length) return fail("이미 있습니다");
-  if (!placementFor(state, side, type)) return fail(type === "assimilator" ? "가스 간헐천이 모두 찼습니다" : "지을 자리가 없습니다");
+  if (def.unique && stwOwnBuildings(state, side, type).length) return fail("이미 있습니다");
+  if (!placementFor(state, side, type)) return fail(def.refinery ? "가스 간헐천이 모두 찼습니다" : "지을 자리가 없습니다");
   return costCheck(record, def.minerals, def.gas);
 }
 
 export function stwProbeCheck(state, side) {
+  const race = stwRace(state, side);
   const nexus = ["main", "natural"].map((base) => stwNexus(state, side, base)).filter((item) => item && stwDone(item)).sort((a, b) => a.queue.length - b.queue.length)[0];
-  if (!nexus) return fail("넥서스가 없습니다");
+  if (!nexus) return fail("기지가 없습니다");
   if (nexus.queue.length >= STW_ECONOMY.probeQueueLimit) return fail("생산 대기열이 찼습니다");
   const supply = stwSupply(state, side);
-  if (supply.used + 1 > supply.cap) return fail("인구 부족 · 파일런 필요");
-  const cost = costCheck(state.sides[side], STW_UNITS.probe.minerals, 0);
+  if (supply.used + 1 > supply.cap) return fail(`인구 부족 · ${STW_BUILDINGS[race.supply].name} 필요`);
+  const cost = costCheck(state.sides[side], STW_UNITS[race.worker].minerals, 0);
   return cost.ok ? { ok: true, nexus } : cost;
 }
 
@@ -330,6 +358,7 @@ export function stwResearchCheck(state, side, id) {
   const def = STW_RESEARCH[id];
   const record = state.sides[side];
   if (!def) return fail("알 수 없는 연구입니다");
+  if (def.race !== record.race) return fail("이 종족의 연구가 아닙니다");
   if (record.research[id] === "done") return fail("완료됨");
   if (record.research[id] === "running") return fail("연구 중");
   const building = stwOwnBuildings(state, side, def.at, { doneOnly: true }).find((item) => !item.research);
@@ -345,7 +374,7 @@ export function stwResearchCheck(state, side, id) {
 
 export function stwScoutCheck(state, side) {
   if (state.units.some((unit) => unit.side === side && unit.group === "scout")) return fail("정찰 중");
-  if (state.sides[side].probes < 5) return fail("프로브 5기 이상 필요");
+  if (state.sides[side].probes < 5) return fail(`${STW_UNITS[stwRace(state, side).worker].name} 5기 이상 필요`);
   return { ok: true };
 }
 
@@ -361,20 +390,24 @@ export function stwCommand(state, side, command) {
   if (state.status !== "playing") return fail("전투가 끝났습니다");
   const record = state.sides[side];
   switch (command.type) {
-    case "probe": {
+    case "probe":
+    case "worker": {
       const check = stwProbeCheck(state, side);
       if (!check.ok) return check;
-      record.minerals -= STW_UNITS.probe.minerals;
-      check.nexus.queue.push({ unit: "probe", remaining: STW_UNITS.probe.time });
+      const worker = STW_UNITS[stwRace(state, side).worker];
+      record.minerals -= worker.minerals;
+      check.nexus.queue.push({ unit: worker.id, remaining: worker.time });
       return { ok: true };
     }
     case "build": {
       const check = stwBuildCheck(state, side, command.building);
       if (!check.ok) return check;
+      const race = stwRace(state, side);
       if (command.building === "expand") {
-        record.minerals -= STW_BUILDINGS.nexus.minerals;
-        placeBuilding(state, side, "nexus", stwPoint(side, STW_LAYOUT.naturalNexus), "natural", "nexus-natural");
-        if (side === "player") pushLog(state, side, "앞마당 넥서스 소환을 시작했습니다.", "info");
+        const base = STW_BUILDINGS[race.base];
+        record.minerals -= base.minerals;
+        placeBuilding(state, side, race.base, stwPoint(side, STW_LAYOUT.naturalNexus), "natural", "nexus-natural");
+        if (side === "player") pushLog(state, side, `앞마당 ${withKoreanObject(base.name)} ${race.buildVerb}하기 시작했습니다.`, "info");
         return { ok: true };
       }
       const def = STW_BUILDINGS[command.building];
@@ -382,7 +415,7 @@ export function stwCommand(state, side, command) {
       record.minerals -= def.minerals;
       record.gas -= def.gas;
       placeBuilding(state, side, command.building, place.point, place.base, place.key);
-      if (side === "player") pushLog(state, side, `${withKoreanObject(def.name)} 소환합니다.`, "info");
+      if (side === "player") pushLog(state, side, `${withKoreanObject(def.name)} ${race.buildVerb}합니다.`, "info");
       return { ok: true };
     }
     case "research": {
@@ -400,12 +433,12 @@ export function stwCommand(state, side, command) {
       const id = command.buildingId ?? command.gatewayId;
       const building = state.buildings.find((item) => item.id === id && item.side === side && STW_PRODUCERS.includes(item.type));
       if (!building) return fail("생산 건물을 찾을 수 없습니다");
-      if (command.unit && !STW_PRODUCER_UNITS[building.type].includes(command.unit)) return fail("이 건물에서는 소환할 수 없는 유닛입니다");
+      if (command.unit && !STW_PRODUCER_UNITS[building.type].includes(command.unit)) return fail("이 건물에서는 생산할 수 없는 유닛입니다");
       building.line = command.unit ?? null;
       return { ok: true };
     }
     case "lineAll": {
-      const producer = command.unit ? STW_UNITS[command.unit]?.from : command.producer ?? "gateway";
+      const producer = command.unit ? STW_UNITS[command.unit]?.from : command.producer ?? stwRace(state, side).mainProducer;
       if (!STW_PRODUCERS.includes(producer)) return fail("알 수 없는 유닛입니다");
       const buildings = stwOwnBuildings(state, side, producer);
       if (!buildings.length) return fail(`${withKoreanSubject(STW_BUILDINGS[producer].name)} 없습니다`);
@@ -413,7 +446,8 @@ export function stwCommand(state, side, command) {
       return { ok: true };
     }
     case "merge": {
-      // 하이템플러 2기를 아콘으로 합친다. 에너지가 적은 쌍부터.
+      // 하이템플러 2기를 아콘으로 합친다. 에너지가 적은 쌍부터. 프로토스 전용.
+      if (record.race !== "protoss") return fail("프로토스만 쓸 수 있습니다");
       const templars = state.units.filter((unit) => unit.side === side && unit.type === "templar").sort((a, b) => a.energy - b.energy || a.id - b.id);
       if (templars.length < 2) return fail("하이템플러 2기가 필요합니다");
       const [first, second] = templars;
@@ -472,10 +506,11 @@ export function stwCommand(state, side, command) {
       if (!check.ok) return check;
       record.probes -= 1;
       const start = stwPoint(side, { x: 20, y: 88 });
-      const unit = spawnUnit(state, side, "probe", start.x, start.y);
+      const workerType = stwRace(state, side).worker;
+      const unit = spawnUnit(state, side, workerType, start.x, start.y);
       unit.group = "scout";
       unit.scoutPhase = "out";
-      if (side === "player") pushLog(state, side, "프로브 1기를 적 본진으로 정찰 보냅니다.", "order");
+      if (side === "player") pushLog(state, side, `${STW_UNITS[workerType].name} 1기를 적 본진으로 정찰 보냅니다.`, "order");
       return { ok: true };
     }
     case "cancelBuild": {
@@ -488,17 +523,18 @@ export function stwCommand(state, side, command) {
       record.minerals += minerals;
       record.gas += gas;
       state.buildings = state.buildings.filter((item) => item !== building);
-      const name = building.type === "nexus" ? "앞마당 넥서스" : def.name;
+      const name = def.base ? `앞마당 ${def.name}` : def.name;
       if (side === "player") pushLog(state, side, `${withKoreanObject(name)} 취소했습니다. ${refundText(minerals, gas)} 환불`, "info");
       return { ok: true, minerals, gas };
     }
     case "cancelProbe": {
-      const nexus = stwOwnBuildings(state, side, "nexus").filter((item) => item.queue.length).sort((a, b) => b.queue.length - a.queue.length)[0];
-      if (!nexus) return fail("대기 중인 프로브가 없습니다");
+      const worker = STW_UNITS[stwRace(state, side).worker];
+      const nexus = stwOwnBuildings(state, side, stwRace(state, side).base).filter((item) => item.queue.length).sort((a, b) => b.queue.length - a.queue.length)[0];
+      if (!nexus) return fail(`대기 중인 ${withKoreanSubject(worker.name)} 없습니다`);
       nexus.queue.pop();
-      record.minerals += STW_UNITS.probe.minerals;
-      if (side === "player") pushLog(state, side, `프로브 소환을 취소했습니다. ${refundText(STW_UNITS.probe.minerals, 0)} 환불`, "info");
-      return { ok: true, minerals: STW_UNITS.probe.minerals, gas: 0 };
+      record.minerals += worker.minerals;
+      if (side === "player") pushLog(state, side, `${worker.name} 생산을 취소했습니다. ${refundText(worker.minerals, 0)} 환불`, "info");
+      return { ok: true, minerals: worker.minerals, gas: 0 };
     }
     case "cancelResearch": {
       const building = state.buildings.find((item) => item.side === side && item.research?.id === command.research);
@@ -514,7 +550,7 @@ export function stwCommand(state, side, command) {
     case "cancelUnit": {
       const producerId = command.buildingId ?? command.gatewayId;
       const gateway = state.buildings.find((item) => item.id === producerId && item.side === side && STW_PRODUCERS.includes(item.type));
-      if (!gateway?.current) return fail("소환 중인 유닛이 없습니다");
+      if (!gateway?.current) return fail("생산 중인 유닛이 없습니다");
       const def = STW_UNITS[gateway.current.unit];
       gateway.current = null;
       // 라인을 그대로 두면 다음 틱에 같은 유닛을 다시 소환하므로 라인도 멈춘다.
@@ -617,7 +653,7 @@ function stepEconomy(state, side, dt) {
   for (const base of ["main", "natural"]) {
     if (!split[base]) continue;
     const nexus = stwNexus(state, side, base);
-    const threatened = nexus && state.units.some((unit) => unit.side !== side && unit.type !== "probe" && distance(unit.x, unit.y, nexus.x, nexus.y) < 12);
+    const threatened = nexus && state.units.some((unit) => unit.side !== side && !isPassive(unit) && distance(unit.x, unit.y, nexus.x, nexus.y) < 12);
     const mined = Math.min(record.bases[base].minerals, mineralRate(split[base]) * dt * (threatened ? 0.5 : 1));
     record.bases[base].minerals -= mined;
     record.minerals += mined * multiplier;
@@ -658,7 +694,9 @@ function stepBuildings(state, dt) {
         if (building.side === "player") pushLog(state, "player", `${withKoreanSubject(STW_RESEARCH[id].name)} 완료되었습니다.`, "good");
       }
     }
-    if (building.type === "cannon") cannonStep(state, building, dt);
+    const fullDef = STW_BUILDINGS[building.type];
+    if (fullDef.damage) cannonStep(state, building, dt);
+    if (fullDef.energyRegen) building.energy = Math.min(fullDef.maxEnergy, building.energy + fullDef.energyRegen * dt);
   }
 }
 
@@ -699,23 +737,33 @@ function stepProducer(state, building, record, dt) {
 
 /* ───────── 전투 ───────── */
 
-function weaponLevel(state, side) {
-  return (stwResearchDone(state, side, "weapons1") ? 1 : 0) + (stwResearchDone(state, side, "weapons2") ? 1 : 0);
+/** 업그레이드가 적용되는 유닛: 프로토스는 모든 지상 유닛, 테란은 보병(bio)만. */
+function upgradable(unit) {
+  const def = STW_UNITS[unit.type];
+  return def.race === "protoss" || Boolean(def.bio);
+}
+
+function researchCount(state, side, ids) {
+  return ids.filter((id) => stwResearchDone(state, side, id)).length;
+}
+
+function weaponLevel(state, unit) {
+  return upgradable(unit) ? researchCount(state, unit.side, stwRace(state, unit.side).weapons) : 0;
 }
 
 function armorBonus(state, target) {
-  if (target.kind !== "unit") return 0;
-  return stwResearchDone(state, target.side, "armor1") ? 1 : 0;
+  if (target.kind !== "unit" || !upgradable(target)) return 0;
+  return researchCount(state, target.side, stwRace(state, target.side).armor);
 }
 
 function shieldArmor(state, target) {
-  return stwResearchDone(state, target.side, "shields1") ? 1 : 0;
+  return researchCount(state, target.side, stwRace(state, target.side).shields);
 }
 
 /** 한 번 공격의 (보호막, 체력) 피해. 폭발형은 크기별 배율, 보호막 먼저, 체력에는 방어력 적용. */
 export function stwHitDamage(state, attacker, target) {
   const def = attacker.kind === "unit" ? STW_UNITS[attacker.type] : STW_BUILDINGS[attacker.type];
-  let perHit = def.damage + (attacker.kind === "unit" ? weaponLevel(state, attacker.side) * (def.weaponStep ?? 0) : 0);
+  let perHit = (attacker.sieged ? def.siege.damage : def.damage) + (attacker.kind === "unit" ? weaponLevel(state, attacker) * (def.weaponStep ?? 0) : 0);
   if (attacker.type === "reaver" && stwResearchDone(state, attacker.side, "scarab")) perHit += 25;
   const raw = perHit * STW_SIZE_MULTIPLIER[def.damageType][target.size ?? "large"];
   const hits = [];
@@ -738,11 +786,11 @@ function applyDamage(state, target, amount, { ignoreArmor = false } = {}) {
 
 function queueHit(state, attacker, target) {
   state.pendingHits.push({ attacker, target, hits: stwHitDamage(state, attacker, target) });
-  const splash = attacker.kind === "unit" ? STW_UNITS[attacker.type].splash : null;
+  const splash = attacker.kind === "unit" ? (attacker.sieged ? STW_UNITS[attacker.type].siege.splash : STW_UNITS[attacker.type].splash) : null;
   if (!splash) return;
   // 범위 공격: 대상 주변의 다른 적 지상 유닛에도 비율만큼 피해(은폐 여부와 무관).
   for (const other of state.units) {
-    if (other === target || other.side === attacker.side || other.hp <= 0 || other.type === "observer") continue;
+    if (other === target || other.side === attacker.side || other.hp <= 0 || isFlying(other)) continue;
     if (distance(other.x, other.y, target.x, target.y) > splash.radius + other.radius * 0.5) continue;
     state.pendingHits.push({ attacker, target: other, hits: stwHitDamage(state, attacker, other).map((amount) => amount * splash.factor) });
   }
@@ -751,6 +799,9 @@ function queueHit(state, attacker, target) {
 /** 은폐 유닛이 상대 진영의 탐지기(옵저버, 완성된 포톤 캐논) 범위 안에 있는지. */
 export function stwDetected(state, unit, bySide) {
   if (!STW_UNITS[unit.type]?.cloaked) return true;
+  for (const scan of state.scans ?? []) {
+    if (scan.side === bySide && distance(scan.x, scan.y, unit.x, unit.y) <= scan.radius) return true;
+  }
   for (const other of state.units) {
     const radius = other.side === bySide ? STW_UNITS[other.type].detector : 0;
     if (radius && other.hp > 0 && distance(other.x, other.y, unit.x, unit.y) <= radius) return true;
@@ -760,6 +811,18 @@ export function stwDetected(state, unit, bySide) {
     if (radius && distance(building.x, building.y, unit.x, unit.y) <= radius) return true;
   }
   return false;
+}
+
+/** 컴샛 스테이션: 탐지되지 않은 은폐 유닛에게 맞으면 에너지 50으로 그 자리를 8초 동안 스캔한다. */
+function comsatScan(state, side, attacker) {
+  if ((state.scans ?? []).some((scan) => scan.side === side && distance(scan.x, scan.y, attacker.x, attacker.y) < scan.radius * 0.6)) return;
+  const comsat = state.buildings.find((building) => building.side === side && building.type === "comsat" && stwDone(building) && building.energy >= 50);
+  if (!comsat) return;
+  comsat.energy -= 50;
+  state.scans ??= [];
+  state.scans.push({ id: state.nextId++, side, x: attacker.x, y: attacker.y, radius: 10, ttl: 8 });
+  state.effects.push({ kind: "scan", side, x1: attacker.x, y1: attacker.y, x2: attacker.x, y2: attacker.y, ttl: 1.2, max: 1.2, radius: 10 });
+  if (side === "player") pushLog(state, side, "컴샛 스캔으로 은폐한 적을 드러냈습니다.", "good");
 }
 
 /** 공격자가 대상을 노릴 수 있는지: 은폐 유닛은 탐지되어야 한다. */
@@ -775,6 +838,7 @@ function applyHits(state) {
     const unseen = hit.attacker.kind === "unit" && STW_UNITS[hit.attacker.type].cloaked && !stwDetected(state, hit.attacker, hit.target.side);
     if (unseen) {
       state.sides[hit.target.side].sawCloakAt = state.time;
+      comsatScan(state, hit.target.side, hit.attacker);
       if (hit.target.side === "player") alertOnce(state, "cloak", 20, "player", "보이지 않는 적에게 공격받고 있습니다! 포톤 캐논이나 옵저버로 탐지하세요.", "danger");
     }
     if (hit.target.kind === "building" && hit.target.side === "player") {
@@ -791,7 +855,7 @@ function findTarget(state, attacker, radius, { unitsOnly = false } = {}) {
     if (unit.side === attacker.side || unit.hp <= 0) continue;
     const d = distance(attacker.x, attacker.y, unit.x, unit.y) - unit.radius;
     if (d > radius || !targetable(state, attacker, unit)) continue;
-    const score = d + (unit.type === "probe" || unit.type === "observer" ? 3 : 0);
+    const score = d + (isPassive(unit) ? 3 : 0);
     if (score < bestScore) {
       best = unit;
       bestScore = score;
@@ -802,7 +866,7 @@ function findTarget(state, attacker, radius, { unitsOnly = false } = {}) {
     if (building.side === attacker.side || building.hp <= 0) continue;
     const d = distance(attacker.x, attacker.y, building.x, building.y) - building.radius;
     if (d > radius) continue;
-    const score = d + (building.type === "cannon" ? 1 : 6);
+    const score = d + (STW_BUILDINGS[building.type].damage ? 1 : 6);
     if (score < bestScore) {
       best = building;
       bestScore = score;
@@ -818,8 +882,9 @@ function resolve(state, id, attacker = null) {
   return state.buildings.find((building) => building.id === id && building.hp > 0) ?? null;
 }
 
+/** 공격하는 방어 건물(포톤 캐논, 벙커). */
 function cannonStep(state, building, dt) {
-  const def = STW_BUILDINGS.cannon;
+  const def = STW_BUILDINGS[building.type];
   building.cooldown = Math.max(0, building.cooldown - dt);
   let target = resolve(state, building.targetId, building);
   if (target && (target.kind !== "unit" || distance(building.x, building.y, target.x, target.y) - target.radius > def.range)) target = null;
@@ -828,18 +893,26 @@ function cannonStep(state, building, dt) {
   if (!target || building.cooldown > 0) return;
   building.cooldown = def.cooldown;
   queueHit(state, building, target);
-  state.effects.push({ kind: "photon", side: building.side, x1: building.x, y1: building.y, x2: target.x, y2: target.y, ttl: 0.3, max: 0.3 });
+  const kind = building.type === "cannon" ? "photon" : "bullet";
+  state.effects.push({ kind, side: building.side, x1: building.x, y1: building.y, x2: target.x, y2: target.y, ttl: kind === "photon" ? 0.3 : 0.12, max: kind === "photon" ? 0.3 : 0.12 });
+}
+
+function stimmed(state, unit) {
+  return unit.stimAt !== undefined && state.time - unit.stimAt < 10;
 }
 
 function unitRange(state, unit) {
   const def = STW_UNITS[unit.type];
   if (unit.type === "dragoon" && stwResearchDone(state, unit.side, "range")) return 8;
+  if (unit.type === "marine" && stwResearchDone(state, unit.side, "u238")) return def.range + 1;
   return def.range ?? 0;
 }
 
 function unitSpeed(state, unit) {
   const def = STW_UNITS[unit.type];
   if (unit.type === "zealot" && stwResearchDone(state, unit.side, "charge")) return def.speed * 1.5;
+  if (unit.type === "vulture" && stwResearchDone(state, unit.side, "ion")) return def.speed * 1.4;
+  if (stimmed(state, unit)) return def.speed * 1.5;
   return def.speed;
 }
 
@@ -856,8 +929,8 @@ function moveToward(unit, x, y, speed, dt) {
 }
 
 const ROLE_DEPTH = { melee: 2, ranged: 0, siege: -1.8, caster: -3.8, support: -5.5 };
-const ROLE_ORDER = { zealot: 0, dark: 1, archon: 2, dragoon: 3, reaver: 4, templar: 5, observer: 6 };
-const ATTACK_EFFECT = { zealot: "slash", dark: "slash", dragoon: "plasma", archon: "shock", reaver: "scarab" };
+const ROLE_ORDER = { zealot: 0, dark: 1, archon: 2, firebat: 3, dragoon: 4, marine: 5, vulture: 6, reaver: 7, tank: 8, templar: 9, medic: 10, observer: 11 };
+const ATTACK_EFFECT = { zealot: "slash", dark: "slash", dragoon: "plasma", archon: "shock", reaver: "scarab", marine: "bullet", firebat: "flame", vulture: "grenade", tank: "tankshot" };
 
 /** 집결지에서의 자리: 근접은 앞, 원거리는 가운데, 템플러는 뒤. 한 줄 12자리. */
 function rallySlots(state, side, units, anchorY) {
@@ -882,14 +955,15 @@ function rallySlots(state, side, units, anchorY) {
 
 function stepUnits(state, dt) {
   for (const unit of state.units) {
-    if (unit.type === "templar") unit.energy = Math.min(STW_UNITS.templar.maxEnergy, unit.energy + STW_UNITS.templar.energyRegen * dt);
+    const def = STW_UNITS[unit.type];
+    if (def.energyRegen) unit.energy = Math.min(def.maxEnergy, unit.energy + def.energyRegen * dt);
   }
   const plans = {};
   for (const side of STW_SIDES) {
     const army = stwArmy(state, side);
     const rallyY = stwRallyY(side, state.sides[side].rally);
     const attackSlots = rallySlots(state, side, army.attack, 0);
-    const speeds = army.attack.filter((unit) => unit.type !== "observer").map((unit) => unitSpeed(state, unit));
+    const speeds = army.attack.filter((unit) => !isFlying(unit)).map((unit) => unitSpeed(state, unit));
     plans[side] = {
       rallySlots: rallySlots(state, side, army.rally, rallyY),
       attackSlots,
@@ -904,7 +978,7 @@ function stepUnits(state, dt) {
   for (const unit of state.units) {
     if (unit.hp <= 0) continue;
     unit.cooldown = Math.max(0, unit.cooldown - dt);
-    if (unit.type === "probe") {
+    if (isWorker(unit)) {
       scoutStep(state, unit, dt);
       continue;
     }
@@ -920,10 +994,16 @@ function stepUnits(state, dt) {
       observerStep(state, unit, plan, dt);
       continue;
     }
+    if (unit.type === "medic") {
+      medicStep(state, unit, plan, dt);
+      continue;
+    }
     const isAttack = unit.group === "attack";
     const slot = isAttack ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
     const sight = range + (isAttack ? 6 : 7);
-    if (!isAttack && slot && isRetreating(unit, slot)) {
+    const retreating = !isAttack && slot && isRetreating(unit, slot);
+    if (unit.type === "tank" && tankSiegeStep(state, unit, Boolean(retreating), dt)) continue;
+    if (retreating) {
       // 후퇴 중: 교전을 끊고 전속력으로 집결지에 돌아온다.
       unit.targetId = null;
       moveToward(unit, slot.x, slot.y, speed, dt);
@@ -950,11 +1030,27 @@ function stepUnits(state, dt) {
       const d = distance(unit.x, unit.y, target.x, target.y) - target.radius - unit.radius * 0.5;
       if (d <= range) {
         unit.heading = Math.atan2(target.y - unit.y, target.x - unit.x);
+        // 스팀팩: 연구 후 교전을 시작하면 체력 10을 써서 10초 동안 공격·이동 속도 +50%.
+        if (def.stim && stwResearchDone(state, unit.side, "stim") && unit.hp > 20 && (unit.stimAt === undefined || state.time - unit.stimAt > 11)) {
+          unit.stimAt = state.time;
+          unit.hp -= 10;
+          state.effects.push({ kind: "stim", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.4, max: 0.4 });
+        }
+        // 물러나며 사격: 재장전 중에 근접 적이 붙어 있으면 한 걸음 물러난다(테란 컨트롤을 자동으로 흉내).
+        if (def.kite && unit.cooldown > 0.12) {
+          const melee = nearestMelee(state, unit, 2.2);
+          // 붙은 근접 유닛보다 빠를 때만 물러난다(해병은 스팀팩을 써야 질럿보다 빠르다).
+          if (melee && speed > unitSpeed(state, melee)) {
+            const away = Math.atan2(unit.y - melee.y, unit.x - melee.x);
+            moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
+            continue;
+          }
+        }
         if (unit.cooldown <= 0) {
-          unit.cooldown = def.cooldown;
+          unit.cooldown = def.cooldown * (stimmed(state, unit) ? 0.67 : 1);
           queueHit(state, unit, target);
           const kind = ATTACK_EFFECT[unit.type] ?? "plasma";
-          const ttl = kind === "slash" ? 0.2 : kind === "scarab" ? 0.6 : kind === "shock" ? 0.25 : 0.35;
+          const ttl = kind === "slash" || kind === "bullet" ? 0.15 : kind === "flame" ? 0.3 : kind === "scarab" ? 0.6 : kind === "shock" ? 0.25 : 0.35;
           state.effects.push({ kind, side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl, max: ttl, radius: STW_UNITS[unit.type].splash?.radius });
         }
       } else {
@@ -971,6 +1067,132 @@ function stepUnits(state, dt) {
     }
   }
   separate(state);
+}
+
+/** 가까이 붙은 적 근접 유닛. */
+function nearestMelee(state, unit, radius) {
+  let best = null;
+  let bestDistance = radius;
+  for (const other of state.units) {
+    if (other.side === unit.side || other.hp <= 0 || STW_UNITS[other.type].role !== "melee") continue;
+    const d = distance(unit.x, unit.y, other.x, other.y) - other.radius - unit.radius;
+    if (d < bestDistance) {
+      best = other;
+      bestDistance = d;
+    }
+  }
+  return best;
+}
+
+/** 사거리 안이면서 최소 사거리 밖에 있는 가장 가까운 적(유닛 우선). */
+function findTargetBand(state, attacker, minRange, maxRange) {
+  let best = null;
+  let bestScore = Infinity;
+  const consider = (item, bias) => {
+    if (item.side === attacker.side || item.hp <= 0) return;
+    if (item.kind === "unit" && (isFlying(item) || !targetable(state, attacker, item))) return;
+    const d = distance(attacker.x, attacker.y, item.x, item.y) - item.radius;
+    if (d > maxRange || d < minRange) return;
+    if (d + bias < bestScore) {
+      best = item;
+      bestScore = d + bias;
+    }
+  };
+  for (const unit of state.units) consider(unit, isWorker(unit) ? 3 : 0);
+  for (const building of state.buildings) consider(building, 6);
+  return best;
+}
+
+/**
+ * 시즈 탱크: 시즈 모드 연구 후 사거리 12 안에 적이 들어오면 자동으로 시즈한다(2초).
+ * 시즈 중에는 움직이지 않고 범위 포격을 하며, 적이 2초 넘게 없거나 후퇴 명령이 오면 시즈를 푼다(2초).
+ * 이 틱을 처리했으면 true.
+ */
+function tankSiegeStep(state, unit, retreating) {
+  const def = STW_UNITS.tank;
+  const siege = def.siege;
+  if (unit.siegeUntil !== undefined && state.time < unit.siegeUntil) return true;
+  if (unit.sieged) {
+    const target = findTargetBand(state, unit, siege.minRange, siege.range);
+    if (target) unit.lastSiegeTargetAt = state.time;
+    if (retreating || (!target && state.time - (unit.lastSiegeTargetAt ?? 0) > 2)) {
+      unit.sieged = false;
+      unit.siegeUntil = state.time + siege.setup;
+      return true;
+    }
+    unit.targetId = target?.id ?? null;
+    if (target && unit.cooldown <= 0) {
+      unit.heading = Math.atan2(target.y - unit.y, target.x - unit.x);
+      unit.cooldown = siege.cooldown;
+      queueHit(state, unit, target);
+      state.effects.push({ kind: "shell", side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl: 0.55, max: 0.55, radius: siege.splash.radius });
+    }
+    return true;
+  }
+  if (retreating || !stwResearchDone(state, unit.side, "siege")) return false;
+  const threat = findTargetBand(state, unit, 0, siege.range);
+  if (!threat) return false;
+  unit.sieged = true;
+  unit.lastSiegeTargetAt = state.time;
+  unit.siegeUntil = state.time + siege.setup;
+  unit.targetId = null;
+  return true;
+}
+
+/** 메딕: 하이템플러처럼 병력 뒤를 따라다니며 체력이 가장 많이 깎인 근처 보병을 치료한다. */
+function medicStep(state, unit, plan, dt) {
+  const def = STW_UNITS.medic;
+  let patient = null;
+  let worst = 1;
+  for (const ally of state.units) {
+    if (ally.side !== unit.side || ally === unit || !STW_UNITS[ally.type].bio || ally.hp >= ally.maxHp) continue;
+    const d = distance(unit.x, unit.y, ally.x, ally.y);
+    if (d > def.healRange + 3) continue;
+    const ratio = ally.hp / ally.maxHp;
+    if (ratio < worst) {
+      worst = ratio;
+      patient = ally;
+    }
+  }
+  unit.targetId = null;
+  unit.healTargetId = null;
+  if (patient) {
+    const d = distance(unit.x, unit.y, patient.x, patient.y);
+    if (d <= def.healRange) {
+      patient.hp = Math.min(patient.maxHp, patient.hp + def.heal * dt);
+      unit.healTargetId = patient.id;
+      unit.heading = Math.atan2(patient.y - unit.y, patient.x - unit.x);
+      return;
+    }
+    if (!(unit.group !== "attack" && plan.rallySlots.get(unit.id) && isRetreating(unit, plan.rallySlots.get(unit.id)))) {
+      moveToward(unit, patient.x, patient.y, def.speed, dt);
+      return;
+    }
+  }
+  supportFollow(state, unit, plan, def.speed, dt);
+}
+
+/** 무기가 없는 후방 유닛의 이동: 후퇴, 적과 거리 두기, 공격 병력 선두 뒤 따라가기, 집결지 대기. */
+function supportFollow(state, unit, plan, speed, dt) {
+  const slot = unit.group === "attack" ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
+  if (unit.group !== "attack" && slot && isRetreating(unit, slot)) {
+    moveToward(unit, slot.x, slot.y, speed, dt);
+    return;
+  }
+  const nearest = findTarget(state, unit, 4, { unitsOnly: true });
+  if (nearest && !isPassive(nearest)) {
+    const away = Math.atan2(unit.y - nearest.y, unit.x - nearest.x);
+    moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
+    return;
+  }
+  if (unit.group === "attack") {
+    const forward = stwForward(unit.side);
+    const front = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && !isPassive(ally) && STW_UNITS[ally.type].role !== "caster");
+    const lead = front.length ? front.reduce((best, ally) => (forward < 0 ? Math.min(best, ally.y) : Math.max(best, ally.y)), front[0].y) : plan.goal.y;
+    moveToward(unit, slot ? slot.x : unit.x, lead - forward * 4, Math.min(speed, plan.waveSpeed), dt);
+  } else if (slot) {
+    moveToward(unit, slot.x, slot.y, speed, dt);
+  }
 }
 
 /** 대기 병력이 집결지에서 이만큼 넘게 떨어진 적은 쫓지 않는다. */
@@ -991,7 +1213,7 @@ function findIntruders(state, side, rallyY) {
   const forward = stwForward(side);
   const own = state.buildings.filter((building) => building.side === side);
   return state.units.filter((unit) => {
-    if (unit.side === side || unit.type === "probe" || unit.type === "observer" || unit.hp <= 0) return false;
+    if (unit.side === side || isPassive(unit) || unit.hp <= 0) return false;
     if ((unit.y - rallyY) * forward < 2) return true;
     return own.some((building) => distance(unit.x, unit.y, building.x, building.y) < building.radius + 6);
   });
@@ -1013,7 +1235,7 @@ function nearestOf(unit, list) {
 /** 옵저버: 공격 병력이 있으면 그 중심 바로 뒤를, 없으면 집결지를 따라다니며 탐지와 시야를 제공한다. */
 function observerStep(state, unit, plan, dt) {
   const forward = stwForward(unit.side);
-  const escort = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && ally.type !== "observer" && ally.type !== "probe");
+  const escort = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && !isPassive(ally));
   let goal;
   if (escort.length) {
     const cx = escort.reduce((sum, ally) => sum + ally.x, 0) / escort.length;
@@ -1051,7 +1273,7 @@ function templarStep(state, unit, plan, dt) {
     return;
   }
   if (unit.group === "attack") {
-    const front = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && ally.type !== "templar");
+    const front = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && !isPassive(ally) && STW_UNITS[ally.type].role !== "caster");
     const forward = stwForward(unit.side);
     const lead = front.length ? front.reduce((best, ally) => (forward < 0 ? Math.min(best, ally.y) : Math.max(best, ally.y)), front[0].y) : plan.goal.y;
     const goalY = lead - forward * 5;
@@ -1065,7 +1287,7 @@ function stormSpot(state, caster) {
   let best = null;
   let bestCount = STW_STORM.minTargets - 1;
   for (const enemy of state.units) {
-    if (enemy.side === caster.side || enemy.type === "probe" || enemy.type === "observer") continue;
+    if (enemy.side === caster.side || isPassive(enemy)) continue;
     if (distance(caster.x, caster.y, enemy.x, enemy.y) > STW_STORM.castRange || !targetable(state, caster, enemy)) continue;
     if (state.storms.some((storm) => storm.side === caster.side && distance(storm.x, storm.y, enemy.x, enemy.y) < STW_STORM.radius)) continue;
     let count = 0;
@@ -1103,7 +1325,7 @@ function stepStorms(state, dt) {
 }
 
 function scoutStep(state, unit, dt) {
-  const def = STW_UNITS.probe;
+  const def = STW_UNITS[unit.type];
   if (unit.scoutPhase === "out") {
     const goal = stwPoint(unit.side, { x: 26, y: 9 });
     if (moveToward(unit, goal.x, goal.y, def.speed, dt)) unit.scoutPhase = "back";
@@ -1121,10 +1343,10 @@ function separate(state) {
   const units = state.units;
   for (let i = 0; i < units.length; i += 1) {
     const a = units[i];
-    if (a.type === "observer") continue;
+    if (isFlying(a)) continue;
     for (let j = i + 1; j < units.length; j += 1) {
       const b = units[j];
-      if (b.type === "observer") continue;
+      if (isFlying(b)) continue;
       const min = (a.radius + b.radius) * (a.side === b.side ? 0.9 : 1);
       const dx = b.x - a.x;
       const dy = b.y - a.y;
@@ -1147,12 +1369,16 @@ function separate(state) {
 function regenerate(state, dt) {
   for (const list of [state.units, state.buildings]) {
     for (const item of list) {
-      if (item.hp <= 0 || item.shields >= item.maxShields) continue;
+      if (item.hp <= 0) continue;
       if (item.kind === "building" && !stwDone(item)) continue;
       if (state.time - item.lastHit < STW_ECONOMY.shieldRegenDelay) continue;
-      item.shields = Math.min(item.maxShields, item.shields + STW_ECONOMY.shieldRegen * dt);
+      if (item.shields < item.maxShields) item.shields = Math.min(item.maxShields, item.shields + STW_ECONOMY.shieldRegen * dt);
+      // 테란 건물: 공격받지 않으면 SCV가 수리하듯 체력이 천천히 회복된다.
+      if (item.kind === "building" && STW_BUILDINGS[item.type].race === "terran" && item.hp < item.maxHp) item.hp = Math.min(item.maxHp, item.hp + STW_ECONOMY.shieldRegen * dt);
     }
   }
+  for (const scan of state.scans ?? []) scan.ttl -= dt;
+  if (state.scans?.length) state.scans = state.scans.filter((scan) => scan.ttl > 0);
 }
 
 function stepEffects(state, dt) {
@@ -1166,22 +1392,19 @@ function cleanup(state) {
     if (unit.returned) continue;
     state.sides[unit.side].stats.lost += 1;
     state.sides[stwOpponent(unit.side)].stats.kills += 1;
-    state.effects.push({ kind: "death", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.7, max: 0.7, radius: unit.type === "dragoon" || unit.type === "reaver" || unit.type === "archon" ? 3.6 : unit.radius * 2 });
-    if (unit.type === "probe" && unit.group === "scout" && unit.side === "player") pushLog(state, "player", "정찰 프로브를 잃었습니다.", "warn");
+    state.effects.push({ kind: "death", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.7, max: 0.7, radius: ["dragoon", "reaver", "archon", "tank", "vulture"].includes(unit.type) ? 3.6 : unit.radius * 2 });
+    if (isWorker(unit) && unit.group === "scout" && unit.side === "player") pushLog(state, "player", `정찰 ${withKoreanObject(STW_UNITS[unit.type].name)} 잃었습니다.`, "warn");
   }
   if (dead.length) state.units = state.units.filter((unit) => unit.hp > 0);
   const fallen = state.buildings.filter((building) => building.hp <= 0);
   for (const building of fallen) {
-    const name = building.type === "nexus" && building.base === "natural" ? "앞마당 넥서스" : STW_BUILDINGS[building.type].name;
+    const name = STW_BUILDINGS[building.type].base && building.base === "natural" ? `앞마당 ${STW_BUILDINGS[building.type].name}` : STW_BUILDINGS[building.type].name;
     state.sides[building.side].stats.buildingsLost += 1;
     state.sides[stwOpponent(building.side)].stats.buildingsDestroyed += 1;
     state.effects.push({ kind: "collapse", side: building.side, x1: building.x, y1: building.y, x2: building.x, y2: building.y, ttl: 1.1, max: 1.1, radius: building.radius * 1.5 });
     if (building.research) state.sides[building.side].research[building.research.id] = undefined;
     if (building.side === "player") pushLog(state, "player", `${withKoreanSubject(name)} 파괴되었습니다.`, "danger");
     else pushLog(state, "player", `적 ${withKoreanObject(name)} 파괴했습니다!`, "good");
-    if (building.type === "nexus" && building.base === "natural") {
-      // 앞마당 넥서스를 잃으면 그곳 광물을 다시 쓸 수 있게 남겨 둔다.
-    }
   }
   if (fallen.length) state.buildings = state.buildings.filter((building) => building.hp > 0);
 }
@@ -1195,6 +1418,9 @@ export function stwVisible(state, side, x, y, pad = 0) {
   }
   for (const building of state.buildings) {
     if (building.side === side && distance(building.x, building.y, x, y) <= (STW_BUILDINGS[building.type].sight ?? 8) + pad) return true;
+  }
+  for (const scan of state.scans ?? []) {
+    if (scan.side === side && distance(scan.x, scan.y, x, y) <= scan.radius + pad) return true;
   }
   return false;
 }
@@ -1230,16 +1456,24 @@ function takeIntel(state, foe) {
   const units = Object.fromEntries(STW_ARMY_UNITS.map((type) => [type, 0]));
   for (const unit of state.units) if (unit.side === foe && units[unit.type] !== undefined) units[unit.type] += 1;
   const research = Object.entries(state.sides[foe].research).filter(([, value]) => value).map(([id, value]) => ({ id, status: value }));
-  return { time: state.time, buildings, units, research, probes: state.sides[foe].probes };
+  return { time: state.time, race: state.sides[foe].race, buildings, units, research, probes: state.sides[foe].probes };
 }
+
+/** 테크 단계: 위 건물이 있으면 그 이름을 보여 준다. */
+const TECH_LADDER = {
+  protoss: ["archives", "robo", "citadel", "core"],
+  terran: ["shop", "factory", "academy", "barracks"],
+};
 
 export function intelSummary(intel) {
   if (!intel) return "정보 없음";
-  const gateways = intel.buildings.gateway ?? 0;
-  const tech = intel.buildings.archives ? "템플러 테크" : intel.buildings.citadel ? "아둔의 성소" : intel.buildings.core ? "사이버네틱스 코어" : "기본 테크";
+  const race = STW_RACES[intel.race ?? "protoss"];
+  const producers = intel.buildings[race.mainProducer] ?? 0;
+  const techId = TECH_LADDER[race.id].find((id) => intel.buildings[id]);
+  const tech = techId ? STW_BUILDINGS[techId].name : "기본 테크";
   const main = Object.entries(intel.units).sort((a, b) => b[1] - a[1])[0];
   const army = main && main[1] > 0 ? `${STW_UNITS[main[0]].name} 위주` : "병력 거의 없음";
-  return `게이트웨이 ${gateways} · ${tech} · ${army}${intel.buildings.nexus > 1 ? " · 앞마당 있음" : ""}`;
+  return `${race.name} · ${STW_BUILDINGS[race.mainProducer].name} ${producers} · ${tech} · ${army}${(intel.buildings[race.base] ?? 0) > 1 ? " · 앞마당 있음" : ""}`;
 }
 
 function autoWaves(state) {
@@ -1259,7 +1493,8 @@ function checkVictory(state) {
   if (playerMain && enemyMain) return;
   state.status = "over";
   state.winner = playerMain ? "player" : enemyMain ? "enemy" : "draw";
-  pushLog(state, "player", state.winner === "player" ? "적 본진 넥서스를 파괴했습니다. 승리!" : "본진 넥서스가 파괴되었습니다.", state.winner === "player" ? "good" : "danger");
+  const lostBase = STW_BUILDINGS[stwRace(state, state.winner === "player" ? "enemy" : "player").base].name;
+  pushLog(state, "player", state.winner === "player" ? `적 본진 ${withKoreanObject(lostBase)} 파괴했습니다. 승리!` : `본진 ${withKoreanSubject(lostBase)} 파괴되었습니다.`, state.winner === "player" ? "good" : "danger");
 }
 
 export function stwClock(seconds) {

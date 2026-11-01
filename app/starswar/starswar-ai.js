@@ -1,6 +1,6 @@
 // 스타즈워 AI. 플레이어와 같은 stwCommand만 쓴다.
 // 성향(질럿 러시, 드라군 운영, 템플러 테크)마다 빌드 순서와 출격 규모가 다르다.
-import { STW_BUILDINGS, STW_DIFFICULTIES, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
+import { STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
 import {
   stwArmy,
   stwBuildCheck,
@@ -41,10 +41,23 @@ const BUILD_ORDERS = {
     { build: "assimilator" }, { build: "gateway" }, { research: "range" }, { build: "robo" }, { build: "bay" },
     { build: "expand", at: 260 }, { build: "gateway" }, { build: "forge" }, { research: "weapons1" }, { research: "scarab" }, { build: "gateway" },
   ],
+  bio: [
+    { build: "depot" }, { build: "barracks" }, { build: "barracks" }, { build: "refinery" }, { build: "depot" },
+    { build: "academy" }, { build: "barracks" }, { research: "stim" }, { build: "ebay" }, { research: "infWeapons1" },
+    { build: "expand", at: 300 }, { research: "u238" }, { build: "comsat" }, { build: "refinery" }, { research: "infArmor1" }, { build: "barracks" },
+  ],
+  mech: [
+    { build: "depot" }, { build: "barracks" }, { build: "refinery" }, { build: "depot" }, { build: "factory" },
+    { build: "refinery" }, { build: "shop" }, { build: "bunker" }, { research: "siege" }, { build: "factory" },
+    { build: "expand", at: 280 }, { build: "academy" }, { research: "ion" }, { build: "comsat" }, { build: "ebay" }, { build: "turret" },
+  ],
 };
 
-const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22] };
-const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4 };
+const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22], bio: [8, 12, 16, 22], mech: [8, 12, 16, 20] };
+const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4 };
+/** 빌드 순서가 끝난 뒤 남는 자원으로 더 짓는 생산 건물. */
+const EXTRA_PRODUCER = { bio: "barracks", mech: "factory" };
+const LATE_UPGRADES = { protoss: ["weapons2", "shields1", "armor1"], terran: ["infWeapons2", "infArmor1"] };
 
 export function stwAiThink(state, side) {
   const record = state.sides[side];
@@ -53,7 +66,8 @@ export function stwAiThink(state, side) {
   const memory = record.ai;
   if (state.time < memory.nextThink) return;
   memory.nextThink = state.time + settings.thinkEvery;
-  const persona = record.persona ?? "dragoon";
+  const race = STW_RACES[record.race ?? "protoss"];
+  const persona = record.persona ?? (race.id === "terran" ? "bio" : "dragoon");
 
   // 다음 건물·연구에 필요한 자원만 아껴 둔다(모자란 쪽만).
   const reserve = { minerals: 0, gas: 0 };
@@ -66,18 +80,18 @@ export function stwAiThink(state, side) {
     const nexus = stwNexus(state, side, base);
     return nexus && stwDone(nexus);
   }).length;
-  const gasBuildings = stwOwnBuildings(state, side, "assimilator").length;
+  const gasBuildings = stwOwnBuildings(state, side, race.refinery).length;
   const probeTarget = Math.min(44, bases * 16 + gasBuildings * 3);
-  const queued = stwOwnBuildings(state, side, "nexus").reduce((sum, nexus) => sum + nexus.queue.length, 0);
+  const queued = stwOwnBuildings(state, side, race.base).reduce((sum, nexus) => sum + nexus.queue.length, 0);
   if (record.probes + queued < probeTarget && queued < 2 * bases) stwCommand(state, side, { type: "probe" });
 
   // 2. 인구
   const supply = stwSupply(state, side);
-  const gateways = stwOwnBuildings(state, side, "gateway").length;
-  const pylonsBuilding = stwOwnBuildings(state, side, "pylon").filter((building) => !stwDone(building)).length;
+  const gateways = race.producers.reduce((sum, type) => sum + stwOwnBuildings(state, side, type).length, 0);
+  const pylonsBuilding = stwOwnBuildings(state, side, race.supply).filter((building) => !stwDone(building)).length;
   if (supply.cap < 100 && supply.used + 3 + gateways * 2 >= supply.cap && pylonsBuilding < (supply.used > 40 ? 2 : 1)) {
-    const result = stwCommand(state, side, { type: "build", building: "pylon" });
-    if (!result.ok && /광물/.test(result.reason ?? "")) save(STW_BUILDINGS.pylon.minerals, 0);
+    const result = stwCommand(state, side, { type: "build", building: race.supply });
+    if (!result.ok && /광물/.test(result.reason ?? "")) save(STW_BUILDINGS[race.supply].minerals, 0);
   }
 
   // 3. 빌드 순서: 막힌 단계가 있으면 그 자원만 아껴 두고, 남는 자원으로 할 수 있는 다음 단계(최대 4개 앞)를 먼저 한다.
@@ -92,7 +106,7 @@ export function stwAiThink(state, side) {
       continue;
     }
     const check = step.build ? stwBuildCheck(state, side, step.build) : stwResearchCheck(state, side, step.research);
-    const cost = step.build ? STW_BUILDINGS[step.build === "expand" ? "nexus" : step.build] : STW_RESEARCH[step.research];
+    const cost = step.build ? STW_BUILDINGS[step.build === "expand" ? race.base : step.build] : STW_RESEARCH[step.research];
     const fitsReserve = record.minerals - reserve.minerals >= cost.minerals && record.gas - reserve.gas >= cost.gas;
     if (check.ok && (blocked === 0 || fitsReserve)) {
       stwCommand(state, side, step.build ? { type: "build", building: step.build } : { type: "research", research: step.research });
@@ -107,9 +121,13 @@ export function stwAiThink(state, side) {
     blocked += 1;
   }
   memory.step = memory.done.length;
-  if (memory.step >= order.length && gateways < GATEWAY_CAP[persona] && record.minerals > 350) stwCommand(state, side, { type: "build", building: "gateway" });
+  const extra = EXTRA_PRODUCER[persona] ?? race.mainProducer;
+  // 광물이 남으면 생산 건물을 더 짓는다. 빌드 순서가 끝나기 전이라도 크게 남으면 짓는다.
+  const floating = record.minerals > (memory.step >= order.length ? 350 : 600);
+  if (floating && stwOwnBuildings(state, side, extra).length < GATEWAY_CAP[persona]) stwCommand(state, side, { type: "build", building: extra });
+  else if (race.id === "terran" && record.minerals > 700 && stwOwnBuildings(state, side, "barracks").length < 5) stwCommand(state, side, { type: "build", building: "barracks" });
   if (memory.step >= order.length) {
-    for (const research of ["weapons2", "shields1", "armor1"]) {
+    for (const research of LATE_UPGRADES[race.id]) {
       if (STW_RESEARCH[research] && stwResearchCheck(state, side, research).ok && record.gas > 200) stwCommand(state, side, { type: "research", research });
     }
   }
@@ -117,7 +135,7 @@ export function stwAiThink(state, side) {
   // 3-1. 은폐 유닛에 당했으면 탐지기를 갖춘다: 로보가 있으면 옵저버, 없으면 포지와 포톤 캐논.
   const units = state.units.filter((unit) => unit.side === side);
   const needDetection = record.sawCloakAt !== undefined && state.time - record.sawCloakAt < 150;
-  if (needDetection) {
+  if (needDetection && race.id === "protoss") {
     const hasRobo = stwHas(state, side, "robo");
     const cannons = stwOwnBuildings(state, side, "cannon").length;
     if (!hasRobo && cannons < 2) {
@@ -125,9 +143,22 @@ export function stwAiThink(state, side) {
       else stwCommand(state, side, { type: "build", building: "cannon" });
     }
   }
+  if (needDetection && race.id === "terran") {
+    // 테란: 엔지니어링 베이와 미사일 터렛 2개, 아카데미가 있으면 컴샛 스테이션.
+    if (!stwOwnBuildings(state, side, "ebay").length) stwCommand(state, side, { type: "build", building: "ebay" });
+    else if (stwOwnBuildings(state, side, "turret").length < 2) stwCommand(state, side, { type: "build", building: "turret" });
+    if (stwHas(state, side, "academy") && !stwOwnBuildings(state, side, "comsat").length) stwCommand(state, side, { type: "build", building: "comsat" });
+  }
 
   // 3-2. 하이템플러가 넷 이상 쌓이면 에너지가 적은 둘을 아콘으로 합친다.
-  if (units.filter((unit) => unit.type === "templar").length >= 4) stwCommand(state, side, { type: "merge" });
+  if (race.id === "protoss" && units.filter((unit) => unit.type === "templar").length >= 4) stwCommand(state, side, { type: "merge" });
+
+  // 3-4. 테란 생산 라인: 배럭(해병·메딕·파이어뱃), 팩토리(벌처·시즈 탱크).
+  if (race.id === "terran") {
+    terranLines(state, side, persona, units, reserve);
+    manageArmy(state, side, persona, memory, settings);
+    return;
+  }
 
   // 3-3. 로보틱스 라인: 옵저버 1~2기를 유지하고, 지원 베이가 있으면 리버.
   const observers = units.filter((unit) => unit.type === "observer").length;
@@ -139,7 +170,7 @@ export function stwAiThink(state, side) {
     if (robo.line !== unit) stwCommand(state, side, { type: "line", buildingId: robo.id, unit });
   }
 
-  // 4. 생산 라인: 테크를 모을 때는 잠시 멈춘다.
+  // 4. 생산 라인(프로토스 게이트웨이): 테크를 모을 때는 잠시 멈춘다.
   const gatewayList = stwOwnBuildings(state, side, "gateway").sort((a, b) => a.id - b.id);
   gatewayList.forEach((gateway, index) => {
     let unit = "zealot";
@@ -166,6 +197,28 @@ export function stwAiThink(state, side) {
   manageArmy(state, side, persona, memory, settings);
 }
 
+function terranLines(state, side, persona, units, reserve) {
+  const record = state.sides[side];
+  const count = (type) => units.filter((unit) => unit.type === type).length;
+  const marines = count("marine");
+  const medics = count("medic");
+  const academy = stwHas(state, side, "academy");
+  stwOwnBuildings(state, side, "barracks").sort((a, b) => a.id - b.id).forEach((barracks, index) => {
+    let unit = "marine";
+    if (academy && persona === "bio") unit = medics * 4 < marines ? "medic" : index % 4 === 3 ? "firebat" : "marine";
+    if (persona === "mech" && units.length > 10 && record.minerals < 300) unit = null;
+    if (unit && STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas) unit = "marine";
+    const starving = unit && reserve.minerals && record.minerals - STW_UNITS[unit].minerals < reserve.minerals && units.length >= 3;
+    const desired = starving && !barracks.current ? null : unit;
+    if (barracks.line !== desired) stwCommand(state, side, { type: "line", buildingId: barracks.id, unit: desired });
+  });
+  stwOwnBuildings(state, side, "factory").sort((a, b) => a.id - b.id).forEach((factory, index) => {
+    let unit = persona === "mech" ? (stwHas(state, side, "shop") && (index % 2 === 0 || count("vulture") >= 4) ? "tank" : "vulture") : stwHas(state, side, "shop") ? "tank" : null;
+    if (unit === "tank" && record.gas < STW_UNITS.tank.gas + reserve.gas) unit = persona === "mech" ? "vulture" : null;
+    if (factory.line !== unit) stwCommand(state, side, { type: "line", buildingId: factory.id, unit });
+  });
+}
+
 function manageArmy(state, side, persona, memory, settings) {
   const record = state.sides[side];
   const desiredRally = stwNexus(state, side, "natural") ? "natural" : "main";
@@ -175,7 +228,7 @@ function manageArmy(state, side, persona, memory, settings) {
 
   // 본진·앞마당이 공격받으면 공격 병력을 불러들인다.
   const own = ["main", "natural"].map((base) => stwNexus(state, side, base)).filter(Boolean);
-  const threat = state.units.filter((unit) => unit.side === foe && unit.type !== "probe" && own.some((nexus) => Math.hypot(unit.x - nexus.x, unit.y - nexus.y) < 16)).length;
+  const threat = state.units.filter((unit) => unit.side === foe && !STW_UNITS[unit.type].worker && !STW_UNITS[unit.type].flying && own.some((nexus) => Math.hypot(unit.x - nexus.x, unit.y - nexus.y) < 16)).length;
   if (threat >= 3 && army.attack.length && army.attack.length < threat * 1.5) {
     stwCommand(state, side, { type: "retreat" });
     memory.attacking = false;

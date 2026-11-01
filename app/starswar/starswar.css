@@ -15,6 +15,10 @@
 .stw-menu-hero small { color:var(--stw-gold); font-weight:900; letter-spacing:.18em; }
 .stw-menu-hero h1 { margin:10px 0 12px; font-size:clamp(30px,6vw,46px); line-height:1.12; letter-spacing:-.04em; text-wrap:balance; }
 .stw-menu-hero p { margin:0; color:#dccdaa; }
+.stw-race-pick { display:grid; gap:8px; }
+.stw-race-pick .stw-hint { margin:0 0 6px; }
+.stw-race-pick .stw-segment { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.stw-race-pick .stw-segment button { min-height:46px; font-size:15px !important; }
 .stw-difficulty { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
 .stw-difficulty button { min-height:104px; padding:14px; display:grid; align-content:start; gap:6px; text-align:left; border:1px solid var(--stw-line); border-radius:14px; background:#ffffff08; }
 .stw-difficulty b { font-size:19px; }

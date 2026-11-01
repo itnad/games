@@ -21,6 +21,7 @@ const INK = 0x2a2016;
 
 export type StwTextureSet = {
   units: Record<StwSide, Record<StwUnitType, Texture>>;
+  tankParts: Record<StwSide, { hull: Texture; hullSieged: Texture; turret: Texture; turretSieged: Texture }>;
   buildings: Record<StwSide, Record<StwBuildingType, Texture>>;
   minerals: Texture;
   geyser: Texture;
@@ -311,6 +312,232 @@ function bay(PIXI: PixiModule, side: StwSide) {
   return g;
 }
 
+/* ───────── 테란: 강철 장갑과 진영 색 판 ───────── */
+const STEEL = 0x8e979f;
+const STEEL_DARK = 0x4b525a;
+const STEEL_LIGHT = 0xc6ccd1;
+
+function marine(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 20);
+  g.roundRect(2, 1.5, 15, 3.2, 1).fill(0x2a2d31);
+  g.ellipse(-1, 0, 7.5, 9.5).fill(team.deep).stroke({ width: 1.6, color: 0x11161c });
+  g.ellipse(-3, -6, 3.6, 3).fill(team.glow);
+  g.ellipse(-3, 6, 3.6, 3).fill(team.glow);
+  g.circle(1, 0, 4.6).fill(STEEL).stroke({ width: 1.2, color: STEEL_DARK });
+  g.rect(3, -2, 2.4, 4).fill(0xffd27a);
+  return g;
+}
+
+function firebat(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 22);
+  for (const y of [-5, 5]) g.roundRect(4, y - 1.6, 12, 3.2, 1).fill(0x3a3d42);
+  g.circle(-8, -4, 3.4).fill(0xd4562c).stroke({ width: 1, color: 0x5e1d0c });
+  g.circle(-8, 4, 3.4).fill(0xd4562c).stroke({ width: 1, color: 0x5e1d0c });
+  g.ellipse(-1, 0, 8.5, 10.5).fill(0xa1452a).stroke({ width: 1.6, color: 0x3a1408 });
+  g.rect(-5, -1.5, 9, 3).fill(team.glow);
+  g.circle(1, 0, 4.8).fill(STEEL).stroke({ width: 1.2, color: STEEL_DARK });
+  g.rect(3, -2, 2.4, 4).fill(0xffb347);
+  return g;
+}
+
+function medic(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 18);
+  g.ellipse(-1, 0, 7, 9).fill(0xe9ecef).stroke({ width: 1.6, color: 0x7d858c });
+  g.rect(-4, -1.2, 6, 2.4).fill(0xd9363e);
+  g.rect(-2.2, -3, 2.4, 6).fill(0xd9363e);
+  g.rect(-8, -6, 3, 12).fill(team.glow);
+  g.circle(2, 0, 4.2).fill(0xf6f7f8).stroke({ width: 1.2, color: 0x7d858c });
+  g.rect(4, -1.6, 2, 3.2).fill(0x7fd6ff);
+  return g;
+}
+
+function scv(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 14);
+  for (const y of [-6, 6]) g.moveTo(2, y * 0.6).lineTo(10, y).stroke({ width: 2, color: STEEL_DARK });
+  g.roundRect(-8, -6, 14, 12, 3).fill(0xd8b04a).stroke({ width: 1.2, color: 0x6a5414 });
+  g.rect(-8, -1.5, 14, 3).fill(team.glow);
+  g.circle(1, 0, 3.2).fill(0x7fd6ff).stroke({ width: 1, color: STEEL_DARK });
+  return g;
+}
+
+function vulture(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 26);
+  g.poly([22, 0, 4, -8, -16, -6, -20, 0, -16, 6, 4, 8]).fill(STEEL).stroke({ width: 1.6, color: STEEL_DARK });
+  g.poly([20, 0, 6, -3.5, 6, 3.5]).fill(STEEL_LIGHT);
+  g.rect(-12, -2, 18, 4).fill(team.glow);
+  g.circle(-19, 0, 3.5).fill({ color: 0x7fd6ff, alpha: 0.9 });
+  g.circle(-2, 0, 3.2).fill(0x2a2d31);
+  return g;
+}
+
+function tankHull(PIXI: PixiModule, side: StwSide, sieged: boolean) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 34);
+  if (sieged) {
+    for (const [x, y] of [[20, 20], [20, -20], [-20, 20], [-20, -20]]) {
+      g.moveTo(0, 0).lineTo(x, y).stroke({ width: 4, color: STEEL_DARK, cap: "round" });
+      g.roundRect(x - 3.5, y - 3.5, 7, 7, 2).fill(STEEL).stroke({ width: 1, color: STEEL_DARK });
+    }
+  }
+  for (const y of [-17, 11]) {
+    g.roundRect(-24, y, 48, 6, 2.5).fill(0x2a2d31);
+    for (let x = -22; x < 22; x += 5) g.rect(x, y + 1, 1.8, 4).fill(0x464a50);
+  }
+  g.roundRect(-22, -12, 44, 24, 5).fill(0x6b7a5a).stroke({ width: 1.8, color: 0x2b3322 });
+  g.roundRect(-17, -8, 34, 16, 4).fill(0x7e8d6a);
+  g.rect(-17, -2, 34, 4).fill(team.glow);
+  return g;
+}
+
+function tankTurret(PIXI: PixiModule, side: StwSide, sieged: boolean) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 40);
+  const barrel = sieged ? 34 : 24;
+  g.roundRect(6, -2.6, barrel, 5.2, 1.5).fill(0x3a3f45).stroke({ width: 1, color: 0x16191c });
+  if (sieged) g.roundRect(6, -4.5, 14, 9, 2).fill(0x50565e);
+  g.circle(0, 0, 10).fill(0x7e8d6a).stroke({ width: 2, color: 0x2b3322 });
+  g.circle(-3, 2, 3.4).fill(team.deep);
+  g.circle(2, -3, 2).fill(team.glow);
+  return g;
+}
+
+function cc(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  g.roundRect(-62, -58, 124, 116, 10).fill(STEEL_DARK).stroke({ width: 3, color: 0x1f2328 });
+  g.roundRect(-56, -52, 112, 104, 8).fill(STEEL);
+  for (const [x, y] of [[-40, -36], [40, -36], [-40, 36], [40, 36]]) g.roundRect(x - 10, y - 10, 20, 20, 3).fill(STEEL_DARK);
+  g.rect(-56, -6, 112, 12).fill(team.deep);
+  g.rect(-56, -2, 112, 4).fill(team.glow);
+  g.circle(0, 0, 26).fill(0x5d656e).stroke({ width: 3, color: 0x2a2f35 });
+  g.circle(0, 0, 18).fill(STEEL_LIGHT);
+  g.circle(0, 0, 7).fill(team.glow);
+  for (let i = 0; i < 8; i += 1) {
+    const a = (Math.PI / 4) * i;
+    g.circle(Math.cos(a) * 22, Math.sin(a) * 22, 2).fill(0xffd27a);
+  }
+  return g;
+}
+
+function terranBlock(PIXI: PixiModule, side: StwSide, w: number, h: number, accent: (g: Graphics) => void) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  g.roundRect(-w / 2, -h / 2, w, h, 6).fill(STEEL_DARK).stroke({ width: 2.5, color: 0x1f2328 });
+  g.roundRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8, 5).fill(STEEL);
+  g.rect(-w / 2 + 4, h / 2 - 12, w - 8, 5).fill(team.glow);
+  accent(g);
+  return g;
+}
+
+function depot(PIXI: PixiModule, side: StwSide) {
+  return terranBlock(PIXI, side, 56, 56, (g) => {
+    for (const y of [-14, -4, 6]) g.rect(-18, y, 36, 4).fill(STEEL_DARK);
+  });
+}
+
+function refinery(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  g.circle(0, 0, 32).fill(0x2f3a2a).stroke({ width: 2, color: 0x1e1d19 });
+  g.circle(0, 0, 25).fill(STEEL_DARK);
+  g.circle(0, 0, 20).fill(STEEL).stroke({ width: 1.5, color: STEEL_DARK });
+  g.rect(-24, -3, 48, 6).fill(0x5d656e);
+  g.circle(0, 0, 8).fill(0x5bd16b);
+  g.circle(14, -14, 4).fill(team.glow);
+  return g;
+}
+
+function barracksT(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  return terranBlock(PIXI, side, 80, 66, (g) => {
+    g.roundRect(-12, 18, 24, 12, 2).fill(0x2a2d31);
+    for (const x of [-30, 22]) g.rect(x, -24, 8, 16).fill(team.deep);
+    g.rect(-24, -24, 48, 10).fill(STEEL_LIGHT);
+  });
+}
+
+function ebay(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  return terranBlock(PIXI, side, 72, 64, (g) => {
+    g.circle(0, -6, 16).fill(STEEL_LIGHT).stroke({ width: 2, color: STEEL_DARK });
+    g.circle(0, -6, 6).fill(team.glow);
+  });
+}
+
+function bunker(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  g.roundRect(-28, -28, 56, 56, 14).fill(0x5d656e).stroke({ width: 2.5, color: 0x1f2328 });
+  g.roundRect(-21, -21, 42, 42, 10).fill(STEEL);
+  for (const [x, y, w, h] of [[16, -10, 6, 20], [-22, -10, 6, 20], [-10, -22, 20, 6], [-10, 16, 20, 6]]) g.rect(x, y, w, h).fill(0x1a1d21);
+  g.circle(0, 0, 6).fill(team.glow);
+  return g;
+}
+
+function turretT(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  g.circle(0, 0, 24).fill(STEEL_DARK).stroke({ width: 2, color: 0x1f2328 });
+  g.circle(0, 0, 18).fill(STEEL);
+  for (const y of [-7, 0, 7]) g.roundRect(-4, y - 2.5, 20, 5, 2).fill(0x3a3f45);
+  g.circle(0, 0, 6).fill(team.glow);
+  return g;
+}
+
+function academy(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  return terranBlock(PIXI, side, 74, 70, (g) => {
+    g.rect(-24, -24, 48, 30).fill(STEEL_LIGHT);
+    g.moveTo(18, -20).lineTo(30, -32).stroke({ width: 3, color: STEEL_DARK });
+    g.circle(30, -32, 4).fill(team.glow);
+  });
+}
+
+function comsat(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  g.roundRect(-26, -26, 52, 52, 8).fill(STEEL_DARK).stroke({ width: 2, color: 0x1f2328 });
+  g.circle(0, 0, 18).fill(STEEL_LIGHT).stroke({ width: 2, color: STEEL_DARK });
+  g.circle(0, 0, 11).stroke({ width: 2, color: STEEL_DARK });
+  g.moveTo(0, 0).lineTo(12, -12).stroke({ width: 2.5, color: STEEL_DARK });
+  g.circle(12, -12, 3.5).fill(team.glow);
+  return g;
+}
+
+function factoryT(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  return terranBlock(PIXI, side, 84, 74, (g) => {
+    for (let i = 0; i < 4; i += 1) g.rect(-34 + i * 17, -28, 15, 34).fill(i % 2 ? STEEL_LIGHT : 0x7a838c);
+    g.rect(-26, 12, 52, 10).fill(0x2a2d31);
+    for (let x = -26; x < 26; x += 8) g.poly([x, 12, x + 4, 12, x + 8, 22, x + 4, 22]).fill(0xf0c33c);
+    g.circle(28, -22, 5).fill(team.glow);
+  });
+}
+
+function shop(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  return terranBlock(PIXI, side, 58, 54, (g) => {
+    g.circle(0, -4, 12).fill(0x5d656e);
+    for (let i = 0; i < 8; i += 1) {
+      const a = (Math.PI / 4) * i;
+      g.rect(Math.cos(a) * 12 - 2.5, -4 + Math.sin(a) * 12 - 2.5, 5, 5).fill(0x5d656e);
+    }
+    g.circle(0, -4, 5).fill(team.glow);
+  });
+}
+
 function mineralField(PIXI: PixiModule) {
   const g = new PIXI.Graphics();
   const rocks: [number, number, number][] = [[-38, 4, 1], [-24, -2, 1.2], [-10, 4, 0.95], [4, -3, 1.25], [18, 3, 1], [32, -1, 1.1], [44, 5, 0.85]];
@@ -492,6 +719,7 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
   const units = {} as StwTextureSet["units"];
   const buildings = {} as StwTextureSet["buildings"];
   const flags = {} as StwTextureSet["flag"];
+  const tankParts = {} as StwTextureSet["tankParts"];
   for (const side of sides) {
     units[side] = {
       zealot: bake(zealot(PIXI, side)),
@@ -502,6 +730,18 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       archon: bake(archon(PIXI, side)),
       observer: bake(observer(PIXI, side)),
       reaver: bake(reaver(PIXI, side)),
+      scv: bake(scv(PIXI, side)),
+      marine: bake(marine(PIXI, side)),
+      firebat: bake(firebat(PIXI, side)),
+      medic: bake(medic(PIXI, side)),
+      vulture: bake(vulture(PIXI, side)),
+      tank: bake(tankHull(PIXI, side, false)),
+    };
+    tankParts[side] = {
+      hull: units[side].tank,
+      hullSieged: bake(tankHull(PIXI, side, true)),
+      turret: bake(tankTurret(PIXI, side, false)),
+      turretSieged: bake(tankTurret(PIXI, side, true)),
     };
     buildings[side] = {
       nexus: bake(nexus(PIXI, side)),
@@ -515,11 +755,23 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       archives: bake(archives(PIXI, side)),
       robo: bake(robo(PIXI, side)),
       bay: bake(bay(PIXI, side)),
+      cc: bake(cc(PIXI, side)),
+      depot: bake(depot(PIXI, side)),
+      refinery: bake(refinery(PIXI, side)),
+      barracks: bake(barracksT(PIXI, side)),
+      ebay: bake(ebay(PIXI, side)),
+      bunker: bake(bunker(PIXI, side)),
+      turret: bake(turretT(PIXI, side)),
+      academy: bake(academy(PIXI, side)),
+      comsat: bake(comsat(PIXI, side)),
+      factory: bake(factoryT(PIXI, side)),
+      shop: bake(shop(PIXI, side)),
     };
     flags[side] = bake(flag(PIXI, side));
   }
   return {
     units,
+    tankParts,
     buildings,
     flag: flags,
     minerals: bake(mineralField(PIXI)),

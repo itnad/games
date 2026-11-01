@@ -257,7 +257,7 @@ test("starswar cancels buildings, probes, research, and units with the right ref
   assert.equal(gateway.line, null, "취소 후 라인은 정지");
   run(state, 1);
   assert.equal(gateway.current, null, "정지한 라인은 다시 소환하지 않음");
-  assert.match(stwCommand(state, "player", { type: "cancelUnit", gatewayId: gateway.id }).reason, /소환 중인 유닛이 없습니다/);
+  assert.match(stwCommand(state, "player", { type: "cancelUnit", gatewayId: gateway.id }).reason, /생산 중인 유닛이 없습니다/);
 });
 
 test("starswar rally units automatically defend buildings from flanking attackers", () => {
@@ -322,7 +322,7 @@ test("starswar gates the new units behind their tech and producers", () => {
   const gateway = stwOwnBuildings(state, "player", "gateway")[0];
   const robo = stwOwnBuildings(state, "player", "robo")[0];
   assert.equal(robo.line, null, "로보틱스는 정지 상태로 시작");
-  assert.match(stwCommand(state, "player", { type: "line", buildingId: gateway.id, unit: "reaver" }).reason, /소환할 수 없는 유닛/);
+  assert.match(stwCommand(state, "player", { type: "line", buildingId: gateway.id, unit: "reaver" }).reason, /생산할 수 없는 유닛/);
   assert.equal(stwCommand(state, "player", { type: "line", buildingId: robo.id, unit: "reaver" }).ok, true);
   run(state, 0.2);
   assert.equal(robo.blocked, "로보틱스 지원 베이 필요");
@@ -412,4 +412,146 @@ test("starswar dark and robo AI personas field their signature units", () => {
   }
   assert.ok(seen.dark.has("dark"), "다크템플러 기습은 다크템플러를 소환");
   assert.ok(seen.robo.has("observer") && seen.robo.has("reaver"), "로보 운영은 옵저버와 리버를 소환");
+});
+
+const terran = (enemy = "protoss") => createStarswarGame({ seed: 5, aiSides: [], races: { player: "terran", enemy } });
+
+test("starswar terran starts with a command center and gates its tech tree", () => {
+  const state = terran();
+  assert.equal(state.sides.player.race, "terran");
+  assert.equal(stwNexus(state, "player", "main").type, "cc");
+  assert.equal(stwNexus(state, "enemy", "main").type, "nexus");
+  assert.ok(state.log.some((entry) => /^전투 개시\. SCV가 광물을 캐고 있습니다/.test(entry.text)));
+  state.sides.player.minerals = 9000;
+  state.sides.player.gas = 9000;
+  assert.match(stwBuildCheck(state, "player", "pylon").reason, /이 종족은 지을 수 없는 건물/);
+  assert.match(stwBuildCheck(state, "player", "barracks").reason, /서플라이 디팟이 필요합니다/);
+  assert.match(stwResearchCheck(state, "player", "charge").reason, /이 종족의 연구가 아닙니다/);
+  assert.equal(stwCommand(state, "player", { type: "worker" }).ok, true);
+  assert.equal(stwNexus(state, "player", "main").queue[0].unit, "scv");
+  stwCommand(state, "player", { type: "build", building: "depot" });
+  finishAll(state);
+  assert.equal(stwSupply(state, "player").cap, 18);
+  stwCommand(state, "player", { type: "build", building: "barracks" });
+  finishAll(state);
+  const barracks = stwOwnBuildings(state, "player", "barracks")[0];
+  assert.equal(barracks.line, "marine", "배럭은 해병 생산으로 시작");
+  assert.equal(stwCommand(state, "player", { type: "line", buildingId: barracks.id, unit: "medic" }).ok, true);
+  run(state, 0.2);
+  assert.equal(barracks.blocked, "아카데미 필요");
+  stwCommand(state, "player", { type: "build", building: "academy" });
+  assert.match(stwBuildCheck(state, "player", "academy").reason, /이미 있습니다/);
+  stwCommand(state, "player", { type: "build", building: "factory" });
+  finishAll(state);
+  run(state, 0.2);
+  assert.equal(barracks.current.unit, "medic");
+  const factory = stwOwnBuildings(state, "player", "factory")[0];
+  assert.equal(factory.line, null);
+  stwCommand(state, "player", { type: "line", buildingId: factory.id, unit: "tank" });
+  run(state, 0.2);
+  assert.equal(factory.blocked, "머신 샵 필요");
+  assert.equal(stwCommand(state, "player", { type: "build", building: "expand" }).ok, true);
+  assert.ok(state.log.some((entry) => entry.text === "앞마당 커맨드 센터를 건설하기 시작했습니다."));
+  assert.equal(stwNexus(state, "player", "natural").type, "cc");
+});
+
+test("starswar medics heal bio and stim speeds up researched infantry", () => {
+  const state = terran();
+  const marine = stwSpawnUnitAt(state, "player", "marine", 20, 80);
+  const medic = stwSpawnUnitAt(state, "player", "medic", 21, 81);
+  marine.hp = 15;
+  run(state, 1);
+  assert.ok(marine.hp >= 24, `메딕 치료 ${marine.hp}`);
+  assert.equal(medic.healTargetId, marine.id);
+  run(state, 3);
+  assert.equal(marine.hp, marine.maxHp);
+  assert.equal(medic.healTargetId, null);
+
+  state.sides.player.research.stim = "done";
+  stwSpawnUnitAt(state, "enemy", "zealot", 20, 74, "attack");
+  run(state, 1.5);
+  assert.ok(marine.stimAt !== undefined, "교전하자 스팀팩 사용");
+  assert.ok(state.effects.some((effect) => effect.kind === "stim") || marine.hp < marine.maxHp);
+});
+
+test("starswar siege tanks auto-siege after research and shell clumps", () => {
+  const state = terran();
+  const tank = stwSpawnUnitAt(state, "player", "tank", 20, 60, "attack");
+  const clump = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "enemy", "zealot", 19 + index * 1.2, 46, "attack"));
+  state.sides.player.research.siege = "done";
+  run(state, 0.3);
+  assert.equal(tank.sieged, true, "사거리 12 안에 적이 오자 시즈");
+  const before = clump.map((unit) => unit.hp + unit.shields);
+  run(state, 2.8);
+  const hurt = clump.filter((unit, index) => unit.hp + unit.shields < before[index]).length;
+  assert.ok(hurt >= 2, `포격이 여러 기에 피해 (${hurt}기)`);
+  assert.deepEqual(stwHitDamage(state, tank, clump[0]), [35], "시즈 포격 70 · 폭발형은 소형에게 50%");
+  stwCommand(state, "player", { type: "recall", point: "main" });
+  run(state, 0.3);
+  assert.equal(tank.sieged, false, "후퇴 명령에 시즈 해제");
+});
+
+test("starswar comsat scans and turrets detect dark templar", () => {
+  const state = terran();
+  state.sides.player.minerals = 9000;
+  state.sides.player.gas = 9000;
+  for (const building of ["depot", "barracks", "academy", "comsat"]) {
+    assert.equal(stwCommand(state, "player", { type: "build", building }).ok, true, building);
+    finishAll(state);
+  }
+  const comsat = stwOwnBuildings(state, "player", "comsat")[0];
+  const marines = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "player", "marine", 18 + index * 2, 80));
+  const dark = stwSpawnUnitAt(state, "enemy", "dark", 20, 76, "attack");
+  assert.equal(stwDetected(state, dark, "player"), false);
+  run(state, 2);
+  assert.equal(state.scans.length, 1, "은폐한 적에게 맞자 스캔");
+  assert.equal(comsat.energy < 50, true);
+  assert.ok(state.log.some((entry) => /컴샛 스캔으로 은폐한 적을 드러냈습니다/.test(entry.text)));
+  run(state, 2);
+  assert.ok(dark.hp + dark.shields < 120, "스캔 안에서 해병이 다크템플러를 공격");
+  assert.ok(marines.some((unit) => unit.targetId === dark.id || dark.hp <= 0));
+
+  const second = terran();
+  second.sides.player.minerals = 9000;
+  for (const building of ["depot", "ebay", "turret"]) {
+    assert.equal(stwCommand(second, "player", { type: "build", building }).ok, true, building);
+    finishAll(second);
+  }
+  const turret = stwOwnBuildings(second, "player", "turret")[0];
+  const sneaky = stwSpawnUnitAt(second, "enemy", "dark", turret.x, turret.y - 5);
+  assert.equal(stwDetected(second, sneaky, "player"), true);
+});
+
+test("starswar bunkers fire and terran buildings repair themselves", () => {
+  const state = terran();
+  state.sides.player.minerals = 9000;
+  for (const building of ["depot", "barracks", "bunker"]) {
+    stwCommand(state, "player", { type: "build", building });
+    finishAll(state);
+  }
+  const bunker = stwOwnBuildings(state, "player", "bunker")[0];
+  const zealot = stwSpawnUnitAt(state, "enemy", "zealot", bunker.x, bunker.y - 8, "attack");
+  run(state, 2);
+  assert.ok(zealot.hp + zealot.shields < 160, "벙커가 사격");
+  const depot = stwOwnBuildings(state, "player", "depot")[0];
+  depot.hp = 300;
+  depot.lastHit = -99;
+  run(state, 5);
+  assert.ok(depot.hp > 300, `테란 건물 자동 수리 ${depot.hp}`);
+});
+
+test("starswar terran AI personas field their signature units and finish a game", () => {
+  const bio = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
+  const mech = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "bio" } });
+  const seen = { bio: new Set(), mech: new Set() };
+  for (let step = 0; step < 15000 && (bio.status === "playing" || mech.status === "playing"); step += 1) {
+    if (bio.status === "playing") stepStarswar(bio, stwAiThink);
+    if (mech.status === "playing") stepStarswar(mech, stwAiThink);
+    for (const unit of bio.units) if (unit.side === "player") seen.bio.add(unit.type);
+    for (const unit of mech.units) if (unit.side === "player") seen.mech.add(unit.type);
+  }
+  assert.ok(seen.bio.has("marine") && seen.bio.has("medic"), "바이오닉은 해병과 메딕을 생산");
+  assert.ok(seen.mech.has("vulture") && seen.mech.has("tank"), "메카닉은 벌처와 시즈 탱크를 생산");
+  assert.equal(bio.status, "over", "테란 대 프로토스 전투가 끝남");
+  assert.equal(mech.status, "over", "테란 대 테란 전투가 끝남");
 });
