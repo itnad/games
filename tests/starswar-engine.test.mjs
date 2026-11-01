@@ -208,3 +208,50 @@ test("starswar camera fits the lane, clamps, and caps zoom", () => {
   const center = stwScreenToMap(capped, 195, 225);
   assert.ok(Math.abs(center.x - 20) < 1e-9 && Math.abs(center.y - 50) < 1e-9);
 });
+
+test("starswar cancels buildings, probes, research, and units with the right refunds", () => {
+  const state = quiet();
+  const record = state.sides.player;
+  record.minerals = 1000;
+  record.gas = 1000;
+
+  assert.equal(stwCommand(state, "player", { type: "probe" }).ok, true);
+  assert.equal(stwCommand(state, "player", { type: "probe" }).ok, true);
+  assert.equal(record.minerals, 900);
+  assert.deepEqual(stwCommand(state, "player", { type: "cancelProbe" }), { ok: true, minerals: 50, gas: 0 });
+  assert.equal(record.minerals, 950);
+  assert.equal(stwNexus(state, "player", "main").queue.length, 1);
+
+  assert.equal(stwCommand(state, "player", { type: "build", building: "pylon" }).ok, true);
+  const pylon = state.buildings.find((building) => building.type === "pylon");
+  assert.deepEqual(stwCommand(state, "player", { type: "cancelBuild", buildingId: pylon.id }), { ok: true, minerals: 75, gas: 0 });
+  assert.equal(record.minerals, 925);
+  assert.equal(state.buildings.some((building) => building.type === "pylon"), false);
+  assert.ok(state.log.some((entry) => entry.text === "파일런을 취소했습니다. 광물 75 환불"));
+
+  assert.equal(stwCommand(state, "player", { type: "build", building: "pylon" }).ok, true);
+  finishAll(state);
+  const done = state.buildings.find((building) => building.type === "pylon");
+  assert.match(stwCommand(state, "player", { type: "cancelBuild", buildingId: done.id }).reason, /이미 완성/);
+
+  for (const building of ["gateway", "forge"]) stwCommand(state, "player", { type: "build", building });
+  finishAll(state);
+  const before = { minerals: record.minerals, gas: record.gas };
+  assert.equal(stwCommand(state, "player", { type: "research", research: "weapons1" }).ok, true);
+  assert.equal(stwCommand(state, "player", { type: "cancelResearch", research: "weapons1" }).ok, true);
+  assert.deepEqual({ minerals: record.minerals, gas: record.gas }, before);
+  assert.equal(record.research.weapons1, undefined);
+  assert.equal(stwResearchCheck(state, "player", "weapons1").ok, true, "취소한 연구는 다시 할 수 있음");
+
+  const gateway = stwOwnBuildings(state, "player", "gateway")[0];
+  run(state, 0.2);
+  assert.equal(gateway.current.unit, "zealot");
+  const beforeUnit = record.minerals;
+  assert.equal(stwCommand(state, "player", { type: "cancelUnit", gatewayId: gateway.id }).ok, true);
+  assert.equal(record.minerals, beforeUnit + 100);
+  assert.equal(gateway.current, null);
+  assert.equal(gateway.line, null, "취소 후 라인은 정지");
+  run(state, 1);
+  assert.equal(gateway.current, null, "정지한 라인은 다시 소환하지 않음");
+  assert.match(stwCommand(state, "player", { type: "cancelUnit", gatewayId: gateway.id }).reason, /소환 중인 유닛이 없습니다/);
+});

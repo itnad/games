@@ -83,6 +83,15 @@
 .stw-card small { color:var(--stw-muted); font-size:13px !important; line-height:1.3 !important; }
 .stw-card.done { border-color:#7fe08f55; }
 .stw-card.done small { color:#a9e7b4; }
+.stw-pending { display:grid; gap:6px; }
+.stw-pending ul, ul.stw-pending { margin:0; padding:0; list-style:none; display:grid; gap:6px; }
+.stw-pending-row { min-height:52px; padding:6px 8px 6px 12px; display:flex; align-items:center; gap:10px; border:1px solid #e9c77a40; border-radius:12px; background:#e6bd620d; }
+.stw-pending-row > span { flex:1; min-width:0; display:grid; gap:1px; }
+.stw-pending-row b { font-size:15px; }
+.stw-pending-row small { color:var(--stw-muted); font-size:13px !important; line-height:1.3 !important; }
+.stw-pending-row button, .stw-cancel { min-height:40px; padding:0 14px; flex:0 0 auto; border:1px solid #ff715866; border-radius:10px; color:#ffc3b8; background:#ff71581a; font-size:14px !important; font-weight:900; }
+.stw-line header .stw-cancel { min-height:34px; margin-left:8px; padding:0 10px; }
+.stw-line header span { margin-left:auto; }
 .stw-section { margin:4px 0 0; color:var(--stw-gold); font-size:14px; letter-spacing:.04em; }
 .stw-empty { margin:0; color:var(--stw-muted); }
 

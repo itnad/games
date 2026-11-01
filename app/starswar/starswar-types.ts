@@ -95,7 +95,11 @@ export type StwCommand =
   | { type: "attack" }
   | { type: "retreat" }
   | { type: "autoWave"; size: number }
-  | { type: "scout" };
+  | { type: "scout" }
+  | { type: "cancelBuild"; buildingId: number }
+  | { type: "cancelProbe" }
+  | { type: "cancelResearch"; research: StwResearchId }
+  | { type: "cancelUnit"; gatewayId: number };
 
 export type StwView = { width: number; height: number; scale: number; zoom: number; cx: number; cy: number; ox: number; oy: number };
 export type StwUi = { clock: number; timeScale: number; rally: StwRallyId };

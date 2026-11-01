@@ -84,6 +84,9 @@ export const STW_RESEARCH = {
   storm: { id: "storm", name: "사이오닉 스톰", at: "archives", minerals: 200, gas: 200, time: 55, note: "하이템플러가 뭉친 적에게 스톰을 자동 시전" },
 };
 
+/** 소환 중인 건물을 취소하면 돌려받는 비율. 프로브·유닛·연구 취소는 전액 환불. */
+export const STW_CANCEL_REFUND = 0.75;
+
 export const STW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 26, castRange: 9, minTargets: 3 };
 
 export const STW_ECONOMY = {

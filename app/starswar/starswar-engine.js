@@ -4,6 +4,7 @@ import { withKoreanDirection, withKoreanObject, withKoreanSubject } from "../kor
 import {
   STW_ARMY_UNITS,
   STW_BUILDINGS,
+  STW_CANCEL_REFUND,
   STW_DIFFICULTIES,
   STW_ECONOMY,
   STW_LANE_LENGTH,
@@ -449,9 +450,59 @@ export function stwCommand(state, side, command) {
       if (side === "player") pushLog(state, side, "프로브 1기를 적 본진으로 정찰 보냅니다.", "order");
       return { ok: true };
     }
+    case "cancelBuild": {
+      const building = state.buildings.find((item) => item.id === command.buildingId && item.side === side);
+      if (!building) return fail("건물을 찾을 수 없습니다");
+      if (stwDone(building)) return fail("이미 완성된 건물입니다");
+      const def = STW_BUILDINGS[building.type];
+      const minerals = Math.floor(def.minerals * STW_CANCEL_REFUND);
+      const gas = Math.floor(def.gas * STW_CANCEL_REFUND);
+      record.minerals += minerals;
+      record.gas += gas;
+      state.buildings = state.buildings.filter((item) => item !== building);
+      const name = building.type === "nexus" ? "앞마당 넥서스" : def.name;
+      if (side === "player") pushLog(state, side, `${withKoreanObject(name)} 취소했습니다. ${refundText(minerals, gas)} 환불`, "info");
+      return { ok: true, minerals, gas };
+    }
+    case "cancelProbe": {
+      const nexus = stwOwnBuildings(state, side, "nexus").filter((item) => item.queue.length).sort((a, b) => b.queue.length - a.queue.length)[0];
+      if (!nexus) return fail("대기 중인 프로브가 없습니다");
+      nexus.queue.pop();
+      record.minerals += STW_UNITS.probe.minerals;
+      if (side === "player") pushLog(state, side, `프로브 소환을 취소했습니다. ${refundText(STW_UNITS.probe.minerals, 0)} 환불`, "info");
+      return { ok: true, minerals: STW_UNITS.probe.minerals, gas: 0 };
+    }
+    case "cancelResearch": {
+      const building = state.buildings.find((item) => item.side === side && item.research?.id === command.research);
+      if (!building) return fail("진행 중인 연구가 아닙니다");
+      const def = STW_RESEARCH[command.research];
+      building.research = null;
+      delete record.research[command.research];
+      record.minerals += def.minerals;
+      record.gas += def.gas;
+      if (side === "player") pushLog(state, side, `${withKoreanObject(def.name)} 취소했습니다. ${refundText(def.minerals, def.gas)} 환불`, "info");
+      return { ok: true, minerals: def.minerals, gas: def.gas };
+    }
+    case "cancelUnit": {
+      const gateway = state.buildings.find((item) => item.id === command.gatewayId && item.side === side && item.type === "gateway");
+      if (!gateway?.current) return fail("소환 중인 유닛이 없습니다");
+      const def = STW_UNITS[gateway.current.unit];
+      gateway.current = null;
+      // 라인을 그대로 두면 다음 틱에 같은 유닛을 다시 소환하므로 라인도 멈춘다.
+      gateway.line = null;
+      gateway.blocked = "정지";
+      record.minerals += def.minerals;
+      record.gas += def.gas;
+      if (side === "player") pushLog(state, side, `${withKoreanObject(def.name)} 취소하고 게이트웨이를 멈췄습니다. ${refundText(def.minerals, def.gas)} 환불`, "info");
+      return { ok: true, minerals: def.minerals, gas: def.gas };
+    }
     default:
       return fail("알 수 없는 명령입니다");
   }
+}
+
+function refundText(minerals, gas) {
+  return gas ? `광물 ${minerals} · 가스 ${gas}` : `광물 ${minerals}`;
 }
 
 function spawnUnit(state, side, type, x, y) {

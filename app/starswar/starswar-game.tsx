@@ -6,6 +6,7 @@ import {
   STW_ARMY_UNITS,
   STW_BUILDINGS,
   STW_BUILD_CHOICES,
+  STW_CANCEL_REFUND,
   STW_DIFFICULTIES,
   STW_ECONOMY,
   STW_RALLY_POINTS,
@@ -475,6 +476,16 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
 
 type Issue = (command: StwCommand, success?: string) => void;
 
+/** 진행 중인 선택 한 줄: 이름, 진행률, 환불액, 취소 버튼. */
+function PendingRow({ title, detail, refund, onCancel }: { title: string; detail: string; refund: string; onCancel: () => void }) {
+  return (
+    <li className="stw-pending-row">
+      <span><b>{title}</b><small>{detail} · 취소 시 {refund}</small></span>
+      <button type="button" onClick={onCancel} aria-label={`${title} 취소`}>취소</button>
+    </li>
+  );
+}
+
 function Card({ title, sub, note, disabled, onClick, tone, badge }: { title: string; sub?: string; note?: string; disabled?: boolean; onClick: () => void; tone?: string; badge?: string }) {
   return (
     <button type="button" className={`stw-card${tone ? ` ${tone}` : ""}`} disabled={disabled} onClick={onClick}>
@@ -489,8 +500,22 @@ function BuildTab({ game, issue }: { game: StwState; issue: Issue }) {
   const split = stwWorkerSplit(game, "player") as { gas: number; main: number; natural: number; idle: number };
   const probe = stwProbeCheck(game, "player") as StwCheck;
   const queued = stwOwnBuildings(game, "player", "nexus").reduce((sum, nexus) => sum + (nexus as { queue: unknown[] }).queue.length, 0);
+  const constructing = game.buildings.filter((building) => building.side === "player" && !stwDone(building));
   return (
     <div className="stw-tab">
+      {queued || constructing.length ? (
+        <section className="stw-pending" aria-label="진행 중">
+          <h3 className="stw-section">진행 중</h3>
+          <ul>
+            {queued ? <PendingRow title={`프로브 대기 ${queued}`} detail="마지막 1기" refund={`광물 ${STW_UNITS.probe.minerals}`} onCancel={() => issue({ type: "cancelProbe" })} /> : null}
+            {constructing.map((building) => {
+              const def = STW_BUILDINGS[building.type];
+              const refund = cost(Math.floor(def.minerals * STW_CANCEL_REFUND), Math.floor(def.gas * STW_CANCEL_REFUND));
+              return <PendingRow key={building.id} title={building.type === "nexus" ? "앞마당 넥서스" : def.name} detail={`소환 ${Math.round(building.progress * 100)}%`} refund={`광물 ${refund}`} onCancel={() => issue({ type: "cancelBuild", buildingId: building.id })} />;
+            })}
+          </ul>
+        </section>
+      ) : null}
       <p className="stw-workers">
         프로브 {game.sides.player.probes} · 본진 {split.main}/{STW_ECONOMY.fullSaturation}{stwOwnBuildings(game, "player", "nexus").length > 1 ? ` · 앞마당 ${split.natural}/${STW_ECONOMY.fullSaturation}` : ""} · 가스 {split.gas}{split.idle ? ` · 남는 ${split.idle}` : ""}
       </p>
@@ -530,7 +555,10 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
           const status = !stwDone(gateway) ? `소환 중 ${Math.round(gateway.progress * 100)}%` : gateway.current ? `${STW_UNITS[gateway.current.unit].name} 소환 ${Math.round(progress * 100)}%` : gateway.blocked ?? "대기";
           return (
             <div key={gateway.id} className="stw-line">
-              <header><b>게이트웨이 {index + 1}</b><span>{status}</span></header>
+              <header>
+                <b>게이트웨이 {index + 1}</b><span>{status}</span>
+                {gateway.current ? <button type="button" className="stw-cancel" onClick={() => issue({ type: "cancelUnit", gatewayId: gateway.id })} aria-label={`게이트웨이 ${index + 1}의 ${STW_UNITS[gateway.current.unit].name} 소환 취소`}>취소</button> : null}
+              </header>
               <span className="stw-progress"><span style={{ width: `${Math.round(progress * 100)}%` }} /></span>
               <div className="stw-line-choices">
                 {ARMY_IDS.map((unit) => {
@@ -549,6 +577,15 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
         })}
       </div>
       <h3 className="stw-section">연구</h3>
+      {game.buildings.some((building) => building.side === "player" && building.research) ? (
+        <ul className="stw-pending">
+          {game.buildings.filter((building) => building.side === "player" && building.research).map((building) => {
+            const id = building.research!.id;
+            const def = STW_RESEARCH[id];
+            return <PendingRow key={building.id} title={def.name} detail={`연구 ${Math.round((1 - building.research!.remaining / def.time) * 100)}%`} refund={`광물 ${cost(def.minerals, def.gas)}`} onCancel={() => issue({ type: "cancelResearch", research: id })} />;
+          })}
+        </ul>
+      ) : null}
       <div className="stw-grid">
         {RESEARCH_IDS.map((id) => {
           const def = STW_RESEARCH[id];
