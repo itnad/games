@@ -24,7 +24,7 @@ const isCloaked = (unit: StwUnit) => CLOAKED.has(unit.type) || (unit.type === "l
 const FONT = "system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
 const FOG_CELL = 2;
 
-type UnitView = { root: Container; body: Sprite; glow: Sprite; ring: Sprite; turret: Sprite | null; aim: number; sieged: boolean; x: number; y: number; heading: number; bob: number };
+type UnitView = { root: Container; body: Sprite; glow: Sprite; ring: Sprite; hp: number; shields: number; flash: number; flashColor: number; jitter: number; lunge: number; lungeAngle: number; turret: Sprite | null; aim: number; sieged: boolean; x: number; y: number; heading: number; bob: number };
 type BuildingView = { root: Container; body: Sprite; glow: Sprite | null; ghost: boolean; lair: boolean };
 type Particle = { sprite: Sprite; x: number; y: number; vx: number; vy: number; life: number; max: number; s0: number; s1: number; a0: number; rise: number };
 type Decal = { sprite: Sprite; life: number; max: number; a0: number };
@@ -78,6 +78,8 @@ export class StwPixiRenderer {
   private readonly rallyLabel: { root: Container; bg: Graphics; text: Text; key: string };
   private lastRally: StwUi["rally"] | null = null;
   private flagPulse = 0;
+  /** 화면 흔들림 세기(0~1). 큰 폭발과 건물 붕괴 때 올라가고 금방 가라앉는다. */
+  private shake = 0;
   private readonly labels: { root: Container; text: Text; y: number }[] = [];
   private readonly unitViews = new Map<number, UnitView>();
   private readonly buildingViews = new Map<number, BuildingView>();
@@ -173,7 +175,10 @@ export class StwPixiRenderer {
     const realDt = Math.min(0.1, Math.max(0, ui.clock - this.lastClock));
     this.lastClock = ui.clock;
     const dt = realDt * ui.timeScale;
-    this.world.position.set(view.ox, view.oy);
+    // 화면 흔들림: 큰 충격 때 전장을 몇 픽셀 흔든다.
+    this.shake = Math.max(0, this.shake - realDt * 4);
+    const shakePx = this.shake * this.shake * 7;
+    this.world.position.set(view.ox + (Math.random() - 0.5) * shakePx, view.oy + (Math.random() - 0.5) * shakePx);
     this.world.scale.set(view.scale);
     if (state.time - this.fogAt >= 0.25 || state.time < this.fogAt) this.refreshVision(state);
     if (ui.rally !== this.lastRally) {
@@ -539,6 +544,26 @@ export class StwPixiRenderer {
       view.root.position.set(view.x, view.y);
       view.heading = turnToward(view.heading, unit.heading, realDt * 10);
       view.body.rotation = view.heading;
+      // 피격 반응: 체력이 깎이면 붉게, 보호막이 깎이면 푸르게 번쩍이며 살짝 흔들린다. 깎인 비율이 클수록 더 흔들린다.
+      const lostHp = view.hp - unit.hp;
+      const lostShields = view.shields - unit.shields;
+      if (lostHp > 0.5 || lostShields > 0.5) {
+        const ratio = Math.min(1, (lostHp + lostShields) / Math.max(1, unit.maxHp + unit.maxShields));
+        view.flash = 0.16;
+        view.flashColor = lostHp > 0.5 ? 0xff5a4a : 0x7fd0ff;
+        view.jitter = Math.max(view.jitter, 0.12 + ratio * 1.2);
+      }
+      view.hp = unit.hp;
+      view.shields = unit.shields;
+      view.flash = Math.max(0, view.flash - realDt);
+      view.jitter = Math.max(0, view.jitter - realDt * 1.6);
+      view.lunge = Math.max(0, view.lunge - realDt * 4.5);
+      view.body.tint = view.flash > 0 ? view.flashColor : 0xffffff;
+      // 근접 공격 동작: 목표 쪽으로 짧게 찌르고 돌아온다.
+      const lungeReach = Math.sin(Math.min(1, view.lunge) * Math.PI) * UNIT_SIZE[unit.type] * 0.3;
+      const shakeX = (Math.random() - 0.5) * view.jitter * 0.5;
+      const shakeY = (Math.random() - 0.5) * view.jitter * 0.5;
+      view.body.position.set(Math.cos(view.lungeAngle) * lungeReach + shakeX, Math.sin(view.lungeAngle) * lungeReach + shakeY);
       if (distance > 0.04 && !NO_BOB.has(unit.type)) view.bob += realDt * 13;
       const base = UNIT_SIZE[unit.type] / Math.max(view.body.texture.width, view.body.texture.height);
       const bob = unit.type === "dragoon" ? 1 + Math.sin(state.time * 6 + unit.id) * 0.02 : NO_BOB.has(unit.type) ? 1 : 1 + Math.sin(view.bob) * 0.045;
@@ -567,7 +592,7 @@ export class StwPixiRenderer {
         view.glow.alpha = 0.55 + Math.sin(state.time * 5 + unit.id) * 0.15;
         view.body.rotation = state.time * 0.8 + unit.id;
       }
-      if (unit.type === "overlord") view.body.position.set(Math.sin(state.time * 0.7 + unit.id) * 0.3, Math.cos(state.time * 0.9 + unit.id) * 0.25 - 0.5);
+      if (unit.type === "overlord") view.body.position.set(view.body.position.x + Math.sin(state.time * 0.7 + unit.id) * 0.3, view.body.position.y + Math.cos(state.time * 0.9 + unit.id) * 0.25 - 0.5);
       if (unit.type === "lurker") {
         // 럴커: 땅속에 숨으면 가시 무덤 모양으로 바뀌고 반투명해진다.
         const burrowed = Boolean(unit.burrowed);
@@ -616,7 +641,7 @@ export class StwPixiRenderer {
     }
     root.position.set(unit.x, unit.y);
     this.unitLayer.addChild(root);
-    const view = { root, body, glow, ring, turret, aim: unit.heading, sieged: false, x: unit.x, y: unit.y, heading: unit.heading, bob: Math.random() * 6 };
+    const view = { root, body, glow, ring, hp: unit.hp, shields: unit.shields, flash: 0, flashColor: 0xffffff, jitter: 0, lunge: 0, lungeAngle: 0, turret, aim: unit.heading, sieged: false, x: unit.x, y: unit.y, heading: unit.heading, bob: Math.random() * 6 };
     this.unitViews.set(unit.id, view);
     return view;
   }
@@ -661,9 +686,22 @@ export class StwPixiRenderer {
 
   private spawnEffect(effect: StwEffect) {
     const team = STW_TEAM[effect.side];
+    // 근접 공격자는 목표 쪽으로 찌른다.
+    if ((effect.kind === "slash" || effect.kind === "bite" || effect.kind === "flame") && effect.attackerId !== undefined) {
+      const attacker = this.unitViews.get(effect.attackerId);
+      if (attacker) {
+        attacker.lunge = 1;
+        attacker.lungeAngle = Math.atan2(effect.y2 - effect.y1, effect.x2 - effect.x1);
+      }
+    }
     if (effect.kind === "slash") {
-      for (let i = 0; i < 4; i += 1) this.spark(effect.x2, effect.y2, team.glow, 4, 0.5);
-      this.flash(effect.x2, effect.y2, 1.6, 0.1, team.light);
+      // 타격 지점은 대상 몸 가장자리. 충격 고리가 퍼지고 불꽃이 튄다.
+      const angle = Math.atan2(effect.y1 - effect.y2, effect.x1 - effect.x2);
+      const hx = effect.x2 + Math.cos(angle) * 0.6;
+      const hy = effect.y2 + Math.sin(angle) * 0.6;
+      this.impactRing(hx, hy, 2.8, team.light);
+      for (let i = 0; i < 6; i += 1) this.spark(hx, hy, i % 2 ? 0xffffff : team.glow, 5.5, 0.4);
+      this.flash(hx, hy, 1.8, 0.1, 0xffffff);
     } else if (effect.kind === "shock") {
       this.flash(effect.x2, effect.y2, (effect.radius ?? 1.6) * 2.4, 0.14, team.light);
       for (let i = 0; i < 6; i += 1) this.spark(effect.x2, effect.y2, team.glow, 5, 0.4);
@@ -698,6 +736,8 @@ export class StwPixiRenderer {
     } else if (effect.kind === "bite") {
       // 저글링·울트라리스크의 물어뜯기.
       const big = (effect.radius ?? 0) > 0;
+      this.impactRing(effect.x2, effect.y2, big ? 3 : 1.8, 0xffc8b0);
+      if (big) this.shake = Math.max(this.shake, 0.25);
       for (let i = 0; i < (big ? 6 : 3); i += 1) this.spark(effect.x2, effect.y2, i % 2 ? 0xb8433a : 0xe6d6b2, big ? 5 : 3, 0.35);
       this.flash(effect.x2, effect.y2, big ? 2.2 : 1.1, 0.08, 0xffb0a0);
     } else if (effect.kind === "spines") {
@@ -733,6 +773,7 @@ export class StwPixiRenderer {
       this.decal(this.tex.scorch, effect.x1, effect.y1, big ? 4 : 2, big ? 25 : 10, 0.5, 0);
     } else if (effect.kind === "collapse") {
       const radius = effect.radius ?? 4;
+      this.shake = Math.max(this.shake, 0.7);
       this.flash(effect.x1, effect.y1, radius * 3, 0.22, 0xfff0c0);
       for (let i = 0; i < 16; i += 1) this.spark(effect.x1 + (Math.random() - 0.5) * radius, effect.y1 + (Math.random() - 0.5) * radius, i % 2 ? 0xffb050 : team.glow, 7, 0.8);
       for (let i = 0; i < 8; i += 1) this.smoke(effect.x1 + (Math.random() - 0.5) * radius, effect.y1 + (Math.random() - 0.5) * radius, radius * 1.2, 2.2);
@@ -757,6 +798,13 @@ export class StwPixiRenderer {
     sprite.visible = false;
     sprite.removeFromParent();
     this.particlePool.push(sprite);
+  }
+
+  /** 충격 고리: 타격 지점에서 빠르게 퍼지며 사라지는 테두리. */
+  private impactRing(x: number, y: number, size: number, tint: number) {
+    const sprite = this.particle(this.tex.ring);
+    sprite.tint = tint;
+    this.particles.push({ sprite, x, y, vx: 0, vy: 0, life: 0.22, max: 0.22, s0: (size * 0.35) / 64, s1: size / 64, a0: 0.9, rise: 0 });
   }
 
   private flash(x: number, y: number, size: number, life: number, tint: number) {
@@ -816,8 +864,10 @@ export class StwPixiRenderer {
       if (t > (effect.kind === "shell" ? 0.88 : 0.7) && !this.impacted.has(effect)) {
         this.impacted.add(effect);
         if (effect.kind === "scarab" || effect.kind === "shell") {
-          // 스캐럽·시즈 포탄 폭발: 큰 섬광, 불꽃, 연기, 그을음.
+          // 스캐럽·시즈 포탄 폭발: 큰 섬광, 불꽃, 연기, 그을음, 화면 흔들림.
           const radius = effect.radius ?? 2.4;
+          this.shake = Math.max(this.shake, 0.45);
+          this.impactRing(effect.x2, effect.y2, radius * 2.6, 0xffd28a);
           this.flash(effect.x2, effect.y2, radius * 3, 0.2, 0xfff0c0);
           for (let i = 0; i < 10; i += 1) this.spark(effect.x2, effect.y2, i % 2 ? 0xffb050 : 0xff7a3c, 7, 0.6);
           for (let i = 0; i < 4; i += 1) this.smoke(effect.x2, effect.y2, radius * 1.1, 1.3);
@@ -827,8 +877,10 @@ export class StwPixiRenderer {
           for (let i = 0; i < 4; i += 1) this.spark(effect.x2, effect.y2, 0xffb050, 4, 0.35);
         } else if (effect.kind === "bullet" || effect.kind === "spine") {
           this.flash(effect.x2, effect.y2, 0.9, 0.06, 0xffe7a0);
+          this.spark(effect.x2, effect.y2, 0xffe7a0, 3, 0.25);
         } else {
           this.flash(effect.x2, effect.y2, 1.8, 0.1, STW_TEAM[effect.side].light);
+          this.impactRing(effect.x2, effect.y2, 1.6, STW_TEAM[effect.side].light);
         }
       }
     }

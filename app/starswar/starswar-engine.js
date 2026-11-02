@@ -1043,7 +1043,7 @@ function cannonStep(state, building, dt) {
   queueHit(state, building, target);
   const kind = building.type === "cannon" ? "photon" : building.type === "sunken" ? "tentacle" : "bullet";
   const ttl = kind === "photon" ? 0.3 : kind === "tentacle" ? 0.45 : 0.12;
-  state.effects.push({ kind, side: building.side, x1: building.x, y1: building.y, x2: target.x, y2: target.y, ttl, max: ttl });
+  state.effects.push({ kind, side: building.side, x1: building.x, y1: building.y, x2: target.x, y2: target.y, ttl, max: ttl, attackerId: building.id, targetId: target.id });
 }
 
 function stimmed(state, unit) {
@@ -1219,7 +1219,7 @@ function stepUnits(state, dt) {
           queueHit(state, unit, target);
           const kind = ATTACK_EFFECT[unit.type] ?? "plasma";
           const ttl = kind === "slash" || kind === "bullet" || kind === "bite" ? 0.15 : kind === "flame" ? 0.3 : kind === "scarab" ? 0.6 : kind === "shock" || kind === "spine" ? 0.25 : 0.35;
-          state.effects.push({ kind, side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl, max: ttl, radius: STW_UNITS[unit.type].splash?.radius });
+          state.effects.push({ kind, side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl, max: ttl, radius: STW_UNITS[unit.type].splash?.radius, attackerId: unit.id, targetId: target.id });
         }
       } else {
         moveToward(unit, target.x, target.y, speed, dt);
@@ -1295,7 +1295,7 @@ function tankSiegeStep(state, unit, retreating) {
       unit.heading = Math.atan2(target.y - unit.y, target.x - unit.x);
       unit.cooldown = siege.cooldown;
       queueHit(state, unit, target);
-      state.effects.push({ kind: "shell", side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl: 0.55, max: 0.55, radius: siege.splash.radius });
+      state.effects.push({ kind: "shell", side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl: 0.55, max: 0.55, radius: siege.splash.radius, attackerId: unit.id, targetId: target.id });
     }
     return true;
   }

@@ -62,7 +62,7 @@ export type StwBuilding = {
   targetId: number | null;
 };
 
-export type StwEffect = { kind: "slash" | "plasma" | "photon" | "shock" | "scarab" | "warp" | "death" | "collapse" | "bullet" | "flame" | "grenade" | "tankshot" | "shell" | "stim" | "scan" | "bite" | "spine" | "spines" | "tentacle"; side: StwSide; x1: number; y1: number; x2: number; y2: number; ttl: number; max: number; radius?: number };
+export type StwEffect = { kind: "slash" | "plasma" | "photon" | "shock" | "scarab" | "warp" | "death" | "collapse" | "bullet" | "flame" | "grenade" | "tankshot" | "shell" | "stim" | "scan" | "bite" | "spine" | "spines" | "tentacle"; side: StwSide; x1: number; y1: number; x2: number; y2: number; ttl: number; max: number; radius?: number; attackerId?: number; targetId?: number };
 export type StwScan = { id: number; side: StwSide; x: number; y: number; radius: number; ttl: number };
 export type StwStorm = { id: number; side: StwSide; x: number; y: number; ttl: number };
 export type StwIntel = { race?: StwRaceId; time: number; buildings: Partial<Record<StwBuildingType, number>>; units: Record<StwArmyType, number>; research: { id: StwResearchId; status: string }[]; probes: number };
