@@ -1013,3 +1013,20 @@ test("starswar immediate auto-wave sends fighters as soon as they exist", () => 
   run(only, 0.2);
   assert.equal(stwArmy(only, "player").attack.length, 0, "지원 유닛만으로는 나가지 않음");
 });
+
+test("starswar several high templar do not stack storms on the same clump", () => {
+  const state = quiet();
+  state.sides.player.research.storm = "done";
+  const casters = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "player", "templar", 16 + index * 4, 70));
+  for (const caster of casters) caster.energy = 75;
+  for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(state, "enemy", "zergling", 18 + (index % 3) * 1.5, 64 + Math.floor(index / 3) * 1.5);
+  run(state, 0.3);
+  assert.equal(state.sides.player.stats.storms, 1, "한 무리에는 스톰 하나만");
+  assert.equal(casters.filter((caster) => caster.energy >= 75).length, 2, "나머지 템플러는 에너지를 아낌");
+  // 멀리 떨어진 두 번째 무리에는 두 번째 스톰이 떨어진다.
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(state, "enemy", "zergling", 28 + (index % 2) * 1.5, 72 + Math.floor(index / 2) * 1.5);
+  run(state, 0.3);
+  assert.equal(state.sides.player.stats.storms, 2);
+  const [a, b] = state.storms;
+  assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= 3.2, "두 스톰의 중심은 반경 이상 떨어짐");
+});

@@ -1518,28 +1518,34 @@ function templarStep(state, unit, plan, dt) {
   }
 }
 
+/**
+ * 스톰을 떨어뜨릴 자리. 이미 아군 스톰 안에 있는 적은 세지 않으므로, 하이템플러가 여럿이어도 같은 무리에 겹쳐 쓰지 않는다.
+ * 새 스톰의 중심은 기존 스톰 중심에서 반경 이상 떨어져야 한다.
+ */
 function stormSpot(state, caster) {
+  const own = state.storms.filter((storm) => storm.side === caster.side);
+  const covered = (unit) => own.some((storm) => distance(storm.x, storm.y, unit.x, unit.y) < STW_STORM.radius);
   let best = null;
   let bestCount = STW_STORM.minTargets - 1;
   for (const enemy of state.units) {
-    if (enemy.side === caster.side || isPassive(enemy)) continue;
+    if (enemy.side === caster.side || isPassive(enemy) || covered(enemy)) continue;
     if (distance(caster.x, caster.y, enemy.x, enemy.y) > STW_STORM.castRange || !targetable(state, caster, enemy)) continue;
-    if (state.storms.some((storm) => storm.side === caster.side && distance(storm.x, storm.y, enemy.x, enemy.y) < STW_STORM.radius)) continue;
     let count = 0;
     let sx = 0;
     let sy = 0;
     for (const other of state.units) {
-      if (other.side === caster.side) continue;
+      if (other.side === caster.side || covered(other)) continue;
       if (distance(enemy.x, enemy.y, other.x, other.y) <= STW_STORM.radius) {
         count += 1;
         sx += other.x;
         sy += other.y;
       }
     }
-    if (count > bestCount) {
-      bestCount = count;
-      best = { x: sx / count, y: sy / count };
-    }
+    if (count <= bestCount) continue;
+    const spot = { x: sx / count, y: sy / count };
+    if (own.some((storm) => distance(storm.x, storm.y, spot.x, spot.y) < STW_STORM.radius)) continue;
+    bestCount = count;
+    best = spot;
   }
   return best;
 }
