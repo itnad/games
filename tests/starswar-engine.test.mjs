@@ -165,7 +165,7 @@ test("starswar scouting reveals the enemy tech and returns the probe", () => {
   assert.ok(state.sides.player.intel, "적 본진 정보");
   assert.equal(state.sides.player.intel.buildings.nexus, 1);
   assert.equal(state.units.some((unit) => unit.group === "scout"), false);
-  assert.equal(state.sides.player.probes, 6);
+  assert.equal(state.sides.player.probes, 9, "정찰 3기가 모두 돌아옴");
   assert.ok(state.log.some((entry) => /정찰 성공/.test(entry.text)));
 });
 
