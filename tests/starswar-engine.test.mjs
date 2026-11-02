@@ -1030,3 +1030,15 @@ test("starswar several high templar do not stack storms on the same clump", () =
   const [a, b] = state.storms;
   assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= 3.2, "두 스톰의 중심은 반경 이상 떨어짐");
 });
+
+test("starswar melee units switch off a fleeing target and spread over a firing line", () => {
+  const state = createStarswarGame({ seed: 1, aiSides: [], races: { player: "protoss", enemy: "terran" } });
+  state.sides.enemy.research.stim = "done";
+  const zealots = [0, 1, 2, 3, 4].map((index) => stwSpawnUnitAt(state, "player", "zealot", 14 + index * 3, 58, "attack"));
+  stwSpawnUnitAt(state, "enemy", "marine", 20, 50, "attack");
+  for (let index = 0; index < 7; index += 1) stwSpawnUnitAt(state, "enemy", "marine", 13 + index * 2.4, 44, "attack");
+  stwSpawnUnitAt(state, "enemy", "medic", 20, 42, "attack");
+  for (let step = 0; step < 900 && state.units.some((unit) => unit.side === "player") && state.units.some((unit) => unit.side === "enemy"); step += 1) stepStarswar(state);
+  assert.ok(zealots.filter((unit) => unit.hp > 0).length >= 3, "미끼 해병에게 끌려다니지 않고 사격선을 무너뜨림");
+  assert.equal(state.units.filter((unit) => unit.side === "enemy" && unit.type === "marine").length, 0, "해병은 전멸");
+});

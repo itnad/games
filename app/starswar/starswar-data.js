@@ -99,7 +99,7 @@ export const STW_UNITS = {
   },
   marine: {
     id: "marine", race: "terran", name: "해병", short: "M", minerals: 50, gas: 0, time: 15, supply: 1, from: "barracks",
-    hp: 40, shields: 0, armor: 0, size: "small", speed: 2.6, radius: 0.9, sight: 9,
+    hp: 45, shields: 0, armor: 0, size: "small", speed: 2.6, radius: 0.9, sight: 9,
     damage: 6, hits: 1, damageType: "normal", range: 5, cooldown: 0.75, weaponStep: 1, role: "ranged", bio: true, stim: true, kite: true,
     note: "값싼 원거리 보병 · 스팀팩을 쓰면 근접 적에게 물러나며 사격 · 메딕과 함께하면 강함",
   },

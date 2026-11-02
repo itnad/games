@@ -971,14 +971,20 @@ function applyHits(state) {
   state.pendingHits = [];
 }
 
+/** 이번 틱에 같은 편 근접 유닛들이 노리고 있는 적의 수(id → 수). stepUnits가 채운다. */
+let meleeFocus = new Map();
+
 function findTarget(state, attacker, radius, { unitsOnly = false } = {}) {
   let best = null;
   let bestScore = Infinity;
+  // 근접 유닛은 한 적에 둘 넘게 붙어 봐야 자리가 없으므로, 이미 여럿이 노리는 적은 뒤로 미룬다.
+  const melee = attacker.kind === "unit" && STW_UNITS[attacker.type].role === "melee";
   for (const unit of state.units) {
     if (unit.side === attacker.side || unit.hp <= 0) continue;
     const d = distance(attacker.x, attacker.y, unit.x, unit.y) - unit.radius;
     if (d > radius || !targetable(state, attacker, unit)) continue;
-    const score = d + (isPassive(unit) ? 3 : 0);
+    const crowd = melee ? Math.max(0, (meleeFocus.get(unit.id) ?? 0) - 2) * 1.2 : 0;
+    const score = d + (isPassive(unit) ? 3 : 0) + crowd;
     if (score < bestScore) {
       best = unit;
       bestScore = score;
@@ -1139,6 +1145,11 @@ function stepUnits(state, dt) {
       alertOnce(state, "defend", 15, "player", "대기 병력이 기지에 들어온 적을 요격합니다.", "order");
     }
   }
+  // 근접 유닛의 목표 분산용: 지금 각 적을 노리는 같은 편 근접 유닛 수.
+  meleeFocus = new Map();
+  for (const unit of state.units) {
+    if (unit.targetId !== null && unit.hp > 0 && STW_UNITS[unit.type].role === "melee") meleeFocus.set(unit.targetId, (meleeFocus.get(unit.targetId) ?? 0) + 1);
+  }
   for (const unit of state.units) {
     if (unit.hp <= 0) continue;
     unit.cooldown = Math.max(0, unit.cooldown - dt);
@@ -1190,6 +1201,10 @@ function stepUnits(state, dt) {
       if (!target) {
         target = findTarget(state, unit, sight);
         if (target && leashed(target)) target = null;
+      } else if (def.role === "melee" && distance(unit.x, unit.y, target.x, target.y) - target.radius - unit.radius * 0.5 > range + 0.6) {
+        // 근접 유닛: 목표가 닿는 거리 밖으로 벗어났는데 더 가까운 적이 있으면 그쪽으로 바꾼다(도망가는 적에게 끌려다니지 않는다).
+        const nearer = findTarget(state, unit, sight);
+        if (nearer && nearer !== target && !leashed(nearer) && distance(unit.x, unit.y, nearer.x, nearer.y) - nearer.radius < distance(unit.x, unit.y, target.x, target.y) - target.radius - 1) target = nearer;
       }
     }
     unit.targetId = target?.id ?? null;
