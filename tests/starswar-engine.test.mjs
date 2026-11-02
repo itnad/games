@@ -154,10 +154,13 @@ test("starswar high templar storm hits clumps once researched", () => {
 
 test("starswar scouting reveals the enemy tech and returns the probe", () => {
   const state = quiet();
-  state.sides.player.probes = 6;
+  state.sides.player.probes = 9;
   assert.equal(stwCommand(state, "player", { type: "scout" }).ok, true);
-  assert.equal(state.sides.player.probes, 5);
-  assert.match(stwCommand(state, "player", { type: "scout" }).reason, /정찰 중/);
+  assert.equal(state.sides.player.probes, 8);
+  assert.equal(stwCommand(state, "player", { type: "scout" }).ok, true, "정찰 중에도 또 보낼 수 있음");
+  assert.equal(stwCommand(state, "player", { type: "scout" }).ok, true);
+  assert.match(stwCommand(state, "player", { type: "scout" }).reason, /정찰은 동시에 3기까지/);
+  assert.equal(state.units.filter((unit) => unit.group === "scout").length, 3);
   run(state, 70);
   assert.ok(state.sides.player.intel, "적 본진 정보");
   assert.equal(state.sides.player.intel.buildings.nexus, 1);
@@ -995,4 +998,17 @@ test("starswar kiting is imperfect: upgraded melee closes in during the aim wind
   assert.equal(trial(false, false).zealotHit, false, "발업 없는 질럿은 벌처를 따라잡지 못함");
   assert.equal(trial(true, false).zealotHit, true, "발업 질럿은 조준 틈에 따라붙어 때림");
   assert.equal(trial(true, true).zealotHit, true, "이온 추진기 벌처도 완벽하게 카이팅하지는 못함");
+});
+
+test("starswar immediate auto-wave sends fighters as soon as they exist", () => {
+  const state = quiet();
+  stwCommand(state, "player", { type: "autoWave", size: 1 });
+  const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 92);
+  run(state, 0.2);
+  assert.equal(zealot.group, "attack", "집결지에 모이기 전에도 바로 출격");
+  const only = quiet();
+  only.sides.player.autoWave = 1;
+  stwSpawnUnitAt(only, "player", "observer", 20, 92);
+  run(only, 0.2);
+  assert.equal(stwArmy(only, "player").attack.length, 0, "지원 유닛만으로는 나가지 않음");
 });

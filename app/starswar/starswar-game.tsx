@@ -82,8 +82,8 @@ function raceOf(game: StwState, side: "player" | "enemy" = "player") {
 /** 메뉴의 종족별 소개와 진행 안내. */
 const RACE_MENU: Record<StwRaceId, { hero: string; lead: string; howto: [string, string][] }> = {
   protoss: {
-    hero: "관문이 군대를 소환합니다.",
-    lead: "프로브가 광물을 캐는 동안 무엇을 짓고, 무엇을 연구하고, 언제 출격할지만 고르세요. 질럿, 드라군, 하이템플러가 게이트웨이에서 꾸준히 소환되어 전선으로 나아갑니다.",
+    hero: "싸움은 알아서 벌어집니다.",
+    lead: "건물·연구·출격만 고르세요. 질럿과 드라군은 게이트웨이가 알아서 소환합니다.",
     howto: [
       ["경제", "프로브를 늘리고 파일런으로 인구를 확보하세요. 어시밀레이터를 지으면 가스가 들어옵니다."],
       ["테크", "게이트웨이를 늘리고, 코어로 드라군을, 아카이브로 하이템플러를 해금하세요."],
@@ -92,8 +92,8 @@ const RACE_MENU: Record<StwRaceId, { hero: string; lead: string; howto: [string,
     ],
   },
   terran: {
-    hero: "배럭이 보병을 쏟아냅니다.",
-    lead: "SCV가 광물을 캐는 동안 무엇을 짓고, 무엇을 연구하고, 언제 출격할지만 고르세요. 해병과 메딕이 배럭에서, 벌처와 시즈 탱크가 팩토리에서 꾸준히 생산됩니다.",
+    hero: "싸움은 알아서 벌어집니다.",
+    lead: "건물·연구·출격만 고르세요. 해병과 탱크는 배럭과 팩토리가 알아서 생산합니다.",
     howto: [
       ["경제", "SCV를 늘리고 서플라이 디팟으로 인구를 확보하세요. 리파이너리를 지으면 가스가 들어옵니다."],
       ["테크", "배럭을 늘리고, 아카데미로 파이어뱃·메딕을, 머신 샵으로 시즈 탱크를 해금하세요."],
@@ -102,8 +102,8 @@ const RACE_MENU: Record<StwRaceId, { hero: string; lead: string; howto: [string,
     ],
   },
   zerg: {
-    hero: "해처리가 무리를 깨웁니다.",
-    lead: "드론이 광물을 캐는 동안 무엇을 변태시키고, 무엇을 연구하고, 언제 출격할지만 고르세요. 해처리마다 저글링, 히드라리스크, 럴커, 울트라리스크가 꾸준히 태어나 몰려갑니다.",
+    hero: "싸움은 알아서 벌어집니다.",
+    lead: "건물·연구·출격만 고르세요. 저글링과 히드라는 해처리가 알아서 변태시킵니다.",
     howto: [
       ["경제", "드론을 늘리고 오버로드로 인구를 확보하세요. 익스트랙터를 지으면 가스가 들어옵니다."],
       ["테크", "스포닝 풀로 저글링, 히드라리스크 덴으로 히드라를 열고, 레어 변태 뒤 럴커와 울트라리스크를 해금하세요."],
@@ -129,7 +129,8 @@ function armyText(counts: Partial<Record<string, number>>) {
   return parts.length ? parts.join(" · ") : "없음";
 }
 const RESEARCH_IDS = Object.keys(STW_RESEARCH) as StwResearchId[];
-const WAVE_SIZES = [0, 6, 10, 16];
+/** 자동 출격: 0은 끔, 1은 생산되는 대로 즉시, 나머지는 집결지에 모인 전투 병력 수. */
+const WAVE_SIZES = [0, 1, 6, 10, 16];
 /** "본진 수비" 버튼이 쓰는 집결 위치(본진 앞). */
 const HOME_Y = STW_RALLY_POINTS.find((point) => point.id === "main")!.y;
 
@@ -787,6 +788,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
   const count = (list: { type: string }[], type: StwArmyType) => list.filter((unit) => unit.type === type).length;
   const overlordsReady = stwOwnBuildings(game, "player", "overlord").filter((item) => stwDone(item)).length;
   const escorting = game.units.some((unit) => unit.side === "player" && unit.type === "overlord");
+  const scouting = game.units.filter((unit) => unit.side === "player" && unit.group === "scout").length;
   const intel = side.intel;
   return (
     <div className="stw-tab">
@@ -802,10 +804,10 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
         <button type="button" disabled={!army.attack.length} onClick={() => issue({ type: "retreat" })}>후퇴<small>공격 병력을 집결지로</small></button>
       </div>
       <h3 className="stw-section">자동 출격</h3>
-      <p className="stw-hint">집결지에 모인 전투 병력이 이 수에 이르면 자동으로 출격합니다. 옵저버·오버로드 같은 지원 유닛은 세지 않습니다.</p>
+      <p className="stw-hint">집결지에 모인 전투 병력이 이 수에 이르면 자동으로 출격합니다. &quot;즉시&quot;는 생산되는 대로 바로 내보냅니다. 옵저버·오버로드 같은 지원 유닛은 세지 않습니다.</p>
       <div className="stw-segment">
         {WAVE_SIZES.map((size) => (
-          <button key={size} type="button" className={side.autoWave === size ? "active" : ""} aria-pressed={side.autoWave === size} onClick={() => issue({ type: "autoWave", size }, size ? `전투 병력이 ${size}기 모이면 자동으로 출격합니다.` : "자동 출격을 껐습니다.")}>{size ? `${size}기` : "끔"}</button>
+          <button key={size} type="button" className={side.autoWave === size ? "active" : ""} aria-pressed={side.autoWave === size} onClick={() => issue({ type: "autoWave", size }, size === 1 ? "전투 유닛이 생산되는 대로 바로 출격합니다." : size ? `전투 병력이 ${size}기 모이면 자동으로 출격합니다.` : "자동 출격을 껐습니다.")}>{size === 1 ? "즉시" : size ? `${size}기` : "끔"}</button>
         ))}
       </div>
       {race.id === "zerg" ? (
@@ -826,7 +828,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
       ) : null}
       <h3 className="stw-section">정찰</h3>
       <div className="stw-scout">
-        <Card title={`${workerName} 정찰`} sub={`${workerName} 1기 잠시 이탈`} note={scout.ok ? "적 본진까지 다녀오며 건물과 병력을 확인" : scout.reason} disabled={!scout.ok} onClick={() => issue({ type: "scout" })} />
+        <Card title={`${workerName} 정찰`} sub={`${workerName} 1기 잠시 이탈`} badge={scouting ? `정찰 중 ${scouting}` : undefined} note={scout.ok ? "적 본진까지 다녀오며 건물과 병력을 확인" : scout.reason} disabled={!scout.ok} onClick={() => issue({ type: "scout" })} />
         <div className="stw-intel">
           {intel ? (
             <>
