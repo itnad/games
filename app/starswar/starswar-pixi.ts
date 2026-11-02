@@ -170,6 +170,20 @@ export class StwPixiRenderer {
     this.app.destroy({ removeView: true }, { children: true, texture: true, textureSource: true });
   }
 
+  /**
+   * 생산 현황 칩에 쓸 아이콘: 지도에 그리는 아군 유닛·건물 텍스처를 PNG 데이터 URL로 뽑는다.
+   * 키는 "u:zealot", "b:gateway" 꼴.
+   */
+  exportIcons(): Record<string, string> {
+    // 동기 추출(canvas)로 한 번에 뽑는다. 프레임 렌더와 섞이지 않게.
+    const icons: Record<string, string> = {};
+    const extract = this.app.renderer.extract;
+    const toUrl = (texture: Texture) => (extract.canvas({ target: texture }) as HTMLCanvasElement).toDataURL("image/png");
+    for (const [type, texture] of Object.entries(this.tex.units.player)) icons[`u:${type}`] = toUrl(texture);
+    for (const [type, texture] of Object.entries(this.tex.buildings.player)) icons[`b:${type}`] = toUrl(texture);
+    return icons;
+  }
+
   render(state: StwState, view: StwView, ui: StwUi) {
     if (state !== this.lastState) this.reset(state);
     const realDt = Math.min(0.1, Math.max(0, ui.clock - this.lastClock));

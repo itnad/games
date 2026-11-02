@@ -4,7 +4,10 @@
 .stw-shell button:disabled { cursor:not-allowed; opacity:.45; }
 .game-readability-scope[data-game-id="starswar"] .game-objective-trigger { top:10px; right:14px; color:#fff4da; border-color:#e9c77a55; background:#241a0ee6; }
 
-.stw-topbar { min-height:58px; padding:8px 150px 8px 14px; display:grid; grid-template-columns:44px minmax(0,1fr); align-items:center; gap:10px; border-bottom:1px solid var(--stw-line); background:#120d07ee; }
+.stw-topbar { position:relative; min-height:58px; padding:8px 150px 8px 14px; display:grid; grid-template-columns:44px minmax(0,1fr); align-items:center; gap:10px; border-bottom:1px solid var(--stw-line); background:#120d07ee; }
+.stw-play-shell .stw-topbar { grid-template-columns:44px auto minmax(0,1fr); gap:8px; }
+.stw-play-shell .stw-topbar .stw-brand { font-size:12px; }
+.stw-play-shell .stw-topbar strong { font-size:19px; }
 .stw-topbar > button { width:42px; height:42px; border:1px solid #e9c77a44; border-radius:50%; background:#ffffff0c; font-size:21px; }
 .stw-topbar > div { min-width:0; display:grid; }
 .stw-topbar .stw-brand { overflow:hidden; color:var(--stw-muted); font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
@@ -87,6 +90,24 @@
 .stw-card small { color:var(--stw-muted); font-size:13px !important; line-height:1.3 !important; }
 .stw-card.done { border-color:#7fe08f55; }
 .stw-card.done small { color:#a9e7b4; }
+/* 생산 현황 칩: 상단 시간 오른쪽. 테두리 링이 진행률(--p). */
+.stw-queue { min-width:0; justify-self:end; }
+/* 최신 항목이 오른쪽 끝에 서고, 넘치면 왼쪽으로 밀어서 본다(row-reverse라 오른쪽 정렬과 스크롤이 함께 된다). */
+.stw-queue-row { display:flex; flex-direction:row-reverse; gap:6px; padding:2px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.stw-queue-row::-webkit-scrollbar { display:none; }
+.stw-chip { position:relative; width:40px; height:40px; flex:0 0 auto; padding:3px; border:0; border-radius:50%; background:conic-gradient(var(--stw-gold) var(--p,0%), #ffffff22 0); }
+.stw-chip.active { background:conic-gradient(#ff9a6e var(--p,0%), #ff715855 0); }
+.stw-chip > span { width:100%; height:100%; display:grid; place-items:center; overflow:hidden; border-radius:50%; background:#1a130b; }
+.stw-chip img { width:30px; height:30px; object-fit:contain; }
+.stw-chip b { color:var(--stw-gold); font-size:14px; }
+.stw-chip em { position:absolute; right:-3px; bottom:-3px; min-width:18px; height:18px; padding:0 4px; display:grid; place-items:center; border-radius:9px; color:#2a1c05; background:var(--stw-gold); font-size:11px; font-weight:900; font-style:normal; }
+.stw-chip i { position:absolute; left:-4px; bottom:-4px; padding:1px 4px; border-radius:6px; color:#1a130b; background:#8fe8a0; font-size:9px; font-weight:900; font-style:normal; }
+.stw-queue-pop { position:absolute; z-index:5; right:10px; left:60px; top:calc(100% + 4px); padding:8px 8px 8px 12px; display:flex; align-items:center; gap:8px; border:1px solid #e9c77a66; border-radius:12px; background:#1a130bf5; box-shadow:0 8px 24px #00000080; }
+.stw-queue-pop > span { flex:1; min-width:0; display:grid; gap:1px; }
+.stw-queue-pop b { font-size:14px; }
+.stw-queue-pop small { color:var(--stw-muted); font-size:12px !important; line-height:1.3 !important; }
+.stw-queue-pop button { min-height:36px; padding:0 12px; flex:0 0 auto; border:1px solid #ff715866; border-radius:10px; color:#ffc3b8; background:#ff71581a; font-size:14px !important; font-weight:900; }
+.stw-queue-pop .stw-queue-close { padding:0 10px; border-color:#e9c77a44; color:var(--stw-muted); background:#ffffff0c; }
 .stw-pending { display:grid; gap:6px; }
 .stw-pending ul, ul.stw-pending { margin:0; padding:0; list-style:none; display:grid; gap:6px; }
 .stw-pending-row { min-height:52px; padding:6px 8px 6px 12px; display:flex; align-items:center; gap:10px; border:1px solid #e9c77a40; border-radius:12px; background:#e6bd620d; }

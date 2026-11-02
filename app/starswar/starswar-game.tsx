@@ -168,6 +168,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [confirmExit, setConfirmExit] = useState(false);
   const [record, setRecord] = useState<BattleRecord>(() => (typeof window === "undefined" ? { wins: 0, losses: 0, best: {} } : readRecord()));
   const [renderer, setRenderer] = useState<"loading" | "ready" | "failed">("loading");
+  const [icons, setIcons] = useState<Record<string, string>>({});
   const [follow, setFollow] = useState(true);
   const [zoomed, setZoomed] = useState(false);
 
@@ -267,6 +268,12 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         pixiRef.current = pixi;
         resize();
         setRenderer("ready");
+        try {
+          setIcons(pixi.exportIcons());
+        } catch (error) {
+          // 아이콘을 못 뽑으면 글자 칩으로 보여 준다.
+          console.error("starswar icons", error);
+        }
       })
       .catch(() => {
         if (!cancelled) setRenderer("failed");
@@ -516,6 +523,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
         <div><span className="stw-brand">{STW_DIFFICULTIES[game.difficulty].name} · {raceOf(game).name} 대 {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
+        <QueueStrip game={game} icons={icons} issue={issue} />
       </header>
       <section className="stw-hud" aria-label="자원 현황">
         <span className="stw-res minerals"><i aria-hidden="true" /><b>{Math.floor(side.minerals)}</b><em>+{income.minerals}</em></span>
@@ -593,13 +601,72 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
 
 type Issue = (command: StwCommand, success?: string) => void;
 
-/** 진행 중인 선택 한 줄: 이름, 진행률, 환불액, 취소 버튼. */
-function PendingRow({ title, detail, refund, onCancel }: { title: string; detail: string; refund: string; onCancel: () => void }) {
+type QueueItem = { key: string; icon: string; fallback: string; progress: number; badge?: string; mark?: string; title: string; detail: string; refund: string; cancel: StwCommand };
+
+/** 진행 중인 생산·건설·연구를 모은다. 칩 하나가 한 항목이고, 일꾼 대기열은 하나로 묶어 수를 배지로 단다. */
+function queueItems(game: StwState): QueueItem[] {
+  const race = raceOf(game);
+  const items: QueueItem[] = [];
+  const worker = STW_UNITS[race.worker] as { name: string; minerals: number; time: number; short: string };
+  const bases = stwOwnBuildings(game, "player", race.base) as { queue: { remaining: number }[] }[];
+  const queued = bases.reduce((sum, base) => sum + base.queue.length, 0);
+  if (queued) {
+    const first = bases.map((base) => base.queue[0]).filter(Boolean).sort((a, b) => a.remaining - b.remaining)[0];
+    items.push({ key: "worker", icon: `u:${race.worker}`, fallback: worker.short, progress: first ? 1 - first.remaining / worker.time : 0, badge: queued > 1 ? String(queued) : undefined, title: `${worker.name} 대기 ${queued}`, detail: "마지막 1기", refund: `광물 ${worker.minerals}`, cancel: { type: "cancelProbe" } });
+  }
+  for (const building of game.buildings) {
+    if (building.side !== "player") continue;
+    const def = STW_BUILDINGS[building.type];
+    if (!stwDone(building)) {
+      const refund = cost(Math.floor(def.minerals * STW_CANCEL_REFUND), Math.floor(def.gas * STW_CANCEL_REFUND));
+      items.push({ key: `build:${building.id}`, icon: `b:${building.type}`, fallback: def.name.slice(0, 1), progress: building.progress, title: building.type === race.base ? `앞마당 ${def.name}` : def.name, detail: `${race.buildVerb} ${Math.round(building.progress * 100)}%`, refund: `광물 ${refund}`, cancel: { type: "cancelBuild", buildingId: building.id } });
+      continue;
+    }
+    if (building.current) {
+      const unit = STW_UNITS[building.current.unit] as { name: string; minerals: number; gas: number; short: string };
+      items.push({ key: `unit:${building.id}`, icon: `u:${building.current.unit}`, fallback: unit.short, progress: 1 - building.current.remaining / building.current.total, title: unit.name, detail: `${PRODUCER_NAMES[building.type as StwProducerType]} · ${race.trainVerb} ${Math.round((1 - building.current.remaining / building.current.total) * 100)}%`, refund: `광물 ${cost(unit.minerals, unit.gas)}`, cancel: { type: "cancelUnit", buildingId: building.id } });
+    }
+    if (building.research) {
+      const def2 = STW_RESEARCH[building.research.id];
+      items.push({ key: `research:${building.id}`, icon: `b:${building.type}`, fallback: "연", mark: "연구", progress: 1 - building.research.remaining / def2.time, title: def2.name, detail: `연구 ${Math.round((1 - building.research.remaining / def2.time) * 100)}%`, refund: `광물 ${cost(def2.minerals, def2.gas)}`, cancel: { type: "cancelResearch", research: building.research.id } });
+    }
+  }
+  return items;
+}
+
+/** 상단 오른쪽의 생산 현황: 아이콘 칩 한 줄. 테두리가 진행률 링이고, 누르면 아래에 이름·진행률·취소가 뜬다. */
+function QueueStrip({ game, icons, issue }: { game: StwState; icons: Record<string, string>; issue: Issue }) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const items = queueItems(game);
+  const active = items.find((item) => item.key === selected) ?? null;
   return (
-    <li className="stw-pending-row">
-      <span><b>{title}</b><small>{detail} · 취소 시 {refund}</small></span>
-      <button type="button" onClick={onCancel} aria-label={`${title} 취소`}>취소</button>
-    </li>
+    <div className="stw-queue" aria-label="진행 중인 생산">
+      <div className="stw-queue-row">
+        {items.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={`stw-chip${item.key === selected ? " active" : ""}`}
+            style={{ "--p": `${Math.round(item.progress * 100)}%` } as React.CSSProperties}
+            aria-label={`${item.title} ${item.detail}`}
+            aria-pressed={item.key === selected}
+            onClick={() => setSelected((current) => (current === item.key ? null : item.key))}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- 렌더러에서 뽑은 데이터 URL 아이콘 */}
+            <span>{icons[item.icon] ? <img src={icons[item.icon]} alt="" /> : <b>{item.fallback}</b>}</span>
+            {item.badge ? <em>{item.badge}</em> : null}
+            {item.mark ? <i>{item.mark}</i> : null}
+          </button>
+        ))}
+      </div>
+      {active ? (
+        <div className="stw-queue-pop" role="dialog" aria-label={`${active.title} 취소`}>
+          <span><b>{active.title}</b><small>{active.detail} · 환불 {active.refund}</small></span>
+          <button type="button" onClick={() => { issue(active.cancel); setSelected(null); }}>취소</button>
+          <button type="button" className="stw-queue-close" onClick={() => setSelected(null)} aria-label="닫기">×</button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -621,22 +688,8 @@ function BuildTab({ game, issue }: { game: StwState; issue: Issue }) {
   const split = stwWorkerSplit(game, "player") as { gas: number; main: number; natural: number; idle: number };
   const probe = stwProbeCheck(game, "player") as StwCheck;
   const queued = bases.reduce((sum, nexus) => sum + (nexus as { queue: unknown[] }).queue.length, 0);
-  const constructing = game.buildings.filter((building) => building.side === "player" && !stwDone(building));
   return (
     <div className="stw-tab">
-      {queued || constructing.length ? (
-        <section className="stw-pending" aria-label="진행 중">
-          <h3 className="stw-section">진행 중</h3>
-          <ul>
-            {queued ? <PendingRow title={`${worker.name} 대기 ${queued}`} detail="마지막 1기" refund={`광물 ${worker.minerals}`} onCancel={() => issue({ type: "cancelProbe" })} /> : null}
-            {constructing.map((building) => {
-              const def = STW_BUILDINGS[building.type];
-              const refund = cost(Math.floor(def.minerals * STW_CANCEL_REFUND), Math.floor(def.gas * STW_CANCEL_REFUND));
-              return <PendingRow key={building.id} title={building.type === race.base ? `앞마당 ${def.name}` : def.name} detail={`${race.buildVerb} ${Math.round(building.progress * 100)}%`} refund={`광물 ${refund}`} onCancel={() => issue({ type: "cancelBuild", buildingId: building.id })} />;
-            })}
-          </ul>
-        </section>
-      ) : null}
       <p className="stw-workers">
         {worker.name} {game.sides.player.probes} · 본진 {split.main}/{STW_ECONOMY.fullSaturation}{bases.length > 1 ? ` · 앞마당 ${split.natural}/${STW_ECONOMY.fullSaturation}` : ""} · 가스 {split.gas}{split.idle ? ` · 남는 ${split.idle}` : ""}
       </p>
@@ -711,15 +764,6 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
         {race.id === "protoss" ? <Card title="아콘 합체" sub={`하이템플러 2기 → 아콘 · 보유 ${templars}`} note={templars >= 2 ? STW_UNITS.archon.note : "하이템플러 2기가 필요합니다"} disabled={templars < 2} onClick={() => issue({ type: "merge" })} /> : null}
       </div>
       <h3 className="stw-section">연구</h3>
-      {game.buildings.some((building) => building.side === "player" && building.research) ? (
-        <ul className="stw-pending">
-          {game.buildings.filter((building) => building.side === "player" && building.research).map((building) => {
-            const id = building.research!.id;
-            const def = STW_RESEARCH[id];
-            return <PendingRow key={building.id} title={def.name} detail={`연구 ${Math.round((1 - building.research!.remaining / def.time) * 100)}%`} refund={`광물 ${cost(def.minerals, def.gas)}`} onCancel={() => issue({ type: "cancelResearch", research: id })} />;
-          })}
-        </ul>
-      ) : null}
       <div className="stw-grid">
         {researchIds.map((id) => {
           const def = STW_RESEARCH[id];
