@@ -130,7 +130,7 @@ function armyText(counts: Partial<Record<string, number>>) {
 }
 const RESEARCH_IDS = Object.keys(STW_RESEARCH) as StwResearchId[];
 /** 자동 출격: 0은 끔, 1은 생산되는 대로 즉시, 나머지는 집결지에 모인 전투 병력 수. */
-const WAVE_SIZES = [0, 1, 6, 10, 16];
+const WAVE_SIZES = [0, 1, 3, 6, 10];
 /** "본진 수비" 버튼이 쓰는 집결 위치(본진 앞). */
 const HOME_Y = STW_RALLY_POINTS.find((point) => point.id === "main")!.y;
 

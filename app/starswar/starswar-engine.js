@@ -411,8 +411,7 @@ export function stwResearchCheck(state, side, id) {
 }
 
 export function stwScoutCheck(state, side) {
-  // 정찰은 시차를 두고 여러 번 보낼 수 있다. 동시에 나가 있는 수만 셋으로 제한한다.
-  if (state.units.filter((unit) => unit.side === side && unit.group === "scout").length >= STW_SCOUT_LIMIT) return fail(`정찰은 동시에 ${STW_SCOUT_LIMIT}기까지`);
+  // 정찰은 시차를 두고 몇 번이든 보낼 수 있다. 일꾼 5기 이상이면 된다.
   if (state.sides[side].probes < 5) return fail(`${STW_UNITS[stwRace(state, side).worker].name} 5기 이상 필요`);
   return { ok: true };
 }
@@ -1420,9 +1419,6 @@ function supportFollow(state, unit, plan, speed, dt) {
     moveToward(unit, slot.x, slot.y, speed, dt);
   }
 }
-
-/** 동시에 나가 있을 수 있는 정찰 일꾼 수. */
-const STW_SCOUT_LIMIT = 3;
 
 /** 대기 병력이 집결지에서 이만큼 넘게 떨어진 적은 쫓지 않는다. */
 const RALLY_LEASH = 12;

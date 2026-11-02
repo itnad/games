@@ -154,18 +154,19 @@ test("starswar high templar storm hits clumps once researched", () => {
 
 test("starswar scouting reveals the enemy tech and returns the probe", () => {
   const state = quiet();
-  state.sides.player.probes = 9;
+  state.sides.player.probes = 8;
   assert.equal(stwCommand(state, "player", { type: "scout" }).ok, true);
-  assert.equal(state.sides.player.probes, 8);
+  assert.equal(state.sides.player.probes, 7);
   assert.equal(stwCommand(state, "player", { type: "scout" }).ok, true, "정찰 중에도 또 보낼 수 있음");
   assert.equal(stwCommand(state, "player", { type: "scout" }).ok, true);
-  assert.match(stwCommand(state, "player", { type: "scout" }).reason, /정찰은 동시에 3기까지/);
-  assert.equal(state.units.filter((unit) => unit.group === "scout").length, 3);
+  assert.equal(stwCommand(state, "player", { type: "scout" }).ok, true, "동시 정찰 수에 제한 없음");
+  assert.match(stwCommand(state, "player", { type: "scout" }).reason, /5기 이상 필요/, "일꾼이 모자라면 못 보냄");
+  assert.equal(state.units.filter((unit) => unit.group === "scout").length, 4);
   run(state, 70);
   assert.ok(state.sides.player.intel, "적 본진 정보");
   assert.equal(state.sides.player.intel.buildings.nexus, 1);
   assert.equal(state.units.some((unit) => unit.group === "scout"), false);
-  assert.equal(state.sides.player.probes, 9, "정찰 3기가 모두 돌아옴");
+  assert.equal(state.sides.player.probes, 8, "정찰 4기가 모두 돌아옴");
   assert.ok(state.log.some((entry) => /정찰 성공/.test(entry.text)));
 });
 
