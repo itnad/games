@@ -1,3 +1,4 @@
+import { emptyControlGroups } from "./orders";
 import { validateGameCommand, type CommandAcknowledgement, type CommandFailureCode, type CommandKind, type GameCommand } from "./commands";
 import { add } from "./fixed-point";
 import { createRngStreams } from "./rng";
@@ -20,9 +21,9 @@ export type EngineRules = {
   commands?: Partial<Record<Exclude<CommandKind, "surrender">, CommandHandler>>;
   systems?: Partial<Record<Exclude<SystemName, "commands">, RuleSystem>>;
 };
-export function startSimulation(seed: number, mapId: string, dataVersion: string, players: PlayerState[]): SimulationState {
+export function startSimulation(seed: number, mapId: string, dataVersion: string, players: (Omit<PlayerState, "controlGroups"> & Partial<Pick<PlayerState, "controlGroups">>)[]): SimulationState {
   const state = createEmptySimulationState(seed);
-  state.players = structuredClone(players).sort((a, b) => a.id - b.id);
+  state.players = structuredClone(players).map(p => ({ ...p, controlGroups: p.controlGroups ?? emptyControlGroups() })).sort((a, b) => a.id - b.id);
   state.map.definitionId = mapId; state.dataVersion = dataVersion;
   state.rngStreams = createRngStreams(seed);
   state.commandState.lastAcceptedSequenceByPlayer = state.players.map(() => 0);
@@ -73,7 +74,7 @@ function execute(state: SimulationState, command: GameCommand, rules: EngineRule
   return { accepted: true, playerId: command.playerId, sequence: command.sequence, executeTick: state.tick, executedEntityIds: valid };
 }
 /** One deterministic 50ms step. Systems are installed by later gameplay stages. */
-export function stepSimulation(state: SimulationState, rules: EngineRules = {}): CommandAcknowledgement[] {
+function runTick(state: SimulationState, rules: EngineRules = {}): CommandAcknowledgement[] {
   if (state.phase !== "running") return [];
   state.tick = add(state.tick, 1);
   const due = state.commandState.pending.filter(command => command.executeTick <= state.tick).sort(compareCommands);
@@ -85,4 +86,24 @@ export function stepSimulation(state: SimulationState, rules: EngineRules = {}):
     if (state.phase !== "running") break;
   }
   return results;
+}
+
+export class SimulationFault extends Error {
+  constructor(readonly tick: number, readonly cause: unknown) { super(`Simulation tick ${tick} failed; restored and paused.`); this.name = "SimulationFault"; }
+}
+/** No caller may observe a partly applied failed tick as running state. */
+export function stepSimulation(state: SimulationState, rules: EngineRules = {}): CommandAcknowledgement[] {
+  if (state.phase !== "running") return [];
+  const checkpoint = structuredClone(state);
+  try {
+    const result = runTick(state, rules);
+    const validated = parse(simulationStateSchema, state);
+    if (!validated.ok) throw new TypeError(JSON.stringify(validated.issues));
+    return result;
+  }
+  catch (cause) {
+    Object.assign(state, checkpoint);
+    state.phase = "paused";
+    throw new SimulationFault(checkpoint.tick + 1, cause);
+  }
 }

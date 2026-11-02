@@ -1,3 +1,4 @@
+import { idleMovement } from "./orders";
 import type { SimulationState } from "./state";
 import { array, integer, object, refine, text, type Infer } from "./validation";
 
@@ -24,11 +25,17 @@ export function createEntity(state: SimulationState, input: { owner: number; def
   state.entities.id.push(id);
   state.entities.owner.push(input.owner); state.entities.definitionId.push(input.definitionId);
   state.entities.x.push(input.x); state.entities.y.push(input.y); state.entities.health.push(input.health);
+  state.movement.push(idleMovement(id));
   return id;
 }
 export function removeEntity(state: SimulationState, id: number): boolean {
   const index = state.entities.id.indexOf(id);
   if (index < 0) return false;
   for (const column of Object.values(state.entities)) column.splice(index, 1);
+  state.movement.splice(index, 1);
+  for (const player of state.players) for (const group of player.controlGroups) group.entityIds = group.entityIds.filter(member => member !== id);
+  for (const motion of state.movement) if (motion.targetEntityId === id) {
+    Object.assign(motion, idleMovement(motion.entityId));
+  }
   return true;
 }

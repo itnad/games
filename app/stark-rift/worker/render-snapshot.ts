@@ -2,11 +2,11 @@ import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import { array, integer, object, parse, refine, reject, text, type Schema } from "../core/validation";
 export type RenderEntity = { id: number; owner: number; definitionId: string; x: number; y: number; health: number };
-export type RenderSnapshot = { tick: number; previousTick: number; viewerPlayerId: number; widthTiles: number; heightTiles: number; entities: RenderEntity[]; visibility: Uint8Array };
+export type RenderSnapshot = { tick: number; previousTick: number; bufferId: number; viewerPlayerId: number; widthTiles: number; heightTiles: number; entities: RenderEntity[]; visibility: Uint8Array };
 const visibilitySchema: Schema<Uint8Array> = { check: (input, path, issues) =>
   (input instanceof Uint8Array && input.length <= 128 * 128 && !input.some(v => v > 2)) || reject(issues, path, "Expected a visibility mask with values 0, 1 or 2.") };
 export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(object({
-  tick: integer(), previousTick: integer(), viewerPlayerId: integer(0, 1), widthTiles: integer(1, 128), heightTiles: integer(1, 128),
+  tick: integer(), previousTick: integer(), bufferId: integer(), viewerPlayerId: integer(0, 1), widthTiles: integer(1, 128), heightTiles: integer(1, 128),
   entities: array(object({ id: integer(1), owner: integer(0, 1), definitionId: text, x: integer(), y: integer(), health: integer() }), 0, 2048),
   visibility: visibilitySchema,
 }), snapshot => snapshot.previousTick <= snapshot.tick && snapshot.visibility.length === snapshot.widthTiles * snapshot.heightTiles &&
@@ -27,5 +27,5 @@ export function createRenderSnapshot(state: SimulationState, map: BattleMap, vie
     if (s.owner[i] !== viewer && visibility[tileY * map.widthTiles + tileX] !== 2) continue;
     entities.push({ id: s.id[i], owner: s.owner[i], definitionId: s.definitionId[i], x: s.x[i], y: s.y[i], health: s.health[i] });
   }
-  return { tick: state.tick, previousTick: Math.max(0, state.tick - 1), viewerPlayerId: viewer, widthTiles: map.widthTiles, heightTiles: map.heightTiles, entities, visibility: visibility.slice() };
+  return { bufferId: 0, tick: state.tick, previousTick: Math.max(0, state.tick - 1), viewerPlayerId: viewer, widthTiles: map.widthTiles, heightTiles: map.heightTiles, entities, visibility: visibility.slice() };
 }

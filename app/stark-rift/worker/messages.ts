@@ -1,6 +1,6 @@
 import { COMMAND_FAILURE_CODES, MAX_COMMANDS_PER_BATCH, gameCommandSchema } from "../core/commands";
 import { renderSnapshotSchema } from "./render-snapshot";
-import { factionSchema, persistenceEnvelopeSchema, phaseSchema } from "../core/state";
+import { factionSchema, persistenceEnvelopeSchema, phaseSchema, sessionStateSchema } from "../core/state";
 import { STARK_RIFT_ENGINE_VERSION, STARK_RIFT_PROTOCOL_VERSION } from "../core/versions";
 import { array, boolean, dictionary, enumeration, integer, literal, nullable, object, optional, parse, refine, taggedUnion, text, unique, union, type Infer, type Schema } from "../core/validation";
 
@@ -31,7 +31,7 @@ export const mainToWorkerSchemas = {
   releaseRenderBuffer: message("releaseRenderBuffer", object({ bufferId: integer() })),
   pause: message("pause", object({ reason: text })),
   resume: message("resume", object({ reason: text })),
-  saveSnapshot: message("saveSnapshot", object({ requestId: integer() })),
+  saveSnapshot: message("saveSnapshot", object({ requestId: integer(), session: optional(sessionStateSchema) })),
   loadSnapshot: message("loadSnapshot", object({ snapshot: persistenceEnvelopeSchema })),
   replaySeek: message("replaySeek", object({ tick: integer() })),
   debugMetrics: message("debugMetrics", object({ windowTicks: integer(1) })),

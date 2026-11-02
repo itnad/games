@@ -3,15 +3,22 @@ import { useEffect, useRef, useState } from "react";
 import type { BattleMap } from "../data/maps";
 import type { RenderSnapshot } from "../worker/render-snapshot";
 import type { BattleRenderer } from "../render/renderer";
-import { attachCameraGestures } from "../input/camera-gestures";
+import { attachCameraGestures, type GestureActions } from "../input/camera-gestures";
 import "../stark-rift.css";
 
 /** Internal component only. No page.tsx/public route until the design's release gate. */
-export function BattleScreen({ map, snapshot, onPause }: { map: BattleMap; snapshot: RenderSnapshot; onPause: () => void }) {
+export function BattleScreen({ map, snapshot, onPause, input, onCameraChange, initialCamera, onRenderFailure }: { map: BattleMap; snapshot: RenderSnapshot; onPause: () => void; input?: GestureActions; onRenderFailure?: () => void; initialCamera?: { centerX: number; centerY: number; zoomLevel: 0 | 1 | 2 }; onCameraChange?: (camera: { centerX: number; centerY: number; zoomLevel: 0 | 1 | 2 }) => void }) {
   const battlefield = useRef<HTMLDivElement>(null), minimap = useRef<HTMLDivElement>(null);
   const renderer = useRef<BattleRenderer | null>(null), latestSnapshot = useRef(snapshot), pause = useRef(onPause);
   const [error, setError] = useState<string | null>(null), [zoom, setZoom] = useState(1), [ready, setReady] = useState(false);
   latestSnapshot.current = snapshot; pause.current = onPause;
+  const inputRef = useRef(input), cameraCallback = useRef(onCameraChange);
+  const renderFailure = useRef(onRenderFailure); renderFailure.current = onRenderFailure;
+  inputRef.current = input; cameraCallback.current = onCameraChange;
+  const cameraChanged = (instance: BattleRenderer) => {
+    instance.draw(); setZoom(instance.camera.zoom);
+    cameraCallback.current?.({ centerX: Math.round(instance.camera.centerX), centerY: Math.round(instance.camera.centerY), zoomLevel: Math.round(instance.camera.zoom) as 0 | 1 | 2 });
+  };
   useEffect(() => {
     let cancelled = false, instance: BattleRenderer | undefined, detach: (() => void) | undefined;
     setReady(false); setError(null);
@@ -22,24 +29,33 @@ export function BattleScreen({ map, snapshot, onPause }: { map: BattleMap; snaps
       const { BattleRenderer } = await import("../render/renderer");
       if (cancelled) return;
       instance = new BattleRenderer(map, battlefield.current!, minimap.current!, () => {
-        pause.current(); setReady(false); setError("화면 연결이 끊어져 경기를 일시정지했습니다. 화면을 다시 열어 주세요.");
+        pause.current(); renderFailure.current?.(); setReady(false); setError("화면 연결이 끊어져 경기를 일시정지했습니다. 화면을 다시 열어 주세요.");
       });
       await instance.init();
       if (cancelled) { instance.destroy(); return; }
       renderer.current = instance;
       const rect = battlefield.current!.getBoundingClientRect();
-      instance.camera.setCenter(map.spawnPoints[0].x * 256, map.spawnPoints[0].y * 256, rect.width, rect.height);
+      if (initialCamera) instance.camera.setZoom(initialCamera.zoomLevel, rect.width, rect.height);
+      instance.camera.setCenter(initialCamera?.centerX ?? map.spawnPoints[0].x * 256, initialCamera?.centerY ?? map.spawnPoints[0].y * 256, rect.width, rect.height);
       instance.setSnapshot(latestSnapshot.current);
-      detach = attachCameraGestures(instance.canvas, instance.camera, () => { instance!.draw(); setZoom(instance!.camera.zoom); });
+      detach = attachCameraGestures(instance.canvas, instance.camera, () => cameraChanged(instance!), {
+        hitTest: point => inputRef.current?.hitTest(point) ?? null,
+        tap: hit => inputRef.current?.tap(hit), preview: hit => inputRef.current?.preview(hit),
+        group: hit => inputRef.current?.group(hit), swipe: (hit, point, attack) => inputRef.current?.swipe(hit, point, attack),
+      });
+      cameraChanged(instance);
       setReady(true);
     };
-    setup().catch(reason => { if (!cancelled) { pause.current(); setError(reason instanceof Error ? reason.message : "화면을 열지 못했습니다. 다시 시도해 주세요."); } });
+    setup().catch(reason => {
+      detach?.(); instance?.destroy(); if (renderer.current === instance) renderer.current = null;
+      if (!cancelled) { pause.current(); renderFailure.current?.(); setReady(false); setError(reason instanceof Error ? reason.message : "화면을 열지 못했습니다. 다시 시도해 주세요."); }
+    });
     return () => { cancelled = true; detach?.(); instance?.destroy(); renderer.current = null; };
   }, [map]);
   useEffect(() => { renderer.current?.setSnapshot(snapshot); }, [snapshot]);
   const changeZoom = (value: number) => {
     const current = renderer.current; if (!current) return;
-    const rect = battlefield.current!.getBoundingClientRect(); current.camera.setZoom(value, rect.width, rect.height); current.draw(); setZoom(value);
+    const rect = battlefield.current!.getBoundingClientRect(); current.camera.setZoom(value, rect.width, rect.height); cameraChanged(current);
   };
   return <section className="sr-battle" aria-label="스타크 리프트 전장">
     <header className="sr-top">

@@ -1,3 +1,4 @@
+import { controlGroupSchema, movementStateSchema, type ControlGroup, type MovementState } from "./orders";
 import { checksum } from "./checksum";
 import { RNG_STREAM_IDS } from "./rng";
 import { entityStoreSchema, emptyEntityStore, type EntityStore } from "./world";
@@ -40,6 +41,7 @@ export type MapState = {
 };
 
 export type PlayerState = {
+  controlGroups: ControlGroup[];
   id: number;
   faction: "terran" | "zerg" | "protoss";
   minerals: number;
@@ -74,6 +76,7 @@ export type SimulationState = {
   map: MapState;
   players: PlayerState[];
   entities: EntityStore;
+  movement: MovementState[];
   projectiles: ProjectileStore;
   gameplayEffects: GameplayEffectStore;
   scheduledEvents: ScheduledEventQueue;
@@ -119,6 +122,7 @@ export function createEmptySimulationState(seed: number): SimulationState {
     map: { definitionId: "", obstacleVersion: 0 },
     players: [],
     entities: emptyEntityStore(),
+    movement: [],
     projectiles: {},
     gameplayEffects: {},
     scheduledEvents: [],
@@ -155,6 +159,7 @@ export const factionSchema = enumeration(["terran", "zerg", "protoss"]);
 export const phaseSchema = enumeration(["setup", "running", "paused", "finished"]);
 const playerSchema = object({
   id: integer(), faction: factionSchema, minerals: integer(), gas: integer(),
+  controlGroups: array(controlGroupSchema, 5, 5),
   supplyUsedHalf: integer(), supplyCapHalf: integer(0, 200),
 });
 const rngSchema = refine(object({
@@ -173,6 +178,7 @@ export const simulationStateSchema: Schema<SimulationState> = refine(object({
   phase: phaseSchema,
   map: object({ definitionId: union(text, literal("")), obstacleVersion: integer() }),
   players: refine(array(playerSchema, 0, 2), players => new Set(players.map(p => p.id)).size === players.length, "Duplicate player ID."),
+  movement: array(movementStateSchema, 0, 2048),
   entities: entityStoreSchema, projectiles: emptyStore, gameplayEffects: emptyStore,
   scheduledEvents: array(emptyStore, 0, 0), ai: array(emptyStore, 0, 0),
   outcome: nullable(object({ kind: enumeration(["victory", "defeat", "draw", "surrender"]), winnerPlayerId: nullable(integer()), decidedTick: integer() })),
@@ -180,6 +186,20 @@ export const simulationStateSchema: Schema<SimulationState> = refine(object({
   const ids = state.players.map(p => p.id);
   if (!ids.every((id, i) => id === i)) return false;
   if (state.entities.id.some((id, i) => id >= state.counters.nextEntityId || !ids.includes(state.entities.owner[i]))) return false;
+  if (state.movement.length !== state.entities.id.length || state.movement.some((m, i) => m.entityId !== state.entities.id[i])) return false;
+  if (state.movement.some(m => m.targetEntityId !== null && !state.entities.id.includes(m.targetEntityId))) return false;
+  for (const player of state.players) {
+    const assigned = new Set<number>();
+    for (const group of player.controlGroups) {
+      let definition: string | null = null;
+      for (const id of group.entityIds) {
+        const index = state.entities.id.indexOf(id);
+        if (index < 0 || assigned.has(id) || state.entities.owner[index] !== player.id || state.entities.health[index] === 0) return false;
+        if (definition !== null && definition !== state.entities.definitionId[index]) return false;
+        definition = state.entities.definitionId[index]; assigned.add(id);
+      }
+    }
+  }
   if (state.phase !== "setup" && (ids.length !== 2 || state.rngStreams.length !== 4 || !state.map.definitionId)) return false;
   if (state.phase === "setup" && state.tick !== 0) return false;
   if ((state.phase === "finished") !== (state.outcome !== null)) return false;

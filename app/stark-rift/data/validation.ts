@@ -1,8 +1,9 @@
 import {
-  array, enumeration, integer, literal, object, parse, text,
+  array, enumeration, integer, literal, object, parse, text, union,
   type Infer, type ValidationIssue, type ValidationResult,
 } from "../core/validation";
 import { factionSchema } from "../core/state";
+import { battleMapSchema } from "./maps";
 import { STARK_RIFT_SCHEMA_VERSION } from "../core/versions";
 export type { ValidationIssue, ValidationResult } from "../core/validation";
 
@@ -32,10 +33,11 @@ export const abilityDefinitionSchema = object({
   target: enumeration(["point", "entity", "self"]), autocast: enumeration(["supported", "unsupported"]),
 });
 export const technologyDefinitionSchema = object({ ...common, researchedAt: array(text, 1) });
-export const mapDefinitionSchema = object({
+export const mapMetadataSchema = object({
   id: text, widthTiles: integer(1, 128), heightTiles: integer(1, 128),
   spawnPoints: array(object({ x: integer(), y: integer() }), 2, 4),
 });
+export const mapDefinitionSchema = union(mapMetadataSchema, battleMapSchema);
 export const dataBundleSchema = object({
   schemaVersion: literal(STARK_RIFT_SCHEMA_VERSION),
   dataVersion: text,

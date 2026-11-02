@@ -1,3 +1,5 @@
+import { array, enumeration, integer, literal, object, refine, reject, text, type Schema } from "../core/validation";
+import { checksum } from "../core/checksum";
 export type MapPoint = { x: number; y: number };
 export type ResourceNode = MapPoint & { id: string; kind: "mineral" | "gas"; amount: number; baseId: string };
 export type MapRegion = MapPoint & { id: string; kind: "main" | "natural" | "outer" | "center" | "ramp"; radius: number };
@@ -92,4 +94,20 @@ export function validateBattleMap(map: BattleMap): void {
   const distances = mapDistances(map, map.spawnPoints[0]);
   if (map.walkable.some((walk, i) => walk && distances[i] < 0)) throw new RangeError("Map contains an isolated walkable region.");
   if (map.regions.some(r => distances[r.y * w + r.x] < 0)) throw new RangeError("Unreachable base or ramp.");
+}
+
+const bytes: Schema<Uint8Array> = { check: (value, path, issues) => (value instanceof Uint8Array && value.length <= 128 * 128) || reject(issues, path, "Expected bounded map bytes.") };
+const point = { x: integer(), y: integer() };
+export const battleMapSchema: Schema<BattleMap> = refine(object({
+  id: text, widthTiles: integer(1, 128), heightTiles: integer(1, 128), symmetry: literal("rotational-180"),
+  terrain: bytes, height: bytes, walkable: bytes, buildable: bytes,
+  spawnPoints: array(object(point), 2, 2),
+  resourceNodes: array(object({ ...point, id: text, kind: enumeration(["mineral", "gas"]), amount: integer(1), baseId: text }), 0, 1024),
+  regions: array(object({ ...point, id: text, kind: enumeration(["main", "natural", "outer", "center", "ramp"]), radius: integer(1) }), 0, 128),
+}), map => { try { validateBattleMap(map); return true; } catch { return false; } }, "Invalid tactical map.");
+export function getRuntimeMap(id: string): { map: BattleMap; dataVersion: string } {
+  if (id !== "rift-basin") throw new RangeError("Unknown map ID.");
+  const map = createRiftBasin();
+  const canonical = { ...map, terrain: [...map.terrain], height: [...map.height], walkable: [...map.walkable], buildable: [...map.buildable] };
+  return { map, dataVersion: `map-${checksum(canonical)}` };
 }

@@ -1,37 +1,49 @@
 import type { BattleCamera } from "../render/camera";
-export function attachCameraGestures(canvas: HTMLCanvasElement, camera: BattleCamera, changed: () => void): () => void {
-  const pointers = new Map<number, { x: number; y: number }>();
-  let pinchDistance = 0, pinchZoom = 1;
-  const point = (event: PointerEvent) => { const r = canvas.getBoundingClientRect(); return { x: event.clientX - r.left, y: event.clientY - r.top }; };
-  const dimensions = () => ({ width: canvas.clientWidth, height: canvas.clientHeight });
-  const down = (event: PointerEvent) => {
-    if (event.button !== 0) return;
-    canvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, point(event));
-    if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinchDistance = Math.hypot(a.x - b.x, a.y - b.y); pinchZoom = camera.zoom; }
-  };
-  const move = (event: PointerEvent) => {
-    const old = pointers.get(event.pointerId); if (!old) return;
-    const next = point(event); pointers.set(event.pointerId, next);
-    const { width, height } = dimensions();
-    if (pointers.size === 1) {
-      const scale = camera.scale(width, height);
-      camera.setCenter(camera.centerX - (next.x - old.x) / scale, camera.centerY - (next.y - old.y) / scale, width, height);
-    } else if (pointers.size === 2 && pinchDistance > 0) {
-      const [a, b] = [...pointers.values()], x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
+import { GestureMachine, type GestureCallbacks } from "./gesture-machine";
+export type GestureActions = Pick<GestureCallbacks, "hitTest" | "tap" | "preview" | "group" | "swipe">;
+export function attachCameraGestures(canvas: HTMLCanvasElement, camera: BattleCamera, changed: () => void, actions?: GestureActions): () => void {
+  const pointers = new Set<number>(); let pinchZoom = camera.zoom;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const size = () => ({ width: canvas.clientWidth, height: canvas.clientHeight });
+  const machine = new GestureMachine({
+    hitTest: point => actions?.hitTest(point) ?? null,
+    tap: hit => actions?.tap(hit), preview: hit => actions?.preview(hit),
+    group: hit => actions?.group(hit), swipe: (hit, point, attack) => actions?.swipe(hit, point, attack),
+    pan: (dx, dy) => { const {width, height} = size(); const scale = camera.scale(width, height); camera.setCenter(camera.centerX - dx / scale, camera.centerY - dy / scale, width, height); },
+    pinch: (a, b, initial) => {
+      const {width, height} = size(), x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
       const before = camera.screenToWorld(x, y, width, height);
-      camera.setZoom(pinchZoom - Math.log2(Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)) / pinchDistance) * 2, width, height);
+      camera.setZoom(pinchZoom - Math.log2(Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)) / initial) * 2, width, height);
       const after = camera.screenToWorld(x, y, width, height);
       camera.setCenter(camera.centerX + before.x - after.x, camera.centerY + before.y - after.y, width, height);
-    }
+    },
+    pinchEnd: () => { const {width, height} = size(); camera.setZoom(Math.round(camera.zoom), width, height); },
+  });
+  const point = (event: PointerEvent) => { const r = canvas.getBoundingClientRect(); return {x: event.clientX - r.left, y: event.clientY - r.top}; };
+  const down = (event: PointerEvent) => {
+    if (event.button !== 0 || pointers.size >= 2) return;
+    if (pointers.size === 1) pinchZoom = camera.zoom;
+    pointers.add(event.pointerId); canvas.setPointerCapture(event.pointerId);
+    machine.down(event.pointerId, point(event), performance.now()); clearTimeout(timer);
+    if (pointers.size === 1) timer = setTimeout(() => { machine.advance(performance.now()); changed(); }, 300);
+  };
+  const move = (event: PointerEvent) => { if (pointers.has(event.pointerId)) { machine.move(event.pointerId, point(event)); changed(); } };
+  const up = (event: PointerEvent) => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.delete(event.pointerId); clearTimeout(timer); machine.up(event.pointerId, performance.now());
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId); changed();
+  };
+  const cancel = () => {
+    clearTimeout(timer); machine.cancel(); const ids = [...pointers]; pointers.clear();
+    for (const id of ids) if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
     changed();
   };
-  const up = (event: PointerEvent) => {
-    const wasPinching = pointers.size > 1;
-    pointers.delete(event.pointerId);
-    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-    if (wasPinching) { const { width, height } = dimensions(); camera.setZoom(Math.round(camera.zoom), width, height); pinchDistance = 0; changed(); }
+  const lost = (event: PointerEvent) => { if (pointers.has(event.pointerId)) cancel(); };
+  canvas.addEventListener("pointerdown", down); canvas.addEventListener("pointermove", move); canvas.addEventListener("pointerup", up);
+  canvas.addEventListener("pointercancel", cancel); canvas.addEventListener("lostpointercapture", lost);
+  return () => {
+    canvas.removeEventListener("pointerdown", down); canvas.removeEventListener("pointermove", move); canvas.removeEventListener("pointerup", up); canvas.removeEventListener("pointercancel", cancel); canvas.removeEventListener("lostpointercapture", lost);
+    clearTimeout(timer); const ids = [...pointers]; pointers.clear(); machine.cancel();
+    for (const id of ids) if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
   };
-  canvas.addEventListener("pointerdown", down); canvas.addEventListener("pointermove", move);
-  canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up); canvas.addEventListener("lostpointercapture", up);
-  return () => { canvas.removeEventListener("pointerdown", down); canvas.removeEventListener("pointermove", move); canvas.removeEventListener("pointerup", up); canvas.removeEventListener("pointercancel", up); canvas.removeEventListener("lostpointercapture", up); pointers.clear(); };
 }

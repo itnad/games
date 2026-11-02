@@ -133,7 +133,7 @@ describe("worker boundary in both directions", () => {
     if (!result.ok) expect(result.issues.some(issue => issue.path.startsWith("payload.snapshot."))).toBe(true);
   });
   const outgoing = {
-    renderSnapshot: { tick: 0, previousTick: 0, viewerPlayerId: 0, widthTiles: 1, heightTiles: 1, entities: [], visibility: new Uint8Array(1) },
+    renderSnapshot: { bufferId: 0, tick: 0, previousTick: 0, viewerPlayerId: 0, widthTiles: 1, heightTiles: 1, entities: [], visibility: new Uint8Array(1) },
     ready: { tick: 0, engineVersion: STARK_RIFT_ENGINE_VERSION as typeof STARK_RIFT_ENGINE_VERSION, dataVersion: "fixture" },
     commandAck: { accepted: false, playerId: 0, sequence: 1, code: "invalid_target" },
     phaseChanged: { tick: 0, phase: "paused" }, snapshotLoaded: { tick: 0 },

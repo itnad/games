@@ -12,6 +12,7 @@ export class BattleRenderer {
   private fogCanvas = document.createElement("canvas"); private fogMask: Uint8Array;
   private sprites = new Map<number, Graphics>(); private pool: Graphics[] = [];
   private snapshot: RenderSnapshot | null = null; private disposed = false; private initialized = false;
+  private initializing = false; private cleaned = false; private pendingTerrain?: Graphics;
   private previousPositions = new Map<number, { x: number; y: number }>(); private receivedAt = 0;
   private ticker = new Ticker();
   private resizeObserver?: ResizeObserver; private cleanups: (() => void)[] = [];
@@ -20,21 +21,25 @@ export class BattleRenderer {
     this.fogMask = new Uint8Array(map.widthTiles * map.heightTiles).fill(255);
   }
   async init(): Promise<void> {
+    if (this.disposed) return;
+    if (this.initializing || this.initialized) throw new Error("Renderer already initialized.");
+    this.initializing = true;
     const options = { preference: "webgl" as const, preferWebGLVersion: 2 as const, autoStart: false, antialias: false, resolution: Math.min(devicePixelRatio || 1, 3), autoDensity: true, background: 0x070b12 };
     try {
       await this.app.init({ ...options, width: this.battlefield.clientWidth || 1, height: this.battlefield.clientHeight || 1 });
+      if (this.disposed) return;
       await this.minimap.init({ ...options, width: this.minimapHost.clientWidth || 1, height: this.minimapHost.clientHeight || 1 });
       this.initialized = true;
-      if (this.disposed) { this.destroyApplications(); return; }
+      if (this.disposed) return;
       if ([this.app, this.minimap].some(app => (app.renderer as WebGLRenderer).context.webGLVersion !== 2)) throw new Error("WebGL2 is required.");
       this.battlefield.append(this.app.canvas); this.minimapHost.append(this.minimap.canvas);
       this.app.stage.addChild(this.world);
-      const terrain = new Graphics();
+      const terrain = new Graphics(); this.pendingTerrain = terrain;
       for (let i = 0; i < this.map.terrain.length; i++) terrain.rect(i % this.map.widthTiles, Math.floor(i / this.map.widthTiles), 1, 1).fill(TERRAIN_COLORS[this.map.terrain[i]]);
       for (const node of this.map.resourceNodes) terrain.rect(node.x, node.y, 1, 1).fill(node.kind === "mineral" ? 0x65cae4 : 0x74b884);
       this.terrainTexture = this.app.renderer.generateTexture({ target: terrain, resolution: 2 });
       // RenderTextures live on their creating GPU context; minimap has a separate renderer.
-      this.minimapTerrainTexture = this.minimap.renderer.generateTexture({ target: terrain, resolution: 2 }); terrain.destroy();
+      this.minimapTerrainTexture = this.minimap.renderer.generateTexture({ target: terrain, resolution: 2 }); terrain.destroy(); this.pendingTerrain = undefined;
       this.world.addChild(new Sprite(this.terrainTexture), this.units);
       const miniTerrain = new Sprite(this.minimapTerrainTexture); miniTerrain.label = "terrain"; this.minimap.stage.addChild(miniTerrain, this.minimapUnits);
       this.fogCanvas.width = this.map.widthTiles; this.fogCanvas.height = this.map.heightTiles;
@@ -54,7 +59,8 @@ export class BattleRenderer {
       this.resizeObserver = new ResizeObserver(() => this.resize()); this.resizeObserver.observe(this.battlefield); this.resizeObserver.observe(this.minimapHost);
       this.resize();
       this.ticker.maxFPS = 60; this.ticker.add(this.draw); this.ticker.start();
-    } catch (error) { this.destroyApplications(); throw error; }
+    } catch (error) { this.disposed = true; throw error; }
+    finally { this.initializing = false; if (this.disposed) this.releaseResources(); }
   }
   get canvas(): HTMLCanvasElement { return this.app.canvas; }
   private updateFog(mask: Uint8Array) {
@@ -106,8 +112,16 @@ export class BattleRenderer {
     if (this.minimap.renderer) this.minimap.destroy({ removeView: true }, { children: true, texture: false });
   }
   destroy(): void {
-    if (this.disposed) return; this.disposed = true; this.ticker.destroy(); this.resizeObserver?.disconnect(); this.cleanups.forEach(fn => fn());
-    if (this.initialized) this.destroyApplications();
+    if (this.disposed) return;
+    this.disposed = true;
+    if (!this.initializing) this.releaseResources();
+  }
+  private releaseResources(): void {
+    if (this.cleaned) return; this.cleaned = true;
+    this.ticker.destroy(); this.resizeObserver?.disconnect(); this.cleanups.forEach(fn => fn());
+    this.pendingTerrain?.destroy(); this.pendingTerrain = undefined;
+    this.destroyApplications();
+    for (const display of [this.world, this.minimapUnits, this.viewportOutline]) if (!display.destroyed) display.destroy({children:true});
     this.pool.forEach(sprite => sprite.destroy()); this.terrainTexture?.destroy(true); this.minimapTerrainTexture?.destroy(true); this.fogTexture?.destroy(true);
   }
 }
