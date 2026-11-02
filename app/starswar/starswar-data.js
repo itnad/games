@@ -64,7 +64,7 @@ export const STW_UNITS = {
     id: "templar", name: "하이템플러", short: "H", minerals: 50, gas: 150, time: 26, supply: 2, from: "gateway", requires: "archives",
     hp: 40, shields: 40, armor: 0, size: "small", speed: 2.2, radius: 1.05, sight: 10, role: "caster",
     energy: 50, maxEnergy: 200, energyRegen: 0.8,
-    note: "무기 없음 · 사이오닉 스톰으로 뭉친 적을 녹임",
+    note: "무기 없음 · 사이오닉 스톰(3초 동안 총 105)으로 뭉친 적을 녹임",
   },
   dark: {
     id: "dark", name: "다크템플러", short: "K", minerals: 125, gas: 100, time: 26, supply: 2, from: "gateway", requires: "archives",
@@ -310,7 +310,7 @@ export const STW_CANCEL_REFUND = 0.75;
  */
 export const STW_DEFENSE_REACH = 8.5;
 
-export const STW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 26, castRange: 9, minTargets: 3 };
+export const STW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 35, castRange: 9, minTargets: 3 };
 
 export const STW_ECONOMY = {
   startMinerals: 50,
