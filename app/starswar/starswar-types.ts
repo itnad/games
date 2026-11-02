@@ -67,7 +67,7 @@ export type StwScan = { id: number; side: StwSide; x: number; y: number; radius:
 export type StwStorm = { id: number; side: StwSide; x: number; y: number; ttl: number };
 export type StwIntel = { race?: StwRaceId; time: number; buildings: Partial<Record<StwBuildingType, number>>; units: Record<StwArmyType, number>; research: { id: StwResearchId; status: string }[]; probes: number };
 export type StwSeen = { id: number; type: StwBuildingType; x: number; y: number; base: string; radius: number; at: number };
-export type StwStats = { minerals: number; gas: number; produced: number; lost: number; kills: number; buildingsLost: number; buildingsDestroyed: number; storms: number };
+export type StwStats = { minerals: number; gas: number; produced: number; lost: number; kills: number; buildingsLost: number; buildingsDestroyed: number; storms: number; overkill: number };
 
 export type StwSideState = {
   id: StwSide;

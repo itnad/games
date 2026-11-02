@@ -60,8 +60,8 @@ const BUILD_ORDERS = {
   ],
   vulture: [
     { build: "depot" }, { build: "barracks" }, { build: "refinery" }, { build: "factory" }, { build: "depot" },
-    { build: "factory" }, { build: "refinery" }, { build: "shop" }, { research: "ion" }, { research: "siege" },
-    { build: "expand", at: 320 }, { build: "factory" }, { build: "academy" }, { build: "comsat" }, { build: "ebay" }, { build: "turret" },
+    { build: "factory" }, { build: "refinery" }, { build: "shop" }, { research: "siege" }, { research: "ion" },
+    { build: "bunker" }, { build: "expand", at: 320 }, { build: "factory" }, { build: "academy" }, { build: "comsat" }, { build: "ebay" }, { build: "turret" },
   ],
   pool: [
     { build: "pool" }, { build: "overlord" }, { build: "extractor" }, { research: "metabolic" }, { build: "hatch" },
@@ -88,7 +88,7 @@ const BUILD_ORDERS = {
 };
 
 const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22], bio: [8, 12, 16, 22], mech: [8, 12, 16, 20],
-  tankbio: [10, 14, 20, 26], vulture: [5, 8, 12, 16, 20], ling: [12, 16, 22, 28, 34], hydra: [14, 18, 24, 30], pool: [6, 10, 14, 20, 26], ultra: [12, 18, 24, 30] };
+  tankbio: [10, 14, 20, 26], vulture: [8, 12, 16, 20], ling: [12, 16, 22, 28, 34], hydra: [14, 18, 24, 30], pool: [6, 10, 14, 20, 26], ultra: [12, 18, 24, 30] };
 const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, tankbio: 5, vulture: 4, ling: 3, hydra: 3, pool: 3, ultra: 3 };
 /** 빌드 순서가 끝난 뒤 남는 자원으로 더 짓는 생산 건물. */
 const EXTRA_PRODUCER = { bio: "barracks", mech: "factory", tankbio: "barracks", vulture: "factory", ling: "hatch", hydra: "hatch", pool: "hatch", ultra: "hatch" };
@@ -352,7 +352,8 @@ function terranLines(state, side, persona, units, reserve) {
     let unit = null;
     if (persona === "mech") unit = shop && (index % 2 === 0 || count("vulture") >= (versusZerg ? 8 : 4)) ? "tank" : "vulture";
     // 벌처 러시: 벌처 위주, 시즈 모드가 끝나면 팩토리 셋 중 하나는 탱크.
-    else if (persona === "vulture") unit = shop && record.research.siege === "done" && index % 3 === 2 ? "tank" : "vulture";
+    // 벌처 러시: 머신 샵이 서면 팩토리 둘 중 하나는 탱크(완벽한 카이팅이 사라진 뒤 벌처만으로는 못 민다).
+    else if (persona === "vulture") unit = shop && index % 2 === 1 ? "tank" : "vulture";
     else if (shop) unit = meleeHeavy && index % 2 === 1 ? "vulture" : "tank";
     else if (meleeHeavy) unit = "vulture";
     // 대형 상대로는 벌처 대신 탱크를 늘린다.

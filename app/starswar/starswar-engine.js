@@ -116,7 +116,7 @@ function createSide(id, persona, race) {
     seen: {},
     persona,
     escort: false,
-    stats: { minerals: 0, gas: 0, produced: 0, lost: 0, kills: 0, buildingsLost: 0, buildingsDestroyed: 0, storms: 0 },
+    stats: { minerals: 0, gas: 0, produced: 0, lost: 0, kills: 0, buildingsLost: 0, buildingsDestroyed: 0, storms: 0, overkill: 0 },
     ai: null,
   };
 }
@@ -955,7 +955,11 @@ function targetable(state, attacker, target) {
 
 function applyHits(state) {
   for (const hit of state.pendingHits) {
-    if (hit.target.hp <= 0) continue;
+    if (hit.target.hp <= 0) {
+      // 이미 죽은 목표에 들어간 공격(낭비). 시뮬레이션 지표로만 쓴다.
+      state.sides[hit.attacker.side].stats.overkill += 1;
+      continue;
+    }
     for (const amount of hit.hits) applyDamage(state, hit.target, amount);
     hit.target.lastHit = state.time;
     const unseen = hit.attacker.kind === "unit" && isCloaked(hit.attacker) && !stwDetected(state, hit.attacker, hit.target.side);
@@ -971,24 +975,59 @@ function applyHits(state) {
   state.pendingHits = [];
 }
 
-/** 이번 틱에 같은 편 근접 유닛들이 노리고 있는 적의 수(id → 수). stepUnits가 채운다. */
-let meleeFocus = new Map();
+/** 판마다 "같은 편 근접 유닛들이 노리는 적의 수"(id → 수). stepUnits가 틱마다 새로 만들고, 목표를 고를 때마다 바로 갱신한다. */
+const meleeFocusByState = new WeakMap();
+
+function meleeFocusOf(state) {
+  let focus = meleeFocusByState.get(state);
+  if (!focus) {
+    focus = new Map();
+    meleeFocusByState.set(state, focus);
+  }
+  return focus;
+}
+
+/** 이번 틱에 이미 예약된 피해(목표 id → 합). 같은 틱에 여럿이 같은 적을 쏴서 죽은 뒤에도 때리는 낭비를 줄인다. */
+function pendingDamageOf(state) {
+  const map = new Map();
+  for (const hit of state.pendingHits) map.set(hit.target.id, (map.get(hit.target.id) ?? 0) + hit.hits.reduce((sum, amount) => sum + amount, 0));
+  return map;
+}
+
+/** 목표 점수: 거리에 일꾼·지원 유닛 벌점, 근접 유닛에는 이미 둘 넘게 붙은 적의 벌점을 더한다. 작을수록 좋다. */
+function targetScore(state, attacker, unit, d) {
+  const melee = attacker.kind === "unit" && STW_UNITS[attacker.type].role === "melee";
+  const crowd = melee ? Math.max(0, (meleeFocusOf(state).get(unit.id) ?? 0) - 2) * 1.2 : 0;
+  return d + (isPassive(unit) ? 3 : 0) + crowd;
+}
 
 function findTarget(state, attacker, radius, { unitsOnly = false } = {}) {
   let best = null;
   let bestScore = Infinity;
-  // 근접 유닛은 한 적에 둘 넘게 붙어 봐야 자리가 없으므로, 이미 여럿이 노리는 적은 뒤로 미룬다.
-  const melee = attacker.kind === "unit" && STW_UNITS[attacker.type].role === "melee";
+  let doomedBest = null;
+  let doomedScore = Infinity;
+  const pending = pendingDamageOf(state);
   for (const unit of state.units) {
     if (unit.side === attacker.side || unit.hp <= 0) continue;
     const d = distance(attacker.x, attacker.y, unit.x, unit.y) - unit.radius;
     if (d > radius || !targetable(state, attacker, unit)) continue;
-    const crowd = melee ? Math.max(0, (meleeFocus.get(unit.id) ?? 0) - 2) * 1.2 : 0;
-    const score = d + (isPassive(unit) ? 3 : 0) + crowd;
+    const score = targetScore(state, attacker, unit, d);
+    // 이번 틱의 예약 피해만으로 이미 죽을 적은 뒤로 미룬다(다른 적이 없으면 그래도 고른다).
+    if ((pending.get(unit.id) ?? 0) >= unit.hp + unit.shields) {
+      if (score < doomedScore) {
+        doomedBest = unit;
+        doomedScore = score;
+      }
+      continue;
+    }
     if (score < bestScore) {
       best = unit;
       bestScore = score;
     }
+  }
+  if (!best && doomedBest) {
+    best = doomedBest;
+    bestScore = doomedScore;
   }
   if (unitsOnly) return best;
   for (const building of state.buildings) {
@@ -1145,11 +1184,17 @@ function stepUnits(state, dt) {
       alertOnce(state, "defend", 15, "player", "대기 병력이 기지에 들어온 적을 요격합니다.", "order");
     }
   }
-  // 근접 유닛의 목표 분산용: 지금 각 적을 노리는 같은 편 근접 유닛 수.
-  meleeFocus = new Map();
+  // 근접 유닛의 목표 분산용: 지금 각 적을 노리는 같은 편 근접 유닛 수. 틱 안에서 목표를 바꿀 때마다 갱신한다.
+  const meleeFocus = meleeFocusOf(state);
+  meleeFocus.clear();
   for (const unit of state.units) {
     if (unit.targetId !== null && unit.hp > 0 && STW_UNITS[unit.type].role === "melee") meleeFocus.set(unit.targetId, (meleeFocus.get(unit.targetId) ?? 0) + 1);
   }
+  const retarget = (unit, from, to) => {
+    if (STW_UNITS[unit.type].role !== "melee" || from === to) return;
+    if (from !== null) meleeFocus.set(from, Math.max(0, (meleeFocus.get(from) ?? 1) - 1));
+    if (to !== null) meleeFocus.set(to, (meleeFocus.get(to) ?? 0) + 1);
+  };
   for (const unit of state.units) {
     if (unit.hp <= 0) continue;
     unit.cooldown = Math.max(0, unit.cooldown - dt);
@@ -1201,11 +1246,24 @@ function stepUnits(state, dt) {
       if (!target) {
         target = findTarget(state, unit, sight);
         if (target && leashed(target)) target = null;
-      } else if (def.role === "melee" && distance(unit.x, unit.y, target.x, target.y) - target.radius - unit.radius * 0.5 > range + 0.6) {
-        // 근접 유닛: 목표가 닿는 거리 밖으로 벗어났는데 더 가까운 적이 있으면 그쪽으로 바꾼다(도망가는 적에게 끌려다니지 않는다).
-        const nearer = findTarget(state, unit, sight);
-        if (nearer && nearer !== target && !leashed(nearer) && distance(unit.x, unit.y, nearer.x, nearer.y) - nearer.radius < distance(unit.x, unit.y, target.x, target.y) - target.radius - 1) target = nearer;
+      } else {
+        // 목표가 사거리 밖으로 벗어났고 멀어지는 중이면, 점수가 1 넘게 좋은 다른 적 유닛으로 바꾼다(도망가는 적에게 끌려다니지 않는다).
+        const dTarget = distance(unit.x, unit.y, target.x, target.y) - target.radius;
+        const outOfReach = dTarget - unit.radius * 0.5 > range + 0.6;
+        const receding = unit.lastTargetDistance !== undefined && dTarget > unit.lastTargetDistance + 0.01;
+        unit.lastTargetDistance = dTarget;
+        if (outOfReach && receding && target.kind === "unit") {
+          const other = findTarget(state, unit, sight, { unitsOnly: true });
+          if (other && other !== target && !leashed(other)) {
+            const dOther = distance(unit.x, unit.y, other.x, other.y) - other.radius;
+            if (targetScore(state, unit, other, dOther) < targetScore(state, unit, target, dTarget) - 1) target = other;
+          }
+        }
       }
+    }
+    if ((target?.id ?? null) !== unit.targetId) {
+      retarget(unit, unit.targetId, target?.id ?? null);
+      unit.lastTargetDistance = undefined;
     }
     unit.targetId = target?.id ?? null;
     if (target) {
@@ -1336,7 +1394,9 @@ function lurkerStep(state, unit, retreating) {
   if (unit.burrowed) {
     const target = findTargetBand(state, unit, 0, range + unit.radius * 0.5);
     if (target) unit.lastBurrowTargetAt = state.time;
-    if (retreating || (!target && state.time - (unit.lastBurrowTargetAt ?? 0) > 2)) {
+    // 사거리 조금 밖에 적이 다가오는 중이면 계속 숨어 있는다(들락거리며 1초씩 버리지 않도록).
+    const approaching = !target && findTargetBand(state, unit, 0, range + 4);
+    if (retreating || (!target && !approaching && state.time - (unit.lastBurrowTargetAt ?? 0) > 3)) {
       unit.burrowed = false;
       unit.burrowUntil = state.time + def.burrow.setup;
       unit.targetId = null;
@@ -1539,17 +1599,17 @@ function templarStep(state, unit, plan, dt) {
  */
 function stormSpot(state, caster) {
   const own = state.storms.filter((storm) => storm.side === caster.side);
-  const covered = (unit) => own.some((storm) => distance(storm.x, storm.y, unit.x, unit.y) < STW_STORM.radius);
+  // 스톰에 맞는 판정(stepStorms)과 같은 식으로 "이미 맞고 있는" 적을 가린다. 일꾼·지원·죽은·안 보이는 유닛은 세지 않는다.
+  const candidates = state.units.filter((unit) => unit.side !== caster.side && unit.hp > 0 && !isPassive(unit) && targetable(state, caster, unit));
+  const uncovered = candidates.filter((unit) => !own.some((storm) => distance(storm.x, storm.y, unit.x, unit.y) <= STW_STORM.radius + unit.radius * 0.5));
   let best = null;
   let bestCount = STW_STORM.minTargets - 1;
-  for (const enemy of state.units) {
-    if (enemy.side === caster.side || isPassive(enemy) || covered(enemy)) continue;
-    if (distance(caster.x, caster.y, enemy.x, enemy.y) > STW_STORM.castRange || !targetable(state, caster, enemy)) continue;
+  for (const enemy of uncovered) {
+    if (distance(caster.x, caster.y, enemy.x, enemy.y) > STW_STORM.castRange) continue;
     let count = 0;
     let sx = 0;
     let sy = 0;
-    for (const other of state.units) {
-      if (other.side === caster.side || covered(other)) continue;
+    for (const other of uncovered) {
       if (distance(enemy.x, enemy.y, other.x, other.y) <= STW_STORM.radius) {
         count += 1;
         sx += other.x;

@@ -1042,3 +1042,46 @@ test("starswar melee units switch off a fleeing target and spread over a firing 
   assert.ok(zealots.filter((unit) => unit.hp > 0).length >= 3, "미끼 해병에게 끌려다니지 않고 사격선을 무너뜨림");
   assert.ok(state.units.filter((unit) => unit.side === "enemy" && unit.type === "marine").length <= 1, "해병 줄이 무너짐(멀리 빠져나간 1기까지 허용)");
 });
+
+test("starswar ranged units drop a receding target for one in range, and volleys avoid overkill", () => {
+  const state = createStarswarGame({ seed: 1, aiSides: [], races: { player: "protoss", enemy: "terran" } });
+  state.sides.enemy.research.ion = "done";
+  const dragoon = stwSpawnUnitAt(state, "player", "dragoon", 20, 60, "attack");
+  const bait = stwSpawnUnitAt(state, "enemy", "vulture", 20, 54, "attack");
+  run(state, 0.2);
+  assert.equal(dragoon.targetId, bait.id);
+  // 미끼가 빠르게 물러나고 그 사이 해병이 사거리 안에 서면 해병으로 바꾼다.
+  bait.group = "rally";
+  state.sides.enemy.rally = "main";
+  const marine = stwSpawnUnitAt(state, "enemy", "marine", 22, 56, "attack");
+  marine.speed = 0;
+  run(state, 2);
+  assert.equal(dragoon.targetId, marine.id, "멀어지는 벌처 대신 사거리 안의 해병");
+
+  // 같은 틱에 쏘는 드라군 여덟이 질럿 하나에 몰리지 않는다: 예약 피해로 이미 죽을 적은 다음 드라군이 피한다.
+  const volley = quiet();
+  for (let index = 0; index < 8; index += 1) stwSpawnUnitAt(volley, "player", "dragoon", 13 + index * 2, 60, "attack");
+  const zealots = [0, 1, 2].map((index) => stwSpawnUnitAt(volley, "enemy", "zealot", 17 + index * 3, 55, "attack"));
+  for (const zealot of zealots) {
+    zealot.shields = 0;
+    zealot.hp = 18;
+  }
+  // 드라군 한 발은 소형 질럿에게 9(20×50% − 방어 1). 두 발이면 죽으므로 여덟 발로 셋을 다 잡고 두 발만 남는다.
+  run(volley, 0.3);
+  assert.equal(zealots.filter((zealot) => zealot.hp <= 0).length, 3, `나눠 쏴 셋을 모두 잡음 (${zealots.map((zealot) => zealot.hp).join(",")})`);
+  assert.ok(volley.sides.player.stats.overkill <= 2, `낭비된 공격은 남는 두 발뿐 (${volley.sides.player.stats.overkill})`);
+});
+
+test("starswar lurkers stay burrowed while enemies keep approaching", () => {
+  const state = zerg("terran");
+  const lurker = stwSpawnUnitAt(state, "player", "lurker", 20, 60, "attack");
+  stwSpawnUnitAt(state, "enemy", "marine", 20, 54, "attack");
+  run(state, 1.2);
+  assert.equal(lurker.burrowed, true);
+  for (const unit of state.units) if (unit.side === "enemy") unit.hp = 0;
+  run(state, 0.2);
+  const next = stwSpawnUnitAt(state, "enemy", "marine", 20, 51, "attack");
+  next.speed = 0;
+  run(state, 3.5);
+  assert.equal(lurker.burrowed, true, "사거리+4 안에 적이 있으면 계속 숨어 있음");
+});
