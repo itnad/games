@@ -1203,9 +1203,10 @@ function stepUnits(state, dt) {
           unit.hp -= 10;
           state.effects.push({ kind: "stim", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.4, max: 0.4 });
         }
-        // 물러나며 사격: 재장전 중에 근접 적이 붙어 있으면 한 걸음 물러난다(테란 컨트롤을 자동으로 흉내).
-        if (def.kite && unit.cooldown > 0.12) {
-          const melee = nearestMelee(state, unit, 2.2);
+        // 물러나며 사격: 재장전의 앞 75% 동안 근접 적이 붙어 있으면 한 걸음 물러난다(테란 컨트롤을 자동으로 흉내).
+        // 마지막 25%는 서서 조준하므로, 충분히 빠른 근접 유닛(발업 질럿)은 그 틈에 따라붙어 때릴 수 있다. 완벽한 컨트롤은 아니다.
+        if (def.kite && unit.cooldown > def.cooldown * KITE_HOLD) {
+          const melee = nearestMelee(state, unit, KITE_DISTANCE);
           // 붙은 근접 유닛보다 빠를 때만 물러난다(해병은 스팀팩을 써야 질럿보다 빠르다).
           if (melee && speed > unitSpeed(state, melee)) {
             const away = Math.atan2(unit.y - melee.y, unit.x - melee.x);
@@ -1423,6 +1424,10 @@ function supportFollow(state, unit, plan, speed, dt) {
 const RALLY_LEASH = 12;
 /** 공격 웨이브에서 빠른 유닛이 가장 뒤처진 유닛보다 앞서 나갈 수 있는 거리. */
 const WAVE_LEAD = 6;
+/** 물러나며 쏘는 유닛이 재장전 끝 무렵 서서 조준하는 비율. 남은 재장전이 이 비율 아래로 내려가면 더 물러나지 않는다. */
+const KITE_HOLD = 0.25;
+/** 근접 적이 이 거리(표면 기준) 안에 들어오면 물러나기 시작한다. */
+const KITE_DISTANCE = 2.2;
 
 /**
  * 집결지보다 적진 쪽으로 멀리 나가 있는 대기 병력은 후퇴 중으로 본다.

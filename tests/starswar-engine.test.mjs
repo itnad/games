@@ -981,3 +981,18 @@ test("starswar fast units lead the wave by a few tiles instead of crawling with 
   assert.ok(fast.gap > 5 && fast.gap < 8, `드라군보다 6칸 안팎 앞섬 (${fast.gap.toFixed(1)})`);
   assert.ok(Math.abs(fast.dragoon - slow.dragoon) < 1, "드라군 속도는 그대로");
 });
+
+test("starswar kiting is imperfect: upgraded melee closes in during the aim window, unupgraded melee does not", () => {
+  const trial = (charge, ion) => {
+    const state = createStarswarGame({ seed: 2, aiSides: [], races: { player: "protoss", enemy: "terran" } });
+    if (charge) state.sides.player.research.charge = "done";
+    if (ion) state.sides.enemy.research.ion = "done";
+    const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 56, "attack");
+    const vulture = stwSpawnUnitAt(state, "enemy", "vulture", 20, 44, "attack");
+    for (let step = 0; step < 150 && zealot.hp > 0 && vulture.hp > 0; step += 1) stepStarswar(state);
+    return { zealotHit: vulture.hp < vulture.maxHp, zealotAlive: zealot.hp > 0 };
+  };
+  assert.equal(trial(false, false).zealotHit, false, "발업 없는 질럿은 벌처를 따라잡지 못함");
+  assert.equal(trial(true, false).zealotHit, true, "발업 질럿은 조준 틈에 따라붙어 때림");
+  assert.equal(trial(true, true).zealotHit, true, "이온 추진기 벌처도 완벽하게 카이팅하지는 못함");
+});
