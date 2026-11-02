@@ -1085,3 +1085,20 @@ test("starswar lurkers stay burrowed while enemies keep approaching", () => {
   run(state, 3.5);
   assert.equal(lurker.burrowed, true, "사거리+4 안에 적이 있으면 계속 숨어 있음");
 });
+
+test("starswar tanks holding a rally point siege ahead of time and unsiege when the rally moves", () => {
+  const state = createStarswarGame({ seed: 1, aiSides: [], races: { player: "terran", enemy: "protoss" } });
+  state.sides.player.research.siege = "done";
+  const tank = stwSpawnUnitAt(state, "player", "tank", 20, stwRallyY("player", "main") - 1.8);
+  run(state, 3);
+  assert.equal(tank.sieged, true, "집결지에 자리 잡으면 적이 없어도 시즈");
+  const zealot = stwSpawnUnitAt(state, "enemy", "zealot", 20, tank.y - 9, "attack");
+  zealot.speed = 0;
+  run(state, 0.3);
+  assert.ok(zealot.shields < zealot.maxShields, "미리 시즈해 둔 덕에 적이 보이자마자 포격");
+  zealot.hp = 0;
+  stwCommand(state, "player", { type: "move", y: 60 });
+  run(state, 4);
+  assert.equal(tank.sieged, false, "집결지가 옮겨지면 시즈를 풀고 따라감");
+  assert.ok(tank.y < stwRallyY("player", "main") - 4);
+});

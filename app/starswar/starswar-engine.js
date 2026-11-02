@@ -1222,7 +1222,7 @@ function stepUnits(state, dt) {
     const slot = isAttack ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
     const sight = range + (isAttack ? 6 : 7);
     const retreating = !isAttack && slot && isRetreating(unit, slot);
-    if (unit.type === "tank" && tankSiegeStep(state, unit, Boolean(retreating))) continue;
+    if (unit.type === "tank" && tankSiegeStep(state, unit, Boolean(retreating), isAttack ? null : slot)) continue;
     if (unit.type === "lurker" && lurkerStep(state, unit, Boolean(retreating))) continue;
     if (retreating) {
       // 후퇴 중: 교전을 끊고 전속력으로 집결지에 돌아온다.
@@ -1351,14 +1351,18 @@ function findTargetBand(state, attacker, minRange, maxRange) {
  * 시즈 중에는 움직이지 않고 범위 포격을 하며, 적이 2초 넘게 없거나 후퇴 명령이 오면 시즈를 푼다(2초).
  * 이 틱을 처리했으면 true.
  */
-function tankSiegeStep(state, unit, retreating) {
+function tankSiegeStep(state, unit, retreating, rallySlot) {
   const def = STW_UNITS.tank;
   const siege = def.siege;
   if (unit.siegeUntil !== undefined && state.time < unit.siegeUntil) return true;
+  // 집결지에 자리 잡은 대기 탱크는 적이 오기 전에 미리 시즈해 둔다(적이 보인 뒤 2초를 버리지 않도록). 집결지가 옮겨지면 푼다.
+  const holding = rallySlot && distance(unit.x, unit.y, rallySlot.x, rallySlot.y) < 2.5;
   if (unit.sieged) {
     const target = findTargetBand(state, unit, siege.minRange, siege.range);
     if (target) unit.lastSiegeTargetAt = state.time;
-    if (retreating || (!target && state.time - (unit.lastSiegeTargetAt ?? 0) > 2)) {
+    const idleTooLong = !target && !holding && state.time - (unit.lastSiegeTargetAt ?? 0) > 2;
+    const rallyMoved = rallySlot && !holding && distance(unit.x, unit.y, rallySlot.x, rallySlot.y) > 4 && !target;
+    if (retreating || idleTooLong || rallyMoved) {
       unit.sieged = false;
       unit.siegeUntil = state.time + siege.setup;
       return true;
@@ -1374,7 +1378,7 @@ function tankSiegeStep(state, unit, retreating) {
   }
   if (retreating || !stwResearchDone(state, unit.side, "siege")) return false;
   const threat = findTargetBand(state, unit, 0, siege.range);
-  if (!threat) return false;
+  if (!threat && !holding) return false;
   unit.sieged = true;
   unit.lastSiegeTargetAt = state.time;
   unit.siegeUntil = state.time + siege.setup;
