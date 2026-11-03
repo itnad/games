@@ -13,6 +13,8 @@ export class NavigationGrid {
   private clearTables?:Map<string,Int8Array>;
   private edgeTables?:Map<string,Int8Array>;
   private staticIds=new Set<number>();
+  private staticIndices?:number[];
+  private staticSpatial?:SpatialHash;
   /** Optional index is owned by the caller and updated whenever positions change. */
   constructor(readonly map:BattleMap,private state:SimulationState,private spatial?:SpatialHash,snapshotTerrain=false,snapshotObstacles=false){
     this.width=map.widthTiles*2;this.height=map.heightTiles*2;
@@ -23,8 +25,23 @@ export class NavigationGrid {
     }
     if(snapshotObstacles){
       this.clearTables=new Map();this.edgeTables=new Map();
-      state.entities.id.forEach((id,i)=>{if(state.entities.health[i]>0&&(state.entities.kind[i]==="building"||state.movement[i].order==="idle"||state.movement[i].order==="hold"))this.staticIds.add(id);});
+      this.trackStaticObstacles();
     }
+  }
+  trackStaticObstacles():void{
+    this.staticIndices=[];this.staticIds.clear();const s=this.state.entities;
+    s.id.forEach((id,i)=>{if(s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")){this.staticIndices!.push(i);this.staticIds.add(id);}});
+    this.staticSpatial=this.staticIndices.length>16?new SpatialHash(this.state,this.staticIndices):undefined;
+  }
+  addStaticObstacle(index:number):void{
+    if(!this.staticIndices||this.staticIds.has(this.state.entities.id[index]))return;
+    this.staticIds.add(this.state.entities.id[index]);this.staticIndices.push(index);this.staticIndices.sort((a,b)=>this.state.entities.id[a]-this.state.entities.id[b]);
+    if(this.staticSpatial)this.staticSpatial.update(index);
+    else if(this.staticIndices.length>16)this.staticSpatial=new SpatialHash(this.state,this.staticIndices);
+  }
+  private obstacleCandidates(left:number,top:number,right:number,bottom:number):Iterable<number>{
+    if(this.staticIndices)return this.staticSpatial?.queryBounds(left,top,right,bottom)??this.staticIndices;
+    return this.spatial?.queryBounds(left,top,right,bottom)??this.state.entities.id.keys();
   }
   point(cell:number):Point{return {x:(cell%this.width)*CELL+CELL/2,y:Math.floor(cell/this.width)*CELL+CELL/2};}
   cell(point:Point):number{return Math.min(this.height-1,Math.max(0,Math.floor(point.y/CELL)))*this.width+Math.min(this.width-1,Math.max(0,Math.floor(point.x/CELL)));}
@@ -47,7 +64,7 @@ export class NavigationGrid {
       if(dx*dx+dy*dy<radius*radius)return false;
     }
     const s=this.state.entities;
-    const candidates=this.spatial?.queryBounds(x-radius,y-radius,x+radius,y+radius)??s.id.keys();
+    const candidates=this.obstacleCandidates(x-radius,y-radius,x+radius,y+radius);
     for(const i of candidates)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")){const dx=x-s.x[i],dy=y-s.y[i],r=radius+s.radius[i];if(dx*dx+dy*dy<r*r)return false;}
     return true;
   }
@@ -93,7 +110,7 @@ export class NavigationGrid {
       }
     }
     const s=this.state.entities;
-    const candidates=this.spatial?.queryBounds(Math.min(a.x,b.x)-radius,Math.min(a.y,b.y)-radius,Math.max(a.x,b.x)+radius,Math.max(a.y,b.y)+radius)??s.id.keys();
+    const candidates=this.obstacleCandidates(Math.min(a.x,b.x)-radius,Math.min(a.y,b.y)-radius,Math.max(a.x,b.x)+radius,Math.max(a.y,b.y)+radius);
     for(const i of candidates)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")&&segmentNearCircle(a,b,{x:s.x[i],y:s.y[i]},radius+s.radius[i]))return false;
     return true;
   }

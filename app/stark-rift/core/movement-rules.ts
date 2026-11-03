@@ -37,6 +37,7 @@ export function createMovementRules(map:BattleMap,visible:VisibilityCheck=()=>fa
       const batches=new Map<string,number[]>();
       for(const id of ids){const slot=groups.findIndex(g=>g.entityIds.includes(id)),key=slot<0?`temporary:${state.movement[s.id.indexOf(id)].formation}`:String(slot);if(!batches.has(key))batches.set(key,[]);batches.get(key)!.push(id);}
       const grid=new NavigationGrid(map,state,new SpatialHash(state),true),largest=Math.max(...ids.map(id=>s.radius[s.id.indexOf(id)]));
+      grid.trackStaticObstacles();
       const constrained=ids.some(id=>{
         const index=s.id.indexOf(id),point="target" in command&&command.target.kind==="point"?command.target:state.movement[index].target;
         return point!==null&&point!==undefined&&!grid.clear(point,s.radius[index]+largest*2,s.layer[index],id);
@@ -88,6 +89,7 @@ export function createMovementRules(map:BattleMap,visible:VisibilityCheck=()=>fa
 }
 function move(state:SimulationState,map:BattleMap,visible:VisibilityCheck):void{
   const s=state.entities,hash=new SpatialHash(state),grid=new NavigationGrid(map,state,hash,true);
+  grid.trackStaticObstacles();
   for(let i=0;i<s.id.length;i++){
     const m=state.movement[i];if(s.health[i]===0||s.kind[i]==="building")continue;
     if(m.order==="focusAttack"&&m.targetEntityId!==null){
@@ -139,7 +141,7 @@ function move(state:SimulationState,map:BattleMap,visible:VisibilityCheck):void{
     if(m.pathIndex>=m.path.length){
       if(m.order==="patrol"&&m.origin&&m.target){const target=m.origin;m.origin=m.target;m.target=target;m.path=[];m.pathIndex=0;m.status="waiting";}
       else if(m.order==="focusAttack")m.status="arrived";
-      else{const old={formation:m.formation,stance:m.stance};Object.assign(m,idleMovement(m.entityId),old);}
+      else{const old={formation:m.formation,stance:m.stance};Object.assign(m,idleMovement(m.entityId),old);grid.addStaticObstacle(i);}
     }else if(m.stalledTicks>=20+s.id[i]%4){m.path=[];m.pathIndex=0;m.status="waiting";m.requestTick=state.tick;m.stalledTicks=0;}
   }
 }

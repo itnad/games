@@ -78,3 +78,13 @@ it('keeps row clipping and search-epoch clear caches equivalent to the live full
   const refreshed=new NavigationGrid(map,state,new SpatialHash(state),true,true),point={x:14*256+64,y:14*256+64};
   expect(refreshed.clear(point,40,'ground',1)).toBe(false);
 });
+
+it('adds newly parked actors to the movement obstacle index immediately',()=>{
+  const {state,map}=createScenario('controls');state.movement.forEach(m=>{m.order='move';m.target={x:6144,y:4096};});
+  const hash=new SpatialHash(state),grid=new NavigationGrid(map,state,hash,true);grid.trackStaticObstacles();
+  const point={x:state.entities.x[0],y:state.entities.y[0]};
+  expect(grid.clear(point,40,'ground',2)).toBe(true);
+  state.movement[0].order='idle';grid.addStaticObstacle(0);
+  expect(grid.clear(point,40,'ground',2)).toBe(false);
+  expect(grid.clear(point,40,'ground',1)).toBe(true);
+});

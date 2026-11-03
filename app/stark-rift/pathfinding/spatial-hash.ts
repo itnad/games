@@ -3,13 +3,13 @@ import { segmentNearCircle } from "./geometry";
 import type { Point } from "./navigation";
 export class SpatialHash{
   private cells=new Map<string,Set<number>>();private memberships=new Map<number,string[]>();
-  constructor(private state:SimulationState){for(let i=0;i<state.entities.id.length;i++)if(state.entities.health[i]>0)this.update(i);}
+  constructor(private state:SimulationState,indices:Iterable<number>=state.entities.id.keys()){for(const i of indices)if(state.entities.health[i]>0)this.update(i);}
   private keys(x:number,y:number,r:number):string[]{const out:string[]=[];for(let cy=Math.floor((y-r)/512);cy<=Math.floor((y+r)/512);cy++)for(let cx=Math.floor((x-r)/512);cx<=Math.floor((x+r)/512);cx++)out.push(`${cx},${cy}`);return out;}
   update(index:number):void{for(const key of this.memberships.get(index)??[])this.cells.get(key)?.delete(index);const s=this.state.entities,keys=this.keys(s.x[index],s.y[index],s.radius[index]);for(const key of keys){if(!this.cells.has(key))this.cells.set(key,new Set());this.cells.get(key)!.add(index);}this.memberships.set(index,keys);}
   queryBounds(left:number,top:number,right:number,bottom:number):Iterable<number>{
     const cells=(Math.floor(bottom/512)-Math.floor(top/512)+1)*(Math.floor(right/512)-Math.floor(left/512)+1);
     // Long sight lines can cover hundreds of empty buckets; a stable scan is cheaper there.
-    if(cells>Math.max(4,this.state.entities.id.length/16))return this.state.entities.id.keys();
+    if(cells>Math.max(4,this.memberships.size/16))return this.memberships.keys();
     const candidates=new Set<number>();
     for(let cy=Math.floor(top/512);cy<=Math.floor(bottom/512);cy++)for(let cx=Math.floor(left/512);cx<=Math.floor(right/512);cx++)
       for(const index of this.cells.get(`${cx},${cy}`)??[])candidates.add(index);
