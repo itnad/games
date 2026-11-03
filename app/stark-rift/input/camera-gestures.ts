@@ -1,12 +1,13 @@
 import type { BattleCamera } from "../render/camera";
 import { GestureMachine, type GestureCallbacks } from "./gesture-machine";
-export type GestureActions = Pick<GestureCallbacks, "hitTest" | "tap" | "preview" | "group" | "swipe">;
+export type GestureActions = Pick<GestureCallbacks, "hitTest" | "tap" | "preview" | "group" | "swipe" | "groundTap">;
 export function attachCameraGestures(canvas: HTMLCanvasElement, camera: BattleCamera, changed: () => void, actions?: GestureActions): () => void {
   const pointers = new Set<number>(); let pinchZoom = camera.zoom;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const size = () => ({ width: canvas.clientWidth, height: canvas.clientHeight });
   const machine = new GestureMachine({
     hitTest: point => actions?.hitTest(point) ?? null,
+    groundTap:point=>actions?.groundTap?.(point),
     tap: hit => actions?.tap(hit), preview: hit => actions?.preview(hit),
     group: hit => actions?.group(hit), swipe: (hit, point, attack) => actions?.swipe(hit, point, attack),
     pan: (dx, dy) => { const {width, height} = size(); const scale = camera.scale(width, height); camera.setCenter(camera.centerX - dx / scale, camera.centerY - dy / scale, width, height); },

@@ -22,6 +22,7 @@ function command<const K extends string, const S extends Record<string, Schema<u
     }, "Commands must execute after their issue tick.");
 }
 export const commandSchemas = {
+  assignGroup: command("assignGroup", {entityIds: unique(array(integer(1),1,10)),payload:object({slot:integer(0,4),confirmed:boolean})}),
   move: command("move", { entityIds: actors, target: pointTargetSchema }),
   attackMove: command("attackMove", { entityIds: actors, target: pointTargetSchema }),
   focusAttack: command("focusAttack", { entityIds: actors, target: entityTargetSchema }),

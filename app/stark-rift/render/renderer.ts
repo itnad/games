@@ -15,8 +15,10 @@ export class BattleRenderer {
   private initializing = false; private cleaned = false; private pendingTerrain?: Graphics;
   private previousPositions = new Map<number, { x: number; y: number }>(); private receivedAt = 0;
   private ticker = new Ticker();
+  private selectedIds=new Set<number>();private previewIds=new Set<number>();
+  setSelection(selected:number[],preview:number[]=[]):void{this.selectedIds=new Set(selected);this.previewIds=new Set(preview);this.draw();}
   private resizeObserver?: ResizeObserver; private cleanups: (() => void)[] = [];
-  constructor(private map: BattleMap, private battlefield: HTMLElement, private minimapHost: HTMLElement, private contextLost: () => void) {
+  constructor(private map: BattleMap, private battlefield: HTMLElement, private minimapHost: HTMLElement, private contextLost: () => void, private cameraMoved?:()=>void) {
     this.camera = new BattleCamera(map.widthTiles, map.heightTiles);
     this.fogMask = new Uint8Array(map.widthTiles * map.heightTiles).fill(255);
   }
@@ -52,7 +54,7 @@ export class BattleRenderer {
         if (event.type === "pointermove" && !this.minimap.canvas.hasPointerCapture(event.pointerId)) return;
         if (event.type === "pointerdown") this.minimap.canvas.setPointerCapture(event.pointerId);
         const r = this.minimap.canvas.getBoundingClientRect();
-        this.camera.setCenter((event.clientX - r.left) / r.width * this.map.widthTiles * 256, (event.clientY - r.top) / r.height * this.map.heightTiles * 256, this.app.screen.width, this.app.screen.height); this.draw();
+        this.camera.setCenter((event.clientX - r.left) / r.width * this.map.widthTiles * 256, (event.clientY - r.top) / r.height * this.map.heightTiles * 256, this.app.screen.width, this.app.screen.height); this.draw();this.cameraMoved?.();
       };
       this.minimap.canvas.addEventListener("pointerdown", recenter); this.minimap.canvas.addEventListener("pointermove", recenter);
       this.cleanups.push(() => { this.minimap.canvas.removeEventListener("pointerdown", recenter); this.minimap.canvas.removeEventListener("pointermove", recenter); });
@@ -101,6 +103,7 @@ export class BattleRenderer {
       sprite.visible = x >= bounds.left - 256 && x <= bounds.right + 256 && y >= bounds.top - 256 && y <= bounds.bottom + 256;
       const color = entity.owner === this.snapshot!.viewerPlayerId ? 0x64dce0 : 0xf57278;
       if (sprite.visible) { if (this.camera.zoom >= 1.5) sprite.rect(-0.22, -0.22, 0.44, 0.44).fill(color); else sprite.circle(0, 0, 0.32).fill(color); }
+      if(sprite.visible&&(this.selectedIds.has(entity.id)||this.previewIds.has(entity.id)))sprite.circle(0,0,Math.max(.4,entity.radius/256+.1)).stroke({width:.06,color:this.previewIds.has(entity.id)?0xffd479:0x80ffaa});
       this.minimapUnits.circle(entity.x / 256, entity.y / 256, 0.65).fill(color);
     }
     this.viewportOutline.clear().rect(bounds.left / 256, bounds.top / 256, (bounds.right - bounds.left) / 256, (bounds.bottom - bounds.top) / 256).stroke({ width: 0.4, color: 0xffffff });

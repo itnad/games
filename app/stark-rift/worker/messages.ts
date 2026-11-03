@@ -1,3 +1,4 @@
+import { controlGroupSchema } from "../core/orders";
 import { COMMAND_FAILURE_CODES, MAX_COMMANDS_PER_BATCH, gameCommandSchema } from "../core/commands";
 import { renderSnapshotSchema } from "./render-snapshot";
 import { factionSchema, persistenceEnvelopeSchema, phaseSchema, sessionStateSchema } from "../core/state";
@@ -52,6 +53,7 @@ function literalBoolean<T extends boolean>(expected: T): Schema<T> {
   return refine(boolean, value => value === expected, `Expected ${expected}.`) as Schema<T>;
 }
 export const workerToMainSchemas = {
+  uiState:message("uiState",object({tick:integer(),phase:phaseSchema,lastAcceptedSequence:integer(),controlGroups:array(controlGroupSchema,5,5)})),
   renderSnapshot: message("renderSnapshot", renderSnapshotSchema),
   ready: message("ready", object({ tick: integer(), engineVersion: literal(STARK_RIFT_ENGINE_VERSION), dataVersion: text })),
   commandAck: message("commandAck", acknowledgementSchema),
@@ -63,7 +65,7 @@ export const workerToMainSchemas = {
   disposed: message("disposed", object({})),
 };
 // These wire layouts depend on the renderer/UI stages and are deliberately not accepted yet.
-export const RESERVED_WORKER_TO_MAIN_KINDS = ["uiState", "notification"] as const;
+export const RESERVED_WORKER_TO_MAIN_KINDS = ["notification"] as const;
 export const WORKER_TO_MAIN_KINDS = Object.keys(workerToMainSchemas) as (keyof typeof workerToMainSchemas)[];
 export const workerToMainMessageSchema = taggedUnion("kind", workerToMainSchemas);
 export type WorkerToMainMessage = Infer<typeof workerToMainMessageSchema>;

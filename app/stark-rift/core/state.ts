@@ -1,3 +1,4 @@
+import { navigationSchema, emptyNavigation, type NavigationState } from "../pathfinding/state";
 import { controlGroupSchema, movementStateSchema, type ControlGroup, type MovementState } from "./orders";
 import { checksum } from "./checksum";
 import { RNG_STREAM_IDS } from "./rng";
@@ -77,6 +78,7 @@ export type SimulationState = {
   players: PlayerState[];
   entities: EntityStore;
   movement: MovementState[];
+  navigation: NavigationState;
   projectiles: ProjectileStore;
   gameplayEffects: GameplayEffectStore;
   scheduledEvents: ScheduledEventQueue;
@@ -123,6 +125,7 @@ export function createEmptySimulationState(seed: number): SimulationState {
     players: [],
     entities: emptyEntityStore(),
     movement: [],
+    navigation: emptyNavigation(),
     projectiles: {},
     gameplayEffects: {},
     scheduledEvents: [],
@@ -178,6 +181,7 @@ export const simulationStateSchema: Schema<SimulationState> = refine(object({
   phase: phaseSchema,
   map: object({ definitionId: union(text, literal("")), obstacleVersion: integer() }),
   players: refine(array(playerSchema, 0, 2), players => new Set(players.map(p => p.id)).size === players.length, "Duplicate player ID."),
+  navigation: navigationSchema,
   movement: array(movementStateSchema, 0, 2048),
   entities: entityStoreSchema, projectiles: emptyStore, gameplayEffects: emptyStore,
   scheduledEvents: array(emptyStore, 0, 0), ai: array(emptyStore, 0, 0),
@@ -186,6 +190,7 @@ export const simulationStateSchema: Schema<SimulationState> = refine(object({
   const ids = state.players.map(p => p.id);
   if (!ids.every((id, i) => id === i)) return false;
   if (state.entities.id.some((id, i) => id >= state.counters.nextEntityId || !ids.includes(state.entities.owner[i]))) return false;
+  if (new Set(state.navigation.jobs.map(job=>job.entityId)).size!==state.navigation.jobs.length || state.navigation.jobs.some(job=>!state.entities.id.includes(job.entityId))) return false;
   if (state.movement.length !== state.entities.id.length || state.movement.some((m, i) => m.entityId !== state.entities.id[i])) return false;
   if (state.movement.some(m => m.targetEntityId !== null && !state.entities.id.includes(m.targetEntityId))) return false;
   for (const player of state.players) {
@@ -194,7 +199,7 @@ export const simulationStateSchema: Schema<SimulationState> = refine(object({
       let definition: string | null = null;
       for (const id of group.entityIds) {
         const index = state.entities.id.indexOf(id);
-        if (index < 0 || assigned.has(id) || state.entities.owner[index] !== player.id || state.entities.health[index] === 0) return false;
+        if (index < 0 || assigned.has(id) || state.entities.owner[index] !== player.id || state.entities.health[index] === 0 || state.entities.kind[index] !== "combat") return false;
         if (definition !== null && definition !== state.entities.definitionId[index]) return false;
         definition = state.entities.definitionId[index]; assigned.add(id);
       }

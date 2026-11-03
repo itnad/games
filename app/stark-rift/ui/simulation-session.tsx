@@ -1,10 +1,11 @@
 "use client";
+import type { WorkerToMainMessage } from "../worker/messages";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getRuntimeMap } from "../data/maps";
 import type { PersistenceEnvelope, SessionState } from "../core/state";
 import type { RenderSnapshot } from "../worker/render-snapshot";
 import { openSimulationClient, type SimulationClient } from "../worker/client";
-import { BattleScreen } from "./battle-screen";
+import { InteractiveBattle } from "./interactive-battle";
 import { CheckpointStore } from "./checkpoints";
 
 /** Internal integration host. No gameplay content or public route is installed here. */
@@ -17,6 +18,8 @@ export function SimulationSession({ seed, onSave }: { seed: number; onSave?: (sn
   const saveCallback = useRef(onSave); saveCallback.current = onSave;
   const [snapshot, setSnapshot] = useState<RenderSnapshot | null>(null), [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState(false);
+  const [ui,setUi]=useState<Extract<WorkerToMainMessage,{kind:"uiState"}>["payload"]|null>(null);
+  const [notice,setNotice]=useState<string|null>(null);
   const [phase, setPhase] = useState("setup"), [generation, setGeneration] = useState(0);
   const [restart, setRestart] = useState(0), [hasCheckpoint, setHasCheckpoint] = useState(false);
   useEffect(() => {
@@ -26,7 +29,7 @@ export function SimulationSession({ seed, onSave }: { seed: number; onSave?: (sn
     let restoring = restoration !== null;
     if (!restoration) { checkpoints.current.clear(); session.current = initialSession(); setHasCheckpoint(false); }
     else session.current = structuredClone(restoration.session);
-    setSnapshot(null); setError(null); setSaveError(false); setPhase("setup");
+    setUi(null);setNotice(null);setSnapshot(null); setError(null); setSaveError(false); setPhase("setup");
     const save = () => { if (initialized && !failed && !restoring) instance?.send("saveSnapshot", { requestId: ++request, session: session.current }); };
     try {
       instance = openSimulationClient(message => {
@@ -37,6 +40,8 @@ export function SimulationSession({ seed, onSave }: { seed: number; onSave?: (sn
           else { setPhase("running"); save(); }
         }
         if (message.kind === "renderSnapshot" && !restoring && !failed) setSnapshot(message.payload);
+        if(message.kind==="uiState")setUi(message.payload);
+        if(message.kind==="commandAck")setNotice(message.payload.accepted?null:"명령을 실행하지 못했습니다. 선택한 대상과 목적지를 확인해 주세요.");
         if (message.kind === "phaseChanged") setPhase(message.payload.phase);
         if (message.kind === "snapshotLoaded") {
           restoring = false; failed = false; setSnapshot(null); setGeneration(v => v + 1); setError(null);
@@ -73,7 +78,7 @@ export function SimulationSession({ seed, onSave }: { seed: number; onSave?: (sn
     client.current?.dispose(); client.current = null; setRestart(value => value + 1);
   };
   return <div>
-    {snapshot && <BattleScreen key={generation} map={registered.map} snapshot={snapshot} initialCamera={session.current.camera} onPause={() => client.current?.send("pause", { reason: "menu" })} onRenderFailure={() => setError("화면 연결이 끊어졌습니다. 마지막 저장으로 화면과 경기를 복구해 주세요.")} onCameraChange={camera => { session.current.camera = camera; }} />}
+    {snapshot && ui && <InteractiveBattle key={generation} map={registered.map} snapshot={snapshot} initialSession={session.current} ui={ui} notice={notice} send={command=>client.current?.send("commandBatch",{commands:[command],lastSeenTick:command.issuedTick})} onPause={() => client.current?.send("pause", { reason: "menu" })} onRenderFailure={() => setError("화면 연결이 끊어졌습니다. 마지막 저장으로 화면과 경기를 복구해 주세요.")} onSessionChange={value => { session.current = value; }} />}
     {!snapshot && !error && <p role="status">경기를 준비하고 있습니다.</p>}
     {error && <div role="alert"><p>{error}</p>{hasCheckpoint && <button onClick={recover}>마지막 저장으로 복구</button>}</div>}
     {saveError && <p role="status">외부 저장에 실패했습니다. 현재 창의 복구본은 유지하고 있습니다.</p>}

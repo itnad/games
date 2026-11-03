@@ -1,3 +1,4 @@
+import { emptyControlGroups } from "../../app/stark-rift/core/orders";
 import { describe, expect, it } from "vitest";
 import { COMMAND_KINDS, MAX_COMMANDS_PER_BATCH, validateGameCommand, type GameCommand } from "../../app/stark-rift/core/commands";
 import { createEmptySimulationState, createPersistenceEnvelope, validatePersistenceEnvelope } from "../../app/stark-rift/core/state";
@@ -10,6 +11,7 @@ const point = { kind: "point", x: 256, y: 512 };
 const target = { kind: "entity", entityId: 2 };
 const base = { sequence: 1, issuedTick: 9, executeTick: 10, playerId: 0, source: "player", entityIds: [1] };
 const commands = {
+  assignGroup: {payload:{slot:0,confirmed:false}},
   move: { target: point }, attackMove: { target: point }, focusAttack: { target },
   stop: {}, hold: {}, patrol: { target: point },
   setFormation: { payload: { formation: "line" } }, setStance: { payload: { stance: "free" } },
@@ -133,6 +135,7 @@ describe("worker boundary in both directions", () => {
     if (!result.ok) expect(result.issues.some(issue => issue.path.startsWith("payload.snapshot."))).toBe(true);
   });
   const outgoing = {
+    uiState:{tick:0,phase:"running",lastAcceptedSequence:0,controlGroups:emptyControlGroups()},
     renderSnapshot: { bufferId: 0, tick: 0, previousTick: 0, viewerPlayerId: 0, widthTiles: 1, heightTiles: 1, entities: [], visibility: new Uint8Array(1) },
     ready: { tick: 0, engineVersion: STARK_RIFT_ENGINE_VERSION as typeof STARK_RIFT_ENGINE_VERSION, dataVersion: "fixture" },
     commandAck: { accepted: false, playerId: 0, sequence: 1, code: "invalid_target" },

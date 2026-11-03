@@ -15,3 +15,6 @@
 .sr-bottom { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 8px; gap: 8px; box-sizing: border-box; }
 .sr-groups { display: grid; grid-template-columns: repeat(5, minmax(52px, 1fr)); gap: 6px; }
 .sr-command-space { border: 1px solid #243349; border-radius: 8px; }
+
+.sr-commands { display:flex; flex-wrap:wrap; align-content:start; gap:4px; padding:6px; overflow:auto; font-size:12px; }
+.sr-commands span {flex-basis:100%;}

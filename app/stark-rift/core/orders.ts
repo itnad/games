@@ -10,6 +10,7 @@ export const controlGroupSchema = object({
 export type ControlGroup = { -readonly [K in keyof Infer<typeof controlGroupSchema>]: Infer<typeof controlGroupSchema>[K] };
 export const emptyControlGroups = (): ControlGroup[] => Array.from({ length: 5 }, () => ({ entityIds: [], formation: "line", stance: "free", autocastAbilityIds: [] }));
 export const movementStateSchema = refine(object({
+  priority:integer(0,2), requestTick:integer(), origin: nullable(pointSchema), formation: enumeration(["line","column","spread"]), transitFormation: enumeration(["line","column","spread"]), stance: enumeration(["free","formation","breakthrough"]), stalledTicks:integer(),
   entityId: integer(1), order: enumeration(["idle", "move", "attackMove", "focusAttack", "hold", "patrol"]),
   target: nullable(pointSchema), targetEntityId: nullable(integer(1)),
   path: array(pointSchema, 0, 8192), pathIndex: integer(),
@@ -20,4 +21,4 @@ export const movementStateSchema = refine(object({
   (!["move", "attackMove", "patrol"].includes(value.order) || value.target !== null) &&
   (value.order !== "focusAttack" || value.targetEntityId !== null), "Invalid movement order or path cursor.");
 export type MovementState = { -readonly [K in keyof Infer<typeof movementStateSchema>]: Infer<typeof movementStateSchema>[K] };
-export const idleMovement = (entityId: number): MovementState => ({ entityId, order: "idle", target: null, targetEntityId: null, path: [], pathIndex: 0, status: "idle", remainderX: 0, remainderY: 0, obstacleVersion: 0 });
+export const idleMovement = (entityId: number): MovementState => ({ priority:2,requestTick:0, origin:null,formation:"line",transitFormation:"line",stance:"free",stalledTicks:0, entityId, order: "idle", target: null, targetEntityId: null, path: [], pathIndex: 0, status: "idle", remainderX: 0, remainderY: 0, obstacleVersion: 0 });
