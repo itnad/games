@@ -2,6 +2,8 @@ import type { BattleMap } from "../data/maps";
 import type { SimulationState } from "../core/state";
 import type { NavigationJob } from "./state";
 import { checksum } from "../core/checksum";
+import { DestinationReservations } from "./destinations";
+import { segmentNearCircle, segmentNearTile } from "./geometry";
 export const CELL = 128;
 export type Point = {x:number;y:number};
 export class NavigationGrid {
@@ -12,19 +14,20 @@ export class NavigationGrid {
   clear(point:Point,radius:number,layer:string,ignore=0):boolean{
     const {x,y}=point, w=this.map.widthTiles,h=this.map.heightTiles;
     if(x-radius<0||y-radius<0||x+radius>=w*256||y+radius>=h*256)return false;
-    if(layer==="air")return true;
-    for(let ty=Math.floor((y-radius)/256);ty<=Math.floor((y+radius)/256);ty++) for(let tx=Math.floor((x-radius)/256);tx<=Math.floor((x+radius)/256);tx++){
+    if(layer!=="air")for(let ty=Math.floor((y-radius)/256);ty<=Math.floor((y+radius)/256);ty++) for(let tx=Math.floor((x-radius)/256);tx<=Math.floor((x+radius)/256);tx++){
       if(this.map.walkable[ty*w+tx])continue;
       const dx=x-Math.max(tx*256,Math.min((tx+1)*256,x)),dy=y-Math.max(ty*256,Math.min((ty+1)*256,y));
       if(dx*dx+dy*dy<radius*radius)return false;
     }
     const s=this.state.entities;
-    for(let i=0;i<s.id.length;i++)if(s.id[i]!==ignore&&s.kind[i]==="building"&&s.health[i]>0){const dx=x-s.x[i],dy=y-s.y[i],r=radius+s.radius[i];if(dx*dx+dy*dy<r*r)return false;}
+    for(let i=0;i<s.id.length;i++)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")){const dx=x-s.x[i],dy=y-s.y[i],r=radius+s.radius[i];if(dx*dx+dy*dy<r*r)return false;}
     return true;
   }
   segment(a:Point,b:Point,radius:number,layer:string,ignore=0):boolean{
-    const steps=Math.max(1,Math.ceil(Math.max(Math.abs(b.x-a.x),Math.abs(b.y-a.y))/Math.min(64,radius)));
-    for(let i=0;i<=steps;i++)if(!this.clear({x:Math.round(a.x+(b.x-a.x)*i/steps),y:Math.round(a.y+(b.y-a.y)*i/steps)},radius,layer,ignore))return false;
+    if(!this.clear(a,radius,layer,ignore)||!this.clear(b,radius,layer,ignore))return false;
+    if(layer!=="air")for(let y=Math.max(0,Math.floor((Math.min(a.y,b.y)-radius)/256));y<=Math.min(this.map.heightTiles-1,Math.floor((Math.max(a.y,b.y)+radius)/256));y++)for(let x=Math.max(0,Math.floor((Math.min(a.x,b.x)-radius)/256));x<=Math.min(this.map.widthTiles-1,Math.floor((Math.max(a.x,b.x)+radius)/256));x++)if(!this.map.walkable[y*this.map.widthTiles+x]&&segmentNearTile(a,b,x*256,y*256,radius))return false;
+    const s=this.state.entities;
+    for(let i=0;i<s.id.length;i++)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")&&segmentNearCircle(a,b,{x:s.x[i],y:s.y[i]},radius+s.radius[i]))return false;
     return true;
   }
 }
@@ -40,7 +43,7 @@ function jobKey(goal:number,radius:number,layer:string,version:number){return `$
 /** Search queues and caches are state, so save/restore preserves scheduling and path completion ticks. */
 export function navigate(state:SimulationState,map:BattleMap):void{
   const s=state.entities,n=state.navigation,grid=new NavigationGrid(map,state);
-  const obstacles=s.id.flatMap((id,i)=>s.kind[i]==="building"&&s.health[i]>0?[[id,s.x[i],s.y[i],s.radius[i]]]:[]);
+  const obstacles=s.id.flatMap((id,i)=>s.health[i]>0&&(s.kind[i]==="building"||state.movement[i].order==="idle"||state.movement[i].order==="hold")?[[id,s.x[i],s.y[i],s.radius[i],s.layer[i]]]:[]);
   const signature=obstacles.length?checksum(obstacles):"none";
   if(n.obstacleSignature!==signature){n.obstacleSignature=signature;state.map.obstacleVersion++;}
   n.lastStarted=0;n.lastExpanded=0;n.lastReused=0;
@@ -60,6 +63,7 @@ export function navigate(state:SimulationState,map:BattleMap):void{
       if(corrected===undefined){m.status="blocked";continue;}start=corrected;
     }
     const goal=grid.cell(m.target),key=jobKey(goal,s.radius[i],s.layer[i],state.map.obstacleVersion);
+    const destinations=new DestinationReservations(state,[s.id[i]]);
     let cached=n.cache.find(c=>c.key===key);
     if(!cached&&grid.clear(grid.point(goal),s.radius[i],s.layer[i],s.id[i])){
       const corridor=n.cache.find(c=>{
@@ -69,7 +73,7 @@ export function navigate(state:SimulationState,map:BattleMap):void{
       });
       if(corridor)cached={key,path:[...corridor.path,goal]};
     }
-    if(cached){
+    if(cached&&cached.path.length&&(m.order==="focusAttack"||destinations.free(grid.point(cached.path[cached.path.length-1]),s.radius[i],s.layer[i]))){
       let join=-1,best=Infinity;
       for(let p=0;p<cached.path.length;p++){const point=grid.point(cached.path[p]),distance=(point.x-s.x[i])**2+(point.y-s.y[i])**2;if(distance<best&&grid.segment({x:s.x[i],y:s.y[i]},point,s.radius[i],s.layer[i],s.id[i])){best=distance;join=p;}}
       if(join>=0){n.lastReused++;m.path=cached.path.slice(join).map(c=>grid.point(c));m.pathIndex=0;m.status="moving";m.target=m.path.at(-1)!;continue;}
@@ -80,23 +84,28 @@ export function navigate(state:SimulationState,map:BattleMap):void{
   }
   for(const job of [...n.jobs]){
     let end:number|null=null;
+    const index=s.id.indexOf(job.entityId),motion=state.movement[index],destinations=new DestinationReservations(state,[job.entityId]);
+    const available=(cell:number)=>motion.order==="focusAttack"||destinations.free(grid.point(cell),job.radius,job.layer);
     while(job.open.length&&n.lastExpanded<8000){
       const current=pop(job.open);
       if(job.closed[current.cell]||current.g!==job.cost[current.cell])continue;
       job.closed[current.cell]=1;n.lastExpanded++;
-      if(heuristic(current.cell,job.goal,grid.width)<heuristic(job.best,job.goal,grid.width))job.best=current.cell;
-      if(current.cell===job.goal){end=current.cell;break;}
+      if(available(current.cell)&&(!available(job.best)||heuristic(current.cell,job.goal,grid.width)<heuristic(job.best,job.goal,grid.width)))job.best=current.cell;
+      if(current.cell===job.goal&&available(current.cell)){end=current.cell;break;}
       const x=current.cell%grid.width,y=Math.floor(current.cell/grid.width);
       for(const [nx,ny] of [[x-1,y],[x+1,y],[x,y-1],[x,y+1]]){
         if(nx<0||ny<0||nx>=grid.width||ny>=grid.height)continue;
         const cell=ny*grid.width+nx,g=current.g+10;
-        if(job.closed[cell]||(job.cost[cell]!==undefined&&job.cost[cell]<=g)||!grid.clear(grid.point(cell),job.radius,job.layer,job.entityId))continue;
+        if(job.closed[cell]||(job.cost[cell]!==undefined&&job.cost[cell]<=g)||!grid.clear(grid.point(cell),job.radius,job.layer,job.entityId)||!grid.segment(grid.point(current.cell),grid.point(cell),job.radius,job.layer,job.entityId))continue;
         job.cost[cell]=g;job.parent[cell]=current.cell;push(job.open,{cell,g,h:heuristic(cell,job.goal,grid.width)});
       }
     }
-    if(end===null&&!job.open.length)end=job.best;
+    if(end===null&&!job.open.length){
+      const free=Object.keys(job.closed).map(Number).filter(available).sort((a,b)=>heuristic(a,job.goal,grid.width)-heuristic(b,job.goal,grid.width)||a-b);
+      end=free[0]??job.start;
+    }
     if(end!==null){
-      const i=s.id.indexOf(job.entityId),m=state.movement[i],route=path(job,end);
+      const i=s.id.indexOf(job.entityId),m=state.movement[i],route=available(end)?path(job,end):[];
       m.path=route.map(c=>grid.point(c));m.pathIndex=0;m.status=route.length?"moving":"blocked";
       if(m.path.length)m.target=m.path.at(-1)!;
       n.cache.push({key:jobKey(job.goal,job.radius,job.layer,job.version),path:route});if(n.cache.length>64)n.cache.shift();

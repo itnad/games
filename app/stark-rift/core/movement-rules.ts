@@ -6,6 +6,7 @@ import { integrate } from "./fixed-point";
 import { navigate, NavigationGrid, type Point } from "../pathfinding/navigation";
 import { formationOffsets, integerSqrt } from "../pathfinding/formation";
 import { SpatialHash } from "../pathfinding/spatial-hash";
+import { DestinationReservations } from "../pathfinding/destinations";
 
 export type VisibilityCheck=(state:SimulationState,viewer:number,targetIndex:number)=>boolean;
 export function createMovementRules(map:BattleMap,visible:VisibilityCheck=()=>false):EngineRules{
@@ -33,18 +34,25 @@ export function createMovementRules(map:BattleMap,visible:VisibilityCheck=()=>fa
         const slot=command.payload.slot;groups[slot].entityIds=[...ids];return;
       }
       const batches=new Map<string,number[]>();
-      for(const id of ids){const slot=groups.findIndex(g=>g.entityIds.includes(id)),key=slot<0?"temporary":String(slot);if(!batches.has(key))batches.set(key,[]);batches.get(key)!.push(id);}
+      for(const id of ids){const slot=groups.findIndex(g=>g.entityIds.includes(id)),key=slot<0?`temporary:${state.movement[s.id.indexOf(id)].formation}`:String(slot);if(!batches.has(key))batches.set(key,[]);batches.get(key)!.push(id);}
+      const grid=new NavigationGrid(map,state),largest=Math.max(...ids.map(id=>s.radius[s.id.indexOf(id)]));
+      const constrained=ids.some(id=>{
+        const index=s.id.indexOf(id),point="target" in command&&command.target.kind==="point"?command.target:state.movement[index].target;
+        return point!==null&&point!==undefined&&!grid.clear(point,s.radius[index]+largest*2,s.layer[index],id);
+      });
+      // Keep an approach lane between parked bodies when a wall or map edge constrains the formation.
+      const reservations=new DestinationReservations(state,ids,constrained?largest:0);
       let batchIndex=0;
       const columns=Math.min(2,batches.size),rows=Math.ceil(batches.size/columns),maxBatch=Math.max(...[...batches.values()].map(ids=>ids.length));
       for(const [key,batch] of batches){
-        const slot=key==="temporary"?-1:Number(key),formation=slot<0?"line":groups[slot].formation;
+        const slot=key.startsWith("temporary:")?-1:Number(key),formation=slot<0?state.movement[s.id.indexOf(batch[0])].formation:groups[slot].formation;
         const spacing=Math.max(...batch.map(id=>s.radius[s.id.indexOf(id)]*2+32),128);
         const offsets=formationOffsets(batch.length,spacing,formation);
         if(command.kind==="setFormation"){
           const active=batch.map(id=>state.movement[s.id.indexOf(id)]).filter(m=>m.target!==null&&["move","attackMove","patrol"].includes(m.order));
           const center=active.length?{x:Math.round(active.reduce((sum,m)=>sum+m.target!.x,0)/active.length),y:Math.round(active.reduce((sum,m)=>sum+m.target!.y,0)/active.length)}:null;
           const changed=formationOffsets(active.length,spacing,command.payload.formation);
-          active.forEach((m,i)=>{m.target={x:Math.min(map.widthTiles*256-1,Math.max(0,center!.x+changed[i].x)),y:Math.min(map.heightTiles*256-1,Math.max(0,center!.y+changed[i].y))};m.path=[];m.pathIndex=0;m.status="waiting";m.requestTick=state.tick;});
+          active.forEach((m,i)=>{const index=s.id.indexOf(m.entityId);const point=reservations.allocate(grid,{x:center!.x+changed[i].x,y:center!.y+changed[i].y},s.radius[index],s.layer[index],m.entityId);m.target=point??m.target;m.path=[];m.pathIndex=0;m.status=point?"waiting":"blocked";m.requestTick=state.tick;});
         }
         for(const [position,id]of batch.entries()){
           const i=s.id.indexOf(id),m=state.movement[i];
@@ -61,8 +69,9 @@ export function createMovementRules(map:BattleMap,visible:VisibilityCheck=()=>fa
           if(command.kind==="focusAttack"){const t=s.id.indexOf(command.target.entityId);target={x:s.x[t],y:s.y[t]};}
           else target={x:Math.round(command.target.x+offsets[position].x+(batchIndex%columns-(columns-1)/2)*(maxBatch+2)*spacing),y:Math.round(command.target.y+offsets[position].y+(Math.floor(batchIndex/columns)-(rows-1)/2)*3*spacing)};
           const oldStance=m.stance;Object.assign(m,idleMovement(id));m.stance=slot<0?oldStance:groups[slot].stance;m.formation=formation;
-          m.transitFormation=formation;m.priority=command.source==="ai"?2:0;m.requestTick=state.tick;m.order=command.kind;m.origin={x:s.x[i],y:s.y[i]};m.target={x:Math.min(map.widthTiles*256-1,Math.max(0,target.x)),y:Math.min(map.heightTiles*256-1,Math.max(0,target.y))};
-          m.targetEntityId=command.kind==="focusAttack"?command.target.entityId:null;m.status="waiting";m.obstacleVersion=state.map.obstacleVersion;
+          const destination=command.kind==="focusAttack"?target:reservations.allocate(grid,target,s.radius[i],s.layer[i],id);
+          m.transitFormation=formation;m.priority=command.source==="ai"?2:0;m.requestTick=state.tick;m.order=command.kind;m.origin={x:s.x[i],y:s.y[i]};m.target=destination??{x:s.x[i],y:s.y[i]};
+          m.targetEntityId=command.kind==="focusAttack"?command.target.entityId:null;m.status=destination?"waiting":"blocked";m.obstacleVersion=state.map.obstacleVersion;
         }
         batchIndex++;
       }
@@ -85,7 +94,13 @@ function move(state:SimulationState,map:BattleMap,visible:VisibilityCheck):void{
       if(t>=0&&visible(state,s.owner[i],t)){
         const dx=s.x[t]-s.x[i],dy=s.y[t]-s.y[i],range=s.radius[i]+s.radius[t]+64;
         if(dx*dx+dy*dy<=range*range){m.status="arrived";continue;}
-        if(!m.target||Math.abs(m.target.x-s.x[t])+Math.abs(m.target.y-s.y[t])>256){m.target={x:s.x[t],y:s.y[t]};m.path=[];m.pathIndex=0;m.status="waiting";m.priority=1;m.requestTick=state.tick;state.navigation.jobs=state.navigation.jobs.filter(j=>j.entityId!==s.id[i]);}
+        if(m.status==="arrived"){
+          const length=integerSqrt(dx*dx+dy*dy),approach={x:s.x[t]-Math.trunc(dx*(range-1)/length),y:s.y[t]-Math.trunc(dy*(range-1)/length)};
+          if(grid.segment({x:s.x[i],y:s.y[i]},approach,s.radius[i],s.layer[i],s.id[i])&&!hash.overlaps(i,approach.x,approach.y)){
+            m.target={x:s.x[t],y:s.y[t]};m.path=[approach];m.pathIndex=0;m.status="moving";
+          }
+        }
+        if(m.status==="arrived"||!m.target||Math.abs(m.target.x-s.x[t])+Math.abs(m.target.y-s.y[t])>256){m.target={x:s.x[t],y:s.y[t]};m.path=[];m.pathIndex=0;m.status="waiting";m.priority=1;m.requestTick=state.tick;state.navigation.jobs=state.navigation.jobs.filter(j=>j.entityId!==s.id[i]);}
       }
     }
     if(m.status!=="moving"||!m.path.length)continue;

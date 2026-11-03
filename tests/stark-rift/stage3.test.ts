@@ -48,7 +48,7 @@ describe("movement commands",()=>{
   it("moves around terrain, stops, holds and rejects building movement",()=>{
     const state=make(),map=flat(),rules=createMovementRules(map);const id=spawn(state,1024,1024);map.walkable[4*32+6]=0;
     send(state,rules,"move",[id],{target:{kind:"point",x:2560,y:1024}});
-    for(let tick=0;tick<160;tick++){stepSimulation(state,rules);expect(new NavigationGrid(map,state).clear({x:state.entities.x[0],y:state.entities.y[0]},40,"ground")).toBe(true);}
+    for(let tick=0;tick<160;tick++){stepSimulation(state,rules);expect(new NavigationGrid(map,state).clear({x:state.entities.x[0],y:state.entities.y[0]},40,"ground",id)).toBe(true);}
     expect(state.entities.x[0]).toBeGreaterThan(2300);expect(state.movement[0].order).toBe("idle");
     send(state,rules,"patrol",[id],{target:{kind:"point",x:1024,y:1024}});for(let i=0;i<30;i++)stepSimulation(state,rules);
     send(state,rules,"hold",[id]);stepSimulation(state,rules);const x=state.entities.x[0];for(let i=0;i<20;i++)stepSimulation(state,rules);expect(state.entities.x[0]).toBe(x);expect(state.movement[0].order).toBe("hold");
@@ -57,7 +57,7 @@ describe("movement commands",()=>{
   it("corrects an impassable destination to a reachable cell",()=>{
     const state=make(),map=flat(16),rules=createMovementRules(map),id=spawn(state,1024,1024);for(let y=6;y<10;y++)for(let x=6;x<10;x++)map.walkable[y*16+x]=0;
     send(state,rules,"move",[id],{target:{kind:"point",x:2048,y:2048}});for(let i=0;i<250;i++)stepSimulation(state,rules);
-    expect(state.movement[0].order).toBe("idle");expect(new NavigationGrid(map,state).clear({x:state.entities.x[0],y:state.entities.y[0]},40,"ground")).toBe(true);expect(state.entities.x[0]===2048&&state.entities.y[0]===2048).toBe(false);
+    expect(state.movement[0].order).toBe("idle");expect(new NavigationGrid(map,state).clear({x:state.entities.x[0],y:state.entities.y[0]},40,"ground",id)).toBe(true);expect(state.entities.x[0]===2048&&state.entities.y[0]===2048).toBe(false);
   });
   it("requires visible enemy targets and performs focus pursuit without applying combat damage",()=>{
     const state=make(),map=flat(),id=spawn(state,1024,1024),enemy=spawn(state,2048,1024,{owner:1,speed:0});
