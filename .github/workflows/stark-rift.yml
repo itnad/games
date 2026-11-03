@@ -27,11 +27,13 @@ jobs:
       - run: npm run build:stark-rift-lab
       - run: npm run bench:stark-rift
       - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request' && github.head_ref == 'work/stark-rift-perf-20261103'
         with:
           ref: a134c98d21d3f63b4eed710a42ada83a0e979701
           path: work/stark-rift-lab/baseline
           persist-credentials: false
       - run: node tools/stark-rift-lab/compare-baseline.mjs
+        if: github.event_name == 'pull_request' && github.head_ref == 'work/stark-rift-perf-20261103'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
