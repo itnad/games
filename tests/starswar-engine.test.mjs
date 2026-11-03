@@ -673,7 +673,7 @@ test("starswar zerg AI personas field their signature units and finish a game", 
 test("starswar terran and zerg each have four AI personas and the new ones field their signature units", async () => {
   const { STW_AI_PERSONAS } = await import("../app/starswar/starswar-data.js");
   const byRace = Object.values(STW_AI_PERSONAS).reduce((map, persona) => ((map[persona.race] = (map[persona.race] ?? 0) + 1), map), {});
-  assert.deepEqual(byRace, { protoss: 5, terran: 4, zerg: 4 });
+  assert.deepEqual(byRace, { protoss: 6, terran: 5, zerg: 5 });
   const games = {
     tankbio: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio", enemy: "templar" } }),
     vulture: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "vulture", enemy: "dragoon" } }),
@@ -1189,6 +1189,125 @@ test("starswar zergling-swarm AI keeps pure zerglings, streams reinforcements, a
   assert.ok(["hydra", "ultra"].includes(state.sides.enemy.persona), `전략 전환 ${state.sides.enemy.persona}`);
   assert.equal(memory.switched.from, "ling");
   assert.equal(memory.wave, 1, "실패 횟수를 일부 덜어 새 성향의 출격 규모로 시작");
+});
+
+test("starswar weapons tell ground from air: melee cannot touch flyers, anti-air cannot touch ground", () => {
+  const state = quiet();
+  const scout = stwSpawnUnitAt(state, "enemy", "scout", 20, 60, "attack");
+  const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 62, "attack");
+  const dragoon = stwSpawnUnitAt(state, "player", "dragoon", 24, 64, "attack");
+  run(state, 3);
+  assert.notEqual(zealot.targetId, scout.id, "질럿은 공중을 노리지 않는다");
+  assert.equal(dragoon.targetId, scout.id, "드라군은 공중을 쏜다");
+  assert.ok(scout.hp + scout.shields < 250, "스카웃이 맞는다");
+  // 커세어는 지상을 때리지 못하고, 스카웃은 지상 8·공중 14×2로 무기를 바꿔 쓴다.
+  const other = quiet();
+  const corsair = stwSpawnUnitAt(other, "enemy", "corsair", 20, 60, "attack");
+  const marine = stwSpawnUnitAt(other, "player", "marine", 20, 63, "attack");
+  run(other, 3);
+  assert.notEqual(corsair.targetId, marine.id, "커세어는 지상을 노리지 않는다");
+  assert.ok(corsair.hp + corsair.shields < 180, "해병은 커세어를 쏜다");
+  const vsGround = stwHitDamage(other, { ...scout, kind: "unit" }, marine).reduce((a, b) => a + b, 0);
+  const vsAir = stwHitDamage(other, { ...scout, kind: "unit" }, corsair).reduce((a, b) => a + b, 0);
+  assert.equal(vsGround, 8);
+  assert.equal(vsAir, 14 * 2 * 0.75, "중형에게 폭발형 75%");
+});
+
+test("starswar overlords float and only anti-air weapons can hit them; spores and turrets shoot only air", () => {
+  const state = zerg("protoss");
+  state.sides.player.minerals = 9000;
+  for (const building of ["overlord", "pool", "evo", "spore"]) {
+    assert.equal(stwCommand(state, "player", { type: "build", building }).ok, true, building);
+    finishAll(state);
+  }
+  const overlord = stwOwnBuildings(state, "player", "overlord")[0];
+  const zealot = stwSpawnUnitAt(state, "enemy", "zealot", overlord.x, overlord.y - 3, "attack");
+  const corsair = stwSpawnUnitAt(state, "enemy", "corsair", overlord.x + 2, overlord.y - 3, "attack");
+  const hp = overlord.hp;
+  run(state, 4);
+  assert.notEqual(zealot.targetId, overlord.id, "질럿은 떠 있는 오버로드를 못 때린다");
+  assert.ok(overlord.hp < hp, `커세어가 오버로드를 때린다 (${overlord.hp})`);
+  assert.ok(corsair.hp + corsair.shields < 180, "스포어가 커세어를 쏜다");
+  const spore = stwOwnBuildings(state, "player", "spore")[0];
+  assert.notEqual(spore.targetId, zealot.id, "스포어는 지상을 쏘지 않는다");
+});
+
+test("starswar corsairs splash only air, mutalisks bounce, scourges die on impact", () => {
+  const state = quiet();
+  const corsair = stwSpawnUnitAt(state, "player", "corsair", 20, 60, "attack");
+  const wraiths = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "enemy", "wraith", 19 + index * 1.4, 56, "attack"));
+  const marine = stwSpawnUnitAt(state, "enemy", "marine", 20, 56.5, "attack");
+  marine.hp = 9999;
+  const before = marine.hp;
+  run(state, 1.2);
+  assert.ok(wraiths.filter((wraith) => wraith.hp < 120).length >= 2, "옆의 레이스도 맞는다");
+  assert.equal(marine.hp, before, "지상 해병은 커세어 범위에 맞지 않는다");
+  corsair.hp = 0;
+
+  const bounce = quiet();
+  const muta = stwSpawnUnitAt(bounce, "player", "mutalisk", 20, 60, "attack");
+  const marines = [0, 1, 2].map((index) => stwSpawnUnitAt(bounce, "enemy", "marine", 18.5 + index * 1.6, 57.5, "attack"));
+  for (const target of marines) target.hp = 9999;
+  stepStarswar(bounce);
+  for (let index = 0; index < 20 && marines.every((target) => target.hp === 9999); index += 1) stepStarswar(bounce);
+  const losses = marines.map((target) => 9999 - target.hp).sort((a, b) => b - a);
+  assert.ok(losses[0] > 0 && losses[1] > 0 && losses[2] > 0, `세 해병이 모두 맞는다 ${losses}`);
+  assert.ok(losses[1] <= losses[0] / 2 && losses[2] <= losses[1] / 2, `튕길수록 줄어든다 ${losses}`);
+  assert.ok(muta.hp > 0);
+
+  const kamikaze = quiet();
+  const scourge = stwSpawnUnitAt(kamikaze, "player", "scourge", 20, 60, "attack");
+  const scoutTarget = stwSpawnUnitAt(kamikaze, "enemy", "scout", 20, 57, "attack");
+  run(kamikaze, 2);
+  assert.ok(scourge.hp <= 0, "스커지는 몸을 던진다");
+  assert.ok(scoutTarget.hp + scoutTarget.shields <= 250 - 110 + 1, `스카웃 피해 ${scoutTarget.hp + scoutTarget.shields}`);
+});
+
+test("starswar air units ride behind the wave and never lead it; wraith cloak needs research", () => {
+  const state = quiet();
+  const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 70, "attack");
+  const scout = stwSpawnUnitAt(state, "player", "scout", 20, 70, "attack");
+  run(state, 6);
+  assert.ok(scout.y >= zealot.y - 0.5, `스카웃이 질럿을 앞지르지 않는다 (${scout.y.toFixed(1)} vs ${zealot.y.toFixed(1)})`);
+  const terranState = terran("protoss");
+  const wraith = stwSpawnUnitAt(terranState, "player", "wraith", 20, 60, "attack");
+  assert.equal(stwDetected(terranState, wraith, "enemy"), true, "연구 전에는 보인다");
+  terranState.sides.player.research.wraithCloak = "done";
+  assert.equal(stwDetected(terranState, wraith, "enemy"), false, "은폐 장치 연구 뒤에는 탐지기가 필요하다");
+});
+
+test("starswar air AI personas field their signature flyers and opponents answer with anti-air", () => {
+  const games = {
+    corsair: createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "corsair", enemy: "bio" } }),
+    wraith: createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "zerg" }, personas: { player: "wraith", enemy: "hydra" } }),
+    muta: createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "muta", enemy: "dragoon" } }),
+  };
+  const seen = { corsair: new Set(), wraith: new Set(), muta: new Set() };
+  const foeAA = { corsair: false, wraith: false, muta: false };
+  for (let step = 0; step < 9000; step += 1) {
+    let playing = false;
+    for (const [key, game] of Object.entries(games)) {
+      if (game.status !== "playing") continue;
+      playing = true;
+      stepStarswar(game, stwAiThink);
+      for (const unit of game.units) if (unit.side === "player") seen[key].add(unit.type);
+      if (game.buildings.some((building) => building.side === "enemy" && ["turret", "spore", "cannon", "armory"].includes(building.type))) foeAA[key] = true;
+    }
+    if (!playing) break;
+  }
+  assert.ok(seen.corsair.has("corsair"), "커세어 질럿은 커세어를 띄운다");
+  assert.ok(seen.wraith.has("wraith"), "레이스 메카닉은 레이스를 띄운다");
+  assert.ok(Object.values(foeAA).filter(Boolean).length >= 2, `상대가 대공 건물을 갖춘다 ${JSON.stringify(foeAA)}`);
+  // 뮤탈 저글링은 상대가 일찍 무너지면 스파이어 전에 끝나므로, 방해 없는 판에서 스파이어와 뮤탈리스크를 확인한다.
+  const solo = createStarswarGame({ seed: 2, aiSides: ["player"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "muta" } });
+  // 상대 건물을 못 부수게 해 판이 일찍 끝나지 않도록 한다.
+  for (const building of solo.buildings) if (building.side === "enemy") { building.hp = 1e6; building.maxHp = 1e6; }
+  const soloSeen = new Set();
+  for (let step = 0; step < 7200 && !soloSeen.has("mutalisk"); step += 1) {
+    stepStarswar(solo, stwAiThink);
+    for (const unit of solo.units) if (unit.side === "player") soloSeen.add(unit.type);
+  }
+  assert.ok(soloSeen.has("mutalisk"), "뮤탈 저글링은 뮤탈리스크를 띄운다");
 });
 
 test("starswar AI scouts early and goes on alert against a rush: defense first, no attacks", () => {

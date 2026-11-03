@@ -55,7 +55,15 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard"];
 const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
-const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", barracks: "배럭", factory: "팩토리", hatchery: "해처리", hatch: "해처리" };
+const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", stargate: "스타게이트", barracks: "배럭", factory: "팩토리", starport: "스타포트", hatchery: "해처리", hatch: "해처리" };
+/** 유닛 선택 버튼의 짧은 꼬리표: 떠 있는 유닛은 "공중", 공중을 쏘는 무기는 "대공", 공중만 쏘면 "공중만". */
+function unitTags(def: { flying?: boolean; targets?: string; damage?: number }) {
+  const tags: string[] = [];
+  if (def.flying) tags.push("공중");
+  if (def.targets === "air") tags.push("공중만");
+  else if (def.targets === "both") tags.push("대공");
+  return tags;
+}
 const RACE_IDS: StwRaceId[] = ["protoss", "terran", "zerg"];
 type EnemyRace = StwRaceId | "random";
 const ENEMY_RACE_IDS: EnemyRace[] = ["protoss", "terran", "zerg", "random"];
@@ -750,10 +758,11 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
               <div className="stw-line-choices">
                 {(STW_PRODUCER_UNITS[type] as StwArmyType[]).map((unit) => {
                   const lock = stwUnitLock(game, "player", unit) as string | null;
-                  const def = STW_UNITS[unit] as { name: string; minerals: number; gas: number; pair?: boolean };
+                  const def = STW_UNITS[unit] as { name: string; minerals: number; gas: number; pair?: boolean; flying?: boolean; targets?: string; damage?: number };
+                  const tags = unitTags(def);
                   return (
                     <button key={unit} type="button" disabled={Boolean(lock)} className={building.line === unit ? "active" : ""} aria-pressed={building.line === unit} onClick={() => issue({ type: "line", buildingId: building.id, unit })}>
-                      {def.name}<small>{lock ?? `${cost(def.minerals, def.gas)}${def.pair ? " · 2기" : ""}`}</small>
+                      {def.name}{tags.length ? <i className="stw-tags">{tags.join(" · ")}</i> : null}<small>{lock ?? `${cost(def.minerals, def.gas)}${def.pair ? " · 2기" : ""}`}</small>
                     </button>
                   );
                 })}

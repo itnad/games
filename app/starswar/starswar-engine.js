@@ -40,10 +40,30 @@ function isFlying(unit) {
   return Boolean(STW_UNITS[unit.type].flying);
 }
 
-/** 지금 은폐 상태인지: 다크템플러·옵저버는 항상, 럴커는 땅속에 숨어 있을 때. */
-function isCloaked(unit) {
+/** 지금 은폐 상태인지: 다크템플러·옵저버는 항상, 럴커는 땅속에 숨어 있을 때, 레이스는 은폐 장치 연구 뒤. */
+function isCloaked(unit, state = null) {
   const def = STW_UNITS[unit.type];
+  if (def?.cloakResearch && state && stwResearchDone(state, unit.side, def.cloakResearch)) return true;
   return Boolean(def?.cloaked || (def?.burrow && unit.burrowed));
+}
+
+/** 공격자의 무기가 노릴 수 있는 대상: 지상만, 공중만, 둘 다. 무기 없는 시전자(스톰)는 둘 다. */
+function weaponTargets(def) {
+  return def.targets ?? (def.damage ? "ground" : "both");
+}
+
+/** 떠 있는 대상인지(옵저버·오버로드·공중 유닛, 그리고 떠 있는 오버로드 건물). */
+function isAirborne(item) {
+  const def = item.kind === "unit" ? STW_UNITS[item.type] : STW_BUILDINGS[item.type];
+  return Boolean(def?.flying);
+}
+
+/** 공격자의 무기로 그 대상을 때릴 수 있는지(지상 무기는 공중을, 공중 전용 무기는 지상을 못 때린다). */
+function canHit(attacker, target) {
+  const def = attacker.kind === "unit" ? STW_UNITS[attacker.type] : STW_BUILDINGS[attacker.type];
+  const targets = weaponTargets(def);
+  if (targets === "both") return true;
+  return isAirborne(target) ? targets === "air" : targets === "ground";
 }
 
 /** 생산에 드는 인구: 저글링처럼 2기씩 나오면 두 배. */
@@ -56,9 +76,9 @@ function isSupport(unit) {
   return STW_UNITS[unit.type].role === "support";
 }
 
-/** 전투에 직접 끼지 않는 유닛(일꾼, 비행 탐지기). */
+/** 전투에 직접 끼지 않는 유닛(일꾼, 비행 탐지기). 무기 있는 공중 유닛은 전투 유닛이다. */
 function isPassive(unit) {
-  return isWorker(unit) || isFlying(unit);
+  return isWorker(unit) || (isFlying(unit) && isSupport(unit));
 }
 
 /** 쉬움에서는 초반에 몰아치는 성향을 빼고 고른다. */
@@ -873,13 +893,19 @@ function shieldArmor(state, target) {
 }
 
 /** 한 번 공격의 (보호막, 체력) 피해. 폭발형은 크기별 배율, 보호막 먼저, 체력에는 방어력 적용. */
+/** 쓸 무기: 공중 대상에 따로 공중 무기가 있으면 그것(스카웃·레이스·골리앗), 아니면 기본 무기. */
+function weaponFor(def, target) {
+  return def.air && target && isAirborne(target) ? def.air : def;
+}
+
 export function stwHitDamage(state, attacker, target) {
   const def = attacker.kind === "unit" ? STW_UNITS[attacker.type] : STW_BUILDINGS[attacker.type];
-  let perHit = (attacker.sieged ? def.siege.damage : def.damage) + (attacker.kind === "unit" ? weaponLevel(state, attacker) * (def.weaponStep ?? 0) : 0);
+  const weapon = attacker.sieged ? { ...def.siege, damageType: def.siege.damageType ?? def.damageType } : weaponFor(def, target);
+  let perHit = weapon.damage + (attacker.kind === "unit" ? weaponLevel(state, attacker) * (def.weaponStep ?? 0) : 0);
   if (attacker.type === "reaver" && stwResearchDone(state, attacker.side, "scarab")) perHit += 25;
-  const raw = perHit * STW_SIZE_MULTIPLIER[def.damageType][target.size ?? "large"];
+  const raw = perHit * STW_SIZE_MULTIPLIER[weapon.damageType][target.size ?? "large"];
   const hits = [];
-  for (let i = 0; i < (def.hits ?? 1); i += 1) hits.push(raw);
+  for (let i = 0; i < (weapon.hits ?? 1); i += 1) hits.push(raw);
   return hits;
 }
 
@@ -898,11 +924,35 @@ function applyDamage(state, target, amount, { ignoreArmor = false } = {}) {
 
 function queueHit(state, attacker, target) {
   state.pendingHits.push({ attacker, target, hits: stwHitDamage(state, attacker, target) });
-  const splash = attacker.kind === "unit" ? (attacker.sieged ? STW_UNITS[attacker.type].siege.splash : STW_UNITS[attacker.type].splash) : null;
+  const def = attacker.kind === "unit" ? STW_UNITS[attacker.type] : STW_BUILDINGS[attacker.type];
+  // 뮤탈리스크 튕김: 처음 맞은 적 옆의 다른 적(지상·공중 가리지 않음)에게 1/3, 다시 1/9.
+  if (def.bounce && target.kind === "unit") {
+    let from = target;
+    let factor = 1;
+    const hit = new Set([target]);
+    for (let step = 1; step < def.bounce.count; step += 1) {
+      factor *= def.bounce.factor;
+      let next = null;
+      let best = 3;
+      for (const other of state.units) {
+        if (hit.has(other) || other.side === attacker.side || other.hp <= 0 || !targetable(state, attacker, other)) continue;
+        const d = distance(other.x, other.y, from.x, from.y) - other.radius;
+        if (d < best) {
+          best = d;
+          next = other;
+        }
+      }
+      if (!next) break;
+      hit.add(next);
+      state.pendingHits.push({ attacker, target: next, hits: stwHitDamage(state, attacker, next).map((amount) => amount * factor) });
+      from = next;
+    }
+  }
+  const splash = attacker.kind === "unit" ? (attacker.sieged ? def.siege.splash : def.splash) : null;
   if (!splash) return;
-  // 범위 공격: 대상 주변의 다른 적 지상 유닛에도 비율만큼 피해(은폐 여부와 무관).
+  // 범위 공격: 대상 주변의 다른 적에게도 비율만큼 피해(은폐 여부와 무관). 지상 범위는 지상만, 커세어의 공중 범위는 공중만.
   for (const other of state.units) {
-    if (other === target || other.side === attacker.side || other.hp <= 0 || isFlying(other)) continue;
+    if (other === target || other.side === attacker.side || other.hp <= 0 || isFlying(other) !== Boolean(splash.air)) continue;
     if (distance(other.x, other.y, target.x, target.y) > splash.radius + other.radius * 0.5) continue;
     state.pendingHits.push({ attacker, target: other, hits: stwHitDamage(state, attacker, other).map((amount) => amount * splash.factor) });
   }
@@ -913,7 +963,7 @@ function queueHit(state, attacker, target) {
  * 그리고 지역 탐지 — 완성된 탐지 건물이 하나라도 있는 기지의 구역 안이면 드러난다.
  */
 export function stwDetected(state, unit, bySide) {
-  if (!isCloaked(unit)) return true;
+  if (!isCloaked(unit, state)) return true;
   for (const scan of state.scans ?? []) {
     if (scan.side === bySide && distance(scan.x, scan.y, unit.x, unit.y) <= scan.radius) return true;
   }
@@ -942,6 +992,11 @@ function comsatScan(state, side, attacker) {
   if (side === "player") pushLog(state, side, "컴샛 스캔으로 은폐한 적을 드러냈습니다.", "good");
 }
 
+const AIR_HINT = {
+  protoss: "공중 유닛에게 공격받고 있습니다. 드라군·포톤 캐논·커세어가 공중을 쏩니다.",
+  terran: "공중 유닛에게 공격받고 있습니다. 해병·골리앗·미사일 터렛이 공중을 쏩니다.",
+  zerg: "공중 유닛에게 공격받고 있습니다. 히드라리스크·스포어 콜로니·스커지가 공중을 쏩니다.",
+};
 const DETECT_HINT = {
   protoss: "보이지 않는 적에게 공격받고 있습니다! 포톤 캐논이나 옵저버로 탐지하세요.",
   terran: "보이지 않는 적에게 공격받고 있습니다! 미사일 터렛이나 컴샛 스테이션으로 탐지하세요.",
@@ -950,6 +1005,7 @@ const DETECT_HINT = {
 
 /** 공격자가 대상을 노릴 수 있는지: 은폐 유닛은 탐지되어야 한다. */
 function targetable(state, attacker, target) {
+  if (!canHit(attacker, target)) return false;
   return target.kind !== "unit" || stwDetected(state, target, attacker.side);
 }
 
@@ -962,7 +1018,12 @@ function applyHits(state) {
     }
     for (const amount of hit.hits) applyDamage(state, hit.target, amount);
     hit.target.lastHit = state.time;
-    const unseen = hit.attacker.kind === "unit" && isCloaked(hit.attacker) && !stwDetected(state, hit.attacker, hit.target.side);
+    // 공중 유닛에게 맞았으면 기억해 둔다(AI가 대공을 갖추고, 플레이어에게 알린다).
+    if (hit.attacker.kind === "unit" && isFlying(hit.attacker)) {
+      state.sides[hit.target.side].sawAirAt = state.time;
+      if (hit.target.side === "player") alertOnce(state, "air", 30, "player", AIR_HINT[state.sides.player.race] ?? AIR_HINT.protoss, "danger");
+    }
+    const unseen = hit.attacker.kind === "unit" && isCloaked(hit.attacker, state) && !stwDetected(state, hit.attacker, hit.target.side);
     if (unseen) {
       state.sides[hit.target.side].sawCloakAt = state.time;
       comsatScan(state, hit.target.side, hit.attacker);
@@ -1031,7 +1092,7 @@ function findTarget(state, attacker, radius, { unitsOnly = false } = {}) {
   }
   if (unitsOnly) return best;
   for (const building of state.buildings) {
-    if (building.side === attacker.side || building.hp <= 0) continue;
+    if (building.side === attacker.side || building.hp <= 0 || !canHit(attacker, building)) continue;
     const d = distance(attacker.x, attacker.y, building.x, building.y) - building.radius;
     if (d > radius) continue;
     const score = d + (STW_BUILDINGS[building.type].damage ? 1 : 6);
@@ -1047,7 +1108,8 @@ function resolve(state, id, attacker = null) {
   if (id === null || id === undefined) return null;
   const unit = state.units.find((item) => item.id === id && item.hp > 0);
   if (unit) return !attacker || targetable(state, attacker, unit) ? unit : null;
-  return state.buildings.find((building) => building.id === id && building.hp > 0) ?? null;
+  const building = state.buildings.find((item) => item.id === id && item.hp > 0) ?? null;
+  return building && (!attacker || canHit(attacker, building)) ? building : null;
 }
 
 /** 기지 구역: 그 기지의 어떤 건물이든 STW_DEFENSE_REACH 안에서 때릴 수 있는 자리에 있는지. 지역 방어와 지역 탐지가 함께 쓴다. */
@@ -1086,16 +1148,17 @@ function cannonStep(state, building, dt) {
   if (!target || building.cooldown > 0) return;
   building.cooldown = def.cooldown;
   queueHit(state, building, target);
-  const kind = building.type === "cannon" ? "photon" : building.type === "sunken" ? "tentacle" : "bullet";
-  const ttl = kind === "photon" ? 0.3 : kind === "tentacle" ? 0.8 : 0.12;
+  const kind = building.type === "cannon" ? "photon" : building.type === "sunken" ? "tentacle" : building.type === "turret" ? "flak" : building.type === "spore" ? "sporeShot" : "bullet";
+  const ttl = kind === "photon" ? 0.3 : kind === "tentacle" ? 0.8 : kind === "flak" || kind === "sporeShot" ? 0.3 : 0.12;
   state.effects.push({ kind, side: building.side, x1: building.x, y1: building.y, x2: target.x, y2: target.y, ttl, max: ttl, attackerId: building.id, targetId: target.id });
 }
 
 /** 공격 간격: 스팀팩 해병·파이어뱃과 아드레날린 분비선 저글링은 1.5배 빠르게 친다. */
-function attackCooldown(state, unit, def) {
-  if (stimmed(state, unit)) return def.cooldown * 0.67;
-  if (unit.type === "zergling" && stwResearchDone(state, unit.side, "adrenal")) return def.cooldown * 0.67;
-  return def.cooldown;
+function attackCooldown(state, unit, def, target = null) {
+  const cooldown = weaponFor(def, target).cooldown;
+  if (stimmed(state, unit)) return cooldown * 0.67;
+  if (unit.type === "zergling" && stwResearchDone(state, unit.side, "adrenal")) return cooldown * 0.67;
+  return cooldown;
 }
 
 function stimmed(state, unit) {
@@ -1133,16 +1196,16 @@ function moveToward(unit, x, y, speed, dt) {
   return step >= d - 0.01;
 }
 
-const ROLE_DEPTH = { melee: 2, ranged: 0, siege: -1.8, caster: -3.8, support: -5.5 };
-const ROLE_ORDER = { overlord: 12, ultra: -1, zealot: 0, zergling: 0.5, dark: 1, archon: 2, firebat: 3, dragoon: 4, hydra: 4.5, marine: 5, vulture: 6, reaver: 7, lurker: 7.5, tank: 8, templar: 9, medic: 10, observer: 11 };
-const ATTACK_EFFECT = { zealot: "slash", dark: "slash", dragoon: "plasma", archon: "shock", reaver: "scarab", marine: "bullet", firebat: "flame", vulture: "grenade", tank: "tankshot", zergling: "bite", ultra: "bite", hydra: "spine" };
+const ROLE_DEPTH = { melee: 2, ranged: 0, siege: -1.8, air: -2.6, caster: -3.8, support: -5.5 };
+const ROLE_ORDER = { overlord: 12, ultra: -1, zealot: 0, zergling: 0.5, dark: 1, archon: 2, firebat: 3, dragoon: 4, hydra: 4.5, goliath: 4.7, marine: 5, vulture: 6, reaver: 7, lurker: 7.5, tank: 8, mutalisk: 8.2, scourge: 8.3, corsair: 8.4, wraith: 8.5, scout: 8.6, templar: 9, medic: 10, observer: 11 };
+const ATTACK_EFFECT = { zealot: "slash", dark: "slash", dragoon: "plasma", archon: "shock", reaver: "scarab", marine: "bullet", firebat: "flame", vulture: "grenade", tank: "tankshot", zergling: "bite", ultra: "bite", hydra: "spine", scout: "laser", wraith: "laser", goliath: "flak", corsair: "neutron", mutalisk: "glaive", scourge: "burst" };
 
 /** 집결지에서의 자리: 근접은 앞, 원거리는 가운데, 템플러는 뒤. 한 줄 12자리. */
 function rallySlots(state, side, units, anchorY) {
   const forward = stwForward(side);
   const sorted = [...units].sort((a, b) => ROLE_ORDER[a.type] - ROLE_ORDER[b.type] || a.id - b.id);
   const slots = new Map();
-  const byRole = { melee: [], ranged: [], siege: [], caster: [], support: [] };
+  const byRole = { melee: [], ranged: [], siege: [], air: [], caster: [], support: [] };
   for (const unit of sorted) byRole[STW_UNITS[unit.type].role].push(unit);
   for (const [role, list] of Object.entries(byRole)) {
     list.forEach((unit, index) => {
@@ -1295,11 +1358,16 @@ function stepUnits(state, dt) {
           }
         }
         if (unit.cooldown <= 0) {
-          unit.cooldown = attackCooldown(state, unit, def);
+          unit.cooldown = attackCooldown(state, unit, def, target);
           queueHit(state, unit, target);
           const kind = ATTACK_EFFECT[unit.type] ?? "plasma";
-          const ttl = kind === "slash" || kind === "bullet" || kind === "bite" ? 0.15 : kind === "flame" ? 0.3 : kind === "scarab" ? 0.6 : kind === "shock" || kind === "spine" ? 0.25 : 0.35;
+          const ttl = kind === "slash" || kind === "bullet" || kind === "bite" ? 0.15 : kind === "flame" ? 0.3 : kind === "scarab" ? 0.6 : kind === "shock" || kind === "spine" ? 0.25 : kind === "burst" ? 0.5 : 0.35;
           state.effects.push({ kind, side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl, max: ttl, radius: STW_UNITS[unit.type].splash?.radius, attackerId: unit.id, targetId: target.id });
+          // 스커지: 몸을 던져 터진다.
+          if (def.suicide) {
+            unit.hp = 0;
+            unit.shields = 0;
+          }
         }
       } else {
         moveToward(unit, target.x, target.y, speed, dt);
@@ -1311,7 +1379,8 @@ function stepUnits(state, dt) {
       const x = slot ? slot.x : unit.x;
       // 물러나며 쏘는 유닛(해병·벌처)은 앞서 나가지 않는다. 먼저 닿아 혼자 카이팅하면 너무 유리하다.
       const aheadBy = plan.rearY === null ? 0 : (plan.rearY - unit.y) * -stwForward(unit.side);
-      moveToward(unit, unit.x + (x - unit.x) * 0.15, plan.goal.y, aheadBy < (def.kite ? 0 : WAVE_LEAD) ? speed : Math.min(speed, plan.waveSpeed), dt);
+      // 공중 유닛도 앞서 나가지 않는다. 혼자 먼저 닿으면 대공에 각개격파당하거나, 대공 없는 상대를 혼자 끝내 버린다.
+      moveToward(unit, unit.x + (x - unit.x) * 0.15, plan.goal.y, aheadBy < (def.kite || def.flying ? 0 : WAVE_LEAD) ? speed : Math.min(speed, plan.waveSpeed), dt);
     } else if (slot) {
       moveToward(unit, slot.x, slot.y, speed, dt);
     }
@@ -1340,7 +1409,7 @@ function findTargetBand(state, attacker, minRange, maxRange) {
   let bestScore = Infinity;
   const consider = (item, bias) => {
     if (item.side === attacker.side || item.hp <= 0) return;
-    if (item.kind === "unit" && (isFlying(item) || !targetable(state, attacker, item))) return;
+    if (item.kind === "unit" ? isFlying(item) || !targetable(state, attacker, item) : !canHit(attacker, item)) return;
     const d = distance(attacker.x, attacker.y, item.x, item.y) - item.radius;
     if (d > maxRange || d < minRange) return;
     if (d + bias < bestScore) {

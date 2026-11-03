@@ -8,19 +8,21 @@ import type { StwBuilding, StwEffect, StwSide, StwState, StwUi, StwUnit, StwUnit
 type PixiModule = typeof import("pixi.js");
 
 const UNIT_SIZE: Record<StwUnitType, number> = {
-  zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9, dark: 3.3, archon: 4.8, observer: 2.4, reaver: 4.6,
-  scv: 1.9, marine: 2.6, firebat: 2.9, medic: 2.5, vulture: 3.6, tank: 4.4,
-  drone: 1.9, zergling: 2.1, hydra: 3, lurker: 3.6, ultra: 5, overlord: 3.6,
+  zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9, dark: 3.3, archon: 4.8, observer: 2.4, reaver: 4.6, scout: 3.8, corsair: 3.1,
+  scv: 1.9, marine: 2.6, firebat: 2.9, medic: 2.5, vulture: 3.6, tank: 4.4, goliath: 3.6, wraith: 3.5,
+  drone: 1.9, zergling: 2.1, hydra: 3, lurker: 3.6, ultra: 5, overlord: 3.6, mutalisk: 3.4, scourge: 2,
 };
 /** 다리 대신 바퀴·궤도·부양으로 움직여 걸음 흔들림이 없는 유닛. */
 type Flags = { refinery?: boolean; worker?: boolean; flying?: boolean };
 const flags = (def: object) => def as Flags;
-const NO_BOB = new Set<StwUnitType>(["dragoon", "vulture", "tank", "overlord"]);
+const NO_BOB = new Set<StwUnitType>(["dragoon", "vulture", "tank", "overlord", "scout", "corsair", "wraith", "mutalisk", "scourge"]);
+/** 떠 있는 유닛: 그림자를 멀리 떨어뜨리고 몸이 천천히 떠오르내린다. */
+const isFlyingType = (type: StwUnitType) => Boolean((STW_UNITS[type] as { flying?: boolean }).flying);
 /** 포탑 텍스처(여백 40)와 차체 텍스처(여백 34)의 크기 비. */
 const TURRET_RATIO = 40 / 34;
 const CLOAKED = new Set<StwUnitType>(["dark", "observer"]);
-/** 지금 은폐 상태인지: 럴커는 땅속에 숨었을 때만. */
-const isCloaked = (unit: StwUnit) => CLOAKED.has(unit.type) || (unit.type === "lurker" && Boolean(unit.burrowed));
+/** 지금 은폐 상태인지: 럴커는 땅속에 숨었을 때만, 레이스는 은폐 장치 연구 뒤. */
+const isCloaked = (unit: StwUnit, state: StwState) => CLOAKED.has(unit.type) || (unit.type === "lurker" && Boolean(unit.burrowed)) || (unit.type === "wraith" && state.sides[unit.side].research.wraithCloak === "done");
 const FONT = "system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
 const FOG_CELL = 2;
 
@@ -547,7 +549,7 @@ export class StwPixiRenderer {
     for (const unit of state.units) {
       if (!this.visibleCache.has(unit.id) && unit.side !== "player") continue;
       // 은폐한 적은 아군 탐지기 범위 안에 있을 때만 보인다.
-      if (unit.side !== "player" && isCloaked(unit) && !stwDetected(state, unit, "player")) continue;
+      if (unit.side !== "player" && isCloaked(unit, state) && !stwDetected(state, unit, "player")) continue;
       alive.add(unit.id);
       let view = this.unitViews.get(unit.id);
       if (!view) view = this.createUnitView(unit);
@@ -613,6 +615,7 @@ export class StwPixiRenderer {
         view.body.rotation = state.time * 0.8 + unit.id;
       }
       if (unit.type === "overlord") view.body.position.set(view.body.position.x + Math.sin(state.time * 0.7 + unit.id) * 0.3, view.body.position.y + Math.cos(state.time * 0.9 + unit.id) * 0.25 - 0.5);
+      else if (isFlyingType(unit.type) && unit.type !== "observer") view.body.position.set(view.body.position.x, view.body.position.y + Math.sin(state.time * 2.2 + unit.id) * 0.18 - 0.9);
       if (unit.type === "lurker") {
         // 럴커: 땅속에 숨으면 가시 무덤 모양으로 바뀌고 반투명해진다.
         const burrowed = Boolean(unit.burrowed);
@@ -624,7 +627,8 @@ export class StwPixiRenderer {
         }
         if (burrowed) view.body.scale.set(UNIT_SIZE.lurker / Math.max(view.body.texture.width, view.body.texture.height));
         view.root.alpha = burrowed ? (unit.side === "player" ? 0.6 : 0.5 + Math.sin(state.time * 9 + unit.id) * 0.15) : 1;
-      } else if (CLOAKED.has(unit.type)) view.root.alpha = unit.side === "player" ? 0.5 : 0.45 + Math.sin(state.time * 9 + unit.id) * 0.15;
+      } else if (isCloaked(unit, state)) view.root.alpha = unit.side === "player" ? 0.5 : 0.45 + Math.sin(state.time * 9 + unit.id) * 0.15;
+      else if (unit.type === "wraith") view.root.alpha = 1;
     }
     for (const [id, view] of this.unitViews) {
       if (alive.has(id)) continue;
@@ -638,7 +642,7 @@ export class StwPixiRenderer {
     const root = new PIXI.Container();
     const shadow = this.sprite(this.tex.shadow, UNIT_SIZE[unit.type] * 1.05);
     // 옵저버는 떠 있으므로 그림자를 멀리 떨어뜨린다.
-    const flying = unit.type === "observer" || unit.type === "overlord";
+    const flying = isFlyingType(unit.type);
     shadow.position.set(flying ? 1.2 : 0.25, flying ? 1.8 : 0.4);
     const glow = this.sprite(this.tex.soft, UNIT_SIZE[unit.type] * 1.4);
     glow.tint = STW_TEAM[unit.side].glow;
@@ -772,6 +776,12 @@ export class StwPixiRenderer {
         this.particles.push({ sprite, x, y, vx: 0, vy: 0, life: 0.18 + t * 0.25, max: 0.18 + t * 0.25, s0: 1.4 / 32, s1: 0.6 / 32, a0: 1, rise: 0 });
         if (i % 2 === 0) this.smoke(x, y, 0.9, 0.6);
       }
+    } else if (effect.kind === "burst") {
+      // 스커지 자폭: 대상 위에서 작은 폭발.
+      this.flash(effect.x2, effect.y2, 2.4, 0.16, 0xd8ffb0);
+      this.impactRing(effect.x2, effect.y2, 2.6, 0xb6ff8a);
+      for (let i = 0; i < 6; i += 1) this.spark(effect.x2, effect.y2, i % 2 ? 0x8a5468 : 0xd8ffb0, 5, 0.4);
+      this.smoke(effect.x2, effect.y2, 1.2, 0.7);
     } else if (effect.kind === "tentacle") {
       // 성큰 촉수: 성큰이 움찔하며 흙을 튀기고, 촉수는 drawTentacles가 땅을 타고 뻗어 가게 그린다.
       const sunken = effect.attackerId === undefined ? undefined : this.buildingViews.get(effect.attackerId);
@@ -943,7 +953,7 @@ export class StwPixiRenderer {
         } else if (effect.kind === "grenade" || effect.kind === "tankshot") {
           this.flash(effect.x2, effect.y2, effect.kind === "tankshot" ? 2.6 : 2, 0.12, 0xffd28a);
           for (let i = 0; i < 4; i += 1) this.spark(effect.x2, effect.y2, 0xffb050, 4, 0.35);
-        } else if (effect.kind === "bullet" || effect.kind === "spine") {
+        } else if (effect.kind === "bullet" || effect.kind === "spine" || effect.kind === "laser" || effect.kind === "neutron" || effect.kind === "glaive" || effect.kind === "flak" || effect.kind === "sporeShot") {
           this.flash(effect.x2, effect.y2, 0.9, 0.06, 0xffe7a0);
           this.spark(effect.x2, effect.y2, 0xffe7a0, 3, 0.25);
         } else {
@@ -1082,8 +1092,8 @@ export class StwPixiRenderer {
   }
 }
 
-const PROJECTILES = new Set<StwEffect["kind"]>(["plasma", "photon", "scarab", "bullet", "grenade", "tankshot", "shell", "spine"]);
-const PROJECTILE_TINT: Partial<Record<StwEffect["kind"], number>> = { scarab: 0xffb347, bullet: 0xffe7a0, grenade: 0xff9a3c, tankshot: 0xffd28a, shell: 0xffc46b, spine: 0xd8f09a };
+const PROJECTILES = new Set<StwEffect["kind"]>(["plasma", "photon", "scarab", "bullet", "grenade", "tankshot", "shell", "spine", "laser", "neutron", "glaive", "flak", "sporeShot"]);
+const PROJECTILE_TINT: Partial<Record<StwEffect["kind"], number>> = { scarab: 0xffb347, bullet: 0xffe7a0, grenade: 0xff9a3c, tankshot: 0xffd28a, shell: 0xffc46b, spine: 0xd8f09a, laser: 0xff6a6a, neutron: 0x9fd8ff, glaive: 0xb6ff8a, flak: 0xffe7a0, sporeShot: 0xc8a0e0 };
 const PROJECTILE_SIZE: Partial<Record<StwEffect["kind"], number>> = { scarab: 2.2, photon: 1.6, bullet: 0.7, grenade: 1.2, tankshot: 1.5, shell: 1.9, spine: 0.9 };
 
 function pseudo(seed: number) {

@@ -131,6 +131,7 @@
 .stw-progress span { display:block; height:100%; background:var(--stw-gold); }
 .stw-line-choices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
 .stw-line-choices button { min-height:46px; padding:4px; display:grid; place-content:center; line-height:1.2; }
+.stw-line-choices button .stw-tags { display:block; margin-top:1px; color:#9fd8ff; font-size:10px; font-style:normal; font-weight:800; letter-spacing:0.02em; }
 .stw-line-choices small { color:var(--stw-muted); font-size:12px !important; font-weight:700; }
 .stw-line-choices button.active, .stw-segment button.active { color:#2a1c05; border-color:var(--stw-gold); background:var(--stw-gold); }
 .stw-line-choices button.active small { color:#4a3410; }
