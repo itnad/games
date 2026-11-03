@@ -1,28 +1,37 @@
 // 스타즈워 PixiJS 렌더러. 엔진 상태를 읽기만 하며, 플레이어 시야 밖의 적은 감춘다.
 import type { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_STORM, STW_UNITS } from "./starswar-data.js";
-import { stwArmy, stwDetected, stwDone, stwNexus, stwPoint, stwRace, stwRallyName, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
+import { stwArmy, stwDetected, stwDone, stwIsCloaked, stwNexus, stwPoint, stwRace, stwRallyName, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
 import { STW_TEAM, createStwTextures, type StwTextureSet } from "./starswar-sprites";
 import type { StwBuilding, StwEffect, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./starswar-types";
 
 type PixiModule = typeof import("pixi.js");
 
 const UNIT_SIZE: Record<StwUnitType, number> = {
-  zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9, dark: 3.3, archon: 4.8, observer: 2.4, reaver: 4.6, scout: 3.8, corsair: 3.1,
-  scv: 1.9, marine: 2.6, firebat: 2.9, medic: 2.5, vulture: 3.6, tank: 4.4, goliath: 3.6, wraith: 3.5,
-  drone: 1.9, zergling: 2.1, hydra: 3, lurker: 3.6, ultra: 5, overlord: 3.6, mutalisk: 3.4, scourge: 2,
+  zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9, dark: 3.3, archon: 4.8, darkArchon: 4.8, observer: 2.4, shuttle: 3.8, reaver: 4.6, scout: 3.8, corsair: 3.1, carrier: 6.4, arbiter: 4.8,
+  scv: 1.9, marine: 2.6, firebat: 2.9, medic: 2.5, ghost: 2.6, vulture: 3.6, tank: 4.4, goliath: 3.6, wraith: 3.5, dropship: 4, vessel: 4.4, valkyrie: 4, battlecruiser: 6.8,
+  drone: 1.9, zergling: 2.1, hydra: 3, lurker: 3.6, ultra: 5, overlord: 3.6, mutalisk: 3.4, scourge: 2, guardian: 4.6, devourer: 4.2, queen: 3.8, defiler: 3.2, infested: 2.4, broodling: 1.6,
 };
 /** 다리 대신 바퀴·궤도·부양으로 움직여 걸음 흔들림이 없는 유닛. */
 type Flags = { refinery?: boolean; worker?: boolean; flying?: boolean };
 const flags = (def: object) => def as Flags;
-const NO_BOB = new Set<StwUnitType>(["dragoon", "vulture", "tank", "overlord", "scout", "corsair", "wraith", "mutalisk", "scourge"]);
+const NO_BOB = new Set<StwUnitType>(["dragoon", "vulture", "tank", "overlord", "scout", "corsair", "wraith", "mutalisk", "scourge", "darkArchon", "shuttle", "carrier", "arbiter",
+  "dropship", "vessel", "valkyrie", "battlecruiser", "guardian", "devourer", "queen"]);
 /** 떠 있는 유닛: 그림자를 멀리 떨어뜨리고 몸이 천천히 떠오르내린다. */
 const isFlyingType = (type: StwUnitType) => Boolean((STW_UNITS[type] as { flying?: boolean }).flying);
 /** 포탑 텍스처(여백 40)와 차체 텍스처(여백 34)의 크기 비. */
 const TURRET_RATIO = 40 / 34;
-const CLOAKED = new Set<StwUnitType>(["dark", "observer"]);
-/** 지금 은폐 상태인지: 럴커는 땅속에 숨었을 때만, 레이스는 은폐 장치 연구 뒤. */
-const isCloaked = (unit: StwUnit, state: StwState) => CLOAKED.has(unit.type) || (unit.type === "lurker" && Boolean(unit.burrowed)) || (unit.type === "wraith" && state.sides[unit.side].research.wraithCloak === "done");
+/** 지금 은폐 상태인지(엔진 판정: 연구·아비터 은폐장·땅속 럴커, 인스네어에 걸리면 드러남). */
+const isCloaked = (unit: StwUnit, state: StwState) => stwIsCloaked(state, unit);
+/** 상태 이상 색: 스테이시스(하늘), 정지(보라), 인스네어(연두), 플레이그(탁한 초록), 이레디에이트(밝은 초록). */
+function statusTint(state: StwState, unit: StwUnit) {
+  if ((unit.stasisUntil ?? 0) > state.time) return 0x9fe8ff;
+  if ((unit.stunUntil ?? 0) > state.time) return 0xb495ff;
+  if ((unit.irradiateUntil ?? 0) > state.time) return 0x9dff8a;
+  if ((unit.plagueUntil ?? 0) > state.time) return 0xb8c46a;
+  if ((unit.ensnareUntil ?? 0) > state.time) return 0xe2e88a;
+  return 0xffffff;
+}
 const FONT = "system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif";
 const FOG_CELL = 2;
 
@@ -549,6 +558,7 @@ export class StwPixiRenderer {
     for (const unit of state.units) {
       if (!this.visibleCache.has(unit.id) && unit.side !== "player") continue;
       // 은폐한 적은 아군 탐지기 범위 안에 있을 때만 보인다.
+      if (unit.group === "cargo") continue;
       if (unit.side !== "player" && isCloaked(unit, state) && !stwDetected(state, unit, "player")) continue;
       alive.add(unit.id);
       let view = this.unitViews.get(unit.id);
@@ -580,7 +590,7 @@ export class StwPixiRenderer {
       view.flash = Math.max(0, view.flash - realDt);
       view.jitter = Math.max(0, view.jitter - realDt * 1.6);
       view.lunge = Math.max(0, view.lunge - realDt * 4.5);
-      view.body.tint = view.flash > 0 ? view.flashColor : 0xffffff;
+      view.body.tint = view.flash > 0 ? view.flashColor : statusTint(state, unit);
       // 근접 공격 동작: 목표 쪽으로 짧게 찌르고 돌아온다.
       const lungeReach = Math.sin(Math.min(1, view.lunge) * Math.PI) * UNIT_SIZE[unit.type] * 0.3;
       const shakeX = (Math.random() - 0.5) * view.jitter * 0.5;
@@ -610,9 +620,18 @@ export class StwPixiRenderer {
         view.turret.rotation = view.aim;
       }
       if (unit.type === "templar") view.glow.alpha = 0.25 + (unit.energy / 200) * 0.45;
-      if (unit.type === "archon") {
+      if (unit.type === "archon" || unit.type === "darkArchon") {
         view.glow.alpha = 0.55 + Math.sin(state.time * 5 + unit.id) * 0.15;
-        view.body.rotation = state.time * 0.8 + unit.id;
+        view.body.rotation = (unit.type === "archon" ? 1 : -1) * state.time * 0.8 + unit.id;
+      }
+      // 디펜시브 매트릭스: 푸른 막이 감싼다. 끝나면 진영 색으로 돌아간다.
+      const matrixOn = Boolean(unit.matrix && unit.matrix.hp > 0 && unit.matrix.until > state.time);
+      if (matrixOn) {
+        view.glow.tint = 0x6fd0ff;
+        view.glow.alpha = 0.6 + Math.sin(state.time * 8 + unit.id) * 0.15;
+      } else if (view.glow.tint === 0x6fd0ff) {
+        view.glow.tint = STW_TEAM[unit.side].glow;
+        view.glow.alpha = 0.16;
       }
       if (unit.type === "overlord") view.body.position.set(view.body.position.x + Math.sin(state.time * 0.7 + unit.id) * 0.3, view.body.position.y + Math.cos(state.time * 0.9 + unit.id) * 0.25 - 0.5);
       else if (isFlyingType(unit.type) && unit.type !== "observer") view.body.position.set(view.body.position.x, view.body.position.y + Math.sin(state.time * 2.2 + unit.id) * 0.18 - 0.9);
@@ -647,7 +666,8 @@ export class StwPixiRenderer {
     const glow = this.sprite(this.tex.soft, UNIT_SIZE[unit.type] * 1.4);
     glow.tint = STW_TEAM[unit.side].glow;
     glow.blendMode = "add";
-    glow.alpha = unit.type === "templar" ? 0.4 : unit.type === "archon" ? 0.6 : 0.16;
+    glow.alpha = unit.type === "templar" ? 0.4 : unit.type === "archon" || unit.type === "darkArchon" ? 0.6 : 0.16;
+    if (unit.type === "darkArchon") glow.tint = 0x9a5cff;
     // 진영 고리: 같은 종족끼리 싸울 때 아군(파랑)과 적(빨강)을 발밑 색으로 가른다.
     const ring = this.sprite(this.tex.ring, UNIT_SIZE[unit.type] * 1.12);
     ring.tint = STW_TEAM[unit.side].glow;
@@ -776,6 +796,18 @@ export class StwPixiRenderer {
         this.particles.push({ sprite, x, y, vx: 0, vy: 0, life: 0.18 + t * 0.25, max: 0.18 + t * 0.25, s0: 1.4 / 32, s1: 0.6 / 32, a0: 1, rise: 0 });
         if (i % 2 === 0) this.smoke(x, y, 0.9, 0.6);
       }
+    } else if (effect.kind === "spell") {
+      // 마법: 시전자에서 대상까지 가는 빛줄기와 대상 자리의 고리.
+      const color = SPELL_COLOR[effect.spell ?? ""] ?? team.light;
+      const radius = effect.radius ?? 1.4;
+      this.flash(effect.x1, effect.y1, 1.6, 0.18, color);
+      this.impactRing(effect.x2, effect.y2, radius * 2.4, color);
+      this.flash(effect.x2, effect.y2, radius * 2, 0.3, color);
+      for (let i = 0; i < 8; i += 1) this.spark(effect.x2, effect.y2, color, 4 + radius, 0.5);
+      if (effect.spell === "emp" || effect.spell === "stasis") this.shake = Math.max(this.shake, 0.25);
+    } else if (effect.kind === "interceptor") {
+      // 캐리어 인터셉터: 대상 주변에서 작은 불꽃 여럿.
+      for (let i = 0; i < 4; i += 1) this.flash(effect.x2 + (Math.random() - 0.5) * 2, effect.y2 + (Math.random() - 0.5) * 2, 0.7, 0.1, 0xffe7a0);
     } else if (effect.kind === "burst") {
       // 스커지 자폭: 대상 위에서 작은 폭발.
       this.flash(effect.x2, effect.y2, 2.4, 0.16, 0xd8ffb0);
@@ -941,7 +973,7 @@ export class StwPixiRenderer {
       used += 1;
       if (t > (effect.kind === "shell" ? 0.88 : 0.7) && !this.impacted.has(effect)) {
         this.impacted.add(effect);
-        if (effect.kind === "scarab" || effect.kind === "shell") {
+        if (effect.kind === "scarab" || effect.kind === "shell" || effect.kind === "yamato") {
           // 스캐럽·시즈 포탄 폭발: 큰 섬광, 불꽃, 연기, 그을음, 화면 흔들림.
           const radius = effect.radius ?? 2.4;
           this.shake = Math.max(this.shake, 0.45);
@@ -968,6 +1000,18 @@ export class StwPixiRenderer {
   private drawStorms(state: StwState, clock: number) {
     const g = this.stormLayer;
     g.clear();
+    // 다크 스웜: 어두운 포자 구름. 안의 지상 유닛은 원거리 공격을 받지 않는다.
+    for (const zone of state.zones ?? []) {
+      if (zone.side !== "player" && !this.visiblePoint(state, zone.x, zone.y)) continue;
+      const fade = Math.min(1, zone.ttl / 1, (zone.max - zone.ttl + 0.2) / 0.5);
+      g.circle(zone.x, zone.y, zone.radius).fill({ color: 0x2a1a10, alpha: 0.45 * fade });
+      for (let i = 0; i < 9; i += 1) {
+        const a = (Math.PI * 2 * i) / 9 + clock * 0.4 + zone.id;
+        const r = zone.radius * (0.45 + 0.4 * pseudo(zone.id + i));
+        g.circle(zone.x + Math.cos(a) * r, zone.y + Math.sin(a) * r, zone.radius * 0.35).fill({ color: 0x4a3420, alpha: 0.35 * fade });
+      }
+      g.circle(zone.x, zone.y, zone.radius).stroke({ width: 0.15, color: 0x8a6a40, alpha: 0.6 * fade });
+    }
     for (const storm of state.storms) {
       if (storm.side !== "player" && !this.visiblePoint(state, storm.x, storm.y)) continue;
       const r = STW_STORM.radius;
@@ -1092,9 +1136,14 @@ export class StwPixiRenderer {
   }
 }
 
-const PROJECTILES = new Set<StwEffect["kind"]>(["plasma", "photon", "scarab", "bullet", "grenade", "tankshot", "shell", "spine", "laser", "neutron", "glaive", "flak", "sporeShot"]);
-const PROJECTILE_TINT: Partial<Record<StwEffect["kind"], number>> = { scarab: 0xffb347, bullet: 0xffe7a0, grenade: 0xff9a3c, tankshot: 0xffd28a, shell: 0xffc46b, spine: 0xd8f09a, laser: 0xff6a6a, neutron: 0x9fd8ff, glaive: 0xb6ff8a, flak: 0xffe7a0, sporeShot: 0xc8a0e0 };
-const PROJECTILE_SIZE: Partial<Record<StwEffect["kind"], number>> = { scarab: 2.2, photon: 1.6, bullet: 0.7, grenade: 1.2, tankshot: 1.5, shell: 1.9, spine: 0.9 };
+const PROJECTILES = new Set<StwEffect["kind"]>(["plasma", "photon", "scarab", "bullet", "grenade", "tankshot", "shell", "spine", "laser", "neutron", "glaive", "flak", "sporeShot", "yamato"]);
+const PROJECTILE_TINT: Partial<Record<StwEffect["kind"], number>> = { scarab: 0xffb347, bullet: 0xffe7a0, grenade: 0xff9a3c, tankshot: 0xffd28a, shell: 0xffc46b, spine: 0xd8f09a, laser: 0xff6a6a, neutron: 0x9fd8ff, glaive: 0xb6ff8a, flak: 0xffe7a0, sporeShot: 0xc8a0e0, yamato: 0xff8a3c };
+const PROJECTILE_SIZE: Partial<Record<StwEffect["kind"], number>> = { scarab: 2.2, photon: 1.6, bullet: 0.7, grenade: 1.2, tankshot: 1.5, shell: 1.9, spine: 0.9, yamato: 3.2 };
+/** 마법 빛깔. */
+const SPELL_COLOR: Record<string, number> = {
+  feedback: 0x6fb8ff, maelstrom: 0xb07dff, stasis: 0x9fe8ff, lockdown: 0x7fd0ff, matrix: 0x6fd0ff, emp: 0x9fd8ff, irradiate: 0x8aff7a,
+  yamato: 0xff8a3c, ensnare: 0xe2e88a, broodling: 0xc9a0b8, darkSwarm: 0x8a6a40, plague: 0xb8c46a,
+};
 
 function pseudo(seed: number) {
   const x = Math.sin(seed * 12.9898) * 43758.5453;

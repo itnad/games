@@ -20,6 +20,7 @@ import {
   STW_RALLY_RANGE,
   STW_RESEARCH,
   STW_SIZE_MULTIPLIER,
+  STW_SPELLS,
   STW_STORM,
   STW_TICK,
   STW_UNITS,
@@ -40,11 +41,56 @@ function isFlying(unit) {
   return Boolean(STW_UNITS[unit.type].flying);
 }
 
-/** 지금 은폐 상태인지: 다크템플러·옵저버는 항상, 럴커는 땅속에 숨어 있을 때, 레이스는 은폐 장치 연구 뒤. */
+/**
+ * 지금 은폐 상태인지: 다크템플러·옵저버는 항상, 럴커는 땅속에 숨어 있을 때, 레이스·고스트는 은폐 연구 뒤,
+ * 그리고 아군 아비터의 은폐장 안. 인스네어에 걸리면 드러난다.
+ */
 function isCloaked(unit, state = null) {
   const def = STW_UNITS[unit.type];
-  if (def?.cloakResearch && state && stwResearchDone(state, unit.side, def.cloakResearch)) return true;
-  return Boolean(def?.cloaked || (def?.burrow && unit.burrowed));
+  if (!def) return false;
+  if (state && ensnared(state, unit)) return false;
+  if (def.cloakResearch && state && stwResearchDone(state, unit.side, def.cloakResearch)) return true;
+  if (def.cloaked || (def.burrow && unit.burrowed)) return true;
+  if (state && !def.cloakField && !isWorker(unit)) {
+    for (const arbiter of cloakFields(state)) {
+      if (arbiter.side === unit.side && arbiter !== unit && distance(arbiter.x, arbiter.y, unit.x, unit.y) <= STW_UNITS[arbiter.type].cloakField) return true;
+    }
+  }
+  return false;
+}
+
+/** 화면용: 지금 은폐 상태인지(아비터 은폐장·연구·인스네어 포함). */
+export function stwIsCloaked(state, unit) {
+  return isCloaked(unit, state);
+}
+
+/** 아비터(은폐장) 목록. 같은 틱 안에서는 한 번만 모은다. */
+const cloakFieldCache = new WeakMap();
+function cloakFields(state) {
+  const cached = cloakFieldCache.get(state);
+  if (cached && cached.time === state.time) return cached.list;
+  const list = state.units.filter((unit) => unit.hp > 0 && STW_UNITS[unit.type].cloakField);
+  cloakFieldCache.set(state, { time: state.time, list });
+  return list;
+}
+
+/** 생체 유닛: 기계도 사이오닉 에너지 존재(아콘·다크 아콘)도 아닌 유닛. 마엘스트롬·브루들링·이레디에이트 대상. */
+function isBiological(unit) {
+  const def = STW_UNITS[unit.type];
+  return !def.mech && !def.psionic;
+}
+
+function inStasis(state, unit) {
+  return unit.stasisUntil !== undefined && state.time < unit.stasisUntil;
+}
+
+/** 마엘스트롬·락다운·스테이시스로 꼼짝 못 하는지. */
+function stunned(state, unit) {
+  return unit.stunUntil !== undefined && state.time < unit.stunUntil;
+}
+
+function ensnared(state, unit) {
+  return unit.ensnareUntil !== undefined && state.time < unit.ensnareUntil;
 }
 
 /** 공격자의 무기가 노릴 수 있는 대상: 지상만, 공중만, 둘 다. 무기 없는 시전자(스톰)는 둘 다. */
@@ -159,6 +205,7 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
     units: [],
     buildings: [],
     storms: [],
+    zones: [],
     scans: [],
     effects: [],
     pendingHits: [],
@@ -313,7 +360,8 @@ export function stwArmy(state, side) {
   // fighters: 대기 병력 가운데 실제로 싸우는 유닛. attackers: 공격 병력 가운데 싸우는 유닛. 지원 유닛(옵저버·동행 오버로드)은 뺀다.
   const army = { rally: [], attack: [], fighters: [], attackers: [], counts: Object.fromEntries(STW_ARMY_UNITS.map((type) => [type, 0])) };
   for (const unit of state.units) {
-    if (unit.side !== side || isWorker(unit)) continue;
+    // 수송선에 탄 병력과 침투 중인 수송선은 대기·공격 병력에 넣지 않는다.
+    if (unit.side !== side || isWorker(unit) || unit.group === "cargo" || unit.group === "drop") continue;
     const attacking = unit.group === "attack";
     army[attacking ? "attack" : "rally"].push(unit);
     if (!isSupport(unit)) army[attacking ? "attackers" : "fighters"].push(unit);
@@ -436,6 +484,39 @@ export function stwScoutCheck(state, side) {
   return { ok: true };
 }
 
+/** 수송선 한 기가 싣는 인구. */
+const STW_DROP_CAPACITY = 8;
+
+/**
+ * 본진 침투가 지금 가능한지: 집결지에 쉬는 수송선(셔틀·드랍십, 저그는 복부 주머니 연구 뒤 완성된 오버로드)과 태울 지상 병력이 있어야 한다.
+ * 저그는 기지의 오버로드를 2기 남기고 쓴다(탐지와 인구를 다 비우지 않도록).
+ */
+export function stwDropCheck(state, side) {
+  const record = state.sides[side];
+  let carriers;
+  if (record.race === "zerg") {
+    if (!stwResearchDone(state, side, "ventral")) return fail("복부 주머니 연구 필요");
+    carriers = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).sort((a, b) => b.id - a.id).slice(0, Math.max(0, stwOwnBuildings(state, side, "overlord", { doneOnly: true }).length - 2));
+    if (!carriers.length) return fail("기지에 남길 오버로드 2기 말고 쓸 오버로드가 없습니다");
+  } else {
+    carriers = state.units.filter((unit) => unit.side === side && STW_UNITS[unit.type].transport && unit.group === "rally" && !unit.cargo?.length && !unit.dropPath?.length);
+    if (!carriers.length) return fail(`${record.race === "terran" ? "드랍십" : "셔틀"} 필요`);
+  }
+  const passengers = state.units
+    .filter((unit) => unit.side === side && unit.group === "rally" && !isWorker(unit) && !isFlying(unit) && !isSupport(unit) && unit.hp > 0)
+    .sort((a, b) => a.id - b.id);
+  if (!passengers.length) return fail("태울 지상 병력이 없습니다");
+  return { ok: true, carriers, passengers };
+}
+
+/** 수송선 경로: 전장 가장자리를 타고 적 본진 뒤(광물 줄 옆)까지 날아간다. */
+function dropPath(side, transport) {
+  const foe = stwOpponent(side);
+  const edge = stwPoint(foe, { x: 2.5, y: 97 });
+  const land = stwPoint(foe, { x: 11, y: 96.5 });
+  return [{ x: edge.x, y: transport.y }, { x: edge.x, y: edge.y }, { x: land.x, y: land.y }];
+}
+
 /** 생산 라인 유닛이 지금 해금되어 있는지. */
 export function stwUnitUnlocked(state, side, unit) {
   return stwUnitLock(state, side, unit) === null;
@@ -532,6 +613,58 @@ export function stwCommand(state, side, command) {
       if (side === "player") pushLog(state, side, "하이템플러 2기가 아콘으로 합체했습니다.", "good");
       return { ok: true };
     }
+    case "darkMerge": {
+      // 다크템플러 2기를 다크 아콘으로 합친다. 프로토스 전용.
+      if (record.race !== "protoss") return fail("프로토스만 쓸 수 있습니다");
+      const darks = state.units.filter((unit) => unit.side === side && unit.type === "dark" && unit.group !== "cargo").sort((a, b) => a.id - b.id);
+      if (darks.length < 2) return fail("다크템플러 2기가 필요합니다");
+      const [first, second] = darks;
+      first.hp = 0;
+      second.hp = 0;
+      first.returned = true;
+      second.returned = true;
+      const darkArchon = spawnUnit(state, side, "darkArchon", (first.x + second.x) / 2, (first.y + second.y) / 2);
+      darkArchon.group = first.group === "attack" || second.group === "attack" ? "attack" : "rally";
+      state.effects.push({ kind: "warp", side, x1: darkArchon.x, y1: darkArchon.y, x2: darkArchon.x, y2: darkArchon.y, ttl: 0.9, max: 0.9, radius: 5 });
+      if (side === "player") pushLog(state, side, "다크템플러 2기가 다크 아콘으로 합체했습니다.", "good");
+      return { ok: true };
+    }
+    case "drop": {
+      const check = stwDropCheck(state, side);
+      if (!check.ok) return check;
+      let loaded = 0;
+      let used = 0;
+      const passengers = [...check.passengers];
+      for (const carrier of check.carriers) {
+        if (!passengers.length) break;
+        let transport = carrier;
+        if (carrier.kind === "building") {
+          // 저그: 오버로드 건물이 떠올라 수송선이 된다(인구 +8은 그대로).
+          state.buildings = state.buildings.filter((item) => item !== carrier);
+          transport = spawnUnit(state, side, "overlord", carrier.x, carrier.y);
+          transport.hp = Math.min(transport.maxHp, carrier.hp);
+        }
+        transport.cargo = [];
+        let room = STW_DROP_CAPACITY;
+        while (passengers.length && passengers[0] && STW_UNITS[passengers[0].type].supply <= room) {
+          const unit = passengers.shift();
+          room -= STW_UNITS[unit.type].supply;
+          unit.group = "cargo";
+          unit.targetId = null;
+          unit.x = transport.x;
+          unit.y = transport.y;
+          transport.cargo.push(unit.id);
+          loaded += 1;
+        }
+        if (!transport.cargo.length) continue;
+        transport.group = "drop";
+        transport.dropPath = dropPath(side, transport);
+        used += 1;
+      }
+      if (!used) return fail("태울 수 있는 병력이 없습니다");
+      if (side === "player") pushLog(state, side, `수송선 ${used}기가 병력 ${loaded}기를 싣고 적 본진 뒤로 향합니다.`, "order");
+      return { ok: true, transports: used, loaded };
+    }
     case "rally": {
       if (!STW_RALLY_POINTS.some((point) => point.id === command.point)) return fail("알 수 없는 위치입니다");
       record.rally = command.point;
@@ -566,7 +699,8 @@ export function stwCommand(state, side, command) {
       if (!army.rally.length) return fail("출격할 대기 병력이 없습니다");
       // 옵저버·오버로드만 있으면 혼자 나가 죽을 뿐이다. 동행을 끈 오버로드는 기지에 남는다.
       if (!army.fighters.length) return fail("출격할 전투 병력이 없습니다");
-      const going = army.rally.filter((unit) => unit.type !== "overlord" || record.escort);
+      // 수송선은 출격하지 않는다(본진 침투로만 움직인다).
+      const going = army.rally.filter((unit) => (unit.type !== "overlord" || record.escort) && !STW_UNITS[unit.type].transport);
       for (const unit of going) unit.group = "attack";
       if (side === "player") pushLog(state, side, `대기 병력 ${going.length}기가 출격합니다!`, "order");
       return { ok: true };
@@ -744,6 +878,7 @@ export function stepStarswar(state, aiThink = null) {
   stepBuildings(state, dt);
   stepUnits(state, dt);
   stepStorms(state, dt);
+  stepStatuses(state, dt);
   applyHits(state);
   regenerate(state, dt);
   stepEffects(state, dt);
@@ -905,12 +1040,23 @@ export function stwHitDamage(state, attacker, target) {
   if (attacker.type === "reaver" && stwResearchDone(state, attacker.side, "scarab")) perHit += 25;
   const raw = perHit * STW_SIZE_MULTIPLIER[weapon.damageType][target.size ?? "large"];
   const hits = [];
-  for (let i = 0; i < (weapon.hits ?? 1); i += 1) hits.push(raw);
+  // 캐리어: 인터셉터 수만큼 맞힌다(수용량 연구 뒤 8기).
+  const count = attacker.type === "carrier" && stwResearchDone(state, attacker.side, "carrierCapacity") ? 8 : weapon.hits ?? 1;
+  for (let i = 0; i < count; i += 1) hits.push(raw);
   return hits;
 }
 
 function applyDamage(state, target, amount, { ignoreArmor = false } = {}) {
+  // 스테이시스 필드 안의 유닛은 다치지 않는다.
+  if (target.kind === "unit" && inStasis(state, target)) return;
   let remaining = amount;
+  // 디펜시브 매트릭스가 먼저 흡수한다.
+  if (target.matrix && state.time < target.matrix.until && target.matrix.hp > 0) {
+    const absorbed = Math.min(target.matrix.hp, remaining);
+    target.matrix.hp -= absorbed;
+    remaining -= absorbed;
+    if (remaining <= 0) return;
+  }
   if (target.shields > 0) {
     const reduced = ignoreArmor ? remaining : Math.max(0.5, remaining - shieldArmor(state, target));
     const absorbed = Math.min(target.shields, reduced);
@@ -918,13 +1064,27 @@ function applyDamage(state, target, amount, { ignoreArmor = false } = {}) {
     remaining = reduced - absorbed;
     if (remaining <= 0) return;
   }
-  const armor = ignoreArmor ? 0 : target.armor + armorBonus(state, target);
+  // 디바우러의 산성 포자는 쌓인 만큼 방어력을 깎는다.
+  const acid = target.acid && state.time < target.acid.until ? target.acid.stacks : 0;
+  const armor = ignoreArmor ? 0 : target.armor + armorBonus(state, target) - acid;
   target.hp -= Math.max(0.5, remaining - armor);
 }
 
 function queueHit(state, attacker, target) {
-  state.pendingHits.push({ attacker, target, hits: stwHitDamage(state, attacker, target) });
   const def = attacker.kind === "unit" ? STW_UNITS[attacker.type] : STW_BUILDINGS[attacker.type];
+  // 다크 스웜 안의 지상 유닛에는 원거리 공격이 통하지 않는다(범위 공격 대상에서도 빠진다).
+  if (blockedBySwarm(state, attacker, target)) return;
+  // 캐리어: 둘레를 나는 인터셉터가 공격 일부를 대신 맞는다.
+  const decoy = target.kind === "unit" ? STW_UNITS[target.type].decoy : 0;
+  if (decoy && nextRandom(state) < decoy) {
+    state.effects.push({ kind: "interceptor", side: target.side, x1: target.x, y1: target.y, x2: target.x, y2: target.y, ttl: 0.2, max: 0.2 });
+    return;
+  }
+  state.pendingHits.push({ attacker, target, hits: stwHitDamage(state, attacker, target) });
+  if (def.acid && target.kind === "unit") {
+    const stacks = target.acid && state.time < target.acid.until ? target.acid.stacks : 0;
+    target.acid = { stacks: Math.min(9, stacks + 1), until: state.time + 20 };
+  }
   // 뮤탈리스크 튕김: 처음 맞은 적 옆의 다른 적(지상·공중 가리지 않음)에게 1/3, 다시 1/9.
   if (def.bounce && target.kind === "unit") {
     let from = target;
@@ -952,10 +1112,25 @@ function queueHit(state, attacker, target) {
   if (!splash) return;
   // 범위 공격: 대상 주변의 다른 적에게도 비율만큼 피해(은폐 여부와 무관). 지상 범위는 지상만, 커세어의 공중 범위는 공중만.
   for (const other of state.units) {
-    if (other === target || other.side === attacker.side || other.hp <= 0 || isFlying(other) !== Boolean(splash.air)) continue;
+    if (other === target || other.side === attacker.side || other.hp <= 0 || other.group === "cargo" || isFlying(other) !== Boolean(splash.air)) continue;
     if (distance(other.x, other.y, target.x, target.y) > splash.radius + other.radius * 0.5) continue;
+    if (blockedBySwarm(state, attacker, other)) continue;
     state.pendingHits.push({ attacker, target: other, hits: stwHitDamage(state, attacker, other).map((amount) => amount * splash.factor) });
   }
+}
+
+/** 다크 스웜이 덮고 있는 지상 유닛인지. */
+function underSwarm(state, unit) {
+  if (unit.kind !== "unit" || isFlying(unit)) return false;
+  return (state.zones ?? []).some((zone) => zone.kind === "swarm" && distance(zone.x, zone.y, unit.x, unit.y) <= zone.radius + unit.radius * 0.5);
+}
+
+/** 원거리 공격이 다크 스웜에 막히는지. 근접 공격과 리버·아콘·성큰(땅속 촉수)은 통한다. 럴커·스톰·플레이그는 다른 길로 맞힌다. */
+function blockedBySwarm(state, attacker, target) {
+  if (!state.zones?.length || !underSwarm(state, target)) return false;
+  if (attacker.kind === "building") return attacker.type !== "sunken";
+  const def = STW_UNITS[attacker.type];
+  return def.role !== "melee" && attacker.type !== "reaver" && attacker.type !== "archon";
 }
 
 /**
@@ -1005,6 +1180,7 @@ const DETECT_HINT = {
 
 /** 공격자가 대상을 노릴 수 있는지: 은폐 유닛은 탐지되어야 한다. */
 function targetable(state, attacker, target) {
+  if (target.kind === "unit" && (target.group === "cargo" || inStasis(state, target))) return false;
   if (!canHit(attacker, target)) return false;
   return target.kind !== "unit" || stwDetected(state, target, attacker.side);
 }
@@ -1155,7 +1331,8 @@ function cannonStep(state, building, dt) {
 
 /** 공격 간격: 스팀팩 해병·파이어뱃과 아드레날린 분비선 저글링은 1.5배 빠르게 친다. */
 function attackCooldown(state, unit, def, target = null) {
-  const cooldown = weaponFor(def, target).cooldown;
+  // 인스네어에 걸리면 공격도 느려진다.
+  const cooldown = weaponFor(def, target).cooldown * (ensnared(state, unit) ? 1.33 : 1);
   if (stimmed(state, unit)) return cooldown * 0.67;
   if (unit.type === "zergling" && stwResearchDone(state, unit.side, "adrenal")) return cooldown * 0.67;
   return cooldown;
@@ -1174,6 +1351,10 @@ function unitRange(state, unit) {
 }
 
 function unitSpeed(state, unit) {
+  return baseSpeed(state, unit) * (ensnared(state, unit) ? 0.5 : 1);
+}
+
+function baseSpeed(state, unit) {
   const def = STW_UNITS[unit.type];
   if (unit.type === "zealot" && stwResearchDone(state, unit.side, "charge")) return def.speed * 1.5;
   if (unit.type === "vulture" && stwResearchDone(state, unit.side, "ion")) return def.speed * 1.4;
@@ -1197,8 +1378,16 @@ function moveToward(unit, x, y, speed, dt) {
 }
 
 const ROLE_DEPTH = { melee: 2, ranged: 0, siege: -1.8, air: -2.6, caster: -3.8, support: -5.5 };
-const ROLE_ORDER = { overlord: 12, ultra: -1, zealot: 0, zergling: 0.5, dark: 1, archon: 2, firebat: 3, dragoon: 4, hydra: 4.5, goliath: 4.7, marine: 5, vulture: 6, reaver: 7, lurker: 7.5, tank: 8, mutalisk: 8.2, scourge: 8.3, corsair: 8.4, wraith: 8.5, scout: 8.6, templar: 9, medic: 10, observer: 11 };
-const ATTACK_EFFECT = { zealot: "slash", dark: "slash", dragoon: "plasma", archon: "shock", reaver: "scarab", marine: "bullet", firebat: "flame", vulture: "grenade", tank: "tankshot", zergling: "bite", ultra: "bite", hydra: "spine", scout: "laser", wraith: "laser", goliath: "flak", corsair: "neutron", mutalisk: "glaive", scourge: "burst" };
+const ROLE_ORDER = {
+  overlord: 12, ultra: -1, zealot: 0, zergling: 0.5, broodling: 0.6, infested: 0.7, dark: 1, archon: 2, firebat: 3, dragoon: 4, hydra: 4.5, goliath: 4.7, marine: 5, ghost: 5.2, vulture: 6,
+  reaver: 7, lurker: 7.5, tank: 8, mutalisk: 8.2, scourge: 8.3, devourer: 8.35, corsair: 8.4, valkyrie: 8.45, wraith: 8.5, guardian: 8.55, scout: 8.6, carrier: 8.7, arbiter: 8.8, battlecruiser: 8.9,
+  templar: 9, darkArchon: 9.2, defiler: 9.4, queen: 9.5, medic: 10, vessel: 10.5, observer: 11, shuttle: 11.2, dropship: 11.3,
+};
+const ATTACK_EFFECT = {
+  zealot: "slash", dark: "slash", dragoon: "plasma", archon: "shock", reaver: "scarab", marine: "bullet", firebat: "flame", vulture: "grenade", tank: "tankshot", zergling: "bite", ultra: "bite", hydra: "spine",
+  scout: "laser", wraith: "laser", goliath: "flak", corsair: "neutron", mutalisk: "glaive", scourge: "burst", carrier: "interceptor", arbiter: "plasma", ghost: "bullet", valkyrie: "flak",
+  battlecruiser: "laser", guardian: "glaive", devourer: "sporeShot", infested: "burst", broodling: "bite",
+};
 
 /** 집결지에서의 자리: 근접은 앞, 원거리는 가운데, 템플러는 뒤. 한 줄 12자리. */
 function rallySlots(state, side, units, anchorY) {
@@ -1225,6 +1414,11 @@ function stepUnits(state, dt) {
   for (const unit of state.units) {
     const def = STW_UNITS[unit.type];
     if (def.energyRegen) unit.energy = Math.min(def.maxEnergy, unit.energy + def.energyRegen * dt);
+    // 브루들링처럼 수명이 있는 유닛은 때가 되면 사라진다.
+    if (def.lifetime && state.time - (unit.bornAt ?? 0) >= def.lifetime) {
+      unit.hp = 0;
+      unit.returned = true;
+    }
   }
   const plans = {};
   for (const side of STW_SIDES) {
@@ -1268,6 +1462,13 @@ function stepUnits(state, dt) {
   for (const unit of state.units) {
     if (unit.hp <= 0) continue;
     unit.cooldown = Math.max(0, unit.cooldown - dt);
+    // 수송선에 탄 병력은 수송선이 데리고 다닌다.
+    if (unit.group === "cargo") continue;
+    // 마엘스트롬·락다운·스테이시스: 꼼짝 못 한다.
+    if (stunned(state, unit) || inStasis(state, unit)) {
+      unit.targetId = null;
+      continue;
+    }
     if (isWorker(unit)) {
       scoutStep(state, unit, dt);
       continue;
@@ -1276,6 +1477,10 @@ function stepUnits(state, dt) {
     const plan = plans[unit.side];
     const range = unitRange(state, unit);
     const speed = unitSpeed(state, unit);
+    if (def.transport || unit.dropPath?.length || unit.cargo?.length) {
+      transportStep(state, unit, plan, dt);
+      continue;
+    }
     if (unit.type === "templar") {
       templarStep(state, unit, plan, dt);
       continue;
@@ -1283,6 +1488,30 @@ function stepUnits(state, dt) {
     if (unit.type === "observer" || unit.type === "overlord") {
       observerStep(state, unit, plan, dt);
       continue;
+    }
+    // 무기 없는 마법 유닛(다크 아콘, 사이언스 베슬, 퀸, 디파일러).
+    if (def.role === "caster" && def.spells) {
+      if (!castSpells(state, unit)) casterMove(state, unit, plan, speed, dt);
+      continue;
+    }
+    // 무기와 마법을 함께 가진 유닛(고스트, 배틀크루저, 아비터)은 마법이 먼저다.
+    if (def.spells && castSpells(state, unit)) continue;
+    // 아비터: 은폐장이 병력을 덮도록 공격 병력 한가운데 위에 떠 있고, 사거리 안의 적만 쏜다(쫓아가지 않는다).
+    if (def.cloakField && unit.group === "attack") {
+      const escort = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && ally !== unit && !isPassive(ally) && !isFlying(ally));
+      if (escort.length) {
+        const cx = escort.reduce((sum, ally) => sum + ally.x, 0) / escort.length;
+        const cy = escort.reduce((sum, ally) => sum + ally.y, 0) / escort.length;
+        moveToward(unit, cx, cy, speed, dt);
+        const near = findTarget(state, unit, range + unit.radius, { unitsOnly: false });
+        unit.targetId = near?.id ?? null;
+        if (near && unit.cooldown <= 0) {
+          unit.cooldown = attackCooldown(state, unit, def, near);
+          queueHit(state, unit, near);
+          state.effects.push({ kind: "plasma", side: unit.side, x1: unit.x, y1: unit.y, x2: near.x, y2: near.y, ttl: 0.35, max: 0.35, attackerId: unit.id, targetId: near.id });
+        }
+        continue;
+      }
     }
     if (unit.type === "medic") {
       medicStep(state, unit, plan, dt);
@@ -1638,7 +1867,6 @@ function observerStep(state, unit, plan, dt) {
 }
 
 function templarStep(state, unit, plan, dt) {
-  const slot = unit.group === "attack" ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
   const castable = stwResearchDone(state, unit.side, "storm") && unit.energy >= STW_STORM.energy;
   if (castable) {
     const spot = stormSpot(state, unit);
@@ -1651,15 +1879,21 @@ function templarStep(state, unit, plan, dt) {
       return;
     }
   }
+  casterMove(state, unit, plan, unitSpeed(state, unit), dt);
+}
+
+/** 무기 없는 마법 유닛의 이동: 후퇴, 적과 거리 두기, 공격 병력 선두 5칸 뒤 따라가기, 집결지 대기. */
+function casterMove(state, unit, plan, speed, dt) {
+  const slot = unit.group === "attack" ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
   if (unit.group !== "attack" && slot && isRetreating(unit, slot)) {
-    moveToward(unit, slot.x, slot.y, STW_UNITS.templar.speed, dt);
+    moveToward(unit, slot.x, slot.y, speed, dt);
     return;
   }
   const nearest = findTarget(state, unit, 6, { unitsOnly: true });
-  if (nearest) {
+  if (nearest && !isPassive(nearest)) {
     // 무기가 없으므로 적과 거리를 벌린다.
     const away = Math.atan2(unit.y - nearest.y, unit.x - nearest.x);
-    moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, STW_UNITS.templar.speed, dt);
+    moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
     return;
   }
   if (unit.group === "attack") {
@@ -1667,9 +1901,273 @@ function templarStep(state, unit, plan, dt) {
     const forward = stwForward(unit.side);
     const lead = front.length ? front.reduce((best, ally) => (forward < 0 ? Math.min(best, ally.y) : Math.max(best, ally.y)), front[0].y) : plan.goal.y;
     const goalY = lead - forward * 5;
-    moveToward(unit, slot ? slot.x : unit.x, goalY, Math.min(STW_UNITS.templar.speed, plan.waveSpeed), dt);
+    moveToward(unit, slot ? slot.x : unit.x, goalY, Math.min(speed, plan.waveSpeed), dt);
   } else if (slot) {
-    moveToward(unit, slot.x, slot.y, STW_UNITS.templar.speed, dt);
+    moveToward(unit, slot.x, slot.y, speed, dt);
+  }
+}
+
+/* ───────── 수송 ───────── */
+
+/**
+ * 수송선: 본진 침투 중이면 경로를 따라 날아가 병력을 내려놓고 같은 길로 돌아온다. 아니면 집결지 뒤에서 쉰다.
+ * 탄 병력은 수송선 자리에 붙어 다니고, 수송선이 떨어지면 함께 죽는다(cleanup).
+ */
+function transportStep(state, unit, plan, dt) {
+  const speed = unitSpeed(state, unit);
+  if (unit.dropPath?.length) {
+    const next = unit.dropPath[0];
+    if (moveToward(unit, next.x, next.y, speed, dt)) {
+      unit.dropPath.shift();
+      if (!unit.dropPath.length && unit.cargo?.length) unloadCargo(state, unit);
+      else if (!unit.dropPath.length) unit.group = "rally";
+    }
+    for (const id of unit.cargo ?? []) {
+      const rider = state.units.find((item) => item.id === id);
+      if (rider) {
+        rider.x = unit.x;
+        rider.y = unit.y;
+      }
+    }
+    return;
+  }
+  unit.group = "rally";
+  if (unit.type === "overlord") {
+    observerStep(state, unit, plan, dt);
+    return;
+  }
+  supportFollow(state, unit, plan, speed, dt);
+}
+
+function unloadCargo(state, unit) {
+  const riders = (unit.cargo ?? []).map((id) => state.units.find((item) => item.id === id)).filter(Boolean);
+  riders.forEach((rider, index) => {
+    const angle = (Math.PI * 2 * index) / Math.max(1, riders.length);
+    rider.x = Math.min(STW_LANE_WIDTH - 1, Math.max(1, unit.x + Math.cos(angle) * 1.6));
+    rider.y = Math.min(STW_LANE_LENGTH - 1, Math.max(1, unit.y + Math.sin(angle) * 1.6));
+    rider.group = "attack";
+    rider.targetId = null;
+  });
+  unit.cargo = [];
+  state.effects.push({ kind: "warp", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.6, max: 0.6, radius: 3 });
+  if (unit.side === "player") pushLog(state, "player", `병력 ${riders.length}기가 적 본진에 내렸습니다!`, "good");
+  else alertOnce(state, "drop", 20, "player", "적 수송선이 본진 뒤에 병력을 내렸습니다!", "danger");
+  // 왔던 가장자리를 타고 돌아간다.
+  const home = stwPoint(unit.side, { x: 2.5, y: 90 });
+  unit.dropPath = [{ x: home.x, y: unit.y }, { x: home.x, y: home.y }];
+}
+
+/* ───────── 마법 ───────── */
+
+/** 마법 대상이 될 수 있는 적 유닛: 살아 있고, 수송선 밖이고, 탐지되고, 스테이시스 밖. */
+function spellFoes(state, caster, range) {
+  return state.units.filter((unit) => unit.side !== caster.side && unit.hp > 0 && unit.group !== "cargo" && !inStasis(state, unit)
+    && distance(caster.x, caster.y, unit.x, unit.y) <= range + unit.radius && stwDetected(state, unit, caster.side));
+}
+
+/** 범위 마법 자리: 시전 사거리 안의 적 가운데 조건에 맞는 유닛이 반경 안에 가장 많이 모인 곳(minTargets 이상). */
+function clusterSpot(state, caster, spell, filter) {
+  const pool = spellFoes(state, caster, spell.range + spell.radius).filter((unit) => !isPassive(unit) && filter(unit));
+  let best = null;
+  let bestCount = spell.minTargets - 1;
+  for (const center of pool) {
+    if (distance(caster.x, caster.y, center.x, center.y) > spell.range) continue;
+    let count = 0;
+    let sx = 0;
+    let sy = 0;
+    for (const other of pool) {
+      if (distance(center.x, center.y, other.x, other.y) > spell.radius) continue;
+      count += 1;
+      sx += other.x;
+      sy += other.y;
+    }
+    if (count > bestCount) {
+      bestCount = count;
+      best = { x: sx / count, y: sy / count };
+    }
+  }
+  return best;
+}
+
+function foesAround(state, caster, spot, radius) {
+  return state.units.filter((unit) => unit.side !== caster.side && unit.hp > 0 && unit.group !== "cargo" && distance(spot.x, spot.y, unit.x, unit.y) <= radius + unit.radius * 0.5);
+}
+
+const unitValue = (unit) => STW_UNITS[unit.type].minerals + STW_UNITS[unit.type].gas;
+
+/** 마법마다 대상을 고르고 효과를 건다. 걸었으면 시전 지점을, 쓸 만한 대상이 없으면 null을 돌려준다. */
+const SPELL_CASTERS = {
+  feedback(state, caster, spell) {
+    const target = spellFoes(state, caster, spell.range).filter((unit) => unit.energy >= 50 && STW_UNITS[unit.type].energyRegen).sort((a, b) => b.energy - a.energy)[0];
+    if (!target) return null;
+    applyDamage(state, target, target.energy, { ignoreArmor: true });
+    target.energy = 0;
+    target.lastHit = state.time;
+    return { x: target.x, y: target.y, targetId: target.id };
+  },
+  maelstrom(state, caster, spell) {
+    const spot = clusterSpot(state, caster, spell, (unit) => isBiological(unit) && !stunned(state, unit));
+    if (!spot) return null;
+    for (const unit of foesAround(state, caster, spot, spell.radius)) if (isBiological(unit)) unit.stunUntil = Math.max(unit.stunUntil ?? 0, state.time + spell.duration);
+    return spot;
+  },
+  stasis(state, caster, spell) {
+    const spot = clusterSpot(state, caster, spell, (unit) => !stunned(state, unit));
+    if (!spot) return null;
+    for (const unit of foesAround(state, caster, spot, spell.radius)) {
+      unit.stasisUntil = state.time + spell.duration;
+      unit.stunUntil = Math.max(unit.stunUntil ?? 0, state.time + spell.duration);
+      unit.targetId = null;
+    }
+    return spot;
+  },
+  lockdown(state, caster, spell) {
+    const target = spellFoes(state, caster, spell.range).filter((unit) => STW_UNITS[unit.type].mech && !isPassive(unit) && !stunned(state, unit) && unitValue(unit) >= 150).sort((a, b) => unitValue(b) - unitValue(a))[0];
+    if (!target) return null;
+    target.stunUntil = state.time + spell.duration;
+    target.targetId = null;
+    return { x: target.x, y: target.y, targetId: target.id };
+  },
+  matrix(state, caster, spell) {
+    const target = state.units
+      .filter((unit) => unit.side === caster.side && unit.hp > 0 && unit.group !== "cargo" && !isPassive(unit) && state.time - unit.lastHit < 1 && unit.maxHp + unit.maxShields >= 100
+        && !(unit.matrix && state.time < unit.matrix.until && unit.matrix.hp > 0) && distance(caster.x, caster.y, unit.x, unit.y) <= spell.range)
+      .sort((a, b) => b.maxHp + b.maxShields - (a.maxHp + a.maxShields))[0];
+    if (!target) return null;
+    target.matrix = { hp: spell.absorb, until: state.time + spell.duration };
+    return { x: target.x, y: target.y, targetId: target.id };
+  },
+  emp(state, caster, spell) {
+    const spot = clusterSpot(state, caster, spell, (unit) => unit.shields >= 30 || unit.energy >= 50);
+    if (!spot) return null;
+    for (const unit of foesAround(state, caster, spot, spell.radius)) {
+      unit.shields = 0;
+      unit.energy = 0;
+      unit.lastHit = state.time;
+    }
+    for (const building of state.buildings) {
+      if (building.side !== caster.side && distance(spot.x, spot.y, building.x, building.y) <= spell.radius + building.radius) building.shields = 0;
+    }
+    return spot;
+  },
+  irradiate(state, caster, spell) {
+    let best = null;
+    let bestScore = 1.5;
+    for (const unit of spellFoes(state, caster, spell.range)) {
+      if (!isBiological(unit) || isPassive(unit) || (unit.irradiateUntil ?? 0) > state.time) continue;
+      const near = state.units.filter((other) => other.side === unit.side && other.hp > 0 && isBiological(other) && distance(other.x, other.y, unit.x, unit.y) <= spell.radius).length;
+      const score = near + (unitValue(unit) >= 150 ? 2 : 0);
+      if (score > bestScore) {
+        bestScore = score;
+        best = unit;
+      }
+    }
+    if (!best) return null;
+    best.irradiateUntil = state.time + spell.duration;
+    return { x: best.x, y: best.y, targetId: best.id };
+  },
+  yamato(state, caster, spell) {
+    const sturdy = (item) => item.hp + item.shields >= 200 && !((item.yamatoAt ?? -99) > state.time - 2);
+    let target = spellFoes(state, caster, spell.range).filter((unit) => !isPassive(unit) && sturdy(unit)).sort((a, b) => b.hp + b.shields - (a.hp + a.shields))[0];
+    if (!target) {
+      target = state.buildings.filter((building) => building.side !== caster.side && building.hp > 0 && STW_BUILDINGS[building.type].damage && sturdy(building)
+        && distance(caster.x, caster.y, building.x, building.y) - building.radius <= spell.range).sort((a, b) => b.hp + b.shields - (a.hp + a.shields))[0];
+    }
+    if (!target) return null;
+    target.yamatoAt = state.time;
+    state.pendingHits.push({ attacker: caster, target, hits: [spell.damage] });
+    state.effects.push({ kind: "yamato", side: caster.side, x1: caster.x, y1: caster.y, x2: target.x, y2: target.y, ttl: 0.6, max: 0.6, attackerId: caster.id, targetId: target.id });
+    return { x: target.x, y: target.y, targetId: target.id };
+  },
+  ensnare(state, caster, spell) {
+    const spot = clusterSpot(state, caster, spell, (unit) => !ensnared(state, unit));
+    if (!spot) return null;
+    for (const unit of foesAround(state, caster, spot, spell.radius)) unit.ensnareUntil = state.time + spell.duration;
+    return spot;
+  },
+  broodling(state, caster, spell) {
+    const target = spellFoes(state, caster, spell.range).filter((unit) => !isFlying(unit) && isBiological(unit) && !isPassive(unit) && unitValue(unit) >= 100).sort((a, b) => unitValue(b) - unitValue(a))[0];
+    if (!target) return null;
+    target.hp = 0;
+    for (let index = 0; index < 2; index += 1) {
+      const brood = spawnUnit(state, caster.side, "broodling", target.x + (index ? 0.8 : -0.8), target.y);
+      brood.bornAt = state.time;
+      brood.group = caster.group === "attack" ? "attack" : "rally";
+    }
+    return { x: target.x, y: target.y, targetId: target.id };
+  },
+  darkSwarm(state, caster, spell) {
+    // 원거리 적에게 맞고 있는 아군 지상 전투 유닛이 셋 이상 뭉친 곳을 덮는다.
+    const shooters = state.units.filter((unit) => unit.side !== caster.side && unit.hp > 0 && !isPassive(unit) && STW_UNITS[unit.type].role !== "melee" && (unitRange(state, unit) >= 3 || unit.sieged))
+      .concat(state.buildings.filter((building) => building.side !== caster.side && STW_BUILDINGS[building.type].damage && building.type !== "sunken"));
+    if (!shooters.length) return null;
+    const allies = state.units.filter((unit) => unit.side === caster.side && unit.hp > 0 && unit.group !== "cargo" && !isFlying(unit) && !isPassive(unit) && STW_UNITS[unit.type].role !== "caster"
+      && distance(caster.x, caster.y, unit.x, unit.y) <= spell.range && !underSwarm(state, unit)
+      && shooters.some((shooter) => distance(shooter.x, shooter.y, unit.x, unit.y) <= 12));
+    let best = null;
+    let bestCount = 2;
+    for (const center of allies) {
+      const near = allies.filter((other) => distance(center.x, center.y, other.x, other.y) <= spell.radius);
+      if (near.length > bestCount) {
+        bestCount = near.length;
+        best = { x: near.reduce((sum, other) => sum + other.x, 0) / near.length, y: near.reduce((sum, other) => sum + other.y, 0) / near.length };
+      }
+    }
+    if (!best) return null;
+    state.zones ??= [];
+    state.zones.push({ id: state.nextId++, kind: "swarm", side: caster.side, x: best.x, y: best.y, radius: spell.radius, ttl: spell.duration, max: spell.duration });
+    return best;
+  },
+  plague(state, caster, spell) {
+    const spot = clusterSpot(state, caster, spell, (unit) => !((unit.plagueUntil ?? 0) > state.time) && unit.hp > 20);
+    if (!spot) return null;
+    for (const unit of foesAround(state, caster, spot, spell.radius)) unit.plagueUntil = state.time + spell.duration;
+    return spot;
+  },
+};
+
+/** 쓸 수 있는 마법을 하나 쓴다(데이터의 spells 순서대로 확인). 썼으면 true. */
+function castSpells(state, unit) {
+  const def = STW_UNITS[unit.type];
+  if (!def.spells || (unit.castReadyAt ?? 0) > state.time) return false;
+  for (const id of def.spells) {
+    const spell = STW_SPELLS[id];
+    if (unit.energy < spell.energy) continue;
+    if (spell.research && !stwResearchDone(state, unit.side, spell.research)) continue;
+    const cast = SPELL_CASTERS[id](state, unit, spell);
+    if (!cast) continue;
+    unit.energy -= spell.energy;
+    unit.castReadyAt = state.time + 1;
+    unit.heading = Math.atan2(cast.y - unit.y, cast.x - unit.x);
+    state.effects.push({ kind: "spell", spell: id, side: unit.side, x1: unit.x, y1: unit.y, x2: cast.x, y2: cast.y, ttl: 1, max: 1, radius: spell.radius ?? 1.4, attackerId: unit.id, targetId: cast.targetId });
+    const stats = state.sides[unit.side].stats;
+    stats.spells = (stats.spells ?? 0) + 1;
+    if (unit.side === "player") alertOnce(state, `spell:${id}`, 4, "player", `${spell.name}!`, "good");
+    else if (["stasis", "maelstrom", "lockdown", "plague", "irradiate", "emp", "broodling"].includes(id)) alertOnce(state, `foeSpell:${id}`, 8, "player", `적의 ${spell.name}!`, "danger");
+    return true;
+  }
+  return false;
+}
+
+/** 지속 효과: 플레이그(체력 1까지), 이레디에이트(주변 생체 유닛까지), 다크 스웜 구역 시간. */
+function stepStatuses(state, dt) {
+  for (const zone of state.zones ?? []) zone.ttl -= dt;
+  if (state.zones?.length) state.zones = state.zones.filter((zone) => zone.ttl > 0);
+  for (const unit of state.units) {
+    if (unit.hp <= 0) continue;
+    if ((unit.plagueUntil ?? 0) > state.time && unit.hp > 1 && !inStasis(state, unit)) {
+      unit.hp = Math.max(1, unit.hp - STW_SPELLS.plague.dps * dt);
+      unit.lastHit = state.time;
+    }
+    if ((unit.irradiateUntil ?? 0) > state.time) {
+      for (const other of state.units) {
+        if (other.side !== unit.side || other.hp <= 0 || other.group === "cargo" || !isBiological(other) || inStasis(state, other)) continue;
+        if (distance(unit.x, unit.y, other.x, other.y) > STW_SPELLS.irradiate.radius + other.radius * 0.5) continue;
+        other.hp -= STW_SPELLS.irradiate.dps * dt;
+        other.lastHit = state.time;
+      }
+    }
+    if (unit.matrix && (state.time >= unit.matrix.until || unit.matrix.hp <= 0)) delete unit.matrix;
   }
 }
 
@@ -1711,7 +2209,7 @@ function stepStorms(state, dt) {
   const hit = new Set();
   for (const storm of state.storms) {
     for (const unit of state.units) {
-      if (unit.side === storm.side || hit.has(unit.id)) continue;
+      if (unit.side === storm.side || hit.has(unit.id) || unit.group === "cargo") continue;
       if (distance(unit.x, unit.y, storm.x, storm.y) > STW_STORM.radius + unit.radius * 0.5) continue;
       hit.add(unit.id);
       applyDamage(state, unit, STW_STORM.dps * dt, { ignoreArmor: true });
@@ -1739,10 +2237,10 @@ function separate(state) {
   const units = state.units;
   for (let i = 0; i < units.length; i += 1) {
     const a = units[i];
-    if (isFlying(a)) continue;
+    if (isFlying(a) || a.group === "cargo") continue;
     for (let j = i + 1; j < units.length; j += 1) {
       const b = units[j];
-      if (isFlying(b)) continue;
+      if (isFlying(b) || b.group === "cargo") continue;
       const min = (a.radius + b.radius) * (a.side === b.side ? 0.9 : 1);
       const dx = b.x - a.x;
       const dy = b.y - a.y;
@@ -1785,14 +2283,24 @@ function stepEffects(state, dt) {
 }
 
 function cleanup(state) {
+  // 떨어진 수송선에 탄 병력은 함께 죽는다.
+  for (const unit of state.units) {
+    if (unit.hp > 0 || !unit.cargo?.length) continue;
+    for (const id of unit.cargo) {
+      const rider = state.units.find((item) => item.id === id);
+      if (rider) rider.hp = 0;
+    }
+    if (unit.side === "player") pushLog(state, "player", `수송선이 격추되어 탄 병력 ${unit.cargo.length}기를 잃었습니다.`, "danger");
+    unit.cargo = [];
+  }
   const dead = state.units.filter((unit) => unit.hp <= 0);
   for (const unit of dead) {
     if (unit.returned) continue;
     state.sides[unit.side].stats.lost += 1;
     state.sides[stwOpponent(unit.side)].stats.kills += 1;
-    state.effects.push({ kind: "death", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.7, max: 0.7, radius: ["dragoon", "reaver", "archon", "tank", "vulture", "lurker", "ultra", "overlord"].includes(unit.type) ? 3.6 : unit.radius * 2 });
+    state.effects.push({ kind: "death", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.7, max: 0.7, radius: ["dragoon", "reaver", "archon", "tank", "vulture", "lurker", "ultra", "overlord"].includes(unit.type) ? 3.6 : STW_UNITS[unit.type].supply >= 4 ? 5 : unit.radius * 2 });
     if (isWorker(unit) && unit.group === "scout" && unit.side === "player") pushLog(state, "player", `정찰 ${withKoreanObject(STW_UNITS[unit.type].name)} 잃었습니다.`, "warn");
-    if (unit.type === "overlord" && unit.side === "player") pushLog(state, "player", "동행 오버로드를 잃었습니다. 인구 상한이 8 줄었습니다.", "danger");
+    if (unit.type === "overlord" && unit.side === "player") pushLog(state, "player", state.sides.player.escort ? "동행 오버로드를 잃었습니다. 인구 상한이 8 줄었습니다." : "기지를 떠난 오버로드를 잃었습니다. 인구 상한이 8 줄었습니다.", "danger");
   }
   if (dead.length) state.units = state.units.filter((unit) => unit.hp > 0);
   const fallen = state.buildings.filter((building) => building.hp <= 0);

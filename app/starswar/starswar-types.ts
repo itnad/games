@@ -2,15 +2,17 @@
 export type StwSide = "player" | "enemy";
 export type StwDifficulty = "easy" | "normal" | "hard";
 export type StwRaceId = "protoss" | "terran" | "zerg";
-export type StwArmyType = "zealot" | "dragoon" | "templar" | "dark" | "archon" | "observer" | "reaver" | "scout" | "corsair" | "marine" | "firebat" | "medic" | "vulture" | "tank" | "goliath" | "wraith"
-  | "zergling" | "hydra" | "lurker" | "ultra" | "overlord" | "mutalisk" | "scourge";
+export type StwArmyType = "zealot" | "dragoon" | "templar" | "dark" | "archon" | "darkArchon" | "observer" | "shuttle" | "reaver" | "scout" | "corsair" | "carrier" | "arbiter"
+  | "marine" | "firebat" | "medic" | "ghost" | "vulture" | "tank" | "goliath" | "wraith" | "dropship" | "vessel" | "valkyrie" | "battlecruiser"
+  | "zergling" | "hydra" | "lurker" | "ultra" | "overlord" | "mutalisk" | "scourge" | "guardian" | "devourer" | "queen" | "defiler" | "infested" | "broodling";
 export type StwUnitType = StwArmyType | "probe" | "scv" | "drone";
-export type StwBuildingType = "nexus" | "pylon" | "gateway" | "assimilator" | "core" | "forge" | "cannon" | "citadel" | "archives" | "robo" | "bay" | "stargate"
-  | "cc" | "depot" | "refinery" | "barracks" | "ebay" | "bunker" | "turret" | "academy" | "comsat" | "factory" | "shop" | "armory" | "starport"
-  | "hatchery" | "hatch" | "overlord" | "extractor" | "pool" | "evo" | "sunken" | "spore" | "den" | "spire" | "cavern";
+export type StwBuildingType = "nexus" | "pylon" | "gateway" | "assimilator" | "core" | "forge" | "cannon" | "citadel" | "archives" | "robo" | "bay" | "stargate" | "beacon" | "tribunal"
+  | "cc" | "depot" | "refinery" | "barracks" | "ebay" | "bunker" | "turret" | "academy" | "comsat" | "factory" | "shop" | "armory" | "starport" | "science"
+  | "hatchery" | "hatch" | "overlord" | "extractor" | "pool" | "evo" | "sunken" | "spore" | "den" | "spire" | "nest" | "mound" | "cavern";
 export type StwProducerType = "gateway" | "robo" | "stargate" | "barracks" | "factory" | "starport" | "hatchery" | "hatch";
 export type StwBuildChoice = Exclude<StwBuildingType, "nexus"> | "expand";
-export type StwResearchId = "weapons1" | "armor1" | "weapons2" | "shields1" | "range" | "charge" | "storm" | "scarab"
+export type StwResearchId = "weapons1" | "armor1" | "weapons2" | "shields1" | "range" | "charge" | "storm" | "scarab" | "carrierCapacity" | "stasis" | "maelstrom"
+  | "irradiate" | "emp" | "yamato" | "lockdown" | "personnelCloak" | "hive" | "ventral" | "greaterSpire" | "ensnare" | "broodling" | "plague"
   | "infWeapons1" | "infArmor1" | "infWeapons2" | "stim" | "u238" | "siege" | "ion" | "wraithCloak"
   | "lair" | "metabolic" | "adrenal" | "spines" | "augments" | "lurkerAspect" | "pneumatized" | "chitin" | "zMelee1" | "zMissile1" | "zCarapace1" | "zMelee2" | "zMissile2";
 export type StwRallyId = "main" | "natural" | "center" | "forward";
@@ -30,7 +32,7 @@ export type StwUnit = {
   radius: number;
   heading: number;
   energy: number;
-  group: "rally" | "attack" | "scout";
+  group: "rally" | "attack" | "scout" | "drop" | "cargo";
   targetId: number | null;
   sieged?: boolean;
   siegeUntil?: number;
@@ -38,6 +40,15 @@ export type StwUnit = {
   stimAt?: number;
   burrowed?: boolean;
   burrowUntil?: number;
+  stunUntil?: number;
+  stasisUntil?: number;
+  ensnareUntil?: number;
+  plagueUntil?: number;
+  irradiateUntil?: number;
+  matrix?: { hp: number; until: number };
+  acid?: { stacks: number; until: number };
+  cargo?: number[];
+  bornAt?: number;
 };
 
 export type StwBuilding = {
@@ -62,9 +73,12 @@ export type StwBuilding = {
   targetId: number | null;
 };
 
-export type StwEffect = { kind: "slash" | "plasma" | "photon" | "shock" | "scarab" | "warp" | "death" | "collapse" | "bullet" | "flame" | "grenade" | "tankshot" | "shell" | "stim" | "scan" | "bite" | "spine" | "spines" | "tentacle" | "laser" | "neutron" | "glaive" | "flak" | "sporeShot" | "burst"; side: StwSide; x1: number; y1: number; x2: number; y2: number; ttl: number; max: number; radius?: number; attackerId?: number; targetId?: number };
+export type StwEffect = { kind: "slash" | "plasma" | "photon" | "shock" | "scarab" | "warp" | "death" | "collapse" | "bullet" | "flame" | "grenade" | "tankshot" | "shell" | "stim" | "scan" | "bite" | "spine" | "spines" | "tentacle" | "laser" | "neutron" | "glaive" | "flak" | "sporeShot" | "burst"
+    | "interceptor" | "yamato" | "spell"; side: StwSide; x1: number; y1: number; x2: number; y2: number; ttl: number; max: number; radius?: number; attackerId?: number; targetId?: number; spell?: string };
 export type StwScan = { id: number; side: StwSide; x: number; y: number; radius: number; ttl: number };
 export type StwStorm = { id: number; side: StwSide; x: number; y: number; ttl: number };
+/** 땅에 남는 마법 구역(다크 스웜). */
+export type StwZone = { id: number; kind: "swarm"; side: StwSide; x: number; y: number; radius: number; ttl: number; max: number };
 export type StwIntel = { race?: StwRaceId; time: number; buildings: Partial<Record<StwBuildingType, number>>; units: Record<StwArmyType, number>; research: { id: StwResearchId; status: string }[]; probes: number };
 export type StwSeen = { id: number; type: StwBuildingType; x: number; y: number; base: string; radius: number; at: number };
 export type StwStats = { minerals: number; gas: number; produced: number; lost: number; kills: number; buildingsLost: number; buildingsDestroyed: number; storms: number; overkill: number };
@@ -101,6 +115,7 @@ export type StwState = {
   units: StwUnit[];
   buildings: StwBuilding[];
   storms: StwStorm[];
+  zones?: StwZone[];
   scans?: StwScan[];
   stalemate?: number;
   effects: StwEffect[];
@@ -115,6 +130,8 @@ export type StwCommand =
   | { type: "line"; buildingId: number; unit: StwArmyType | null }
   | { type: "lineAll"; unit: StwArmyType | null; producer?: StwProducerType }
   | { type: "merge" }
+  | { type: "darkMerge" }
+  | { type: "drop" }
   | { type: "rally"; point: StwRallyId }
   | { type: "move"; y: number }
   | { type: "attack" }

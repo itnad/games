@@ -24,6 +24,7 @@ import {
   stwClock,
   stwCommand,
   stwDone,
+  stwDropCheck,
   stwIncome,
   stwOwnBuildings,
   stwProbeCheck,
@@ -730,6 +731,7 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
   const research = game.sides.player.research;
   const researchIds = RESEARCH_IDS.filter((id) => (STW_RESEARCH[id] as { race?: string }).race === race.id);
   const templars = game.units.filter((unit) => unit.side === "player" && unit.type === "templar").length;
+  const darks = game.units.filter((unit) => unit.side === "player" && unit.type === "dark" && unit.group !== "cargo").length;
   const counters: Record<string, number> = {};
   return (
     <div className="stw-tab">
@@ -772,6 +774,7 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
           );
         })}
         {race.id === "protoss" ? <Card title="아콘 합체" sub={`하이템플러 2기 → 아콘 · 보유 ${templars}`} note={templars >= 2 ? STW_UNITS.archon.note : "하이템플러 2기가 필요합니다"} disabled={templars < 2} onClick={() => issue({ type: "merge" })} /> : null}
+        {race.id === "protoss" ? <Card title="다크 아콘 합체" sub={`다크템플러 2기 → 다크 아콘 · 보유 ${darks}`} note={darks >= 2 ? STW_UNITS.darkArchon.note : "다크템플러 2기가 필요합니다"} disabled={darks < 2} onClick={() => issue({ type: "darkMerge" })} /> : null}
       </div>
       <h3 className="stw-section">연구</h3>
       <div className="stw-grid">
@@ -799,6 +802,9 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
   const escorting = game.units.some((unit) => unit.side === "player" && unit.type === "overlord");
   const scouting = game.units.filter((unit) => unit.side === "player" && unit.group === "scout").length;
   const intel = side.intel;
+  const drop = stwDropCheck(game, "player") as StwCheck;
+  const flying = game.units.filter((unit) => unit.side === "player" && unit.group === "drop").length;
+  const transportName = race.id === "terran" ? "드랍십" : race.id === "zerg" ? "오버로드" : "셔틀";
   return (
     <div className="stw-tab">
       <div className="stw-army-summary">
@@ -835,6 +841,17 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
           </div>
         </>
       ) : null}
+      <h3 className="stw-section">본진 침투</h3>
+      <p className="stw-hint">{`${withKoreanSubject(transportName)} 대기 중인 지상 병력을 인구 8씩 싣고 전장 가장자리를 타고 날아가 적 본진 뒤에 내려놓습니다. 수송선이 격추되면 탄 병력도 잃습니다.`}</p>
+      <div className="stw-scout">
+        <Card
+          title="본진 침투"
+          sub={flying ? `날아가는 수송선 ${flying}` : `${transportName} 수송`}
+          note={drop.ok ? "누르면 쉬고 있는 수송선이 모두 출발합니다" : drop.reason}
+          disabled={!drop.ok}
+          onClick={() => issue({ type: "drop" })}
+        />
+      </div>
       <h3 className="stw-section">정찰</h3>
       <div className="stw-scout">
         <Card title={`${workerName} 정찰`} sub={`${workerName} 1기 잠시 이탈`} badge={scouting ? `정찰 중 ${scouting}` : undefined} note={scout.ok ? "적 본진까지 다녀오며 건물과 병력을 확인" : scout.reason} disabled={!scout.ok} onClick={() => issue({ type: "scout" })} />

@@ -123,6 +123,64 @@ function archon(PIXI: PixiModule, side: StwSide) {
   return g;
 }
 
+function darkArchon(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 30);
+  g.circle(0, 0, 24).fill({ color: 0x5a2a8a, alpha: 0.3 });
+  g.circle(0, 0, 18).fill({ color: 0x3a1a5c, alpha: 0.6 });
+  for (let i = 0; i < 5; i += 1) {
+    const a = ((Math.PI * 2) / 5) * i;
+    g.moveTo(Math.cos(a) * 5, Math.sin(a) * 5).quadraticCurveTo(Math.cos(a - 0.7) * 17, Math.sin(a - 0.7) * 17, Math.cos(a - 1.2) * 23, Math.sin(a - 1.2) * 23).stroke({ width: 2.2, color: 0xb07dff, alpha: 0.85 });
+  }
+  g.circle(0, 0, 10).fill(0x22102e).stroke({ width: 2, color: team.glow });
+  g.circle(0, 0, 4.5).fill(team.glow);
+  return g;
+}
+
+function shuttle(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 24);
+  // 둥근 화물칸과 양쪽 엔진 고리.
+  for (const y of [-11, 11]) g.ellipse(-4, y, 9, 4).fill(GOLD_DARK).stroke({ width: 1.2, color: INK });
+  g.ellipse(2, 0, 16, 10).fill(GOLD).stroke({ width: 2, color: GOLD_DARK });
+  g.ellipse(4, 0, 9, 6).fill({ color: GOLD_LIGHT, alpha: 0.6 });
+  g.circle(12, 0, 3).fill(team.glow);
+  for (const y of [-11, 11]) g.circle(-12, y, 2).fill(team.glow);
+  return g;
+}
+
+function carrier(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 38);
+  // 길쭉한 모함, 양옆 격납고.
+  g.poly([34, 0, 10, -14, -30, -12, -34, 0, -30, 12, 10, 14]).fill(GOLD).stroke({ width: 2.4, color: GOLD_DARK });
+  g.poly([20, 0, 4, -7, -22, -6, -22, 6, 4, 7]).fill({ color: GOLD_LIGHT, alpha: 0.6 });
+  for (const y of [-15, 15]) g.roundRect(-24, y - 3, 30, 6, 3).fill(GOLD_DARK).stroke({ width: 1.2, color: INK });
+  for (let i = 0; i < 4; i += 1) {
+    g.circle(-18 + i * 7, -15, 1.6).fill(team.glow);
+    g.circle(-18 + i * 7, 15, 1.6).fill(team.glow);
+  }
+  g.circle(22, 0, 4).fill(team.deep).stroke({ width: 1, color: INK });
+  g.circle(22, 0, 2.2).fill(team.glow);
+  return g;
+}
+
+function arbiter(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 30);
+  // 넓게 펼친 두 갈래 날개와 가운데 수정.
+  for (const sign of [-1, 1]) g.poly([10, sign * 4, -6, sign * 24, -18, sign * 22, -8, sign * 6]).fill(GOLD).stroke({ width: 1.8, color: GOLD_DARK });
+  g.ellipse(2, 0, 14, 8).fill(GOLD).stroke({ width: 2, color: GOLD_DARK });
+  g.circle(0, 0, 9).fill({ color: team.glow, alpha: 0.35 });
+  g.poly([8, 0, 0, -5, -6, 0, 0, 5]).fill(team.glow);
+  g.circle(12, 0, 2).fill(0xffffff);
+  return g;
+}
+
 function observer(PIXI: PixiModule, side: StwSide) {
   const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
@@ -427,6 +485,76 @@ function wraith(PIXI: PixiModule, side: StwSide) {
   return g;
 }
 
+function ghost(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 20);
+  g.roundRect(2, -1.2, 18, 2.4, 1).fill(0x2a2d31);
+  g.ellipse(-1, 0, 6.5, 8.5).fill(0x3a4048).stroke({ width: 1.4, color: 0x11161c });
+  g.rect(-6, -1.2, 6, 2.4).fill(team.glow);
+  g.circle(1, 0, 4.2).fill(0x5d656e).stroke({ width: 1.1, color: 0x11161c });
+  g.rect(2.6, -1.8, 2.6, 3.6).fill(0x7fe0ff);
+  return g;
+}
+
+function dropship(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 26);
+  // 각진 화물선, 앞쪽 조종석, 양쪽 엔진.
+  for (const y of [-12, 12]) g.roundRect(-16, y - 4, 16, 8, 3).fill(STEEL_DARK).stroke({ width: 1, color: 0x1f2328 });
+  g.poly([20, 0, 10, -9, -18, -8, -20, 0, -18, 8, 10, 9]).fill(STEEL).stroke({ width: 1.8, color: STEEL_DARK });
+  g.rect(-14, -3, 18, 6).fill(team.deep);
+  g.ellipse(12, 0, 5, 3).fill(0x1a1d21);
+  g.ellipse(13, 0, 2.6, 1.6).fill(team.glow);
+  for (const y of [-12, 12]) g.circle(-18, y, 2).fill(0xffb347);
+  return g;
+}
+
+function vessel(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 28);
+  // 둥근 원반과 위의 관측 접시.
+  g.circle(0, 0, 20).fill(STEEL_DARK).stroke({ width: 2, color: 0x1f2328 });
+  g.circle(0, 0, 15).fill(STEEL).stroke({ width: 1.4, color: STEEL_DARK });
+  for (let i = 0; i < 6; i += 1) {
+    const a = (Math.PI / 3) * i;
+    g.circle(Math.cos(a) * 17.5, Math.sin(a) * 17.5, 1.6).fill(team.glow);
+  }
+  g.circle(2, 0, 8).fill(STEEL_LIGHT).stroke({ width: 1.4, color: STEEL_DARK });
+  g.circle(2, 0, 3.5).fill(0x7fffb0);
+  return g;
+}
+
+function valkyrie(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 26);
+  // 넓은 날개 끝 미사일 포드.
+  g.poly([18, 0, 2, -6, -6, -20, -12, -20, -10, -4, -16, 0, -10, 4, -12, 20, -6, 20, 2, 6]).fill(STEEL).stroke({ width: 1.6, color: STEEL_DARK });
+  for (const y of [-18, 18]) g.roundRect(-10, y - 2.5, 12, 5, 2).fill(0x3a3f45);
+  g.rect(-12, -2, 10, 4).fill(team.deep);
+  g.ellipse(8, 0, 5, 2.4).fill(0x1a1d21);
+  g.ellipse(9, 0, 2.4, 1.4).fill(team.glow);
+  return g;
+}
+
+function battlecruiser(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 40);
+  // 긴 함체, 앞의 함교, 뒤쪽 엔진 넷.
+  g.poly([36, 0, 26, -8, 4, -10, -26, -16, -34, -12, -34, 12, -26, 16, 4, 10, 26, 8]).fill(STEEL).stroke({ width: 2.4, color: STEEL_DARK });
+  g.poly([30, 0, 20, -4, -20, -6, -20, 6, 20, 4]).fill(STEEL_LIGHT);
+  g.roundRect(-6, -6, 16, 12, 3).fill(STEEL_DARK);
+  g.rect(-2, -2.5, 8, 5).fill(team.glow);
+  for (const y of [-12, -4, 4, 12]) g.circle(-34, y, 2.2).fill(0xffb347);
+  g.rect(-24, -14, 18, 3).fill(team.deep);
+  g.rect(-24, 11, 18, 3).fill(team.deep);
+  return g;
+}
+
 function vulture(PIXI: PixiModule, side: StwSide) {
   const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
@@ -469,6 +597,29 @@ function tankTurret(PIXI: PixiModule, side: StwSide, sieged: boolean) {
   g.circle(0, 0, 10).fill(0x7e8d6a).stroke({ width: 2, color: 0x2b3322 });
   g.circle(-3, 2, 3.4).fill(team.deep);
   g.circle(2, -3, 2).fill(team.glow);
+  return g;
+}
+
+function beacon(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  g.roundRect(-34, -30, 68, 60, 10).fill(GOLD_DARK).stroke({ width: 2.5, color: INK });
+  g.roundRect(-30, -26, 60, 52, 8).fill(GOLD);
+  // 하늘로 쏘는 신호탑.
+  g.poly([0, -24, 10, 10, -10, 10]).fill(GOLD_LIGHT).stroke({ width: 1.6, color: GOLD_DARK });
+  g.circle(0, -10, 6).fill(team.glow);
+  for (const x of [-20, 20]) g.circle(x, 14, 4).fill({ color: team.glow, alpha: 0.7 });
+  return g;
+}
+
+function tribunal(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  g.roundRect(-34, -30, 68, 60, 10).fill(GOLD_DARK).stroke({ width: 2.5, color: INK });
+  g.roundRect(-30, -26, 60, 52, 8).fill(GOLD);
+  for (const sign of [-1, 1]) g.poly([0, 0, sign * 22, -18, sign * 24, 8]).fill(GOLD_LIGHT).stroke({ width: 1.4, color: GOLD_DARK });
+  g.circle(0, 0, 10).fill(0x2a2030).stroke({ width: 2, color: GOLD_DARK });
+  g.circle(0, 0, 5).fill(team.glow);
   return g;
 }
 
@@ -567,6 +718,17 @@ function turretT(PIXI: PixiModule, side: StwSide) {
   for (const y of [-7, 0, 7]) g.roundRect(-4, y - 2.5, 20, 5, 2).fill(0x3a3f45);
   g.circle(0, 0, 6).fill(team.glow);
   return g;
+}
+
+function science(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  return terranBlock(PIXI, side, 76, 68, (g) => {
+    g.circle(-10, -6, 14).fill(STEEL_LIGHT).stroke({ width: 2, color: STEEL_DARK });
+    g.circle(-10, -6, 6).fill(0x7fffb0);
+    g.moveTo(10, -18).lineTo(28, -30).stroke({ width: 3, color: STEEL_DARK });
+    g.circle(28, -30, 4).fill(team.glow);
+    g.rect(6, 4, 22, 10).fill(STEEL_DARK);
+  });
 }
 
 function armory(PIXI: PixiModule, side: StwSide) {
@@ -797,6 +959,91 @@ function scourge(PIXI: PixiModule, side: StwSide) {
   return g;
 }
 
+function guardian(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 30);
+  // 게처럼 넓은 몸통과 앞으로 뻗은 집게.
+  for (const sign of [-1, 1]) {
+    g.moveTo(6, sign * 6).quadraticCurveTo(20, sign * 14, 24, sign * 6).stroke({ width: 3, color: BONE, cap: "round" });
+    g.moveTo(-4, sign * 8).quadraticCurveTo(-14, sign * 24, -24, sign * 20).quadraticCurveTo(-14, sign * 12, -16, sign * 6).fill(FLESH).stroke({ width: 1.4, color: FLESH_DARK });
+  }
+  g.ellipse(0, 0, 14, 10).fill(SHELL).stroke({ width: 2, color: SHELL_DARK });
+  g.ellipse(4, 0, 7, 5).fill(FLESH).stroke({ width: 1.2, color: FLESH_DARK });
+  g.circle(8, -2, 1.4).fill(team.glow);
+  g.circle(8, 2, 1.4).fill(team.glow);
+  return g;
+}
+
+function devourer(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 28);
+  // 둥근 몸통과 짧은 날개, 앞의 큰 입.
+  for (const sign of [-1, 1]) g.moveTo(-2, sign * 8).quadraticCurveTo(-10, sign * 22, -20, sign * 18).quadraticCurveTo(-12, sign * 10, -12, sign * 4).fill(FLESH).stroke({ width: 1.4, color: FLESH_DARK });
+  g.circle(0, 0, 13).fill(SHELL).stroke({ width: 2, color: SHELL_DARK });
+  g.ellipse(9, 0, 6, 7).fill(0x3a1a28).stroke({ width: 1.4, color: FLESH_DARK });
+  for (const y of [-4, 0, 4]) g.moveTo(9, y).lineTo(14, y * 1.3).stroke({ width: 1.2, color: BONE });
+  g.circle(-4, -5, 1.6).fill(team.glow);
+  g.circle(-4, 5, 1.6).fill(team.glow);
+  return g;
+}
+
+function queen(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 26);
+  // 가는 날개 넷과 늘씬한 몸, 머리 볏.
+  for (const sign of [-1, 1]) {
+    g.moveTo(0, sign * 3).quadraticCurveTo(-6, sign * 18, -14, sign * 20).quadraticCurveTo(-6, sign * 9, -6, sign * 3).fill({ color: 0xb08aa8, alpha: 0.85 }).stroke({ width: 1, color: FLESH_DARK });
+    g.moveTo(4, sign * 3).quadraticCurveTo(6, sign * 16, 0, sign * 20).stroke({ width: 1.4, color: FLESH_DARK });
+  }
+  g.ellipse(-2, 0, 13, 5).fill(SHELL).stroke({ width: 1.6, color: SHELL_DARK });
+  g.ellipse(10, 0, 5, 4).fill(FLESH).stroke({ width: 1.2, color: FLESH_DARK });
+  for (const y of [-3, 3]) g.moveTo(10, y).lineTo(16, y * 2).stroke({ width: 1.2, color: BONE, cap: "round" });
+  g.circle(12, 0, 1.6).fill(team.glow);
+  return g;
+}
+
+function defiler(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 22);
+  // 마디진 몸통과 여러 다리.
+  for (let i = -2; i <= 2; i += 1) {
+    g.moveTo(i * 4, -4).lineTo(i * 4 - 2, -12).stroke({ width: 1.4, color: FLESH_DARK, cap: "round" });
+    g.moveTo(i * 4, 4).lineTo(i * 4 - 2, 12).stroke({ width: 1.4, color: FLESH_DARK, cap: "round" });
+  }
+  plates(g, -6, 4, 4.5, 7, 6, SHELL, SHELL_DARK);
+  g.ellipse(12, 0, 5, 4).fill(0x6a8a3a).stroke({ width: 1.2, color: FLESH_DARK });
+  g.circle(14, -1.5, 1.2).fill(team.glow);
+  g.circle(14, 1.5, 1.2).fill(team.glow);
+  return g;
+}
+
+function infested(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 18);
+  g.ellipse(-1, 0, 7, 9).fill(0x6a5a3a).stroke({ width: 1.4, color: 0x2a2010 });
+  for (const [x, y] of [[-4, -5], [2, 4], [-3, 5], [3, -4]]) g.circle(x, y, 2).fill(0x9acd5a);
+  g.circle(1, 0, 4).fill(0x8a6a4a).stroke({ width: 1, color: 0x2a2010 });
+  g.circle(3, 0, 1.6).fill(team.glow);
+  return g;
+}
+
+function broodling(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = new PIXI.Graphics();
+  pad(g, 12);
+  for (const y of [-5, 0, 5]) g.moveTo(-2, y * 0.4).lineTo(-6, y).stroke({ width: 1, color: FLESH_DARK });
+  g.ellipse(0, 0, 6, 4).fill(SHELL).stroke({ width: 1, color: SHELL_DARK });
+  g.moveTo(5, -2).lineTo(9, -3).stroke({ width: 1.2, color: BONE });
+  g.moveTo(5, 2).lineTo(9, 3).stroke({ width: 1.2, color: BONE });
+  g.circle(3, 0, 1.1).fill(team.glow);
+  return g;
+}
+
 function overlord(PIXI: PixiModule, side: StwSide) {
   const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
@@ -884,6 +1131,26 @@ function spire(PIXI: PixiModule, side: StwSide) {
   for (const y of [-14, -2, 10]) g.ellipse(0, y, 10 + (y + 14) * 0.25, 4).stroke({ width: 1.6, color: BONE });
   g.ellipse(0, 12, 12, 7).fill(FLESH).stroke({ width: 1.4, color: FLESH_DARK });
   g.circle(0, -30, 3.5).fill(team.glow);
+  return g;
+}
+
+function nest(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = zergMound(PIXI, 34);
+  g.ellipse(0, 0, 28, 22).fill(SHELL).stroke({ width: 2.4, color: SHELL_DARK });
+  // 둥지 안의 알 셋.
+  for (const [x, y] of [[-8, -2], [6, -6], [4, 8]]) g.ellipse(x, y, 7, 5).fill(0xc9a0b8).stroke({ width: 1.2, color: FLESH_DARK });
+  g.circle(0, 0, 3.5).fill(team.glow);
+  return g;
+}
+
+function mound(PIXI: PixiModule, side: StwSide) {
+  const team = STW_TEAM[side];
+  const g = zergMound(PIXI, 32);
+  g.ellipse(0, 0, 26, 20).fill(0x5a4a2a).stroke({ width: 2.4, color: SHELL_DARK });
+  for (let i = 0; i < 5; i += 1) g.moveTo(-16 + i * 8, 8).quadraticCurveTo(-14 + i * 8, -10, -18 + i * 8, -20).stroke({ width: 2.6, color: 0x8aa84a, cap: "round" });
+  g.circle(0, 2, 5).fill(0x3a2a18);
+  g.circle(0, 2, 2.5).fill(team.glow);
   return g;
 }
 
@@ -1093,6 +1360,10 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       reaver: bake(reaver(PIXI, side)),
       scout: bake(scout(PIXI, side)),
       corsair: bake(corsair(PIXI, side)),
+      darkArchon: bake(darkArchon(PIXI, side)),
+      shuttle: bake(shuttle(PIXI, side)),
+      carrier: bake(carrier(PIXI, side)),
+      arbiter: bake(arbiter(PIXI, side)),
       scv: bake(scv(PIXI, side)),
       marine: bake(marine(PIXI, side)),
       firebat: bake(firebat(PIXI, side)),
@@ -1101,6 +1372,11 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       tank: bake(tankHull(PIXI, side, false)),
       goliath: bake(goliath(PIXI, side)),
       wraith: bake(wraith(PIXI, side)),
+      ghost: bake(ghost(PIXI, side)),
+      dropship: bake(dropship(PIXI, side)),
+      vessel: bake(vessel(PIXI, side)),
+      valkyrie: bake(valkyrie(PIXI, side)),
+      battlecruiser: bake(battlecruiser(PIXI, side)),
       drone: bake(drone(PIXI, side)),
       zergling: bake(zergling(PIXI, side)),
       hydra: bake(hydra(PIXI, side)),
@@ -1109,6 +1385,12 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       overlord: bake(overlord(PIXI, side)),
       mutalisk: bake(mutalisk(PIXI, side)),
       scourge: bake(scourge(PIXI, side)),
+      guardian: bake(guardian(PIXI, side)),
+      devourer: bake(devourer(PIXI, side)),
+      queen: bake(queen(PIXI, side)),
+      defiler: bake(defiler(PIXI, side)),
+      infested: bake(infested(PIXI, side)),
+      broodling: bake(broodling(PIXI, side)),
     };
     zergParts[side] = { lair: bake(hatchery(PIXI, side, true)), lurkerBurrowed: bake(lurkerBurrowed(PIXI, side)) };
     tankParts[side] = {
@@ -1130,6 +1412,8 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       robo: bake(robo(PIXI, side)),
       bay: bake(bay(PIXI, side)),
       stargate: bake(stargate(PIXI, side)),
+      beacon: bake(beacon(PIXI, side)),
+      tribunal: bake(tribunal(PIXI, side)),
       cc: bake(cc(PIXI, side)),
       depot: bake(depot(PIXI, side)),
       refinery: bake(refinery(PIXI, side)),
@@ -1143,6 +1427,7 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       shop: bake(shop(PIXI, side)),
       armory: bake(armory(PIXI, side)),
       starport: bake(starport(PIXI, side)),
+      science: bake(science(PIXI, side)),
       hatchery: bake(hatchery(PIXI, side)),
       hatch: bake(hatchery(PIXI, side)),
       overlord: bake(overlord(PIXI, side)),
@@ -1153,6 +1438,8 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
       spore: bake(spore(PIXI, side)),
       den: bake(den(PIXI, side)),
       spire: bake(spire(PIXI, side)),
+      nest: bake(nest(PIXI, side)),
+      mound: bake(mound(PIXI, side)),
       cavern: bake(cavern(PIXI, side)),
     };
     flags[side] = bake(flag(PIXI, side));

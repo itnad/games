@@ -94,9 +94,33 @@ export const STW_UNITS = {
   corsair: {
     id: "corsair", name: "커세어", short: "C", minerals: 150, gas: 100, time: 27, supply: 2, from: "stargate",
     hp: 100, shields: 80, armor: 1, size: "medium", speed: 5, radius: 1.2, sight: 10, flying: true,
-    damage: 8, hits: 1, damageType: "explosive", range: 5, cooldown: 0.35, weaponStep: 0, role: "air", targets: "air",
-    splash: { radius: 2, factor: 1, air: true },
-    note: "빠른 공중 전용 요격기 · 0.35초마다 폭발형 8, 반경 2 공중 범위 · 오버로드·뮤탈리스크 사냥",
+    damage: 6, hits: 1, damageType: "normal", range: 5, cooldown: 0.35, weaponStep: 0, role: "air", targets: "air",
+    splash: { radius: 1.6, factor: 1, air: true },
+    note: "빠른 공중 전용 요격기 · 0.35초마다 6, 반경 1.6 공중 범위 · 오버로드·뮤탈리스크 사냥",
+  },
+  darkArchon: {
+    id: "darkArchon", name: "다크 아콘", short: "Y", minerals: 250, gas: 200, time: 0, supply: 4, from: "darkMerge",
+    hp: 25, shields: 200, armor: 1, size: "large", speed: 2.6, radius: 1.8, sight: 10, role: "caster",
+    energy: 50, maxEnergy: 250, energyRegen: 0.8, spells: ["feedback", "maelstrom"],
+    note: "다크템플러 2기 합체 · 무기 없음 · 피드백(적 에너지만큼 피해) · 마엘스트롬(생체 유닛 6초 정지)",
+  },
+  shuttle: {
+    id: "shuttle", name: "셔틀", short: "U", minerals: 200, gas: 0, time: 30, supply: 2, from: "robo",
+    hp: 80, shields: 60, armor: 1, size: "large", speed: 4.4, radius: 1.4, sight: 8, flying: true, role: "support", transport: 8,
+    note: "수송선 · 병력 탭의 \"본진 침투\"로 지상 병력 인구 8까지 적 본진 뒤에 내려놓음",
+  },
+  carrier: {
+    id: "carrier", name: "캐리어", short: "C", minerals: 350, gas: 250, time: 70, supply: 6, from: "stargate", requires: "beacon",
+    hp: 300, shields: 150, armor: 4, size: "large", speed: 2.2, radius: 2.2, sight: 11, flying: true, decoy: 0.4,
+    damage: 6, hits: 4, damageType: "normal", range: 8, cooldown: 1, weaponStep: 0, role: "air", targets: "both",
+    note: "인터셉터 4기(연구 후 8기)가 6씩 · 사거리 8 · 지상·공중 모두 · 날아다니는 인터셉터가 공격의 40%를 대신 맞음",
+  },
+  arbiter: {
+    id: "arbiter", name: "아비터", short: "B", minerals: 100, gas: 350, time: 80, supply: 4, from: "stargate", requires: "tribunal",
+    hp: 200, shields: 150, armor: 1, size: "large", speed: 3, radius: 1.6, sight: 9, flying: true,
+    damage: 10, hits: 1, damageType: "explosive", range: 5, cooldown: 2.2, weaponStep: 0, role: "air", targets: "both",
+    energy: 50, maxEnergy: 250, energyRegen: 0.8, cloakField: 5, spells: ["stasis"],
+    note: "주변 5칸의 아군을 은폐 · 스테이시스 필드(연구 후, 뭉친 적 15초 동결)",
   },
   reaver: {
     id: "reaver", name: "리버", short: "R", minerals: 200, gas: 100, time: 35, supply: 4, from: "robo", requires: "bay",
@@ -130,6 +154,13 @@ export const STW_UNITS = {
     heal: 10, healRange: 4.5,
     note: "무기 없음 · 근처 보병의 체력을 초당 10 치료",
   },
+  ghost: {
+    id: "ghost", race: "terran", name: "고스트", short: "H", minerals: 25, gas: 75, time: 25, supply: 1, from: "barracks", requires: "science",
+    hp: 45, shields: 0, armor: 0, size: "small", speed: 2.6, radius: 0.9, sight: 9,
+    damage: 10, hits: 1, damageType: "concussive", range: 7, cooldown: 1.1, weaponStep: 1, role: "ranged", bio: true, targets: "both", cloakResearch: "personnelCloak",
+    energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["lockdown"],
+    note: "사거리 7 진동형 · 은폐 장치 연구 뒤 은폐 · 락다운(연구 후, 기계 유닛 15초 정지)",
+  },
   vulture: {
     id: "vulture", race: "terran", name: "벌처", short: "V", minerals: 75, gas: 0, time: 18, supply: 2, from: "factory",
     hp: 80, shields: 0, armor: 0, size: "medium", speed: 4.2, radius: 1.2, sight: 9,
@@ -142,6 +173,31 @@ export const STW_UNITS = {
     damage: 12, hits: 1, damageType: "normal", range: 5, cooldown: 0.95, weaponStep: 0, role: "ranged", targets: "both",
     air: { damage: 10, hits: 2, damageType: "explosive", cooldown: 0.95 },
     note: "보행 병기 · 지상 12, 공중 10×2 폭발형 · 테란의 지상 대공",
+  },
+  dropship: {
+    id: "dropship", race: "terran", name: "드랍십", short: "P", minerals: 100, gas: 100, time: 30, supply: 2, from: "starport",
+    hp: 150, shields: 0, armor: 1, size: "large", speed: 3.8, radius: 1.5, sight: 8, flying: true, role: "support", transport: 8,
+    note: "수송선 · 병력 탭의 \"본진 침투\"로 지상 병력 인구 8까지 적 본진 뒤에 내려놓음",
+  },
+  vessel: {
+    id: "vessel", race: "terran", name: "사이언스 베슬", short: "E", minerals: 100, gas: 225, time: 50, supply: 2, from: "starport", requires: "science",
+    hp: 200, shields: 0, armor: 1, size: "large", speed: 3.3, radius: 1.6, sight: 10, flying: true, role: "caster", detector: 9,
+    energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["matrix", "emp", "irradiate"],
+    note: "탐지기 · 디펜시브 매트릭스(아군 250 흡수) · EMP(연구 후, 보호막·에너지 제거) · 이레디에이트(연구 후, 생체 유닛 지속 피해)",
+  },
+  valkyrie: {
+    id: "valkyrie", race: "terran", name: "발키리", short: "K", minerals: 250, gas: 125, time: 40, supply: 3, from: "starport", requires: "armory",
+    hp: 200, shields: 0, armor: 2, size: "large", speed: 4.4, radius: 1.5, sight: 9, flying: true,
+    damage: 6, hits: 8, damageType: "normal", range: 6, cooldown: 2.2, weaponStep: 0, role: "air", targets: "air",
+    splash: { radius: 1.8, factor: 1, air: true },
+    note: "공중 전용 미사일 8발(6씩) · 반경 1.8 공중 범위 · 뭉친 뮤탈리스크에 강함",
+  },
+  battlecruiser: {
+    id: "battlecruiser", race: "terran", name: "배틀크루저", short: "B", minerals: 400, gas: 300, time: 80, supply: 6, from: "starport", requires: "science",
+    hp: 650, shields: 0, armor: 3, size: "large", speed: 2.3, radius: 2.4, sight: 11, flying: true,
+    damage: 25, hits: 1, damageType: "normal", range: 6, cooldown: 1, weaponStep: 0, role: "air", targets: "both",
+    energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["yamato"],
+    note: "체력 650 전함 · 지상·공중 25 · 야마토 포(연구 후, 260 한 방)",
   },
   wraith: {
     id: "wraith", race: "terran", name: "레이스", short: "W", minerals: 150, gas: 100, time: 38, supply: 2, from: "starport",
@@ -200,6 +256,43 @@ export const STW_UNITS = {
     damage: 110, hits: 1, damageType: "normal", range: 1, cooldown: 1, weaponStep: 0, role: "air", targets: "air", suicide: true,
     note: "한 번에 2기 · 공중 유닛에 몸을 던져 110 피해 · 지상은 때리지 못함",
   },
+  guardian: {
+    id: "guardian", race: "zerg", name: "가디언", short: "G", minerals: 150, gas: 200, time: 40, supply: 2, from: "hatchery", requires: "spire", requiresResearch: "greaterSpire",
+    hp: 150, shields: 0, armor: 2, size: "large", speed: 1.8, radius: 1.6, sight: 11, flying: true,
+    damage: 20, hits: 1, damageType: "normal", range: 8, cooldown: 2, weaponStep: 0, role: "air", targets: "ground",
+    note: "느린 공중 포대 · 사거리 8로 지상만 · 공중 공격을 못 함",
+  },
+  devourer: {
+    id: "devourer", race: "zerg", name: "디바우러", short: "V", minerals: 250, gas: 150, time: 40, supply: 2, from: "hatchery", requires: "spire", requiresResearch: "greaterSpire",
+    hp: 250, shields: 0, armor: 2, size: "large", speed: 3.4, radius: 1.6, sight: 10, flying: true,
+    damage: 25, hits: 1, damageType: "explosive", range: 6, cooldown: 3, weaponStep: 0, role: "air", targets: "air", acid: true,
+    note: "공중 전용 산성 포자(폭발형 25) · 맞은 적은 방어력 −1씩(최대 9, 20초)",
+  },
+  queen: {
+    id: "queen", race: "zerg", name: "퀸", short: "Q", minerals: 100, gas: 100, time: 30, supply: 2, from: "hatchery", requires: "nest",
+    hp: 120, shields: 0, armor: 0, size: "medium", speed: 4, radius: 1.3, sight: 10, flying: true, role: "caster",
+    energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["broodling", "ensnare"],
+    note: "무기 없음 · 인스네어(연구 후, 뭉친 적 이동·공격 느리게) · 브루들링(연구 후, 지상 생체 유닛 즉사)",
+  },
+  defiler: {
+    id: "defiler", race: "zerg", name: "디파일러", short: "F", minerals: 50, gas: 150, time: 30, supply: 2, from: "hatchery", requires: "mound",
+    hp: 80, shields: 0, armor: 1, size: "medium", speed: 2.6, radius: 1.1, sight: 10, role: "caster",
+    energy: 50, maxEnergy: 200, energyRegen: 1.1, spells: ["darkSwarm", "plague"],
+    note: "무기 없음 · 다크 스웜(안의 지상 유닛에 원거리 공격이 안 통함) · 플레이그(연구 후, 체력 1까지 지속 피해)",
+  },
+  infested: {
+    id: "infested", race: "zerg", name: "감염된 테란", short: "I", minerals: 100, gas: 50, time: 20, supply: 1, from: "hatchery", requires: "nest", requiresResearch: "hive",
+    hp: 60, shields: 0, armor: 0, size: "small", speed: 4, radius: 0.9, sight: 8,
+    damage: 300, hits: 1, damageType: "normal", range: 1, cooldown: 1, weaponStep: 0, role: "melee", suicide: true,
+    splash: { radius: 2.2, factor: 1 },
+    note: "지상 적에게 달려가 자폭 · 반경 2.2에 300",
+  },
+  broodling: {
+    id: "broodling", race: "zerg", name: "브루들링", short: "b", minerals: 0, gas: 0, time: 0, supply: 0, from: "broodling",
+    hp: 30, shields: 0, armor: 0, size: "small", speed: 3.6, radius: 0.8, sight: 7, lifetime: 20,
+    damage: 4, hits: 1, damageType: "normal", range: 1, cooldown: 0.8, weaponStep: 0, role: "melee",
+    note: "퀸의 브루들링으로 생겨남 · 20초 뒤 사라짐",
+  },
   ultra: {
     id: "ultra", race: "zerg", name: "울트라리스크", short: "U", minerals: 200, gas: 200, time: 30, supply: 4, from: "hatchery", requires: "cavern",
     hp: 400, shields: 0, armor: 1, size: "large", speed: 3, radius: 1.9, sight: 9,
@@ -210,17 +303,24 @@ export const STW_UNITS = {
 };
 
 /** 병력 유닛(일꾼 제외). 모든 종족. */
-export const STW_ARMY_UNITS = ["zealot", "dragoon", "templar", "dark", "archon", "observer", "reaver", "scout", "corsair", "marine", "firebat", "medic", "vulture", "tank", "goliath", "wraith", "zergling", "hydra", "lurker", "ultra", "overlord", "mutalisk", "scourge"];
+export const STW_ARMY_UNITS = ["zealot", "dragoon", "templar", "dark", "archon", "darkArchon", "observer", "shuttle", "reaver", "scout", "corsair", "carrier", "arbiter",
+  "marine", "firebat", "medic", "ghost", "vulture", "tank", "goliath", "wraith", "dropship", "vessel", "valkyrie", "battlecruiser",
+  "zergling", "hydra", "lurker", "ultra", "overlord", "mutalisk", "scourge", "guardian", "devourer", "queen", "defiler", "infested", "broodling"];
+/** 기계 유닛: 락다운에 걸리고 메딕 치료·브루들링·이레디에이트·마엘스트롬이 안 통한다. */
+export const STW_MECHANICAL = ["probe", "dragoon", "observer", "shuttle", "reaver", "scout", "corsair", "carrier", "arbiter",
+  "scv", "vulture", "tank", "goliath", "wraith", "dropship", "vessel", "valkyrie", "battlecruiser"];
+/** 사이오닉 에너지 존재(아콘·다크 아콘): 기계도 생체도 아니다. */
+export const STW_PSIONIC = ["archon", "darkArchon"];
 /** 저그 해처리는 본진·앞마당·추가 해처리가 같은 라바 목록을 쓴다. */
-const LARVA = ["zergling", "hydra", "lurker", "ultra", "mutalisk", "scourge"];
+const LARVA = ["zergling", "hydra", "lurker", "ultra", "mutalisk", "scourge", "guardian", "devourer", "queen", "defiler", "infested"];
 /** 생산 건물별로 고를 수 있는 유닛. */
 export const STW_PRODUCER_UNITS = {
   gateway: ["zealot", "dragoon", "templar", "dark"],
-  robo: ["observer", "reaver"],
-  stargate: ["scout", "corsair"],
-  barracks: ["marine", "firebat", "medic"],
+  robo: ["observer", "shuttle", "reaver"],
+  stargate: ["scout", "corsair", "carrier", "arbiter"],
+  barracks: ["marine", "firebat", "medic", "ghost"],
   factory: ["vulture", "tank", "goliath"],
-  starport: ["wraith"],
+  starport: ["wraith", "dropship", "vessel", "valkyrie", "battlecruiser"],
   hatchery: LARVA,
   hatch: LARVA,
 };
@@ -240,6 +340,8 @@ export const STW_BUILDINGS = {
   archives: { unique: true, id: "archives", name: "템플러 아카이브", minerals: 150, gas: 200, time: 40, hp: 500, shields: 500, armor: 1, size: 4.6, requires: "citadel", sight: 8, note: "하이템플러·다크템플러 해금 · 사이오닉 스톰 연구" },
   robo: { id: "robo", name: "로보틱스 퍼실리티", minerals: 200, gas: 200, time: 40, hp: 500, shields: 500, armor: 1, size: 5, requires: "core", sight: 8, note: "옵저버·리버 생산 라인" },
   bay: { unique: true, id: "bay", name: "로보틱스 지원 베이", minerals: 150, gas: 100, time: 30, hp: 450, shields: 450, armor: 1, size: 4.4, requires: "robo", sight: 8, note: "리버 해금 · 스캐럽 강화 연구" },
+  beacon: { unique: true, id: "beacon", name: "플릿 비컨", minerals: 300, gas: 200, time: 50, hp: 500, shields: 500, armor: 1, size: 4.6, requires: "stargate", sight: 8, note: "캐리어 해금 · 인터셉터 8기 연구" },
+  tribunal: { unique: true, id: "tribunal", name: "아비터 트리뷰널", minerals: 200, gas: 150, time: 50, hp: 500, shields: 500, armor: 1, size: 4.6, requires: "stargate", sight: 8, note: "아비터 해금 · 스테이시스 필드 연구" },
   stargate: { id: "stargate", name: "스타게이트", minerals: 150, gas: 150, time: 45, hp: 600, shields: 600, armor: 1, size: 5.2, requires: "core", sight: 8, note: "스카웃·커세어 생산 라인" },
 
   // ───── 테란: 보호막이 없고, 공격받지 않으면 SCV가 수리하듯 체력이 천천히 회복된다 ─────
@@ -264,6 +366,7 @@ export const STW_BUILDINGS = {
   factory: { id: "factory", race: "terran", name: "팩토리", minerals: 200, gas: 100, time: 40, hp: 1250, shields: 0, armor: 1, size: 5.2, requires: "barracks", sight: 8, note: "벌처·시즈 탱크 생산 라인" },
   shop: { unique: true, id: "shop", race: "terran", name: "머신 샵", minerals: 50, gas: 50, time: 20, hp: 750, shields: 0, armor: 1, size: 3.6, requires: "factory", sight: 8, note: "시즈 탱크 해금 · 시즈 모드·이온 추진기 연구" },
   armory: { unique: true, id: "armory", race: "terran", name: "아머리", minerals: 100, gas: 50, time: 40, hp: 750, shields: 0, armor: 1, size: 4.4, requires: "factory", sight: 8, note: "골리앗 해금" },
+  science: { unique: true, id: "science", race: "terran", name: "사이언스 퍼실리티", minerals: 100, gas: 150, time: 50, hp: 850, shields: 0, armor: 1, size: 4.8, requires: "starport", sight: 8, note: "사이언스 베슬·배틀크루저·고스트 해금 · EMP·이레디에이트·야마토 포·락다운·고스트 은폐 연구" },
   starport: { id: "starport", race: "terran", name: "스타포트", minerals: 150, gas: 100, time: 45, hp: 1300, shields: 0, armor: 1, size: 5.2, requires: "factory", sight: 8, note: "레이스 생산 라인 · 은폐 장치 연구" },
 
   // ───── 저그: 드론이 건물로 변태한다. 건물도 체력이 저절로 회복된다 ─────
@@ -283,6 +386,8 @@ export const STW_BUILDINGS = {
   },
   den: { unique: true, id: "den", race: "zerg", name: "히드라리스크 덴", minerals: 100, gas: 50, time: 30, hp: 850, shields: 0, armor: 1, size: 4.4, requires: "pool", sight: 8, note: "히드라리스크 해금 · 사거리·속도 연구 · 럴커 변태" },
   spire: { unique: true, id: "spire", race: "zerg", name: "스파이어", minerals: 200, gas: 150, time: 50, hp: 600, shields: 0, armor: 1, size: 4.4, requires: "pool", requiresResearch: "lair", sight: 8, note: "뮤탈리스크·스커지 해금" },
+  nest: { unique: true, id: "nest", race: "zerg", name: "퀸의 둥지", minerals: 150, gas: 100, time: 40, hp: 850, shields: 0, armor: 1, size: 4.4, requires: "pool", requiresResearch: "lair", sight: 8, note: "퀸 해금 · 하이브 변태 가능 · 인스네어·브루들링 연구" },
+  mound: { unique: true, id: "mound", race: "zerg", name: "디파일러 마운드", minerals: 100, gas: 100, time: 40, hp: 850, shields: 0, armor: 1, size: 4.2, requires: "pool", requiresResearch: "hive", sight: 8, note: "디파일러 해금 · 플레이그 연구" },
   cavern: { unique: true, id: "cavern", race: "zerg", name: "울트라리스크 동굴", minerals: 150, gas: 200, time: 45, hp: 600, shields: 0, armor: 1, size: 4.8, requires: "den", requiresResearch: "lair", sight: 8, note: "울트라리스크 해금 · 키틴질 강화 연구" },
 };
 
@@ -298,6 +403,9 @@ export const STW_RESEARCH = {
   range: { id: "range", name: "특이점 충전", at: "core", minerals: 150, gas: 150, time: 45, note: "드라군 사거리 5.5 → 8" },
   charge: { id: "charge", name: "다리 강화", at: "citadel", minerals: 150, gas: 150, time: 45, note: "질럿 이동 속도 +50%" },
   storm: { id: "storm", name: "사이오닉 스톰", at: "archives", minerals: 200, gas: 200, time: 55, note: "하이템플러가 뭉친 적에게 스톰을 자동 시전" },
+  carrierCapacity: { id: "carrierCapacity", name: "캐리어 수용량", at: "beacon", minerals: 100, gas: 100, time: 50, note: "캐리어 인터셉터 4 → 8기" },
+  stasis: { id: "stasis", name: "스테이시스 필드", at: "tribunal", minerals: 150, gas: 150, time: 50, note: "아비터가 뭉친 적을 15초 동결(그동안 서로 공격 못 함)" },
+  maelstrom: { id: "maelstrom", name: "마엘스트롬", at: "archives", minerals: 100, gas: 100, time: 45, note: "다크 아콘이 생체 유닛 무리를 6초 정지" },
   scarab: { id: "scarab", name: "스캐럽 강화", at: "bay", minerals: 100, gas: 100, time: 40, note: "리버 피해 100 → 125" },
 
   // ───── 테란 ─────
@@ -308,6 +416,11 @@ export const STW_RESEARCH = {
   u238: { id: "u238", race: "terran", name: "U-238 탄", at: "academy", minerals: 150, gas: 150, time: 40, note: "해병 사거리 4.5 → 5.5" },
   siege: { id: "siege", race: "terran", name: "시즈 모드", at: "shop", minerals: 150, gas: 150, time: 50, note: "적이 오면 탱크가 자동으로 시즈 · 사거리 12 범위 포격" },
   ion: { id: "ion", race: "terran", name: "이온 추진기", at: "shop", minerals: 100, gas: 100, time: 35, note: "벌처 이동 속도 +40%" },
+  irradiate: { id: "irradiate", race: "terran", name: "이레디에이트", at: "science", minerals: 200, gas: 200, time: 50, note: "사이언스 베슬이 생체 유닛에 25초 동안 초당 10 피해(주변 생체 유닛도)" },
+  emp: { id: "emp", race: "terran", name: "EMP 충격파", at: "science", minerals: 200, gas: 200, time: 50, note: "사이언스 베슬이 반경 3의 보호막과 에너지를 없앰" },
+  yamato: { id: "yamato", race: "terran", name: "야마토 포", at: "science", minerals: 100, gas: 100, time: 50, note: "배틀크루저가 단단한 목표에 260 한 방" },
+  lockdown: { id: "lockdown", race: "terran", name: "락다운", at: "science", minerals: 200, gas: 200, time: 50, note: "고스트가 기계 유닛을 15초 정지" },
+  personnelCloak: { id: "personnelCloak", race: "terran", name: "고스트 은폐", at: "science", minerals: 100, gas: 100, time: 45, note: "고스트가 늘 은폐" },
   wraithCloak: { id: "wraithCloak", race: "terran", name: "은폐 장치", at: "starport", minerals: 150, gas: 150, time: 45, note: "레이스가 늘 은폐 · 탐지기가 없으면 공격받지 않음" },
 
   // ───── 저그 ─────
@@ -317,6 +430,12 @@ export const STW_RESEARCH = {
   spines: { id: "spines", race: "zerg", name: "홈 갈퀴", at: "den", minerals: 150, gas: 150, time: 40, note: "히드라리스크 사거리 4.5 → 6" },
   augments: { id: "augments", race: "zerg", name: "근육 강화", at: "den", minerals: 150, gas: 150, time: 40, requires: ["lair"], note: "히드라리스크 이동 속도 +35%" },
   lurkerAspect: { id: "lurkerAspect", race: "zerg", name: "럴커 변태", at: "den", minerals: 200, gas: 200, time: 50, requires: ["lair"], note: "럴커 해금" },
+  hive: { id: "hive", race: "zerg", name: "하이브 변태", at: "hatchery", minerals: 200, gas: 150, time: 60, requires: ["lair", "nest"], note: "레어가 하이브로 · 디파일러 마운드·그레이터 스파이어·감염된 테란 해금" },
+  ventral: { id: "ventral", race: "zerg", name: "복부 주머니", at: "hatchery", minerals: 200, gas: 200, time: 45, requires: ["lair"], note: "오버로드가 지상 병력을 실어 나름(\"본진 침투\")" },
+  greaterSpire: { id: "greaterSpire", race: "zerg", name: "그레이터 스파이어", at: "spire", minerals: 100, gas: 150, time: 60, requires: ["hive"], note: "가디언·디바우러 해금" },
+  ensnare: { id: "ensnare", race: "zerg", name: "인스네어", at: "nest", minerals: 100, gas: 100, time: 40, note: "퀸이 뭉친 적을 12초 동안 느리게(은폐도 드러남)" },
+  broodling: { id: "broodling", race: "zerg", name: "브루들링", at: "nest", minerals: 100, gas: 100, time: 40, note: "퀸이 지상 생체 유닛을 즉사시키고 브루들링 2기를 낳음" },
+  plague: { id: "plague", race: "zerg", name: "플레이그", at: "mound", minerals: 200, gas: 200, time: 50, note: "디파일러가 뭉친 적에게 20초 동안 초당 15 피해(체력 1까지)" },
   pneumatized: { id: "pneumatized", race: "zerg", name: "기낭 갑피", at: "hatchery", minerals: 150, gas: 150, time: 40, requires: ["lair"], note: "동행 오버로드 이동 속도 +50%" },
   chitin: { id: "chitin", race: "zerg", name: "키틴질 강화", at: "cavern", minerals: 150, gas: 150, time: 45, note: "울트라리스크 방어력 +2" },
   zMelee1: { id: "zMelee1", race: "zerg", name: "근접 공격 1단계", at: "evo", minerals: 100, gas: 100, time: 40, note: "저글링 +1, 울트라리스크 +3" },
@@ -330,27 +449,29 @@ export const STW_RESEARCH = {
 for (const table of [STW_UNITS, STW_BUILDINGS, STW_RESEARCH]) {
   for (const entry of Object.values(table)) entry.race ??= "protoss";
 }
+for (const id of STW_MECHANICAL) STW_UNITS[id].mech = true;
+for (const id of STW_PSIONIC) STW_UNITS[id].psionic = true;
 
 /** 종족별 기본 구성. */
 export const STW_RACES = {
   protoss: {
     id: "protoss", name: "프로토스", worker: "probe", base: "nexus", supply: "pylon", refinery: "assimilator", buildVerb: "소환", trainVerb: "소환",
     mainProducer: "gateway", producers: ["gateway", "robo", "stargate"], startLines: { gateway: "zealot" },
-    builds: ["pylon", "gateway", "assimilator", "core", "forge", "cannon", "citadel", "archives", "robo", "bay", "stargate", "expand"],
+    builds: ["pylon", "gateway", "assimilator", "core", "forge", "cannon", "citadel", "archives", "robo", "bay", "stargate", "beacon", "tribunal", "expand"],
     weapons: ["weapons1", "weapons2"], armor: ["armor1"], shields: ["shields1"],
     note: "보호막이 저절로 회복되는 정예 병력과 사이오닉 기술",
   },
   terran: {
     id: "terran", name: "테란", worker: "scv", base: "cc", supply: "depot", refinery: "refinery", buildVerb: "건설", trainVerb: "생산",
     mainProducer: "barracks", producers: ["barracks", "factory", "starport"], startLines: { barracks: "marine" },
-    builds: ["depot", "barracks", "refinery", "ebay", "bunker", "turret", "academy", "comsat", "factory", "shop", "armory", "starport", "expand"],
+    builds: ["depot", "barracks", "refinery", "ebay", "bunker", "turret", "academy", "comsat", "factory", "shop", "armory", "starport", "science", "expand"],
     weapons: ["infWeapons1", "infWeapons2"], armor: ["infArmor1"], shields: [],
     note: "값싼 보병과 메딕, 시즈 탱크의 포격 · 건물이 스스로 수리됨",
   },
   zerg: {
     id: "zerg", name: "저그", worker: "drone", base: "hatchery", supply: "overlord", refinery: "extractor", buildVerb: "변태", trainVerb: "변태",
     mainProducer: "hatchery", producers: ["hatchery", "hatch"], startLines: { hatchery: "zergling", hatch: "zergling" },
-    builds: ["overlord", "pool", "extractor", "hatch", "evo", "sunken", "spore", "den", "spire", "cavern", "expand"],
+    builds: ["overlord", "pool", "extractor", "hatch", "evo", "sunken", "spore", "den", "spire", "nest", "mound", "cavern", "expand"],
     weapons: [], weaponGroups: { melee: ["zMelee1", "zMelee2"], missile: ["zMissile1", "zMissile2"] }, armor: ["zCarapace1"], shields: [],
     note: "해처리마다 쏟아지는 값싼 물량 · 몸이 저절로 회복되고 럴커는 땅속에 숨음",
   },
@@ -366,6 +487,25 @@ export const STW_CANCEL_REFUND = 0.75;
 export const STW_DEFENSE_REACH = 8.5;
 
 export const STW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 35, castRange: 9, minTargets: 3 };
+
+/**
+ * 자동 시전 마법. 연구(research)가 있으면 끝난 뒤에만 쓴다. 모든 마법은 시전 사거리 range 안에서, 범위 마법은 radius 안에 minTargets 이상 뭉쳤을 때만 쓴다.
+ * 시전한 유닛은 1초 동안 다른 마법을 쓰지 않는다.
+ */
+export const STW_SPELLS = {
+  feedback: { name: "피드백", energy: 50, range: 9 },
+  maelstrom: { name: "마엘스트롬", energy: 100, range: 9, radius: 2.5, duration: 6, minTargets: 3, research: "maelstrom" },
+  stasis: { name: "스테이시스 필드", energy: 100, range: 9, radius: 2.5, duration: 15, minTargets: 4, research: "stasis" },
+  lockdown: { name: "락다운", energy: 100, range: 8, duration: 15, research: "lockdown" },
+  matrix: { name: "디펜시브 매트릭스", energy: 100, range: 9, absorb: 250, duration: 30 },
+  emp: { name: "EMP", energy: 100, range: 9, radius: 3, minTargets: 3, research: "emp" },
+  irradiate: { name: "이레디에이트", energy: 75, range: 9, radius: 1.5, dps: 10, duration: 25, research: "irradiate" },
+  yamato: { name: "야마토 포", energy: 150, range: 10, damage: 260, research: "yamato" },
+  ensnare: { name: "인스네어", energy: 75, range: 9, radius: 2.5, duration: 12, minTargets: 3, research: "ensnare" },
+  broodling: { name: "브루들링", energy: 150, range: 9, research: "broodling" },
+  darkSwarm: { name: "다크 스웜", energy: 100, range: 9, radius: 3, duration: 15 },
+  plague: { name: "플레이그", energy: 150, range: 9, radius: 2.5, dps: 15, duration: 20, minTargets: 3, research: "plague" },
+};
 
 export const STW_ECONOMY = {
   startMinerals: 50,
@@ -405,16 +545,19 @@ export const STW_AI_PERSONAS = {
   templar: { id: "templar", name: "템플러 테크", note: "질럿으로 버티며 스톰을 준비한다" },
   dark: { id: "dark", name: "다크템플러 기습", note: "빠르게 아카이브를 올려 보이지 않는 칼날로 찌른다" },
   robo: { id: "robo", name: "로보 운영", note: "드라군과 리버, 옵저버로 천천히 밀어붙인다" },
+  carrier: { id: "carrier", name: "캐리어 함대", note: "드라군으로 버티며 스타게이트와 플릿 비컨을 올려 캐리어로 민다" },
   corsair: { id: "corsair", name: "커세어 질럿", note: "스타게이트 커세어로 하늘을 잡고 질럿·드라군과 함께 민다" },
   bio: { id: "bio", race: "terran", name: "바이오닉 러시", note: "해병과 메딕, 스팀팩으로 빠르게 몰아친다" },
   mech: { id: "mech", race: "terran", name: "메카닉 운영", note: "벌처로 버티며 시즈 탱크 포격선을 민다" },
   tankbio: { id: "tankbio", race: "terran", name: "탱크 바이오", note: "해병·메딕 뒤에 시즈 탱크를 받쳐 앞마당과 함께 민다" },
   vulture: { id: "vulture", race: "terran", name: "벌처 러시", note: "팩토리 둘에서 빠른 벌처를 쏟아내 일찍 흔든다" },
+  bc: { id: "bc", race: "terran", name: "배틀크루저", note: "탱크로 버티며 사이언스 퍼실리티를 올려 배틀크루저와 야마토 포로 민다" },
   wraith: { id: "wraith", race: "terran", name: "레이스 메카닉", note: "스타포트 레이스와 골리앗·벌처로 하늘과 땅을 같이 민다" },
   ling: { id: "ling", race: "zerg", name: "저글링 물량", note: "해처리를 늘리고 저글링을 끝까지 업그레이드해 쉬지 않고 밀어붙인다 · 계속 막히면 다른 길을 찾는다" },
   hydra: { id: "hydra", race: "zerg", name: "히드라 럴커", note: "히드라로 버티며 럴커와 울트라리스크까지 올린다" },
   pool: { id: "pool", race: "zerg", name: "빠른 저글링", note: "스포닝 풀부터 올리고 드론을 아껴 이른 저글링으로 찌른다" },
   ultra: { id: "ultra", race: "zerg", name: "울트라 운영", note: "앞마당을 빨리 먹고 성큰으로 버티며 울트라리스크와 저글링으로 민다" },
+  hive: { id: "hive", race: "zerg", name: "디파일러 하이브", note: "히드라로 버티며 하이브를 올려 디파일러의 다크 스웜·플레이그와 가디언으로 민다" },
   muta: { id: "muta", race: "zerg", name: "뮤탈 저글링", note: "레어와 스파이어를 서둘러 뮤탈리스크와 저글링으로 몰아친다" },
 };
 for (const persona of Object.values(STW_AI_PERSONAS)) persona.race ??= "protoss";

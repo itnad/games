@@ -673,7 +673,7 @@ test("starswar zerg AI personas field their signature units and finish a game", 
 test("starswar terran and zerg each have four AI personas and the new ones field their signature units", async () => {
   const { STW_AI_PERSONAS } = await import("../app/starswar/starswar-data.js");
   const byRace = Object.values(STW_AI_PERSONAS).reduce((map, persona) => ((map[persona.race] = (map[persona.race] ?? 0) + 1), map), {});
-  assert.deepEqual(byRace, { protoss: 6, terran: 5, zerg: 5 });
+  assert.deepEqual(byRace, { protoss: 7, terran: 6, zerg: 6 });
   const games = {
     tankbio: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio", enemy: "templar" } }),
     vulture: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "vulture", enemy: "dragoon" } }),
@@ -1308,6 +1308,220 @@ test("starswar air AI personas field their signature flyers and opponents answer
     for (const unit of solo.units) if (unit.side === "player") soloSeen.add(unit.type);
   }
   assert.ok(soloSeen.has("mutalisk"), "뮤탈 저글링은 뮤탈리스크를 띄운다");
+});
+
+const research = (state, side, ...ids) => {
+  for (const id of ids) state.sides[side].research[id] = "done";
+};
+
+test("starswar every unit in the data can be produced or summoned and has a drawing slot", async () => {
+  const { STW_UNITS, STW_PRODUCER_UNITS, STW_ARMY_UNITS } = await import("../app/starswar/starswar-data.js");
+  const producible = new Set(Object.values(STW_PRODUCER_UNITS).flat());
+  for (const id of STW_ARMY_UNITS) {
+    const def = STW_UNITS[id];
+    assert.ok(producible.has(id) || ["merge", "darkMerge", "escort", "broodling"].includes(def.from), `${id}의 출처 ${def.from}`);
+  }
+  assert.equal(STW_ARMY_UNITS.length, 38);
+});
+
+test("starswar casters: maelstrom and stasis freeze clumps, lockdown stops machines, feedback burns energy", () => {
+  const state = quiet();
+  research(state, "player", "maelstrom", "stasis");
+  const darkArchon = stwSpawnUnitAt(state, "player", "darkArchon", 20, 62, "attack");
+  darkArchon.energy = 250;
+  const lings = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "enemy", "zealot", 18 + index * 1.2, 55, "attack"));
+  const templar = stwSpawnUnitAt(state, "enemy", "templar", 26, 56, "rally");
+  templar.energy = 120;
+  stepStarswar(state);
+  stepStarswar(state);
+  assert.ok(templar.energy === 0 || lings.every((unit) => unit.stunUntil > state.time), "피드백이나 마엘스트롬을 쓴다");
+  run(state, 2);
+  assert.ok(lings.filter((unit) => unit.stunUntil > state.time).length >= 3, "마엘스트롬으로 질럿이 멈춘다");
+  const frozenLing = lings.find((unit) => unit.stunUntil > state.time);
+  const y = frozenLing.y;
+  run(state, 1);
+  assert.ok(Math.abs(frozenLing.y - y) < 0.2, "멈춘 동안 걸어오지 않는다");
+
+  const arb = quiet();
+  research(arb, "player", "stasis");
+  const arbiter = stwSpawnUnitAt(arb, "player", "arbiter", 20, 64, "attack");
+  arbiter.energy = 200;
+  const pack = [0, 1, 2, 3, 4].map((index) => stwSpawnUnitAt(arb, "enemy", "marine", 17 + index * 1.2, 57, "attack"));
+  run(arb, 1.5);
+  const frozen = pack.filter((unit) => unit.stasisUntil > arb.time);
+  assert.ok(frozen.length >= 4, `스테이시스 ${frozen.length}기`);
+  const hp = frozen[0].hp;
+  stwSpawnUnitAt(arb, "player", "zealot", frozen[0].x, frozen[0].y + 1.5, "attack");
+  run(arb, 2);
+  assert.equal(frozen[0].hp, hp, "스테이시스 안의 유닛은 다치지 않는다");
+
+  const ghostState = terran("protoss");
+  research(ghostState, "player", "lockdown");
+  const ghost = stwSpawnUnitAt(ghostState, "player", "ghost", 20, 62, "attack");
+  ghost.energy = 150;
+  const dragoon = stwSpawnUnitAt(ghostState, "enemy", "dragoon", 20, 56, "attack");
+  run(ghostState, 1);
+  assert.ok(dragoon.stunUntil > ghostState.time, "락다운으로 드라군이 멈춘다");
+});
+
+test("starswar vessels matrix allies, EMP shields and irradiate clumps; yamato hits hard", () => {
+  const state = terran("protoss");
+  research(state, "player", "emp", "irradiate", "yamato");
+  const vessel = stwSpawnUnitAt(state, "player", "vessel", 20, 66, "attack");
+  vessel.energy = 200;
+  const zealots = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "enemy", "zealot", 18.5 + index * 1.4, 58, "rally"));
+  stepStarswar(state);
+  stepStarswar(state);
+  assert.ok(zealots.every((unit) => unit.shields === 0), "EMP로 보호막이 사라진다");
+  const tank = stwSpawnUnitAt(state, "player", "battlecruiser", 20, 62, "attack");
+  tank.lastHit = state.time;
+  run(state, 1.5);
+  assert.ok(tank.matrix?.hp > 0 || vessel.energy < 100, "다치는 아군에게 매트릭스");
+
+  const zerg2 = terran("zerg");
+  research(zerg2, "player", "irradiate");
+  const vessel2 = stwSpawnUnitAt(zerg2, "player", "vessel", 20, 66, "rally");
+  vessel2.energy = 100;
+  const hydras = [0, 1, 2].map((index) => stwSpawnUnitAt(zerg2, "enemy", "hydra", 19 + index * 0.9, 59, "rally"));
+  run(zerg2, 1);
+  assert.ok(hydras.some((unit) => unit.irradiateUntil > zerg2.time), "이레디에이트");
+  const before = hydras.reduce((sum, unit) => sum + unit.hp, 0);
+  run(zerg2, 3);
+  assert.ok(hydras.reduce((sum, unit) => sum + Math.max(0, unit.hp), 0) < before - 40, "주변 생체 유닛도 녹는다");
+
+  const bcState = terran("protoss");
+  research(bcState, "player", "yamato");
+  const bc = stwSpawnUnitAt(bcState, "player", "battlecruiser", 20, 62, "attack");
+  bc.energy = 150;
+  const carrier = stwSpawnUnitAt(bcState, "enemy", "carrier", 20, 54, "rally");
+  run(bcState, 0.5);
+  assert.ok(carrier.hp + carrier.shields <= 450 - 200, `야마토 포 ${carrier.hp + carrier.shields}`);
+});
+
+test("starswar queens ensnare and spawn broodlings; defilers swarm and plague", () => {
+  const state = zerg("terran");
+  research(state, "player", "ensnare", "broodling", "plague");
+  const queen = stwSpawnUnitAt(state, "player", "queen", 20, 66, "rally");
+  queen.energy = 200;
+  const tank = stwSpawnUnitAt(state, "enemy", "ghost", 20, 58, "rally");
+  const marines = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "enemy", "marine", 25 + index * 1, 58, "rally"));
+  const lurker = stwSpawnUnitAt(state, "enemy", "firebat", 14, 58, "rally");
+  run(state, 2.5);
+  const broods = state.units.filter((unit) => unit.type === "broodling");
+  assert.ok(broods.length >= 2, `브루들링 ${broods.length}`);
+  assert.ok(marines.some((unit) => unit.ensnareUntil > state.time) || queen.energy < 100, "인스네어");
+  run(state, 25);
+  assert.equal(state.units.filter((unit) => unit.type === "broodling").length, 0, "브루들링은 20초 뒤 사라진다");
+  void tank;
+  void lurker;
+
+  const swarm = zerg("terran");
+  research(swarm, "player", "plague");
+  const defiler = stwSpawnUnitAt(swarm, "player", "defiler", 20, 70, "attack");
+  defiler.energy = 200;
+  const lings = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(swarm, "player", "zergling", 18 + index * 1.2, 64, "rally"));
+  for (const ling of lings) ling.hp = 9999;
+  const shooters = [0, 1, 2].map((index) => stwSpawnUnitAt(swarm, "enemy", "marine", 18 + index * 2, 57, "rally"));
+  run(swarm, 1.5);
+  assert.ok((swarm.zones ?? []).some((zone) => zone.kind === "swarm"), "다크 스웜");
+  const hp = lings.map((unit) => unit.hp);
+  run(swarm, 2);
+  const covered = lings.filter((unit, index) => unit.hp === hp[index]);
+  assert.ok(covered.length >= 3, "스웜 안의 저글링은 해병에게 맞지 않는다");
+  void shooters;
+
+  // 플레이그: 묶어 둔(움직이지 못하는) 해병 무리에 걸고, 체력 1 아래로는 깎지 않는다.
+  const plague = zerg("terran");
+  research(plague, "player", "plague");
+  const caster = stwSpawnUnitAt(plague, "player", "defiler", 20, 66, "rally");
+  caster.energy = 200;
+  const victims = [0, 1, 2].map((index) => stwSpawnUnitAt(plague, "enemy", "marine", 19 + index, 60, "rally"));
+  for (const unit of victims) unit.stunUntil = 999;
+  run(plague, 1);
+  assert.ok(victims.every((unit) => unit.plagueUntil > plague.time), "플레이그");
+  run(plague, 20);
+  assert.ok(victims.every((unit) => unit.hp >= 1), `체력 1까지만 ${victims.map((unit) => unit.hp.toFixed(1))}`);
+});
+
+test("starswar carriers launch more interceptors after research, devourers corrode armor, arbiters cloak allies", () => {
+  const state = quiet();
+  const carrier = stwSpawnUnitAt(state, "player", "carrier", 20, 60, "attack");
+  const dummy = stwSpawnUnitAt(state, "enemy", "zealot", 20, 54, "rally");
+  assert.equal(stwHitDamage(state, carrier, dummy).length, 4);
+  research(state, "player", "carrierCapacity");
+  assert.equal(stwHitDamage(state, carrier, dummy).length, 8);
+
+  const acid = zerg("terran");
+  stwSpawnUnitAt(acid, "player", "devourer", 20, 62, "attack");
+  const bc = stwSpawnUnitAt(acid, "enemy", "battlecruiser", 20, 56, "rally");
+  bc.hp = 9999;
+  run(acid, 7);
+  assert.ok(bc.acid?.stacks >= 2, `산성 포자 ${bc.acid?.stacks}`);
+
+  const cloak = quiet();
+  const arbiter = stwSpawnUnitAt(cloak, "player", "arbiter", 20, 70, "rally");
+  const zealot = stwSpawnUnitAt(cloak, "player", "zealot", 21, 71, "rally");
+  assert.equal(stwDetected(cloak, zealot, "enemy"), false, "아비터 옆 질럿은 은폐");
+  assert.equal(stwDetected(cloak, arbiter, "enemy"), true, "아비터 자신은 보인다");
+  zealot.x = 34;
+  assert.equal(stwDetected(cloak, zealot, "enemy"), true, "은폐장 밖이면 보인다");
+});
+
+test("starswar drops carry ground units to the enemy main and transports take riders down with them", () => {
+  const state = quiet();
+  assert.match(stwCommand(state, "player", { type: "drop" }).reason, /셔틀 필요/);
+  const shuttle = stwSpawnUnitAt(state, "player", "shuttle", 20, 80, "rally");
+  const riders = [0, 1, 2, 3, 4].map((index) => stwSpawnUnitAt(state, "player", "zealot", 16 + index * 2, 78, "rally"));
+  const result = stwCommand(state, "player", { type: "drop" });
+  assert.equal(result.ok, true);
+  assert.equal(result.loaded, 4, "인구 8까지(질럿 4기)");
+  assert.equal(riders.filter((unit) => unit.group === "cargo").length, 4);
+  assert.equal(stwArmy(state, "player").fighters.length, 1, "탄 병력은 대기 병력에서 빠진다");
+  for (let index = 0; index < 400 && shuttle.cargo?.length; index += 1) stepStarswar(state);
+  const enemyMain = stwNexus(state, "enemy", "main");
+  const landed = riders.filter((unit) => unit.group === "attack");
+  assert.equal(landed.length, 4, "적 본진 뒤에 내린다");
+  assert.ok(landed.every((unit) => Math.hypot(unit.x - enemyMain.x, unit.y - enemyMain.y) < 14), "적 본진 옆");
+  run(state, 30);
+  assert.equal(shuttle.group, "rally", "셔틀은 돌아온다");
+
+  const shot = terran("protoss");
+  const dropship = stwSpawnUnitAt(shot, "player", "dropship", 20, 80, "rally");
+  const marines = [0, 1].map((index) => stwSpawnUnitAt(shot, "player", "marine", 18 + index * 2, 78, "rally"));
+  stwCommand(shot, "player", { type: "drop" });
+  dropship.hp = 0;
+  stepStarswar(shot);
+  assert.ok(marines.every((unit) => !shot.units.includes(unit)), "격추되면 탄 병력도 잃는다");
+
+  const zergDrop = zerg("protoss");
+  zergDrop.sides.player.minerals = 9000;
+  for (let index = 0; index < 3; index += 1) {
+    stwCommand(zergDrop, "player", { type: "build", building: "overlord" });
+    finishAll(zergDrop);
+  }
+  stwSpawnUnitAt(zergDrop, "player", "hydra", 20, 78, "rally");
+  assert.match(stwCommand(zergDrop, "player", { type: "drop" }).reason, /복부 주머니/);
+  research(zergDrop, "player", "ventral");
+  assert.equal(stwCommand(zergDrop, "player", { type: "drop" }).ok, true, "복부 주머니 뒤 오버로드가 실어 나른다");
+  assert.equal(stwOwnBuildings(zergDrop, "player", "overlord").length, 2, "기지에 오버로드 2기는 남긴다");
+});
+
+test("starswar dark templars merge into a dark archon and infested terrans explode", () => {
+  const state = quiet();
+  assert.match(stwCommand(state, "player", { type: "darkMerge" }).reason, /다크템플러 2기/);
+  stwSpawnUnitAt(state, "player", "dark", 20, 70, "rally");
+  stwSpawnUnitAt(state, "player", "dark", 22, 70, "rally");
+  assert.equal(stwCommand(state, "player", { type: "darkMerge" }).ok, true);
+  stepStarswar(state);
+  assert.equal(state.units.filter((unit) => unit.side === "player" && unit.type === "darkArchon").length, 1);
+  assert.equal(state.units.filter((unit) => unit.side === "player" && unit.type === "dark").length, 0);
+
+  const boom = zerg("terran");
+  const infested = stwSpawnUnitAt(boom, "player", "infested", 20, 62, "attack");
+  const marines = [0, 1, 2].map((index) => stwSpawnUnitAt(boom, "enemy", "marine", 19 + index, 58, "rally"));
+  run(boom, 3);
+  assert.ok(infested.hp <= 0, "자폭한다");
+  assert.ok(marines.filter((unit) => unit.hp <= 0).length >= 2, "주변 해병이 죽는다");
 });
 
 test("starswar AI scouts early and goes on alert against a rush: defense first, no attacks", () => {
