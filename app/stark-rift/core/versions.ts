@@ -1,4 +1,4 @@
-export const STARK_RIFT_ENGINE_VERSION = "0.6.1-stage3";
+export const STARK_RIFT_ENGINE_VERSION = "0.6.2-stage3";
 export const STARK_RIFT_SCHEMA_VERSION = 5;
 export const STARK_RIFT_FORMAT_VERSION = 5;
 export const STARK_RIFT_PROTOCOL_VERSION = 6;

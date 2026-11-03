@@ -4,9 +4,11 @@ import {createEntity} from "../../app/stark-rift/core/world";
 import {createMovementRules} from "../../app/stark-rift/core/movement-rules";
 import {navigate,NavigationGrid} from "../../app/stark-rift/pathfinding/navigation";
 import {createPersistenceEnvelope,restoreSnapshot,serializeSnapshot} from "../../app/stark-rift/core/state";
+import {SpatialHash} from "../../app/stark-rift/pathfinding/spatial-hash";
+import {segmentNearCircle} from "../../app/stark-rift/pathfinding/geometry";
 import {checksum} from "../../app/stark-rift/core/checksum";
 import type {BattleMap} from "../../app/stark-rift/data/maps";
-const map=():BattleMap=>({id:"review",widthTiles:32,heightTiles:32,symmetry:"rotational-180",terrain:new Uint8Array(1024),height:new Uint8Array(1024),walkable:new Uint8Array(1024).fill(1),buildable:new Uint8Array(1024).fill(1),spawnPoints:[{x:4,y:4},{x:28,y:28}],resourceNodes:[],regions:[]});
+const map=(size=32):BattleMap=>({id:"review",widthTiles:size,heightTiles:size,symmetry:"rotational-180",terrain:new Uint8Array(size*size),height:new Uint8Array(size*size),walkable:new Uint8Array(size*size).fill(1),buildable:new Uint8Array(size*size).fill(1),spawnPoints:[{x:4,y:4},{x:size-4,y:size-4}],resourceNodes:[],regions:[]});
 const state=()=>startSimulation(42,"review","fixture",[0,1].map(id=>({id,faction:"terran",minerals:50,gas:0,supplyUsedHalf:0,supplyCapHalf:100})));
 function spawn(s:ReturnType<typeof state>,x:number,y:number,extra:Partial<Parameters<typeof createEntity>[1]>={}){return createEntity(s,{owner:0,definitionId:"unit",x,y,health:100,speed:512,radius:40,...extra});}
 function send(s:ReturnType<typeof state>,r:ReturnType<typeof createMovementRules>,kind:string,ids:number[],extra:object={}){const sequence=s.commandState.lastAcceptedSequenceByPlayer[0]+1;expect(enqueueCommand(s,{sequence,issuedTick:s.tick,executeTick:s.tick+1,playerId:0,source:"player",kind,entityIds:ids,...extra},r).ok).toBe(true);}
@@ -70,5 +72,51 @@ describe("stage 3 reviewed defects",()=>{
     send(s,r,"move",ids,{target:{kind:"point",x:40,y:40}});for(let i=0;i<20;i++)stepSimulation(s,r);
     const restored=restoreSnapshot(serializeSnapshot(createPersistenceEnvelope(s,session,[],"2026-11-03T00:00:00.000Z"))).simulation;
     for(let i=0;i<150;i++){stepSimulation(s,r);stepSimulation(restored,createMovementRules(m));expect(checksum(s)).toBe(checksum(restored));}
+  });
+});
+
+describe("stage 3 second review",()=>{
+  it.each([
+    {target:{x:1728,y:1088},body:{x:1108,y:1167}},
+    {target:{x:1728,y:1728},body:{x:1052,y:1164}},
+  ])("checks the entire movement segment against moving bodies: %o",({target,body})=>{
+    const s=state(),m=map(),r=createMovementRules(m);spawn(s,1088,1088,{speed:4096});spawn(s,body.x,body.y,{speed:1});
+    Object.assign(s.movement[0],{order:"move",status:"moving",target,path:[target]});
+    Object.assign(s.movement[1],{order:"move",status:"moving",target:{x:body.x,y:3000},path:[{x:body.x,y:3000}]});
+    const start={x:s.entities.x[0],y:s.entities.y[0]};
+    expect((start.x-body.x)**2+(start.y-body.y)**2).toBeGreaterThanOrEqual(80**2);
+    stepSimulation(s,r);const end={x:s.entities.x[0],y:s.entities.y[0]};
+    expect(end).not.toEqual(start);expect(segmentNearCircle(start,end,body,80)).toBe(false);
+    expect((end.x-body.x)**2+(end.y-body.y)**2).toBeGreaterThanOrEqual(80**2);
+  });
+  it("queries swept cells and large bodies, allows tangency and ignores other layers and dead bodies",()=>{
+    const s=state();spawn(s,1024,1024);spawn(s,2304,1536,{radius:512});
+    let hash=new SpatialHash(s);
+    expect(hash.overlapsSegment(0,{x:1024,y:1024},{x:4096,y:1024})).toBe(true);
+    s.entities.y[1]=1576;hash.update(1);
+    expect(hash.overlapsSegment(0,{x:1024,y:1024},{x:4096,y:1024})).toBe(false);
+    s.entities.y[1]=1536;s.entities.layer[1]="air";hash.update(1);
+    expect(hash.overlapsSegment(0,{x:1024,y:1024},{x:4096,y:1024})).toBe(false);
+    s.entities.layer[1]="ground";s.entities.health[1]=0;hash=new SpatialHash(s);
+    expect(hash.overlapsSegment(0,{x:1024,y:1024},{x:4096,y:1024})).toBe(false);
+  });
+  it("finishes incremental searches despite repeated stance commands and preserves progress through a save",()=>{
+    const s=state(),m=map(96);
+    for(let y=0;y<96;y++)m.walkable[y*96+48]=0;
+    const r=createMovementRules(m);spawn(s,1024,1024);
+    send(s,r,"move",[1],{target:{kind:"point",x:80*256,y:80*256}});stepSimulation(s,r);
+    expect(s.navigation.jobs.length).toBeGreaterThan(0);
+    const restored=restoreSnapshot(serializeSnapshot(createPersistenceEnvelope(s,session,[],"2026-11-03T00:00:00.000Z"))).simulation;
+    const baseline=structuredClone(s),before=Object.keys(s.navigation.jobs[0].closed).length;
+    for(let i=0;i<5;i++){
+      const stance=(["free","formation","breakthrough"] as const)[i%3];
+      send(s,r,"setStance",[1],{payload:{stance}});send(restored,r,"setStance",[1],{payload:{stance}});
+      stepSimulation(s,r);stepSimulation(restored,r);stepSimulation(baseline,r);
+      expect(checksum(s)).toBe(checksum(restored));
+      expect(s.navigation.jobs.map(job=>checksum(job))).toEqual(baseline.navigation.jobs.map(job=>checksum(job)));
+      if(i===0)expect(Object.keys(s.navigation.jobs[0].closed).length).toBeGreaterThan(before);
+    }
+    expect(s.navigation.jobs).toHaveLength(0);expect(s.movement[0].status).toBe("moving");
+    expect({x:s.entities.x[0],y:s.entities.y[0]}).toEqual({x:baseline.entities.x[0],y:baseline.entities.y[0]});
   });
 });

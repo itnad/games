@@ -56,11 +56,11 @@ export function createMovementRules(map:BattleMap,visible:VisibilityCheck=()=>fa
         }
         for(const [position,id]of batch.entries()){
           const i=s.id.indexOf(id),m=state.movement[i];
+          if(command.kind==="setStance"){m.stance=command.payload.stance;if(slot>=0)groups[slot].stance=command.payload.stance;continue;}
           state.navigation.jobs=state.navigation.jobs.filter(j=>j.entityId!==id);
           if(command.kind==="setFormation"){
             m.formation=command.payload.formation;if(slot>=0)groups[slot].formation=command.payload.formation;continue;
           }
-          if(command.kind==="setStance"){m.stance=command.payload.stance;if(slot>=0)groups[slot].stance=command.payload.stance;continue;}
           if(command.kind==="stop"||command.kind==="hold"){
             const old={formation:m.formation,stance:m.stance};Object.assign(m,idleMovement(id),old);if(command.kind==="hold")m.order="hold";continue;
           }
@@ -121,8 +121,7 @@ function move(state:SimulationState,map:BattleMap,visible:VisibilityCheck):void{
     const candidates=[{x:nx,y:ny},...directions.map(([dx,dy])=>({x:s.x[i]+Math.trunc(dx*step/1024),y:s.y[i]+Math.trunc(dy*step/1024)}))]
       .filter(point=>point.x!==start.x||point.y!==start.y)
       .sort((a,b)=>(a.x-waypoint.x)**2+(a.y-waypoint.y)**2-(b.x-waypoint.x)**2-(b.y-waypoint.y)**2||a.y-b.y||a.x-b.x);
-    const collisionFree=(point:Point)=>{const steps=Math.max(1,Math.ceil(Math.max(Math.abs(point.x-start.x),Math.abs(point.y-start.y))/s.radius[i]));for(let step=1;step<=steps;step++)if(hash.overlaps(i,Math.round(start.x+(point.x-start.x)*step/steps),Math.round(start.y+(point.y-start.y)*step/steps)))return false;return true;};
-    const next=candidates.find(point=>grid.segment(start,point,s.radius[i],s.layer[i],s.id[i])&&collisionFree(point));
+    const next=candidates.find(point=>grid.segment(start,point,s.radius[i],s.layer[i],s.id[i])&&!hash.overlapsSegment(i,start,point));
     if(next){s.x[i]=next.x;s.y[i]=next.y;hash.update(i);if(next.x===waypoint.x&&next.y===waypoint.y){m.pathIndex++;m.stalledTicks=0;}else if((next.x-waypoint.x)**2+(next.y-waypoint.y)**2<dx*dx+dy*dy)m.stalledTicks=0;else m.stalledTicks++;}
     else m.stalledTicks++;
     if(m.pathIndex>=m.path.length){

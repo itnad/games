@@ -63,9 +63,9 @@ export function InteractiveBattle({map,snapshot,ui,send,onPause,onRenderFailure,
       },
       swipe:(hit,point,attack)=>{
         if(hit.kind==="building")return;
-        const ids=latest.current.selected.includes(hit.entityId)?latest.current.selected:[hit.entityId];
+        const inSelection=latest.current.selected.includes(hit.entityId),ids=inSelection?latest.current.selected:[hit.entityId];
         if(!latest.current.snapshot.entities.some(e=>e.id===hit.entityId&&e.owner===latest.current.snapshot.viewerPlayerId))return;
-        select(ids,latest.current.slots);issue({kind:attack?"attackMove":"move",entityIds:ids,target:target(point)});
+        select(ids,inSelection?latest.current.slots:[]);issue({kind:attack?"attackMove":"move",entityIds:ids,target:target(point)});
       },
       groundTap:point=>{const current=latest.current;if(current.selected.length){issue({kind:current.mode??"move",entityIds:current.selected,target:target(point)});setMode(null);}},
     };
