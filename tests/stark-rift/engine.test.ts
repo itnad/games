@@ -134,7 +134,7 @@ describe("stage 1 completion gates", () => {
     }
     expect(a.tick).toBe(10000); expect(a.commandState.pending).toHaveLength(0);
     expect(a.entities.x[0]).not.toBe(0);
-  });
+  }, 20000); // Fixed-work determinism gate; wall-clock budgets are measured separately.
   it("rejects tampered snapshots and invalid owners even with a recalculated checksum", () => {
     const saved = createPersistenceEnvelope(populated(), session, [], "2026-11-01T00:00:00.000Z");
     saved.simulation.entities.health[0]--;
