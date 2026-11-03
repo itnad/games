@@ -206,7 +206,7 @@ export const STW_BUILDINGS = {
   ebay: { unique: true, id: "ebay", race: "terran", name: "엔지니어링 베이", minerals: 125, gas: 0, time: 28, hp: 850, shields: 0, armor: 1, size: 4.6, requires: "depot", sight: 8, note: "보병 공격·방어 업그레이드 · 미사일 터렛 해금" },
   bunker: {
     id: "bunker", race: "terran", name: "벙커", minerals: 100, gas: 0, time: 22, hp: 350, shields: 0, armor: 1, size: 3.6, requires: "barracks", sight: 10,
-    damage: 6, hits: 4, damageType: "normal", range: 6, cooldown: 1.1, defense: true, note: "해병 4기 상당 화력으로 기지 전체를 지킴 · 앞마당이 있으면 앞마당에 세움",
+    damage: 6, hits: 3, damageType: "normal", range: 6, cooldown: 1.1, defense: true, note: "해병 3기가 주둔한 화력으로 기지 전체를 지킴 · 앞마당이 있으면 앞마당에 세움",
   },
   turret: { id: "turret", race: "terran", name: "미사일 터렛", minerals: 75, gas: 0, time: 18, hp: 200, shields: 0, armor: 0, size: 3, requires: "ebay", sight: 11, detector: 7, defense: true, note: "기지 전체의 은폐 탐지 전용(지상 공격 없음)" },
   academy: { unique: true, id: "academy", race: "terran", name: "아카데미", minerals: 150, gas: 0, time: 30, hp: 600, shields: 0, armor: 1, size: 4.6, requires: "barracks", sight: 8, note: "파이어뱃·메딕 해금 · 스팀팩·U-238 연구" },
