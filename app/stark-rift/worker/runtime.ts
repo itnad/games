@@ -1,4 +1,5 @@
 import { checksum } from "../core/checksum";
+import { profileStep, type TickSample } from "../diagnostics/profiler";
 import { navigationFitsMap } from "../pathfinding/navigation";
 import { createMovementRules } from "../core/movement-rules";
 import { FixedTickClock } from "../core/clock";
@@ -13,6 +14,9 @@ export type RuntimeOptions = {
   emit: (message: WorkerToMainMessage, transfer?: Transferable[]) => void;
   rules?: EngineRules;
   visibility?: (state: SimulationState, map: BattleMap, viewer: number) => Uint8Array;
+  /** Local lab injection only; browser Worker production entry supplies neither option. */
+  resolveMap?: typeof getRuntimeMap;
+  observeTick?: (sample:TickSample)=>void;
 };
 /** Transport-independent controller: identical code runs in Worker and Node integration tests. */
 export class SimulationRuntime {
@@ -64,7 +68,7 @@ export class SimulationRuntime {
       }
       if (message.kind === "init") {
         if (this.state) { this.error("ALREADY_INITIALIZED"); return; }
-        const { map, dataVersion } = getRuntimeMap(message.payload.mapId);
+        const { map, dataVersion } = (this.options.resolveMap??getRuntimeMap)(message.payload.mapId);
         if (dataVersion !== message.payload.dataVersion) { this.error("VERSION_MISMATCH", false); return; }
         this.viewer = message.payload.players.find(p => p.controller === "human")?.id ?? 0;
         this.state = startSimulation(message.payload.seed, map.id, dataVersion, message.payload.players.map(p => ({ id: p.id, faction: p.faction, minerals: 50, gas: 0, supplyUsedHalf: 0, supplyCapHalf: 0 })));
@@ -95,7 +99,7 @@ export class SimulationRuntime {
         }
         case "loadSnapshot": {
           const saved = restoreSnapshot(serializeSnapshot(message.payload.snapshot));
-          const registered = getRuntimeMap(saved.simulation.map.definitionId);
+          const registered = (this.options.resolveMap??getRuntimeMap)(saved.simulation.map.definitionId);
           if (saved.dataVersion !== registered.dataVersion) { this.error("VERSION_MISMATCH", false); break; }
           const maxX = registered.map.widthTiles * 256, maxY = registered.map.heightTiles * 256;
           const inside = (point: { x: number; y: number }) => point.x >= 0 && point.x < maxX && point.y >= 0 && point.y < maxY;
@@ -122,7 +126,12 @@ export class SimulationRuntime {
     try {
       this.clock.advance(elapsedMs, () => {
         if (!this.state || this.state.phase !== "running") return false;
-        const results = stepSimulation(this.state, this.rules);
+        let results;
+        if(this.options.observeTick){
+          const measured=profileStep(this.state,this.rules);results=measured.acknowledgements;
+          // Diagnostics failing must not pause or change a valid game tick.
+          try{this.options.observeTick(measured.sample);}catch{}
+        }else results=stepSimulation(this.state,this.rules);
         results.forEach(result => this.send(createWorkerEnvelope(++this.messageId, "commandAck", result)));
         if (this.state.phase !== "running") this.phase();
         return true;

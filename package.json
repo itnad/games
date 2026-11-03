@@ -13,7 +13,10 @@
     "test:stark-rift": "npm run typecheck:stark-rift && vitest run --config vitest.config.ts",
     "typecheck:stark-rift": "tsc --project tsconfig.stark-rift.json",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "dev:stark-rift-lab": "vite --config tools/stark-rift-lab/vite.config.ts",
+    "build:stark-rift-lab": "npm run typecheck:stark-rift && vite build --config tools/stark-rift-lab/vite.config.ts",
+    "bench:stark-rift": "node tools/stark-rift-lab/benchmark.mjs"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
