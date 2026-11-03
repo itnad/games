@@ -182,7 +182,7 @@ export const STW_UNITS = {
   vessel: {
     id: "vessel", race: "terran", name: "사이언스 베슬", short: "E", minerals: 100, gas: 225, time: 50, supply: 2, from: "starport", requires: "science",
     hp: 200, shields: 0, armor: 1, size: "large", speed: 3.3, radius: 1.6, sight: 10, flying: true, role: "caster", detector: 9,
-    energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["matrix", "emp", "irradiate"],
+    energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["emp", "irradiate", "matrix"],
     note: "탐지기 · 디펜시브 매트릭스(아군 250 흡수) · EMP(연구 후, 보호막·에너지 제거) · 이레디에이트(연구 후, 생체 유닛 지속 피해)",
   },
   valkyrie: {
@@ -493,9 +493,9 @@ export const STW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 35, castRa
  * 시전한 유닛은 1초 동안 다른 마법을 쓰지 않는다.
  */
 export const STW_SPELLS = {
-  feedback: { name: "피드백", energy: 50, range: 9 },
+  feedback: { name: "피드백", energy: 50, range: 10 },
   maelstrom: { name: "마엘스트롬", energy: 100, range: 9, radius: 2.5, duration: 6, minTargets: 3, research: "maelstrom" },
-  stasis: { name: "스테이시스 필드", energy: 100, range: 9, radius: 2.5, duration: 15, minTargets: 4, research: "stasis" },
+  stasis: { name: "스테이시스 필드", energy: 100, range: 9, radius: 2.5, duration: 15, minTargets: 3, research: "stasis" },
   lockdown: { name: "락다운", energy: 100, range: 8, duration: 15, research: "lockdown" },
   matrix: { name: "디펜시브 매트릭스", energy: 100, range: 9, absorb: 250, duration: 30 },
   emp: { name: "EMP", energy: 100, range: 9, radius: 3, minTargets: 3, research: "emp" },

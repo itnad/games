@@ -360,7 +360,7 @@ export function stwAiThink(state, side) {
     zergLines(state, side, persona, units, reserve);
     // 오버로드 동행: 은폐 유닛에 당하면 오버로드가 둘 이상일 때 하나를 병력에 붙인다. 하나뿐이면 끈다.
     const overlordBuildings = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).length;
-    const escorting = units.some((unit) => unit.type === "overlord");
+    const escorting = units.some((unit) => unit.type === "overlord" && unit.escort);
     if (needDetection && !record.escort && overlordBuildings >= 2) stwCommand(state, side, { type: "escort", on: true });
     else if (record.escort && !escorting && overlordBuildings < 2) stwCommand(state, side, { type: "escort", on: false });
     if (record.escort && record.gas > 300 && stwResearchCheck(state, side, "pneumatized").ok) stwCommand(state, side, { type: "research", research: "pneumatized" });

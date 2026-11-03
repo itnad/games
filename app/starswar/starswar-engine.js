@@ -496,7 +496,10 @@ export function stwDropCheck(state, side) {
   let carriers;
   if (record.race === "zerg") {
     if (!stwResearchDone(state, side, "ventral")) return fail("복부 주머니 연구 필요");
-    carriers = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).sort((a, b) => b.id - a.id).slice(0, Math.max(0, stwOwnBuildings(state, side, "overlord", { doneOnly: true }).length - 2));
+    // 침투를 마치고 돌아와 떠 있는 오버로드(동행 중인 것 제외)를 먼저 쓰고, 모자라면 기지의 오버로드를 2기 남기고 띄운다.
+    const floating = state.units.filter((unit) => unit.side === side && unit.type === "overlord" && !unit.escort && !unit.cargo?.length && !unit.dropPath?.length);
+    const parked = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).sort((a, b) => b.id - a.id);
+    carriers = [...floating, ...parked.slice(0, Math.max(0, parked.length - 2))];
     if (!carriers.length) return fail("기지에 남길 오버로드 2기 말고 쓸 오버로드가 없습니다");
   } else {
     carriers = state.units.filter((unit) => unit.side === side && STW_UNITS[unit.type].transport && unit.group === "rally" && !unit.cargo?.length && !unit.dropPath?.length);
@@ -700,7 +703,7 @@ export function stwCommand(state, side, command) {
       // 옵저버·오버로드만 있으면 혼자 나가 죽을 뿐이다. 동행을 끈 오버로드는 기지에 남는다.
       if (!army.fighters.length) return fail("출격할 전투 병력이 없습니다");
       // 수송선은 출격하지 않는다(본진 침투로만 움직인다).
-      const going = army.rally.filter((unit) => (unit.type !== "overlord" || record.escort) && !STW_UNITS[unit.type].transport);
+      const going = army.rally.filter((unit) => (unit.type !== "overlord" || (record.escort && unit.escort)) && !STW_UNITS[unit.type].transport);
       for (const unit of going) unit.group = "attack";
       if (side === "player") pushLog(state, side, `대기 병력 ${going.length}기가 출격합니다!`, "order");
       return { ok: true };
@@ -731,6 +734,7 @@ export function stwCommand(state, side, command) {
       const on = Boolean(command.on);
       if (on && !state.units.some((unit) => unit.side === side && unit.type === "overlord") && !stwOwnBuildings(state, side, "overlord", { doneOnly: true }).length) return fail("완성된 오버로드가 없습니다");
       record.escort = on;
+      if (!on) for (const unit of state.units) if (unit.side === side && unit.type === "overlord") unit.escort = false;
       if (on) escortStep(state, side);
       if (side === "player") pushLog(state, side, on ? "오버로드 1기가 병력과 동행합니다. 잃으면 인구 상한이 8 줄어듭니다." : "동행 오버로드가 기지로 돌아갑니다.", "order");
       return { ok: true };
@@ -988,13 +992,21 @@ function stepProducer(state, building, record, dt) {
 
 /** 동행이 켜져 있는데 떠 있는 오버로드가 없으면 완성된 오버로드 건물 하나를 유닛으로 띄운다. */
 function escortStep(state, side) {
-  if (state.units.some((unit) => unit.side === side && unit.type === "overlord")) return;
+  if (state.units.some((unit) => unit.side === side && unit.type === "overlord" && unit.escort)) return;
+  // 침투를 마치고 돌아와 떠 있는 오버로드가 있으면 그것을 먼저 동행시킨다.
+  const idle = state.units.find((unit) => unit.side === side && unit.type === "overlord" && !unit.cargo?.length && !unit.dropPath?.length);
+  if (idle) {
+    idle.escort = true;
+    idle.group = "rally";
+    return;
+  }
   const building = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).sort((a, b) => b.id - a.id)[0];
   if (!building) return;
   state.buildings = state.buildings.filter((item) => item !== building);
   const unit = spawnUnit(state, side, "overlord", building.x, building.y);
   unit.hp = Math.min(unit.maxHp, building.hp);
   unit.group = "rally";
+  unit.escort = true;
 }
 
 /* ───────── 전투 ───────── */
@@ -1852,7 +1864,7 @@ function observerStep(state, unit, plan, dt) {
   const forward = stwForward(unit.side);
   const escort = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && !isPassive(ally));
   let goal;
-  if (unit.type === "overlord" && !state.sides[unit.side].escort) {
+  if (unit.type === "overlord" && (!state.sides[unit.side].escort || !unit.escort)) {
     // 동행을 끄면 본진 위로 돌아가 기지를 지킨다.
     const home = stwNexus(state, unit.side, "main") ?? stwNexus(state, unit.side, "natural");
     goal = home ? { x: home.x + 4, y: home.y - stwForward(unit.side) * 2 } : stwPoint(unit.side, { x: 20, y: 90 });
@@ -1882,7 +1894,7 @@ function templarStep(state, unit, plan, dt) {
   casterMove(state, unit, plan, unitSpeed(state, unit), dt);
 }
 
-/** 무기 없는 마법 유닛의 이동: 후퇴, 적과 거리 두기, 공격 병력 선두 5칸 뒤 따라가기, 집결지 대기. */
+/** 무기 없는 마법 유닛의 이동: 후퇴, 적과 거리 두기, 공격 병력 선두 3칸 뒤 따라가기, 집결지 대기. */
 function casterMove(state, unit, plan, speed, dt) {
   const slot = unit.group === "attack" ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
   if (unit.group !== "attack" && slot && isRetreating(unit, slot)) {
@@ -1900,7 +1912,8 @@ function casterMove(state, unit, plan, speed, dt) {
     const front = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && !isPassive(ally) && STW_UNITS[ally.type].role !== "caster");
     const forward = stwForward(unit.side);
     const lead = front.length ? front.reduce((best, ally) => (forward < 0 ? Math.min(best, ally.y) : Math.max(best, ally.y)), front[0].y) : plan.goal.y;
-    const goalY = lead - forward * 5;
+    // 마법 사거리(9)가 적 원거리 유닛 줄에 닿도록 선두 3칸 뒤에 선다(5칸이면 사거리 5인 적과 맞선 선두보다 10칸 넘게 떨어져 마법을 못 썼다).
+    const goalY = lead - forward * 3;
     moveToward(unit, slot ? slot.x : unit.x, goalY, Math.min(speed, plan.waveSpeed), dt);
   } else if (slot) {
     moveToward(unit, slot.x, slot.y, speed, dt);
@@ -1952,9 +1965,10 @@ function unloadCargo(state, unit) {
   state.effects.push({ kind: "warp", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.6, max: 0.6, radius: 3 });
   if (unit.side === "player") pushLog(state, "player", `병력 ${riders.length}기가 적 본진에 내렸습니다!`, "good");
   else alertOnce(state, "drop", 20, "player", "적 수송선이 본진 뒤에 병력을 내렸습니다!", "danger");
-  // 왔던 가장자리를 타고 돌아간다.
-  const home = stwPoint(unit.side, { x: 2.5, y: 90 });
-  unit.dropPath = [{ x: home.x, y: unit.y }, { x: home.x, y: home.y }];
+  // 왔던 가장자리를 타고 돌아간다(적 본진 위를 가로지르지 않는다).
+  const edgeX = stwPoint(stwOpponent(unit.side), { x: 2.5, y: 97 }).x;
+  const home = stwPoint(unit.side, { x: 37.5, y: 90 });
+  unit.dropPath = [{ x: edgeX, y: unit.y }, { x: edgeX, y: home.y }, { x: home.x, y: home.y }];
 }
 
 /* ───────── 마법 ───────── */
@@ -2368,9 +2382,9 @@ function takeIntel(state, foe) {
 
 /** 테크 단계: 위 건물이 있으면 그 이름을 보여 준다. */
 const TECH_LADDER = {
-  protoss: ["archives", "robo", "citadel", "core"],
-  terran: ["shop", "factory", "academy", "barracks"],
-  zerg: ["cavern", "den", "pool"],
+  protoss: ["tribunal", "beacon", "archives", "stargate", "robo", "citadel", "core"],
+  terran: ["science", "starport", "armory", "shop", "factory", "academy", "barracks"],
+  zerg: ["mound", "nest", "cavern", "spire", "den", "pool"],
 };
 
 export function intelSummary(intel) {

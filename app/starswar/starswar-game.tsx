@@ -57,6 +57,17 @@ const TABS: { id: Tab; label: string }[] = [
 const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard"];
 const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
 const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", stargate: "스타게이트", barracks: "배럭", factory: "팩토리", starport: "스타포트", hatchery: "해처리", hatch: "해처리" };
+/**
+ * 건물마다 보여 줄 생산 선택지. 고를 수 있는 것이 여섯을 넘는 건물(해처리 11종)은 잠긴 유닛을 숨겨
+ * 해처리가 여럿일 때 목록이 끝없이 길어지지 않게 한다. 지금 고른 유닛은 잠겨도 보인다.
+ */
+function lineChoices(game: StwState, type: StwProducerType, current: string | null) {
+  const all = STW_PRODUCER_UNITS[type] as StwArmyType[];
+  if (all.length <= 6) return { shown: all, hidden: [] as StwArmyType[] };
+  const shown = all.filter((unit) => unit === current || !stwUnitLock(game, "player", unit));
+  return { shown, hidden: all.filter((unit) => !shown.includes(unit)) };
+}
+
 /** 유닛 선택 버튼의 짧은 꼬리표: 떠 있는 유닛은 "공중", 공중을 쏘는 무기는 "대공", 공중만 쏘면 "공중만". */
 function unitTags(def: { flying?: boolean; targets?: string; damage?: number }) {
   const tags: string[] = [];
@@ -758,7 +769,7 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
               </header>
               <span className="stw-progress"><span style={{ width: `${Math.round(progress * 100)}%` }} /></span>
               <div className="stw-line-choices">
-                {(STW_PRODUCER_UNITS[type] as StwArmyType[]).map((unit) => {
+                {lineChoices(game, type, building.line).shown.map((unit) => {
                   const lock = stwUnitLock(game, "player", unit) as string | null;
                   const def = STW_UNITS[unit] as { name: string; minerals: number; gas: number; pair?: boolean; flying?: boolean; targets?: string; damage?: number };
                   const tags = unitTags(def);
@@ -770,6 +781,9 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
                 })}
                 <button type="button" className={building.line === null ? "active" : ""} aria-pressed={building.line === null} onClick={() => issue({ type: "line", buildingId: building.id, unit: null })}>정지</button>
               </div>
+              {counters[PRODUCER_NAMES[type]] === 1 && lineChoices(game, type, building.line).hidden.length ? (
+                <p className="stw-line-locked">{`아직 잠긴 유닛: ${lineChoices(game, type, building.line).hidden.map((unit) => `${STW_UNITS[unit].name}(${stwUnitLock(game, "player", unit)})`).join(", ")}`}</p>
+              ) : null}
             </div>
           );
         })}
@@ -799,7 +813,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
   const workerName = STW_UNITS[race.worker].name;
   const count = (list: { type: string }[], type: StwArmyType) => list.filter((unit) => unit.type === type).length;
   const overlordsReady = stwOwnBuildings(game, "player", "overlord").filter((item) => stwDone(item)).length;
-  const escorting = game.units.some((unit) => unit.side === "player" && unit.type === "overlord");
+  const escorting = game.units.some((unit) => unit.side === "player" && unit.type === "overlord" && unit.escort);
   const scouting = game.units.filter((unit) => unit.side === "player" && unit.group === "scout").length;
   const intel = side.intel;
   const drop = stwDropCheck(game, "player") as StwCheck;

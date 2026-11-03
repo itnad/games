@@ -49,6 +49,7 @@ export type StwUnit = {
   acid?: { stacks: number; until: number };
   cargo?: number[];
   bornAt?: number;
+  escort?: boolean;
 };
 
 export type StwBuilding = {

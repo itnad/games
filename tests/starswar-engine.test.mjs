@@ -865,8 +865,10 @@ test("starswar keeps home overlords home and returns stranded support units to t
   assert.equal(home.group, "rally", "동행을 끈 오버로드는 출격에 끼지 않음");
   assert.equal(ling.group, "attack");
 
-  state.sides.player.escort = true;
+  // 동행을 켜면 떠 있는 오버로드가 동행을 맡고 함께 출격한다.
   stwCommand(state, "player", { type: "retreat" });
+  stwCommand(state, "player", { type: "escort", on: true });
+  assert.equal(home.escort, true, "떠 있는 오버로드가 동행을 맡음");
   stwCommand(state, "player", { type: "attack" });
   assert.equal(home.group, "attack", "동행 중이면 함께 출격");
   ling.hp = 0;
@@ -1504,6 +1506,49 @@ test("starswar drops carry ground units to the enemy main and transports take ri
   research(zergDrop, "player", "ventral");
   assert.equal(stwCommand(zergDrop, "player", { type: "drop" }).ok, true, "복부 주머니 뒤 오버로드가 실어 나른다");
   assert.equal(stwOwnBuildings(zergDrop, "player", "overlord").length, 2, "기지에 오버로드 2기는 남긴다");
+});
+
+test("starswar overlords that come back from a drop can drop again or take up escort duty", () => {
+  const state = zerg("protoss");
+  state.sides.player.minerals = 9000;
+  // 내린 히드라가 적 넥서스를 부숴 판이 끝나지 않도록 한다.
+  for (const building of state.buildings) if (building.side === "enemy") building.hp = building.maxHp = 1e9;
+  for (let index = 0; index < 3; index += 1) {
+    stwCommand(state, "player", { type: "build", building: "overlord" });
+    finishAll(state);
+  }
+  research(state, "player", "ventral");
+  stwSpawnUnitAt(state, "player", "hydra", 20, 78, "rally");
+  assert.equal(stwCommand(state, "player", { type: "drop" }).ok, true);
+  const flier = state.units.find((unit) => unit.side === "player" && unit.type === "overlord");
+  for (let index = 0; index < 1500 && (flier.cargo?.length || flier.dropPath?.length); index += 1) stepStarswar(state);
+  assert.equal(flier.group, "rally", "내려 준 뒤 돌아온다");
+  // 돌아온 오버로드는 다음 침투에 먼저 쓰이고, 기지에 앉은 오버로드는 2기가 그대로 남는다.
+  stwSpawnUnitAt(state, "player", "hydra", 20, 78, "rally");
+  assert.equal(stwCommand(state, "player", { type: "drop" }).ok, true);
+  assert.ok(flier.dropPath?.length, "돌아온 오버로드가 다시 출발");
+  assert.equal(stwOwnBuildings(state, "player", "overlord").length, 2);
+  for (let index = 0; index < 1500 && (flier.cargo?.length || flier.dropPath?.length); index += 1) stepStarswar(state);
+  // 동행을 켜면 떠 있는 오버로드가 동행을 맡고, 기지의 오버로드는 앉아 있는다.
+  stwCommand(state, "player", { type: "escort", on: true });
+  stepStarswar(state);
+  assert.equal(flier.escort, true);
+  assert.equal(stwOwnBuildings(state, "player", "overlord").length, 2);
+});
+
+test("starswar casters stand close enough behind the front to reach the enemy line", () => {
+  const state = terran("zerg");
+  research(state, "player", "irradiate");
+  const marines = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "player", "marine", 14 + index * 3, 60, "attack"));
+  const vessel = stwSpawnUnitAt(state, "player", "vessel", 20, 68, "attack");
+  vessel.energy = 200;
+  const ultra = stwSpawnUnitAt(state, "enemy", "ultra", 20, 50, "rally");
+  for (const unit of [...marines, ultra]) unit.hp = 9999;
+  // 울트라리스크는 제자리에 묶어 둔다(대기 병력이라 그냥 두면 자기 집결지로 걸어간다).
+  ultra.stunUntil = 999;
+  run(state, 6);
+  assert.ok(ultra.irradiateUntil > 0, "해병 줄 뒤의 베슬이 그 앞의 울트라리스크에 이레디에이트를 건다");
+  assert.ok(vessel.y - Math.min(...marines.map((unit) => unit.y)) <= 4, "베슬은 선두 3칸 남짓 뒤");
 });
 
 test("starswar dark templars merge into a dark archon and infested terrans explode", () => {

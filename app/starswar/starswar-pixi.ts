@@ -80,6 +80,8 @@ export class StwPixiRenderer {
   private readonly unitLayer: Container;
   private readonly fxLayer: Container;
   private readonly stormLayer: Graphics;
+  /** 땅에 남는 구역(다크 스웜). 유닛 위를 덮는 구름이라 유닛 층 바로 위에, 어두운 색이 보이도록 더하기 섞기 없이 그린다. */
+  private readonly zoneLayer: Graphics;
   private readonly beamLayer: Graphics;
   private readonly tentacleLayer: Graphics;
   private readonly fog: Graphics;
@@ -136,6 +138,7 @@ export class StwPixiRenderer {
     this.underlay = new PIXI.Graphics();
     this.buildingLayer = new PIXI.Container();
     this.unitLayer = new PIXI.Container();
+    this.zoneLayer = new PIXI.Graphics();
     this.stormLayer = new PIXI.Graphics();
     this.stormLayer.blendMode = "add";
     this.beamLayer = new PIXI.Graphics();
@@ -149,7 +152,7 @@ export class StwPixiRenderer {
     this.rallyFlag.anchor.set(0.5, 0.9);
     this.flagScale = this.rallyFlag.scale.x;
     this.workerLayer = new PIXI.Container();
-    this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.tentacleLayer, this.rallyFlag, this.unitLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
+    this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.tentacleLayer, this.rallyFlag, this.unitLayer, this.zoneLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
     this.overlay = new PIXI.Container();
     this.bars = new PIXI.Graphics();
     this.overlay.addChild(this.bars);
@@ -671,8 +674,10 @@ export class StwPixiRenderer {
     // 진영 고리: 같은 종족끼리 싸울 때 아군(파랑)과 적(빨강)을 발밑 색으로 가른다.
     const ring = this.sprite(this.tex.ring, UNIT_SIZE[unit.type] * 1.12);
     ring.tint = STW_TEAM[unit.side].glow;
-    ring.alpha = 0.75;
-    ring.position.copyFrom(shadow.position);
+    ring.alpha = flying ? 0.6 : 0.75;
+    // 떠 있는 유닛은 고리를 그림자 대신 몸 바로 아래에 둔다(그림자와 함께 멀리 떨어지면 어느 편인지 알아보기 어렵다).
+    if (flying) ring.position.set(0, 0.2);
+    else ring.position.copyFrom(shadow.position);
     ring.scale.y *= 0.8;
     const body = this.sprite(this.tex.units[unit.side][unit.type], UNIT_SIZE[unit.type]);
     body.rotation = unit.heading;
@@ -1000,17 +1005,19 @@ export class StwPixiRenderer {
   private drawStorms(state: StwState, clock: number) {
     const g = this.stormLayer;
     g.clear();
-    // 다크 스웜: 어두운 포자 구름. 안의 지상 유닛은 원거리 공격을 받지 않는다.
+    const z = this.zoneLayer;
+    z.clear();
+    // 다크 스웜: 유닛을 덮는 어두운 포자 구름. 안의 지상 유닛은 원거리 공격을 받지 않는다.
     for (const zone of state.zones ?? []) {
       if (zone.side !== "player" && !this.visiblePoint(state, zone.x, zone.y)) continue;
       const fade = Math.min(1, zone.ttl / 1, (zone.max - zone.ttl + 0.2) / 0.5);
-      g.circle(zone.x, zone.y, zone.radius).fill({ color: 0x2a1a10, alpha: 0.45 * fade });
+      z.circle(zone.x, zone.y, zone.radius).fill({ color: 0x2a1a10, alpha: 0.45 * fade });
       for (let i = 0; i < 9; i += 1) {
         const a = (Math.PI * 2 * i) / 9 + clock * 0.4 + zone.id;
         const r = zone.radius * (0.45 + 0.4 * pseudo(zone.id + i));
-        g.circle(zone.x + Math.cos(a) * r, zone.y + Math.sin(a) * r, zone.radius * 0.35).fill({ color: 0x4a3420, alpha: 0.35 * fade });
+        z.circle(zone.x + Math.cos(a) * r, zone.y + Math.sin(a) * r, zone.radius * 0.35).fill({ color: 0x4a3420, alpha: 0.35 * fade });
       }
-      g.circle(zone.x, zone.y, zone.radius).stroke({ width: 0.15, color: 0x8a6a40, alpha: 0.6 * fade });
+      z.circle(zone.x, zone.y, zone.radius).stroke({ width: 0.15, color: 0x8a6a40, alpha: 0.6 * fade });
     }
     for (const storm of state.storms) {
       if (storm.side !== "player" && !this.visiblePoint(state, storm.x, storm.y)) continue;
