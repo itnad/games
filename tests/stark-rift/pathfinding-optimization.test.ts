@@ -51,3 +51,18 @@ describe('indexed candidates preserve collision and reservation rules',()=>{
     }
   });
 });
+
+it('keeps row clipping and search-epoch clear caches equivalent to the live full scan',()=>{
+  const {state,map}=createScenario('basin50');state.entities.health.fill(0);
+  const hash=new SpatialHash(state),cached=new NavigationGrid(map,state,hash,true,true),plain=new NavigationGrid(map,state),next=random(789);
+  for(let i=0;i<1200;i++){
+    const a={x:64+next(190)*128,y:64+next(190)*128},b={x:64+next(190)*128,y:64+next(190)*128},radius=1+next(512),layer=i%4?'ground':'air';
+    expect(cached.clear(a,radius,layer,1)).toBe(plain.clear(a,radius,layer,1));
+    expect(cached.clear(a,radius,layer,2)).toBe(plain.clear(a,radius,layer,2));
+    expect(cached.segment(a,b,radius,layer,1)).toBe(plain.segment(a,b,radius,layer,1));
+    expect(cached.segment(b,a,radius,layer,1)).toBe(plain.segment(b,a,radius,layer,1));
+  }
+  map.walkable[14*96+14]=0;
+  const refreshed=new NavigationGrid(map,state,new SpatialHash(state),true,true),point={x:14*256+64,y:14*256+64};
+  expect(refreshed.clear(point,40,'ground',1)).toBe(false);
+});

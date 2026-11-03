@@ -57,9 +57,23 @@ export class NavigationGrid {
       const top=Math.max(0,Math.floor((Math.min(a.y,b.y)-radius)/256)),bottom=Math.min(this.map.heightTiles-1,Math.floor((Math.max(a.y,b.y)+radius)/256));
       for(let y=top;y<=bottom;y++){
         if(this.blockedRows){
+          let rowLeft=left,rowRight=right;
+          const from=a.y<=b.y?a:b,to=a.y<=b.y?b:a,rise=to.y-from.y,run=to.x-from.x;
+          if(rise>0){
+            const yLow=Math.max(from.y,y*256-radius),yHigh=Math.min(to.y,(y+1)*256+radius);
+            if(yLow>yHigh)continue;
+            const base=from.x*rise,offsetLow=(yLow-from.y)*run,offsetHigh=(yHigh-from.y)*run;
+            const first=base+offsetLow,second=base+offsetHigh;
+            if([base,offsetLow,offsetHigh,first,second].every(Number.isSafeInteger)){
+              // Outward integer bounds include every segment point near this row.
+              // One extra world unit protects the broad phase at quotient boundaries.
+              rowLeft=Math.max(left,Math.floor((Math.floor(Math.min(first,second)/rise)-radius-1)/256));
+              rowRight=Math.min(right,Math.floor((Math.ceil(Math.max(first,second)/rise)+radius+1)/256));
+            }
+          }
           const row=this.blockedRows[y];let low=0,high=row.length;
-          while(low<high){const mid=(low+high)>>>1;if(row[mid]<left)low=mid+1;else high=mid;}
-          for(let i=low;i<row.length&&row[i]<=right;i++)if(segmentNearTile(a,b,row[i]*256,y*256,radius))return false;
+          while(low<high){const mid=(low+high)>>>1;if(row[mid]<rowLeft)low=mid+1;else high=mid;}
+          for(let i=low;i<row.length&&row[i]<=rowRight;i++)if(segmentNearTile(a,b,row[i]*256,y*256,radius))return false;
         }else for(let x=left;x<=right;x++)if(!this.map.walkable[y*this.map.widthTiles+x]&&segmentNearTile(a,b,x*256,y*256,radius))return false;
       }
     }
