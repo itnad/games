@@ -74,10 +74,11 @@ const BUILD_ORDERS = {
     { build: "evo" }, { research: "zMelee1" }, { research: "zCarapace1" }, { build: "cavern" }, { research: "chitin" },
     { research: "metabolic" }, { build: "hatch" }, { research: "zMelee2" },
   ],
+  // 저글링 물량: 앞마당을 일찍 먹고 해처리를 늘리며, 저글링만 끝까지 업그레이드한다(공격 2단계·갑피·아드레날린). 덴은 올리지 않는다.
   ling: [
     { build: "pool" }, { build: "overlord" }, { build: "extractor" }, { research: "metabolic" }, { build: "hatch" },
-    { build: "overlord" }, { build: "evo", at: 220 }, { research: "zMelee1" }, { build: "expand", at: 280 }, { build: "hatch" },
-    { build: "den" }, { research: "zCarapace1" }, { build: "extractor" }, { research: "lair" }, { research: "spines" },
+    { build: "overlord" }, { build: "expand", at: 200 }, { build: "hatch" }, { build: "evo", at: 240 }, { research: "zMelee1" },
+    { research: "lair", at: 300 }, { build: "extractor" }, { research: "zCarapace1" }, { research: "zMelee2" }, { research: "adrenal" }, { build: "hatch" },
   ],
   hydra: [
     { build: "overlord" }, { build: "pool" }, { build: "extractor" }, { build: "hatch" }, { build: "sunken" }, { build: "den" },
@@ -88,18 +89,22 @@ const BUILD_ORDERS = {
 };
 
 const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22], bio: [8, 12, 16, 22], mech: [8, 12, 16, 20],
-  tankbio: [10, 14, 20, 26], vulture: [8, 12, 16, 20], ling: [12, 16, 22, 28, 34], hydra: [14, 18, 24, 30], pool: [6, 10, 14, 20, 26], ultra: [12, 18, 24, 30] };
-const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, tankbio: 5, vulture: 4, ling: 3, hydra: 3, pool: 3, ultra: 3 };
+  tankbio: [10, 14, 20, 26], vulture: [8, 12, 16, 20], ling: [12, 20, 30, 42, 56], hydra: [14, 18, 24, 30], pool: [6, 10, 14, 20, 26], ultra: [12, 18, 24, 30] };
+const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, tankbio: 5, vulture: 4, ling: 9, hydra: 3, pool: 3, ultra: 3 };
+/** 출격 규모 상한. 저글링 물량만 더 크게 모은다(저글링은 인구 0.5). */
+const WAVE_CAP = { ling: 80 };
 /** 빌드 순서가 끝난 뒤 남는 자원으로 더 짓는 생산 건물. */
 const EXTRA_PRODUCER = { bio: "barracks", mech: "factory", tankbio: "barracks", vulture: "factory", ling: "hatch", hydra: "hatch", pool: "hatch", ultra: "hatch" };
 /** 일꾼을 적게 뽑고 일찍 찌르는 성향: 이 시간(초)까지는 일꾼 수를 제한한다. */
 const EARLY_WORKER_CAP = { pool: { until: 210, cap: 14 } };
 /** 광물이 크게 쌓이면 성향과 상관없이 늘리는 기본 생산 건물. */
 const FALLBACK_PRODUCER = { terran: "barracks", zerg: "hatch" };
+/** 광물이 쌓일 때 늘리는 기본 생산 건물의 상한. 해처리는 한 번에 한 마리씩만 만들므로 저그는 더 많이 둔다. */
+const FALLBACK_CAP = { terran: 5, zerg: 8 };
 const LATE_UPGRADES = { protoss: ["weapons2", "shields1", "armor1"], terran: ["infWeapons2", "infArmor1"], zerg: ["zMelee2", "zMissile2", "zCarapace1"] };
 const DEFAULT_PERSONA = { protoss: "dragoon", terran: "bio", zerg: "hydra" };
 /** 경계 중에도 짓는 1단계 유닛 해금 건물: 질럿 러시에 드라군·파이어뱃·히드라로 맞서야 한다. */
-const ALERT_TECH = new Set(["core", "academy", "den"]);
+const ALERT_TECH = new Set(["core", "academy", "den", "evo"]);
 
 export function stwAiThink(state, side) {
   const record = state.sides[side];
@@ -109,6 +114,7 @@ export function stwAiThink(state, side) {
   if (state.time < memory.nextThink) return;
   memory.nextThink = state.time + settings.thinkEvery;
   const race = STW_RACES[record.race ?? "protoss"];
+  switchStrategy(state, side, memory);
   const persona = record.persona ?? DEFAULT_PERSONA[race.id];
 
   // 0. 정찰과 위협 판단: 일꾼 1기를 두 번 정찰 보내고, 이른 러시 조짐이나 침입을 보면 경계 태세로 들어간다.
@@ -118,10 +124,14 @@ export function stwAiThink(state, side) {
   const alert = assessThreat(state, side, memory);
   const scoutingNow = state.units.filter((unit) => unit.side === side && unit.group === "scout").length;
 
-  // 다음 건물·연구에 필요한 자원만 아껴 둔다(모자란 쪽만).
-  const reserve = { minerals: 0, gas: 0 };
-  const save = (minerals, gas) => {
-    if (record.minerals < minerals) reserve.minerals = Math.max(reserve.minerals, minerals);
+  // 다음 건물·연구에 필요한 자원만 아껴 둔다(모자란 쪽만). 생산 건물이 유닛을 멈추고 기다리는 것은
+  // 확장·인구·경계 중 방어 건물처럼 늦으면 크게 손해인 것(hard)뿐이고, 연구·테크 건물은 남는 자원으로만 한다.
+  const reserve = { minerals: 0, gas: 0, hard: 0 };
+  const save = (minerals, gas, hard = false) => {
+    if (record.minerals < minerals) {
+      reserve.minerals = Math.max(reserve.minerals, minerals);
+      if (hard) reserve.hard = Math.max(reserve.hard, minerals);
+    }
     if (record.gas < gas) reserve.gas = Math.max(reserve.gas, gas);
   };
   // 경계 중에는 방어 건물이 가장 먼저다: 못 지으면 그 비용을 아껴 둔다(병력이 3기 미만일 때만 생산이 이를 무시한다).
@@ -136,7 +146,7 @@ export function stwAiThink(state, side) {
     }
     // 캐논은 포지까지 450이라 하나로 그치고, 벙커 둘, 성큰 셋.
     if (!waiting && producersNow >= 3) waiting = ensureDefense(state, side, race, race.id === "protoss" ? 1 : race.id === "terran" ? 2 : 3);
-    if (waiting) save(waiting.minerals, waiting.gas);
+    if (waiting) save(waiting.minerals, waiting.gas, true);
   }
   // 0. 상위 유닛 몫: 울트라리스크·럴커를 만들 차례면 연구보다 먼저 그 자원을 아껴 둔다.
   const signature = signatureUnit(state, side, persona);
@@ -153,6 +163,8 @@ export function stwAiThink(state, side) {
   const probeTarget = alert && state.time < 300 ? Math.min(record.probes, 44) : Math.min(early && state.time < early.until ? early.cap : 44, bases * 16 + gasBuildings * 3);
   const queued = stwOwnBuildings(state, side, race.base).reduce((sum, nexus) => sum + nexus.queue.length, 0);
   if (record.probes + queued + scoutingNow < probeTarget && queued < 2 * bases) stwCommand(state, side, { type: "probe" });
+  // 저글링 물량은 해처리마다 저글링이 50씩 쉬지 않고 광물을 먹어 드론 차례가 오지 않는다. 일꾼이 모자라면 드론 두 마리 값을 먼저 챙긴다.
+  if (persona === "ling" && record.probes + queued < probeTarget) save(STW_UNITS[race.worker].minerals * 2, 0, true);
 
   // 2. 인구
   const supply = stwSupply(state, side);
@@ -160,7 +172,7 @@ export function stwAiThink(state, side) {
   const pylonsBuilding = stwOwnBuildings(state, side, race.supply).filter((building) => !stwDone(building)).length;
   if (supply.cap < 100 && supply.used + 3 + gateways * 2 >= supply.cap && pylonsBuilding < (supply.used > 40 ? 2 : 1)) {
     const result = stwCommand(state, side, { type: "build", building: race.supply });
-    if (!result.ok && /광물/.test(result.reason ?? "")) save(STW_BUILDINGS[race.supply].minerals, 0);
+    if (!result.ok && /광물/.test(result.reason ?? "")) save(STW_BUILDINGS[race.supply].minerals, 0, true);
   }
 
   // 3. 빌드 순서: 막힌 단계가 있으면 그 자원만 아껴 두고, 남는 자원으로 할 수 있는 다음 단계(최대 4개 앞)를 먼저 한다.
@@ -174,8 +186,10 @@ export function stwAiThink(state, side) {
       blocked += 1;
       continue;
     }
-    // 경계 중에는 확장·연구·상위 테크를 미루고 인구·생산 건물·방어 건물·1단계 유닛 해금 건물(코어·아카데미·덴)과 그에 필요한 가스만 짓는다.
-    const allowedInAlert = step.build && (step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && state.time >= 300) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length));
+    // 경계 중에는 확장·상위 테크를 미루고 인구·생산 건물·방어 건물과 그에 필요한 가스만 짓는다.
+    // 5분이 지나면 1단계 유닛 해금 건물(코어·아카데미·덴·에볼루션 챔버)을, 방어 건물 비용을 기다리는 중이 아니면 연구도 허용한다
+    // (경계가 길어지면 업그레이드까지 10분씩 밀린다).
+    const allowedInAlert = step.research ? state.time >= 300 && !reserve.hard : step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && state.time >= 300) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length);
     if (alert && !allowedInAlert) {
       blocked += 1;
       continue;
@@ -193,7 +207,17 @@ export function stwAiThink(state, side) {
       memory.done.push(index);
       continue;
     }
-    if (blocked === 0 && /부족/.test(check.reason ?? "")) save(cost.minerals, cost.gas);
+    // 맨 앞 단계가 자원 부족으로 막히면 그 비용을 아껴 둔다. 확장은 바로, 나머지는 15초 넘게 기다려도 안 모이면 생산을 멈추고 모은다
+    // (생산 건물이 많으면 남는 자원이 영영 생기지 않아 빌드가 멈춰 버리기 때문).
+    if (blocked === 0 && /부족/.test(check.reason ?? "")) {
+      if (memory.headStep !== index) {
+        memory.headStep = index;
+        memory.headSince = state.time;
+      }
+      // 프로토스·테란은 바로 아낀다(놀고 있는 생산 건물만 멈추므로 손해가 작다). 저그는 확장만 바로 아끼고,
+      // 저글링 물량은 15초 넘게 막힌 단계도 아낀다(해처리를 멈추지 않으면 연구 자금이 영영 안 모인다. 다른 저그 성향은 이 규칙으로 러시 방어가 약해져 쓰지 않는다).
+      save(cost.minerals, cost.gas, step.build === "expand" || race.id !== "zerg" || (persona === "ling" && state.time - memory.headSince > 15));
+    }
     blocked += 1;
   }
   memory.step = memory.done.length;
@@ -202,7 +226,7 @@ export function stwAiThink(state, side) {
   // 저그는 해처리 하나가 한 번에 한 마리씩만 만들므로 광물이 쌓이면 일찍 해처리를 늘린다.
   const floating = record.minerals > (memory.step >= order.length || race.id === "zerg" ? 300 : 600);
   if (floating && stwOwnBuildings(state, side, extra).length < GATEWAY_CAP[persona]) stwCommand(state, side, { type: "build", building: extra });
-  else if (FALLBACK_PRODUCER[race.id] && record.minerals > 700 && stwOwnBuildings(state, side, FALLBACK_PRODUCER[race.id]).length < 5) stwCommand(state, side, { type: "build", building: FALLBACK_PRODUCER[race.id] });
+  else if (FALLBACK_PRODUCER[race.id] && record.minerals > 700 && stwOwnBuildings(state, side, FALLBACK_PRODUCER[race.id]).length < FALLBACK_CAP[race.id]) stwCommand(state, side, { type: "build", building: FALLBACK_PRODUCER[race.id] });
   if (memory.step >= order.length) {
     for (const research of LATE_UPGRADES[race.id]) {
       if (STW_RESEARCH[research] && stwResearchCheck(state, side, research).ok && record.gas > 200) stwCommand(state, side, { type: "research", research });
@@ -314,9 +338,10 @@ export function stwAiThink(state, side) {
     if (unit === "zealot" && record.gas > 300 && record.minerals < 150 && stwHas(state, side, "core")) unit = stwHas(state, side, "archives") && persona !== "dark" ? "templar" : "dragoon";
     if (STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas && record.minerals > 250) unit = "zealot";
     const def = STW_UNITS[unit];
-    const starving = (reserve.minerals && record.minerals - def.minerals < reserve.minerals) || (reserve.gas && def.gas && record.gas - def.gas < reserve.gas);
+    const starving = reserve.hard && record.minerals - def.minerals < reserve.hard;
     // 게이트웨이 셋 중 하나는 아끼는 중에도 계속 소환한다.
     const keepRunning = index < Math.floor(gatewayList.length / 3);
+    // 광물을 기다리며 놀고 있는 게이트웨이만 멈춘다(만드는 중이면 그것까지는 끝낸다).
     const desired = starving && !thin && !keepRunning && !gateway.current ? null : unit;
     if (gateway.line !== desired) stwCommand(state, side, { type: "line", gatewayId: gateway.id, unit: desired });
   });
@@ -378,7 +403,8 @@ function terranLines(state, side, persona, units, reserve) {
     // 메카닉 성향은 배럭을 광물이 남을 때만 돌린다.
     if ((persona === "mech" || persona === "vulture") && units.length > 10 && record.minerals < 300) unit = null;
     if (unit && STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas) unit = "marine";
-    const starving = unit && reserve.minerals && record.minerals - STW_UNITS[unit].minerals < reserve.minerals && units.length >= 3;
+    const starving = unit && reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && units.length >= 3;
+    // 광물을 기다리며 놀고 있는 배럭만 멈춘다(만드는 중이면 그것까지는 끝낸다).
     const desired = starving && !barracks.current ? null : unit;
     if (barracks.line !== desired) stwCommand(state, side, { type: "line", buildingId: barracks.id, unit: desired });
   });
@@ -412,7 +438,7 @@ function signatureUnit(state, side, persona) {
 /** 성향별 저글링 비율(나머지는 히드라). 덴이 없으면 모두 저글링. */
 function baseLingShare(state, side, persona) {
   const versusTerran = state.sides[stwOpponent(side)].race === "terran";
-  if (persona === "ling") return state.time > 420 ? 0.67 : 1;
+  if (persona === "ling") return 1;
   if (persona === "pool") return state.time > 480 ? 0.75 : 1;
   if (persona === "hydra") return versusTerran ? 0.5 : 0.33;
   return 0.5;
@@ -447,11 +473,30 @@ function zergLines(state, side, persona, units, reserve) {
     const gasFor = (type) => STW_UNITS[type].gas + (type === "lurker" || type === "ultra" ? 0 : type === "hydra" && state.time < 360 ? reserve.gas / 2 : reserve.gas);
     if (STW_UNITS[unit].gas && record.gas < gasFor(unit)) unit = (unit === "lurker" || unit === "ultra") && den ? "hydra" : "zergling";
     if (STW_UNITS[unit].gas && record.gas < gasFor(unit)) unit = "zergling";
-    const starving = reserve.minerals && record.minerals - STW_UNITS[unit].minerals < reserve.minerals && army >= 4;
-    // 본진 해처리는 아끼는 중에도 계속 변태시킨다.
-    const desired = starving && index > 0 && !hatchery.current ? null : unit;
+    const starving = reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && army >= 4;
+    // 본진 해처리는 아끼는 중에도 계속 변태시킨다. 저글링 물량은 나머지를 지금 만드는 것까지만 끝내고 멈춘다
+    // (저글링은 50이라 해처리가 노는 때가 없어, 노는 해처리만 멈추는 규칙으로는 앞마당·연구 자금이 영영 안 모인다). 다른 성향은 노는 해처리만 멈춘다.
+    const desired = starving && index > 0 && (persona === "ling" || !hatchery.current) ? null : unit;
     if (hatchery.line !== desired) stwCommand(state, side, { type: "line", buildingId: hatchery.id, unit: desired });
   });
+}
+
+/**
+ * 전략 전환. 24기 이상 모은 저글링 물량이 8분 뒤에 두 번(12분 뒤에는 한 번) 막혔으면 저글링만으로는 안 되는 상대다.
+ * 벌처·탱크·파이어뱃이 많으면 울트라 운영, 아니면 히드라 럴커로 갈아탄다. 빌드 순서는 새 성향의 것을 처음부터 따르되
+ * 이미 지은 건물·끝난 연구는 건너뛴다. 저글링은 덴·동굴이 설 때까지 계속 나온다.
+ */
+function switchStrategy(state, side, memory) {
+  const record = state.sides[side];
+  if (record.persona !== "ling" || memory.switched) return;
+  const failed = memory.bigFails ?? 0;
+  if (state.time < 480 || failed < (state.time < 720 ? 2 : 1)) return;
+  const mix = foeMix(state, side);
+  const next = mix && mix.vulture + mix.tank + mix.firebat > 0.4 ? "ultra" : "hydra";
+  memory.switched = { from: "ling", to: next, at: state.time };
+  memory.done = [];
+  memory.wave = Math.max(0, memory.wave - 2);
+  record.persona = next;
 }
 
 /**
@@ -528,8 +573,12 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
       if (army.attack.length) stwCommand(state, side, { type: "retreat" });
       memory.attacking = false;
       memory.wave += 1;
+      // 제대로 모은 물량(24기 이상)이 막힌 횟수. 전략 전환은 이것으로 판단한다.
+      if (memory.waveStart >= 24) memory.bigFails = (memory.bigFails ?? 0) + 1;
     }
     if (allIn && army.fighters.length >= 4 && army.attackers.length) stwCommand(state, side, { type: "attack" });
+    // 저글링 물량은 끊임없이 밀어붙인다: 싸우는 동안 새로 나온 저글링이 12기 모이면 바로 뒤따라 보낸다.
+    else if (persona === "ling" && army.fighters.length >= 12 && army.attackers.length) stwCommand(state, side, { type: "attack" });
     return;
   }
   if (holdHome && !allIn) {
@@ -542,7 +591,7 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   const listed = waves[Math.min(memory.wave, waves.length - 1)] + Math.max(0, memory.wave - waves.length + 1) * 4;
   // 적 방어 건물(캐논·벙커·성큰)을 본 만큼 더 모아서 간다(하나당 4기, 최대 12기). 방어 건물은 기지 전체를 지키므로 소수로 찔러 봐야 손해다.
   const defenses = Object.values(record.seen).filter((memoryItem) => STW_BUILDINGS[memoryItem.type]?.damage).length;
-  let size = allIn ? 1 : Math.round(Math.min(40, listed + Math.min(12, defenses * 4)) * settings.waveScale);
+  let size = allIn ? 1 : Math.round(Math.min(WAVE_CAP[persona] ?? 40, listed + Math.min(12, defenses * 4)) * settings.waveScale);
   // 경계 중에는 보이는 적 전투 병력보다 넉넉히 많아질 때까지 집에서 버틴다.
   if (alert && !allIn) {
     const seenFighters = state.units.filter((unit) => unit.side === foe && !STW_UNITS[unit.type].worker && STW_UNITS[unit.type].role !== "support" && stwVisible(state, side, unit.x, unit.y)).length;

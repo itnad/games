@@ -1091,6 +1091,13 @@ function cannonStep(state, building, dt) {
   state.effects.push({ kind, side: building.side, x1: building.x, y1: building.y, x2: target.x, y2: target.y, ttl, max: ttl, attackerId: building.id, targetId: target.id });
 }
 
+/** 공격 간격: 스팀팩 해병·파이어뱃과 아드레날린 분비선 저글링은 1.5배 빠르게 친다. */
+function attackCooldown(state, unit, def) {
+  if (stimmed(state, unit)) return def.cooldown * 0.67;
+  if (unit.type === "zergling" && stwResearchDone(state, unit.side, "adrenal")) return def.cooldown * 0.67;
+  return def.cooldown;
+}
+
 function stimmed(state, unit) {
   return unit.stimAt !== undefined && state.time - unit.stimAt < 10;
 }
@@ -1288,7 +1295,7 @@ function stepUnits(state, dt) {
           }
         }
         if (unit.cooldown <= 0) {
-          unit.cooldown = def.cooldown * (stimmed(state, unit) ? 0.67 : 1);
+          unit.cooldown = attackCooldown(state, unit, def);
           queueHit(state, unit, target);
           const kind = ATTACK_EFFECT[unit.type] ?? "plasma";
           const ttl = kind === "slash" || kind === "bullet" || kind === "bite" ? 0.15 : kind === "flame" ? 0.3 : kind === "scarab" ? 0.6 : kind === "shock" || kind === "spine" ? 0.25 : 0.35;

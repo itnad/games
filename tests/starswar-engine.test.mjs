@@ -1131,6 +1131,66 @@ test("starswar tanks holding a rally point siege ahead of time and unsiege when 
   assert.ok(tank.y < stwRallyY("player", "main") - 4);
 });
 
+test("starswar adrenal glands make zerglings bite half again as often", () => {
+  const bites = (adrenal) => {
+    const state = zerg("protoss");
+    if (adrenal) state.sides.player.research.adrenal = "done";
+    const pylon = stwNexus(state, "enemy", "main");
+    const ling = stwSpawnUnitAt(state, "player", "zergling", pylon.x, pylon.y + 6, "attack");
+    ling.hp = 9999;
+    const seen = new WeakSet();
+    let count = 0;
+    let ticks = 0;
+    let cooldown = 0;
+    // 첫 물기 뒤 10초 동안 센다(달려가는 시간은 뺀다). 물 때마다 걸리는 공격 간격도 본다.
+    while (ticks < 100) {
+      stepStarswar(state);
+      for (const effect of state.effects) {
+        if (effect.kind !== "bite" || effect.attackerId !== ling.id || seen.has(effect)) continue;
+        seen.add(effect);
+        count += 1;
+        cooldown = Math.max(cooldown, ling.cooldown);
+      }
+      if (count) ticks += 1;
+      if (state.time > 30) break;
+    }
+    return { count, cooldown };
+  };
+  const plain = bites(false);
+  const fast = bites(true);
+  assert.ok(plain.count >= 5, `기본 물기 ${plain.count}회`);
+  assert.ok(Math.abs(plain.cooldown - 0.75) < 0.02 && Math.abs(fast.cooldown - 0.5) < 0.02, `공격 간격 ${plain.cooldown} → ${fast.cooldown}`);
+  assert.ok(fast.count >= plain.count * 1.25, `아드레날린 물기 ${fast.count}회 (기본 ${plain.count}회)`);
+});
+
+test("starswar zergling-swarm AI keeps pure zerglings, streams reinforcements, and switches strategy after repeated failures", () => {
+  const state = createStarswarGame({ seed: 2, aiSides: [], races: { player: "protoss", enemy: "zerg" }, personas: { enemy: "ling" } });
+  state.time = 500;
+  state.sides.enemy.minerals = 9000;
+  state.sides.enemy.gas = 9000;
+  stwAiThink(state, "enemy");
+  const memory = state.sides.enemy.ai;
+  assert.equal(state.sides.enemy.persona, "ling");
+  // 싸우는 동안 집결지에 저글링 12기가 모이면 바로 뒤따라 보낸다.
+  const home = stwNexus(state, "enemy", "main");
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(state, "enemy", "zergling", home.x - 4 + index * 2, home.y - 40, "attack");
+  for (let index = 0; index < 12; index += 1) stwSpawnUnitAt(state, "enemy", "zergling", home.x - 6 + (index % 6) * 2, home.y - 12 + Math.floor(index / 6) * 2, "rally");
+  memory.attacking = true;
+  memory.waveStart = 4;
+  memory.nextThink = 0;
+  stwAiThink(state, "enemy");
+  assert.equal(stwArmy(state, "enemy").rally.length, 0, "집결지의 저글링이 모두 출격");
+  // 제대로 모은 물량이 두 번 막힌 뒤에는 상대 구성에 따라 다른 운영으로 갈아탄다(빌드 순서는 처음부터, 지은 건물은 건너뜀).
+  memory.wave = 3;
+  memory.bigFails = 2;
+  memory.attacking = false;
+  memory.nextThink = 0;
+  stwAiThink(state, "enemy");
+  assert.ok(["hydra", "ultra"].includes(state.sides.enemy.persona), `전략 전환 ${state.sides.enemy.persona}`);
+  assert.equal(memory.switched.from, "ling");
+  assert.equal(memory.wave, 1, "실패 횟수를 일부 덜어 새 성향의 출격 규모로 시작");
+});
+
 test("starswar AI scouts early and goes on alert against a rush: defense first, no attacks", () => {
   const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "protoss" }, personas: { enemy: "dragoon" } });
   state.sides.player.minerals = 9000;

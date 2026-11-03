@@ -12,7 +12,7 @@ export type StwProducerType = "gateway" | "robo" | "barracks" | "factory" | "hat
 export type StwBuildChoice = Exclude<StwBuildingType, "nexus"> | "expand";
 export type StwResearchId = "weapons1" | "armor1" | "weapons2" | "shields1" | "range" | "charge" | "storm" | "scarab"
   | "infWeapons1" | "infArmor1" | "infWeapons2" | "stim" | "u238" | "siege" | "ion"
-  | "lair" | "metabolic" | "spines" | "augments" | "lurkerAspect" | "pneumatized" | "chitin" | "zMelee1" | "zMissile1" | "zCarapace1" | "zMelee2" | "zMissile2";
+  | "lair" | "metabolic" | "adrenal" | "spines" | "augments" | "lurkerAspect" | "pneumatized" | "chitin" | "zMelee1" | "zMissile1" | "zCarapace1" | "zMelee2" | "zMissile2";
 export type StwRallyId = "main" | "natural" | "center" | "forward";
 export type StwCheck = { ok: boolean; reason?: string };
 

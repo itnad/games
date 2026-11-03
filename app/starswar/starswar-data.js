@@ -259,6 +259,7 @@ export const STW_RESEARCH = {
   // ───── 저그 ─────
   lair: { id: "lair", race: "zerg", name: "레어 변태", at: "hatchery", minerals: 150, gas: 100, time: 50, requires: ["pool"], note: "본진 해처리가 레어로 · 럴커·울트라리스크·2단계 업그레이드 해금" },
   metabolic: { id: "metabolic", race: "zerg", name: "대사 촉진", at: "pool", minerals: 100, gas: 100, time: 40, note: "저글링 이동 속도 +50%" },
+  adrenal: { id: "adrenal", race: "zerg", name: "아드레날린 분비선", at: "pool", minerals: 200, gas: 200, time: 45, requires: ["lair"], note: "저글링 공격 속도 +50%" },
   spines: { id: "spines", race: "zerg", name: "홈 갈퀴", at: "den", minerals: 150, gas: 150, time: 40, note: "히드라리스크 사거리 4.5 → 6" },
   augments: { id: "augments", race: "zerg", name: "근육 강화", at: "den", minerals: 150, gas: 150, time: 40, requires: ["lair"], note: "히드라리스크 이동 속도 +35%" },
   lurkerAspect: { id: "lurkerAspect", race: "zerg", name: "럴커 변태", at: "den", minerals: 200, gas: 200, time: 50, requires: ["lair"], note: "럴커 해금" },
@@ -354,7 +355,7 @@ export const STW_AI_PERSONAS = {
   mech: { id: "mech", race: "terran", name: "메카닉 운영", note: "벌처로 버티며 시즈 탱크 포격선을 민다" },
   tankbio: { id: "tankbio", race: "terran", name: "탱크 바이오", note: "해병·메딕 뒤에 시즈 탱크를 받쳐 앞마당과 함께 민다" },
   vulture: { id: "vulture", race: "terran", name: "벌처 러시", note: "팩토리 둘에서 빠른 벌처를 쏟아내 일찍 흔든다" },
-  ling: { id: "ling", race: "zerg", name: "저글링 러시", note: "해처리를 늘려 대사 촉진 저글링으로 휩쓴다" },
+  ling: { id: "ling", race: "zerg", name: "저글링 물량", note: "해처리를 늘리고 저글링을 끝까지 업그레이드해 쉬지 않고 밀어붙인다 · 계속 막히면 다른 길을 찾는다" },
   hydra: { id: "hydra", race: "zerg", name: "히드라 럴커", note: "히드라로 버티며 럴커와 울트라리스크까지 올린다" },
   pool: { id: "pool", race: "zerg", name: "빠른 저글링", note: "스포닝 풀부터 올리고 드론을 아껴 이른 저글링으로 찌른다" },
   ultra: { id: "ultra", race: "zerg", name: "울트라 운영", note: "앞마당을 빨리 먹고 성큰으로 버티며 울트라리스크와 저글링으로 민다" },
