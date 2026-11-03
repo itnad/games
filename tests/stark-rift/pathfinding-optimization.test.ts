@@ -62,6 +62,18 @@ it('keeps row clipping and search-epoch clear caches equivalent to the live full
     expect(cached.segment(a,b,radius,layer,1)).toBe(plain.segment(a,b,radius,layer,1));
     expect(cached.segment(b,a,radius,layer,1)).toBe(plain.segment(b,a,radius,layer,1));
   }
+  for(let i=0;i<80;i++){
+    const a={x:64+next(189)*128,y:64+next(189)*128},b={x:a.x+128,y:a.y},radius=1+next(512);
+    expect(cached.segment(a,b,radius,'ground',1)).toBe(plain.segment(a,b,radius,'ground',1));
+    expect(cached.segment(b,a,radius,'ground',2)).toBe(plain.segment(b,a,radius,'ground',2));
+  }
+  state.entities.health[0]=100;state.entities.kind[0]='building';
+  const own={x:state.entities.x[0],y:state.entities.y[0]},adjacent={x:own.x+128,y:own.y};
+  const withBuilding=new NavigationGrid(map,state,new SpatialHash(state),true,true);
+  expect(withBuilding.clear(own,40,'ground',1)).toBe(plain.clear(own,40,'ground',1));
+  expect(withBuilding.clear(own,40,'ground',2)).toBe(false);
+  expect(withBuilding.segment(own,adjacent,40,'ground',1)).toBe(plain.segment(own,adjacent,40,'ground',1));
+  expect(withBuilding.segment(own,adjacent,40,'ground',2)).toBe(false);
   map.walkable[14*96+14]=0;
   const refreshed=new NavigationGrid(map,state,new SpatialHash(state),true,true),point={x:14*256+64,y:14*256+64};
   expect(refreshed.clear(point,40,'ground',1)).toBe(false);

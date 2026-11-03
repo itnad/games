@@ -11,6 +11,7 @@ export class NavigationGrid {
   readonly width:number; readonly height:number;
   private blockedRows?:number[][];
   private clearTables?:Map<string,Int8Array>;
+  private edgeTables?:Map<string,Int8Array>;
   private staticIds=new Set<number>();
   /** Optional index is owned by the caller and updated whenever positions change. */
   constructor(readonly map:BattleMap,private state:SimulationState,private spatial?:SpatialHash,snapshotTerrain=false,snapshotObstacles=false){
@@ -21,7 +22,7 @@ export class NavigationGrid {
       for(let i=0;i<map.walkable.length;i++)if(!map.walkable[i])this.blockedRows[Math.floor(i/map.widthTiles)].push(i%map.widthTiles);
     }
     if(snapshotObstacles){
-      this.clearTables=new Map();
+      this.clearTables=new Map();this.edgeTables=new Map();
       state.entities.id.forEach((id,i)=>{if(state.entities.health[i]>0&&(state.entities.kind[i]==="building"||state.movement[i].order==="idle"||state.movement[i].order==="hold"))this.staticIds.add(id);});
     }
   }
@@ -51,12 +52,26 @@ export class NavigationGrid {
     return true;
   }
   segment(a:Point,b:Point,radius:number,layer:string,ignore=0):boolean{
+    if(this.edgeTables&&Math.abs(a.x-b.x)+Math.abs(a.y-b.y)===CELL&&
+       a.x>=0&&a.y>=0&&b.x>=0&&b.y>=0&&a.x<this.map.widthTiles*256&&b.x<this.map.widthTiles*256&&a.y<this.map.heightTiles*256&&b.y<this.map.heightTiles*256&&
+       a.x%CELL===CELL/2&&a.y%CELL===CELL/2&&b.x%CELL===CELL/2&&b.y%CELL===CELL/2){
+      const key=`${radius}:${layer}:${this.staticIds.has(ignore)?ignore:0}`;
+      let table=this.edgeTables.get(key);if(!table){table=new Int8Array(this.width*this.height*2);this.edgeTables.set(key,table);}
+      const first=Math.floor(a.y/CELL)*this.width+Math.floor(a.x/CELL),second=Math.floor(b.y/CELL)*this.width+Math.floor(b.x/CELL);
+      const edge=Math.min(first,second)*2+(a.y!==b.y?1:0),cached=table[edge];
+      if(cached)return cached>0;
+      const result=this.segmentUncached(a,b,radius,layer,ignore);table[edge]=result?1:-1;return result;
+    }
+    return this.segmentUncached(a,b,radius,layer,ignore);
+  }
+  private segmentUncached(a:Point,b:Point,radius:number,layer:string,ignore:number):boolean{
     if(!this.clear(a,radius,layer,ignore)||!this.clear(b,radius,layer,ignore))return false;
     if(layer!=="air"){
       const left=Math.max(0,Math.floor((Math.min(a.x,b.x)-radius)/256)),right=Math.min(this.map.widthTiles-1,Math.floor((Math.max(a.x,b.x)+radius)/256));
       const top=Math.max(0,Math.floor((Math.min(a.y,b.y)-radius)/256)),bottom=Math.min(this.map.heightTiles-1,Math.floor((Math.max(a.y,b.y)+radius)/256));
       for(let y=top;y<=bottom;y++){
         if(this.blockedRows){
+          const row=this.blockedRows[y];if(!row.length)continue;
           let rowLeft=left,rowRight=right;
           const from=a.y<=b.y?a:b,to=a.y<=b.y?b:a,rise=to.y-from.y,run=to.x-from.x;
           if(rise>0){
@@ -71,7 +86,7 @@ export class NavigationGrid {
               rowRight=Math.min(right,Math.floor((Math.ceil(Math.max(first,second)/rise)+radius+1)/256));
             }
           }
-          const row=this.blockedRows[y];let low=0,high=row.length;
+          let low=0,high=row.length;
           while(low<high){const mid=(low+high)>>>1;if(row[mid]<rowLeft)low=mid+1;else high=mid;}
           for(let i=low;i<row.length&&row[i]<=rowRight;i++)if(segmentNearTile(a,b,row[i]*256,y*256,radius))return false;
         }else for(let x=left;x<=right;x++)if(!this.map.walkable[y*this.map.widthTiles+x]&&segmentNearTile(a,b,x*256,y*256,radius))return false;
