@@ -35,7 +35,7 @@ export function createMovementRules(map:BattleMap,visible:VisibilityCheck=()=>fa
       }
       const batches=new Map<string,number[]>();
       for(const id of ids){const slot=groups.findIndex(g=>g.entityIds.includes(id)),key=slot<0?`temporary:${state.movement[s.id.indexOf(id)].formation}`:String(slot);if(!batches.has(key))batches.set(key,[]);batches.get(key)!.push(id);}
-      const grid=new NavigationGrid(map,state),largest=Math.max(...ids.map(id=>s.radius[s.id.indexOf(id)]));
+      const grid=new NavigationGrid(map,state,new SpatialHash(state),true),largest=Math.max(...ids.map(id=>s.radius[s.id.indexOf(id)]));
       const constrained=ids.some(id=>{
         const index=s.id.indexOf(id),point="target" in command&&command.target.kind==="point"?command.target:state.movement[index].target;
         return point!==null&&point!==undefined&&!grid.clear(point,s.radius[index]+largest*2,s.layer[index],id);
@@ -86,7 +86,7 @@ export function createMovementRules(map:BattleMap,visible:VisibilityCheck=()=>fa
   }}};
 }
 function move(state:SimulationState,map:BattleMap,visible:VisibilityCheck):void{
-  const s=state.entities,grid=new NavigationGrid(map,state),hash=new SpatialHash(state);
+  const s=state.entities,hash=new SpatialHash(state),grid=new NavigationGrid(map,state,hash,true);
   for(let i=0;i<s.id.length;i++){
     const m=state.movement[i];if(s.health[i]===0||s.kind[i]==="building")continue;
     if(m.order==="focusAttack"&&m.targetEntityId!==null){
@@ -106,9 +106,10 @@ function move(state:SimulationState,map:BattleMap,visible:VisibilityCheck):void{
     if(m.status!=="moving"||!m.path.length)continue;
     // Intermediate cell centers guide a corridor, not individual parking spaces.
     // Skip to the furthest visible waypoint to avoid queues around an already passed corner.
-    for(let next=Math.min(m.path.length-1,m.pathIndex+64);next>m.pathIndex;next--)if(grid.segment({x:s.x[i],y:s.y[i]},m.path[next],s.radius[i],s.layer[i],s.id[i])){m.pathIndex=next;break;}
+    let waypointVisible=false;
+    for(let next=Math.min(m.path.length-1,m.pathIndex+64);next>m.pathIndex;next--)if(grid.segment({x:s.x[i],y:s.y[i]},m.path[next],s.radius[i],s.layer[i],s.id[i])){m.pathIndex=next;waypointVisible=true;break;}
     const waypoint=m.path[m.pathIndex];if(!waypoint)continue;
-    if(!grid.segment({x:s.x[i],y:s.y[i]},waypoint,s.radius[i],s.layer[i],s.id[i])){m.status="waiting";m.requestTick=state.tick;m.path=[];m.pathIndex=0;continue;}
+    if(!waypointVisible&&!grid.segment({x:s.x[i],y:s.y[i]},waypoint,s.radius[i],s.layer[i],s.id[i])){m.status="waiting";m.requestTick=state.tick;m.path=[];m.pathIndex=0;continue;}
     const dx=waypoint.x-s.x[i],dy=waypoint.y-s.y[i],distance=integerSqrt(dx*dx+dy*dy);
     const side=s.radius[i]*2+32,horizontal=Math.abs(dx)>=Math.abs(dy);
     const narrow=s.layer[i]==="ground"&&[-1,1].some(sign=>!grid.clear({x:s.x[i]+(horizontal?0:sign*side),y:s.y[i]+(horizontal?sign*side:0)},s.radius[i],s.layer[i],s.id[i]));

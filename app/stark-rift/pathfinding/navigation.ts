@@ -4,14 +4,40 @@ import type { NavigationJob } from "./state";
 import { checksum } from "../core/checksum";
 import { DestinationReservations } from "./destinations";
 import { segmentNearCircle, segmentNearTile } from "./geometry";
+import { SpatialHash } from "./spatial-hash";
 export const CELL = 128;
 export type Point = {x:number;y:number};
 export class NavigationGrid {
   readonly width:number; readonly height:number;
-  constructor(readonly map:BattleMap,private state:SimulationState){this.width=map.widthTiles*2;this.height=map.heightTiles*2;}
+  private blockedRows?:number[][];
+  private clearTables?:Map<string,Int8Array>;
+  private staticIds=new Set<number>();
+  /** Optional index is owned by the caller and updated whenever positions change. */
+  constructor(readonly map:BattleMap,private state:SimulationState,private spatial?:SpatialHash,snapshotTerrain=false,snapshotObstacles=false){
+    this.width=map.widthTiles*2;this.height=map.heightTiles*2;
+    // Only the command/pathfinding/movement epoch opts in; ordinary grids remain live.
+    if(snapshotTerrain){
+      this.blockedRows=Array.from({length:map.heightTiles},()=>[]);
+      for(let i=0;i<map.walkable.length;i++)if(!map.walkable[i])this.blockedRows[Math.floor(i/map.widthTiles)].push(i%map.widthTiles);
+    }
+    if(snapshotObstacles){
+      this.clearTables=new Map();
+      state.entities.id.forEach((id,i)=>{if(state.entities.health[i]>0&&(state.entities.kind[i]==="building"||state.movement[i].order==="idle"||state.movement[i].order==="hold"))this.staticIds.add(id);});
+    }
+  }
   point(cell:number):Point{return {x:(cell%this.width)*CELL+CELL/2,y:Math.floor(cell/this.width)*CELL+CELL/2};}
   cell(point:Point):number{return Math.min(this.height-1,Math.max(0,Math.floor(point.y/CELL)))*this.width+Math.min(this.width-1,Math.max(0,Math.floor(point.x/CELL)));}
   clear(point:Point,radius:number,layer:string,ignore=0):boolean{
+    if(this.clearTables&&point.x>=0&&point.y>=0&&point.x<this.map.widthTiles*256&&point.y<this.map.heightTiles*256&&point.x%CELL===CELL/2&&point.y%CELL===CELL/2){
+      const key=`${radius}:${layer}:${this.staticIds.has(ignore)?ignore:0}`;
+      let table=this.clearTables.get(key);if(!table){table=new Int8Array(this.width*this.height);this.clearTables.set(key,table);}
+      const cell=Math.floor(point.y/CELL)*this.width+Math.floor(point.x/CELL),cached=table[cell];
+      if(cached)return cached>0;
+      const result=this.clearUncached(point,radius,layer,ignore);table[cell]=result?1:-1;return result;
+    }
+    return this.clearUncached(point,radius,layer,ignore);
+  }
+  private clearUncached(point:Point,radius:number,layer:string,ignore:number):boolean{
     const {x,y}=point, w=this.map.widthTiles,h=this.map.heightTiles;
     if(x-radius<0||y-radius<0||x+radius>=w*256||y+radius>=h*256)return false;
     if(layer!=="air")for(let ty=Math.floor((y-radius)/256);ty<=Math.floor((y+radius)/256);ty++) for(let tx=Math.floor((x-radius)/256);tx<=Math.floor((x+radius)/256);tx++){
@@ -20,14 +46,26 @@ export class NavigationGrid {
       if(dx*dx+dy*dy<radius*radius)return false;
     }
     const s=this.state.entities;
-    for(let i=0;i<s.id.length;i++)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")){const dx=x-s.x[i],dy=y-s.y[i],r=radius+s.radius[i];if(dx*dx+dy*dy<r*r)return false;}
+    const candidates=this.spatial?.queryBounds(x-radius,y-radius,x+radius,y+radius)??s.id.keys();
+    for(const i of candidates)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")){const dx=x-s.x[i],dy=y-s.y[i],r=radius+s.radius[i];if(dx*dx+dy*dy<r*r)return false;}
     return true;
   }
   segment(a:Point,b:Point,radius:number,layer:string,ignore=0):boolean{
     if(!this.clear(a,radius,layer,ignore)||!this.clear(b,radius,layer,ignore))return false;
-    if(layer!=="air")for(let y=Math.max(0,Math.floor((Math.min(a.y,b.y)-radius)/256));y<=Math.min(this.map.heightTiles-1,Math.floor((Math.max(a.y,b.y)+radius)/256));y++)for(let x=Math.max(0,Math.floor((Math.min(a.x,b.x)-radius)/256));x<=Math.min(this.map.widthTiles-1,Math.floor((Math.max(a.x,b.x)+radius)/256));x++)if(!this.map.walkable[y*this.map.widthTiles+x]&&segmentNearTile(a,b,x*256,y*256,radius))return false;
+    if(layer!=="air"){
+      const left=Math.max(0,Math.floor((Math.min(a.x,b.x)-radius)/256)),right=Math.min(this.map.widthTiles-1,Math.floor((Math.max(a.x,b.x)+radius)/256));
+      const top=Math.max(0,Math.floor((Math.min(a.y,b.y)-radius)/256)),bottom=Math.min(this.map.heightTiles-1,Math.floor((Math.max(a.y,b.y)+radius)/256));
+      for(let y=top;y<=bottom;y++){
+        if(this.blockedRows){
+          const row=this.blockedRows[y];let low=0,high=row.length;
+          while(low<high){const mid=(low+high)>>>1;if(row[mid]<left)low=mid+1;else high=mid;}
+          for(let i=low;i<row.length&&row[i]<=right;i++)if(segmentNearTile(a,b,row[i]*256,y*256,radius))return false;
+        }else for(let x=left;x<=right;x++)if(!this.map.walkable[y*this.map.widthTiles+x]&&segmentNearTile(a,b,x*256,y*256,radius))return false;
+      }
+    }
     const s=this.state.entities;
-    for(let i=0;i<s.id.length;i++)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")&&segmentNearCircle(a,b,{x:s.x[i],y:s.y[i]},radius+s.radius[i]))return false;
+    const candidates=this.spatial?.queryBounds(Math.min(a.x,b.x)-radius,Math.min(a.y,b.y)-radius,Math.max(a.x,b.x)+radius,Math.max(a.y,b.y)+radius)??s.id.keys();
+    for(const i of candidates)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")&&segmentNearCircle(a,b,{x:s.x[i],y:s.y[i]},radius+s.radius[i]))return false;
     return true;
   }
 }
@@ -42,7 +80,7 @@ function path(job:NavigationJob,end:number):number[]{const result=[end];while(en
 function jobKey(goal:number,radius:number,layer:string,version:number){return `${goal}:${radius}:${layer}:${version}`;}
 /** Search queues and caches are state, so save/restore preserves scheduling and path completion ticks. */
 export function navigate(state:SimulationState,map:BattleMap):void{
-  const s=state.entities,n=state.navigation,grid=new NavigationGrid(map,state);
+  const s=state.entities,n=state.navigation,grid=new NavigationGrid(map,state,new SpatialHash(state),true,true);
   const obstacles=s.id.flatMap((id,i)=>s.health[i]>0&&(s.kind[i]==="building"||state.movement[i].order==="idle"||state.movement[i].order==="hold")?[[id,s.x[i],s.y[i],s.radius[i],s.layer[i]]]:[]);
   const signature=obstacles.length?checksum(obstacles):"none";
   if(n.obstacleSignature!==signature){n.obstacleSignature=signature;state.map.obstacleVersion++;}

@@ -3,7 +3,7 @@ import type { NavigationGrid, Point } from "./navigation";
 type Reservation = Point & {radius:number;layer:string};
 /** Stable ID order allocates non-overlapping final positions, independent of transient traffic. */
 export class DestinationReservations {
-  private entries:Reservation[]=[];
+  private cells=new Map<string,Reservation[]>();
   constructor(state:SimulationState,excluded:readonly number[],private clearance=0){
     const ignored=new Set(excluded),s=state.entities;
     for(let i=0;i<s.id.length;i++){
@@ -11,13 +11,25 @@ export class DestinationReservations {
       const m=state.movement[i];
       if(m.order==="focusAttack")continue;
       const point=m.target??{x:s.x[i],y:s.y[i]};
-      this.entries.push({...point,radius:s.radius[i],layer:s.layer[i]});
+      this.reserve(point,s.radius[i],s.layer[i]);
     }
   }
   free(point:Point,radius:number,layer:string):boolean{
-    return this.entries.every(other=>other.layer!==layer||(point.x-other.x)**2+(point.y-other.y)**2>=(radius+other.radius+2*this.clearance)**2);
+    const extent=radius+2*this.clearance,seen=new Set<Reservation>();
+    for(let y=Math.floor((point.y-extent)/512);y<=Math.floor((point.y+extent)/512);y++)for(let x=Math.floor((point.x-extent)/512);x<=Math.floor((point.x+extent)/512);x++){
+      for(const other of this.cells.get(`${layer}:${x},${y}`)??[]){
+        if(seen.has(other))continue;seen.add(other);
+        if((point.x-other.x)**2+(point.y-other.y)**2<(radius+other.radius+2*this.clearance)**2)return false;
+      }
+    }
+    return true;
   }
-  reserve(point:Point,radius:number,layer:string):void{this.entries.push({...point,radius,layer});}
+  reserve(point:Point,radius:number,layer:string):void{
+    const entry={...point,radius,layer};
+    for(let y=Math.floor((point.y-radius)/512);y<=Math.floor((point.y+radius)/512);y++)for(let x=Math.floor((point.x-radius)/512);x<=Math.floor((point.x+radius)/512);x++){
+      const key=`${layer}:${x},${y}`;if(!this.cells.has(key))this.cells.set(key,[]);this.cells.get(key)!.push(entry);
+    }
+  }
   allocate(grid:NavigationGrid,desired:Point,radius:number,layer:string,id:number):Point|null{
     desired={x:Math.min(grid.map.widthTiles*256-1,Math.max(0,desired.x)),y:Math.min(grid.map.heightTiles*256-1,Math.max(0,desired.y))};
     const cell=grid.cell(desired),cx=cell%grid.width,cy=Math.floor(cell/grid.width);
