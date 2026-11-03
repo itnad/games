@@ -1102,3 +1102,23 @@ test("starswar tanks holding a rally point siege ahead of time and unsiege when 
   assert.equal(tank.sieged, false, "집결지가 옮겨지면 시즈를 풀고 따라감");
   assert.ok(tank.y < stwRallyY("player", "main") - 4);
 });
+
+test("starswar AI scouts early and goes on alert against a rush: defense first, no attacks", () => {
+  const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "protoss" }, personas: { enemy: "dragoon" } });
+  state.sides.player.minerals = 9000;
+  for (const building of ["pylon", "gateway", "gateway", "gateway"]) {
+    stwCommand(state, "player", { type: "build", building });
+    finishAll(state);
+  }
+  // 정찰 일꾼이 질럿에게 잡히지 않도록 게이트웨이는 멈춰 둔다(건물만 보여 주면 된다).
+  stwCommand(state, "player", { type: "lineAll", unit: null, producer: "gateway" });
+  run(state, 125, stwAiThink);
+  assert.ok(state.units.some((unit) => unit.side === "enemy" && unit.group === "scout") || state.sides.enemy.ai.scouted, "2분에 정찰을 보냄");
+  run(state, 60, stwAiThink);
+  assert.ok(state.sides.enemy.intel, "정찰로 상대 건물을 봄");
+  assert.ok(state.sides.enemy.ai.alertUntil >= 480, `게이트웨이 3개를 보고 경계 (${state.sides.enemy.ai.alertUntil})`);
+  run(state, 90, stwAiThink);
+  assert.ok(stwOwnBuildings(state, "enemy", "forge").length >= 1 && stwOwnBuildings(state, "enemy", "cannon").length >= 1, "포지와 캐논을 먼저 세움");
+  assert.ok(stwOwnBuildings(state, "enemy", "gateway").length >= 2, "생산 건물을 늘림");
+  assert.equal(state.sides.enemy.ai.attacking, false, "경계 중에는 출격하지 않음");
+});

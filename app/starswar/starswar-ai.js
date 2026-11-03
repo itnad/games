@@ -1,6 +1,6 @@
 // 스타즈워 AI. 플레이어와 같은 stwCommand만 쓴다.
 // 성향마다 빌드 순서와 출격 규모가 다르다. 프로토스·테란·저그가 같은 틀을 쓴다.
-import { STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
+import { STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RALLY_RANGE, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
 import {
   stwArmy,
   stwBuildCheck,
@@ -98,6 +98,8 @@ const EARLY_WORKER_CAP = { pool: { until: 210, cap: 14 } };
 const FALLBACK_PRODUCER = { terran: "barracks", zerg: "hatch" };
 const LATE_UPGRADES = { protoss: ["weapons2", "shields1", "armor1"], terran: ["infWeapons2", "infArmor1"], zerg: ["zMelee2", "zMissile2", "zCarapace1"] };
 const DEFAULT_PERSONA = { protoss: "dragoon", terran: "bio", zerg: "hydra" };
+/** 경계 중에도 짓는 1단계 유닛 해금 건물: 질럿 러시에 드라군·파이어뱃·히드라로 맞서야 한다. */
+const ALERT_TECH = new Set(["core", "academy", "den"]);
 
 export function stwAiThink(state, side) {
   const record = state.sides[side];
@@ -109,12 +111,33 @@ export function stwAiThink(state, side) {
   const race = STW_RACES[record.race ?? "protoss"];
   const persona = record.persona ?? DEFAULT_PERSONA[race.id];
 
+  // 0. 정찰과 위협 판단: 일꾼 1기를 두 번 정찰 보내고, 이른 러시 조짐이나 침입을 보면 경계 태세로 들어간다.
+  // 2분에 첫 정찰(상대 두 번째 생산 건물이 설 무렵 도착), 3분 30초에 두 번째 정찰.
+  if (!memory.scouted && state.time >= 120 && record.probes >= 7 && stwCommand(state, side, { type: "scout" }).ok) memory.scouted = true;
+  if (memory.scouted && !memory.scouted2 && state.time >= 210 && record.probes >= 8 && stwCommand(state, side, { type: "scout" }).ok) memory.scouted2 = true;
+  const alert = assessThreat(state, side, memory);
+  const scoutingNow = state.units.filter((unit) => unit.side === side && unit.group === "scout").length;
+
   // 다음 건물·연구에 필요한 자원만 아껴 둔다(모자란 쪽만).
   const reserve = { minerals: 0, gas: 0 };
   const save = (minerals, gas) => {
     if (record.minerals < minerals) reserve.minerals = Math.max(reserve.minerals, minerals);
     if (record.gas < gas) reserve.gas = Math.max(reserve.gas, gas);
   };
+  // 경계 중에는 방어 건물이 가장 먼저다: 못 지으면 그 비용을 아껴 둔다(병력이 3기 미만일 때만 생산이 이를 무시한다).
+  // 순서: 방어 건물 하나(프로토스는 포지부터) → 생산 건물 셋 → 방어 건물 둘(저그는 셋).
+  if (alert) {
+    const producersNow = race.producers.reduce((sum, type) => sum + stwOwnBuildings(state, side, type).length, 0);
+    const alertProducer = EXTRA_PRODUCER[persona] ?? race.mainProducer;
+    let waiting = ensureDefense(state, side, race, 1);
+    if (!waiting && producersNow < 3) {
+      const result = stwCommand(state, side, { type: "build", building: alertProducer });
+      if (!result.ok && /부족/.test(result.reason ?? "")) waiting = STW_BUILDINGS[alertProducer];
+    }
+    // 캐논은 포지까지 450이라 하나로 그치고, 벙커 둘, 성큰 셋.
+    if (!waiting && producersNow >= 3) waiting = ensureDefense(state, side, race, race.id === "protoss" ? 1 : race.id === "terran" ? 2 : 3);
+    if (waiting) save(waiting.minerals, waiting.gas);
+  }
   // 0. 상위 유닛 몫: 울트라리스크·럴커를 만들 차례면 연구보다 먼저 그 자원을 아껴 둔다.
   const signature = signatureUnit(state, side, persona);
   if (signature) save(STW_UNITS[signature].minerals, STW_UNITS[signature].gas);
@@ -126,9 +149,10 @@ export function stwAiThink(state, side) {
   }).length;
   const gasBuildings = stwOwnBuildings(state, side, race.refinery).length;
   const early = EARLY_WORKER_CAP[persona];
-  const probeTarget = Math.min(early && state.time < early.until ? early.cap : 44, bases * 16 + gasBuildings * 3);
+  // 이른 러시 경계 중(5분 전)에는 일꾼을 더 뽑지 않고 그 돈을 방어와 병력에 쓴다.
+  const probeTarget = alert && state.time < 300 ? Math.min(record.probes, 44) : Math.min(early && state.time < early.until ? early.cap : 44, bases * 16 + gasBuildings * 3);
   const queued = stwOwnBuildings(state, side, race.base).reduce((sum, nexus) => sum + nexus.queue.length, 0);
-  if (record.probes + queued < probeTarget && queued < 2 * bases) stwCommand(state, side, { type: "probe" });
+  if (record.probes + queued + scoutingNow < probeTarget && queued < 2 * bases) stwCommand(state, side, { type: "probe" });
 
   // 2. 인구
   const supply = stwSupply(state, side);
@@ -147,6 +171,12 @@ export function stwAiThink(state, side) {
     if (memory.done.includes(index)) continue;
     const step = order[index];
     if (step.at && state.time < step.at * STW_DIFFICULTIES[state.difficulty].waveScale) {
+      blocked += 1;
+      continue;
+    }
+    // 경계 중에는 확장·연구·상위 테크를 미루고 인구·생산 건물·방어 건물·1단계 유닛 해금 건물(코어·아카데미·덴)과 그에 필요한 가스만 짓는다.
+    const allowedInAlert = step.build && (step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && state.time >= 300) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length));
+    if (alert && !allowedInAlert) {
       blocked += 1;
       continue;
     }
@@ -178,6 +208,10 @@ export function stwAiThink(state, side) {
       if (STW_RESEARCH[research] && stwResearchCheck(state, side, research).ok && record.gas > 200) stwCommand(state, side, { type: "research", research });
     }
   }
+
+  // 3-0. 경계 중 방어 건물까지 갖춘 뒤 광물이 남으면 생산 건물을 넷까지 늘린다.
+  const alertProducer = EXTRA_PRODUCER[persona] ?? race.mainProducer;
+  if (alert && race.producers.reduce((sum, type) => sum + stwOwnBuildings(state, side, type).length, 0) < 4 && record.minerals - reserve.minerals >= STW_BUILDINGS[alertProducer].minerals + 100) stwCommand(state, side, { type: "build", building: alertProducer });
 
   // 3-1. 은폐 유닛에 당했으면 탐지기를 갖춘다: 로보가 있으면 옵저버, 없으면 포지와 포톤 캐논.
   const units = state.units.filter((unit) => unit.side === side);
@@ -220,7 +254,7 @@ export function stwAiThink(state, side) {
   // 3-4. 테란 생산 라인: 배럭(해병·메딕·파이어뱃), 팩토리(벌처·시즈 탱크).
   if (race.id === "terran") {
     terranLines(state, side, persona, units, reserve);
-    manageArmy(state, side, persona, memory, settings);
+    manageArmy(state, side, persona, memory, settings, { alert });
     return;
   }
   if (race.id === "zerg") {
@@ -238,7 +272,7 @@ export function stwAiThink(state, side) {
     else if (record.escort && !escorting && overlordBuildings < 2) stwCommand(state, side, { type: "escort", on: false });
     if (record.escort && record.gas > 300 && stwResearchCheck(state, side, "pneumatized").ok) stwCommand(state, side, { type: "research", research: "pneumatized" });
     // 동행 오버로드가 없는 동안 은폐 유닛에 당하면 스포어가 있는 기지에서 기다린다.
-    manageArmy(state, side, persona, memory, settings, { holdHome: needDetection && !escorting && units.filter((unit) => !STW_UNITS[unit.type].worker).length < 30 });
+    manageArmy(state, side, persona, memory, settings, { holdHome: needDetection && !escorting && units.filter((unit) => !STW_UNITS[unit.type].worker).length < 30, alert });
     return;
   }
 
@@ -288,7 +322,7 @@ export function stwAiThink(state, side) {
   });
 
   // 5. 병력
-  manageArmy(state, side, persona, memory, settings);
+  manageArmy(state, side, persona, memory, settings, { alert });
 }
 
 /** 생산 건물 n개 중 비율 share만큼을 뒤쪽 번호부터 고른다(앞쪽은 주력 유닛). */
@@ -420,10 +454,58 @@ function zergLines(state, side, persona, units, reserve) {
   });
 }
 
-function manageArmy(state, side, persona, memory, settings, { holdHome = false } = {}) {
+/**
+ * 위협 판단. 다음 중 하나면 경계 상태(memory.alertUntil)로 들어간다.
+ * - 정찰 정보에서 적 생산 건물이 3개 이상인데 6분 전(이른 러시 조짐) → 7분까지
+ * - 적 전투 유닛 3기 이상이 자기 진영 절반 안에 보임 → 45초
+ * - 자기 건물이 최근 10초 안에 맞음 → 45초
+ */
+function assessThreat(state, side, memory) {
+  // 경계 태세는 초반 러시 방어용이다. 10분이 지나면 평소 규칙(위협 시 후퇴, 출격 규모)만 쓴다.
+  if (state.time >= 600) return false;
   const record = state.sides[side];
-  const desiredRally = stwNexus(state, side, "natural") ? "natural" : "main";
-  if (record.rally !== desiredRally) stwCommand(state, side, { type: "rally", point: desiredRally });
+  const foe = stwOpponent(side);
+  const foeRace = STW_RACES[state.sides[foe].race ?? "protoss"];
+  let until = memory.alertUntil ?? 0;
+  if (record.intel && state.time - record.intel.time < 120 && state.time < 360) {
+    const producers = foeRace.producers.reduce((sum, type) => sum + (record.intel.buildings[type] ?? 0), 0) + (foeRace.id === "zerg" ? (record.intel.buildings.hatchery ?? 0) - 1 : 0);
+    const gasBuildings = record.intel.buildings[foeRace.refinery] ?? 0;
+    // 생산 건물 3개 이상, 또는 가스 없이 생산 건물 2개(테크를 버린 물량 러시) → 8분까지 경계.
+    if (producers >= 3 || (producers >= 2 && gasBuildings === 0)) until = Math.max(until, 480);
+  }
+  const ownHalf = (y) => (side === "player" ? y > 50 : y < 50);
+  const intruders = state.units.filter((unit) => unit.side === foe && !STW_UNITS[unit.type].worker && STW_UNITS[unit.type].role !== "support" && ownHalf(unit.y) && stwVisible(state, side, unit.x, unit.y)).length;
+  if (intruders >= 3) until = Math.max(until, state.time + 45);
+  if (state.buildings.some((building) => building.side === side && state.time - building.lastHit < 10)) until = Math.max(until, state.time + 45);
+  memory.alertUntil = until;
+  return state.time < until;
+}
+
+/** 방어 건물을 count개까지 갖춘다. 프로토스는 포지, 저그는 스포닝 풀, 테란은 배럭이 먼저 있어야 한다. */
+function ensureDefense(state, side, race, count) {
+  const defense = race.id === "protoss" ? "cannon" : race.id === "terran" ? "bunker" : "sunken";
+  const prerequisite = STW_BUILDINGS[defense].requires;
+  if (prerequisite && !stwHas(state, side, prerequisite)) {
+    if (stwOwnBuildings(state, side, prerequisite).length) return null;
+    const result = stwCommand(state, side, { type: "build", building: prerequisite });
+    return result.ok ? null : STW_BUILDINGS[prerequisite];
+  }
+  if (stwOwnBuildings(state, side, defense).length >= count) return null;
+  const result = stwCommand(state, side, { type: "build", building: defense });
+  return result.ok ? null : STW_BUILDINGS[defense];
+}
+
+function manageArmy(state, side, persona, memory, settings, { holdHome = false, alert = false } = {}) {
+  const record = state.sides[side];
+  // 저그는 경계 중이고 앞마당이 없으면 성큰 뒤(본진 안쪽, 아군 기준 84)에 모여 싸운다. 저글링은 열린 곳에서 약하고 성큰이 강하다.
+  // 테란·프로토스는 그대로 본진 앞에서 벙커·캐논의 구역 안에서 맞는다(시뮬레이션에서 뒤로 당기면 오히려 졌다).
+  const natural = stwNexus(state, side, "natural");
+  if (alert && !natural && record.race === "zerg") {
+    if (record.rally !== STW_RALLY_RANGE.max) stwCommand(state, side, { type: "move", y: STW_RALLY_RANGE.max });
+  } else {
+    const desiredRally = natural ? "natural" : "main";
+    if (record.rally !== desiredRally) stwCommand(state, side, { type: "rally", point: desiredRally });
+  }
   const army = stwArmy(state, side);
   const foe = stwOpponent(side);
 
@@ -458,9 +540,14 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false }
   const waves = WAVES[persona];
   // 목록이 끝난 뒤에는 실패할 때마다 출격 규모를 4기씩 키운다(최대 40기).
   const listed = waves[Math.min(memory.wave, waves.length - 1)] + Math.max(0, memory.wave - waves.length + 1) * 4;
-  // 적 방어 건물(캐논·벙커·성큰)을 본 만큼 더 모아서 간다(하나당 3기, 최대 9기). 방어 건물은 기지 전체를 지키므로 소수로 찔러 봐야 손해다.
+  // 적 방어 건물(캐논·벙커·성큰)을 본 만큼 더 모아서 간다(하나당 4기, 최대 12기). 방어 건물은 기지 전체를 지키므로 소수로 찔러 봐야 손해다.
   const defenses = Object.values(record.seen).filter((memoryItem) => STW_BUILDINGS[memoryItem.type]?.damage).length;
-  const size = allIn ? 1 : Math.round(Math.min(40, listed + Math.min(9, defenses * 3)) * settings.waveScale);
+  let size = allIn ? 1 : Math.round(Math.min(40, listed + Math.min(12, defenses * 4)) * settings.waveScale);
+  // 경계 중에는 보이는 적 전투 병력보다 넉넉히 많아질 때까지 집에서 버틴다.
+  if (alert && !allIn) {
+    const seenFighters = state.units.filter((unit) => unit.side === foe && !STW_UNITS[unit.type].worker && STW_UNITS[unit.type].role !== "support" && stwVisible(state, side, unit.x, unit.y)).length;
+    size = Math.max(size, Math.ceil(seenFighters * 1.3) + 2);
+  }
   if (army.fighters.length >= size) {
     stwCommand(state, side, { type: "attack" });
     memory.attacking = true;
