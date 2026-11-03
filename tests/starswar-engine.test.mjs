@@ -935,6 +935,34 @@ test("starswar a single detector building reveals cloaked units across its whole
   assert.equal(stwDetected(z, stwSpawnUnitAt(z, "enemy", "dark", home.x - 6, home.y + 2, "attack"), "player"), true);
 });
 
+test("starswar a sunken colony strikes anywhere in its base and each strike leaves a tentacle effect", () => {
+  const state = zerg("protoss");
+  state.sides.player.minerals = 9000;
+  for (const building of ["pool", "sunken"]) {
+    assert.equal(stwCommand(state, "player", { type: "build", building }).ok, true, building);
+    finishAll(state);
+  }
+  const sunken = stwOwnBuildings(state, "player", "sunken")[0];
+  const main = stwNexus(state, "player", "main");
+  // 성큰 사거리 7 밖, 본진 구역 안에서 일꾼을 치는 질럿.
+  const zealot = stwSpawnUnitAt(state, "enemy", "zealot", main.x - 6, main.y - 3, "attack");
+  assert.ok(Math.hypot(zealot.x - sunken.x, zealot.y - sunken.y) > 7);
+  const seen = new WeakSet();
+  let strikes = 0;
+  for (let index = 0; index < 300 && zealot.hp > 0; index += 1) {
+    stepStarswar(state);
+    for (const effect of state.effects) {
+      if (effect.kind !== "tentacle" || seen.has(effect)) continue;
+      seen.add(effect);
+      strikes += 1;
+      assert.deepEqual([effect.attackerId, effect.targetId], [sunken.id, zealot.id]);
+      assert.ok(effect.max >= 0.6, "촉수가 보일 만큼 오래 남는다");
+    }
+  }
+  assert.ok(strikes >= 3, `촉수 공격 ${strikes}회`);
+  assert.ok(zealot.hp <= 0, "질럿이 죽는다");
+});
+
 test("starswar map taps move the army: forward fights, backward retreats, enemy base attacks", () => {
   const state = quiet();
   const units = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "player", "zealot", 16 + index * 4, 77));

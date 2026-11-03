@@ -1087,7 +1087,7 @@ function cannonStep(state, building, dt) {
   building.cooldown = def.cooldown;
   queueHit(state, building, target);
   const kind = building.type === "cannon" ? "photon" : building.type === "sunken" ? "tentacle" : "bullet";
-  const ttl = kind === "photon" ? 0.3 : kind === "tentacle" ? 0.45 : 0.12;
+  const ttl = kind === "photon" ? 0.3 : kind === "tentacle" ? 0.8 : 0.12;
   state.effects.push({ kind, side: building.side, x1: building.x, y1: building.y, x2: target.x, y2: target.y, ttl, max: ttl, attackerId: building.id, targetId: target.id });
 }
 

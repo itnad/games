@@ -25,7 +25,7 @@ const FONT = "system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', '
 const FOG_CELL = 2;
 
 type UnitView = { root: Container; body: Sprite; glow: Sprite; ring: Sprite; hp: number; shields: number; flash: number; flashColor: number; jitter: number; lunge: number; lungeAngle: number; turret: Sprite | null; aim: number; sieged: boolean; x: number; y: number; heading: number; bob: number };
-type BuildingView = { root: Container; body: Sprite; glow: Sprite | null; ghost: boolean; lair: boolean };
+type BuildingView = { root: Container; body: Sprite; glow: Sprite | null; ghost: boolean; lair: boolean; pulse: number };
 type Particle = { sprite: Sprite; x: number; y: number; vx: number; vy: number; life: number; max: number; s0: number; s1: number; a0: number; rise: number };
 type Decal = { sprite: Sprite; life: number; max: number; a0: number };
 type WorkerView = { root: Container; body: Sprite; cargo: Sprite };
@@ -70,6 +70,7 @@ export class StwPixiRenderer {
   private readonly fxLayer: Container;
   private readonly stormLayer: Graphics;
   private readonly beamLayer: Graphics;
+  private readonly tentacleLayer: Graphics;
   private readonly fog: Graphics;
   private readonly overlay: Container;
   private readonly bars: Graphics;
@@ -128,6 +129,7 @@ export class StwPixiRenderer {
     this.stormLayer.blendMode = "add";
     this.beamLayer = new PIXI.Graphics();
     this.beamLayer.blendMode = "add";
+    this.tentacleLayer = new PIXI.Graphics();
     this.fxLayer = new PIXI.Container();
     this.fog = new PIXI.Graphics();
     // 칸 단위로 그린 안개 경계를 흐려 부드러운 시야 가장자리로 만든다.
@@ -136,7 +138,7 @@ export class StwPixiRenderer {
     this.rallyFlag.anchor.set(0.5, 0.9);
     this.flagScale = this.rallyFlag.scale.x;
     this.workerLayer = new PIXI.Container();
-    this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.rallyFlag, this.unitLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
+    this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.tentacleLayer, this.rallyFlag, this.unitLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
     this.overlay = new PIXI.Container();
     this.bars = new PIXI.Graphics();
     this.overlay.addChild(this.bars);
@@ -202,12 +204,13 @@ export class StwPixiRenderer {
     this.flagPulse = Math.max(0, this.flagPulse - realDt * 2.5);
     const rallyY = stwRallyY("player", ui.rally);
     this.drawUnderlay(state, rallyY, ui.clock);
-    this.syncBuildings(state);
+    this.syncBuildings(state, realDt);
     this.syncWorkers(state, ui.clock);
     this.syncUnits(state, realDt);
     this.drawBeams(state, ui.clock);
     this.spawnEffects(state);
     this.drawProjectiles(state);
+    this.drawTentacles(state, ui.clock);
     this.drawStorms(state, ui.clock);
     this.stepParticles(dt);
     this.stepDecals(dt);
@@ -293,7 +296,7 @@ export class StwPixiRenderer {
     }
   }
 
-  private syncBuildings(state: StwState) {
+  private syncBuildings(state: StwState, realDt: number) {
     const seen = state.sides.player.seen;
     const alive = new Set<number>();
     const visibleEnemy = new Set<number>();
@@ -319,11 +322,14 @@ export class StwPixiRenderer {
       }
       // 오버로드는 공중에 떠서 천천히 흔들린다.
       if (building.type === "overlord") view.body.position.set(Math.sin(state.time * 0.7 + building.id) * 0.4, Math.cos(state.time * 0.9 + building.id) * 0.3 - 0.6);
-      // 저그 건물은 숨 쉬듯 살짝 부푼다.
+      // 저그 건물은 숨 쉬듯 살짝 부푼다. 성큰 콜로니는 촉수를 내지를 때 크게 움찔한다.
+      view.pulse = Math.max(0, view.pulse - realDt * 3);
       if ((STW_BUILDINGS[building.type] as { race?: string }).race === "zerg" && done && building.type !== "overlord") {
-        const breathe = 1 + Math.sin(state.time * 1.6 + building.id) * 0.012;
+        const jolt = Math.sin(Math.min(1, view.pulse) * Math.PI) * 0.16;
+        const breathe = 1 + Math.sin(state.time * 1.6 + building.id) * 0.012 + jolt;
         const base = STW_BUILDINGS[building.type].size / Math.max(view.body.texture.width, view.body.texture.height);
         view.body.scale.set(base * breathe, base / breathe);
+        view.body.tint = view.ghost ? 0x9a8f80 : view.pulse > 0.6 ? 0xffc8d8 : 0xffffff;
       }
     }
     for (const [id, view] of this.buildingViews) {
@@ -359,7 +365,7 @@ export class StwPixiRenderer {
     }
     root.addChild(body);
     this.buildingLayer.addChild(root);
-    const view = { root, body, glow, ghost: false, lair: false };
+    const view = { root, body, glow, ghost: false, lair: false, pulse: 0 };
     this.buildingViews.set(building.id, view);
     return view;
   }
@@ -767,10 +773,11 @@ export class StwPixiRenderer {
         if (i % 2 === 0) this.smoke(x, y, 0.9, 0.6);
       }
     } else if (effect.kind === "tentacle") {
-      // 성큰 촉수: 대상 발밑에서 솟구친다.
-      this.flash(effect.x2, effect.y2, 2, 0.14, 0xe6d6b2);
-      for (let i = 0; i < 5; i += 1) this.spark(effect.x2, effect.y2, i % 2 ? 0x8a5468 : 0xe6d6b2, 4, 0.4);
-      this.smoke(effect.x2, effect.y2, 1.4, 0.8);
+      // 성큰 촉수: 성큰이 움찔하며 흙을 튀기고, 촉수는 drawTentacles가 땅을 타고 뻗어 가게 그린다.
+      const sunken = effect.attackerId === undefined ? undefined : this.buildingViews.get(effect.attackerId);
+      if (sunken) sunken.pulse = 1;
+      for (let i = 0; i < 3; i += 1) this.smoke(effect.x1, effect.y1, 1.2, 0.6);
+      for (let i = 0; i < 3; i += 1) this.spark(effect.x1, effect.y1, 0x6e4a3a, 3, 0.3);
     } else if (effect.kind === "stim") {
       this.flash(effect.x1, effect.y1, 2.2, 0.2, 0xff4a4a);
       for (let i = 0; i < 3; i += 1) this.spark(effect.x1, effect.y1, 0xff7070, 2.5, 0.4);
@@ -851,6 +858,53 @@ export class StwPixiRenderer {
     this.decals.addChild(sprite);
     this.decalList.push({ sprite, life, max: life, a0: alpha });
     if (this.decalList.length > 50) this.decalList.shift()?.sprite.destroy();
+  }
+
+  /**
+   * 성큰 콜로니 촉수. 땅을 타고 꿈틀대며 대상까지 뻗어 나가(앞 30%) 찍은 뒤(흙·살점이 튀고 충격 고리) 되감긴다.
+   * 멀리서 때려도 성큰과 맞는 유닛이 선으로 이어져 보인다.
+   */
+  private drawTentacles(state: StwState, clock: number) {
+    const g = this.tentacleLayer;
+    g.clear();
+    for (const effect of state.effects) {
+      if (effect.kind !== "tentacle") continue;
+      if (effect.side !== "player" && !this.visiblePoint(state, effect.x1, effect.y1) && !this.visiblePoint(state, effect.x2, effect.y2)) continue;
+      const t = 1 - effect.ttl / effect.max;
+      const reach = t < 0.3 ? 1 - (1 - t / 0.3) ** 2 : 1;
+      const from = t > 0.6 ? (t - 0.6) / 0.4 : 0;
+      if (reach <= from) continue;
+      const dx = effect.x2 - effect.x1;
+      const dy = effect.y2 - effect.y1;
+      const length = Math.hypot(dx, dy) || 1;
+      const nx = -dy / length;
+      const ny = dx / length;
+      const steps = Math.max(6, Math.min(24, Math.round(length * 1.2)));
+      const points: Array<[number, number]> = [];
+      for (let i = 0; i <= steps; i += 1) {
+        const s = from + ((reach - from) * i) / steps;
+        const wave = Math.sin(s * Math.PI * 3 - clock * 14) * 0.7 * Math.sin(s * Math.PI) * (t < 0.3 ? 1 : 0.5);
+        points.push([effect.x1 + dx * s + nx * wave, effect.y1 + dy * s + ny * wave]);
+      }
+      for (let i = 1; i < points.length; i += 1) {
+        const s = i / points.length;
+        g.moveTo(points[i - 1][0], points[i - 1][1]).lineTo(points[i][0], points[i][1]).stroke({ width: 1.1 - s * 0.6, color: 0x6e3d52, cap: "round", alpha: 0.95 });
+        g.moveTo(points[i - 1][0], points[i - 1][1]).lineTo(points[i][0], points[i][1]).stroke({ width: 0.5 - s * 0.3, color: 0xc78aa0, cap: "round", alpha: 0.9 });
+      }
+      // 끝은 뼈 가시.
+      const tip = points[points.length - 1];
+      const prev = points[Math.max(0, points.length - 3)];
+      const angle = Math.atan2(tip[1] - prev[1], tip[0] - prev[0]);
+      g.moveTo(tip[0], tip[1]).lineTo(tip[0] + Math.cos(angle) * 0.9, tip[1] + Math.sin(angle) * 0.9).stroke({ width: 0.45, color: 0xe6d6b2, cap: "round" });
+      if (t >= 0.3 && !this.impacted.has(effect)) {
+        this.impacted.add(effect);
+        this.impactRing(effect.x2, effect.y2, 2.2, 0xe6d6b2);
+        this.flash(effect.x2, effect.y2, 2, 0.14, 0xe6d6b2);
+        for (let i = 0; i < 6; i += 1) this.spark(effect.x2, effect.y2, i % 2 ? 0x8a5468 : 0xe6d6b2, 4, 0.4);
+        this.smoke(effect.x2, effect.y2, 1.4, 0.8);
+        this.decal(this.tex.scorch, effect.x2, effect.y2, 1.6, 6, 0.3, Math.random() * Math.PI);
+      }
+    }
   }
 
   private drawProjectiles(state: StwState) {
