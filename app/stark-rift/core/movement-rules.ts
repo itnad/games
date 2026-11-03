@@ -8,6 +8,7 @@ import { formationOffsets, integerSqrt } from "../pathfinding/formation";
 import { SpatialHash } from "../pathfinding/spatial-hash";
 import { DestinationReservations } from "../pathfinding/destinations";
 
+const MOVEMENT_DIRECTIONS=[[1024,0],[946,392],[724,724],[392,946],[0,1024],[-392,946],[-724,724],[-946,392],[-1024,0],[-946,-392],[-724,-724],[-392,-946],[0,-1024],[392,-946],[724,-724],[946,-392]] as const;
 export type VisibilityCheck=(state:SimulationState,viewer:number,targetIndex:number)=>boolean;
 export function createMovementRules(map:BattleMap,visible:VisibilityCheck=()=>false):EngineRules{
   const handlers:NonNullable<EngineRules["commands"]>={};
@@ -118,11 +119,21 @@ function move(state:SimulationState,map:BattleMap,visible:VisibilityCheck):void{
     let nx=waypoint.x,ny=waypoint.y;
     if(distance>step){let mx=Math.trunc(dx*step/Math.max(1,distance)),my=Math.trunc(dy*step/Math.max(1,distance));if(!mx&&!my){if(Math.abs(dx)>=Math.abs(dy))mx=Math.sign(dx);else my=Math.sign(dy);}nx=s.x[i]+mx;ny=s.y[i]+my;}
     const start={x:s.x[i],y:s.y[i]};
-    const directions=[[1024,0],[946,392],[724,724],[392,946],[0,1024],[-392,946],[-724,724],[-946,392],[-1024,0],[-946,-392],[-724,-724],[-392,-946],[0,-1024],[392,-946],[724,-724],[946,-392]];
-    const candidates=[{x:nx,y:ny},...directions.map(([dx,dy])=>({x:s.x[i]+Math.trunc(dx*step/1024),y:s.y[i]+Math.trunc(dy*step/1024)}))]
-      .filter(point=>point.x!==start.x||point.y!==start.y)
-      .sort((a,b)=>(a.x-waypoint.x)**2+(a.y-waypoint.y)**2-(b.x-waypoint.x)**2-(b.y-waypoint.y)**2||a.y-b.y||a.x-b.x);
-    const next=candidates.find(point=>grid.segment(start,point,s.radius[i],s.layer[i],s.id[i])&&!hash.overlapsSegment(i,start,point));
+    const score=(x:number,y:number)=>(x-waypoint.x)**2+(y-waypoint.y)**2;
+    let bestX=nx,bestY=ny,bestScore=nx===start.x&&ny===start.y?Infinity:score(nx,ny);
+    for(const [dx,dy]of MOVEMENT_DIRECTIONS){
+      const x=start.x+Math.trunc(dx*step/1024),y=start.y+Math.trunc(dy*step/1024);if(x===start.x&&y===start.y)continue;
+      const value=score(x,y);
+      if(value<bestScore||(value===bestScore&&(y<bestY||(y===bestY&&x<bestX)))){bestX=x;bestY=y;bestScore=value;}
+    }
+    let next:Point|undefined;
+    if(bestScore<Infinity&&grid.segment(start,{x:bestX,y:bestY},s.radius[i],s.layer[i],s.id[i])&&!hash.overlapsSegment(i,start,{x:bestX,y:bestY}))next={x:bestX,y:bestY};
+    else{
+      const candidates=[{x:nx,y:ny},...MOVEMENT_DIRECTIONS.map(([dx,dy])=>({x:start.x+Math.trunc(dx*step/1024),y:start.y+Math.trunc(dy*step/1024)}))]
+        .filter(point=>(point.x!==start.x||point.y!==start.y)&&(point.x!==bestX||point.y!==bestY))
+        .sort((a,b)=>score(a.x,a.y)-score(b.x,b.y)||a.y-b.y||a.x-b.x);
+      next=candidates.find(point=>grid.segment(start,point,s.radius[i],s.layer[i],s.id[i])&&!hash.overlapsSegment(i,start,point));
+    }
     if(next){s.x[i]=next.x;s.y[i]=next.y;hash.update(i);if(next.x===waypoint.x&&next.y===waypoint.y){m.pathIndex++;m.stalledTicks=0;}else if((next.x-waypoint.x)**2+(next.y-waypoint.y)**2<dx*dx+dy*dy)m.stalledTicks=0;else m.stalledTicks++;}
     else m.stalledTicks++;
     if(m.pathIndex>=m.path.length){
