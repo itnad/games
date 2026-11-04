@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PAPEROID_BUILD_ID } from "./app-version";
 import { MUDFLAT_ACTIVE_RUN_KEY } from "./mudflat-run-save.js";
@@ -10,7 +11,6 @@ import {
   HIGHEST_STAGE_KEY,
   LAST_MODE_KEY,
   MOSQUITO_REPELLENT_KEY,
-  MUDFLAT_BACK_GUARD_STATE,
   MUDFLAT_DEV_LAUNCH_KEY,
   createCampaign,
 } from "./mudflat-survivor-model";
@@ -98,7 +98,7 @@ const DEV_PRESETS: DevPreset[] = [
   },
   {
     id: "secret-skills",
-    title: "비밀 스킬 프리셋",
+    title: "비밀 채집기술 프리셋",
     stage: 3,
     description: "전기 5, 담기 5, 돌뒤집개 5, 그물 1 상태로 시작합니다.",
     coins: 1500,
@@ -128,7 +128,6 @@ const STORAGE_KEYS = [
   HIGHEST_STAGE_KEY,
   LAST_MODE_KEY,
   BEST_KEY,
-  MUDFLAT_BACK_GUARD_STATE,
 ];
 
 function safeRead(key: string) {
@@ -189,19 +188,64 @@ function collectExportPayload() {
     return acc;
   }, {});
   return JSON.stringify({
+    formatVersion: 1,
     buildId: PAPEROID_BUILD_ID,
     exportedAt: new Date().toISOString(),
     storage: entries,
   }, null, 2);
 }
 
+const MAX_IMPORT_LENGTH = 1_000_000;
+
+function parseRestorePayload(raw: string) {
+  if (!raw.trim()) throw new Error("복원할 JSON을 먼저 붙여 넣어 주세요.");
+  if (raw.length > MAX_IMPORT_LENGTH) throw new Error("복원 데이터가 1MB를 넘어 사용할 수 없습니다.");
+  let payload: unknown;
+  try { payload = JSON.parse(raw); }
+  catch { throw new Error("JSON 형식이 올바르지 않습니다."); }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("복원 데이터의 최상위 형식이 올바르지 않습니다.");
+  const record = payload as { formatVersion?: unknown; storage?: unknown };
+  if (record.formatVersion !== 1) throw new Error("지원하지 않는 저장값 형식입니다.");
+  if (!record.storage || typeof record.storage !== "object" || Array.isArray(record.storage)) throw new Error("storage 항목이 없습니다.");
+  const storage = record.storage as Record<string, unknown>;
+  const unknownKeys = Object.keys(storage).filter((key) => !STORAGE_KEYS.includes(key));
+  if (unknownKeys.length > 0) throw new Error("해루질럿과 관계없는 저장 키가 포함되어 있습니다.");
+  for (const key of STORAGE_KEYS) {
+    const value = storage[key] ?? null;
+    if (value !== null && typeof value !== "string") throw new Error(`${key} 값은 문자열이어야 합니다.`);
+  }
+  const mode = storage[LAST_MODE_KEY];
+  if (mode !== null && mode !== undefined && mode !== "normal" && mode !== "kids") throw new Error("마지막 모드 값이 올바르지 않습니다.");
+  for (const [key, minimum, maximum] of [[HIGHEST_STAGE_KEY, 1, 9], [BEST_KEY, 0, Number.MAX_SAFE_INTEGER]] as const) {
+    const value = storage[key];
+    if (value !== null && value !== undefined) {
+      const numeric = Number(value);
+      if (!Number.isInteger(numeric) || numeric < minimum || numeric > maximum) throw new Error(`${key} 숫자 값이 올바르지 않습니다.`);
+    }
+  }
+  for (const key of [CAMPAIGN_KEY, MUDFLAT_ACTIVE_RUN_KEY]) {
+    const value = storage[key];
+    if (typeof value !== "string") continue;
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed === null || typeof parsed !== "object") throw new Error();
+    } catch { throw new Error(`${key} 내부 JSON이 올바르지 않습니다.`); }
+  }
+  return STORAGE_KEYS.reduce<Record<string, string | null>>((result, key) => {
+    result[key] = typeof storage[key] === "string" ? storage[key] as string : null;
+    return result;
+  }, {});
+}
+
 export function MudflatDevTools() {
   const [snapshot, setSnapshot] = useState<LocalSnapshot>(() => ({ highest: "-", lastMode: "-", best: "-", campaign: "-", activeRun: "-" }));
   const [exportText, setExportText] = useState("");
+  const [importText, setImportText] = useState("");
   const [status, setStatus] = useState("개발 프리셋을 선택하면 해루질럿으로 이동해 바로 시작합니다.");
 
   useEffect(() => {
-    setSnapshot(readSnapshot());
+    const frame = window.requestAnimationFrame(() => setSnapshot(readSnapshot()));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   const stageRows = useMemo(() => {
@@ -222,6 +266,7 @@ export function MudflatDevTools() {
       window.localStorage.removeItem(MUDFLAT_ACTIVE_RUN_KEY);
       window.sessionStorage.setItem(MUDFLAT_DEV_LAUNCH_KEY, JSON.stringify({
         version: 1,
+        seed: 20261102 + preset.stage * 101,
         label: preset.title,
         campaign,
         run: true,
@@ -269,10 +314,27 @@ export function MudflatDevTools() {
     }
   };
 
+  const restoreData = () => {
+    try {
+      const storage = parseRestorePayload(importText);
+      if (!window.confirm("현재 해루질럿 저장값을 붙여 넣은 데이터로 교체할까요?")) return;
+      for (const key of STORAGE_KEYS) {
+        const value = storage[key];
+        if (value === null) window.localStorage.removeItem(key);
+        else window.localStorage.setItem(key, value);
+      }
+      window.sessionStorage.removeItem(MUDFLAT_DEV_LAUNCH_KEY);
+      setSnapshot(readSnapshot());
+      setStatus("내보낸 해루질럿 저장값을 이 브라우저에 복원했습니다.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "저장값을 복원하지 못했습니다.");
+    }
+  };
+
   return (
     <main className="mudflat-dev-shell">
       <section className="mudflat-dev-hero">
-        <a href="/haeru" className="mudflat-dev-back">← 해루질럿으로</a>
+        <Link href="/haeru" className="mudflat-dev-back">← 해루질럿으로</Link>
         <small>HAERUJILOT INTERNAL DEV</small>
         <h1>해루질럿 개발용 도구</h1>
         <p>직접 주소로만 접근하는 테스트 화면입니다. 서버 데이터나 비밀값을 바꾸지 않고, 현재 브라우저의 해루질럿 저장값과 테스트 진입만 다룹니다.</p>
@@ -303,6 +365,14 @@ export function MudflatDevTools() {
             <button type="button" className="danger" onClick={clearSavedData}>해루질럿 저장값 정리</button>
           </div>
           {exportText && <textarea readOnly value={exportText} aria-label="해루질럿 저장값 내보내기" />}
+          <label className="mudflat-dev-import">
+            <b>저장값 복원</b>
+            <span>위에서 내보낸 JSON을 붙여 넣으면 형식과 저장 키를 확인한 뒤 현재 브라우저에 복원합니다.</span>
+            <textarea value={importText} onChange={(event) => setImportText(event.target.value)} aria-label="해루질럿 저장값 복원 JSON" placeholder="내보낸 JSON을 여기에 붙여 넣으세요." />
+          </label>
+          <div className="mudflat-dev-actions">
+            <button type="button" onClick={restoreData} disabled={!importText.trim()}>붙여 넣은 저장값 복원</button>
+          </div>
           <p className="mudflat-dev-status" role="status">{status}</p>
         </article>
 

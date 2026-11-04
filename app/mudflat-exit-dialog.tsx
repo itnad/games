@@ -8,13 +8,11 @@ type Props = { onMain: () => void; onHome: () => void; onCancel: () => void; err
 export function MudflatExitDialog({ onMain, onHome, onCancel, error }: Props) {
   const panelRef = useRef<HTMLElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const cancelAction = useRef(onCancel);
-  cancelAction.current = onCancel;
   useEffect(() => {
     const previous = document.activeElement;
     cancelRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.preventDefault(); cancelAction.current(); }
+      if (event.key === "Escape") { event.preventDefault(); onCancel(); }
       if (event.key !== "Tab") return;
       const buttons = panelRef.current?.querySelectorAll<HTMLButtonElement>("button");
       if (!buttons?.length) return;
@@ -27,7 +25,7 @@ export function MudflatExitDialog({ onMain, onHome, onCancel, error }: Props) {
       document.removeEventListener("keydown", onKey);
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
     };
-  }, []);
+  }, [onCancel]);
   return <div className="ms-exit-dialog">
     <section ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="ms-exit-title" aria-describedby="ms-exit-description">
       <span className="ms-exit-symbol" aria-hidden="true">Ⅱ</span>

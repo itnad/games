@@ -196,3 +196,13 @@
 .ms-camp-skill-levels span.is-basic,.ms-pause-skills span.is-basic{padding-top:27px;border-color:#dcae53;background:linear-gradient(135deg,#fff4ca,#f1d58d);box-shadow:inset 0 0 0 1px #fff8d8}
 .ms-camp-skill-levels .is-basic i,.ms-pause-skills .is-basic i{color:#fff8dc;background:#8a5a18}
 .ms-camp-skill-levels .ms-skill-kind,.ms-pause-skills .ms-skill-kind{position:absolute;top:6px;left:9px;padding:2px 6px;border-radius:999px;color:#70450f;background:#fff9dc;font-size:9px;font-weight:900;line-height:1.2;letter-spacing:.05em}
+
+/* Developer save transfer controls remain legible without changing public game UI. */
+.mudflat-dev-import{display:grid;margin-top:18px;padding-top:16px;border-top:1px solid #eadcc6}
+.mudflat-dev-import>b{color:#203832;font-size:14px}
+.mudflat-dev-import>span{margin-top:5px;color:#806c58;font-size:12px;line-height:1.5}
+.mudflat-dev-actions button:disabled{cursor:not-allowed;opacity:.45}
+
+/* Intrinsic button content must not widen the mobile setup grid or push the guide offscreen. */
+.ms-shell{overflow-x:clip}
+@media(max-width:600px){.ms-setup .ms-mode-picker{grid-template-columns:repeat(2,minmax(0,1fr))!important}.ms-setup .ms-mode-picker button{width:100%;min-width:0;overflow:hidden}}

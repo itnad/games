@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { createRetryHold } from "./mudflat-retry.js";
 
 type HoldButtonProps = Pick<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "disabled" | "aria-pressed"> & {
@@ -8,14 +8,10 @@ type HoldButtonProps = Pick<ButtonHTMLAttributes<HTMLButtonElement>, "className"
 };
 
 export function MudflatHoldButton({ onShort, onLong, children, className = "", disabled = false, ...buttonProps }: HoldButtonProps) {
-  const callbacks = useRef({ onShort, onLong, disabled });
-  callbacks.current = { onShort, onLong, disabled };
-  const holdRef = useRef<ReturnType<typeof createRetryHold> | null>(null);
-  if (!holdRef.current) holdRef.current = createRetryHold(
-    () => { if (!callbacks.current.disabled) callbacks.current.onShort(); },
-    () => { if (!callbacks.current.disabled) callbacks.current.onLong(); },
-  );
-  const hold = holdRef.current;
+  const hold = useMemo(() => createRetryHold(
+    () => { if (!disabled) onShort(); },
+    () => { if (!disabled) onLong(); },
+  ), [disabled, onLong, onShort]);
   const input = useRef<{ pointerId: number | null; key: string | null }>({ pointerId: null, key: null });
   const cancel = () => { input.current = { pointerId: null, key: null }; hold.cancel(); };
 

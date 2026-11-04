@@ -288,6 +288,7 @@ async function readMudflatSourceBundle() {
     "../app/mudflat-survivor-game.tsx",
     "../app/mudflat-survivor-model.ts",
     "../app/mudflat-survivor-types.ts",
+    "../app/mudflat-terrain.ts",
     "../app/mudflat-canvas-utils.ts",
     "../app/mudflat-seafood-guide.tsx",
   ];
@@ -329,9 +330,15 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(tools, /HAERUJILOT INTERNAL DEV/);
   assert.match(tools, /DEV_PRESETS[\s\S]*?4단계 어두운 갯벌 · 랜턴 Lv\.1/);
   assert.match(tools, /window\.sessionStorage\.setItem\(MUDFLAT_DEV_LAUNCH_KEY/);
+  assert.match(tools, /formatVersion: 1/);
+  assert.match(tools, /parseRestorePayload/);
+  assert.match(tools, /현재 해루질럿 저장값을 붙여 넣은 데이터로 교체할까요/);
+  assert.match(tools, /붙여 넣은 저장값 복원/);
+  assert.match(tools, /seed: 20261102 \+ preset\.stage \* 101/);
   assert.match(tools, /window\.location\.assign\("\/haeru"\)/);
   assert.match(game, /JSON\.parse\(window\.sessionStorage\.getItem\(MUDFLAT_DEV_LAUNCH_KEY\)/);
   assert.match(game, /setScreen\(launch\.run \? "running" : "setup"\)/);
+  assert.match(game, /makeRuntime\(nextCampaign, launch\.seed\)/);
   assert.match(styles, /\.mudflat-dev-shell/);
 });
 
@@ -447,7 +454,7 @@ test("folds the mudflat departure panel and keeps its guide out of the active HU
     readFile(new URL("../app/game-objective-guide.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(source, /\[departureCollapsed, setDepartureCollapsed\] = useState\(true\)/);
-  assert.match(source, /screen !== "camp"\) \{\s*setDepartureCollapsed\(true\)/);
+  assert.match(source, /screen !== "camp"\) \{[\s\S]*?requestAnimationFrame\(\(\) => setDepartureCollapsed\(true\)\)/);
   assert.match(source, /aria-expanded=\{!departureCollapsed\} aria-controls="ms-departure-details"/);
   assert.match(source, /setDepartureCollapsed\(\(collapsed\) => !collapsed\)/);
   assert.match(source, /departureCollapsed \? "▲" : "▼"/);
@@ -520,6 +527,8 @@ test("shows an in-game mudflat seafood guide with collapsible market-backed entr
   assert.match(styles, /\.ms-seafood-detail\{[\s\S]*?grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.ms-seafood-thumb\{width:42px;height:42px/);
   assert.match(styles, /\.ms-seafood-thumb\.is-small-shrimp\{filter:sepia\(\.24\) saturate\(\.55\)/);
+  assert.match(styles, /\.ms-shell\{overflow-x:clip\}/);
+  assert.match(styles, /\.ms-setup \.ms-mode-picker\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)!important\}/);
 });
 
 test("provides a complete objective and victory guide for every game", async () => {
@@ -591,8 +600,9 @@ test("provides a complete objective and victory guide for every game", async () 
   assert.match(guideSource, /승리 조건/);
   assert.match(guideSource, /게임 종료 시점/);
   assert.match(guideSource, /game-objective-steps/);
-  assert.deepEqual(GAME_OBJECTIVES["mudflat-survivor"].steps.map((step) => step.title), ["이동", "채집과 위험", "정비와 다음 물때"]);
+  assert.deepEqual(GAME_OBJECTIVES["mudflat-survivor"].steps.map((step) => step.title), ["이동", "채집과 위험", "베이스캠프 복귀"]);
   assert.match(GAME_OBJECTIVES["mudflat-survivor"].summary, /4분 동안 채집/);
+  assert.match(GAME_OBJECTIVES["mudflat-survivor"].victory, /베이스캠프에 도착해야 성공/);
 
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.equal(
@@ -769,6 +779,8 @@ test("detects published site updates and refreshes only through safe user action
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.match(viteConfig, /VITE_PAPEROID_BUILD_ID/);
+  assert.match(viteConfig, /execFileSync\("git", \["rev-parse", "--short=12", "HEAD"\]/);
+  assert.match(viteConfig, /catch \{ return "development"; \}/);
   assert.match(versionRoute, /Cache-Control[\s\S]*?no-store/);
   assert.match(pageSource, /UPDATE_CHECK_INTERVAL_MS = 5 \* 60 \* 1000/);
   assert.match(pageSource, /fetch\(`\/api\/version\?t=\$\{Date\.now\(\)\}`[\s\S]*?cache: "no-store"/);
@@ -1364,7 +1376,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const ACTION_PROGRESS_RING_RADIUS = 18/);
   assert.ok((source.match(/context\.arc\(0, 0, ACTION_PROGRESS_RING_RADIUS/g) ?? []).length >= 4);
   assert.match(source, /rockId: target\.id[\s\S]*?life: stats\.processingTime, maxLife: stats\.processingTime/);
-  assert.match(source, /runtime\.rockFlipEffect && runtime\.rockFlipEffect\.life <= 0[\s\S]*?mudflatRockCreatureForRoll\(Math\.random\(\), runtime\.levels\.rocker \?\? 1\)/);
+  assert.match(source, /runtime\.rockFlipEffect && runtime\.rockFlipEffect\.life <= 0[\s\S]*?mudflatRockCreatureForRoll\(runtimeRandom\(runtime\), runtime\.levels\.rocker \?\? 1\)/);
   assert.match(source, /const stillInRange = target &&[\s\S]*?runtime\.rockFlipEffect = null;[\s\S]*?runtime\.rockTurnClock = mudflatRockTurnerStats\(runtime\.levels\.rocker \?\? 1\)\.cooldown/);
   assert.match(source, /if \(runtime\.rockFlipEffect && runtime\.rockFlipEffect\.life <= 0\)[\s\S]*?runtime\.rockFlipEffect = null;\s*runtime\.rockTurnClock = mudflatRockTurnerStats\(runtime\.levels\.rocker \?\? 1\)\.cooldown;/);
   assert.doesNotMatch(source, /text: "빈 돌"/);
@@ -3267,7 +3279,7 @@ test("secret retry hold fires once after three seconds and cancels without falli
   assert.match(button, /onContextMenu=\{\(event\) => event.preventDefault\(\)\}/);
   assert.match(button, /window.removeEventListener\("blur", stop\)/);
   assert.match(button, /\[hold, disabled\]/);
-  assert.match(button, /if \(!callbacks.current.disabled\) callbacks.current.onLong\(\)/);
+  assert.match(button, /if \(!disabled\) onLong\(\)/);
   assert.match(button, /<MudflatHoldButton className="ms-primary ms-retry-button" onShort=\{onRetry\} onLong=\{onSecretRetry\}/);
 });
 

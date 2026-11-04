@@ -64,12 +64,14 @@ export function decodeMudflatRun(serialized, makeRuntime) {
       || campaign.coins < 0 || !positive(campaign.hp) || !positive(campaign.maxHp) || campaign.hp > campaign.maxHp
       || ![campaign.levels, campaign.equipment, campaign.inventory, campaign.lastHaul].every(countMap)) return null;
     if (!record(runtime) || runtime.ended !== false || runtime.stage !== campaign.stage || runtime.mode !== campaign.mode) return null;
-    const runtimeTemplate = makeRuntime(campaign);
+    const runtimeTemplate = makeRuntime(campaign, save.savedAt);
     // Older active-run autosaves did not know about the interactive first-run
     // guide. It is an opening tutorial layer, so backfill it from the current
     // runtime template instead of discarding an otherwise valid expedition.
     if (!finite(runtime.tutorialElapsed)) runtime.tutorialElapsed = 0;
     if (!("firstMoveGuide" in runtime)) runtime.firstMoveGuide = runtimeTemplate.firstMoveGuide;
+    if (!Number.isInteger(runtime.seed)) runtime.seed = runtimeTemplate.seed;
+    if (!Number.isInteger(runtime.rngState)) runtime.rngState = runtime.seed;
     // Older active-run autosaves did not know about stage-five deep-mud
     // visuals/state. They are cosmetic or transient, so backfill defaults
     // instead of discarding an otherwise valid expedition.

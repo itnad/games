@@ -81,6 +81,8 @@ tests/                           게임 규칙·저장·렌더링 회귀 테스�
 | `app/mudflat-survivor-engine.js` | 해산물·장비·기술·스테이지 수치와 순수 계산 함수 |
 | `app/mudflat-survivor-model.ts` | 캐릭터·캠페인 생성, 저장 키, 공통 표시 모델 |
 | `app/mudflat-survivor-types.ts` | `Campaign`, `StageProfile` 등 공유 타입 |
+| `app/mudflat-terrain.ts` | 깊은 펄과 갯벌 표면의 결정적 지형 계산·경로 |
+| `app/mudflat-rng.js` | 원정 시드와 저장 가능한 결정적 난수 |
 | `app/mudflat-run-save.js` | 진행 중 원정 직렬화·검증·5초 자동 저장·복원 |
 | `app/mudflat-cast-net.js` | 그물 목표 선정, 구속, 피해, 해제 규칙 |
 | `app/mudflat-cast-net-renderer.js` | 그물 비행·전개·조임 Canvas 표현 |
@@ -138,7 +140,7 @@ campaign
 choiceIds       현재 기술 선택 화면의 선택값
 nextSequence    월드 엔티티 ID 충돌 방지값
 runtime         플레이어, 시간, 생물, 획득물, 투사체, 그물,
-                바위, 조개구멍, 이펙트와 스테이지 상태
+                바위, 조개구멍, 이펙트, seed/rngState와 스테이지 상태
 ```
 
 자동 저장 간격은 5초이며, 종료되었거나 체력이 0인 원정은 저장하지 않습니다. 복원 시 구조와 숫자 유효성을 검사하고 손상되거나 호환되지 않는 저장은 안전하게 무시합니다. 저장 형식을 수정했다면 `tests/mudflat-run-save.test.mjs`에 정상 복원, 이전 형식 보완, 손상 거부 사례를 추가합니다.
@@ -151,6 +153,7 @@ runtime         플레이어, 시간, 생물, 획득물, 투사체, 그물,
 
 - 현재 캠페인, 열린 스테이지, 최고 점수, 진행 중 원정 요약 확인
 - 해루질럿 로컬 저장 데이터 내보내기
+- 내보낸 JSON의 형식과 키를 검증한 뒤 로컬 저장 데이터 복원
 - 해루질럿 로컬 저장 초기화
 - 1단계 튜토리얼, 4단계 랜턴 Lv.1/Lv.6, 5단계 깊은 펄, 6단계 모기·기피제, 비밀 기술, 8단계 보스 프리셋
 - 프리셋을 즉시 실행하거나 정비 저장 상태로만 저장
@@ -222,6 +225,11 @@ npm test
 - [ ] 배포 후 실제 모바일 브라우저에서 핵심 흐름을 확인했다.
 
 ## 참고 자료
+
+- [해루질럿 게임 기획 기준](docs/haeru-game-design.md)
+- [해루질럿 시스템·코드 구조](docs/haeru-architecture.md)
+- [해루질럿 QA 매트릭스](docs/haeru-qa-matrix.md)
+- [배포 이력](docs/releases.md)
 
 - [Vinext 문서](https://vinext.dev/docs)
 - [Cloudflare Workers 문서](https://developers.cloudflare.com/workers/)

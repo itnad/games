@@ -1,15 +1,20 @@
 import vinext from "vinext";
 import { defineConfig } from "vite";
+import { execFileSync } from "node:child_process";
 import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
+const LOCAL_GIT_SHA = (() => {
+  try { return execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim(); }
+  catch { return "development"; }
+})();
 const PAPEROID_BUILD_ID =
   process.env.OAI_SITE_VERSION ??
   process.env.CF_PAGES_COMMIT_SHA ??
   process.env.GITHUB_SHA ??
-  new Date().toISOString();
+  LOCAL_GIT_SHA;
 
 const { d1, r2 } = hostingConfig;
 
