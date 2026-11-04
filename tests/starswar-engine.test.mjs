@@ -595,6 +595,8 @@ test("starswar melee crowds spread to other buildings instead of queueing behind
     finishAll(state);
   }
   for (const building of state.buildings) building.hp = building.maxHp = 1e6;
+  // 남은 광물로 게이트웨이가 질럿을 뽑으면 저글링이 그쪽과 싸우므로 비운다.
+  state.sides.player.minerals = 0;
   const cannon = stwOwnBuildings(state, "player", "cannon")[0];
   // 저글링 24기가 세 줄로 캐논에 달려든다. 캐논 둘레에는 다 붙을 수 없다.
   const lings = Array.from({ length: 24 }, (_, index) => {
@@ -614,6 +616,42 @@ test("starswar melee crowds spread to other buildings instead of queueing behind
     const target = state.buildings.find((item) => item.id === ling.targetId);
     assert.ok(Math.hypot(ling.x - target.x, ling.y - target.y) >= target.radius, "치는 건물 안으로 파고들지 않는다");
   }
+});
+
+test("starswar places defenses at the front of the main, center first", () => {
+  const state = quiet();
+  state.sides.player.minerals = 9000;
+  for (const building of ["pylon", "forge", "cannon", "cannon"]) {
+    stwCommand(state, "player", { type: "build", building });
+    finishAll(state);
+  }
+  const cannons = stwOwnBuildings(state, "player", "cannon");
+  assert.ok(cannons.every((cannon) => cannon.y === 81), "앞줄");
+  assert.ok(Math.abs(cannons[0].x - 20) < 1, `첫 캐논은 길목 가운데 ${cannons[0].x}`);
+  assert.ok(Math.abs(cannons[1].x - 20) < 6, `둘째도 가운데 옆 ${cannons[1].x}`);
+});
+
+test("starswar AI holds a four-gate zealot rush behind its defenses", () => {
+  // 게이트웨이 넷에서 질럿만 뽑아 8기씩 보내는 플레이어. 예전에는 바이오닉 AI가 6분 30초 안에 무너졌다.
+  const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "bio" } });
+  const record = state.sides.player;
+  let next = 0;
+  while (state.status === "playing" && state.time < 420) {
+    if (state.time >= next) {
+      next = state.time + 1;
+      const supply = stwSupply(state, "player");
+      if (record.probes < 14) stwCommand(state, "player", { type: "probe" });
+      if (supply.used + 4 >= supply.cap && !stwOwnBuildings(state, "player", "pylon").some((pylon) => !stwDone(pylon))) stwCommand(state, "player", { type: "build", building: "pylon" });
+      if (stwOwnBuildings(state, "player", "gateway").length < 4) stwCommand(state, "player", { type: "build", building: "gateway" });
+      for (const gateway of stwOwnBuildings(state, "player", "gateway")) if (gateway.line !== "zealot") stwCommand(state, "player", { type: "line", buildingId: gateway.id, unit: "zealot" });
+      if (record.autoWave !== 8) stwCommand(state, "player", { type: "autoWave", size: 8 });
+    }
+    stepStarswar(state, stwAiThink);
+  }
+  assert.equal(state.status, "playing", "7분까지 버틴다");
+  assert.ok(state.sides.enemy.stats.kills >= 16, `질럿을 잡는다 ${state.sides.enemy.stats.kills}`);
+  const bunkers = stwOwnBuildings(state, "enemy", "bunker");
+  assert.ok(bunkers.length, "벙커가 있다");
 });
 
 test("starswar terran AI personas field their signature units and finish a game", () => {

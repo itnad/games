@@ -415,8 +415,8 @@ function costCheck(record, minerals, gas) {
 function freeSlot(state, side, list, prefix, { frontFirst = false } = {}) {
   const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
   const order = list.map((_, i) => i);
-  // 목록은 뒤쪽(본진 안쪽)부터 정렬돼 있다. 캐논은 앞줄부터 채운다.
-  if (frontFirst) order.reverse();
+  // 목록은 뒤쪽(본진 안쪽)부터 정렬돼 있다. 방어 건물은 앞줄부터, 같은 줄에서는 가운데부터 채운다(적이 들어오는 길목).
+  if (frontFirst) order.sort((a, b) => list[a].y - list[b].y || Math.abs(list[a].x - STW_LANE_WIDTH / 2) - Math.abs(list[b].x - STW_LANE_WIDTH / 2));
   const index = order.find((i) => !used.has(`${prefix}-${i}`));
   return index === undefined ? null : { key: `${prefix}-${index}`, point: stwPoint(side, list[index]) };
 }
@@ -1868,7 +1868,9 @@ function stepUnits(state, dt) {
         if (d > sight + 3 || leashed(target)) target = null;
       }
       if (!target) {
-        target = findTarget(state, unit, sight);
+        // 방금 막혀 목표를 놓친 유닛은 시야보다 넓게 찾는다(근처 건물 둘레가 모두 차 있으면 조금 먼 건물로 간다).
+        const wide = unit.blocked !== undefined && state.time < unit.blocked.until;
+        target = findTarget(state, unit, sight + (wide ? STUCK_SEARCH : 0));
         if (target && leashed(target)) target = null;
       } else {
         // 목표가 사거리 밖으로 벗어났고 멀어지는 중이면, 점수가 1 넘게 좋은 다른 적 유닛으로 바꾼다(도망가는 적에게 끌려다니지 않는다).

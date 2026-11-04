@@ -83,9 +83,10 @@ const BUILD_ORDERS = {
     { build: "refinery" }, { build: "shop" }, { build: "factory" }, { build: "bunker" }, { research: "siege" },
     { build: "expand", at: 280 }, { build: "starport" }, { build: "science" }, { build: "starport" }, { research: "yamato" }, { build: "ebay" }, { build: "turret" }, { build: "academy" }, { build: "comsat" },
   ],
+  // 두 번째 가스는 4분 뒤: 일찍 지으면 일꾼 15기 중 6기가 가스에 붙어 질럿 러시를 막을 광물이 모자랐다.
   vulture: [
     { build: "depot" }, { build: "barracks" }, { build: "refinery" }, { build: "factory" }, { build: "depot" },
-    { build: "factory" }, { build: "refinery" }, { build: "shop" }, { research: "siege" }, { research: "ion" },
+    { build: "factory" }, { build: "refinery", at: 240 }, { build: "shop" }, { research: "siege" }, { research: "ion" },
     { build: "bunker" }, { build: "expand", at: 320 }, { build: "factory" }, { build: "academy" }, { build: "comsat" }, { build: "ebay" }, { build: "turret" },
   ],
   // 레이스 메카닉: 메카닉 운영에 스타포트 하나를 얹어 레이스를 섞는다. 공중이 많이 보이면 아머리와 골리앗.
@@ -196,7 +197,7 @@ export function stwAiThink(state, side) {
   // 순서: 방어 건물 하나(프로토스는 포지부터) → 생산 건물 셋 → 방어 건물 둘(저그는 셋).
   if (alert) {
     const producersNow = race.producers.reduce((sum, type) => sum + stwOwnBuildings(state, side, type).length, 0);
-    const alertProducer = EXTRA_PRODUCER[persona] ?? race.mainProducer;
+    const alertProducer = alertProducerFor(state, side, race, persona);
     let waiting = ensureDefense(state, side, race, 1);
     if (!waiting && producersNow < 3) {
       const result = stwCommand(state, side, { type: "build", building: alertProducer });
@@ -277,7 +278,9 @@ export function stwAiThink(state, side) {
       }
       // 프로토스·테란은 바로 아낀다(놀고 있는 생산 건물만 멈추므로 손해가 작다). 저그는 확장만 바로 아끼고,
       // 저글링 물량은 15초 넘게 막힌 단계도 아낀다(해처리를 멈추지 않으면 연구 자금이 영영 안 모인다. 다른 저그 성향은 이 규칙으로 러시 방어가 약해져 쓰지 않는다).
-      save(cost.minerals, cost.gas, step.build === "expand" || race.id !== "zerg" || ((persona === "ling" || persona === "muta") && state.time - memory.headSince > 15));
+      // 경계 중에는 방어 건물·인구 건물이 아니면 생산을 멈춰 가며 모으지 않는다(팩토리를 기다리느라 배럭이 놀다가 러시에 무너지던 문제).
+      const strict = step.build === "expand" || race.id !== "zerg" || ((persona === "ling" || persona === "muta") && state.time - memory.headSince > 15);
+      save(cost.minerals, cost.gas, strict && (!alert || step.build === race.supply || Boolean(STW_BUILDINGS[step.build]?.defense)));
       if (step.build === "expand" && state.time - memory.headSince > 30) reserve.expand = true;
     }
     blocked += 1;
@@ -296,7 +299,7 @@ export function stwAiThink(state, side) {
   }
 
   // 3-0. 경계 중 방어 건물까지 갖춘 뒤 광물이 남으면 생산 건물을 넷까지 늘린다.
-  const alertProducer = EXTRA_PRODUCER[persona] ?? race.mainProducer;
+  const alertProducer = alertProducerFor(state, side, race, persona);
   if (alert && race.producers.reduce((sum, type) => sum + stwOwnBuildings(state, side, type).length, 0) < 4 && record.minerals - reserve.minerals >= STW_BUILDINGS[alertProducer].minerals + 100) stwCommand(state, side, { type: "build", building: alertProducer });
 
   // 3-1. 은폐 유닛에 당했으면 탐지기를 갖춘다: 로보가 있으면 옵저버, 없으면 포지와 포톤 캐논.
@@ -719,6 +722,59 @@ function assessThreat(state, side, memory) {
   return state.time < until;
 }
 
+/**
+ * 적 전투 병력 짐작: 최근 90초 동안 한 번에 본 가장 많은 수와, 정찰 때 센 병력에 그 뒤 생산 건물이 뽑았을 만큼(20초에 하나)을 더한 값 중 큰 쪽.
+ * 보이는 적만 세면 적 본진에 모여 있는 러시 병력을 모른 채 출격해 길에서 맞붙는다.
+ */
+function foeArmyEstimate(state, side, memory) {
+  const record = state.sides[side];
+  const foe = stwOpponent(side);
+  const foeRace = STW_RACES[state.sides[foe].race ?? "protoss"];
+  const visible = state.units.filter((unit) => unit.side === foe && !STW_UNITS[unit.type].worker && STW_UNITS[unit.type].role !== "support" && stwVisible(state, side, unit.x, unit.y));
+  if (visible.length >= (memory.peakFoe ?? 0) || state.time - (memory.peakFoeAt ?? 0) > 90) {
+    memory.peakFoe = visible.length;
+    memory.peakFoeAt = state.time;
+  }
+  // 적 병력 한 기의 평균 전투력: 지금 보이는 적, 없으면 정찰 때 본 적, 그것도 없으면 그 종족의 기본 유닛.
+  const intel = record.intel && state.time - record.intel.time < 180 ? record.intel : null;
+  const mix = visible.length ? visible.map((unit) => unit.type) : Object.entries(intel?.units ?? {}).flatMap(([type, count]) => (STW_UNITS[type] && STW_UNITS[type].role !== "support" ? Array(count).fill(type) : []));
+  if (mix.length) memory.foeUnitPower = mix.reduce((sum, type) => sum + unitPower(type), 0) / mix.length;
+  const each = memory.foeUnitPower ?? unitPower(FIRST_UNIT[foeRace.id]);
+  let count = memory.peakFoe;
+  if (intel) {
+    const fighters = Object.entries(intel.units ?? {}).reduce((sum, [type, n]) => sum + (STW_UNITS[type] && STW_UNITS[type].role !== "support" ? n : 0), 0);
+    const producers = foeRace.producers.reduce((sum, type) => sum + (intel.buildings[type] ?? 0), 0);
+    count = Math.max(count, fighters + (producers * (state.time - intel.time)) / 20);
+  }
+  return { count, power: count * each };
+}
+
+/** 종족의 첫 전투 유닛(적 병력 구성을 모를 때 쓴다). */
+const FIRST_UNIT = { protoss: "zealot", terran: "marine", zerg: "zergling" };
+
+/**
+ * 한 기의 전투력: √(초당 피해 × 체력·보호막). 란체스터 제곱 법칙에서 병력의 힘은 (Σ√(화력×체력))²이므로 합으로 비교할 수 있다.
+ * 해병(√(8×45) ≈ 19)은 질럿(√(14.5×160) ≈ 48)의 약 0.4다. 무기 없는 유닛(메딕 등)은 화력 2로 친다.
+ */
+function unitPower(type) {
+  const def = STW_UNITS[type];
+  const dps = def.damage ? (def.damage * (def.hits ?? 1)) / def.cooldown : 2;
+  return Math.sqrt(Math.max(2, dps) * (def.hp + def.shields));
+}
+
+function armyPower(units) {
+  return units.reduce((sum, unit) => sum + unitPower(unit.type), 0);
+}
+
+/**
+ * 경계 중에 늘리는 생산 건물: 성향의 추가 생산 건물(메카닉의 팩토리 등)이 가스를 먹는데 가스가 모자라면 광물만 드는 기본 생산 건물(배럭·게이트웨이).
+ * 가스가 모자라 팩토리를 못 짓는 동안 광물이 500 넘게 쌓인 채 러시를 맞던 문제. 가스가 있으면 그대로 짓는다(벌처는 질럿에 강하다).
+ */
+function alertProducerFor(state, side, race, persona) {
+  const extra = EXTRA_PRODUCER[persona] ?? race.mainProducer;
+  return STW_BUILDINGS[extra].gas > state.sides[side].gas ? race.mainProducer : extra;
+}
+
 /** 방어 건물을 count개까지 갖춘다. 프로토스는 포지, 저그는 스포닝 풀, 테란은 배럭이 먼저 있어야 한다. */
 function ensureDefense(state, side, race, count) {
   const defense = race.id === "protoss" ? "cannon" : race.id === "terran" ? "bunker" : "sunken";
@@ -735,10 +791,10 @@ function ensureDefense(state, side, race, count) {
 
 function manageArmy(state, side, persona, memory, settings, { holdHome = false, alert = false } = {}) {
   const record = state.sides[side];
-  // 저그는 경계 중이고 앞마당이 없으면 성큰 뒤(본진 안쪽, 아군 기준 84)에 모여 싸운다. 저글링은 열린 곳에서 약하고 성큰이 강하다.
-  // 테란·프로토스는 그대로 본진 앞에서 벙커·캐논의 구역 안에서 맞는다(시뮬레이션에서 뒤로 당기면 오히려 졌다).
+  // 경계 중이고 앞마당이 없으면 방어 건물 뒤(본진 안쪽, 아군 기준 84)에 모여 싸운다. 방어 건물은 앞줄 가운데(적이 들어오는 길목)에 서므로,
+  // 들어온 근접 유닛은 가장 가까운 위협인 방어 건물부터 치고, 병력은 그 뒤에서 쏜다. 앞에 나가 서 있으면 해병·드라군이 질럿에게 먼저 잡힌다.
   const natural = stwNexus(state, side, "natural");
-  if (alert && !natural && record.race === "zerg") {
+  if (alert && !natural) {
     if (record.rally !== STW_RALLY_RANGE.max) stwCommand(state, side, { type: "move", y: STW_RALLY_RANGE.max });
   } else {
     const desiredRally = natural || (memory.clearNatural && stwArmy(state, side).fighters.length >= 4) ? "natural" : "main";
@@ -791,12 +847,10 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 적 방어 건물(캐논·벙커·성큰)을 본 만큼 더 모아서 간다(하나당 4기, 최대 12기). 방어 건물은 기지 전체를 지키므로 소수로 찔러 봐야 손해다.
   const defenses = Object.values(record.seen).filter((memoryItem) => STW_BUILDINGS[memoryItem.type]?.damage).length;
   let size = allIn ? 1 : Math.round(Math.min(WAVE_CAP[persona] ?? 40, listed + Math.min(12, defenses * 4)) * settings.waveScale);
-  // 경계 중에는 보이는 적 전투 병력보다 넉넉히 많아질 때까지 집에서 버틴다.
-  if (alert && !allIn) {
-    const seenFighters = state.units.filter((unit) => unit.side === foe && !STW_UNITS[unit.type].worker && STW_UNITS[unit.type].role !== "support" && stwVisible(state, side, unit.x, unit.y)).length;
-    size = Math.max(size, Math.ceil(seenFighters * 1.3) + 2);
-  }
-  if (army.fighters.length >= size) {
+  // 경계 중에는 짐작한 적 병력보다 전투력이 넉넉히(1.5배) 앞설 때까지 집에서 버틴다(보이지 않는 적 본진의 병력까지 센다).
+  // 수로만 세면 해병 16기가 질럿 8기를 이길 줄 알고 나갔다가 열린 곳에서 녹는다.
+  const outgunned = alert && !allIn && armyPower(army.fighters) < foeArmyEstimate(state, side, memory).power * 1.5;
+  if (army.fighters.length >= size && !outgunned) {
     // 폭탄 드랍 성향은 쉬는 수송선이 둘 이상이면 출격과 동시에 폭탄 드랍(남은 병력은 정면으로).
     if (dropPlan?.mission === "bomb" && stwDropCheck(state, side, "bomb").ok) stwCommand(state, side, { type: "drop", ...dropPlan });
     else stwCommand(state, side, { type: "attack" });
