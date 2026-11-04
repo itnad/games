@@ -41,7 +41,7 @@ import {
 import { stwAiThink } from "./starswar-ai.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
 import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
-import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwOp, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
+import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwOp, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
 
 type Screen = "menu" | "play";
 type Tab = "build" | "produce" | "army";
@@ -841,6 +841,15 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
       <div className="stw-recall">
         <button type="button" disabled={!army.rally.length && !army.attack.length} onClick={() => issue({ type: "move", y: HOME_Y })}>본진 수비<small>전원 본진 앞으로</small></button>
         <button type="button" disabled={!army.attack.length} onClick={() => issue({ type: "retreat" })}>후퇴<small>공격 병력을 집결지로</small></button>
+      </div>
+      <h3 className="stw-section">공격 목표</h3>
+      <p className="stw-hint">{(side.focus ?? "fight") === "fight"
+        ? "교전 우선: 공격 병력이 맞으면 때린 적과 방어 건물에게 반격하고, 싸울 수 있는 적을 먼저 친 뒤 건물을 깹니다."
+        : "건물 우선: 공격 병력이 맞아도 무시하고 생산·기술 건물부터 깹니다. 근처에 칠 건물이 없을 때만 유닛과 싸웁니다. 메딕·하이템플러 같은 지원 유닛, 시즈 탱크·러커, 수송 작전 병력은 따르지 않습니다."}</p>
+      <div className="stw-segment two">
+        {([["fight", "교전 우선"], ["buildings", "건물 우선"]] as [StwFocus, string][]).map(([mode, label]) => (
+          <button key={mode} type="button" className={(side.focus ?? "fight") === mode ? "active" : ""} aria-pressed={(side.focus ?? "fight") === mode} onClick={() => issue({ type: "focus", mode })}>{label}</button>
+        ))}
       </div>
       <h3 className="stw-section">자동 출격</h3>
       <p className="stw-hint">집결지에 모인 전투 병력이 이 수에 이르면 자동으로 출격합니다. &quot;즉시&quot;는 생산되는 대로 바로 내보냅니다. 옵저버·오버로드 같은 지원 유닛은 세지 않습니다.</p>

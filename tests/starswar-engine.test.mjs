@@ -556,6 +556,37 @@ test("starswar bunkers fire and terran buildings repair themselves", () => {
   assert.ok(depot.hp > 300, `테란 건물 자동 수리 ${depot.hp}`);
 });
 
+test("starswar attackers retaliate against defenses unless told to raze buildings first", () => {
+  const setup = (focus) => {
+    const state = terran();
+    state.sides.player.minerals = 9000;
+    for (const building of ["depot", "barracks", "bunker"]) {
+      stwCommand(state, "player", { type: "build", building });
+      finishAll(state);
+    }
+    const bunker = stwOwnBuildings(state, "player", "bunker")[0];
+    // 벙커에서 14칸쯤 떨어진 배럭 옆에 질럿을 세우고 배럭을 치게 한다.
+    const soft = stwOwnBuildings(state, "player", "barracks")[0];
+    const zealot = stwSpawnUnitAt(state, "enemy", "zealot", soft.x, soft.y - soft.radius - 0.5, "attack");
+    zealot.targetId = soft.id;
+    if (focus) assert.equal(stwCommand(state, "enemy", { type: "focus", mode: focus }).ok, true);
+    return { state, bunker, soft, zealot };
+  };
+  const fight = setup(null);
+  assert.equal(fight.state.sides.enemy.focus, "fight", "기본은 교전 우선");
+  assert.ok(Math.hypot(fight.soft.x - fight.bunker.x, fight.soft.y - fight.bunker.y) - fight.bunker.radius > 8, "벙커는 질럿 시야 밖에서 쏜다");
+  run(fight.state, 1.5);
+  assert.equal(fight.zealot.targetId, fight.bunker.id, "맞으면 벙커에게 반격");
+  run(fight.state, 6);
+  assert.ok(fight.bunker.hp < fight.bunker.maxHp, `벙커까지 가서 친다 ${fight.bunker.hp}`);
+
+  const raze = setup("buildings");
+  run(raze.state, 3);
+  assert.notEqual(raze.zealot.targetId, raze.bunker.id, "건물 우선이면 맞아도 하던 건물을 친다");
+  assert.ok(raze.soft.hp < raze.soft.maxHp, "일반 건물이 깎인다");
+  assert.equal(stwCommand(raze.state, "enemy", { type: "focus", mode: "units" }).ok, false);
+});
+
 test("starswar terran AI personas field their signature units and finish a game", () => {
   const bio = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
   const mech = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "bio" } });

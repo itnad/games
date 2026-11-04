@@ -191,6 +191,7 @@ function createSide(id, persona, race) {
     seen: {},
     persona,
     escort: false,
+    focus: "fight",
     stats: { minerals: 0, gas: 0, produced: 0, lost: 0, kills: 0, buildingsLost: 0, buildingsDestroyed: 0, storms: 0, overkill: 0, workersLost: 0, workersKilled: 0 },
     dropPlan: { mission: "raid", target: "main", repeat: false, sync: false },
     ai: null,
@@ -896,6 +897,13 @@ export function stwCommand(state, side, command) {
       if (side === "player") pushLog(state, side, on ? "오버로드 1기가 병력과 동행합니다. 잃으면 인구 상한이 8 줄어듭니다." : "동행 오버로드가 기지로 돌아갑니다.", "order");
       return { ok: true };
     }
+    case "focus": {
+      // 공격 목표: 교전 우선(맞으면 반격하고 싸울 수 있는 적부터) 또는 건물 우선(생산·기술 건물부터 깨고 유닛은 무시).
+      if (command.mode !== "fight" && command.mode !== "buildings") return fail("알 수 없는 공격 목표입니다");
+      record.focus = command.mode;
+      if (side === "player") pushLog(state, side, command.mode === "fight" ? "공격 병력이 싸울 수 있는 적과 방어 건물부터 칩니다." : "공격 병력이 맞아도 생산·기술 건물부터 깹니다.", "order");
+      return { ok: true };
+    }
     case "autoWave": {
       record.autoWave = Math.max(0, Math.round(command.size ?? 0));
       return { ok: true };
@@ -1367,6 +1375,11 @@ function applyHits(state) {
     }
     for (const amount of hit.hits) applyDamage(state, hit.target, amount);
     hit.target.lastHit = state.time;
+    // 누구에게 맞았는지 기억해 둔다(교전 우선이면 건물을 치던 유닛이 반격한다).
+    if (hit.target.kind === "unit") {
+      hit.target.hitBy = hit.attacker.id;
+      hit.target.hitAt = state.time;
+    }
     // 공중 유닛에게 맞았으면 기억해 둔다(AI가 대공을 갖추고, 플레이어에게 알린다).
     if (hit.attacker.kind === "unit" && isFlying(hit.attacker)) {
       state.sides[hit.target.side].sawAirAt = state.time;
@@ -1411,7 +1424,7 @@ function targetScore(state, attacker, unit, d) {
   return d + (isPassive(unit) ? 3 : 0) + crowd;
 }
 
-function findTarget(state, attacker, radius, { unitsOnly = false } = {}) {
+function findTarget(state, attacker, radius, { unitsOnly = false, threatsOnly = false } = {}) {
   let best = null;
   let bestScore = Infinity;
   let doomedBest = null;
@@ -1422,6 +1435,7 @@ function findTarget(state, attacker, radius, { unitsOnly = false } = {}) {
     if (unit.side === attacker.side || unit.hp <= 0) continue;
     const d = distance(attacker.x, attacker.y, unit.x, unit.y) - unit.radius;
     if (d > radius || !targetable(state, attacker, unit)) continue;
+    if (threatsOnly && !isThreat(unit)) continue;
     // 날아가는 수송선은 쫓아가지 않는다. 사거리 안을 지날 때만 쏜다.
     if (inFlight(unit) && d > reach) continue;
     const score = targetScore(state, attacker, unit, d);
@@ -1445,6 +1459,7 @@ function findTarget(state, attacker, radius, { unitsOnly = false } = {}) {
   if (unitsOnly) return best;
   for (const building of state.buildings) {
     if (building.side === attacker.side || building.hp <= 0 || !canHit(attacker, building)) continue;
+    if (threatsOnly && !isThreat(building)) continue;
     const d = distance(attacker.x, attacker.y, building.x, building.y) - building.radius;
     if (d > radius) continue;
     const score = d + (STW_BUILDINGS[building.type].damage ? 1 : 6);
@@ -1454,6 +1469,70 @@ function findTarget(state, attacker, radius, { unitsOnly = false } = {}) {
     }
   }
   return best;
+}
+
+/** 위협: 싸울 수 있는 적 유닛(일꾼·비행 탐지기·수송선 제외)과 공격하는 방어 건물. */
+function isThreat(target) {
+  if (target.kind === "building") return Boolean(STW_BUILDINGS[target.type].damage) && stwDone(target);
+  const def = STW_UNITS[target.type];
+  return !isPassive(target) && !def.transport;
+}
+
+/** 건물 우선에서 노릴 건물의 점수: 거리에 종류 벌점(생산·기술 0, 본진 3, 그 밖 5, 방어 8)을 더한다. 작을수록 좋다. */
+const SIEGE_PENALTY = { production: 0, tech: 0, main: 3, other: 5 };
+
+function siegeScore(attacker, building) {
+  const d = distance(attacker.x, attacker.y, building.x, building.y) - building.radius;
+  return d + (STW_BUILDINGS[building.type].defense ? 8 : SIEGE_PENALTY[buildingKind(building.type)]);
+}
+
+/** 건물 우선: 반경 안에서 깰 건물(생산·기술 건물 먼저). */
+function findSiegeTarget(state, attacker, radius) {
+  let best = null;
+  let bestScore = Infinity;
+  for (const building of state.buildings) {
+    if (building.side === attacker.side || building.hp <= 0 || !canHit(attacker, building)) continue;
+    if (distance(attacker.x, attacker.y, building.x, building.y) - building.radius > radius) continue;
+    const score = siegeScore(attacker, building);
+    if (score < bestScore) {
+      best = building;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+/** 반격 거리: 시야 밖의 적 유닛(시즈 탱크 등)에게 맞아도 시야 + 이만큼 안이면 찾아가 친다. */
+const RETALIATE_REACH = 9;
+
+/**
+ * 공격 목표 고르기의 마지막 단계.
+ * - 교전 우선: 일반 건물이나 일꾼을 치다가 맞으면 때린 적에게 반격하고, 1초마다 시야 안의 위협을 다시 찾는다.
+ * - 건물 우선(공격 병력만): 맞아도 무시하고 근처 건물을 생산·기술 건물부터 깬다. 칠 건물이 없을 때만 유닛과 싸운다.
+ */
+function focusTarget(state, unit, target, { isAttack, sight, leashed }) {
+  const focus = state.sides[unit.side].focus ?? "fight";
+  if (isAttack && focus === "buildings") {
+    const rescan = state.time >= (unit.threatScanAt ?? 0);
+    if (target?.kind === "building" && !rescan) return target;
+    unit.threatScanAt = state.time + 1;
+    const building = findSiegeTarget(state, unit, sight + 6);
+    if (!building) return target;
+    if (target?.kind === "building" && siegeScore(unit, target) <= siegeScore(unit, building) + 2) return target;
+    return building;
+  }
+  if (target && isThreat(target)) return target;
+  const recent = unit.hitAt !== undefined && state.time - unit.hitAt < 1;
+  const hitter = recent ? resolve(state, unit.hitBy, unit) : null;
+  if (hitter && isThreat(hitter) && !leashed(hitter) && !(hitter.kind === "unit" && inFlight(hitter))) {
+    // 방어 건물은 기지 구역 어디든 쏘므로 거리와 상관없이 찾아간다. 유닛(탱크 등)은 반격 거리 안일 때만.
+    const d = distance(unit.x, unit.y, hitter.x, hitter.y) - hitter.radius;
+    if (hitter.kind === "building" || d <= sight + RETALIATE_REACH) return hitter;
+  }
+  if (!target || state.time < (unit.threatScanAt ?? 0)) return target;
+  unit.threatScanAt = state.time + 1;
+  const threat = findTarget(state, unit, sight, { threatsOnly: true });
+  return threat && !leashed(threat) ? threat : target;
 }
 
 function resolve(state, id, attacker = null) {
@@ -1724,13 +1803,13 @@ function stepUnits(state, dt) {
     }
     let target = resolve(state, unit.targetId, unit);
     const intruders = isAttack ? [] : plan.intruders.filter((enemy) => targetable(state, unit, enemy));
+    // 집결지에 와 있는 대기 병력은 멀리 있는 적을 쫓지 않는다. 집결지로 이동 중(싸우며 전진)일 때는 만나는 적과 모두 싸운다.
+    const settled = slot && distance(unit.x, unit.y, slot.x, slot.y) < RALLY_LEASH;
+    const leashed = (item) => !isAttack && settled && distance(item.x, item.y, slot.x, slot.y) - item.radius > RALLY_LEASH;
     if (intruders.length) {
       // 자동 수비: 기지에 들어온 적을 거리와 상관없이 쫓아가 잡는다.
       if (!target || !intruders.includes(target)) target = nearestOf(unit, intruders);
     } else {
-      // 집결지에 와 있는 대기 병력은 멀리 있는 적을 쫓지 않는다. 집결지로 이동 중(싸우며 전진)일 때는 만나는 적과 모두 싸운다.
-      const settled = slot && distance(unit.x, unit.y, slot.x, slot.y) < RALLY_LEASH;
-      const leashed = (item) => !isAttack && settled && distance(item.x, item.y, slot.x, slot.y) - item.radius > RALLY_LEASH;
       if (target) {
         const d = distance(unit.x, unit.y, target.x, target.y) - target.radius;
         if (d > sight + 3 || leashed(target)) target = null;
@@ -1753,6 +1832,7 @@ function stepUnits(state, dt) {
         }
       }
     }
+    if (!intruders.length) target = focusTarget(state, unit, target, { isAttack, sight, leashed });
     if ((target?.id ?? null) !== unit.targetId) {
       retarget(unit, unit.targetId, target?.id ?? null);
       unit.lastTargetDistance = undefined;

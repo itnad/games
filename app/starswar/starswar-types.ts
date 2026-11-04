@@ -18,6 +18,8 @@ export type StwResearchId = "weapons1" | "armor1" | "weapons2" | "shields1" | "r
 export type StwRallyId = "main" | "natural" | "center" | "forward";
 export type StwCheck = { ok: boolean; reason?: string };
 
+export type StwFocus = "fight" | "buildings";
+
 export type StwUnit = {
   id: number;
   kind: "unit";
@@ -53,6 +55,9 @@ export type StwUnit = {
   op?: number;
   raid?: number;
   bomb?: StwDropTarget;
+  hitBy?: number;
+  hitAt?: number;
+  threatScanAt?: number;
 };
 
 export type StwBuilding = {
@@ -106,6 +111,8 @@ export type StwSideState = {
   seen: Record<string, StwSeen>;
   race: StwRaceId;
   escort: boolean;
+  /** 공격 목표: 교전 우선(기본) 또는 건물 우선. */
+  focus?: StwFocus;
   persona: "rush" | "dragoon" | "templar" | "dark" | "robo" | "bio" | "mech" | "tankbio" | "vulture" | "ling" | "hydra" | "pool" | "ultra" | null;
   sawCloakAt?: number;
   sawAirAt?: number;
@@ -152,6 +159,7 @@ export type StwCommand =
   | { type: "attack" }
   | { type: "retreat" }
   | { type: "recall"; point: StwRallyId }
+  | { type: "focus"; mode: StwFocus }
   | { type: "autoWave"; size: number }
   | { type: "escort"; on: boolean }
   | { type: "scout" }
