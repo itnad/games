@@ -58,6 +58,8 @@ export type StwUnit = {
   hitBy?: number;
   hitAt?: number;
   threatScanAt?: number;
+  approach?: { id: number; x: number; y: number; at: number };
+  blocked?: { id: number; until: number };
 };
 
 export type StwBuilding = {

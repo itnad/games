@@ -1417,6 +1417,29 @@ function pendingDamageOf(state) {
   return map;
 }
 
+/** 막혔거나 꽉 찬 목표의 점수 벌점: 다른 목표가 하나도 없을 때만 고른다. */
+const LAST_RESORT = 1000;
+
+/** 막힌 목표: 다가가지 못해 잠시 포기한 목표(근접 유닛이 꽉 들어찬 건물 등). */
+function blockedFrom(state, unit, id) {
+  return unit.blocked !== undefined && unit.blocked.id === id && state.time < unit.blocked.until;
+}
+
+/**
+ * 근접 유닛이 건물 둘레에 붙을 수 있는 자리 수(대략). 둘레를 몸 폭으로 나눈다.
+ * 이미 이만큼 붙어 있으면 그 건물은 "꽉 찼다"고 보고 다른 목표를 먼저 고른다.
+ */
+function meleeRoom(state, unit, building) {
+  const ring = building.radius + unit.radius * 0.5 + unitRange(state, unit) * 0.6;
+  return Math.max(2, Math.floor((2 * Math.PI * ring) / (unit.radius * 1.6)));
+}
+
+/** 건물이 근접 유닛으로 꽉 찼는지. */
+function crowdedBuilding(state, attacker, building) {
+  if (attacker.kind !== "unit" || STW_UNITS[attacker.type].role !== "melee") return false;
+  return (meleeFocusOf(state).get(building.id) ?? 0) >= meleeRoom(state, attacker, building);
+}
+
 /** 목표 점수: 거리에 일꾼·지원 유닛 벌점, 근접 유닛에는 이미 둘 넘게 붙은 적의 벌점을 더한다. 작을수록 좋다. */
 function targetScore(state, attacker, unit, d) {
   const melee = attacker.kind === "unit" && STW_UNITS[attacker.type].role === "melee";
@@ -1436,6 +1459,8 @@ function findTarget(state, attacker, radius, { unitsOnly = false, threatsOnly = 
     const d = distance(attacker.x, attacker.y, unit.x, unit.y) - unit.radius;
     if (d > radius || !targetable(state, attacker, unit)) continue;
     if (threatsOnly && !isThreat(unit)) continue;
+    // 다가가지 못해 미룬 목표는 고르지 않는다. 공격 병력은 목표가 없으면 계속 전진하므로 더 안쪽의 다른 적을 찾는다.
+    if (attacker.kind === "unit" && blockedFrom(state, attacker, unit.id)) continue;
     // 날아가는 수송선은 쫓아가지 않는다. 사거리 안을 지날 때만 쏜다.
     if (inFlight(unit) && d > reach) continue;
     const score = targetScore(state, attacker, unit, d);
@@ -1462,7 +1487,12 @@ function findTarget(state, attacker, radius, { unitsOnly = false, threatsOnly = 
     if (threatsOnly && !isThreat(building)) continue;
     const d = distance(attacker.x, attacker.y, building.x, building.y) - building.radius;
     if (d > radius) continue;
-    const score = d + (STW_BUILDINGS[building.type].damage ? 1 : 6);
+    // 다가가지 못해 미룬 건물은 고르지 않고, 근접 유닛이 꽉 들어찬 건물은 다른 목표가 없을 때만 고른다
+    // (위협을 다시 찾을 때는 아예 빼서, 비었다 찼다 오가지 않게 한다).
+    if (attacker.kind === "unit" && blockedFrom(state, attacker, building.id)) continue;
+    const full = crowdedBuilding(state, attacker, building);
+    if (threatsOnly && full) continue;
+    const score = d + (STW_BUILDINGS[building.type].damage ? 1 : 6) + (full ? LAST_RESORT : 0);
     if (score < bestScore) {
       best = building;
       bestScore = score;
@@ -1493,7 +1523,8 @@ function findSiegeTarget(state, attacker, radius) {
   for (const building of state.buildings) {
     if (building.side === attacker.side || building.hp <= 0 || !canHit(attacker, building)) continue;
     if (distance(attacker.x, attacker.y, building.x, building.y) - building.radius > radius) continue;
-    const score = siegeScore(attacker, building);
+    if (blockedFrom(state, attacker, building.id)) continue;
+    const score = siegeScore(attacker, building) + (crowdedBuilding(state, attacker, building) ? LAST_RESORT : 0);
     if (score < bestScore) {
       best = building;
       bestScore = score;
@@ -1524,7 +1555,7 @@ function focusTarget(state, unit, target, { isAttack, sight, leashed }) {
   if (target && isThreat(target)) return target;
   const recent = unit.hitAt !== undefined && state.time - unit.hitAt < 1;
   const hitter = recent ? resolve(state, unit.hitBy, unit) : null;
-  if (hitter && isThreat(hitter) && !leashed(hitter) && !(hitter.kind === "unit" && inFlight(hitter))) {
+  if (hitter && isThreat(hitter) && !leashed(hitter) && !blockedFrom(state, unit, hitter.id) && !(hitter.kind === "building" && crowdedBuilding(state, unit, hitter)) && !(hitter.kind === "unit" && inFlight(hitter))) {
     // 방어 건물은 기지 구역 어디든 쏘므로 거리와 상관없이 찾아간다. 유닛(탱크 등)은 반격 거리 안일 때만.
     const d = distance(unit.x, unit.y, hitter.x, hitter.y) - hitter.radius;
     if (hitter.kind === "building" || d <= sight + RETALIATE_REACH) return hitter;
@@ -1619,6 +1650,28 @@ function baseSpeed(state, unit) {
   if (unit.type === "overlord" && stwResearchDone(state, unit.side, "pneumatized")) return def.speed * 1.5;
   if (stimmed(state, unit)) return def.speed * 1.5;
   return def.speed;
+}
+
+/** 막힘 판정 간격과 포기 시간(초). */
+const STUCK_WINDOW = 1.2;
+const STUCK_GIVE_UP = 6;
+const STUCK_SEARCH = 8;
+
+/**
+ * 목표에 다가가는 중인 지상 유닛이 막혔는지. STUCK_WINDOW마다 위치를 재서, 낼 수 있는 속도의 25%도 못 움직였으면 막힌 것이다.
+ * 도망가는 적을 쫓는 경우는 실제로 움직이므로 걸리지 않는다.
+ */
+function stuckOn(state, unit, target, speed) {
+  if (isFlying(unit)) return false;
+  const anchor = unit.approach;
+  if (!anchor || anchor.id !== target.id) {
+    unit.approach = { id: target.id, x: unit.x, y: unit.y, at: state.time };
+    return false;
+  }
+  if (state.time - anchor.at < STUCK_WINDOW) return false;
+  const moved = distance(unit.x, unit.y, anchor.x, anchor.y);
+  unit.approach = { id: target.id, x: unit.x, y: unit.y, at: state.time };
+  return moved < speed * STUCK_WINDOW * 0.25;
 }
 
 function moveToward(unit, x, y, speed, dt) {
@@ -1841,6 +1894,7 @@ function stepUnits(state, dt) {
     if (target) {
       const d = distance(unit.x, unit.y, target.x, target.y) - target.radius - unit.radius * 0.5;
       if (d <= range) {
+        unit.approach = undefined;
         unit.heading = Math.atan2(target.y - unit.y, target.x - unit.x);
         // 스팀팩: 연구 후 교전을 시작하면 체력 10을 써서 10초 동안 공격·이동 속도 +50%.
         if (def.stim && stwResearchDone(state, unit.side, "stim") && unit.hp > 20 && (unit.stimAt === undefined || state.time - unit.stimAt > 11)) {
@@ -1872,6 +1926,17 @@ function stepUnits(state, dt) {
           }
         }
       } else {
+        // 막힘: 1.2초 동안 거의 못 움직였으면(앞을 아군이 막아 둘레에 자리가 없다) 그 목표를 6초 동안 미루고,
+        // 시야보다 넓게(STUCK_SEARCH칸 더) 다른 목표를 찾아간다. 없으면 공격 병력은 계속 전진하고, 대기 병력은 집결지로 돌아간다.
+        if (stuckOn(state, unit, target, speed)) {
+          unit.blocked = { id: target.id, until: state.time + STUCK_GIVE_UP };
+          const other = findTarget(state, unit, sight + STUCK_SEARCH);
+          const next = other && !leashed(other) ? other : null;
+          retarget(unit, unit.targetId, next?.id ?? null);
+          unit.targetId = next?.id ?? null;
+          unit.lastTargetDistance = undefined;
+          continue;
+        }
         moveToward(unit, target.x, target.y, speed, dt);
       }
       continue;
@@ -1888,6 +1953,28 @@ function stepUnits(state, dt) {
     }
   }
   separate(state);
+  keepOutOfTargets(state);
+}
+
+/**
+ * 건물을 치는 지상 유닛은 그 건물 테두리 밖에 선다. 뒤에서 미는 아군 때문에 맨 앞 유닛이 건물 안으로 파고들지 않고,
+ * 뒤의 유닛이 둘레를 돌아 빈자리를 찾는다. 이동 중에는 건물이 길을 막지 않는다(길찾기 막힘이 없도록).
+ */
+function keepOutOfTargets(state) {
+  for (const unit of state.units) {
+    if (unit.targetId === null || isFlying(unit) || unit.group === "cargo") continue;
+    const building = state.buildings.find((item) => item.id === unit.targetId);
+    if (!building) continue;
+    const min = building.radius + unit.radius * 0.3;
+    const dx = unit.x - building.x;
+    const dy = unit.y - building.y;
+    const d = Math.hypot(dx, dy);
+    if (d >= min) continue;
+    const nx = d > 0.001 ? dx / d : 0;
+    const ny = d > 0.001 ? dy / d : -stwForward(building.side);
+    unit.x = building.x + nx * min;
+    unit.y = building.y + ny * min;
+  }
 }
 
 /** 가까이 붙은 적 근접 유닛. */

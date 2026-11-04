@@ -587,6 +587,35 @@ test("starswar attackers retaliate against defenses unless told to raze building
   assert.equal(stwCommand(raze.state, "enemy", { type: "focus", mode: "units" }).ok, false);
 });
 
+test("starswar melee crowds spread to other buildings instead of queueing behind a full one", () => {
+  const state = quiet();
+  state.sides.player.minerals = 9000;
+  for (const building of ["pylon", "forge", "gateway", "gateway", "cannon"]) {
+    stwCommand(state, "player", { type: "build", building });
+    finishAll(state);
+  }
+  for (const building of state.buildings) building.hp = building.maxHp = 1e6;
+  const cannon = stwOwnBuildings(state, "player", "cannon")[0];
+  // 저글링 24기가 세 줄로 캐논에 달려든다. 캐논 둘레에는 다 붙을 수 없다.
+  const lings = Array.from({ length: 24 }, (_, index) => {
+    const ling = stwSpawnUnitAt(state, "enemy", "zergling", cannon.x + ((index % 3) - 1) * 2.2, cannon.y - 8 - Math.floor(index / 3) * 2.4, "attack");
+    ling.hp = ling.maxHp = 1e6;
+    return ling;
+  });
+  run(state, 22);
+  const reach = STW_UNITS.zergling.range;
+  const engaged = lings.filter((ling) => {
+    const target = state.buildings.find((item) => item.id === ling.targetId);
+    return target && Math.hypot(ling.x - target.x, ling.y - target.y) - target.radius - ling.radius * 0.5 <= reach + 0.01;
+  });
+  assert.ok(engaged.length >= 22, `막힌 저글링은 다른 건물로 간다 ${engaged.length}/24`);
+  assert.ok(engaged.some((ling) => ling.targetId !== cannon.id), "꽉 찬 캐논 대신 다른 건물을 친다");
+  for (const ling of engaged) {
+    const target = state.buildings.find((item) => item.id === ling.targetId);
+    assert.ok(Math.hypot(ling.x - target.x, ling.y - target.y) >= target.radius, "치는 건물 안으로 파고들지 않는다");
+  }
+});
+
 test("starswar terran AI personas field their signature units and finish a game", () => {
   const bio = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
   const mech = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "bio" } });
