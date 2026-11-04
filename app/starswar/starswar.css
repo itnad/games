@@ -151,6 +151,8 @@
 .stw-recall button.active { color:#062033; border-color:var(--stw-blue); background:var(--stw-blue); }
 .stw-recall button.active small { color:#0d3550; }
 .stw-segment { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; }
+.stw-segment.two { grid-template-columns:repeat(2,minmax(0,1fr)); margin-bottom:5px; }
+.stw-segment.one { grid-template-columns:minmax(0,1fr); margin:5px 0; }
 .stw-scout { display:grid; gap:6px; }
 .stw-intel { padding:8px 10px; display:grid; gap:3px; border:1px dashed #e9c77a40; border-radius:12px; color:#dccdaa; font-size:14px; }
 

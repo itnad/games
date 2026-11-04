@@ -16,6 +16,7 @@ import {
   stwRallyName,
   stwRallyY,
   stwResearchCheck,
+  stwSlots,
   stwSpawnUnitAt,
   stwSupply,
   stwWorkerSplit,
@@ -1471,12 +1472,12 @@ test("starswar carriers launch more interceptors after research, devourers corro
 
 test("starswar drops carry ground units to the enemy main and transports take riders down with them", () => {
   const state = quiet();
-  assert.match(stwCommand(state, "player", { type: "drop" }).reason, /셔틀 필요/);
+  assert.match(stwCommand(state, "player", { type: "drop" }).reason, /쉬는 셔틀 필요/);
   const shuttle = stwSpawnUnitAt(state, "player", "shuttle", 20, 80, "rally");
   const riders = [0, 1, 2, 3, 4].map((index) => stwSpawnUnitAt(state, "player", "zealot", 16 + index * 2, 78, "rally"));
   const result = stwCommand(state, "player", { type: "drop" });
   assert.equal(result.ok, true);
-  assert.equal(result.loaded, 4, "인구 8까지(질럿 4기)");
+  assert.equal(result.loaded, 4, "8칸까지(질럿은 2칸씩, 4기)");
   assert.equal(riders.filter((unit) => unit.group === "cargo").length, 4);
   assert.equal(stwArmy(state, "player").fighters.length, 1, "탄 병력은 대기 병력에서 빠진다");
   for (let index = 0; index < 400 && shuttle.cargo?.length; index += 1) stepStarswar(state);
@@ -1484,8 +1485,9 @@ test("starswar drops carry ground units to the enemy main and transports take ri
   const landed = riders.filter((unit) => unit.group === "attack");
   assert.equal(landed.length, 4, "적 본진 뒤에 내린다");
   assert.ok(landed.every((unit) => Math.hypot(unit.x - enemyMain.x, unit.y - enemyMain.y) < 14), "적 본진 옆");
-  run(state, 30);
-  assert.equal(shuttle.group, "rally", "셔틀은 돌아온다");
+  for (let index = 0; index < 1500 && shuttle.op !== undefined; index += 1) stepStarswar(state);
+  assert.equal(shuttle.group, "rally", "견제를 마친 셔틀은 병력을 태워 돌아온다");
+  assert.ok(riders.filter((unit) => unit.hp > 0 && unit.group === "rally").length >= 3, "회수한 병력은 집결지로 돌아온다");
 
   const shot = terran("protoss");
   const dropship = stwSpawnUnitAt(shot, "player", "dropship", 20, 80, "rally");
@@ -1508,6 +1510,158 @@ test("starswar drops carry ground units to the enemy main and transports take ri
   assert.equal(stwOwnBuildings(zergDrop, "player", "overlord").length, 2, "기지에 오버로드 2기는 남긴다");
 });
 
+test("starswar transports load by slots: zealots take two, dragoons four, raids keep room for medics", () => {
+  const state = quiet();
+  stwSpawnUnitAt(state, "player", "shuttle", 20, 80, "rally");
+  stwSpawnUnitAt(state, "player", "dragoon", 18, 78, "rally");
+  stwSpawnUnitAt(state, "player", "dragoon", 22, 78, "rally");
+  stwSpawnUnitAt(state, "player", "dragoon", 24, 78, "rally");
+  const bomb = stwCommand(state, "player", { type: "drop", mission: "raid" });
+  assert.equal(bomb.loaded, 2, "드라군은 4칸씩, 2기");
+  assert.equal(stwSlots("zealot"), 2);
+  assert.equal(stwSlots("reaver"), 4);
+  assert.equal(stwSlots("marine"), 1);
+
+  const bio = terran("protoss");
+  const dropship = stwSpawnUnitAt(bio, "player", "dropship", 20, 80, "rally");
+  for (let index = 0; index < 8; index += 1) stwSpawnUnitAt(bio, "player", "marine", 12 + index * 2, 78, "rally");
+  stwSpawnUnitAt(bio, "player", "medic", 20, 76, "rally");
+  stwSpawnUnitAt(bio, "player", "medic", 22, 76, "rally");
+  stwSpawnUnitAt(bio, "player", "tank", 26, 76, "rally");
+  stwCommand(bio, "player", { type: "drop", mission: "raid" });
+  const aboard = dropship.cargo.map((id) => bio.units.find((unit) => unit.id === id).type);
+  assert.deepEqual([aboard.filter((type) => type === "marine").length, aboard.filter((type) => type === "medic").length, aboard.includes("tank")], [6, 2, false], "게릴라는 해병 6 + 메딕 2, 탱크는 태우지 않음");
+});
+
+test("starswar guerrilla drops kill workers, suppress mining, and pull out when defenders arrive", () => {
+  const state = quiet();
+  state.sides.enemy.probes = 20;
+  for (const building of state.buildings) if (building.side === "enemy") building.hp = building.maxHp = 1e9;
+  const shuttle = stwSpawnUnitAt(state, "player", "shuttle", 20, 80, "rally");
+  const zealots = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "player", "zealot", 16 + index * 2, 78, "rally"));
+  assert.equal(stwCommand(state, "player", { type: "drop", mission: "raid", target: "main" }).ok, true);
+  for (let index = 0; index < 600 && !zealots.some((unit) => unit.raid !== undefined && unit.group === "attack"); index += 1) stepStarswar(state);
+  const op = state.ops[0];
+  assert.equal(op.phase, "fight", "내려서 견제");
+  const mined = state.sides.enemy.stats.minerals;
+  run(state, 6);
+  assert.ok(state.sides.enemy.probes < 20, `일꾼이 죽는다 (${state.sides.enemy.probes})`);
+  assert.ok(state.sides.enemy.stats.workersLost > 0 && state.sides.player.stats.workersKilled === state.sides.enemy.stats.workersLost);
+  assert.ok(state.sides.enemy.stats.minerals - mined < 0.95 * 16 * 6 * 0.6, "대피로 채취가 크게 준다");
+  // 수비 병력이 몰려오면 회수한다(수비는 셔틀을 못 쏘는 질럿).
+  const center = zealots.find((unit) => unit.hp > 0);
+  for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(state, "enemy", "zealot", center.x - 4 + index * 1.6, center.y - 7, "attack");
+  run(state, 1.5);
+  assert.ok(["pickup", "home"].includes(op.phase), `적이 몰려오면 회수 (${op.phase})`);
+  for (let index = 0; index < 1500 && shuttle.op !== undefined; index += 1) stepStarswar(state);
+  assert.equal(shuttle.group, "rally");
+  assert.ok(zealots.some((unit) => unit.hp > 0 && unit.group === "rally" && unit.raid === undefined), "살아남은 질럿은 집결지로");
+});
+
+test("starswar repeated raids relaunch on their own and alternate between main and natural", () => {
+  const state = quiet();
+  state.sides.enemy.minerals = 9000;
+  stwCommand(state, "enemy", { type: "build", building: "expand" });
+  finishAll(state);
+  for (const building of state.buildings) if (building.side === "enemy") building.hp = building.maxHp = 1e9;
+  const shuttle = stwSpawnUnitAt(state, "player", "shuttle", 20, 80, "rally");
+  for (let index = 0; index < 8; index += 1) stwSpawnUnitAt(state, "player", "zealot", 12 + index * 2, 78, "rally");
+  stwCommand(state, "player", { type: "dropPlan", mission: "raid", target: "alternate", repeat: true });
+  assert.equal(stwCommand(state, "player", { type: "drop" }).ok, true);
+  const first = state.ops[0].base;
+  for (let index = 0; index < 1500 && shuttle.op !== undefined; index += 1) stepStarswar(state);
+  run(state, 8);
+  assert.ok(state.ops.length === 1, "돌아와서 다시 나간다");
+  assert.notEqual(state.ops[0].base, first, "본진과 앞마당을 번갈아");
+  stwCommand(state, "player", { type: "dropPlan", repeat: false });
+  assert.equal(state.sides.player.raidRelaunchAt, undefined);
+});
+
+test("starswar bomb drops gather, wait for the front to engage, land together, and hit production first", () => {
+  const state = quiet();
+  state.sides.enemy.minerals = 9000;
+  for (const building of ["pylon", "gateway", "forge"]) {
+    stwCommand(state, "enemy", { type: "build", building });
+    finishAll(state);
+  }
+  const shuttles = [stwSpawnUnitAt(state, "player", "shuttle", 18, 80, "rally")];
+  stwSpawnUnitAt(state, "player", "zealot", 20, 78, "rally");
+  assert.match(stwCommand(state, "player", { type: "drop", mission: "bomb" }).reason, /2기 이상/);
+  shuttles.push(stwSpawnUnitAt(state, "player", "shuttle", 22, 80, "rally"));
+  for (let index = 0; index < 8; index += 1) stwSpawnUnitAt(state, "player", "zealot", 12 + index * 2, 78, "rally");
+  stwSpawnUnitAt(state, "player", "dragoon", 20, 76, "rally");
+  stwSpawnUnitAt(state, "player", "dragoon", 22, 76, "rally");
+  const result = stwCommand(state, "player", { type: "drop", mission: "bomb", target: "production", sync: true });
+  assert.equal(result.ok, true);
+  assert.equal(result.transports, 2);
+  // 비싼 드라군부터 싣고 남은 질럿은 정면으로 바로 나간다.
+  const front = state.units.find((unit) => unit.side === "player" && unit.type === "zealot" && unit.group === "attack");
+  assert.ok(front, "정면 출격과 동시에: 남은 대기 병력이 바로 나간다");
+  const op = state.ops[0];
+  run(state, 15);
+  assert.equal(op.phase, "gather", "정면이 맞붙기 전에는 집결점에서 기다린다");
+  // 정면이 적과 맞붙으면 들어간다.
+  stwSpawnUnitAt(state, "enemy", "zealot", front.x, front.y - 4, "rally");
+  for (let index = 0; index < 400 && op.phase === "gather"; index += 1) stepStarswar(state);
+  assert.equal(op.phase, "in");
+  for (let index = 0; index < 600 && state.ops.includes(op) && op.phase === "in"; index += 1) stepStarswar(state);
+  const gateway = stwOwnBuildings(state, "enemy", "gateway")[0];
+  const before = gateway.hp + gateway.shields;
+  run(state, 12);
+  assert.ok(!state.units.includes(gateway) && (gateway.hp <= 0 || gateway.hp + gateway.shields < before), "생산 건물을 먼저 친다");
+  assert.ok(shuttles.every((unit) => unit.hp <= 0 || !unit.cargo?.length), "동시에 내렸다");
+});
+
+test("starswar defence buildings guard the main first once enemy transports have been seen", () => {
+  const state = quiet();
+  state.sides.player.minerals = 9000;
+  for (const building of ["pylon", "forge", "expand"]) {
+    stwCommand(state, "player", { type: "build", building });
+    finishAll(state);
+  }
+  stwCommand(state, "player", { type: "build", building: "cannon" });
+  assert.equal(stwOwnBuildings(state, "player", "cannon")[0].base, "natural", "평소에는 앞마당");
+  state.sides.player.sawTransportAt = state.time;
+  stwCommand(state, "player", { type: "build", building: "cannon" });
+  assert.equal(stwOwnBuildings(state, "player", "cannon")[1].base, "main", "수송선을 본 뒤 본진에 하나");
+  stwCommand(state, "player", { type: "build", building: "cannon" });
+  assert.equal(stwOwnBuildings(state, "player", "cannon")[2].base, "natural", "본진에 하나 있으면 다시 앞마당");
+});
+
+test("starswar AI answers drops: main defence after a sighting, four guards kept home, and raids of its own", () => {
+  const state = createStarswarGame({ seed: 3, aiSides: ["enemy"], races: { player: "protoss", enemy: "protoss" }, personas: { enemy: "dragoon" } });
+  state.sides.enemy.minerals = 9000;
+  for (const building of ["pylon", "gateway", "core", "forge", "expand"]) {
+    stwCommand(state, "enemy", { type: "build", building });
+    finishAll(state);
+  }
+  state.time = 420;
+  state.sides.enemy.sawTransportAt = 410;
+  state.sides.enemy.ai = { nextThink: 0, step: 0, wave: 0, attacking: false, waveStart: 0, done: [] };
+  stwAiThink(state, "enemy");
+  finishAll(state);
+  assert.ok(stwOwnBuildings(state, "enemy", "cannon").some((cannon) => cannon.base === "main"), "수송선을 본 뒤 본진에 캐논");
+  // 출격할 때 4기는 남긴다.
+  const home = stwNexus(state, "enemy", "main");
+  for (let index = 0; index < 14; index += 1) stwSpawnUnitAt(state, "enemy", index % 2 ? "dragoon" : "zealot", home.x - 8 + (index % 7) * 2.4, home.y + 14 + Math.floor(index / 7) * 2.4, "rally");
+  state.sides.enemy.ai.nextThink = 0;
+  stwAiThink(state, "enemy");
+  const army = stwArmy(state, "enemy");
+  assert.ok(state.sides.enemy.ai.attacking, "출격");
+  assert.equal(army.fighters.length, 4, "4기는 집에 남음");
+  assert.ok(army.fighters.every((unit) => unit.type === "dragoon"), "공중도 쏘는 드라군을 남김");
+
+  // 로보 운영 AI는 셔틀이 있으면 게릴라 드랍을 보낸다.
+  const robo = createStarswarGame({ seed: 3, aiSides: ["player"], races: { player: "protoss", enemy: "protoss" }, personas: { player: "robo" } });
+  robo.time = 400;
+  robo.sides.player.ai = { nextThink: 0, step: 0, wave: 0, attacking: false, waveStart: 0, done: Array.from({ length: 30 }, (_, index) => index) };
+  stwSpawnUnitAt(robo, "player", "shuttle", 20, 80, "rally");
+  for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(robo, "player", "zealot", 12 + index * 2, 78, "rally");
+  stwAiThink(robo, "player");
+  assert.equal(robo.ops.length, 1);
+  assert.equal(robo.ops[0].kind, "raid");
+});
+
 test("starswar overlords that come back from a drop can drop again or take up escort duty", () => {
   const state = zerg("protoss");
   state.sides.player.minerals = 9000;
@@ -1521,14 +1675,14 @@ test("starswar overlords that come back from a drop can drop again or take up es
   stwSpawnUnitAt(state, "player", "hydra", 20, 78, "rally");
   assert.equal(stwCommand(state, "player", { type: "drop" }).ok, true);
   const flier = state.units.find((unit) => unit.side === "player" && unit.type === "overlord");
-  for (let index = 0; index < 1500 && (flier.cargo?.length || flier.dropPath?.length); index += 1) stepStarswar(state);
+  for (let index = 0; index < 2500 && flier.op !== undefined; index += 1) stepStarswar(state);
   assert.equal(flier.group, "rally", "내려 준 뒤 돌아온다");
   // 돌아온 오버로드는 다음 침투에 먼저 쓰이고, 기지에 앉은 오버로드는 2기가 그대로 남는다.
   stwSpawnUnitAt(state, "player", "hydra", 20, 78, "rally");
   assert.equal(stwCommand(state, "player", { type: "drop" }).ok, true);
   assert.ok(flier.dropPath?.length, "돌아온 오버로드가 다시 출발");
   assert.equal(stwOwnBuildings(state, "player", "overlord").length, 2);
-  for (let index = 0; index < 1500 && (flier.cargo?.length || flier.dropPath?.length); index += 1) stepStarswar(state);
+  for (let index = 0; index < 2500 && flier.op !== undefined; index += 1) stepStarswar(state);
   // 동행을 켜면 떠 있는 오버로드가 동행을 맡고, 기지의 오버로드는 앉아 있는다.
   stwCommand(state, "player", { type: "escort", on: true });
   stepStarswar(state);

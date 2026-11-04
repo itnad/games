@@ -18,12 +18,16 @@ import {
   STW_ATTACK_ZONE_Y,
   STW_RALLY_POINTS,
   STW_RALLY_RANGE,
+  STW_RAID_UNITS,
   STW_RESEARCH,
   STW_SIZE_MULTIPLIER,
+  STW_SLOTS,
   STW_SPELLS,
   STW_STORM,
   STW_TICK,
+  STW_TRANSPORT,
   STW_UNITS,
+  STW_WORKER_HP,
 } from "./starswar-data.js";
 
 export const STW_SIDES = ["player", "enemy"];
@@ -72,6 +76,11 @@ function cloakFields(state) {
   const list = state.units.filter((unit) => unit.hp > 0 && STW_UNITS[unit.type].cloakField);
   cloakFieldCache.set(state, { time: state.time, list });
   return list;
+}
+
+/** 작전 중인 수송선(셔틀·드랍십, 병력을 나르는 오버로드). */
+function inFlight(unit) {
+  return unit.kind === "unit" && (STW_UNITS[unit.type].transport || unit.op !== undefined) && (unit.group === "drop" || unit.op !== undefined);
 }
 
 /** 생체 유닛: 기계도 사이오닉 에너지 존재(아콘·다크 아콘)도 아닌 유닛. 마엘스트롬·브루들링·이레디에이트 대상. */
@@ -182,7 +191,8 @@ function createSide(id, persona, race) {
     seen: {},
     persona,
     escort: false,
-    stats: { minerals: 0, gas: 0, produced: 0, lost: 0, kills: 0, buildingsLost: 0, buildingsDestroyed: 0, storms: 0, overkill: 0 },
+    stats: { minerals: 0, gas: 0, produced: 0, lost: 0, kills: 0, buildingsLost: 0, buildingsDestroyed: 0, storms: 0, overkill: 0, workersLost: 0, workersKilled: 0 },
+    dropPlan: { mission: "raid", target: "main", repeat: false, sync: false },
     ai: null,
   };
 }
@@ -206,6 +216,7 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
     buildings: [],
     storms: [],
     zones: [],
+    ops: [],
     scans: [],
     effects: [],
     pendingHits: [],
@@ -361,7 +372,8 @@ export function stwArmy(state, side) {
   const army = { rally: [], attack: [], fighters: [], attackers: [], counts: Object.fromEntries(STW_ARMY_UNITS.map((type) => [type, 0])) };
   for (const unit of state.units) {
     // 수송선에 탄 병력과 침투 중인 수송선은 대기·공격 병력에 넣지 않는다.
-    if (unit.side !== side || isWorker(unit) || unit.group === "cargo" || unit.group === "drop") continue;
+    // 게릴라 드랍으로 나가 있는 병력(raid)도 작전이 끝날 때까지 빼 둔다(후퇴·출격 명령에 끌려가지 않도록).
+    if (unit.side !== side || isWorker(unit) || unit.group === "cargo" || unit.group === "drop" || unit.group === "board" || unit.raid !== undefined) continue;
     const attacking = unit.group === "attack";
     army[attacking ? "attack" : "rally"].push(unit);
     if (!isSupport(unit)) army[attacking ? "attackers" : "fighters"].push(unit);
@@ -415,6 +427,12 @@ function placementFor(state, side, type) {
   }
   const natural = stwNexus(state, side, "natural");
   if (STW_BUILDINGS[type]?.defense) {
+    // 상대 수송선을 본 뒤에는 같은 종류의 방어 건물이 본진에 하나도 없으면 본진(광물 줄 가까운 뒤쪽)에 먼저 세운다.
+    const record = state.sides[side];
+    if (natural && record.sawTransportAt !== undefined && !state.buildings.some((building) => building.side === side && building.type === type && building.base === "main")) {
+      const back = freeSlot(state, side, STW_LAYOUT.mainSlots, "main");
+      if (back) return { ...back, base: "main" };
+    }
     if (natural) {
       const slot = freeSlot(state, side, STW_LAYOUT.naturalSlots, "natural");
       if (slot) return { ...slot, base: "natural" };
@@ -484,40 +502,148 @@ export function stwScoutCheck(state, side) {
   return { ok: true };
 }
 
-/** 수송선 한 기가 싣는 인구. */
-const STW_DROP_CAPACITY = 8;
+/** 수송 칸: 원작처럼 소형 1, 중형 2, 대형 4(예외는 STW_SLOTS). */
+export function stwSlots(type) {
+  const def = STW_UNITS[type];
+  return STW_SLOTS[type] ?? (def.size === "small" ? 1 : def.size === "medium" ? 2 : 4);
+}
+
+/** 쉬고 있는 수송선. 저그는 복부 주머니 뒤, 침투를 마치고 떠 있는 오버로드를 먼저 쓰고 기지의 오버로드를 2기 남기고 띄운다. */
+function idleCarriers(state, side) {
+  const record = state.sides[side];
+  if (record.race === "zerg") {
+    const floating = state.units.filter((unit) => unit.side === side && unit.type === "overlord" && !unit.escort && !unit.cargo?.length && !unit.dropPath?.length && unit.op === undefined);
+    const parked = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).sort((a, b) => b.id - a.id);
+    return [...floating, ...parked.slice(0, Math.max(0, parked.length - 2))];
+  }
+  return state.units.filter((unit) => unit.side === side && STW_UNITS[unit.type].transport && unit.group === "rally" && !unit.cargo?.length && !unit.dropPath?.length && unit.op === undefined);
+}
+
+/** 태울 병력: 게릴라는 빠르고 싼 유닛만(STW_RAID_UNITS 순서), 폭탄은 대기 중인 지상 병력 전부를 비싼 것부터. */
+function dropPassengers(state, side, mission) {
+  const pool = state.units.filter((unit) => unit.side === side && unit.group === "rally" && unit.hp > 0 && !isWorker(unit) && !isFlying(unit) && !isSupport(unit));
+  if (mission === "raid") {
+    const order = STW_RAID_UNITS[state.sides[side].race] ?? [];
+    return pool.filter((unit) => order.includes(unit.type)).sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type) || a.id - b.id);
+  }
+  return pool.sort((a, b) => unitValue(b) - unitValue(a) || a.id - b.id);
+}
+
+/** 작전 목표 이름(기록용). */
+const DROP_TARGET_NAME = { main: "적 본진 광물 줄", natural: "적 앞마당 광물 줄", alternate: "적 본진·앞마당 광물 줄", tech: "적 기술 건물", production: "적 생산 건물" };
+
+function transportName(race) {
+  return race === "terran" ? "드랍십" : race === "zerg" ? "오버로드" : "셔틀";
+}
 
 /**
- * 본진 침투가 지금 가능한지: 집결지에 쉬는 수송선(셔틀·드랍십, 저그는 복부 주머니 연구 뒤 완성된 오버로드)과 태울 지상 병력이 있어야 한다.
- * 저그는 기지의 오버로드를 2기 남기고 쓴다(탐지와 인구를 다 비우지 않도록).
+ * 수송 작전이 지금 가능한지. 게릴라 드랍은 쉬는 수송선 1기, 폭탄 드랍은 2기 이상과 태울 병력이 있어야 한다.
+ * 저그는 복부 주머니 연구가 먼저다.
  */
-export function stwDropCheck(state, side) {
+export function stwDropCheck(state, side, mission = state.sides[side].dropPlan?.mission ?? "raid") {
   const record = state.sides[side];
-  let carriers;
-  if (record.race === "zerg") {
-    if (!stwResearchDone(state, side, "ventral")) return fail("복부 주머니 연구 필요");
-    // 침투를 마치고 돌아와 떠 있는 오버로드(동행 중인 것 제외)를 먼저 쓰고, 모자라면 기지의 오버로드를 2기 남기고 띄운다.
-    const floating = state.units.filter((unit) => unit.side === side && unit.type === "overlord" && !unit.escort && !unit.cargo?.length && !unit.dropPath?.length);
-    const parked = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).sort((a, b) => b.id - a.id);
-    carriers = [...floating, ...parked.slice(0, Math.max(0, parked.length - 2))];
-    if (!carriers.length) return fail("기지에 남길 오버로드 2기 말고 쓸 오버로드가 없습니다");
-  } else {
-    carriers = state.units.filter((unit) => unit.side === side && STW_UNITS[unit.type].transport && unit.group === "rally" && !unit.cargo?.length && !unit.dropPath?.length);
-    if (!carriers.length) return fail(`${record.race === "terran" ? "드랍십" : "셔틀"} 필요`);
-  }
-  const passengers = state.units
-    .filter((unit) => unit.side === side && unit.group === "rally" && !isWorker(unit) && !isFlying(unit) && !isSupport(unit) && unit.hp > 0)
-    .sort((a, b) => a.id - b.id);
-  if (!passengers.length) return fail("태울 지상 병력이 없습니다");
+  if (record.race === "zerg" && !stwResearchDone(state, side, "ventral")) return fail("복부 주머니 연구 필요");
+  const carriers = idleCarriers(state, side);
+  const name = transportName(record.race);
+  if (!carriers.length) return fail(record.race === "zerg" ? "기지에 남길 오버로드 2기 말고 쓸 오버로드가 없습니다" : `쉬는 ${name} 필요`);
+  if (mission === "bomb" && carriers.length < 2) return fail(`폭탄 드랍은 쉬는 ${name} 2기 이상 필요`);
+  const passengers = dropPassengers(state, side, mission);
+  if (!passengers.length) return fail(mission === "raid" ? "견제에 쓸 빠른 지상 병력이 없습니다" : "태울 지상 병력이 없습니다");
   return { ok: true, carriers, passengers };
 }
 
-/** 수송선 경로: 전장 가장자리를 타고 적 본진 뒤(광물 줄 옆)까지 날아간다. */
-function dropPath(side, transport) {
+/** 적 기지의 착륙 후보(적 기준 좌표). 앞 둘은 본진 광물 줄 양옆. */
+const LAND_MAIN = [{ x: 11, y: 96.5 }, { x: 29, y: 96.5 }, { x: 4.5, y: 93 }, { x: 35.5, y: 93 }, { x: 4.5, y: 84 }, { x: 35.5, y: 84 }];
+const LAND_NATURAL = [{ x: 8, y: 80 }, { x: 32, y: 80 }];
+
+/** 건물 분류: 생산(생산 라인), 기술(연구·해금 건물), 본진(기지 건물). */
+function buildingKind(type) {
+  const def = STW_BUILDINGS[type];
+  if (def.base) return "main";
+  if (STW_PRODUCERS.includes(type)) return "production";
+  if (def.supply || def.refinery || def.defense || type === "overlord") return "other";
+  return "tech";
+}
+
+/** 지상을 쏘는 적 방어 건물. */
+function groundDefenses(state, side) {
+  return state.buildings.filter((building) => building.side === side && stwDone(building) && STW_BUILDINGS[building.type].damage && STW_BUILDINGS[building.type].targets !== "air");
+}
+
+/**
+ * 착륙 지점: 지상을 쏘는 방어 건물에서 가장 먼 후보. 게릴라 본진은 광물 줄 양옆을 먼저, 기술·생산 건물이 목표면 그 건물에 가까운 쪽을 고른다.
+ */
+function landingPoint(state, side, target, base) {
   const foe = stwOpponent(side);
-  const edge = stwPoint(foe, { x: 2.5, y: 97 });
-  const land = stwPoint(foe, { x: 11, y: 96.5 });
-  return [{ x: edge.x, y: transport.y }, { x: edge.x, y: edge.y }, { x: land.x, y: land.y }];
+  const list = (base === "natural" ? LAND_NATURAL : LAND_MAIN).map((point, index) => ({ ...stwPoint(foe, point), index }));
+  const defenses = groundDefenses(state, foe);
+  const goals = target === "tech" || target === "production" ? state.buildings.filter((building) => building.side === foe && buildingKind(building.type) === target) : [];
+  const focus = goals.length ? { x: goals.reduce((sum, item) => sum + item.x, 0) / goals.length, y: goals.reduce((sum, item) => sum + item.y, 0) / goals.length } : null;
+  const score = (point) => (defenses.length ? Math.min(...defenses.map((item) => distance(item.x, item.y, point.x, point.y))) : 20)
+    - (focus ? distance(point.x, point.y, focus.x, focus.y) * 0.6 : 0)
+    + (target !== "tech" && target !== "production" && base === "main" && point.index < 2 ? 4 : 0);
+  return list.reduce((best, point) => (score(point) > score(best) ? point : best), list[0]);
+}
+
+/** 가까운 가장자리(절대 좌표 x 1 또는 39)를 타고 간다. */
+function edgeX(x) {
+  return x < STW_LANE_WIDTH / 2 ? 1 : STW_LANE_WIDTH - 1;
+}
+
+function dropPath(transport, land) {
+  const x = edgeX(land.x);
+  return [{ x, y: transport.y }, { x, y: land.y }, { x: land.x, y: land.y }];
+}
+
+function homePath(side, transport) {
+  const x = edgeX(transport.x);
+  const home = stwPoint(side, { x: 20, y: 88 });
+  return [{ x, y: transport.y }, { x, y: home.y }];
+}
+
+/** 광물 줄 한가운데(광물과 기지 건물 사이). */
+function mineralCenter(side, base) {
+  const minerals = stwPoint(side, base === "natural" ? STW_LAYOUT.naturalMinerals : STW_LAYOUT.mainMinerals);
+  const nexus = stwPoint(side, base === "natural" ? STW_LAYOUT.naturalNexus : STW_LAYOUT.mainNexus);
+  return { x: minerals.x, y: minerals.y + (nexus.y - minerals.y) * 0.35 };
+}
+
+/** 저그 오버로드 건물은 떠올라 수송선이 된다(인구 +8은 그대로). */
+function liftCarrier(state, side, carrier) {
+  if (carrier.kind !== "building") return carrier;
+  state.buildings = state.buildings.filter((item) => item !== carrier);
+  const transport = spawnUnit(state, side, "overlord", carrier.x, carrier.y);
+  transport.hp = Math.min(transport.maxHp, carrier.hp);
+  return transport;
+}
+
+function boardUnit(unit, transport) {
+  unit.group = "cargo";
+  unit.targetId = null;
+  unit.x = transport.x;
+  unit.y = transport.y;
+  transport.cargo ??= [];
+  transport.cargo.push(unit.id);
+}
+
+/** 칸 수만큼 싣는다. 게릴라에 해병과 메딕이 함께 있으면 해병은 6기까지만 태워 메딕 자리를 남긴다. */
+function loadTransport(state, transport, passengers, mission) {
+  transport.cargo = [];
+  let room = STW_TRANSPORT.capacity;
+  let marines = 0;
+  const medicWaiting = () => passengers.some((unit) => unit.type === "medic");
+  for (let index = 0; index < passengers.length && room > 0;) {
+    const unit = passengers[index];
+    const slots = stwSlots(unit.type);
+    if (slots > room || (mission === "raid" && unit.type === "marine" && marines >= 6 && medicWaiting())) {
+      index += 1;
+      continue;
+    }
+    passengers.splice(index, 1);
+    room -= slots;
+    if (unit.type === "marine") marines += 1;
+    boardUnit(unit, transport);
+  }
 }
 
 /** 생산 라인 유닛이 지금 해금되어 있는지. */
@@ -632,41 +758,72 @@ export function stwCommand(state, side, command) {
       if (side === "player") pushLog(state, side, "다크템플러 2기가 다크 아콘으로 합체했습니다.", "good");
       return { ok: true };
     }
+    case "dropPlan": {
+      const plan = { ...(record.dropPlan ?? { mission: "raid", target: "main", repeat: false, sync: false }) };
+      if ((command.mission === "raid" || command.mission === "bomb") && command.mission !== plan.mission) {
+        plan.mission = command.mission;
+        // 작전을 바꾸면 목표는 그 작전의 기본값으로(게릴라 본진 광물, 폭탄 생산 건물).
+        if (command.target === undefined) plan.target = command.mission === "raid" ? "main" : "production";
+      }
+      if (["main", "natural", "tech", "alternate", "production"].includes(command.target)) plan.target = command.target;
+      if (typeof command.repeat === "boolean") plan.repeat = command.repeat;
+      if (typeof command.sync === "boolean") plan.sync = command.sync;
+      // 작전 종류와 맞지 않는 목표는 기본값으로.
+      if (plan.mission === "raid" && plan.target === "production") plan.target = "main";
+      if (plan.mission === "bomb" && (plan.target === "natural" || plan.target === "alternate")) plan.target = "production";
+      record.dropPlan = plan;
+      if (!plan.repeat) record.raidRelaunchAt = undefined;
+      return { ok: true, plan };
+    }
     case "drop": {
-      const check = stwDropCheck(state, side);
+      const plan = { ...(record.dropPlan ?? { mission: "raid", target: "main", repeat: false, sync: false }) };
+      for (const key of ["mission", "target", "repeat", "sync"]) if (command[key] !== undefined) plan[key] = command[key];
+      const check = stwDropCheck(state, side, plan.mission);
       if (!check.ok) return check;
-      let loaded = 0;
-      let used = 0;
       const passengers = [...check.passengers];
+      const transports = [];
       for (const carrier of check.carriers) {
         if (!passengers.length) break;
-        let transport = carrier;
-        if (carrier.kind === "building") {
-          // 저그: 오버로드 건물이 떠올라 수송선이 된다(인구 +8은 그대로).
-          state.buildings = state.buildings.filter((item) => item !== carrier);
-          transport = spawnUnit(state, side, "overlord", carrier.x, carrier.y);
-          transport.hp = Math.min(transport.maxHp, carrier.hp);
-        }
-        transport.cargo = [];
-        let room = STW_DROP_CAPACITY;
-        while (passengers.length && passengers[0] && STW_UNITS[passengers[0].type].supply <= room) {
-          const unit = passengers.shift();
-          room -= STW_UNITS[unit.type].supply;
-          unit.group = "cargo";
-          unit.targetId = null;
-          unit.x = transport.x;
-          unit.y = transport.y;
-          transport.cargo.push(unit.id);
-          loaded += 1;
-        }
-        if (!transport.cargo.length) continue;
-        transport.group = "drop";
-        transport.dropPath = dropPath(side, transport);
-        used += 1;
+        const transport = liftCarrier(state, side, carrier);
+        loadTransport(state, transport, passengers, plan.mission);
+        if (transport.cargo.length) transports.push(transport);
       }
-      if (!used) return fail("태울 수 있는 병력이 없습니다");
-      if (side === "player") pushLog(state, side, `수송선 ${used}기가 병력 ${loaded}기를 싣고 적 본진 뒤로 향합니다.`, "order");
-      return { ok: true, transports: used, loaded };
+      if (!transports.length) return fail("태울 수 있는 병력이 없습니다");
+      state.ops ??= [];
+      const loaded = transports.reduce((sum, transport) => sum + transport.cargo.length, 0);
+      const name = transportName(record.race);
+      if (plan.mission === "raid") {
+        // 게릴라: 수송선마다 따로 작전. "번갈아"는 본진과 앞마당을 교대로.
+        for (const transport of transports) {
+          let base = plan.target === "natural" ? "natural" : "main";
+          if (plan.target === "alternate") {
+            base = record.raidAlt === "main" ? "natural" : "main";
+            record.raidAlt = base;
+          }
+          if (base === "natural" && !stwNexus(state, stwOpponent(side), "natural")) base = "main";
+          const op = { id: state.nextId++, side, kind: "raid", target: plan.target === "tech" ? "tech" : base, base, transports: [transport.id], riders: [], phase: "out", since: state.time, sync: false, repeat: Boolean(plan.repeat), value: 0 };
+          state.ops.push(op);
+          transport.op = op.id;
+          transport.group = "drop";
+          transport.dropPath = dropPath(transport, landingPoint(state, side, op.target, base));
+        }
+        if (side === "player") pushLog(state, side, `${name} ${transports.length}기가 견제 병력 ${loaded}기를 싣고 ${withKoreanDirection(DROP_TARGET_NAME[plan.target])} 향합니다.`, "order");
+      } else {
+        // 폭탄: 모두 가장자리 집결점에 모였다가 한꺼번에 들어간다.
+        const op = { id: state.nextId++, side, kind: "bomb", target: plan.target, base: "main", transports: transports.map((item) => item.id), riders: [], phase: "gather", since: state.time, sync: Boolean(plan.sync), repeat: false, value: 0 };
+        state.ops.push(op);
+        const land = landingPoint(state, side, plan.target, "main");
+        const gatherY = stwPoint(stwOpponent(side), { x: 0, y: 66 }).y;
+        for (const transport of transports) {
+          transport.op = op.id;
+          transport.group = "drop";
+          transport.dropPath = [{ x: edgeX(land.x), y: transport.y }, { x: edgeX(land.x), y: gatherY }];
+        }
+        if (side === "player") pushLog(state, side, `${name} ${transports.length}기가 병력 ${loaded}기를 싣고 폭탄 드랍 집결점으로 갑니다.`, "order");
+        // 정면 출격과 동시에: 남은 대기 병력을 지금 내보낸다(수송선은 정면이 맞붙을 때 들어간다).
+        if (plan.sync && stwArmy(state, side).fighters.length) stwCommand(state, side, { type: "attack" });
+      }
+      return { ok: true, transports: transports.length, loaded, mission: plan.mission };
     }
     case "rally": {
       if (!STW_RALLY_POINTS.some((point) => point.id === command.point)) return fail("알 수 없는 위치입니다");
@@ -880,6 +1037,7 @@ export function stepStarswar(state, aiThink = null) {
   }
   state.pendingHits = [];
   stepBuildings(state, dt);
+  stepOps(state);
   stepUnits(state, dt);
   stepStorms(state, dt);
   stepStatuses(state, dt);
@@ -899,8 +1057,11 @@ function stepEconomy(state, side, dt) {
   for (const base of ["main", "natural"]) {
     if (!split[base]) continue;
     const nexus = stwNexus(state, side, base);
-    const threatened = nexus && state.units.some((unit) => unit.side !== side && !isPassive(unit) && distance(unit.x, unit.y, nexus.x, nexus.y) < 12);
-    const mined = Math.min(record.bases[base].minerals, mineralRate(split[base]) * dt * (threatened ? 0.5 : 1));
+    // 대피: 기지 건물 12칸 안이나 광물 줄 구역에 적 전투 유닛이 있으면 일꾼이 피해 채취가 줄어든다.
+    const line = mineralCenter(side, base);
+    const threatened = nexus && state.units.some((unit) => unit.side !== side && unit.hp > 0 && !isPassive(unit) && unit.group !== "cargo"
+      && (distance(unit.x, unit.y, nexus.x, nexus.y) < 12 || distance(unit.x, unit.y, line.x, line.y) < STW_ECONOMY.mineralZone));
+    const mined = Math.min(record.bases[base].minerals, mineralRate(split[base]) * dt * (threatened ? STW_ECONOMY.evacuation : 1));
     record.bases[base].minerals -= mined;
     record.minerals += mined * multiplier;
     record.stats.minerals += mined * multiplier;
@@ -1256,10 +1417,13 @@ function findTarget(state, attacker, radius, { unitsOnly = false } = {}) {
   let doomedBest = null;
   let doomedScore = Infinity;
   const pending = pendingDamageOf(state);
+  const reach = attacker.kind === "unit" ? unitRange(state, attacker) + 0.5 : radius;
   for (const unit of state.units) {
     if (unit.side === attacker.side || unit.hp <= 0) continue;
     const d = distance(attacker.x, attacker.y, unit.x, unit.y) - unit.radius;
     if (d > radius || !targetable(state, attacker, unit)) continue;
+    // 날아가는 수송선은 쫓아가지 않는다. 사거리 안을 지날 때만 쏜다.
+    if (inFlight(unit) && d > reach) continue;
     const score = targetScore(state, attacker, unit, d);
     // 이번 틱의 예약 피해만으로 이미 죽을 적은 뒤로 미룬다(다른 적이 없으면 그래도 고른다).
     if ((pending.get(unit.id) ?? 0) >= unit.hp + unit.shields) {
@@ -1311,7 +1475,8 @@ function inBaseZone(state, side, base, unit) {
  */
 function defenseTarget(state, building) {
   const def = STW_BUILDINGS[building.type];
-  const inZone = (unit) => distance(building.x, building.y, unit.x, unit.y) - unit.radius <= def.range || inBaseZone(state, building.side, building.base, unit);
+  // 지역 방어는 기지 구역 안의 적을 모두 쏘지만, 지나가는 수송선은 제 사거리 안에서만 쏜다.
+  const inZone = (unit) => distance(building.x, building.y, unit.x, unit.y) - unit.radius <= def.range || (!inFlight(unit) && inBaseZone(state, building.side, building.base, unit));
   const current = resolve(state, building.targetId, building);
   if (current && current.kind === "unit" && inZone(current)) return current;
   let best = null;
@@ -1476,6 +1641,18 @@ function stepUnits(state, dt) {
     unit.cooldown = Math.max(0, unit.cooldown - dt);
     // 수송선에 탄 병력은 수송선이 데리고 다닌다.
     if (unit.group === "cargo") continue;
+    // 회수 중: 교전을 끊고 수송선으로 달려간다.
+    if (unit.group === "board") {
+      const op = (state.ops ?? []).find((item) => item.id === unit.raid);
+      const transport = op && state.units.find((item) => item.id === op.transports[0] && item.hp > 0);
+      if (transport) {
+        unit.targetId = null;
+        moveToward(unit, transport.x, transport.y, unitSpeed(state, unit), dt);
+        continue;
+      }
+      unit.group = "attack";
+      unit.raid = undefined;
+    }
     // 마엘스트롬·락다운·스테이시스: 꼼짝 못 한다.
     if (stunned(state, unit) || inStasis(state, unit)) {
       unit.targetId = null;
@@ -1489,7 +1666,7 @@ function stepUnits(state, dt) {
     const plan = plans[unit.side];
     const range = unitRange(state, unit);
     const speed = unitSpeed(state, unit);
-    if (def.transport || unit.dropPath?.length || unit.cargo?.length) {
+    if (def.transport || unit.op !== undefined || unit.dropPath?.length || unit.cargo?.length) {
       transportStep(state, unit, plan, dt);
       continue;
     }
@@ -1508,6 +1685,10 @@ function stepUnits(state, dt) {
     }
     // 무기와 마법을 함께 가진 유닛(고스트, 배틀크루저, 아비터)은 마법이 먼저다.
     if (def.spells && castSpells(state, unit)) continue;
+    // 수송 작전으로 내린 병력.
+    // 무기 없는 유닛(메딕)은 내린 동료를 따라다니며 치료만 한다(위의 메딕 처리).
+    if (unit.raid !== undefined && def.damage && unit.type !== "tank" && unit.type !== "lurker" && raidRiderStep(state, unit, dt)) continue;
+    if (unit.bomb !== undefined && def.damage && unit.type !== "tank" && unit.type !== "lurker" && bombRiderStep(state, unit, dt)) continue;
     // 아비터: 은폐장이 병력을 덮도록 공격 병력 한가운데 위에 떠 있고, 사거리 안의 적만 쏜다(쫓아가지 않는다).
     if (def.cloakField && unit.group === "attack") {
       const escort = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && ally !== unit && !isPassive(ally) && !isFlying(ally));
@@ -1923,52 +2104,317 @@ function casterMove(state, unit, plan, speed, dt) {
 /* ───────── 수송 ───────── */
 
 /**
- * 수송선: 본진 침투 중이면 경로를 따라 날아가 병력을 내려놓고 같은 길로 돌아온다. 아니면 집결지 뒤에서 쉰다.
+ * 수송선: 작전 경로를 따라 날고, 게릴라 드랍에서는 내린 뒤 근처에 떠서 기다리다 회수한다. 작전이 없으면 집결지 뒤에서 쉰다.
  * 탄 병력은 수송선 자리에 붙어 다니고, 수송선이 떨어지면 함께 죽는다(cleanup).
  */
 function transportStep(state, unit, plan, dt) {
   const speed = unitSpeed(state, unit);
-  if (unit.dropPath?.length) {
+  const op = unit.op !== undefined ? (state.ops ?? []).find((item) => item.id === unit.op) : null;
+  if (op?.phase === "pickup") {
+    // 회수: 탈 병력 한가운데로 내려앉고, 1.8칸 안에 들어온 병력을 싣는다.
+    const boarding = op.riders.map((id) => state.units.find((item) => item.id === id)).filter((rider) => rider && rider.hp > 0 && rider.group === "board");
+    if (boarding.length) {
+      const cx = boarding.reduce((sum, rider) => sum + rider.x, 0) / boarding.length;
+      const cy = boarding.reduce((sum, rider) => sum + rider.y, 0) / boarding.length;
+      moveToward(unit, cx, cy, speed, dt);
+      for (const rider of boarding) if (distance(rider.x, rider.y, unit.x, unit.y) <= 1.8) boardUnit(rider, unit);
+    }
+  } else if (op?.phase === "fight") {
+    // 내린 병력 가까이(가장자리 쪽 3칸)에 떠서 기다린다. 대공 건물에는 여기서도 맞는다.
+    if (unit.hover) moveToward(unit, unit.hover.x, unit.hover.y, speed, dt);
+  } else if (unit.dropPath?.length) {
     const next = unit.dropPath[0];
-    if (moveToward(unit, next.x, next.y, speed, dt)) {
-      unit.dropPath.shift();
-      if (!unit.dropPath.length && unit.cargo?.length) unloadCargo(state, unit);
-      else if (!unit.dropPath.length) unit.group = "rally";
-    }
-    for (const id of unit.cargo ?? []) {
-      const rider = state.units.find((item) => item.id === id);
-      if (rider) {
-        rider.x = unit.x;
-        rider.y = unit.y;
-      }
-    }
-    return;
+    if (moveToward(unit, next.x, next.y, speed, dt)) unit.dropPath.shift();
+  } else if (!op) {
+    unit.group = "rally";
+    if (unit.type === "overlord") observerStep(state, unit, plan, dt);
+    else supportFollow(state, unit, plan, speed, dt);
   }
-  unit.group = "rally";
-  if (unit.type === "overlord") {
-    observerStep(state, unit, plan, dt);
-    return;
+  for (const id of unit.cargo ?? []) {
+    const rider = state.units.find((item) => item.id === id);
+    if (rider) {
+      rider.x = unit.x;
+      rider.y = unit.y;
+    }
   }
-  supportFollow(state, unit, plan, speed, dt);
 }
 
-function unloadCargo(state, unit) {
+/** 탄 병력을 수송선 둘레에 내려놓는다. */
+function unloadCargo(state, unit, setup) {
   const riders = (unit.cargo ?? []).map((id) => state.units.find((item) => item.id === id)).filter(Boolean);
   riders.forEach((rider, index) => {
     const angle = (Math.PI * 2 * index) / Math.max(1, riders.length);
     rider.x = Math.min(STW_LANE_WIDTH - 1, Math.max(1, unit.x + Math.cos(angle) * 1.6));
     rider.y = Math.min(STW_LANE_LENGTH - 1, Math.max(1, unit.y + Math.sin(angle) * 1.6));
-    rider.group = "attack";
     rider.targetId = null;
+    setup(rider);
   });
   unit.cargo = [];
+  return riders;
+}
+
+/** 적 기지에 내렸음을 알린다(내린 쪽 기록, 맞은 쪽 경보와 수송선 목격). */
+function announceLanding(state, unit, riders, kind) {
   state.effects.push({ kind: "warp", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.6, max: 0.6, radius: 3 });
-  if (unit.side === "player") pushLog(state, "player", `병력 ${riders.length}기가 적 본진에 내렸습니다!`, "good");
-  else alertOnce(state, "drop", 20, "player", "적 수송선이 본진 뒤에 병력을 내렸습니다!", "danger");
-  // 왔던 가장자리를 타고 돌아간다(적 본진 위를 가로지르지 않는다).
-  const edgeX = stwPoint(stwOpponent(unit.side), { x: 2.5, y: 97 }).x;
-  const home = stwPoint(unit.side, { x: 37.5, y: 90 });
-  unit.dropPath = [{ x: edgeX, y: unit.y }, { x: edgeX, y: home.y }, { x: home.x, y: home.y }];
+  const foe = stwOpponent(unit.side);
+  state.sides[foe].droppedAt = state.time;
+  state.sides[foe].sawTransportAt = state.time;
+  if (unit.side === "player") pushLog(state, "player", kind === "raid" ? `견제 병력 ${riders.length}기가 적 기지에 내렸습니다!` : `폭탄 드랍! 병력 ${riders.length}기가 적 본진에 내렸습니다!`, "good");
+  else alertOnce(state, `drop:${kind}`, 15, "player", kind === "raid" ? "적이 광물 줄에 견제 병력을 내렸습니다!" : "적이 본진에 대규모 병력을 내렸습니다!", "danger");
+}
+
+/** 다가오는 적 전투 병력 값(지원·일꾼·수송선 제외, 체력 비율 반영). */
+function threatValue(state, side, x, y, radius) {
+  let value = 0;
+  for (const unit of state.units) {
+    if (unit.side === side || unit.hp <= 0 || isPassive(unit) || unit.group === "cargo" || STW_UNITS[unit.type].transport) continue;
+    if (distance(unit.x, unit.y, x, y) > radius) continue;
+    value += unitValue(unit) * (unit.hp + unit.shields) / (unit.maxHp + unit.maxShields);
+  }
+  return value;
+}
+
+/** 정면이 맞붙었는지: 공격 병력 가운데 적 유닛을 노리는 유닛이 있다. */
+function frontEngaged(state, side) {
+  return state.units.some((unit) => unit.side === side && unit.group === "attack" && unit.raid === undefined && unit.bomb === undefined && unit.targetId !== null
+    && state.units.some((other) => other.id === unit.targetId && other.side !== side));
+}
+
+/**
+ * 수송 작전 진행(틱마다).
+ * 게릴라: 이동(out) → 내려서 견제(fight) → 회수(pickup) → 귀환(home). 버틴 시간, 다가오는 적, 남은 체력으로 회수를 정한다.
+ * 폭탄: 집결(gather) → 정면이 맞붙거나 시간이 차면 동시에 진입(in) → 귀환(home). 내린 병력은 끝까지 싸운다.
+ */
+function stepOps(state) {
+  const find = (id) => state.units.find((item) => item.id === id && item.hp > 0);
+  for (const op of state.ops ?? []) {
+    const transports = op.transports.map(find).filter(Boolean);
+    const record = state.sides[op.side];
+    if (op.kind === "raid") {
+      const transport = transports[0];
+      const riders = op.riders.map(find).filter(Boolean);
+      if (!transport) {
+        // 수송선을 잃으면 내려 있던 병력은 그 자리에서 끝까지 싸운다.
+        for (const rider of riders) {
+          rider.raid = undefined;
+          if (rider.group === "board") rider.group = "attack";
+        }
+        op.done = true;
+        continue;
+      }
+      if (op.phase === "out" && !transport.dropPath.length) {
+        const landed = unloadCargo(state, transport, (rider) => {
+          rider.group = "attack";
+          rider.raid = op.id;
+        });
+        op.riders = landed.map((rider) => rider.id);
+        op.value = landed.reduce((sum, rider) => sum + unitValue(rider), 0);
+        op.phase = "fight";
+        op.since = state.time;
+        transport.hover = { x: transport.x + (edgeX(transport.x) - transport.x) * 0.4, y: transport.y };
+        announceLanding(state, transport, landed, "raid");
+      } else if (op.phase === "fight") {
+        const alive = riders.filter((rider) => rider.group !== "cargo");
+        if (!alive.length) {
+          op.phase = "home";
+          transport.dropPath = homePath(op.side, transport);
+          continue;
+        }
+        const cx = alive.reduce((sum, rider) => sum + rider.x, 0) / alive.length;
+        const cy = alive.reduce((sum, rider) => sum + rider.y, 0) / alive.length;
+        const aliveValue = alive.reduce((sum, rider) => sum + unitValue(rider) * (rider.hp + rider.shields) / (rider.maxHp + rider.maxShields), 0);
+        const health = alive.reduce((sum, rider) => sum + rider.hp + rider.shields, 0) / alive.reduce((sum, rider) => sum + rider.maxHp + rider.maxShields, 0);
+        const timeUp = state.time - op.since > STW_TRANSPORT.raidDwell;
+        const outnumbered = threatValue(state, op.side, cx, cy, 10) > aliveValue * STW_TRANSPORT.retreatRatio;
+        if (timeUp || outnumbered || health < STW_TRANSPORT.hpRatio) {
+          op.phase = "pickup";
+          op.since = state.time;
+          for (const rider of alive) {
+            rider.group = "board";
+            rider.targetId = null;
+          }
+          if (op.side === "player") pushLog(state, "player", timeUp ? "견제를 마치고 병력을 회수합니다." : "적 병력이 몰려와 견제 병력을 회수합니다.", "order");
+        }
+      } else if (op.phase === "pickup") {
+        const waiting = riders.filter((rider) => rider.group === "board");
+        if (!waiting.length || state.time - op.since > STW_TRANSPORT.pickupTimeout) {
+          for (const rider of waiting) {
+            rider.group = "attack";
+            rider.raid = undefined;
+          }
+          op.phase = "home";
+          transport.dropPath = homePath(op.side, transport);
+        }
+      } else if (op.phase === "home" && !transport.dropPath.length) {
+        unloadCargo(state, transport, (rider) => {
+          rider.group = "rally";
+          rider.raid = undefined;
+        });
+        transport.op = undefined;
+        transport.hover = undefined;
+        transport.group = "rally";
+        op.done = true;
+        if (op.repeat && record.dropPlan?.repeat) record.raidRelaunchAt = state.time + STW_TRANSPORT.relaunchDelay;
+      }
+      continue;
+    }
+    // 폭탄 드랍
+    if (!transports.length) {
+      op.done = true;
+      continue;
+    }
+    if (op.phase === "gather") {
+      const arrived = transports.every((transport) => !transport.dropPath.length);
+      const waited = state.time - op.since;
+      const ready = (arrived || waited > STW_TRANSPORT.gatherTimeout) && (!op.sync || frontEngaged(state, op.side) || waited > STW_TRANSPORT.syncTimeout);
+      if (ready) {
+        op.phase = "in";
+        const land = landingPoint(state, op.side, op.target, "main");
+        transports.forEach((transport, index) => {
+          const spread = (index - (transports.length - 1) / 2) * 2.4;
+          transport.dropPath = dropPath(transport, { x: Math.min(STW_LANE_WIDTH - 2, Math.max(2, land.x + spread)), y: land.y });
+        });
+      }
+    } else if (op.phase === "in") {
+      for (const transport of transports) {
+        if (transport.dropPath.length || !transport.cargo?.length) continue;
+        const landed = unloadCargo(state, transport, (rider) => {
+          rider.group = "attack";
+          rider.bomb = op.target;
+        });
+        op.riders.push(...landed.map((rider) => rider.id));
+        announceLanding(state, transport, landed, "bomb");
+        transport.dropPath = homePath(op.side, transport);
+      }
+      if (transports.every((transport) => !transport.cargo?.length)) op.phase = "home";
+    } else if (op.phase === "home" && transports.every((transport) => !transport.dropPath.length)) {
+      for (const transport of transports) {
+        transport.op = undefined;
+        transport.group = "rally";
+      }
+      op.done = true;
+    }
+  }
+  if (state.ops?.length) state.ops = state.ops.filter((op) => !op.done);
+  // 계속 견제: 돌아와서 잠시 뒤 다시 나간다(병력이 모자라면 기다린다).
+  for (const side of STW_SIDES) {
+    const record = state.sides[side];
+    if (record.raidRelaunchAt === undefined || state.time < record.raidRelaunchAt) continue;
+    if (!record.dropPlan?.repeat || record.dropPlan.mission !== "raid") {
+      record.raidRelaunchAt = undefined;
+      continue;
+    }
+    if (stwDropCheck(state, side, "raid").ok) {
+      record.raidRelaunchAt = undefined;
+      stwCommand(state, side, { type: "drop", mission: "raid" });
+    } else record.raidRelaunchAt = state.time + 3;
+  }
+}
+
+/**
+ * 게릴라 드랍으로 내린 병력: 가까이(사거리+2) 온 적 유닛과는 싸우고, 아니면 목표 광물 줄의 일꾼을 친다(기술 건물이 목표면 그 건물).
+ * 일꾼이 다 없으면 보통 공격으로 돌아간다. 처리했으면 true.
+ */
+function raidRiderStep(state, unit, dt) {
+  const op = (state.ops ?? []).find((item) => item.id === unit.raid);
+  if (!op) {
+    unit.raid = undefined;
+    return false;
+  }
+  const near = findTarget(state, unit, unitRange(state, unit) + 2, { unitsOnly: true });
+  if (near && !isPassive(near)) {
+    unit.targetId = near.id;
+    return false;
+  }
+  const foe = stwOpponent(unit.side);
+  if (op.target === "tech") {
+    const goal = nearestBuilding(state, unit, foe, "tech");
+    if (goal) return chaseBuilding(state, unit, goal, dt);
+  }
+  const split = stwWorkerSplit(state, foe);
+  const workers = op.base === "natural" ? split.natural : split.main + split.idle;
+  if (!workers) return false;
+  const center = mineralCenter(foe, op.base);
+  if (distance(unit.x, unit.y, center.x, center.y) > 3) {
+    unit.targetId = null;
+    moveToward(unit, center.x + ((unit.id % 5) - 2) * 1.2, center.y, unitSpeed(state, unit), dt);
+    return true;
+  }
+  if (unit.cooldown <= 0) hitWorkers(state, unit, foe, op.base, workers, center);
+  return true;
+}
+
+/** 폭탄 드랍으로 내린 병력: 가까운 적 유닛과 싸우고, 아니면 목표 종류의 건물(생산·기술·본진)을 먼저 친다. */
+function bombRiderStep(state, unit, dt) {
+  const near = findTarget(state, unit, unitRange(state, unit) + 2, { unitsOnly: true });
+  if (near && !isPassive(near)) {
+    unit.targetId = near.id;
+    return false;
+  }
+  const goal = nearestBuilding(state, unit, stwOpponent(unit.side), unit.bomb);
+  if (!goal) {
+    unit.bomb = undefined;
+    return false;
+  }
+  return chaseBuilding(state, unit, goal, dt);
+}
+
+function nearestBuilding(state, unit, side, kind) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const building of state.buildings) {
+    if (building.side !== side || building.hp <= 0 || !canHit(unit, building)) continue;
+    if (kind && kind !== "any" && buildingKind(building.type) !== kind) continue;
+    const d = distance(unit.x, unit.y, building.x, building.y);
+    if (d < bestDistance) {
+      best = building;
+      bestDistance = d;
+    }
+  }
+  return best;
+}
+
+/** 멀면 건물 쪽으로 걷고(true), 가까우면 그 건물을 목표로 넘겨 보통 공격이 치게 한다(false). */
+function chaseBuilding(state, unit, building, dt) {
+  const d = distance(unit.x, unit.y, building.x, building.y) - building.radius;
+  if (d > unitRange(state, unit) + 5) {
+    unit.targetId = null;
+    moveToward(unit, building.x, building.y, unitSpeed(state, unit), dt);
+    return true;
+  }
+  unit.targetId = building.id;
+  return false;
+}
+
+/** 광물 줄 일꾼을 친다: 피해가 일꾼 체력만큼 쌓일 때마다 1기가 죽는다. 범위 공격은 두 배로 친다. */
+function hitWorkers(state, unit, foe, base, workers, center) {
+  const def = STW_UNITS[unit.type];
+  const workerType = stwRace(state, foe).worker;
+  const dummy = { kind: "unit", type: workerType, size: "small" };
+  const damage = stwHitDamage(state, unit, dummy).reduce((sum, amount) => sum + amount, 0) * (def.splash ? 2 : 1);
+  unit.cooldown = attackCooldown(state, unit, def, null);
+  const spot = { x: center.x + (nextRandom(state) - 0.5) * 6, y: center.y + (nextRandom(state) - 0.5) * 1.5 };
+  unit.heading = Math.atan2(spot.y - unit.y, spot.x - unit.x);
+  state.effects.push({ kind: ATTACK_EFFECT[unit.type] ?? "plasma", side: unit.side, x1: unit.x, y1: unit.y, x2: spot.x, y2: spot.y, ttl: 0.2, max: 0.2, attackerId: unit.id });
+  const record = state.sides[foe];
+  record.workerDamage ??= { main: 0, natural: 0 };
+  record.workerDamage[base] += damage;
+  const hp = STW_WORKER_HP[workerType] ?? 40;
+  let killed = 0;
+  while (record.workerDamage[base] >= hp && killed < workers && record.probes > 0) {
+    record.workerDamage[base] -= hp;
+    record.probes -= 1;
+    killed += 1;
+    state.effects.push({ kind: "death", side: foe, x1: spot.x, y1: spot.y, x2: spot.x, y2: spot.y, ttl: 0.5, max: 0.5, radius: 1.2 });
+  }
+  if (def.suicide) unit.hp = 0;
+  if (!killed) return;
+  record.stats.workersLost = (record.stats.workersLost ?? 0) + killed;
+  const own = state.sides[unit.side].stats;
+  own.workersKilled = (own.workersKilled ?? 0) + killed;
+  const workerName = STW_UNITS[workerType].name;
+  if (foe === "player") alertOnce(state, `workers:${base}`, 6, "player", `${base === "natural" ? "앞마당" : "본진"} 광물 줄의 ${withKoreanSubject(workerName)} 죽고 있습니다! 지금까지 ${record.stats.workersLost}기 잃음`, "danger");
+  else alertOnce(state, "workersKilled", 6, "player", `적 ${workerName} ${own.workersKilled}기 처치`, "good");
 }
 
 /* ───────── 마법 ───────── */
@@ -2361,6 +2807,14 @@ function updateVision(state) {
     for (const [id, memory] of Object.entries(record.seen)) {
       // 지금 보이는 자리에서 사라진 건물은 기억에서 지운다.
       if (!alive.has(Number(id)) && stwVisible(state, side, memory.x, memory.y)) delete record.seen[id];
+    }
+    // 적 수송선(셔틀·드랍십, 병력을 실은 오버로드)이 우리 쪽 절반에 보이면 기억하고 알린다.
+    for (const unit of state.units) {
+      if (unit.side !== foe || unit.hp <= 0) continue;
+      const carrying = STW_UNITS[unit.type].transport || (unit.type === "overlord" && (unit.cargo?.length || unit.dropPath?.length));
+      if (!carrying || (side === "player" ? unit.y < 50 : unit.y > 50) || !stwVisible(state, side, unit.x, unit.y)) continue;
+      record.sawTransportAt = state.time;
+      if (side === "player") alertOnce(state, "transport", 30, "player", "적 수송선이 다가옵니다! 본진에 방어 건물을 갖추세요.", "danger");
     }
     const foeMain = stwNexus(state, foe, "main");
     if (foeMain && stwVisible(state, side, foeMain.x, foeMain.y, 2)) {

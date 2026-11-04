@@ -32,7 +32,7 @@ export type StwUnit = {
   radius: number;
   heading: number;
   energy: number;
-  group: "rally" | "attack" | "scout" | "drop" | "cargo";
+  group: "rally" | "attack" | "scout" | "drop" | "cargo" | "board";
   targetId: number | null;
   sieged?: boolean;
   siegeUntil?: number;
@@ -50,6 +50,9 @@ export type StwUnit = {
   cargo?: number[];
   bornAt?: number;
   escort?: boolean;
+  op?: number;
+  raid?: number;
+  bomb?: StwDropTarget;
 };
 
 export type StwBuilding = {
@@ -82,7 +85,12 @@ export type StwStorm = { id: number; side: StwSide; x: number; y: number; ttl: n
 export type StwZone = { id: number; kind: "swarm"; side: StwSide; x: number; y: number; radius: number; ttl: number; max: number };
 export type StwIntel = { race?: StwRaceId; time: number; buildings: Partial<Record<StwBuildingType, number>>; units: Record<StwArmyType, number>; research: { id: StwResearchId; status: string }[]; probes: number };
 export type StwSeen = { id: number; type: StwBuildingType; x: number; y: number; base: string; radius: number; at: number };
-export type StwStats = { minerals: number; gas: number; produced: number; lost: number; kills: number; buildingsLost: number; buildingsDestroyed: number; storms: number; overkill: number };
+export type StwStats = { minerals: number; gas: number; produced: number; lost: number; kills: number; buildingsLost: number; buildingsDestroyed: number; storms: number; overkill: number; workersLost?: number; workersKilled?: number };
+export type StwDropMission = "raid" | "bomb";
+export type StwDropTarget = "main" | "natural" | "tech" | "alternate" | "production";
+export type StwDropPlan = { mission: StwDropMission; target: StwDropTarget; repeat: boolean; sync: boolean };
+/** 진행 중인 수송 작전. */
+export type StwOp = { id: number; side: StwSide; kind: StwDropMission; target: StwDropTarget; base: "main" | "natural"; transports: number[]; riders: number[]; phase: "out" | "fight" | "pickup" | "home" | "gather" | "in"; since: number; sync: boolean; repeat: boolean; value: number };
 
 export type StwSideState = {
   id: StwSide;
@@ -101,6 +109,10 @@ export type StwSideState = {
   persona: "rush" | "dragoon" | "templar" | "dark" | "robo" | "bio" | "mech" | "tankbio" | "vulture" | "ling" | "hydra" | "pool" | "ultra" | null;
   sawCloakAt?: number;
   sawAirAt?: number;
+  sawTransportAt?: number;
+  droppedAt?: number;
+  dropPlan?: StwDropPlan;
+  raidRelaunchAt?: number;
   stats: StwStats;
 };
 
@@ -117,6 +129,7 @@ export type StwState = {
   buildings: StwBuilding[];
   storms: StwStorm[];
   zones?: StwZone[];
+  ops?: StwOp[];
   scans?: StwScan[];
   stalemate?: number;
   effects: StwEffect[];
@@ -132,7 +145,8 @@ export type StwCommand =
   | { type: "lineAll"; unit: StwArmyType | null; producer?: StwProducerType }
   | { type: "merge" }
   | { type: "darkMerge" }
-  | { type: "drop" }
+  | { type: "drop"; mission?: StwDropMission; target?: StwDropTarget; repeat?: boolean; sync?: boolean }
+  | { type: "dropPlan"; mission?: StwDropMission; target?: StwDropTarget; repeat?: boolean; sync?: boolean }
   | { type: "rally"; point: StwRallyId }
   | { type: "move"; y: number }
   | { type: "attack" }

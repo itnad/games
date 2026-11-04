@@ -75,7 +75,7 @@ const BUILD_ORDERS = {
     { build: "depot" }, { build: "barracks" }, { build: "refinery" }, { build: "barracks" }, { build: "depot" },
     { build: "academy" }, { build: "factory" }, { research: "stim" }, { build: "shop" }, { research: "siege" },
     { build: "expand", at: 300 }, { build: "barracks" }, { build: "ebay" }, { research: "infWeapons1" }, { research: "u238" }, { build: "comsat" }, { build: "refinery" },
-    { build: "starport", at: 480 }, { build: "science" }, { research: "irradiate" }, { research: "emp" },
+    { build: "starport", at: 360 }, { build: "science" }, { research: "irradiate" }, { research: "emp" },
   ],
   // 배틀크루저: 탱크와 벙커로 버티며 스타포트 둘과 사이언스 퍼실리티를 올려 배틀크루저를 모은다.
   bc: [
@@ -117,7 +117,7 @@ const BUILD_ORDERS = {
   ling: [
     { build: "pool" }, { build: "overlord" }, { build: "extractor" }, { research: "metabolic" }, { build: "hatch" },
     { build: "overlord" }, { build: "expand", at: 200 }, { build: "hatch" }, { build: "evo", at: 240 }, { research: "zMelee1" },
-    { research: "lair", at: 300 }, { build: "extractor" }, { research: "zCarapace1" }, { research: "zMelee2" }, { research: "adrenal" }, { build: "hatch" },
+    { research: "lair", at: 300 }, { research: "ventral" }, { build: "extractor" }, { research: "zCarapace1" }, { research: "zMelee2" }, { research: "adrenal" }, { build: "hatch" },
   ],
   hydra: [
     { build: "overlord" }, { build: "pool" }, { build: "extractor" }, { build: "hatch" }, { build: "sunken" }, { build: "den" },
@@ -149,6 +149,16 @@ const FALLBACK_PRODUCER = { terran: "barracks", zerg: "hatch" };
 /** 광물이 쌓일 때 늘리는 기본 생산 건물의 상한. 해처리는 한 번에 한 마리씩만 만들므로 저그는 더 많이 둔다. */
 const FALLBACK_CAP = { terran: 5, zerg: 8 };
 const LATE_UPGRADES = { protoss: ["weapons2", "shields1", "armor1"], terran: ["infWeapons2", "infArmor1"], zerg: ["zMelee2", "zMissile2", "zCarapace1"] };
+/**
+ * 수송 작전 성향: 게릴라 드랍은 2분마다 한 분대(계속 견제), 폭탄 드랍은 정면 출격과 동시에.
+ * 로보 운영은 셔틀로 질럿·드라군, 레이스 메카닉은 드랍십으로 벌처·해병, 저글링 물량은 오버로드로 저글링, 탱크 바이오는 드랍십 둘로 폭탄 드랍.
+ */
+const DROP_PLANS = {
+  robo: { mission: "raid", target: "alternate" },
+  wraith: { mission: "raid", target: "main" },
+  ling: { mission: "raid", target: "alternate" },
+  tankbio: { mission: "bomb", target: "production", sync: true },
+};
 const DEFAULT_PERSONA = { protoss: "dragoon", terran: "bio", zerg: "hydra" };
 /** 경계 중에도 짓는 1단계 유닛 해금 건물: 질럿 러시에 드라군·파이어뱃·히드라로 맞서야 한다. */
 const ALERT_TECH = new Set(["core", "academy", "den", "evo"]);
@@ -327,6 +337,12 @@ export function stwAiThink(state, side) {
     else stwCommand(state, side, { type: "build", building: "spore" });
   }
 
+  // 3-1-0-1. 상대 수송선을 봤거나 드랍을 맞았으면 본진에 지상을 쏘는 방어 건물 하나(캐논·벙커·성큰). 배치 규칙이 본진에 먼저 세운다.
+  if (record.sawTransportAt !== undefined && stwNexus(state, side, "natural") && state.time > 300) {
+    const guard = race.id === "protoss" ? "cannon" : race.id === "terran" ? "bunker" : "sunken";
+    if (!state.buildings.some((building) => building.side === side && building.type === guard && building.base === "main")) ensureDefense(state, side, race, stwOwnBuildings(state, side, guard).length + 1);
+  }
+
   // 3-1-1. 저그 상대: 저글링 물량에 대비해 테란은 벙커 하나를 세운다.
   const versusZerg = state.sides[stwOpponent(side)].race === "zerg";
   if (versusZerg && race.id === "terran" && stwHas(state, side, "barracks") && state.time > 150) {
@@ -375,7 +391,8 @@ export function stwAiThink(state, side) {
     let unit = null;
     if (observers < (needDetection || persona === "robo" ? 1 : 0) + (persona === "robo" && state.time > 480 ? 1 : 0)) unit = "observer";
     // 로보 운영은 8분 뒤 셔틀 하나로 본진 침투를 노린다.
-    else if (persona === "robo" && state.time > 480 && units.some((item) => item.type === "reaver") && !units.some((item) => item.type === "shuttle")) unit = "shuttle";
+    // 로보 운영은 5분 뒤 셔틀 하나로 게릴라 드랍을 다닌다(지원 베이가 있으면 첫 리버 다음).
+    else if (persona === "robo" && state.time > 300 && !units.some((item) => item.type === "shuttle") && (units.some((item) => item.type === "reaver") || !stwHas(state, side, "bay"))) unit = "shuttle";
     else if (persona === "robo" && stwHas(state, side, "bay")) unit = "reaver";
     // 리버는 로보 운영의 핵심이라 연구용 가스보다 먼저 만든다.
     if (robo.line !== unit) stwCommand(state, side, { type: "line", buildingId: robo.id, unit });
@@ -551,7 +568,9 @@ function terranLines(state, side, persona, units, reserve) {
     // 바이오닉·탱크 바이오는 사이언스 베슬 둘(이레디에이트·EMP·탐지).
     else if ((persona === "bio" || persona === "tankbio") && science && count("vessel") < 2) unit = "vessel";
     // 레이스 메카닉은 8분 뒤 드랍십 하나로 본진 침투를 노린다.
-    else if (persona === "wraith" && state.time > 480 && !count("dropship") && index === 0) unit = "dropship";
+    else if (persona === "wraith" && state.time > 360 && !count("dropship") && index === 0) unit = "dropship";
+    // 탱크 바이오는 7분 뒤 폭탄 드랍용 드랍십 둘(베슬보다 먼저).
+    if (persona === "tankbio" && state.time > 420 && count("dropship") < 2) unit = "dropship";
     // 적 공중이 많으면 아머리가 있을 때 발키리를 섞는다.
     if (airHeavy && stwHas(state, side, "armory") && count("valkyrie") < 4 && (index === 1 || unit === null)) unit = "valkyrie";
     // 레이스·배틀크루저는 그 성향의 핵심이라 연구용 가스보다 먼저 만든다.
@@ -728,9 +747,10 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   const army = stwArmy(state, side);
   const foe = stwOpponent(side);
 
-  // 본진 침투: 쉬는 수송선이 있고 대기 병력이 10기 이상이면 2분마다 한 번 적 본진 뒤로 보낸다(정면 웨이브와 따로).
-  if (!memory.attacking && army.fighters.length >= 10 && state.time - (memory.lastDrop ?? -999) > 120 && stwDropCheck(state, side).ok && record.race !== "zerg") {
-    if (stwCommand(state, side, { type: "drop" }).ok) memory.lastDrop = state.time;
+  // 게릴라 드랍: 쉬는 수송선이 있고 대기 병력이 6기 이상이면 1분 30초마다 한 분대를 광물 줄로(정면 웨이브와 따로).
+  const dropPlan = DROP_PLANS[persona];
+  if (dropPlan?.mission === "raid" && army.fighters.length >= 6 && state.time - (memory.lastDrop ?? -999) > 90 && stwDropCheck(state, side, "raid").ok) {
+    if (stwCommand(state, side, { type: "drop", ...dropPlan }).ok) memory.lastDrop = state.time;
   }
 
   // 본진·앞마당이 공격받으면 공격 병력을 불러들인다.
@@ -777,8 +797,21 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
     size = Math.max(size, Math.ceil(seenFighters * 1.3) + 2);
   }
   if (army.fighters.length >= size) {
-    stwCommand(state, side, { type: "attack" });
+    // 폭탄 드랍 성향은 쉬는 수송선이 둘 이상이면 출격과 동시에 폭탄 드랍(남은 병력은 정면으로).
+    if (dropPlan?.mission === "bomb" && stwDropCheck(state, side, "bomb").ok) stwCommand(state, side, { type: "drop", ...dropPlan });
+    else stwCommand(state, side, { type: "attack" });
+    keepHomeGuard(state, side, record);
     memory.attacking = true;
-    memory.waveStart = army.fighters.length;
+    memory.waveStart = stwArmy(state, side).attackers.length;
   }
+}
+
+/** 상대에게 수송선이 있으면(최근 5분 안에 봤거나 드랍을 맞았으면) 출격할 때 대기 병력 4기를 집에 남긴다. AI만 쓴다. */
+function keepHomeGuard(state, side, record) {
+  if (record.sawTransportAt === undefined || state.time - record.sawTransportAt > 300) return;
+  const attackers = stwArmy(state, side).attackers;
+  if (attackers.length < 8) return;
+  // 원거리·대공 유닛을 먼저 남긴다(수송선과 내린 병력을 함께 막도록).
+  const guards = [...attackers].sort((a, b) => Number(STW_UNITS[b.type].targets === "both") - Number(STW_UNITS[a.type].targets === "both") || STW_UNITS[a.type].minerals - STW_UNITS[b.type].minerals).slice(0, 4);
+  for (const unit of guards) unit.group = "rally";
 }

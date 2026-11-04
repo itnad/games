@@ -525,7 +525,31 @@ export const STW_ECONOMY = {
   shieldRegen: 2,
   shieldRegenDelay: 7,
   zergRegen: 0.6,
+  /** 광물 줄이나 기지 건물 가까이에 적 전투 유닛이 있으면 일꾼이 대피해 그 기지 채취가 이 비율로 떨어진다. */
+  evacuation: 0.4,
+  /** 광물 줄 구역 반경(광물 중심에서). */
+  mineralZone: 7,
 };
+
+/** 일꾼 체력(보호막 포함). 게릴라 드랍에 내린 병력이 광물 줄에서 이만큼 피해를 쌓을 때마다 일꾼 1기가 죽는다. */
+export const STW_WORKER_HP = { probe: 40, scv: 60, drone: 40 };
+
+/**
+ * 수송 작전 수치.
+ * - capacity: 수송선 한 기의 칸 수(원작처럼 소형 1, 중형 2, 대형 4칸)
+ * - raidDwell: 게릴라 드랍이 내려서 버티는 최대 시간(초)
+ * - retreatRatio: 다가오는 적 전투 병력 값이 내린 병력 값의 이 비율을 넘으면 회수
+ * - hpRatio: 내린 병력의 남은 체력이 이 비율 아래면 회수
+ * - pickupTimeout: 회수를 시작한 뒤 이 시간이 지나면 못 탄 유닛을 두고 떠난다
+ * - gatherTimeout: 폭탄 드랍 수송선이 집결점에 모이기를 기다리는 최대 시간
+ * - syncTimeout: "정면 출격과 동시에"일 때 정면이 맞붙기를 기다리는 최대 시간(출발부터)
+ * - relaunchDelay: 계속 견제일 때 돌아와서 다시 나가기까지
+ */
+export const STW_TRANSPORT = { capacity: 8, raidDwell: 25, retreatRatio: 0.7, hpRatio: 0.5, pickupTimeout: 8, gatherTimeout: 25, syncTimeout: 45, relaunchDelay: 6 };
+/** 크기 규칙에서 벗어나는 탑승 칸(질럿·다크템플러 2, 울트라리스크 8). 나머지는 소형 1, 중형 2, 대형 4. */
+export const STW_SLOTS = { zealot: 2, dark: 2, templar: 2, goliath: 2, vulture: 2, hydra: 2, ultra: 8 };
+/** 게릴라 드랍에 태우는 빠르고 싼 유닛(앞이 먼저). */
+export const STW_RAID_UNITS = { protoss: ["zealot", "dark", "archon", "dragoon"], terran: ["vulture", "marine", "medic", "firebat", "ghost"], zerg: ["zergling", "hydra"] };
 
 export const STW_SIZE_MULTIPLIER = {
   normal: { small: 1, medium: 1, large: 1 },

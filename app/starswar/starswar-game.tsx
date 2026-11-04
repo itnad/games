@@ -41,7 +41,7 @@ import {
 import { stwAiThink } from "./starswar-ai.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
 import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
-import type { StwArmyType, StwBuildChoice, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
+import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwOp, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
 
 type Screen = "menu" | "play";
 type Tab = "build" | "produce" | "army";
@@ -57,6 +57,12 @@ const TABS: { id: Tab; label: string }[] = [
 const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard"];
 const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
 const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", stargate: "스타게이트", barracks: "배럭", factory: "팩토리", starport: "스타포트", hatchery: "해처리", hatch: "해처리" };
+/** 진행 중인 수송 작전 한 줄 요약. */
+function opStatus(game: StwState, op: StwOp) {
+  const phase: Record<StwOp["phase"], string> = { out: "이동 중", fight: `견제 중 ${Math.max(0, Math.round(game.time - op.since))}초`, pickup: "회수 중", home: "귀환 중", gather: op.sync ? "집결 · 정면 대기" : "집결 중", in: "진입 중" };
+  return `${op.kind === "raid" ? "게릴라" : "폭탄"} ${phase[op.phase]}`;
+}
+
 /**
  * 건물마다 보여 줄 생산 선택지. 고를 수 있는 것이 여섯을 넘는 건물(해처리 11종)은 잠긴 유닛을 숨겨
  * 해처리가 여럿일 때 목록이 끝없이 길어지지 않게 한다. 지금 고른 유닛은 잠겨도 보인다.
@@ -816,9 +822,13 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
   const escorting = game.units.some((unit) => unit.side === "player" && unit.type === "overlord" && unit.escort);
   const scouting = game.units.filter((unit) => unit.side === "player" && unit.group === "scout").length;
   const intel = side.intel;
-  const drop = stwDropCheck(game, "player") as StwCheck;
-  const flying = game.units.filter((unit) => unit.side === "player" && unit.group === "drop").length;
+  const plan = side.dropPlan ?? { mission: "raid", target: "main", repeat: false, sync: false };
+  const drop = stwDropCheck(game, "player", plan.mission) as StwCheck;
+  const ops = (game.ops ?? []).filter((op) => op.side === "player");
   const transportName = race.id === "terran" ? "드랍십" : race.id === "zerg" ? "오버로드" : "셔틀";
+  const targets: [StwDropTarget, string][] = plan.mission === "raid"
+    ? [["main", "본진"], ["natural", "앞마당"], ["tech", "기술 건물"], ["alternate", "번갈아"]]
+    : [["production", "생산 건물"], ["tech", "기술 건물"], ["main", "본진 중심"]];
   return (
     <div className="stw-tab">
       <div className="stw-army-summary">
@@ -855,13 +865,32 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
           </div>
         </>
       ) : null}
-      <h3 className="stw-section">본진 침투</h3>
-      <p className="stw-hint">{`${withKoreanSubject(transportName)} 대기 중인 지상 병력을 인구 8씩 싣고 전장 가장자리를 타고 날아가 적 본진 뒤에 내려놓습니다. 수송선이 격추되면 탄 병력도 잃습니다.`}</p>
+      <h3 className="stw-section">수송 작전</h3>
+      <p className="stw-hint">{plan.mission === "raid"
+        ? `게릴라 드랍: ${transportName} 1기에 빠른 병력 한 분대(8칸)를 태워 본진이나 앞마당 광물 줄의 일꾼을 칩니다(기술 건물을 고르면 그 건물을). 적이 몰려오거나 25초가 지나면 회수해 돌아옵니다.`
+        : `폭탄 드랍: ${transportName} 2기 이상에 대기 병력을 비싼 것부터 가득 싣고 가장자리에 모였다가 한꺼번에 내립니다. 내린 병력은 끝까지 싸웁니다.`}</p>
+      <div className="stw-segment two">
+        {([["raid", "게릴라 드랍"], ["bomb", "폭탄 드랍"]] as [StwDropMission, string][]).map(([mission, label]) => (
+          <button key={mission} type="button" className={plan.mission === mission ? "active" : ""} aria-pressed={plan.mission === mission} onClick={() => issue({ type: "dropPlan", mission })}>{label}</button>
+        ))}
+      </div>
+      <div className="stw-segment">
+        {targets.map(([target, label]) => (
+          <button key={target} type="button" className={plan.target === target ? "active" : ""} aria-pressed={plan.target === target} onClick={() => issue({ type: "dropPlan", target })}>{label}</button>
+        ))}
+      </div>
+      <div className="stw-segment one">
+        {plan.mission === "raid" ? (
+          <button type="button" className={plan.repeat ? "active" : ""} aria-pressed={plan.repeat} onClick={() => issue({ type: "dropPlan", repeat: !plan.repeat }, plan.repeat ? "계속 견제를 껐습니다." : "견제를 마치고 돌아오면 다시 나갑니다.")}>{plan.repeat ? "계속 견제 켬" : "계속 견제 끔"}</button>
+        ) : (
+          <button type="button" className={plan.sync ? "active" : ""} aria-pressed={plan.sync} onClick={() => issue({ type: "dropPlan", sync: !plan.sync }, plan.sync ? "정면 출격과 따로 들어갑니다." : "정면이 맞붙을 때 함께 들어갑니다.")}>{plan.sync ? "정면 출격과 동시에 켬" : "정면 출격과 동시에 끔"}</button>
+        )}
+      </div>
       <div className="stw-scout">
         <Card
-          title="본진 침투"
-          sub={flying ? `날아가는 수송선 ${flying}` : `${transportName} 수송`}
-          note={drop.ok ? "누르면 쉬고 있는 수송선이 모두 출발합니다" : drop.reason}
+          title={plan.mission === "raid" ? "견제 출발" : "폭탄 드랍 출발"}
+          sub={ops.length ? ops.map((op) => opStatus(game, op)).join(" · ") : `${transportName} 수송`}
+          note={drop.ok ? (plan.mission === "raid" ? "쉬는 수송선마다 한 분대씩 출발합니다" : "쉬는 수송선이 모두 함께 출발합니다") : drop.reason}
           disabled={!drop.ok}
           onClick={() => issue({ type: "drop" })}
         />
