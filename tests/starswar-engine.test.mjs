@@ -631,12 +631,11 @@ test("starswar places defenses at the front of the main, center first", () => {
   assert.ok(Math.abs(cannons[1].x - 20) < 6, `둘째도 가운데 옆 ${cannons[1].x}`);
 });
 
-test("starswar AI holds a four-gate zealot rush behind its defenses", () => {
-  // 게이트웨이 넷에서 질럿만 뽑아 8기씩 보내는 플레이어. 예전에는 바이오닉 AI가 6분 30초 안에 무너졌다.
-  const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "bio" } });
+/** 게이트웨이 넷에서 질럿만 뽑아 8기씩 보내는 플레이어로 seconds초까지 진행한다. */
+const runZealotRush = (state, seconds) => {
   const record = state.sides.player;
   let next = 0;
-  while (state.status === "playing" && state.time < 420) {
+  while (state.status === "playing" && state.time < seconds) {
     if (state.time >= next) {
       next = state.time + 1;
       const supply = stwSupply(state, "player");
@@ -648,10 +647,27 @@ test("starswar AI holds a four-gate zealot rush behind its defenses", () => {
     }
     stepStarswar(state, stwAiThink);
   }
+};
+
+test("starswar AI holds a four-gate zealot rush behind its defenses", () => {
+  // 예전에는 바이오닉 AI가 6분 30초 안에 무너졌다.
+  const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "bio" } });
+  runZealotRush(state, 420);
   assert.equal(state.status, "playing", "7분까지 버틴다");
   assert.ok(state.sides.enemy.stats.kills >= 16, `질럿을 잡는다 ${state.sides.enemy.stats.kills}`);
   const bunkers = stwOwnBuildings(state, "enemy", "bunker");
   assert.ok(bunkers.length, "벙커가 있다");
+});
+
+test("starswar zergling AI switches to hydras when a zealot rush keeps it pinned", () => {
+  // 저글링은 질럿에게 손해를 본다. 예전에는 저글링만 고집하다 10~12분에 무너졌다.
+  const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { enemy: "ling" } });
+  runZealotRush(state, 600);
+  assert.equal(state.status, "playing", "10분까지 버틴다");
+  assert.equal(state.sides.enemy.persona, "hydra", "히드라로 갈아탄다");
+  assert.equal(state.sides.enemy.ai.switched.from, "ling");
+  assert.ok(state.sides.enemy.ai.switched.at < 480, `큰 물량이 막히기를 기다리지 않고 일찍 갈아탄다 ${state.sides.enemy.ai.switched.at}`);
+  assert.ok(state.units.some((unit) => unit.side === "enemy" && unit.type === "hydra"), "히드라가 나온다");
 });
 
 test("starswar terran AI personas field their signature units and finish a game", () => {

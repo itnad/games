@@ -674,6 +674,16 @@ function switchStrategy(state, side, memory) {
   const from = record.persona;
   if (!SWITCH_TO[from] || memory.switched) return;
   const failed = memory.bigFails ?? 0;
+  // 저글링 물량이 5분 넘게 질럿·다크템플러 러시에 눌려 있으면(경계 중, 보이는 적 절반 이상이 그 둘) 큰 물량이 막히기를 기다리지 않고 바로 갈아탄다.
+  // 저글링은 질럿에게 손해를 보는 유닛이라 집에서 성큰을 끼고 막아도 웨이브마다 20기씩 녹는다.
+  const mix = foeMix(state, side) ?? {};
+  const pressured = from === "ling" && state.time >= 300 && (memory.alertUntil ?? 0) > state.time && (mix.zealot ?? 0) + (mix.dark ?? 0) >= 0.5;
+  if (pressured) {
+    memory.switched = { from, to: SWITCH_TO[from](mix), at: state.time };
+    memory.done = [];
+    record.persona = memory.switched.to;
+    return;
+  }
   // 공중 성향은 스타게이트·스타포트·스파이어가 서고 주력이 나와 본 뒤(11분)에야 갈아탄다. 그 전의 실패는 테크를 올리는 중의 일이다.
   const since = SWITCH_AFTER[from] ?? 480;
   if (state.time < since || failed < (state.time < since + 240 ? 2 : 1)) return;
@@ -725,8 +735,9 @@ function assessThreat(state, side, memory) {
 /**
  * 적 전투 병력 짐작: 최근 90초 동안 한 번에 본 가장 많은 수와, 정찰 때 센 병력에 그 뒤 생산 건물이 뽑았을 만큼(20초에 하나)을 더한 값 중 큰 쪽.
  * 보이는 적만 세면 적 본진에 모여 있는 러시 병력을 모른 채 출격해 길에서 맞붙는다.
+ * power는 우리 병력의 평균 방어력(ownArmor)을 뺀 화력으로, armor는 적 한 기의 평균 방어력이다(우리 전투력을 셀 때 쓴다).
  */
-function foeArmyEstimate(state, side, memory) {
+function foeArmyEstimate(state, side, memory, ownArmor = 0) {
   const record = state.sides[side];
   const foe = stwOpponent(side);
   const foeRace = STW_RACES[state.sides[foe].race ?? "protoss"];
@@ -735,18 +746,34 @@ function foeArmyEstimate(state, side, memory) {
     memory.peakFoe = visible.length;
     memory.peakFoeAt = state.time;
   }
-  // 적 병력 한 기의 평균 전투력: 지금 보이는 적, 없으면 정찰 때 본 적, 그것도 없으면 그 종족의 기본 유닛.
+  // 적 병력 구성: 지금 보이는 적, 없으면 정찰 때 본 적, 그것도 없으면 마지막으로 본 구성이나 그 종족의 기본 유닛.
   const intel = record.intel && state.time - record.intel.time < 180 ? record.intel : null;
   const mix = visible.length ? visible.map((unit) => unit.type) : Object.entries(intel?.units ?? {}).flatMap(([type, count]) => (STW_UNITS[type] && STW_UNITS[type].role !== "support" ? Array(count).fill(type) : []));
-  if (mix.length) memory.foeUnitPower = mix.reduce((sum, type) => sum + unitPower(type), 0) / mix.length;
-  const each = memory.foeUnitPower ?? unitPower(FIRST_UNIT[foeRace.id]);
+  if (mix.length) memory.foeTypes = mix;
+  const types = memory.foeTypes ?? [FIRST_UNIT[foeRace.id]];
+  const each = types.reduce((sum, type) => sum + unitPower(type, ownArmor), 0) / types.length;
+  const armor = types.reduce((sum, type) => sum + STW_UNITS[type].armor, 0) / types.length;
+  // 정찰 뒤 생산 건물이 뽑았을 만큼을 더하고, 그 뒤 우리가 잡은 적만큼 뺀다. 오래된 정찰이라도 버리지 않는다(버리면 웨이브 하나만 보고 적 본진의 병력을 잊는다).
   let count = memory.peakFoe;
-  if (intel) {
-    const fighters = Object.entries(intel.units ?? {}).reduce((sum, [type, n]) => sum + (STW_UNITS[type] && STW_UNITS[type].role !== "support" ? n : 0), 0);
-    const producers = foeRace.producers.reduce((sum, type) => sum + (intel.buildings[type] ?? 0), 0);
-    count = Math.max(count, fighters + (producers * (state.time - intel.time)) / 20);
+  const scouted = record.intel;
+  if (scouted) {
+    if (memory.intelAt !== scouted.time) {
+      memory.intelAt = scouted.time;
+      memory.killsAtIntel = record.stats.kills;
+    }
+    const fighters = Object.entries(scouted.units ?? {}).reduce((sum, [type, n]) => sum + (STW_UNITS[type] && STW_UNITS[type].role !== "support" ? n : 0), 0);
+    const producers = foeRace.producers.reduce((sum, type) => sum + (scouted.buildings[type] ?? 0), 0);
+    const killed = record.stats.kills - memory.killsAtIntel;
+    count = Math.max(count, fighters + (producers * (state.time - scouted.time)) / 20 - killed);
   }
-  return { count, power: count * each };
+  return { count, power: count * each, armor };
+}
+
+/** 적 전투 병력 3기 이상이 우리 진영 절반 안에 보이는지(들어오는 웨이브). */
+function incomingWave(state, side) {
+  const foe = stwOpponent(side);
+  const ownHalf = (y) => (side === "player" ? y > 50 : y < 50);
+  return state.units.filter((unit) => unit.side === foe && !STW_UNITS[unit.type].worker && STW_UNITS[unit.type].role !== "support" && ownHalf(unit.y) && stwVisible(state, side, unit.x, unit.y)).length >= 3;
 }
 
 /** 종족의 첫 전투 유닛(적 병력 구성을 모를 때 쓴다). */
@@ -754,16 +781,17 @@ const FIRST_UNIT = { protoss: "zealot", terran: "marine", zerg: "zergling" };
 
 /**
  * 한 기의 전투력: √(초당 피해 × 체력·보호막). 란체스터 제곱 법칙에서 병력의 힘은 (Σ√(화력×체력))²이므로 합으로 비교할 수 있다.
+ * 화력은 상대 방어력(targetArmor)을 뺀 값이다. 저글링(공격력 5)은 방어력 1인 질럿에게 20% 덜 들어간다.
  * 해병(√(8×45) ≈ 19)은 질럿(√(14.5×160) ≈ 48)의 약 0.4다. 무기 없는 유닛(메딕 등)은 화력 2로 친다.
  */
-function unitPower(type) {
+function unitPower(type, targetArmor = 0) {
   const def = STW_UNITS[type];
-  const dps = def.damage ? (def.damage * (def.hits ?? 1)) / def.cooldown : 2;
+  const dps = def.damage ? (Math.max(0.5, def.damage - targetArmor) * (def.hits ?? 1)) / def.cooldown : 2;
   return Math.sqrt(Math.max(2, dps) * (def.hp + def.shields));
 }
 
-function armyPower(units) {
-  return units.reduce((sum, unit) => sum + unitPower(unit.type), 0);
+function armyPower(units, targetArmor = 0) {
+  return units.reduce((sum, unit) => sum + unitPower(unit.type, targetArmor), 0);
 }
 
 /**
@@ -849,7 +877,10 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   let size = allIn ? 1 : Math.round(Math.min(WAVE_CAP[persona] ?? 40, listed + Math.min(12, defenses * 4)) * settings.waveScale);
   // 경계 중에는 짐작한 적 병력보다 전투력이 넉넉히(1.5배) 앞설 때까지 집에서 버틴다(보이지 않는 적 본진의 병력까지 센다).
   // 수로만 세면 해병 16기가 질럿 8기를 이길 줄 알고 나갔다가 열린 곳에서 녹는다.
-  const outgunned = alert && !allIn && armyPower(army.fighters) < foeArmyEstimate(state, side, memory).power * 1.5;
+  // 적 전투 병력이 우리 진영 절반에 보이면(웨이브가 들어오는 중) 나가지 않고 방어 건물 곁에서 먼저 받아친다. 길 한가운데서 맞붙으면 방어 건물이 놀고, 저글링처럼 열린 곳에서 약한 병력은 녹는다.
+  const ownArmor = army.fighters.length ? army.fighters.reduce((sum, unit) => sum + STW_UNITS[unit.type].armor, 0) / army.fighters.length : 0;
+  const estimate = alert && !allIn ? foeArmyEstimate(state, side, memory, ownArmor) : null;
+  const outgunned = estimate !== null && (armyPower(army.fighters, estimate.armor) < estimate.power * 1.5 || incomingWave(state, side));
   if (army.fighters.length >= size && !outgunned) {
     // 폭탄 드랍 성향은 쉬는 수송선이 둘 이상이면 출격과 동시에 폭탄 드랍(남은 병력은 정면으로).
     if (dropPlan?.mission === "bomb" && stwDropCheck(state, side, "bomb").ok) stwCommand(state, side, { type: "drop", ...dropPlan });
