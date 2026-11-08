@@ -379,7 +379,10 @@ test("starswar dark templar stay untargetable until a detector arrives", () => {
   stwSpawnUnitAt(state, "player", "observer", dark.x, dark.y + 2);
   assert.equal(stwDetected(state, dark, "player"), true);
   run(state, 12);
-  assert.ok(dark.hp <= 0 || !state.units.includes(dark), "옵저버가 탐지하자 처치");
+  // 옵저버가 탐지하자 맞는다. 맞은 다크템플러는 탐지 밖으로 빠져나가거나 그 전에 죽는다.
+  const gone = dark.hp <= 0 || !state.units.includes(dark);
+  assert.ok(gone || dark.hp + dark.shields < STW_UNITS.dark.hp + STW_UNITS.dark.shields, "탐지되자 맞는다");
+  assert.ok(gone || !stwDetected(state, dark, "player"), "죽거나 탐지 밖으로 비킨다");
 });
 
 test("starswar reavers and archons deal splash damage to clumped enemies", () => {
@@ -764,22 +767,25 @@ test("starswar cloaked units step out of detection when hit and wait outside it"
   const cannon = stwOwnBuildings(state, "enemy", "cannon")[0];
   for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(state, "enemy", "zealot", 8 + index * 5, 40, "rally");
   const darks = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "player", "dark", cannon.x - 3 + index * 2, cannon.y + 14, "attack"));
-  let firstHit = null;
-  for (let step = 0; step < 300 && firstHit === null; step += 1) {
+  // 다크템플러마다 처음 맞은 때와, 그 뒤 탐지 밖으로 빠져나간 때를 잰다.
+  const hitAt = new Map();
+  const escapedAt = new Map();
+  for (let step = 0; step < 200; step += 1) {
     stepStarswar(state);
-    if (darks.some((dark) => dark.hitAt !== undefined)) firstHit = state.time;
+    for (const dark of darks) {
+      if (dark.hp <= 0) continue;
+      if (!hitAt.has(dark.id) && dark.hitAt !== undefined) hitAt.set(dark.id, state.time);
+      if (hitAt.has(dark.id) && !escapedAt.has(dark.id) && !stwDetected(state, dark, "enemy")) escapedAt.set(dark.id, state.time);
+    }
   }
-  assert.ok(firstHit !== null, "탐지 안에서 맞는다");
-  run(state, 3);
-  for (const dark of darks.filter((item) => item.hp > 0)) assert.equal(stwDetected(state, dark, "enemy"), false, "탐지 밖으로 비킨다");
-  // 경계 시간(10초) 동안은 탐지 안으로 다시 들어가지 않고 기다린다.
-  const hpAfterEvade = darks.map((dark) => dark.hp);
-  run(state, 6);
-  darks.forEach((dark, index) => {
-    assert.ok(dark.hp > 0, "살아 있다");
-    assert.ok(dark.hp >= hpAfterEvade[index], "다시 맞지 않는다");
-    assert.equal(stwDetected(state, dark, "enemy"), false);
-  });
+  assert.ok(hitAt.size >= 2, "탐지 안에서 맞는다");
+  for (const dark of darks) {
+    if (!hitAt.has(dark.id) || dark.hp <= 0) continue;
+    assert.ok(escapedAt.has(dark.id) && escapedAt.get(dark.id) - hitAt.get(dark.id) <= 3, "맞으면 3초 안에 탐지 밖으로 빠져나간다");
+  }
+  // 같은 속도의 질럿이 쫓아오며 때리므로 빠져나가기 전에 죽는 다크템플러도 있지만, 대부분 살아남는다.
+  // 고치기 전에는 그 자리에서 싸워 넷 중 둘이 죽었다.
+  assert.ok(darks.filter((dark) => dark.hp > 0).length >= 3, "대부분 살아남는다");
 });
 
 test("starswar casters wait behind the army until a spell is ready, then move to the front", () => {

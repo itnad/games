@@ -3045,21 +3045,19 @@ function separate(state) {
       // 교전선 유지: 아군이 자리를 잡고 싸우는 앞줄을 앞뒤로 밀지 못한다. 그 몫은 뒤의 아군이 떠안고,
       // 옆으로는 반씩 비켜 준다(그래야 뒤의 근접 유닛이 틈으로 들어온다).
       // 예전에는 앞줄이 아군에게 밀려 적 몸으로 들어가고, 겹친 적을 다시 반씩 밀어내 교전선이 한쪽으로 쭉 밀렸다.
-      // 적끼리는 자리를 잡은 쪽과 움직이는 쪽이 겹치면 움직이는 쪽이 모두 비켜 주고, 서로 자리를 잡았으면 가로로만 반씩 비켜 준다.
-      // (서로 자리를 잡은 적을 아예 밀지 않으면 수가 많은 저글링이 질럿 몸 안으로 겹쳐 들어가 지나치게 둘러쌌다.)
+      // 적끼리는 어느 한쪽이라도 자리를 잡았으면 가로로만 반씩 비켜 준다(세로로 밀면 교전선이 밀린다).
+      // (서로 자리를 잡은 적을 아예 밀지 않으면 수가 많은 저글링이 질럿 몸 안으로 겹쳐 들어가 지나치게 둘러쌌고,
+      // 움직이는 쪽이 모두 비켜 주게 하면 프로토스 : 저그가 44 : 124까지 기울었다.)
       const overlap = min - d;
       const nx = d > 0.001 ? dx / d : (a.id % 2 ? 1 : -1);
       const ny = d > 0.001 ? dy / d : 0;
       const holdA = planted(state, a);
       const holdB = planted(state, b);
-      let shareA = 0.5;
-      if (a.side !== b.side && holdA !== holdB) shareA = holdA ? 0 : 1;
-      let ax = -nx * overlap * shareA;
-      let ay = -ny * overlap * shareA;
-      let bx = nx * overlap * (1 - shareA);
-      let by = ny * overlap * (1 - shareA);
-      // 서로 자리를 잡은 적끼리는 레인 가로(x)로만 밀어 겹침을 푼다. 세로(교전선 방향)로 밀면 교전선이 밀린다.
-      if (a.side !== b.side && holdA && holdB) {
+      let ax = -nx * overlap * 0.5;
+      let ay = -ny * overlap * 0.5;
+      let bx = nx * overlap * 0.5;
+      let by = ny * overlap * 0.5;
+      if (a.side !== b.side && (holdA || holdB)) {
         const sideways = Math.sign(dx) || (a.id % 2 ? 1 : -1);
         [ax, ay, bx, by] = [-sideways * overlap * 0.5, 0, sideways * overlap * 0.5, 0];
       }
