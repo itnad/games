@@ -850,8 +850,10 @@ export function stwCommand(state, side, command) {
         // 뒤쪽: 전군 후퇴.
         for (const unit of army.attack) unit.group = "rally";
         if (side === "player") pushLog(state, side, `전군 ${army.attack.length + army.rally.length}기가 ${withKoreanDirection(name)} 물러납니다.`, "order");
+        holdAutoWave(state, side);
         return { ok: true, mode: "retreat", y };
       }
+      record.autoWaveHold = false;
       if (side === "player") pushLog(state, side, units.length ? `병력이 ${withKoreanDirection(name)} 싸우며 전진합니다.` : `집결지를 ${withKoreanDirection(name)} 옮깁니다.`, "order");
       return { ok: true, mode: "advance", y };
     }
@@ -863,6 +865,7 @@ export function stwCommand(state, side, command) {
       // 수송선은 출격하지 않는다(본진 침투로만 움직인다).
       const going = army.rally.filter((unit) => (unit.type !== "overlord" || (record.escort && unit.escort)) && !STW_UNITS[unit.type].transport);
       for (const unit of going) unit.group = "attack";
+      record.autoWaveHold = false;
       if (side === "player") pushLog(state, side, `대기 병력 ${going.length}기가 출격합니다!`, "order");
       return { ok: true };
     }
@@ -871,6 +874,7 @@ export function stwCommand(state, side, command) {
       if (!army.attack.length) return fail("공격 중인 병력이 없습니다");
       for (const unit of army.attack) unit.group = "rally";
       if (side === "player") pushLog(state, side, `공격 병력 ${army.attack.length}기를 집결지로 물립니다.`, "order");
+      holdAutoWave(state, side);
       return { ok: true };
     }
     case "recall": {
@@ -884,6 +888,7 @@ export function stwCommand(state, side, command) {
         const stance = point.id === "main" || point.id === "natural" ? "수비합니다" : "대기합니다";
         pushLog(state, side, total ? `전군 ${total}기가 ${withKoreanDirection(point.name)} 물러나 ${stance}.` : `집결지를 ${withKoreanDirection(point.name)} 옮깁니다.`, "order");
       }
+      if (army.attack.length) holdAutoWave(state, side);
       return { ok: true, recalled: army.attack.length };
     }
     case "escort": {
@@ -906,6 +911,7 @@ export function stwCommand(state, side, command) {
     }
     case "autoWave": {
       record.autoWave = Math.max(0, Math.round(command.size ?? 0));
+      record.autoWaveHold = false;
       return { ok: true };
     }
     case "scout": {
@@ -917,7 +923,14 @@ export function stwCommand(state, side, command) {
       const unit = spawnUnit(state, side, workerType, start.x, start.y);
       unit.group = "scout";
       unit.scoutPhase = "out";
-      if (side === "player") pushLog(state, side, `${STW_UNITS[workerType].name} 1기를 적 본진으로 정찰 보냅니다.`, "order");
+      // 자원 정찰: 레인 왼쪽 가장자리로 들어가 적 본진 광물 줄 뒤(가스 둘과 광물)를 훑고 오른쪽 가장자리로 빠져나온다.
+      // 일꾼 수·가스·확장을 보고 돌아온다. 가운데로 가면 적 앞마당(초반 적 병력이 모이는 자리)을 그대로 지나가 잡힌다.
+      if (command.target === "resources") {
+        const foe = stwOpponent(side);
+        unit.scoutMode = "resources";
+        unit.scoutPath = RESOURCE_SCOUT_PATH.map((point) => stwPoint(foe, point));
+      }
+      if (side === "player") pushLog(state, side, `${STW_UNITS[workerType].name} 1기를 ${withKoreanDirection(unit.scoutMode === "resources" ? "적 자원 지대" : "적 본진")} 정찰 보냅니다.`, "order");
       return { ok: true };
     }
     case "cancelBuild": {
@@ -1897,6 +1910,9 @@ function stepUnits(state, dt) {
       const d = distance(unit.x, unit.y, target.x, target.y) - target.radius - unit.radius * 0.5;
       if (d <= range) {
         unit.approach = undefined;
+        // 사거리 안에서 적 유닛과 싸우는 유닛은 자리를 잡는다(separate에서 밀리지 않는다). 물러나며 쏘는 걸음은 아래에서 따로 움직인다.
+        // 건물을 치는 유닛은 자리를 잡지 않는다: 둘레에서 서로 비켜 줘야 뒤의 유닛이 빈자리를 찾는다.
+        if (target.kind === "unit") unit.plantedAt = state.time;
         unit.heading = Math.atan2(target.y - unit.y, target.x - unit.x);
         // 스팀팩: 연구 후 교전을 시작하면 체력 10을 써서 10초 동안 공격·이동 속도 +50%.
         if (def.stim && stwResearchDone(state, unit.side, "stim") && unit.hp > 20 && (unit.stimAt === undefined || state.time - unit.stimAt > 11)) {
@@ -2847,9 +2863,18 @@ function stepStorms(state, dt) {
   }
 }
 
+/** 자원 정찰 경로(적 기준 좌표): 왼쪽 가장자리 → 왼쪽 가스 → 광물 줄 → 오른쪽 가스 → 오른쪽 가장자리. */
+const RESOURCE_SCOUT_PATH = [{ x: 2, y: 58 }, { x: 2, y: 88 }, { x: 9, y: 97.5 }, { x: 31, y: 97.5 }, { x: 38, y: 88 }, { x: 38, y: 58 }];
+
 function scoutStep(state, unit, dt) {
   const def = STW_UNITS[unit.type];
   if (unit.scoutPhase === "out") {
+    if (unit.scoutPath?.length) {
+      const next = unit.scoutPath[0];
+      if (moveToward(unit, next.x, next.y, def.speed, dt)) unit.scoutPath.shift();
+      if (!unit.scoutPath.length) unit.scoutPhase = "back";
+      return;
+    }
     const goal = stwPoint(unit.side, { x: 26, y: 9 });
     if (moveToward(unit, goal.x, goal.y, def.speed, dt)) unit.scoutPhase = "back";
     return;
@@ -2859,7 +2884,26 @@ function scoutStep(state, unit, dt) {
     unit.hp = 0;
     unit.returned = true;
     state.sides[unit.side].probes += 1;
+    if (unit.scoutMode === "resources" && unit.side === "player") reportResources(state, unit.side);
   }
+}
+
+/** 자원 정찰 보고: 적 일꾼 수, 가스 건물 수, 앞마당 확장 여부(정찰하며 본 적 본진 기준). */
+function reportResources(state, side) {
+  const intel = state.sides[side].intel;
+  if (!intel) {
+    pushLog(state, side, "자원 정찰 보고: 적 본진을 보지 못했습니다.", "warn");
+    return;
+  }
+  const race = STW_RACES[intel.race ?? "protoss"];
+  const gas = intel.buildings[race.refinery] ?? 0;
+  const expanded = (intel.buildings[race.base] ?? 0) > 1;
+  pushLog(state, side, `자원 정찰 보고: 적 ${STW_UNITS[race.worker].name} ${intel.probes}기 · 가스 ${gas}곳 · 앞마당 ${expanded ? "확장함" : "확장 안 함"}`, "info");
+}
+
+/** 자리를 잡은 유닛: 이번 틱에 사거리 안의 적 유닛과 싸우고 있거나, 시즈 모드 탱크·땅속 럴커. */
+function planted(state, unit) {
+  return unit.plantedAt === state.time || Boolean(unit.sieged) || Boolean(unit.burrowed);
 }
 
 function separate(state) {
@@ -2876,13 +2920,18 @@ function separate(state) {
       if (Math.abs(dx) > min || Math.abs(dy) > min) continue;
       const d = Math.hypot(dx, dy);
       if (d >= min) continue;
-      const push = (min - d) / 2;
+      // 자리를 잡고 싸우는 유닛은 밀리지 않는다. 겹친 만큼은 움직이는 쪽이 모두 비켜 준다(둘 다 자리를 잡았으면 반씩).
+      // 예전에는 반씩 밀어서, 뒤에서 밀고 들어오는 아군이 앞줄을 적 쪽으로 밀어붙여 교전선이 한쪽으로 쭉 밀렸다.
+      const holdA = planted(state, a);
+      const holdB = planted(state, b);
+      const shareA = holdA === holdB ? 0.5 : holdA ? 0 : 1;
+      const overlap = min - d;
       const nx = d > 0.001 ? dx / d : (a.id % 2 ? 1 : -1);
       const ny = d > 0.001 ? dy / d : 0;
-      a.x -= nx * push;
-      a.y -= ny * push;
-      b.x += nx * push;
-      b.y += ny * push;
+      a.x -= nx * overlap * shareA;
+      a.y -= ny * overlap * shareA;
+      b.x += nx * overlap * (1 - shareA);
+      b.y += ny * overlap * (1 - shareA);
     }
     a.x = Math.min(STW_LANE_WIDTH - 1, Math.max(1, a.x));
     a.y = Math.min(STW_LANE_LENGTH - 1, Math.max(1, a.y));
@@ -3021,10 +3070,21 @@ export function intelSummary(intel) {
   return `${race.name} · ${STW_BUILDINGS[race.mainProducer].name} ${producers} · ${tech} · ${army}${(intel.buildings[race.base] ?? 0) > 1 ? " · 앞마당 있음" : ""}`;
 }
 
+/**
+ * 후퇴 명령(지도 뒤쪽 탭, 후퇴, 본진 수비, 집결지로 소환)은 자동 출격을 잠시 멈춘다. 멈추지 않으면 "즉시"나 작은 출격 규모에서
+ * 물러난 병력이 집결지에 닿자마자(또는 바로) 다시 출격해 후퇴가 먹히지 않는다. 출격하거나 앞쪽을 누르거나 자동 출격을 다시 고르면 풀린다.
+ */
+function holdAutoWave(state, side) {
+  const record = state.sides[side];
+  if (!record.autoWave || record.autoWaveHold) return;
+  record.autoWaveHold = true;
+  if (side === "player") pushLog(state, side, "자동 출격을 잠시 멈춥니다. 출격하거나 지도 앞쪽을 누르면 다시 켜집니다.", "order");
+}
+
 function autoWaves(state) {
   for (const side of STW_SIDES) {
     const record = state.sides[side];
-    if (!record.autoWave) continue;
+    if (!record.autoWave || record.autoWaveHold) continue;
     const army = stwArmy(state, side);
     const rallyY = stwRallyY(side, record.rally);
     // "즉시"(1)는 집결지에 모이기를 기다리지 않고 생산되는 대로 내보낸다.

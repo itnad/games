@@ -814,7 +814,9 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
   const count = (list: { type: string }[], type: StwArmyType) => list.filter((unit) => unit.type === type).length;
   const overlordsReady = stwOwnBuildings(game, "player", "overlord").filter((item) => stwDone(item)).length;
   const escorting = game.units.some((unit) => unit.side === "player" && unit.type === "overlord" && unit.escort);
-  const scouting = game.units.filter((unit) => unit.side === "player" && unit.group === "scout").length;
+  const scouts = game.units.filter((unit) => unit.side === "player" && unit.group === "scout");
+  const scoutingMain = scouts.filter((unit) => unit.scoutMode !== "resources").length;
+  const scoutingResources = scouts.length - scoutingMain;
   const intel = side.intel;
   const plan = side.dropPlan ?? { mission: "raid", target: "main", repeat: false, sync: false };
   const drop = stwDropCheck(game, "player", plan.mission) as StwCheck;
@@ -852,6 +854,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
           <button key={size} type="button" className={side.autoWave === size ? "active" : ""} aria-pressed={side.autoWave === size} onClick={() => issue({ type: "autoWave", size }, size === 1 ? "전투 유닛이 생산되는 대로 바로 출격합니다." : size ? `전투 병력이 ${size}기 모이면 자동으로 출격합니다.` : "자동 출격을 껐습니다.")}>{size === 1 ? "즉시" : size ? `${size}기` : "끔"}</button>
         ))}
       </div>
+      {side.autoWave && side.autoWaveHold ? <p className="stw-hint stw-hold">후퇴 명령으로 자동 출격이 멈춰 있습니다. 출격하거나 지도 앞쪽을 누르거나 위 단계를 다시 고르면 켜집니다.</p> : null}
       {race.id === "zerg" ? (
         <>
           <h3 className="stw-section">오버로드 동행</h3>
@@ -900,7 +903,10 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
       </div>
       <h3 className="stw-section">정찰</h3>
       <div className="stw-scout">
-        <Card title={`${workerName} 정찰`} sub={`${workerName} 1기 잠시 이탈`} badge={scouting ? `정찰 중 ${scouting}` : undefined} note={scout.ok ? "적 본진까지 다녀오며 건물과 병력을 확인" : scout.reason} disabled={!scout.ok} onClick={() => issue({ type: "scout" })} />
+        <div className="stw-scout-pair">
+          <Card title="본진 정찰" sub={`${workerName} 1기 잠시 이탈`} badge={scoutingMain ? `정찰 중 ${scoutingMain}` : undefined} note={scout.ok ? "적 본진의 건물·병력·연구 확인" : scout.reason} disabled={!scout.ok} onClick={() => issue({ type: "scout", target: "main" })} />
+          <Card title="자원 정찰" sub={`${workerName} 1기 잠시 이탈`} badge={scoutingResources ? `정찰 중 ${scoutingResources}` : undefined} note={scout.ok ? "적 앞마당과 광물 줄을 돌며 일꾼·가스·확장 확인" : scout.reason} disabled={!scout.ok} onClick={() => issue({ type: "scout", target: "resources" })} />
+        </div>
         <div className="stw-intel">
           {intel ? (
             <>

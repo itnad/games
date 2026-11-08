@@ -670,6 +670,84 @@ test("starswar zergling AI switches to hydras when a zealot rush keeps it pinned
   assert.ok(state.units.some((unit) => unit.side === "enemy" && unit.type === "hydra"), "히드라가 나온다");
 });
 
+test("starswar units fighting in range hold their ground instead of being shoved back", () => {
+  // 16 대 8 질럿: 예전에는 수가 많은 쪽이 뒤에서 밀어붙여 적 앞줄이 싸우는 동안 24칸 넘게 뒤로 밀렸다.
+  const state = quiet();
+  for (const building of state.buildings) building.hp = building.maxHp = 1e6;
+  for (let index = 0; index < 16; index += 1) stwSpawnUnitAt(state, "player", "zealot", 8 + (index % 8) * 3, 58 + Math.floor(index / 8) * 2.5, "attack");
+  for (let index = 0; index < 8; index += 1) stwSpawnUnitAt(state, "enemy", "zealot", 8 + index * 3, 42, "attack");
+  let pushedBack = 0;
+  let fighting = 0;
+  for (let step = 0; step < 300; step += 1) {
+    const before = new Map();
+    for (const unit of state.units) {
+      const target = state.units.find((item) => item.id === unit.targetId);
+      if (target && Math.hypot(unit.x - target.x, unit.y - target.y) - target.radius - unit.radius * 0.5 <= STW_UNITS[unit.type].range) before.set(unit.id, unit.y);
+    }
+    stepStarswar(state);
+    for (const unit of state.units) {
+      if (!before.has(unit.id)) continue;
+      fighting += 1;
+      // 뒤로 = 자기 기지 쪽(플레이어는 y가 커지는 쪽).
+      pushedBack += Math.max(0, (unit.y - before.get(unit.id)) * (unit.side === "player" ? 1 : -1));
+    }
+  }
+  assert.ok(fighting > 500, `충분히 싸웠다 ${fighting}`);
+  assert.ok(pushedBack < 0.5, `싸우는 동안 뒤로 밀린 거리 ${pushedBack.toFixed(2)}`);
+});
+
+test("starswar retreat orders pause auto waves until the next forward order", () => {
+  const state = quiet();
+  stwCommand(state, "player", { type: "autoWave", size: 1 });
+  for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(state, "player", "zealot", 10 + index * 3, 80, "rally");
+  for (let index = 0; index < 6; index += 1) {
+    const enemy = stwSpawnUnitAt(state, "enemy", "zealot", 10 + index * 3, 40, "rally");
+    enemy.hp = enemy.maxHp = 1e5;
+  }
+  run(state, 12);
+  assert.equal(stwArmy(state, "player").attack.length, 6, "즉시 출격");
+  // 교전 중 지도 뒤쪽을 눌러 후퇴: 예전에는 다음 틱에 자동 출격이 곧바로 다시 내보냈다.
+  assert.equal(stwCommand(state, "player", { type: "move", y: 80 }).mode, "retreat");
+  assert.equal(state.sides.player.autoWaveHold, true);
+  run(state, 3);
+  assert.equal(stwArmy(state, "player").attack.length, 0, "후퇴가 먹힌다");
+  assert.equal(stwArmy(state, "player").rally.length, 6);
+  // 출격하면 다시 켜진다. 후퇴 버튼도 같은 규칙이다.
+  stwCommand(state, "player", { type: "attack" });
+  assert.equal(state.sides.player.autoWaveHold, false);
+  stwCommand(state, "player", { type: "retreat" });
+  assert.equal(state.sides.player.autoWaveHold, true);
+  run(state, 2);
+  assert.equal(stwArmy(state, "player").attack.length, 0);
+  // 자동 출격 단계를 다시 고르면 풀리고 곧바로 다시 나간다.
+  stwCommand(state, "player", { type: "autoWave", size: 1 });
+  run(state, 0.2);
+  assert.equal(stwArmy(state, "player").attack.length, 6);
+});
+
+test("starswar resource scouts sweep the enemy mineral line along the lane edges and report", () => {
+  const state = quiet();
+  state.sides.player.probes = 8;
+  const probes = state.sides.player.probes;
+  assert.equal(stwCommand(state, "player", { type: "scout", target: "resources" }).ok, true);
+  const scout = state.units.find((unit) => unit.group === "scout");
+  assert.equal(scout.scoutMode, "resources");
+  const mineralLine = stwPoint("enemy", { x: 20, y: 97.5 });
+  let closest = Infinity;
+  let widest = 0;
+  for (let step = 0; step < 900 && state.units.includes(scout); step += 1) {
+    stepStarswar(state);
+    closest = Math.min(closest, Math.hypot(scout.x - mineralLine.x, scout.y - mineralLine.y));
+    if (scout.y > 20 && scout.y < 80) widest = Math.max(widest, Math.abs(scout.x - 20));
+  }
+  assert.equal(scout.returned, true, "살아 돌아온다");
+  assert.equal(state.sides.player.probes, probes, "일꾼이 돌아온다");
+  assert.ok(closest < 2, `광물 줄을 지난다 ${closest.toFixed(1)}`);
+  assert.ok(widest > 15, "레인 가장자리로 다닌다");
+  assert.ok(state.sides.player.intel, "적 본진을 확인");
+  assert.ok(state.log.some((entry) => /^자원 정찰 보고: 적 프로브 \d+기 · 가스 \d+곳 · 앞마당 확장 안 함$/.test(entry.text)), "보고");
+});
+
 test("starswar terran AI personas field their signature units and finish a game", () => {
   const bio = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
   const mech = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "bio" } });

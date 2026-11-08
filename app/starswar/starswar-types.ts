@@ -55,6 +55,9 @@ export type StwUnit = {
   op?: number;
   raid?: number;
   bomb?: StwDropTarget;
+  scoutPhase?: "out" | "back" | null;
+  scoutMode?: "resources";
+  scoutPath?: { x: number; y: number }[];
   hitBy?: number;
   hitAt?: number;
   threatScanAt?: number;
@@ -109,6 +112,8 @@ export type StwSideState = {
   /** 집결지: 이름표(AI) 또는 아군 기준 세로 위치(플레이어가 지도를 눌러 고름). */
   rally: StwRallyId | number;
   autoWave: number;
+  /** 후퇴 명령으로 자동 출격이 잠시 멈췄는지(출격·전진·자동 출격 재선택으로 풀린다). */
+  autoWaveHold?: boolean;
   intel: StwIntel | null;
   seen: Record<string, StwSeen>;
   race: StwRaceId;
@@ -164,7 +169,7 @@ export type StwCommand =
   | { type: "focus"; mode: StwFocus }
   | { type: "autoWave"; size: number }
   | { type: "escort"; on: boolean }
-  | { type: "scout" }
+  | { type: "scout"; target?: "main" | "resources" }
   | { type: "cancelBuild"; buildingId: number }
   | { type: "cancelProbe" }
   | { type: "cancelResearch"; research: StwResearchId }
