@@ -17,7 +17,7 @@
 .stw-menu { width:min(720px,calc(100% - 32px)); margin:0 auto; padding:28px 0 48px; display:grid; gap:20px; }
 .stw-menu-hero small { color:var(--stw-gold); font-weight:900; letter-spacing:.18em; }
 .stw-menu-hero h1 { margin:10px 0 12px; font-size:clamp(30px,6vw,46px); line-height:1.12; letter-spacing:-.04em; text-wrap:balance; }
-.stw-menu-hero p { margin:0; color:#dccdaa; }
+.stw-menu-hero p { margin:0; color:#dccdaa; word-break:keep-all; text-wrap:pretty; }
 .stw-race-pick { display:grid; gap:8px; }
 .stw-race-pick .stw-hint { margin:0 0 6px; }
 .stw-race-pick .stw-segment { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); }

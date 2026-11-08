@@ -106,10 +106,9 @@ function raceOf(game: StwState, side: "player" | "enemy" = "player") {
 }
 
 /** 메뉴의 종족별 소개와 진행 안내. */
-const RACE_MENU: Record<StwRaceId, { hero: string; lead: string; howto: [string, string][] }> = {
+const RACE_MENU: Record<StwRaceId, { lead: string; howto: [string, string][] }> = {
   protoss: {
-    hero: "싸움은 알아서 벌어집니다.",
-    lead: "건물·연구·출격만 고르세요. 질럿과 드라군은 게이트웨이가 알아서 소환합니다.",
+    lead: "무엇을 짓고, 무엇을 연구하고, 언제 진격할지. 소환은 게이트웨이가 맡습니다.",
     howto: [
       ["경제", "프로브를 늘리고 파일런으로 인구를 확보하세요. 어시밀레이터를 지으면 가스가 들어옵니다."],
       ["테크", "게이트웨이를 늘리고, 코어로 드라군을, 아카이브로 하이템플러를 해금하세요."],
@@ -118,8 +117,7 @@ const RACE_MENU: Record<StwRaceId, { hero: string; lead: string; howto: [string,
     ],
   },
   terran: {
-    hero: "싸움은 알아서 벌어집니다.",
-    lead: "건물·연구·출격만 고르세요. 해병과 탱크는 배럭과 팩토리가 알아서 생산합니다.",
+    lead: "무엇을 짓고, 무엇을 연구하고, 언제 진격할지. 생산은 배럭과 팩토리가 맡습니다.",
     howto: [
       ["경제", "SCV를 늘리고 서플라이 디팟으로 인구를 확보하세요. 리파이너리를 지으면 가스가 들어옵니다."],
       ["테크", "배럭을 늘리고, 아카데미로 파이어뱃·메딕을, 머신 샵으로 시즈 탱크를 해금하세요."],
@@ -128,8 +126,7 @@ const RACE_MENU: Record<StwRaceId, { hero: string; lead: string; howto: [string,
     ],
   },
   zerg: {
-    hero: "싸움은 알아서 벌어집니다.",
-    lead: "건물·연구·출격만 고르세요. 저글링과 히드라는 해처리가 알아서 변태시킵니다.",
+    lead: "무엇을 짓고, 무엇을 연구하고, 언제 진격할지. 변태는 해처리가 맡습니다.",
     howto: [
       ["경제", "드론을 늘리고 오버로드로 인구를 확보하세요. 익스트랙터를 지으면 가스가 들어옵니다."],
       ["테크", "스포닝 풀로 저글링, 히드라리스크 덴으로 히드라를 열고, 레어 변태 뒤 럴커와 울트라리스크를 해금하세요."],
@@ -496,7 +493,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         <section className="stw-menu">
           <div className="stw-menu-hero">
             <small>BUILD · TECH · WAVE</small>
-            <h1>선택만 하세요.<br />{RACE_MENU[races.player].hero}</h1>
+            <h1>전략은 당신이,<br />전투는 병력이.</h1>
             <p>{RACE_MENU[races.player].lead}</p>
           </div>
           <div className="stw-race-pick">
