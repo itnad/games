@@ -1333,20 +1333,96 @@ function blockedBySwarm(state, attacker, target) {
  */
 export function stwDetected(state, unit, bySide) {
   if (!isCloaked(unit, state)) return true;
+  return detectionCovers(state, bySide, unit);
+}
+
+/** bySide의 탐지(스캔, 탐지 유닛, 탐지 건물과 그 기지 구역)가 이 자리(x, y, radius)에 닿는지. */
+function detectionCovers(state, bySide, spot) {
   for (const scan of state.scans ?? []) {
-    if (scan.side === bySide && distance(scan.x, scan.y, unit.x, unit.y) <= scan.radius) return true;
+    if (scan.side === bySide && distance(scan.x, scan.y, spot.x, spot.y) <= scan.radius) return true;
   }
   for (const other of state.units) {
     const radius = other.side === bySide ? STW_UNITS[other.type].detector : 0;
-    if (radius && other.hp > 0 && distance(other.x, other.y, unit.x, unit.y) <= radius) return true;
+    if (radius && other.hp > 0 && distance(other.x, other.y, spot.x, spot.y) <= radius) return true;
   }
   for (const building of state.buildings) {
     const radius = building.side === bySide && stwDone(building) ? STW_BUILDINGS[building.type].detector : 0;
     if (!radius) continue;
-    if (distance(building.x, building.y, unit.x, unit.y) <= radius) return true;
-    if (inBaseZone(state, bySide, building.base, unit)) return true;
+    if (distance(building.x, building.y, spot.x, spot.y) <= radius) return true;
+    if (inBaseZone(state, bySide, building.base, spot)) return true;
   }
   return false;
+}
+
+/** 스스로 은폐하는 공격 유닛(다크템플러, 은폐 연구 뒤의 레이스·고스트). 땅속 럴커와 아비터 은폐장에 기댄 유닛은 뺀다. */
+function selfCloaked(state, unit) {
+  const def = STW_UNITS[unit.type];
+  if (!def.damage || def.burrow || ensnared(state, unit)) return false;
+  return Boolean(def.cloaked) || Boolean(def.cloakResearch && stwResearchDone(state, unit.side, def.cloakResearch));
+}
+
+/** 비킨 뒤 탐지 안으로 다시 들어가지 않는 시간(초). 그동안 탐지 밖의 적만 치고, 탐지 안으로 들어가는 걸음은 무른다. */
+const CLOAK_WARY = 10;
+
+/** 탐지에 맞고 비킨 지 얼마 안 된 은폐 유닛. */
+function wary(state, unit) {
+  return (unit.waryUntil ?? 0) > state.time && selfCloaked(state, unit);
+}
+
+/**
+ * 경계 중인 은폐 유닛은 탐지 안으로 걸어 들어가지 않는다: 이번 틱에 탐지 밖에서 안으로 들어갔으면 제자리로 되돌린다.
+ * 그래서 탐지 경계 밖에서 기다리다가 탐지 밖으로 나온 적만 친다(들어갔다 맞고 비키기를 되풀이하지 않는다).
+ */
+function holdOutsideDetection(state, starts) {
+  for (const [unit, start] of starts) {
+    if (unit.hp <= 0 || !detectionCovers(state, stwOpponent(unit.side), unit)) continue;
+    unit.x = start.x;
+    unit.y = start.y;
+  }
+}
+
+/**
+ * 은폐 유닛의 회피: 적에게 탐지된 채 맞으면(1초 안) 적 탐지가 닿지 않는 가장 가까운 자리로 비켜선다(최대 5초).
+ * 비킨 뒤에는 탐지 밖의 적부터 노린다(findTarget). 숨을 데가 없으면 그 자리에서 싸운다.
+ */
+function cloakEvade(state, unit, speed, dt) {
+  if (!selfCloaked(state, unit)) {
+    unit.evadeTo = undefined;
+    return false;
+  }
+  if (unit.evadeTo && state.time < (unit.evadeUntil ?? 0)) {
+    if (moveToward(unit, unit.evadeTo.x, unit.evadeTo.y, speed, dt)) unit.evadeTo = undefined;
+    return true;
+  }
+  unit.evadeTo = undefined;
+  const foe = stwOpponent(unit.side);
+  const hit = unit.hitAt !== undefined && state.time - unit.hitAt < 1;
+  if (!hit || !detectionCovers(state, foe, unit)) return false;
+  const hitter = resolve(state, unit.hitBy);
+  let best = null;
+  let bestScore = Infinity;
+  for (const reach of [4, 7, 10, 14, 18]) {
+    for (let step = 0; step < 16; step += 1) {
+      const angle = (step / 16) * Math.PI * 2;
+      const spot = { x: unit.x + Math.cos(angle) * reach, y: unit.y + Math.sin(angle) * reach, radius: unit.radius };
+      if (spot.x < 1 || spot.x > STW_LANE_WIDTH - 1 || spot.y < 1 || spot.y > STW_LANE_LENGTH - 1) continue;
+      if (detectionCovers(state, foe, spot)) continue;
+      // 가까울수록, 때린 적에게서 멀어질수록 좋다.
+      const score = reach - (hitter ? distance(spot.x, spot.y, hitter.x, hitter.y) * 0.3 : 0);
+      if (score < bestScore) {
+        best = spot;
+        bestScore = score;
+      }
+    }
+    if (best) break;
+  }
+  if (!best) return false;
+  unit.evadeTo = { x: best.x, y: best.y };
+  unit.evadeUntil = state.time + 5;
+  unit.waryUntil = state.time + 5 + CLOAK_WARY;
+  unit.targetId = null;
+  moveToward(unit, best.x, best.y, speed, dt);
+  return true;
 }
 
 /** 컴샛 스테이션: 탐지되지 않은 은폐 유닛에게 맞으면 에너지 50으로 그 자리를 8초 동안 스캔한다. */
@@ -1461,6 +1537,11 @@ function targetScore(state, attacker, unit, d) {
 }
 
 function findTarget(state, attacker, radius, { unitsOnly = false, threatsOnly = false } = {}) {
+  // 스스로 은폐하는 유닛은 적 탐지 밖에 있는 목표를 먼저 고른다(탐지 안의 목표는 다른 목표보다 10칸 먼 것으로 친다).
+  // 탐지에 맞고 비킨 지 얼마 안 됐으면(경계 중) 탐지 안의 목표는 아예 고르지 않는다.
+  const cloaker = attacker.kind === "unit" && selfCloaked(state, attacker);
+  const cautious = cloaker && wary(state, attacker);
+  const exposed = (target) => (cloaker && detectionCovers(state, target.side, { x: target.x, y: target.y, radius: attacker.radius }) ? (cautious ? Infinity : 10) : 0);
   let best = null;
   let bestScore = Infinity;
   let doomedBest = null;
@@ -1476,7 +1557,7 @@ function findTarget(state, attacker, radius, { unitsOnly = false, threatsOnly = 
     if (attacker.kind === "unit" && blockedFrom(state, attacker, unit.id)) continue;
     // 날아가는 수송선은 쫓아가지 않는다. 사거리 안을 지날 때만 쏜다.
     if (inFlight(unit) && d > reach) continue;
-    const score = targetScore(state, attacker, unit, d);
+    const score = targetScore(state, attacker, unit, d) + exposed(unit);
     // 이번 틱의 예약 피해만으로 이미 죽을 적은 뒤로 미룬다(다른 적이 없으면 그래도 고른다).
     if ((pending.get(unit.id) ?? 0) >= unit.hp + unit.shields) {
       if (score < doomedScore) {
@@ -1505,7 +1586,7 @@ function findTarget(state, attacker, radius, { unitsOnly = false, threatsOnly = 
     if (attacker.kind === "unit" && blockedFrom(state, attacker, building.id)) continue;
     const full = crowdedBuilding(state, attacker, building);
     if (threatsOnly && full) continue;
-    const score = d + (STW_BUILDINGS[building.type].damage ? 1 : 6) + (full ? LAST_RESORT : 0);
+    const score = d + (STW_BUILDINGS[building.type].damage ? 1 : 6) + (full ? LAST_RESORT : 0) + exposed(building);
     if (score < bestScore) {
       best = building;
       bestScore = score;
@@ -1776,6 +1857,11 @@ function stepUnits(state, dt) {
   for (const unit of state.units) {
     if (unit.targetId !== null && unit.hp > 0 && STW_UNITS[unit.type].role === "melee") meleeFocus.set(unit.targetId, (meleeFocus.get(unit.targetId) ?? 0) + 1);
   }
+  // 경계 중인 은폐 유닛의 이번 틱 시작 자리(탐지 밖일 때만). 틱 끝에 탐지 안으로 들어갔으면 되돌린다.
+  const waryStarts = new Map();
+  for (const unit of state.units) {
+    if (unit.hp > 0 && wary(state, unit) && !detectionCovers(state, stwOpponent(unit.side), unit)) waryStarts.set(unit, { x: unit.x, y: unit.y });
+  }
   const retarget = (unit, from, to) => {
     if (STW_UNITS[unit.type].role !== "melee" || from === to) return;
     if (from !== null) meleeFocus.set(from, Math.max(0, (meleeFocus.get(from) ?? 1) - 1));
@@ -1865,6 +1951,11 @@ function stepUnits(state, dt) {
       // 후퇴 중: 교전을 끊고 전속력으로 집결지에 돌아온다.
       unit.targetId = null;
       moveToward(unit, slot.x, slot.y, speed, dt);
+      continue;
+    }
+    const before = unit.targetId;
+    if (cloakEvade(state, unit, speed, dt)) {
+      if (before !== null && unit.targetId === null) retarget(unit, before, null);
       continue;
     }
     let target = resolve(state, unit.targetId, unit);
@@ -1970,6 +2061,7 @@ function stepUnits(state, dt) {
       moveToward(unit, slot.x, slot.y, speed, dt);
     }
   }
+  holdOutsideDetection(state, waryStarts);
   separate(state);
   keepOutOfTargets(state);
 }
@@ -2260,30 +2352,60 @@ function templarStep(state, unit, plan, dt) {
   casterMove(state, unit, plan, unitSpeed(state, unit), dt);
 }
 
-/** 무기 없는 마법 유닛의 이동: 후퇴, 적과 거리 두기, 공격 병력 선두 3칸 뒤 따라가기, 집결지 대기. */
+/** 지금 쓸 수 있는 마법이 있는지(에너지와 연구). 하이템플러는 사이오닉 스톰. */
+function spellReady(state, unit) {
+  if (unit.type === "templar") return stwResearchDone(state, unit.side, "storm") && unit.energy >= STW_STORM.energy;
+  return (STW_UNITS[unit.type].spells ?? []).some((id) => {
+    const spell = STW_SPELLS[id];
+    return unit.energy >= spell.energy && (!spell.research || stwResearchDone(state, unit.side, spell.research));
+  });
+}
+
+/**
+ * 무기 없는 마법 유닛의 이동.
+ * - 쓸 수 있는 마법이 없으면(에너지 부족·연구 전) 부대 맨 뒤(가장 뒤처진 아군보다 3칸 뒤)에 서고, 6칸 안의 적에게서 물러난다.
+ * - 마법을 쓸 수 있으면 부대 최전방(선두와 같은 줄)으로 나가 시전을 시도한다. 물러나지 않는다.
+ * - 집결지에서는 자리를 지키다가, 마법을 쓸 수 있고 14칸 안에 적이 오면 7칸까지 다가간다.
+ */
 function casterMove(state, unit, plan, speed, dt) {
   const slot = unit.group === "attack" ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
   if (unit.group !== "attack" && slot && isRetreating(unit, slot)) {
     moveToward(unit, slot.x, slot.y, speed, dt);
     return;
   }
-  const nearest = findTarget(state, unit, 6, { unitsOnly: true });
-  if (nearest && !isPassive(nearest)) {
-    // 무기가 없으므로 적과 거리를 벌린다.
-    const away = Math.atan2(unit.y - nearest.y, unit.x - nearest.x);
-    moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
-    return;
+  const ready = spellReady(state, unit);
+  if (!ready) {
+    const nearest = findTarget(state, unit, 6, { unitsOnly: true });
+    if (nearest && !isPassive(nearest)) {
+      // 무기가 없으므로 적과 거리를 벌린다.
+      const away = Math.atan2(unit.y - nearest.y, unit.x - nearest.x);
+      moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
+      return;
+    }
   }
   if (unit.group === "attack") {
-    const front = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && !isPassive(ally) && STW_UNITS[ally.type].role !== "caster");
+    const army = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && !isPassive(ally) && STW_UNITS[ally.type].role !== "caster");
     const forward = stwForward(unit.side);
-    const lead = front.length ? front.reduce((best, ally) => (forward < 0 ? Math.min(best, ally.y) : Math.max(best, ally.y)), front[0].y) : plan.goal.y;
-    // 마법 사거리(9)가 적 원거리 유닛 줄에 닿도록 선두 3칸 뒤에 선다(5칸이면 사거리 5인 적과 맞선 선두보다 10칸 넘게 떨어져 마법을 못 썼다).
-    const goalY = lead - forward * 3;
-    moveToward(unit, slot ? slot.x : unit.x, goalY, Math.min(speed, plan.waveSpeed), dt);
-  } else if (slot) {
-    moveToward(unit, slot.x, slot.y, speed, dt);
+    // 아군 기준으로 앞(적 쪽)일수록 작은 값.
+    const ahead = (ally) => ally.y * forward;
+    if (!army.length) {
+      moveToward(unit, slot ? slot.x : unit.x, plan.goal.y, Math.min(speed, plan.waveSpeed), dt);
+      return;
+    }
+    const lead = army.reduce((best, ally) => (ahead(ally) > ahead(best) ? ally : best), army[0]).y;
+    const rear = army.reduce((best, ally) => (ahead(ally) < ahead(best) ? ally : best), army[0]).y;
+    const goalY = ready ? lead : rear - forward * 3;
+    moveToward(unit, slot ? slot.x : unit.x, goalY, speed, dt);
+    return;
   }
+  if (ready) {
+    const foe = findTarget(state, unit, 14, { unitsOnly: true });
+    if (foe && !isPassive(foe)) {
+      if (distance(unit.x, unit.y, foe.x, foe.y) > 7) moveToward(unit, foe.x, foe.y, speed, dt);
+      return;
+    }
+  }
+  if (slot) moveToward(unit, slot.x, slot.y, speed, dt);
 }
 
 /* ───────── 수송 ───────── */
@@ -2920,18 +3042,43 @@ function separate(state) {
       if (Math.abs(dx) > min || Math.abs(dy) > min) continue;
       const d = Math.hypot(dx, dy);
       if (d >= min) continue;
-      // 자리를 잡고 싸우는 유닛은 밀리지 않는다. 겹친 만큼은 움직이는 쪽이 모두 비켜 준다(둘 다 자리를 잡았으면 반씩).
-      // 예전에는 반씩 밀어서, 뒤에서 밀고 들어오는 아군이 앞줄을 적 쪽으로 밀어붙여 교전선이 한쪽으로 쭉 밀렸다.
-      const holdA = planted(state, a);
-      const holdB = planted(state, b);
-      const shareA = holdA === holdB ? 0.5 : holdA ? 0 : 1;
+      // 교전선 유지: 아군이 자리를 잡고 싸우는 앞줄을 앞뒤로 밀지 못한다. 그 몫은 뒤의 아군이 떠안고,
+      // 옆으로는 반씩 비켜 준다(그래야 뒤의 근접 유닛이 틈으로 들어온다).
+      // 예전에는 앞줄이 아군에게 밀려 적 몸으로 들어가고, 겹친 적을 다시 반씩 밀어내 교전선이 한쪽으로 쭉 밀렸다.
+      // 적끼리는 자리를 잡은 쪽과 움직이는 쪽이 겹치면 움직이는 쪽이 모두 비켜 주고, 서로 자리를 잡았으면 가로로만 반씩 비켜 준다.
+      // (서로 자리를 잡은 적을 아예 밀지 않으면 수가 많은 저글링이 질럿 몸 안으로 겹쳐 들어가 지나치게 둘러쌌다.)
       const overlap = min - d;
       const nx = d > 0.001 ? dx / d : (a.id % 2 ? 1 : -1);
       const ny = d > 0.001 ? dy / d : 0;
-      a.x -= nx * overlap * shareA;
-      a.y -= ny * overlap * shareA;
-      b.x += nx * overlap * (1 - shareA);
-      b.y += ny * overlap * (1 - shareA);
+      const holdA = planted(state, a);
+      const holdB = planted(state, b);
+      let shareA = 0.5;
+      if (a.side !== b.side && holdA !== holdB) shareA = holdA ? 0 : 1;
+      let ax = -nx * overlap * shareA;
+      let ay = -ny * overlap * shareA;
+      let bx = nx * overlap * (1 - shareA);
+      let by = ny * overlap * (1 - shareA);
+      // 서로 자리를 잡은 적끼리는 레인 가로(x)로만 밀어 겹침을 푼다. 세로(교전선 방향)로 밀면 교전선이 밀린다.
+      if (a.side !== b.side && holdA && holdB) {
+        const sideways = Math.sign(dx) || (a.id % 2 ? 1 : -1);
+        [ax, ay, bx, by] = [-sideways * overlap * 0.5, 0, sideways * overlap * 0.5, 0];
+      }
+      if (a.side === b.side && (holdA || holdB)) {
+        // 자리 잡은 유닛은 아군에게 밀릴 때 레인 세로(교전선 앞뒤)로는 움직이지 않고 가로로만 비켜 준다.
+        // 그 몫은 움직이는 아군이 떠안고, 둘 다 자리를 잡았으면 버린다(앞뒤로 조금 겹친 채 둔다).
+        if (holdA) {
+          if (!holdB) by -= ay;
+          ay = 0;
+        }
+        if (holdB) {
+          if (!holdA) ay -= by;
+          by = 0;
+        }
+      }
+      a.x += ax;
+      a.y += ay;
+      b.x += bx;
+      b.y += by;
     }
     a.x = Math.min(STW_LANE_WIDTH - 1, Math.max(1, a.x));
     a.y = Math.min(STW_LANE_LENGTH - 1, Math.max(1, a.y));

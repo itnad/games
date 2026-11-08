@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { STW_LANE_LENGTH, STW_LANE_WIDTH, STW_UNITS } from "../app/starswar/starswar-data.js";
+import { STW_LANE_LENGTH, STW_LANE_WIDTH, STW_STORM, STW_UNITS } from "../app/starswar/starswar-data.js";
 import {
   createStarswarGame,
   stwArmy,
@@ -525,7 +525,10 @@ test("starswar comsat scans and turrets detect dark templar", () => {
   assert.ok(state.log.some((entry) => /컴샛 스캔으로 은폐한 적을 드러냈습니다/.test(entry.text)));
   run(state, 2);
   assert.ok(dark.hp + dark.shields < 120, "스캔 안에서 해병이 다크템플러를 공격");
-  assert.ok(marines.some((unit) => unit.targetId === dark.id || dark.hp <= 0));
+  assert.ok(marines.length === 3);
+  // 드러난 채 맞은 다크템플러는 스캔 밖(탐지가 닿지 않는 곳)으로 비킨다.
+  run(state, 3);
+  assert.ok(dark.hp <= 0 || !stwDetected(state, dark, "player"), "스캔 밖으로 비킨다");
 
   const second = terran();
   second.sides.player.minerals = 9000;
@@ -663,7 +666,7 @@ test("starswar zergling AI switches to hydras when a zealot rush keeps it pinned
   // 저글링은 질럿에게 손해를 본다. 예전에는 저글링만 고집하다 10~12분에 무너졌다.
   const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { enemy: "ling" } });
   runZealotRush(state, 600);
-  assert.equal(state.status, "playing", "10분까지 버틴다");
+  assert.notEqual(state.winner, "player", "10분 안에 무너지지 않는다(먼저 이길 수도 있다)");
   assert.equal(state.sides.enemy.persona, "hydra", "히드라로 갈아탄다");
   assert.equal(state.sides.enemy.ai.switched.from, "ling");
   assert.ok(state.sides.enemy.ai.switched.at < 480, `큰 물량이 막히기를 기다리지 않고 일찍 갈아탄다 ${state.sides.enemy.ai.switched.at}`);
@@ -746,6 +749,59 @@ test("starswar resource scouts sweep the enemy mineral line along the lane edges
   assert.ok(widest > 15, "레인 가장자리로 다닌다");
   assert.ok(state.sides.player.intel, "적 본진을 확인");
   assert.ok(state.log.some((entry) => /^자원 정찰 보고: 적 프로브 \d+기 · 가스 \d+곳 · 앞마당 확장 안 함$/.test(entry.text)), "보고");
+});
+
+test("starswar cloaked units step out of detection when hit and wait outside it", () => {
+  // 캐논(탐지)이 지키는 적 기지 앞의 질럿 여섯에게 다크템플러 넷이 들어간다.
+  const state = quiet();
+  state.sides.enemy.minerals = 9999;
+  for (const building of ["pylon", "forge", "cannon"]) {
+    stwCommand(state, "enemy", { type: "build", building });
+    finishAll(state);
+  }
+  state.sides.enemy.minerals = 0;
+  state.sides.player.minerals = 0;
+  const cannon = stwOwnBuildings(state, "enemy", "cannon")[0];
+  for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(state, "enemy", "zealot", 8 + index * 5, 40, "rally");
+  const darks = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "player", "dark", cannon.x - 3 + index * 2, cannon.y + 14, "attack"));
+  let firstHit = null;
+  for (let step = 0; step < 300 && firstHit === null; step += 1) {
+    stepStarswar(state);
+    if (darks.some((dark) => dark.hitAt !== undefined)) firstHit = state.time;
+  }
+  assert.ok(firstHit !== null, "탐지 안에서 맞는다");
+  run(state, 3);
+  for (const dark of darks.filter((item) => item.hp > 0)) assert.equal(stwDetected(state, dark, "enemy"), false, "탐지 밖으로 비킨다");
+  // 경계 시간(10초) 동안은 탐지 안으로 다시 들어가지 않고 기다린다.
+  const hpAfterEvade = darks.map((dark) => dark.hp);
+  run(state, 6);
+  darks.forEach((dark, index) => {
+    assert.ok(dark.hp > 0, "살아 있다");
+    assert.ok(dark.hp >= hpAfterEvade[index], "다시 맞지 않는다");
+    assert.equal(stwDetected(state, dark, "enemy"), false);
+  });
+});
+
+test("starswar casters wait behind the army until a spell is ready, then move to the front", () => {
+  const state = quiet();
+  state.sides.player.research.storm = "done";
+  for (const building of state.buildings) building.hp = building.maxHp = 1e6;
+  for (let index = 0; index < 8; index += 1) stwSpawnUnitAt(state, "player", index % 2 ? "zealot" : "dragoon", 10 + index * 3, 60, "attack");
+  const tired = stwSpawnUnitAt(state, "player", "templar", 18, 62, "attack");
+  tired.energy = 10;
+  const ready = stwSpawnUnitAt(state, "player", "templar", 22, 62, "attack");
+  ready.energy = 80;
+  // 스톰을 쓸 무리가 없는 큰 적 하나: 마법을 쓸 수 있는 템플러는 선두에 서서 기회를 노린다.
+  const ultra = stwSpawnUnitAt(state, "enemy", "ultra", 20, 30, "rally");
+  ultra.hp = ultra.maxHp = 1e6;
+  run(state, 25);
+  // 맨 뒤는 y로, 최전방은 적과의 거리로 잰다(근접 유닛이 적을 빙 둘러싸므로 y만으로는 선두를 알 수 없다).
+  const gap = (unit) => Math.hypot(unit.x - ultra.x, unit.y - ultra.y);
+  const army = state.units.filter((unit) => unit.side === "player" && unit.group === "attack" && unit.type !== "templar");
+  const rear = Math.max(...army.map((unit) => unit.y));
+  assert.ok(tired.energy < STW_STORM.energy, "아직 에너지가 모자라다");
+  assert.ok(tired.y >= rear + 2, `에너지가 없으면 맨 뒤 y ${tired.y.toFixed(1)} / 후미 y ${rear.toFixed(1)}`);
+  assert.ok(gap(ready) <= 4.5, `마법을 쓸 수 있으면 적 바로 앞까지 ${gap(ready).toFixed(1)}`);
 });
 
 test("starswar terran AI personas field their signature units and finish a game", () => {
