@@ -1,7 +1,7 @@
 import { stepSimulation, type EngineRules, type RuleSystem } from "../core/simulation";
 import type { SimulationState } from "../core/state";
 
-export type TickSample = {tick:number;totalMs:number;systems:Record<string,number>;queue:number;expanded:number;started:number;reused:number};
+export type TickSample = {tick:number;totalMs:number;systems:Record<string,number>;phases?:Record<string,number>;queue:number;expanded:number;started:number;reused:number};
 export type Distribution = {count:number;mean:number;p95:number;max:number};
 export function distribution(values:readonly number[]):Distribution{
   if(!values.length)return {count:0,mean:0,p95:0,max:0};
@@ -18,8 +18,9 @@ export function profileStep(state:SimulationState,rules:EngineRules,now=()=>perf
       const start=now();system(current);systems[name]=Math.max(0,now()-start);
     };
   }
-  const start=now(),acknowledgements=stepSimulation(state,wrapped),totalMs=Math.max(0,now()-start);
-  const sample:TickSample={tick:state.tick,totalMs,systems,queue:state.navigation.jobs.length,expanded:state.navigation.lastExpanded,started:state.navigation.lastStarted,reused:state.navigation.lastReused};
+  let phases:Record<string,number>={};
+  const start=now(),acknowledgements=stepSimulation(state,wrapped,value=>{phases={checkpoint:value.checkpointMs,execution:value.executionMs,validation:value.validationMs};}),totalMs=Math.max(0,now()-start);
+  const sample:TickSample={tick:state.tick,totalMs,systems,phases,queue:state.navigation.jobs.length,expanded:state.navigation.lastExpanded,started:state.navigation.lastStarted,reused:state.navigation.lastReused};
   return {acknowledgements,sample};
 }
 export class TimingWindow{
@@ -28,6 +29,7 @@ export class TimingWindow{
   add(sample:TickSample):void{this.samples.push(structuredClone(sample));if(this.samples.length>this.capacity)this.samples.shift();}
   read(){
     const names=[...new Set(this.samples.flatMap(sample=>Object.keys(sample.systems)))].sort();
-    return {ticks:distribution(this.samples.map(sample=>sample.totalMs)),systems:Object.fromEntries(names.map(name=>[name,distribution(this.samples.map(sample=>sample.systems[name]??0))])),latest:this.samples.length?structuredClone(this.samples[this.samples.length-1]):null};
+    const phases=[...new Set(this.samples.flatMap(sample=>Object.keys(sample.phases??{})))].sort();
+    return {ticks:distribution(this.samples.map(sample=>sample.totalMs)),systems:Object.fromEntries(names.map(name=>[name,distribution(this.samples.map(sample=>sample.systems[name]??0))])),phases:Object.fromEntries(phases.map(name=>[name,distribution(this.samples.map(sample=>sample.phases?.[name]??0))])),latest:this.samples.length?structuredClone(this.samples[this.samples.length-1]):null};
   }
 }
