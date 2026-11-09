@@ -1,4 +1,5 @@
 import {build} from 'vite';
+import {sourceIdentity} from './source-identity.mjs';
 import {mkdtemp,writeFile,mkdir,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
@@ -29,5 +30,5 @@ try{
     results.push({scenario:id,ticks,equal:true,checksum:after.checksum(b.state),beforeMeanMs:mean(beforeMs),afterMeanMs:mean(afterMs)});console.log(id+': '+ticks+' ticks equal; before '+mean(beforeMs).toFixed(2)+' ms / after '+mean(afterMs).toFixed(2)+' ms');
   }
   await mkdir('work/stark-rift-lab',{recursive:true});
-  await writeFile('work/stark-rift-lab/equivalence.json',JSON.stringify({baselineCommit:'a134c98d21d3f63b4eed710a42ada83a0e979701',results},null,2)+'\n');
+  await writeFile('work/stark-rift-lab/equivalence.json',JSON.stringify({baselineSource:await sourceIdentity(baseline),candidateSource:await sourceIdentity(),results},null,2)+'\n');
 }finally{await rm(directory,{recursive:true,force:true});}
