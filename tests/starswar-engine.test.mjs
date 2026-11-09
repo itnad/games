@@ -971,23 +971,21 @@ test("starswar lab casters start with full energy so their spells fire right awa
   assert.equal(fresh.state.sides.player.stats.storms, 0);
 });
 
-test("starswar storms hit both sides, so templar storm away from their own troops", () => {
-  // 1) 원작처럼 스톰은 아군 유닛도 맞히고, 건물은 맞히지 않는다.
+test("starswar storms spare allies, and templar still aim past the troops they are fighting beside", () => {
+  // 1) 스톰은 적만 맞힌다. 아군 유닛·건물은 맞지 않고, 아군은 스톰을 피해 다니지 않는다.
   const state = quiet();
   for (const building of state.buildings) building.hp = building.maxHp = 1e6;
   const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 50);
-  const nexus = state.buildings.find((building) => building.side === "player");
-  state.storms.push({ id: 900, side: "player", x: 20, y: 50, ttl: 3 }, { id: 901, side: "player", x: nexus.x, y: nexus.y, ttl: 3 });
-  const nexusHp = nexus.hp + nexus.shields;
-  run(state, 0.5);
-  assert.ok(zealot.hp + zealot.shields < 160, "아군 질럿이 맞는다");
-  assert.equal(nexus.hp + nexus.shields, nexusHp, "건물은 맞지 않는다");
-  assert.ok(state.sides.player.stats.stormFriendly > 0);
-  // 2) 아군 스톰 안의 아군은 빠져나오고, 스톰이 끝날 때까지 다시 들어가지 않는다.
-  run(state, 1.5);
-  assert.ok(Math.hypot(zealot.x - 20, zealot.y - 50) > STW_STORM.radius, "빠져나온다");
+  zealot.stunUntil = 999;
+  const marine = stwSpawnUnitAt(state, "enemy", "marine", 21, 50);
+  marine.stunUntil = 999;
+  state.storms.push({ id: 900, side: "player", x: 20, y: 50, ttl: 3 });
+  run(state, 1);
+  assert.equal(zealot.hp + zealot.shields, 160, "아군 질럿은 맞지 않는다");
+  assert.ok(marine.hp < 45, "적은 맞는다");
+  assert.ok(Math.hypot(zealot.x - 20, zealot.y - 50) < 1.5, "아군은 스톰을 피해 다니지 않는다");
 
-  // 3) 질럿과 붙어 싸우는 적 무리 대신, 아군이 없는 뒷줄 적 무리에 스톰을 쓴다.
+  // 2) 피해는 없어도, 질럿과 붙어 싸우는 적 최전선 대신 아군이 없는 뒷줄 적 무리에 스톰을 쓴다.
   const battle = quiet();
   battle.sides.player.research.storm = "done";
   for (const building of battle.buildings) building.hp = building.maxHp = 1e6;
