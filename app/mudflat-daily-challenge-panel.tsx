@@ -119,30 +119,35 @@ export function MudflatDailyChallengePanel({ onStart, hasActiveRun }: { onStart:
     onStart({ ...payload.challenge, participantId: identity.participantId, displayName: normalizedName });
   };
 
-  return <section className="ms-daily-card" aria-label="오늘의 갯벌 통합 순위">
-    <header>
-      <div><small>DAILY MUDFLAT</small><h2>오늘의 갯벌</h2></div>
-      {payload && <span>{payload.challenge.date.replaceAll("-", ".")} · {payload.challenge.stage}단계</span>}
-    </header>
-    <p>같은 단계·장비·환경에 횟수 제한 없이 도전하고, 가장 좋은 귀환 기록을 통합 순위에 남깁니다.</p>
-    <div className="ms-daily-entry">
-      <label><span>기록 이름</span><input value={displayName} maxLength={12} onChange={(event) => setDisplayName(event.target.value)} aria-label="오늘의 갯벌 기록 이름" /></label>
-      <button type="button" onClick={start} disabled={!payload || !identity || !normalizedName}>{payload?.participant ? "다시 도전 →" : "오늘의 갯벌 출정 →"}</button>
+  return <details className="ms-daily-card" aria-label="오늘의 갯벌 일일 이벤트">
+    <summary>
+      <span className="ms-daily-event-label">일일 이벤트</span>
+      <span className="ms-daily-summary-copy"><b>오늘의 갯벌</b><small>{payload ? `${payload.challenge.stage}단계 · 같은 조건으로 최고 기록 도전` : "오늘의 공통 조건을 불러오는 중"}</small></span>
+      {payload?.participant?.completed && <strong>{payload.participant.score.toLocaleString()}점</strong>}
+      <i aria-hidden="true">⌄</i>
+    </summary>
+    <div className="ms-daily-content">
+      <p>같은 단계·장비·환경에 횟수 제한 없이 도전하고, 가장 좋은 귀환 기록을 통합 순위에 남깁니다.</p>
+      {payload && <small className="ms-daily-date">{payload.challenge.date.replaceAll("-", ".")} · STAGE {payload.challenge.stage}</small>}
+      <div className="ms-daily-entry">
+        <label><span>기록 이름</span><input value={displayName} maxLength={12} onChange={(event) => setDisplayName(event.target.value)} aria-label="오늘의 갯벌 기록 이름" /></label>
+        <button type="button" onClick={start} disabled={!payload || !identity || !normalizedName}>{payload?.participant ? "다시 도전 →" : "이벤트 출정 →"}</button>
+      </div>
+      {hasActiveRun && <p className="ms-daily-preserve">진행 중인 일반 원정 저장은 그대로 유지됩니다.</p>}
+      {payload?.participant && <div className={`ms-daily-own${payload.participant.completed ? " is-clear" : ""}`}>
+        <span>{payload.participant.completed ? `${payload.participant.rank ? `${payload.participant.rank}위` : "순위 집계 중"}` : "재도전 가능"}</span>
+        <b>{payload.participant.completed ? `${payload.participant.score.toLocaleString()}점` : "아직 귀환 기록 없음"}</b>
+        <small>{payload.participant.completed ? `채집 ${payload.participant.caught} · ${formatElapsed(payload.participant.elapsed)}` : "귀환에 성공하면 최고 기록이 등록됩니다."}</small>
+      </div>}
+      {status && <p className="ms-daily-status" role="status">{status}</p>}
+      <details className="ms-daily-ranking">
+        <summary><span><small>LIVE RANKING</small><b>오늘의 통합 순위</b></span><i>⌄</i></summary>
+        {payload?.leaderboard.length ? <ol>{payload.leaderboard.map((entry) => <li key={entry.id} className={entry.rank <= 3 ? `rank-${entry.rank}` : undefined}>
+          <em>{entry.rank}</em><span><b>{entry.displayName}</b><small>채집 {entry.caught} · {formatElapsed(entry.elapsed)}</small></span><strong>{entry.score.toLocaleString()}</strong>
+        </li>)}</ol> : <p>아직 귀환에 성공한 기록이 없습니다. 오늘의 첫 기록을 남겨보세요.</p>}
+      </details>
     </div>
-    {hasActiveRun && <p className="ms-daily-preserve">진행 중인 일반 원정 저장은 그대로 유지됩니다.</p>}
-    {payload?.participant && <div className={`ms-daily-own${payload.participant.completed ? " is-clear" : ""}`}>
-      <span>{payload.participant.completed ? `${payload.participant.rank ? `${payload.participant.rank}위` : "순위 집계 중"}` : "재도전 가능"}</span>
-      <b>{payload.participant.completed ? `${payload.participant.score.toLocaleString()}점` : "아직 귀환 기록 없음"}</b>
-      <small>{payload.participant.completed ? `채집 ${payload.participant.caught} · ${formatElapsed(payload.participant.elapsed)}` : "귀환에 성공하면 최고 기록이 등록됩니다."}</small>
-    </div>}
-    {status && <p className="ms-daily-status" role="status">{status}</p>}
-    <details className="ms-daily-ranking">
-      <summary><span><small>LIVE RANKING</small><b>오늘의 통합 순위</b></span><i>⌄</i></summary>
-      {payload?.leaderboard.length ? <ol>{payload.leaderboard.map((entry) => <li key={entry.id} className={entry.rank <= 3 ? `rank-${entry.rank}` : undefined}>
-        <em>{entry.rank}</em><span><b>{entry.displayName}</b><small>채집 {entry.caught} · {formatElapsed(entry.elapsed)}</small></span><strong>{entry.score.toLocaleString()}</strong>
-      </li>)}</ol> : <p>아직 귀환에 성공한 기록이 없습니다. 오늘의 첫 기록을 남겨보세요.</p>}
-    </details>
-  </section>;
+  </details>;
 }
 
 export function MudflatDailyResultPanel({ result, onBack, onRetrySubmit }: { result: MudflatDailyResult; onBack: () => void; onRetrySubmit: () => void }) {

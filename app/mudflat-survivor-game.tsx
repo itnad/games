@@ -3391,7 +3391,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         <h1>해루질에 <em>미친 자여!</em></h1>
       </section>
       <section className="ms-character-select">
-        <MudflatDailyChallengePanel onStart={beginDailyChallenge} hasActiveRun={Boolean(savedRun)} />
         {savedRun && <div className="ms-live-resume">
           <button type="button" className="ms-continue" onClick={continueActiveRun}>
             <span><small>진행 중인 원정 · {savedRun.campaign.mode === "normal" ? "일반 모드" : "어린이 모드"}</small><b>이어서 채집하기</b><em>{savedRun.runtime.stage}단계 · {mudflatStageProfile(savedRun.runtime.stage).name} · {formatClock(savedRun.runtime.elapsed)}<br />체력 {Math.floor(savedRun.runtime.player.hp)} / {Math.floor(savedRun.runtime.player.maxHp)} · LV.{savedRun.runtime.level} · {savedRun.campaign.coins.toLocaleString()}코인</em></span><strong aria-hidden="true">→</strong>
@@ -3399,10 +3398,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <p>이 기기·브라우저에 저장됩니다. 새 원정을 시작하면 기존 진행 상황이 교체됩니다.</p>
         </div>}
         {saveError && <p className="ms-save-error" role="alert">{saveError}</p>}
-        <h2 className="ms-mode-heading">어떤 해루질로 떠날까요?</h2>
+        <div className="ms-main-expedition-heading">
+          <span>MAIN EXPEDITION</span>
+          <div><h2>일반 원정</h2><p>해루질럿의 기본 원정입니다. 모드와 채집꾼을 정하고 단계별 갯벌에 도전하세요.</p></div>
+        </div>
+        <h3 className="ms-mode-heading">원정 방식 선택</h3>
         <div className="ms-mode-picker">
           <button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => { setMode("normal"); window.localStorage.setItem(LAST_MODE_KEY, "normal"); setCharacterId("beginner"); }}>
-            <i>◆</i><span><b>일반 모드</b><small>강한 해산물·돌 장애물·전용 기술</small></span>
+            <i>◆</i><span><strong className="ms-main-mode-badge">메인 원정</strong><b>일반 모드</b><small>강한 해산물·돌 장애물·전용 기술</small></span>
           </button>
           <button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => { setMode("kids"); window.localStorage.setItem(LAST_MODE_KEY, "kids"); setCharacterId((current) => CHARACTERS.some((item) => item.id === current && item.id !== LUMI_CHARACTER.id) ? current : defaultCharacterId("kids")); }}>
             <i>☀</i><span><b>어린이 모드</b><small>가볍게 익히는 채집 모험</small></span>
@@ -3466,6 +3469,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         </button>
         {mode === "normal" && <button className="ms-tutorial-start" type="button" onClick={beginWithTutorial}>튜토리얼부터 <span aria-hidden="true">→</span></button>}
         <button className="ms-seafood-guide-open" type="button" aria-label="해산물 도감 열기" onClick={() => setSeafoodGuideOpen(true)}>해산물 도감 <span aria-hidden="true">↗</span></button>
+        <MudflatDailyChallengePanel onStart={beginDailyChallenge} hasActiveRun={Boolean(savedRun)} />
         {savedCampaign && !savedRun && <details className="ms-setup-details ms-saved-expedition">
           <summary><span><small>SAVED EXPEDITION</small><b>저장된 원정 이어하기</b></span><i>⌄</i></summary>
           <button type="button" className="ms-continue" onClick={continueCampaign}><span><b>{savedCampaign.stage}단계 정비 화면</b><em>{savedCampaign.coins.toLocaleString()}코인 · LV.{savedCampaign.level}</em></span><strong>→</strong></button>

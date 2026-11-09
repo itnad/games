@@ -3606,6 +3606,10 @@ test("offers one shared daily Mudflat ranking without overwriting ordinary exped
   const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
 
   assert.match(source, /<MudflatDailyChallengePanel onStart=\{beginDailyChallenge\} hasActiveRun=\{Boolean\(savedRun\)\}/);
+  assert.match(source, /className="ms-main-expedition-heading"/);
+  assert.match(source, /<strong className="ms-main-mode-badge">메인 원정<\/strong>/);
+  assert.match(source, /<details className="ms-daily-card" aria-label="오늘의 갯벌 일일 이벤트">/);
+  assert.ok(source.indexOf("새 일반 원정 시작") < source.indexOf("<MudflatDailyChallengePanel"));
   assert.match(source, /const runtime = makeRuntime\(dailyCampaign, challenge.seed\)/);
   assert.match(source, /if \(dailyChallengeRef.current\) return true/);
   assert.match(source, /finishDailyRun\(runtime, true\)/);
@@ -3618,5 +3622,6 @@ test("offers one shared daily Mudflat ranking without overwriting ordinary exped
   assert.match(route, /orderBy\(desc\(mudflatDailyResults.score\), desc\(mudflatDailyResults.caught\), asc\(mudflatDailyResults.elapsed\)/);
   assert.match(schema, /uniqueIndex\("mudflat_daily_results_date_participant_unique"\)/);
   assert.match(styles, /\.ms-daily-card/);
+  assert.match(styles, /folded event banner/);
   assert.match(styles, /\.ms-daily-result-card/);
 });
