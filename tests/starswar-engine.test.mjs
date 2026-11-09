@@ -971,6 +971,50 @@ test("starswar lab casters start with full energy so their spells fire right awa
   assert.equal(fresh.state.sides.player.stats.storms, 0);
 });
 
+test("starswar storms hit both sides, so templar storm away from their own troops", () => {
+  // 1) 원작처럼 스톰은 아군 유닛도 맞히고, 건물은 맞히지 않는다.
+  const state = quiet();
+  for (const building of state.buildings) building.hp = building.maxHp = 1e6;
+  const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 50);
+  const nexus = state.buildings.find((building) => building.side === "player");
+  state.storms.push({ id: 900, side: "player", x: 20, y: 50, ttl: 3 }, { id: 901, side: "player", x: nexus.x, y: nexus.y, ttl: 3 });
+  const nexusHp = nexus.hp + nexus.shields;
+  run(state, 0.5);
+  assert.ok(zealot.hp + zealot.shields < 160, "아군 질럿이 맞는다");
+  assert.equal(nexus.hp + nexus.shields, nexusHp, "건물은 맞지 않는다");
+  assert.ok(state.sides.player.stats.stormFriendly > 0);
+  // 2) 아군 스톰 안의 아군은 빠져나오고, 스톰이 끝날 때까지 다시 들어가지 않는다.
+  run(state, 1.5);
+  assert.ok(Math.hypot(zealot.x - 20, zealot.y - 50) > STW_STORM.radius, "빠져나온다");
+
+  // 3) 질럿과 붙어 싸우는 적 무리 대신, 아군이 없는 뒷줄 적 무리에 스톰을 쓴다.
+  const battle = quiet();
+  battle.sides.player.research.storm = "done";
+  for (const building of battle.buildings) building.hp = building.maxHp = 1e6;
+  const templar = stwSpawnUnitAt(battle, "player", "templar", 20, 60, "attack");
+  templar.energy = 200;
+  // 질럿 다섯이 앞줄 해병과 맞붙어 있다(1.5칸).
+  for (let index = 0; index < 5; index += 1) stwSpawnUnitAt(battle, "player", "zealot", 17 + index * 1.5, 53.5, "attack");
+  const front = Array.from({ length: 5 }, (_, index) => stwSpawnUnitAt(battle, "enemy", "marine", 17 + index * 1.5, 52, "rally"));
+  const back = Array.from({ length: 5 }, (_, index) => stwSpawnUnitAt(battle, "enemy", "marine", 17 + index * 1.5, 46, "rally"));
+  for (const unit of [...front, ...back]) unit.hp = unit.maxHp = 1e4;
+  // 템플러만 움직이게 나머지는 제자리에 묶는다(대기 병력은 각자 집결지로 돌아가 버린다).
+  for (const unit of battle.units) if (unit !== templar) unit.stunUntil = 999;
+  // 뒷줄은 처음에 시전 사거리(9) 밖이라, 마법을 쓸 수 있는 템플러가 앞으로 나와 쓴다.
+  let cast = [];
+  for (let step = 0; step < 40 && !cast.length; step += 1) {
+    stepStarswar(battle);
+    cast = [...battle.storms];
+  }
+  assert.ok(cast.length >= 1, "스톰을 쓴다");
+  battle.storms = cast;
+  for (const storm of cast) {
+    const allies = battle.units.filter((unit) => unit.side === "player" && Math.hypot(unit.x - storm.x, unit.y - storm.y) <= STW_STORM.radius + unit.radius * 0.5);
+    assert.equal(allies.length, 0, `아군이 반경 안에 없다 (${storm.x.toFixed(1)}, ${storm.y.toFixed(1)})`);
+    assert.ok(storm.y < 50, "뒷줄을 노린다");
+  }
+});
+
 test("starswar terran AI personas field their signature units and finish a game", () => {
   const bio = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
   const mech = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "bio" } });

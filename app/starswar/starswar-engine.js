@@ -2053,6 +2053,7 @@ function stepUnits(state, dt) {
     if (unit.targetId !== null && unit.hp > 0 && STW_UNITS[unit.type].role === "melee") meleeFocus.set(unit.targetId, (meleeFocus.get(unit.targetId) ?? 0) + 1);
   }
   // 경계 중인 은폐 유닛의 이번 틱 시작 자리(탐지 밖일 때만). 틱 끝에 탐지 안으로 들어갔으면 되돌린다.
+  const stormStarts = stormSafeStarts(state);
   const waryStarts = new Map();
   for (const unit of state.units) {
     if (unit.hp > 0 && wary(state, unit) && !detectionCovers(state, stwOpponent(unit.side), unit)) waryStarts.set(unit, { x: unit.x, y: unit.y });
@@ -2146,6 +2147,13 @@ function stepUnits(state, dt) {
       // 후퇴 중: 교전을 끊고 전속력으로 집결지에 돌아온다.
       unit.targetId = null;
       moveToward(unit, slot.x, slot.y, speed, dt);
+      continue;
+    }
+    // 아군 스톰 안에 있으면(시전 순간 걸쳤거나 밀려 들어감) 싸움을 멈추고 스톰 중심에서 멀어지는 쪽으로 빠져나온다.
+    const ownStorm = !isFlying(unit) && state.storms.find((storm) => storm.side === unit.side && inStorm(unit, storm));
+    if (ownStorm) {
+      const away = Math.atan2(unit.y - ownStorm.y, unit.x - ownStorm.x);
+      moveToward(unit, ownStorm.x + Math.cos(away) * (STW_STORM.radius + unit.radius + 0.5), ownStorm.y + Math.sin(away) * (STW_STORM.radius + unit.radius + 0.5), speed, dt);
       continue;
     }
     const before = unit.targetId;
@@ -2257,8 +2265,11 @@ function stepUnits(state, dt) {
     }
   }
   holdOutsideDetection(state, waryStarts);
+  holdOutsideOwnStorms(state, stormStarts);
   separate(state);
   keepOutOfTargets(state);
+  // 밀어내기에 밀려 들어간 것도 되돌린다.
+  holdOutsideOwnStorms(state, stormStarts);
 }
 
 /**
@@ -3137,13 +3148,24 @@ function stepStatuses(state, dt) {
  * 스톰을 떨어뜨릴 자리. 이미 아군 스톰 안에 있는 적은 세지 않으므로, 하이템플러가 여럿이어도 같은 무리에 겹쳐 쓰지 않는다.
  * 새 스톰의 중심은 기존 스톰 중심에서 반경 이상 떨어져야 한다.
  */
+/** 유닛이 스톰 판정 안에 있는지(유닛 반경의 절반까지 걸치면 맞는다). */
+function inStorm(unit, storm) {
+  return distance(unit.x, unit.y, storm.x, storm.y) <= STW_STORM.radius + unit.radius * 0.5;
+}
+
+/**
+ * 스톰 자리: 아직 아군 스톰에 맞지 않는 적이 3기 이상 뭉친 곳 중, (적 가치 − 아군 가치 × 2)가 가장 큰 곳.
+ * 스톰은 아군도 맞히므로 적 무리 한가운데 말고도 아군에게서 멀어지는 쪽으로 1·2칸 민 자리를 함께 따진다.
+ * 반경 안에 아군이 있으면 적 가치가 아군 가치의 6배 이상일 때만 쓴다.
+ */
 function stormSpot(state, caster) {
   const own = state.storms.filter((storm) => storm.side === caster.side);
   // 스톰에 맞는 판정(stepStorms)과 같은 식으로 "이미 맞고 있는" 적을 가린다. 일꾼·지원·죽은·안 보이는 유닛은 세지 않는다.
   const candidates = state.units.filter((unit) => unit.side !== caster.side && unit.hp > 0 && !isPassive(unit) && targetable(state, caster, unit));
-  const uncovered = candidates.filter((unit) => !own.some((storm) => distance(storm.x, storm.y, unit.x, unit.y) <= STW_STORM.radius + unit.radius * 0.5));
+  const uncovered = candidates.filter((unit) => !own.some((storm) => inStorm(unit, storm)));
+  const allies = state.units.filter((unit) => unit.side === caster.side && unit.hp > 0 && unit.group !== "cargo");
   let best = null;
-  let bestCount = STW_STORM.minTargets - 1;
+  let bestScore = -Infinity;
   for (const enemy of uncovered) {
     if (distance(caster.x, caster.y, enemy.x, enemy.y) > STW_STORM.castRange) continue;
     let count = 0;
@@ -3156,13 +3178,57 @@ function stormSpot(state, caster) {
         sy += other.y;
       }
     }
-    if (count <= bestCount) continue;
-    const spot = { x: sx / count, y: sy / count };
-    if (own.some((storm) => distance(storm.x, storm.y, spot.x, spot.y) < STW_STORM.radius)) continue;
-    bestCount = count;
-    best = spot;
+    if (count < STW_STORM.minTargets) continue;
+    const center = { x: sx / count, y: sy / count };
+    // 아군에게서 멀어지는 쪽: 반경 + 3칸 안 아군들의 무게중심에서 무리 중심으로 향하는 방향.
+    const near = allies.filter((ally) => distance(ally.x, ally.y, center.x, center.y) <= STW_STORM.radius + 3);
+    const spots = [center];
+    if (near.length) {
+      const ax = near.reduce((sum, ally) => sum + ally.x, 0) / near.length;
+      const ay = near.reduce((sum, ally) => sum + ally.y, 0) / near.length;
+      const length = distance(ax, ay, center.x, center.y);
+      if (length > 0.01) for (const shift of [1, 2]) spots.push({ x: center.x + ((center.x - ax) / length) * shift, y: center.y + ((center.y - ay) / length) * shift });
+    }
+    for (const spot of spots) {
+      if (distance(caster.x, caster.y, spot.x, spot.y) > STW_STORM.castRange + 1) continue;
+      if (own.some((storm) => distance(storm.x, storm.y, spot.x, spot.y) < STW_STORM.radius)) continue;
+      const probe = { x: spot.x, y: spot.y };
+      const foes = uncovered.filter((unit) => inStorm(unit, probe));
+      if (foes.length < STW_STORM.minTargets) continue;
+      const friends = allies.filter((unit) => inStorm(unit, probe));
+      const foeValue = foes.reduce((sum, unit) => sum + armyValueOf(unit), 0);
+      const friendValue = friends.reduce((sum, unit) => sum + armyValueOf(unit), 0);
+      if (friends.length && friendValue * 6 > foeValue) continue;
+      const score = foeValue - friendValue * 2;
+      if (score > bestScore) {
+        bestScore = score;
+        best = probe;
+      }
+    }
   }
   return best;
+}
+
+/**
+ * 아군 스톰을 피하는 걸음: 이번 틱 시작 때 아군 스톰 밖에 있던 유닛이 그 안으로 들어갔으면 제자리로 되돌린다.
+ * 스톰은 3초면 끝나므로 경계에서 기다렸다가 다시 들어간다(적은 원작처럼 피하지 않는다).
+ */
+function stormSafeStarts(state) {
+  const starts = new Map();
+  if (!state.storms.length) return starts;
+  for (const unit of state.units) {
+    if (unit.hp <= 0 || isFlying(unit)) continue;
+    if (!state.storms.some((storm) => storm.side === unit.side && inStorm(unit, storm))) starts.set(unit, { x: unit.x, y: unit.y });
+  }
+  return starts;
+}
+
+function holdOutsideOwnStorms(state, starts) {
+  for (const [unit, start] of starts) {
+    if (unit.hp <= 0 || !state.storms.some((storm) => storm.side === unit.side && inStorm(unit, storm))) continue;
+    unit.x = start.x;
+    unit.y = start.y;
+  }
 }
 
 function stepStorms(state, dt) {
@@ -3171,11 +3237,17 @@ function stepStorms(state, dt) {
   const hit = new Set();
   for (const storm of state.storms) {
     for (const unit of state.units) {
-      if (unit.side === storm.side || hit.has(unit.id) || unit.group === "cargo") continue;
-      if (distance(unit.x, unit.y, storm.x, storm.y) > STW_STORM.radius + unit.radius * 0.5) continue;
+      // 원작처럼 아군도 맞는다(건물은 맞지 않는다). 겹친 스톰은 한 번만 맞는다.
+      if (hit.has(unit.id) || unit.group === "cargo") continue;
+      if (!inStorm(unit, storm)) continue;
       hit.add(unit.id);
-      applyDamage(state, unit, STW_STORM.dps * dt, { ignoreArmor: true });
+      const damage = STW_STORM.dps * dt;
+      applyDamage(state, unit, damage, { ignoreArmor: true });
       unit.lastHit = state.time;
+      if (unit.side === storm.side) {
+        const stats = state.sides[storm.side].stats;
+        stats.stormFriendly = (stats.stormFriendly ?? 0) + damage;
+      }
     }
   }
 }
