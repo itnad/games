@@ -3399,13 +3399,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         </div>}
         {saveError && <p className="ms-save-error" role="alert">{saveError}</p>}
         <div className="ms-main-expedition-heading">
-          <span>MAIN EXPEDITION</span>
-          <div><h2>일반 원정</h2><p>해루질럿의 기본 원정입니다. 모드와 채집꾼을 정하고 단계별 갯벌에 도전하세요.</p></div>
+          <span>MAIN</span>
+          <h2>일반 원정</h2>
+          <p>모드와 채집꾼을 정하고 단계별 갯벌에 도전하세요.</p>
         </div>
         <h3 className="ms-mode-heading">원정 방식 선택</h3>
         <div className="ms-mode-picker">
           <button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => { setMode("normal"); window.localStorage.setItem(LAST_MODE_KEY, "normal"); setCharacterId("beginner"); }}>
-            <i>◆</i><span><strong className="ms-main-mode-badge">메인 원정</strong><b>일반 모드</b><small>강한 해산물·돌 장애물·전용 기술</small></span>
+            <strong className="ms-main-mode-badge">메인 원정</strong><i>◆</i><span><b>일반 모드</b><small>강한 해산물·돌 장애물·전용 기술</small></span>
           </button>
           <button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => { setMode("kids"); window.localStorage.setItem(LAST_MODE_KEY, "kids"); setCharacterId((current) => CHARACTERS.some((item) => item.id === current && item.id !== LUMI_CHARACTER.id) ? current : defaultCharacterId("kids")); }}>
             <i>☀</i><span><b>어린이 모드</b><small>가볍게 익히는 채집 모험</small></span>

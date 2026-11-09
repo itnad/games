@@ -3607,7 +3607,7 @@ test("offers one shared daily Mudflat ranking without overwriting ordinary exped
 
   assert.match(source, /<MudflatDailyChallengePanel onStart=\{beginDailyChallenge\} hasActiveRun=\{Boolean\(savedRun\)\}/);
   assert.match(source, /className="ms-main-expedition-heading"/);
-  assert.match(source, /<strong className="ms-main-mode-badge">메인 원정<\/strong>/);
+  assert.match(source, /<strong className="ms-main-mode-badge">메인 원정<\/strong><i>◆<\/i>/);
   assert.match(source, /<details className="ms-daily-card" aria-label="오늘의 갯벌 일일 이벤트">/);
   assert.ok(source.indexOf("새 일반 원정 시작") < source.indexOf("<MudflatDailyChallengePanel"));
   assert.match(source, /const runtime = makeRuntime\(dailyCampaign, challenge.seed\)/);
@@ -3623,5 +3623,7 @@ test("offers one shared daily Mudflat ranking without overwriting ordinary exped
   assert.match(schema, /uniqueIndex\("mudflat_daily_results_date_participant_unique"\)/);
   assert.match(styles, /\.ms-daily-card/);
   assert.match(styles, /folded event banner/);
+  assert.match(styles, /Mobile setup hierarchy/);
+  assert.match(styles, /\.ms-main-expedition-heading>p\{grid-column:1\/-1;grid-row:2\}/);
   assert.match(styles, /\.ms-daily-result-card/);
 });
