@@ -1,6 +1,17 @@
 import type { SimulationState } from "../core/state";
 import type { NavigationGrid, Point } from "./navigation";
 type Reservation = Point & {radius:number;layer:string};
+/** A single endpoint query needs no allocated reservation index. Clearance here is zero. */
+export function destinationAvailable(state:SimulationState,actorId:number,point:Point,radius:number,layer:string):boolean{
+  const s=state.entities;
+  for(let i=0;i<s.id.length;i++){
+    const motion=state.movement[i];
+    if(s.id[i]===actorId||s.health[i]===0||s.layer[i]!==layer||motion.order==="focusAttack")continue;
+    const x=motion.target?.x??s.x[i],y=motion.target?.y??s.y[i];
+    if((point.x-x)**2+(point.y-y)**2<(radius+s.radius[i])**2)return false;
+  }
+  return true;
+}
 /** Stable ID order allocates non-overlapping final positions, independent of transient traffic. */
 export class DestinationReservations {
   private cells=new Map<string,Reservation[]>();
