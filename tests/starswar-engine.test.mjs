@@ -810,6 +810,25 @@ test("starswar casters wait behind the army until a spell is ready, then move to
   assert.ok(gap(ready) <= 4.5, `마법을 쓸 수 있으면 적 바로 앞까지 ${gap(ready).toFixed(1)}`);
 });
 
+test("starswar Protoss AI opens gateway, forge and natural against Zerg even under pressure", () => {
+  // 예전에는 경계 중 빌드 순서가 앞마당까지 닿지 못해 본진 하나에 일꾼 22기로 묶였다.
+  for (const zerg of ["ling", "pool"]) {
+    const state = createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "robo", enemy: zerg } });
+    let natural = null;
+    while (state.status === "playing" && state.time < 400) {
+      stepStarswar(state, stwAiThink);
+      if (natural === null && stwNexus(state, "player", "natural")) natural = state.time;
+    }
+    assert.ok(natural !== null && natural < 380, `${zerg} 상대로 6분 20초 전에 앞마당 ${natural}`);
+    assert.ok(stwOwnBuildings(state, "player", "forge").length, "포지");
+    assert.ok(stwOwnBuildings(state, "player", "gateway").length, "게이트웨이");
+  }
+  // 테란 상대로는 쓰지 않는다(빌드 순서 그대로).
+  const terran = createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "robo", enemy: "bio" } });
+  run(terran, 150, stwAiThink);
+  assert.equal(stwOwnBuildings(terran, "player", "forge").length, 0, "테란전은 포지를 먼저 짓지 않는다");
+});
+
 test("starswar terran AI personas field their signature units and finish a game", () => {
   const bio = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
   const mech = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "bio" } });
