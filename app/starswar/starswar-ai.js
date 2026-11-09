@@ -135,6 +135,23 @@ const BUILD_ORDERS = {
   ],
 };
 
+/**
+ * 프로토스의 저그전 시작(포지 더블): 파일런 → 포지 → 2분 30초 앞마당 → 앞마당 캐논 → 게이트웨이, 그 뒤 성향의 빌드 순서.
+ * 저그 AI는 2~3분에 앞마당을 먹고 일꾼을 40기 가까이 늘리는데, 프로토스는 본진 하나에 일꾼 22기로 묶여 테크를 서두르다
+ * 4~5분 저글링 공세에 무너졌다(질럿 러시 성향을 빼면 저그 상대 승률이 20% 남짓). 이 단계들은 경계 중에도 짓는다.
+ * 질럿 러시 성향은 이미 저그를 잘 이겨서 쓰지 않는다.
+ */
+const PVZ_OPENER = [
+  { build: "pylon", opener: true }, { build: "forge", opener: true }, { build: "expand", at: 150, opener: true },
+  { build: "cannon", opener: true }, { build: "gateway", opener: true },
+];
+
+function buildOrder(state, side, persona) {
+  const versusZerg = state.sides[stwOpponent(side)].race === "zerg";
+  if (state.sides[side].race !== "protoss" || !versusZerg || persona === "rush") return BUILD_ORDERS[persona];
+  return [...PVZ_OPENER, ...BUILD_ORDERS[persona]];
+}
+
 const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22], bio: [8, 12, 16, 22], mech: [8, 12, 16, 20],
   tankbio: [10, 14, 20, 26], vulture: [8, 12, 16, 20], ling: [12, 20, 30, 42, 56], hydra: [14, 18, 24, 30], pool: [6, 10, 14, 20, 26], ultra: [12, 18, 24, 30],
   corsair: [8, 12, 16, 20], wraith: [8, 12, 16, 20], muta: [12, 18, 26, 36], carrier: [8, 12, 16, 20], bc: [8, 12, 16, 20], hive: [14, 18, 24, 30] };
@@ -235,7 +252,7 @@ export function stwAiThink(state, side) {
   }
 
   // 3. 빌드 순서: 막힌 단계가 있으면 그 자원만 아껴 두고, 남는 자원으로 할 수 있는 다음 단계(최대 4개 앞)를 먼저 한다.
-  const order = BUILD_ORDERS[persona];
+  const order = buildOrder(state, side, persona);
   memory.done ??= [];
   let blocked = 0;
   for (let index = 0; index < order.length && blocked < 4; index += 1) {
@@ -249,7 +266,7 @@ export function stwAiThink(state, side) {
     // 5분이 지나면 1단계 유닛 해금 건물(코어·아카데미·덴·에볼루션 챔버)을, 방어 건물 비용을 기다리는 중이 아니면 연구도 허용한다
     // (경계가 길어지면 업그레이드까지 10분씩 밀린다).
     // 6분이 지나면 확장도 허용한다(견제로 경계가 끝없이 이어지면 경제가 영영 멈춘다). 확장 비용은 바로 아끼므로 노는 생산 건물이 멈춰 돈이 모인다.
-    const allowedInAlert = step.research ? state.time >= 300 && !reserve.hard : step.build === "expand" ? state.time >= 360 : step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && state.time >= 300) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length);
+    const allowedInAlert = step.opener || (step.research ? state.time >= 300 && !reserve.hard : step.build === "expand" ? state.time >= 360 : step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && state.time >= 300) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length));
     if (alert && !allowedInAlert) {
       blocked += 1;
       continue;

@@ -897,7 +897,7 @@ test("starswar zerg units regenerate and use separate melee and missile upgrades
 });
 
 test("starswar zerg AI personas field their signature units and finish a game", () => {
-  const ling = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "ling", enemy: "templar" } });
+  const ling = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "ling", enemy: "robo" } });
   const hydra = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "terran" }, personas: { player: "hydra", enemy: "mech" } });
   const seen = { ling: new Set(), hydra: new Set() };
   for (let step = 0; step < 15000 && (ling.status === "playing" || hydra.status === "playing"); step += 1) {
