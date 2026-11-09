@@ -192,7 +192,7 @@ function createSide(id, persona, race) {
     persona,
     escort: false,
     focus: "fight",
-    stats: { minerals: 0, gas: 0, produced: 0, lost: 0, kills: 0, buildingsLost: 0, buildingsDestroyed: 0, storms: 0, overkill: 0, workersLost: 0, workersKilled: 0 },
+    stats: { minerals: 0, gas: 0, produced: 0, lost: 0, kills: 0, buildingsLost: 0, buildingsDestroyed: 0, storms: 0, overkill: 0, workersLost: 0, workersKilled: 0, valueLost: 0, supplyPeak: 0 },
     dropPlan: { mission: "raid", target: "main", repeat: false, sync: false },
     ai: null,
   };
@@ -224,6 +224,7 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
     log: [],
     alerts: {},
     aiSides: [...aiSides],
+    history: [],
   };
   for (const side of STW_SIDES) {
     if (!state.sides[side].persona && state.aiSides.includes(side)) {
@@ -1069,6 +1070,53 @@ export function stepStarswar(state, aiThink = null) {
   if (Math.round(state.time * 10) % 5 === 0) updateVision(state);
   autoWaves(state);
   checkVictory(state);
+  if (Math.round(state.time * 10) % (STW_HISTORY_EVERY * 10) === 0 || state.status === "over") recordHistory(state);
+}
+
+/** 경기 기록 간격(초): 결과 화면의 병력 가치 그래프와 최대 인구에 쓴다. */
+const STW_HISTORY_EVERY = 10;
+
+/** 유닛 하나의 값(광물 + 가스). 두 마리씩 나오는 저글링은 절반. */
+function armyValueOf(unit) {
+  const def = STW_UNITS[unit.type];
+  return (def.minerals + def.gas) / (def.pair ? 2 : 1);
+}
+
+/** 양쪽의 인구·병력 가치(일꾼 제외)·일꾼 수를 기록한다. */
+function recordHistory(state) {
+  state.history ??= [];
+  const point = { t: Math.round(state.time) };
+  for (const side of STW_SIDES) {
+    const supply = stwSupply(state, side).used;
+    const army = state.units.filter((unit) => unit.side === side && !isWorker(unit) && unit.group !== "scout").reduce((sum, unit) => sum + armyValueOf(unit), 0);
+    point[side] = { supply, army: Math.round(army), workers: state.sides[side].probes };
+    const stats = state.sides[side].stats;
+    stats.supplyPeak = Math.max(stats.supplyPeak ?? 0, supply);
+  }
+  if (state.history.at(-1)?.t !== point.t) state.history.push(point);
+}
+
+/** 저장 형식 판. 엔진 상태의 모양이 바뀌어 옛 저장을 읽을 수 없게 되면 올린다. */
+export const STW_SAVE_VERSION = 1;
+
+/** 진행 중인 경기를 문자열로(브라우저 저장용). 이번 틱의 예약 피해(객체 참조)는 비운다. */
+export function stwSerialize(state) {
+  return JSON.stringify({ ...state, pendingHits: [], saveVersion: STW_SAVE_VERSION });
+}
+
+/** 저장한 경기를 되살린다. 형식이 맞지 않거나 끝난 경기면 null. */
+export function stwRestore(text) {
+  try {
+    const state = JSON.parse(text);
+    if (!state || state.saveVersion !== STW_SAVE_VERSION || state.status !== "playing") return null;
+    if (!Array.isArray(state.units) || !Array.isArray(state.buildings) || !state.sides?.player || !state.sides?.enemy) return null;
+    state.pendingHits = [];
+    state.effects ??= [];
+    state.history ??= [];
+    return state;
+  } catch {
+    return null;
+  }
 }
 
 function stepEconomy(state, side, dt) {
@@ -3118,6 +3166,7 @@ function cleanup(state) {
   }
   const dead = state.units.filter((unit) => unit.hp <= 0);
   for (const unit of dead) {
+    if (!unit.returned && !isWorker(unit)) state.sides[unit.side].stats.valueLost = (state.sides[unit.side].stats.valueLost ?? 0) + armyValueOf(unit);
     if (unit.returned) continue;
     state.sides[unit.side].stats.lost += 1;
     state.sides[stwOpponent(unit.side)].stats.kills += 1;

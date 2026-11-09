@@ -95,7 +95,7 @@ export type StwStorm = { id: number; side: StwSide; x: number; y: number; ttl: n
 export type StwZone = { id: number; kind: "swarm"; side: StwSide; x: number; y: number; radius: number; ttl: number; max: number };
 export type StwIntel = { race?: StwRaceId; time: number; buildings: Partial<Record<StwBuildingType, number>>; units: Record<StwArmyType, number>; research: { id: StwResearchId; status: string }[]; probes: number };
 export type StwSeen = { id: number; type: StwBuildingType; x: number; y: number; base: string; radius: number; at: number };
-export type StwStats = { minerals: number; gas: number; produced: number; lost: number; kills: number; buildingsLost: number; buildingsDestroyed: number; storms: number; overkill: number; workersLost?: number; workersKilled?: number };
+export type StwStats = { minerals: number; gas: number; produced: number; lost: number; kills: number; buildingsLost: number; buildingsDestroyed: number; storms: number; overkill: number; workersLost?: number; workersKilled?: number; valueLost?: number; supplyPeak?: number; spells?: number };
 export type StwDropMission = "raid" | "bomb";
 export type StwDropTarget = "main" | "natural" | "tech" | "alternate" | "production";
 export type StwDropPlan = { mission: StwDropMission; target: StwDropTarget; repeat: boolean; sync: boolean };
@@ -128,12 +128,18 @@ export type StwSideState = {
   dropPlan?: StwDropPlan;
   raidRelaunchAt?: number;
   stats: StwStats;
+  /** AI의 기억(전략 전환 기록 등). 플레이어 쪽은 null. */
+  ai?: { switched?: { from: string; to: string; at: number } } | null;
 };
 
 export type StwLogEntry = { id: number; time: number; side: StwSide; text: string; tone: "info" | "good" | "warn" | "danger" | "order" };
 
+/** 경기 기록 한 점(10초마다): 양쪽 인구, 병력 가치(광물 + 가스, 일꾼 제외), 일꾼 수. */
+export type StwHistoryPoint = { t: number } & Record<StwSide, { supply: number; army: number; workers: number }>;
+
 export type StwState = {
   time: number;
+  history?: StwHistoryPoint[];
   hiddenEnemyRace?: boolean;
   difficulty: StwDifficulty;
   status: "playing" | "over";

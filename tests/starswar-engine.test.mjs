@@ -17,6 +17,8 @@ import {
   stwRallyY,
   stwResearchCheck,
   stwSlots,
+  stwRestore,
+  stwSerialize,
   stwSpawnUnitAt,
   stwSupply,
   stwWorkerSplit,
@@ -827,6 +829,40 @@ test("starswar Protoss AI opens gateway, forge and natural against Zerg even und
   const terran = createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "robo", enemy: "bio" } });
   run(terran, 150, stwAiThink);
   assert.equal(stwOwnBuildings(terran, "player", "forge").length, 0, "테란전은 포지를 먼저 짓지 않는다");
+});
+
+test("starswar saves a running game and resumes it exactly where it stopped", () => {
+  const original = createStarswarGame({ seed: 9, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "dragoon", enemy: "hydra" } });
+  run(original, 120, stwAiThink);
+  const saved = stwSerialize(original);
+  const resumed = stwRestore(saved);
+  assert.ok(resumed, "되살린다");
+  assert.equal(resumed.time, original.time);
+  assert.equal(resumed.units.length, original.units.length);
+  // 같은 결정론적 경기라 1분 더 진행해도 똑같이 흘러간다.
+  run(original, 60, stwAiThink);
+  run(resumed, 60, stwAiThink);
+  assert.equal(stwSerialize(resumed), stwSerialize(original));
+  // 깨진 저장, 끝난 경기, 다른 판의 저장은 되살리지 않는다.
+  assert.equal(stwRestore("{"), null);
+  assert.equal(stwRestore(JSON.stringify({ ...JSON.parse(saved), status: "over" })), null);
+  assert.equal(stwRestore(JSON.stringify({ ...JSON.parse(saved), saveVersion: 0 })), null);
+});
+
+test("starswar records army value, supply peaks and lost value for the result screen", () => {
+  const state = createStarswarGame({ seed: 4, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
+  run(state, 300, stwAiThink);
+  assert.equal(state.history.length, 30, "10초마다 한 점");
+  assert.deepEqual(Object.keys(state.history[0]).sort(), ["enemy", "player", "t"]);
+  const last = state.history.at(-1);
+  assert.equal(last.t, 300);
+  assert.ok(last.player.army > 0 && last.enemy.army > 0, "병력 가치");
+  assert.ok(state.sides.player.stats.supplyPeak >= last.player.supply, "최대 인구");
+  for (const side of ["player", "enemy"]) {
+    const stats = state.sides[side].stats;
+    assert.ok(stats.valueLost >= 0);
+    if (stats.lost - (stats.workersLost ?? 0) > 0) assert.ok(stats.valueLost > 0, "잃은 병력 가치");
+  }
 });
 
 test("starswar terran AI personas field their signature units and finish a game", () => {

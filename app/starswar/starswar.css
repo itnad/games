@@ -169,10 +169,37 @@
 .stw-result section > small { color:var(--stw-gold); font-weight:900; letter-spacing:.2em; }
 .stw-result section.lost > small { color:#ff9a88; }
 .stw-result section.draw > small { color:#cfc4ad; }
-.stw-result dl { margin:4px 0 8px; display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
-.stw-result dl div { padding:8px; border-radius:10px; background:#ffffff0a; }
-.stw-result dt { color:var(--stw-muted); }
-.stw-result dd { margin:0; font-size:20px !important; font-weight:900; }
+.stw-result-time { display:grid; justify-items:center; gap:2px; }
+.stw-result-time span { color:var(--stw-muted); font-size:13px; }
+.stw-result-time b { font-size:40px; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+.stw-result-time em { margin-top:4px; padding:2px 10px; border-radius:999px; color:#2a1c05; background:var(--stw-gold); font-style:normal; font-weight:900; font-size:13px; }
+.stw-result-time em.quiet { color:var(--stw-muted); background:#ffffff10; font-weight:700; }
+.stw-result-chart { margin:2px 0; display:grid; gap:4px; text-align:left; }
+.stw-result-chart figcaption { color:var(--stw-muted); font-size:13px; }
+.stw-result-chart figcaption span { margin-left:6px; white-space:nowrap; }
+.stw-result-chart .mine { color:var(--stw-blue); }
+.stw-result-chart .theirs { color:var(--stw-red); }
+.stw-result-chart svg { width:100%; height:96px; border-radius:10px; background:#ffffff08; }
+.stw-result-chart polyline { fill:none; stroke-width:2; vector-effect:non-scaling-stroke; stroke-linejoin:round; }
+.stw-result-chart polyline.mine { stroke:var(--stw-blue); }
+.stw-result-chart polyline.theirs { stroke:var(--stw-red); opacity:.85; }
+.stw-result-axis { display:flex; justify-content:space-between; color:var(--stw-muted); font-size:12px; }
+.stw-result-table { width:100%; border-collapse:collapse; font-size:14px; font-variant-numeric:tabular-nums; }
+.stw-result-table th, .stw-result-table td { padding:5px 6px; border-bottom:1px solid #e9c77a1c; }
+.stw-result-table thead th { color:var(--stw-muted); font-weight:700; font-size:12px; }
+.stw-result-table tbody th { text-align:left; color:#d3c4a2; font-weight:600; }
+.stw-result-table td { text-align:right; width:24%; }
+.stw-result-table thead .mine { color:var(--stw-blue); text-align:right; }
+.stw-result-table thead .theirs { color:var(--stw-red); text-align:right; }
+.stw-result-table td.lead { color:var(--stw-text); font-weight:900; }
+.stw-result-record { color:var(--stw-muted) !important; font-size:13px; }
+.stw-resume { padding:12px 14px; display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; align-items:center; border:1px solid var(--stw-gold); border-radius:16px; background:#e6bd6214; }
+.stw-resume div { display:grid; gap:2px; min-width:0; word-break:keep-all; }
+.stw-resume small { color:var(--stw-gold); font-weight:900; letter-spacing:.1em; }
+.stw-resume b { font-size:16px; }
+.stw-resume span { color:var(--stw-muted); font-size:13px; }
+.stw-resume button { min-height:44px; padding:0 14px; border-radius:12px; font-weight:900; }
+.stw-danger { color:#ffb3a6 !important; }
 
 .casual-card-art.starswar { background:radial-gradient(circle at 50% 35%,#57c6ff44,transparent 34%),linear-gradient(160deg,#4a3714,#1a120a 70%); }
 .casual-card-art.starswar > span:first-child { color:#f6d98a; font-size:clamp(22px,4vw,36px); letter-spacing:.06em; }

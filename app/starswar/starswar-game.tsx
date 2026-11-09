@@ -19,6 +19,8 @@ import {
 import {
   advanceStarswar,
   createStarswarGame,
+  stwRestore,
+  stwSerialize,
   stwArmy,
   stwBuildCheck,
   stwClock,
@@ -172,6 +174,48 @@ function writeRecord(record: BattleRecord) {
   }
 }
 
+/** 진행 중인 경기 저장(이어하기). 경기가 끝나거나 새 경기를 시작하면 지운다. */
+const SAVE_KEY = "paperoid-starswar-save";
+/** 자동 저장 간격(경기 시간, 초). */
+const SAVE_EVERY = 5;
+
+/** 저장된 경기와, 읽은 때 기준으로 몇 분 전에 저장했는지. */
+type SavedBattle = { state: StwState; minutesAgo: number | null };
+
+function readSave(): SavedBattle | null {
+  try {
+    const text = window.localStorage.getItem(SAVE_KEY);
+    if (!text) return null;
+    const state = stwRestore(text) as StwState | null;
+    if (!state) {
+      window.localStorage.removeItem(SAVE_KEY);
+      return null;
+    }
+    const savedAt = (JSON.parse(text) as { savedAt?: number }).savedAt;
+    return { state, minutesAgo: savedAt ? Math.max(0, Math.round((Date.now() - savedAt) / 60000)) : null };
+  } catch {
+    return null;
+  }
+}
+
+function writeSave(state: StwState) {
+  if (state.status !== "playing") return;
+  try {
+    const text = stwSerialize(state) as string;
+    window.localStorage.setItem(SAVE_KEY, `${text.slice(0, -1)},"savedAt":${Date.now()}}`);
+  } catch {
+    // 저장소가 가득 찼거나 쓸 수 없으면 이어하기만 못 할 뿐 게임은 계속한다.
+  }
+}
+
+function clearSave() {
+  try {
+    window.localStorage.removeItem(SAVE_KEY);
+  } catch {
+    // 무시한다.
+  }
+}
+
 function cost(minerals: number, gas: number) {
   return gas ? `${minerals} · 가스 ${gas}` : `${minerals}`;
 }
@@ -192,6 +236,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [icons, setIcons] = useState<Record<string, string>>({});
   const [follow, setFollow] = useState(true);
   const [zoomed, setZoomed] = useState(false);
+  const [saved, setSaved] = useState<SavedBattle | null>(() => (typeof window === "undefined" ? null : readSave()));
 
   const gameRef = useRef<StwState | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -202,8 +247,13 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const pausedRef = useRef(false);
   const speedRef = useRef(1);
   const recordedRef = useRef(false);
+  const savedAtRef = useRef(0);
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const gestureRef = useRef<{ moved: boolean; pinch: boolean; x: number; y: number; cx: number; cy: number; zoom: number; distance: number; anchor: { x: number; y: number } } | null>(null);
+
+  useEffect(() => {
+    if ((paused || confirmExit) && gameRef.current) writeSave(gameRef.current);
+  }, [confirmExit, paused]);
 
   useEffect(() => {
     pausedRef.current = paused || confirmExit;
@@ -220,19 +270,48 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const startBattle = () => {
-    const enemy = races.enemy === "random" ? RACE_IDS[Math.floor(Math.random() * RACE_IDS.length)] : races.enemy;
-    const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), races: { player: races.player, enemy }, hiddenEnemyRace: races.enemy === "random" }) as unknown as StwState;
+  /** 전투 설정 화면으로: 진행 중이면 저장하고, 이어하기 카드를 새로 읽는다. */
+  const goMenu = () => {
+    if (gameRef.current) writeSave(gameRef.current);
+    setSaved(readSave());
+    setScreen("menu");
+  };
+
+  const enterBattle = (next: StwState, { resumed = false } = {}) => {
     gameRef.current = next;
     setGame(next);
+    savedAtRef.current = next.time;
     recordedRef.current = false;
     cameraRef.current.ready = false;
     setFollow(true);
     setTab("build");
-    setPaused(false);
+    // 이어할 때는 상황을 살필 수 있게 일시정지로 시작한다.
+    setPaused(resumed);
     setSpeed(1);
     setConfirmExit(false);
     setScreen("play");
+  };
+
+  const resumeBattle = () => {
+    const save = readSave();
+    if (!save) {
+      setSaved(null);
+      showToast("저장된 전투를 불러올 수 없습니다");
+      return;
+    }
+    enterBattle(save.state, { resumed: true });
+  };
+
+  const discardSave = () => {
+    clearSave();
+    setSaved(null);
+  };
+
+  const startBattle = () => {
+    const enemy = races.enemy === "random" ? RACE_IDS[Math.floor(Math.random() * RACE_IDS.length)] : races.enemy;
+    const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), races: { player: races.player, enemy }, hiddenEnemyRace: races.enemy === "random" }) as unknown as StwState;
+    clearSave();
+    enterBattle(next);
   };
 
   const draw = useCallback((clock: number) => {
@@ -317,7 +396,13 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       const dt = Math.min(0.25, (now - last) / 1000);
       last = now;
       const current = gameRef.current;
-      if (current && !pausedRef.current && current.status === "playing") advanceStarswar(current, dt * speedRef.current, stwAiThink);
+      if (current && !pausedRef.current && current.status === "playing") {
+        advanceStarswar(current, dt * speedRef.current, stwAiThink);
+        if (current.time - savedAtRef.current >= SAVE_EVERY) {
+          savedAtRef.current = current.time;
+          writeSave(current);
+        }
+      }
       draw(now / 1000);
       uiTimer += dt;
       if (uiTimer >= 0.25) {
@@ -327,13 +412,22 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       frame = window.requestAnimationFrame(loop);
     };
     frame = window.requestAnimationFrame(loop);
+    const saveNow = () => {
+      if (gameRef.current) writeSave(gameRef.current);
+    };
     const hide = () => {
-      if (document.hidden) setPaused(true);
+      if (!document.hidden) return;
+      setPaused(true);
+      saveNow();
     };
     document.addEventListener("visibilitychange", hide);
+    window.addEventListener("pagehide", saveNow);
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("visibilitychange", hide);
+      window.removeEventListener("pagehide", saveNow);
+      // 전투 화면을 떠날 때(메뉴·게임 목록) 마지막 상태를 남긴다.
+      saveNow();
     };
   }, [draw, screen]);
 
@@ -342,6 +436,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     if (!finished || !game || recordedRef.current) return;
     recordedRef.current = true;
+    clearSave();
     const won = game.winner === "player";
     const lost = game.winner === "enemy";
     const current = readRecord();
@@ -493,6 +588,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             <h1>전략은 당신이,<br />전투는 병력이.</h1>
             <p>무엇을 짓고 연구할지, 언제 진격할지 정하세요.</p>
           </div>
+          {saved ? <ResumeCard saved={saved} onResume={resumeBattle} onDiscard={discardSave} /> : null}
           <div className="stw-race-pick">
             <h3 className="stw-section">내 종족</h3>
             <div className="stw-segment" role="radiogroup" aria-label="내 종족">
@@ -583,7 +679,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
               <section>
                 <h2>일시정지</h2>
                 <button type="button" className="stw-primary" onClick={() => setPaused(false)}>계속하기</button>
-                <button type="button" className="stw-secondary" onClick={() => setConfirmExit(true)}>전투 포기</button>
+                <button type="button" className="stw-secondary" onClick={() => setConfirmExit(true)}>나가기</button>
               </section>
             </div>
           ) : null}
@@ -607,15 +703,16 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       {confirmExit ? (
         <div className="stw-overlay stw-overlay-full" role="dialog" aria-modal="true" aria-labelledby="stw-exit-title">
           <section>
-            <h2 id="stw-exit-title">전투를 포기할까요?</h2>
-            <p>진행 중인 전투는 저장되지 않으며 패배로 기록되지 않습니다.</p>
+            <h2 id="stw-exit-title">전투를 멈출까요?</h2>
+            <p>지금 상태가 저장되어 전투 설정 화면의 이어하기로 돌아올 수 있습니다. 포기하면 저장을 지웁니다(패배로 기록하지 않습니다).</p>
             <button type="button" className="stw-primary" onClick={() => setConfirmExit(false)}>계속 지휘하기</button>
-            <button type="button" className="stw-secondary" onClick={() => { setConfirmExit(false); setScreen("menu"); }}>전투 설정으로</button>
-            <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
+            <button type="button" className="stw-secondary" onClick={() => { setConfirmExit(false); goMenu(); }}>저장하고 전투 설정으로</button>
+            <button type="button" className="stw-secondary" onClick={onExit}>저장하고 게임 목록으로</button>
+            <button type="button" className="stw-secondary stw-danger" onClick={() => { gameRef.current = null; clearSave(); setConfirmExit(false); goMenu(); }}>전투 포기</button>
           </section>
         </div>
       ) : null}
-      {finished ? <ResultOverlay game={game} onRestart={startBattle} onMenu={() => setScreen("menu")} onExit={onExit} /> : null}
+      {finished ? <ResultOverlay game={game} record={record} onRestart={startBattle} onMenu={goMenu} onExit={onExit} /> : null}
     </main>
   );
 }
@@ -922,33 +1019,105 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
   );
 }
 
-function ResultOverlay({ game, onRestart, onMenu, onExit }: { game: StwState; onRestart: () => void; onMenu: () => void; onExit: () => void }) {
+/** 완료한 연구 수. */
+function researchDone(game: StwState, side: "player" | "enemy") {
+  return Object.values(game.sides[side].research).filter((status) => status === "done").length;
+}
+
+/** 결과 화면의 병력 가치 추이: 10초마다 기록한 양쪽 병력 가치(광물 + 가스, 일꾼 제외)를 선 두 개로. */
+function ArmyChart({ game }: { game: StwState }) {
+  const history = game.history ?? [];
+  if (history.length < 2) return null;
+  const width = 300;
+  const height = 96;
+  const end = Math.max(1, history.at(-1)!.t);
+  const top = Math.max(100, ...history.map((point) => Math.max(point.player.army, point.enemy.army)));
+  const line = (side: "player" | "enemy") => history.map((point) => `${((point.t / end) * width).toFixed(1)},${(height - (point[side].army / top) * (height - 6) - 3).toFixed(1)}`).join(" ");
+  const peak = (side: "player" | "enemy") => Math.max(...history.map((point) => point[side].army));
+  return (
+    <figure className="stw-result-chart">
+      <figcaption>병력 가치 추이 <span className="mine">● 나 최고 {peak("player")}</span> <span className="theirs">● 적 최고 {peak("enemy")}</span></figcaption>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`병력 가치 추이. 나의 최고 ${peak("player")}, 적의 최고 ${peak("enemy")}`} preserveAspectRatio="none">
+        <polyline className="theirs" points={line("enemy")} />
+        <polyline className="mine" points={line("player")} />
+      </svg>
+      <div className="stw-result-axis"><span>00:00</span><span>{stwClock(game.time)}</span></div>
+    </figure>
+  );
+}
+
+function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwState; record: BattleRecord; onRestart: () => void; onMenu: () => void; onExit: () => void }) {
   const won = game.winner === "player";
   const draw = game.winner === "draw";
   const mine = game.sides.player.stats;
   const theirs = game.sides.enemy.stats;
   const persona = game.sides.enemy.persona;
+  const switched = game.sides.enemy.ai?.switched;
   const matchup = `${raceOf(game, "player").name} 대 ${raceOf(game, "enemy").name}`;
+  const best = record.best[game.difficulty];
+  const newBest = won && best !== undefined && Math.round(game.time) <= best;
+  // 세 번째 값이 true인 줄은 적을수록 낫다(굵게 표시할 쪽이 반대).
+  const rows: [string, number, number, boolean?][] = [
+    ["채취 광물", Math.floor(mine.minerals), Math.floor(theirs.minerals)],
+    ["채취 가스", Math.floor(mine.gas), Math.floor(theirs.gas)],
+    ["생산 유닛", mine.produced, theirs.produced],
+    ["잃은 유닛", mine.lost, theirs.lost, true],
+    ["잃은 병력 가치", Math.round(mine.valueLost ?? 0), Math.round(theirs.valueLost ?? 0), true],
+    ["파괴한 건물", mine.buildingsDestroyed, theirs.buildingsDestroyed],
+    ["처치한 일꾼", mine.workersKilled ?? 0, theirs.workersKilled ?? 0],
+    ["최대 인구", mine.supplyPeak ?? 0, theirs.supplyPeak ?? 0],
+    ["마법 사용", (mine.spells ?? 0) + mine.storms, (theirs.spells ?? 0) + theirs.storms],
+    ["완료한 연구", researchDone(game, "player"), researchDone(game, "enemy")],
+  ];
   return (
     <div className="stw-overlay stw-overlay-full stw-result" role="dialog" aria-modal="true" aria-labelledby="stw-result-title">
       <section className={won ? "won" : draw ? "draw" : "lost"}>
         <small>{won ? "VICTORY" : draw ? "DRAW" : "DEFEAT"}</small>
         <h2 id="stw-result-title">{won ? "적 본진 함락" : draw ? "자원 고갈 무승부" : "아군 본진 함락"}</h2>
-        <p>{STW_DIFFICULTIES[game.difficulty].name} · {matchup} · {stwClock(game.time)}{persona ? ` · 상대 전략: ${STW_AI_PERSONAS[persona].name}` : ""}</p>
-        <dl>
-          <div><dt>채취 광물</dt><dd>{Math.floor(mine.minerals)}</dd></div>
-          <div><dt>채취 가스</dt><dd>{Math.floor(mine.gas)}</dd></div>
-          <div><dt>생산 유닛</dt><dd>{mine.produced}</dd></div>
-          <div><dt>처치</dt><dd>{mine.kills}</dd></div>
-          <div><dt>잃은 유닛</dt><dd>{mine.lost}</dd></div>
-          {raceOf(game).id === "protoss" ? <div><dt>스톰</dt><dd>{mine.storms}</dd></div> : <div><dt>건물 손실</dt><dd>{mine.buildingsLost}</dd></div>}
-          <div><dt>파괴한 건물</dt><dd>{mine.buildingsDestroyed}</dd></div>
-          <div><dt>적 채취 광물</dt><dd>{Math.floor(theirs.minerals)}</dd></div>
-        </dl>
+        <div className="stw-result-time">
+          <span>경기 시간</span>
+          <b>{stwClock(game.time)}</b>
+          {newBest ? <em>최단 승리 기록</em> : won && best !== undefined ? <em className="quiet">최단 {stwClock(best)}</em> : null}
+        </div>
+        <p>
+          {STW_DIFFICULTIES[game.difficulty].name} · {matchup}
+          {persona ? ` · 상대 전략: ${STW_AI_PERSONAS[switched ? switched.from as keyof typeof STW_AI_PERSONAS : persona].name}` : ""}
+          {switched ? ` → ${stwClock(switched.at)}에 ${withKoreanDirection(STW_AI_PERSONAS[switched.to as keyof typeof STW_AI_PERSONAS].name)} 전환` : ""}
+        </p>
+        <ArmyChart game={game} />
+        <table className="stw-result-table">
+          <thead><tr><th scope="col">항목</th><th scope="col" className="mine">나</th><th scope="col" className="theirs">적</th></tr></thead>
+          <tbody>
+            {rows.map(([label, a, b, lowerIsBetter]) => {
+              const better = a === b ? null : (a > b) !== Boolean(lowerIsBetter) ? "mine" : "theirs";
+              return <tr key={label}><th scope="row">{label}</th><td className={better === "mine" ? "lead" : undefined}>{a}</td><td className={better === "theirs" ? "lead" : undefined}>{b}</td></tr>;
+            })}
+          </tbody>
+        </table>
+        <p className="stw-result-record">전적 {record.wins}승 {record.losses}패</p>
         <button type="button" className="stw-primary" onClick={onRestart}>같은 설정으로 다시</button>
         <button type="button" className="stw-secondary" onClick={onMenu}>전투 설정</button>
         <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
       </section>
     </div>
+  );
+}
+
+/** 메뉴의 이어하기 카드: 저장된 경기의 종족·난이도·진행 시간. */
+function ResumeCard({ saved, onResume, onDiscard }: { saved: SavedBattle; onResume: () => void; onDiscard: () => void }) {
+  const game = saved.state;
+  const enemy = game.hiddenEnemyRace && !game.sides.player.intel?.race ? "?" : raceOf(game, "enemy").name;
+  const minutes = saved.minutesAgo;
+  const ago = minutes === null ? "" : minutes < 1 ? " · 방금 저장" : minutes < 60 ? ` · ${minutes}분 전 저장` : ` · ${Math.round(minutes / 60)}시간 전 저장`;
+  return (
+    <section className="stw-resume" aria-label="멈춘 전투">
+      <div>
+        <small>멈춘 전투</small>
+        <b>{raceOf(game).name} 대 {enemy} · {STW_DIFFICULTIES[game.difficulty].name}</b>
+        <span>{stwClock(game.time)} 진행{ago}</span>
+      </div>
+      <button type="button" className="stw-primary" onClick={onResume}>이어하기</button>
+      <button type="button" className="stw-secondary" onClick={onDiscard} aria-label="저장된 전투 지우기">지우기</button>
+    </section>
   );
 }
