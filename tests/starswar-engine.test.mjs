@@ -1228,6 +1228,31 @@ test("starswar AI from a reported loss: no early second gas or double pylon, sur
   assert.equal(state.status, "playing", "7분까지 버틴다");
 });
 
+test("starswar new units join the attack group while the player is fighting, otherwise go to the rally point", () => {
+  const produce = (state) => {
+    const gateway = stwOwnBuildings(state, "player", "gateway")[0];
+    gateway.line = "zealot";
+    const before = new Set(state.units.map((unit) => unit.id));
+    for (let step = 0; step < 400 && state.units.every((unit) => before.has(unit.id) || unit.side !== "player" || unit.type !== "zealot"); step += 1) stepStarswar(state);
+    return state.units.find((unit) => !before.has(unit.id) && unit.side === "player" && unit.type === "zealot");
+  };
+  // 공격 병력이 나가 싸우는 중: 새 질럿은 공격 병력에 합류해 앞으로 간다.
+  const fighting = stwCreateScenario({ seed: 3, placement: "clash", races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { zealot: 6 }, buildings: { gateway: 1 }, minerals: 2000 }, enemy: { units: { zergling: 4 } } } });
+  const fresh = produce(fighting);
+  assert.ok(fresh, "질럿이 나온다");
+  assert.equal(fresh.group, "attack", "공격 병력에 합류");
+  const startY = fresh.y;
+  run(fighting, 4);
+  assert.ok(fresh.y < startY - 8, `앞으로 간다 (${startY.toFixed(1)} → ${fresh.y.toFixed(1)})`);
+  // 대기 중(공격 병력 없음): 예전처럼 집결지로.
+  const home = stwCreateScenario({ seed: 3, placement: "home", races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { zealot: 6 }, buildings: { gateway: 1 }, minerals: 2000 }, enemy: { units: { zergling: 4 } } } });
+  assert.equal(produce(home).group, "rally");
+  // AI 진영은 따르지 않는다(출격 판단이 따로 있다).
+  const ai = stwCreateScenario({ seed: 3, placement: "clash", races: { player: "protoss", enemy: "protoss" }, sides: { player: { units: { zealot: 6 }, buildings: { gateway: 1 }, minerals: 2000 }, enemy: { units: { zealot: 6 } } } });
+  ai.aiSides = ["player"];
+  assert.equal(produce(ai).group, "rally");
+});
+
 test("starswar carrier attacks launch one visible interceptor per hit", () => {
   for (const [research, expected] of [[[], 4], [["carrierCapacity"], 8]]) {
     const state = stwCreateScenario({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { carrier: 1 }, research }, enemy: { units: { hydra: 6 } } } });

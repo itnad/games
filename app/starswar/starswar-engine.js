@@ -1392,6 +1392,20 @@ function stepBuildings(state, dt) {
   }
 }
 
+/**
+ * 사람이 지휘하는 진영이 공격 병력을 내보내 싸우는 동안에는 새로 나온 전투 유닛이 집결지 대신 공격 병력에 합류한다.
+ * 출격한 병력은 앞에서 싸우는데 새 병력만 집결지에 쌓이던 것을 막는다. 후퇴하거나 공격 병력이 없으면 예전처럼 집결지로 간다.
+ * 일꾼·수송선·오버로드는 따르지 않는다. AI는 출격 판단(manageArmy)이 따로 있어 쓰지 않는다.
+ */
+function joinsAttack(state, side, unitType) {
+  if (state.aiSides.includes(side)) return false;
+  const def = STW_UNITS[unitType];
+  if (def.worker || def.transport || unitType === "overlord") return false;
+  if (!stwArmy(state, side).attackers.length) return false;
+  if (side === "player") alertOnce(state, "reinforce", 20, "player", "새 병력이 공격 병력에 합류하러 갑니다.", "order");
+  return true;
+}
+
 function stepProducer(state, building, record, dt) {
   if (building.current) {
     building.current.remaining -= dt;
@@ -1400,8 +1414,13 @@ function stepProducer(state, building, record, dt) {
     building.current = null;
     const forward = stwForward(building.side);
     // 저글링은 한 번에 2기가 나온다.
+    const reinforce = joinsAttack(state, building.side, unitType);
     for (let index = 0; index < (STW_UNITS[unitType].pair ? 2 : 1); index += 1) {
       const unit = spawnUnit(state, building.side, unitType, building.x + (nextRandom(state) - 0.5) * 2 + index * 1.4, building.y + forward * (building.radius + 1.5));
+      if (reinforce) {
+        unit.group = "attack";
+        unit.reinforcing = true;
+      }
       record.stats.produced += 1;
       state.effects.push({ kind: "warp", side: building.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.6, max: 0.6, radius: unit.radius * 2 });
     }
@@ -2096,8 +2115,11 @@ function stepUnits(state, dt) {
     const speeds = army.attack.filter((unit) => !isFlying(unit) || unit.type === "overlord").map((unit) => unitSpeed(state, unit));
     // 웨이브의 꼬리(가장 뒤처진 전투 유닛). 빠른 유닛은 여기서 WAVE_LEAD칸까지만 앞서 나간다.
     const forwardSign = stwForward(side);
-    const marching = army.attack.filter((unit) => !isFlying(unit) || unit.type === "overlord");
+    // 합류하러 오는 새 병력은 꼬리로 치지 않는다(앞에서 싸우는 병력이 기다리느라 느려지지 않게). 꼬리 6칸 안에 닿으면 본대가 된다.
+    const marching = army.attack.filter((unit) => (!isFlying(unit) || unit.type === "overlord") && !unit.reinforcing);
     const rearY = marching.length ? marching.reduce((rear, unit) => (unit.y * forwardSign < rear * forwardSign ? unit.y : rear), marching[0].y) : null;
+    for (const unit of army.attack) if (unit.reinforcing && (rearY === null || (unit.y - rearY) * -forwardSign < 6)) delete unit.reinforcing;
+    for (const unit of army.rally) if (unit.reinforcing) delete unit.reinforcing;
     plans[side] = {
       rallySlots: rallySlots(state, side, army.rally, rallyY),
       attackSlots,

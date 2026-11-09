@@ -9,6 +9,7 @@ import {
   STW_CANCEL_REFUND,
   STW_DIFFICULTIES,
   STW_ECONOMY,
+  STW_LAYOUT,
   STW_PRODUCER_UNITS,
   STW_PRODUCERS,
   STW_RACES,
@@ -27,6 +28,7 @@ import {
   stwClock,
   stwIssue,
   stwDone,
+  stwNexus,
   stwDropCheck,
   stwIncome,
   stwOwnBuildings,
@@ -62,14 +64,15 @@ function readLab(): LabConfig {
   }
   return structuredClone(LAB_PRESETS[0].config);
 }
-type Tab = "build" | "produce" | "army";
+type Tab = "build" | "produce" | "research" | "army";
 type Toast = { id: number; text: string; tone: "good" | "warn" };
 type BattleRecord = { wins: number; losses: number; best: Partial<Record<StwDifficulty, number>> };
 
 const RECORD_KEY = "paperoid-starswar-record";
 const TABS: { id: Tab; label: string }[] = [
   { id: "build", label: "경제·건설" },
-  { id: "produce", label: "생산·연구" },
+  { id: "produce", label: "생산" },
+  { id: "research", label: "연구" },
   { id: "army", label: "병력" },
 ];
 const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard"];
@@ -261,6 +264,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const pixiRef = useRef<StwPixiRenderer | null>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
   const viewRef = useRef<StwView>(stwViewport(1, 1, { zoom: 1, cx: 20, cy: 50 }));
+  const scoutTagRef = useRef<HTMLDivElement | null>(null);
   const cameraRef = useRef({ zoom: 1, cx: 20, cy: 94, ready: false, follow: true, lastZoom: 2 });
   const pausedRef = useRef(false);
   const speedRef = useRef(1);
@@ -372,6 +376,21 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     camera.cy = view.cy;
     viewRef.current = view;
     pixi.render(current, view, { clock, timeScale: pausedRef.current ? 0 : speedRef.current, rally: current.sides.player.rally });
+    // 지도 위 정찰 버튼: 아군 본진 광물 줄에 붙이고, 본진이 화면 밖이면 완성된 앞마당 광물 줄에 붙인다.
+    // 둘 다 화면 밖이면(전선을 따라가는 중) 지도 오른쪽 아래(아군 기지 쪽)에 붙여 둔다.
+    // 카메라가 매 프레임 움직이므로 React 갱신(0.25초)이 아니라 여기서 바로 옮긴다.
+    const tag = scoutTagRef.current;
+    if (tag) {
+      const anchors = [STW_LAYOUT.mainMinerals];
+      const natural = stwNexus(current, "player", "natural");
+      if (natural && stwDone(natural)) anchors.push(STW_LAYOUT.naturalMinerals);
+      const spot = anchors
+        .map((point) => ({ x: view.ox + point.x * view.scale, y: view.oy + point.y * view.scale }))
+        .find((point) => point.x > 40 && point.x < width - 40 && point.y > 60 && point.y < height + 6);
+      tag.style.display = current.status === "playing" ? "flex" : "none";
+      tag.classList.toggle("pinned", !spot);
+      tag.style.transform = spot ? `translate(${Math.round(spot.x)}px, ${Math.round(Math.min(spot.y, height - 22))}px) translate(-50%, -50%)` : "";
+    }
   }, []);
 
   useEffect(() => {
@@ -670,6 +689,9 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const army = stwArmy(game, "player");
   const recentLog = game.log.filter((entry) => entry.side === "player" && game.time - entry.time < 8).slice(-2);
   const intel = side.intel;
+  const mapScout = stwScoutCheck(game, "player") as StwCheck;
+  const mapScouts = game.units.filter((unit) => unit.side === "player" && unit.group === "scout");
+  const mapScoutsMain = mapScouts.filter((unit) => unit.scoutMode !== "resources").length;
 
   return (
     <main className="stw-shell stw-play-shell" data-game-menu={finished ? "true" : undefined}>
@@ -705,6 +727,14 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             <button type="button" onClick={toggleZoom}>{zoomed ? "전체" : "확대"}</button>
             <button type="button" className={follow ? "active" : ""} aria-pressed={follow} onClick={() => setFollow((value) => !value)}>전선 따라가기</button>
           </div>
+          <div ref={scoutTagRef} className="stw-map-scout" role="group" aria-label="정찰">
+            <button type="button" disabled={!mapScout.ok} title={mapScout.ok ? "적 본진의 건물·병력·연구 확인" : mapScout.reason} onClick={() => issue({ type: "scout", target: "main" })}>
+              본진 정찰{mapScoutsMain ? <em>{mapScoutsMain}</em> : null}
+            </button>
+            <button type="button" disabled={!mapScout.ok} title={mapScout.ok ? "적 앞마당과 광물 줄을 돌며 일꾼·가스·확장 확인" : mapScout.reason} onClick={() => issue({ type: "scout", target: "resources" })}>
+              자원 정찰{mapScouts.length - mapScoutsMain ? <em>{mapScouts.length - mapScoutsMain}</em> : null}
+            </button>
+          </div>
           <p className="stw-intel-chip">{intel ? `적 ${stwClock(intel.time)} · ${intelSummary(intel)}` : "적 정보 없음 · 정찰 필요"}</p>
           <ul className="stw-log" aria-live="polite">
             {recentLog.map((entry) => <li key={entry.id} className={`tone-${entry.tone}`}>{entry.text}</li>)}
@@ -732,6 +762,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           <div className="stw-panel-body" key={tab}>
             {tab === "build" ? <BuildTab game={game} issue={issue} /> : null}
             {tab === "produce" ? <ProduceTab game={game} issue={issue} /> : null}
+            {tab === "research" ? <ResearchTab game={game} issue={issue} /> : null}
             {tab === "army" ? <ArmyTab game={game} issue={issue} /> : null}
           </div>
         </section>
@@ -884,8 +915,6 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
   const producers = game.buildings.filter((building) => building.side === "player" && (STW_PRODUCERS as string[]).includes(building.type));
   // 저그 해처리처럼 같은 생산 목록을 쓰는 건물은 한 묶음으로 본다.
   const gateways = producers.filter((building) => STW_PRODUCER_UNITS[building.type as StwProducerType] === STW_PRODUCER_UNITS[race.mainProducer]);
-  const research = game.sides.player.research;
-  const researchIds = RESEARCH_IDS.filter((id) => (STW_RESEARCH[id] as { race?: string }).race === race.id);
   const templars = game.units.filter((unit) => unit.side === "player" && unit.type === "templar").length;
   const darks = game.units.filter((unit) => unit.side === "player" && unit.type === "dark" && unit.group !== "cargo").length;
   const counters: Record<string, number> = {};
@@ -935,7 +964,20 @@ function ProduceTab({ game, issue }: { game: StwState; issue: Issue }) {
         {race.id === "protoss" ? <Card title="아콘 합체" sub={`하이템플러 2기 → 아콘 · 보유 ${templars}`} note={templars >= 2 ? STW_UNITS.archon.note : "하이템플러 2기가 필요합니다"} disabled={templars < 2} onClick={() => issue({ type: "merge" })} /> : null}
         {race.id === "protoss" ? <Card title="다크 아콘 합체" sub={`다크템플러 2기 → 다크 아콘 · 보유 ${darks}`} note={darks >= 2 ? STW_UNITS.darkArchon.note : "다크템플러 2기가 필요합니다"} disabled={darks < 2} onClick={() => issue({ type: "darkMerge" })} /> : null}
       </div>
-      <h3 className="stw-section">연구</h3>
+    </div>
+  );
+}
+
+/** 연구 탭: 그 종족의 연구와 업그레이드. 진행 중이면 진행률, 끝났으면 완료로 보인다. */
+function ResearchTab({ game, issue }: { game: StwState; issue: Issue }) {
+  const race = raceOf(game);
+  const research = game.sides.player.research;
+  const researchIds = RESEARCH_IDS.filter((id) => (STW_RESEARCH[id] as { race?: string }).race === race.id);
+  const running = game.buildings.filter((building) => building.side === "player" && building.research).length;
+  const done = researchIds.filter((id) => research[id] === "done").length;
+  return (
+    <div className="stw-tab">
+      <p className="stw-workers">완료 {done}/{researchIds.length}{running ? ` · 진행 중 ${running}` : ""}</p>
       <div className="stw-grid">
         {researchIds.map((id) => {
           const def = STW_RESEARCH[id];

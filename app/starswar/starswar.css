@@ -58,9 +58,16 @@
 .stw-map-error { position:absolute; inset:auto 16px 50% 16px; margin:0; text-align:center; color:#ffd2c4; }
 .stw-map-tools { position:absolute; left:8px; top:8px; display:flex; gap:6px; }
 .stw-map-tools button { min-height:36px; padding:0 12px; border:1px solid #e9c77a44; border-radius:10px; background:#120d07d9; font-size:14px !important; font-weight:800; }
+/* 지도 위 정찰 버튼: 아군 광물 줄을 따라다닌다(위치는 그리기 루프가 transform으로 정한다). */
+.stw-map-scout { position:absolute; left:0; top:0; z-index:3; display:none; gap:6px; pointer-events:none; }
+.stw-map-scout.pinned { left:auto; top:auto; right:8px; bottom:8px; }
+.stw-map-scout button { pointer-events:auto; min-height:32px; padding:0 10px; display:flex; align-items:center; gap:5px; border:1px solid #8fd3ff88; border-radius:999px; color:#dff3ff; background:#0b1a26e0; font-size:13px !important; font-weight:800; white-space:nowrap; box-shadow:0 2px 8px #0008; }
+.stw-map-scout button:disabled { opacity:.55; }
+.stw-map-scout em { min-width:18px; padding:0 5px; border-radius:9px; color:#062033; background:#8fd3ff; font-size:12px; font-style:normal; }
 .stw-map-tools button.active { color:#2a1c05; border-color:var(--stw-gold); background:var(--stw-gold); }
 .stw-intel-chip { position:absolute; right:12px; top:52px; left:8px; margin:0; width:max-content; max-width:calc(100% - 20px); overflow:hidden; padding:5px 10px; border-radius:9px; color:#ffd8cc; background:#2a120bd9; font-size:13px !important; font-weight:800; line-height:1.35 !important; text-overflow:ellipsis; white-space:nowrap; pointer-events:none; }
-.stw-log { position:absolute; left:8px; right:14px; bottom:8px; margin:0; padding:0; list-style:none; display:grid; gap:4px; pointer-events:none; }
+/* 지도 아래쪽 40px는 정찰 버튼 자리라 기록은 그 위에 띄운다. */
+.stw-log { position:absolute; left:8px; right:14px; bottom:46px; margin:0; padding:0; list-style:none; display:grid; gap:4px; pointer-events:none; }
 .stw-log li { width:max-content; max-width:100%; overflow:hidden; padding:4px 9px; border-radius:9px; background:#0d0905cf; font-size:13px !important; line-height:1.35 !important; text-overflow:ellipsis; white-space:nowrap; }
 .stw-log li.tone-danger { color:#ffc1b5; box-shadow:inset 3px 0 var(--stw-red); }
 .stw-log li.tone-good { color:#cdf5d3; box-shadow:inset 3px 0 var(--stw-green); }
@@ -72,22 +79,23 @@
 @keyframes stw-toast { from { opacity:0; transform:translate(-50%,-8px); } }
 
 .stw-panel { flex:0 0 auto; max-height:45dvh; display:flex; flex-direction:column; border-top:1px solid var(--stw-line); background:var(--stw-panel); }
-.stw-tabs { display:grid; grid-template-columns:repeat(3,1fr); border-bottom:1px solid var(--stw-line); }
-.stw-tabs button { min-height:46px; display:flex; align-items:center; justify-content:center; gap:6px; border:0; border-bottom:3px solid transparent; background:transparent; font-weight:900; }
+.stw-tabs { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border-bottom:1px solid var(--stw-line); }
+.stw-tabs button { min-width:0; min-height:46px; padding:0 4px; display:flex; align-items:center; justify-content:center; gap:5px; border:0; border-bottom:3px solid transparent; background:transparent; font-weight:900; white-space:nowrap; }
 .stw-tabs button.active { color:var(--stw-gold); border-bottom-color:var(--stw-gold); background:#e6bd620f; }
 .stw-tabs em { min-width:22px; padding:1px 6px; border-radius:11px; color:#2a1c05; background:var(--stw-gold); font-size:13px; font-style:normal; }
 .stw-panel-body { min-height:0; padding:10px 10px 16px; overflow-y:auto; overscroll-behavior:contain; }
 .stw-tab { display:grid; gap:10px; }
 .stw-workers { margin:0; color:#dccdaa; font-size:14px !important; }
-.stw-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
-.stw-card { min-height:74px; padding:8px 10px; display:grid; align-content:start; gap:2px; text-align:left; border:1px solid #e9c77a30; border-radius:12px; background:var(--stw-card); }
+/* 카드는 세 줄. 좁은 휴대폰(411px)에서도 한 칸이 120px 남짓이라 이름·비용·설명을 줄여 쓴다. */
+.stw-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
+.stw-card { min-width:0; min-height:70px; padding:7px 8px; display:grid; align-content:start; gap:2px; text-align:left; border:1px solid #e9c77a30; border-radius:12px; background:var(--stw-card); overflow-wrap:anywhere; word-break:keep-all; }
 .stw-card:not(:disabled):active { transform:translateY(1px); }
 .stw-card:not(:disabled) { box-shadow:inset 0 0 0 1px #e9c77a10, 0 2px 0 #00000040; }
-.stw-card-head { display:flex; align-items:center; gap:6px; }
-.stw-card-head b { font-size:15px; }
-.stw-card-head em { margin-left:auto; padding:1px 7px; border-radius:9px; color:#2a1c05; background:#e6bd62d0; font-size:12px; font-style:normal; font-weight:900; white-space:nowrap; }
-.stw-card-cost { color:#8fd3ff; font-size:13px; font-weight:800; font-variant-numeric:tabular-nums; }
-.stw-card small { color:var(--stw-muted); font-size:13px !important; line-height:1.3 !important; }
+.stw-card-head { display:flex; flex-wrap:wrap; align-items:center; gap:2px 5px; }
+.stw-card-head b { font-size:14px; line-height:1.25; }
+.stw-card-head em { padding:1px 6px; border-radius:9px; color:#2a1c05; background:#e6bd62d0; font-size:11px; font-style:normal; font-weight:900; white-space:nowrap; }
+.stw-card-cost { color:#8fd3ff; font-size:12px; font-weight:800; font-variant-numeric:tabular-nums; }
+.stw-card small { color:var(--stw-muted); font-size:12px !important; line-height:1.3 !important; }
 .stw-card.done { border-color:#7fe08f55; }
 .stw-card.done small { color:#a9e7b4; }
 /* 생산 현황 칩: 상단 시간 오른쪽. 테두리 링이 진행률(--p). */
@@ -219,7 +227,7 @@
 @media (min-width:900px) {
   .stw-body { flex-direction:row; }
   .stw-panel { width:440px; max-height:none; border-top:0; border-left:1px solid var(--stw-line); }
-  .stw-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .stw-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
 }
 @media (max-width:420px) {
   .stw-topbar { padding-right:128px; }
