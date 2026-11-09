@@ -291,6 +291,8 @@ async function readMudflatSourceBundle() {
     "../app/mudflat-terrain.ts",
     "../app/mudflat-canvas-utils.ts",
     "../app/mudflat-seafood-guide.tsx",
+    "../app/mudflat-daily-challenge-panel.tsx",
+    "../app/mudflat-daily-challenge.js",
   ];
   return (await Promise.all(files.map((file) => readFile(new URL(file, import.meta.url), "utf8")))).join("\n");
 }
@@ -3595,4 +3597,23 @@ test("uses a throttled character speech bubble when the Mudflat haul container i
   assert.match(source, /const messageLines = wrapCanvasText\(context, message, width - 72\)/);
   assert.match(source, /messageLines\.forEach\(\(line, index\) => context\.fillText\(line, width \/ 2, bubbleTop \+ 24 \+ index \* lineHeight\)\)/);
   assert.doesNotMatch(source, /조과통이 가득 찼습니다/);
+});
+
+test("offers one shared daily Mudflat ranking without overwriting ordinary expeditions", async () => {
+  const source = await readMudflatSourceBundle();
+  const route = await readFile(new URL("../app/api/haeru-daily/route.ts", import.meta.url), "utf8");
+  const schema = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
+
+  assert.match(source, /<MudflatDailyChallengePanel onStart=\{beginDailyChallenge\} hasActiveRun=\{Boolean\(savedRun\)\}/);
+  assert.match(source, /const runtime = makeRuntime\(dailyCampaign, challenge.seed\)/);
+  assert.match(source, /if \(dailyChallengeRef.current\) return true/);
+  assert.match(source, /finishDailyRun\(runtime, true\)/);
+  assert.match(source, /첫 결과만 오늘의 통합 순위에 등록됩니다/);
+  assert.match(source, /navigator\.share/);
+  assert.match(route, /onConflictDoNothing\(\{ target: \[mudflatDailyResults.challengeDate, mudflatDailyResults.participantId\] \}\)/);
+  assert.match(route, /orderBy\(desc\(mudflatDailyResults.score\), desc\(mudflatDailyResults.caught\), asc\(mudflatDailyResults.elapsed\)/);
+  assert.match(schema, /uniqueIndex\("mudflat_daily_results_date_participant_unique"\)/);
+  assert.match(styles, /\.ms-daily-card/);
+  assert.match(styles, /\.ms-daily-result-card/);
 });

@@ -2,7 +2,7 @@
 
 ## 1. 실행 구조
 
-`/haeru`는 `MudflatSurvivorGame`을 진입점으로 사용합니다. 화면 상태는 `setup → running ↔ paused/upgrade → camp 또는 defeat`로 전환됩니다. Canvas 월드는 React 렌더와 분리된 `runtimeRef`에 있고, HUD에 필요한 값만 주기적으로 React 상태로 복사합니다.
+`/haeru`는 `MudflatSurvivorGame`을 진입점으로 사용합니다. 일반 원정은 `setup → running ↔ paused/upgrade → camp 또는 defeat`, 오늘의 갯벌은 `setup → running ↔ paused/upgrade → daily-result`로 전환됩니다. Canvas 월드는 React 렌더와 분리된 `runtimeRef`에 있고, HUD에 필요한 값만 주기적으로 React 상태로 복사합니다.
 
 ## 2. 모듈 경계
 
@@ -18,6 +18,9 @@
 | `mudflat-cast-net*.js` | 그물 목표·상태와 렌더링 |
 | `mudflat-lumi-*` | 루미 애니메이션·렌더링 |
 | `mudflat-dev-tools.tsx` | 로컬 저장 내보내기·복원과 고정 시드 프리셋 |
+| `mudflat-daily-challenge.js` | 한국 표준시 기준 일일 단계·시드와 익명 이름 규칙 |
+| `mudflat-daily-challenge-panel.tsx` | 오늘의 갯벌 진입, 통합 순위, 결과 공유 카드 |
+| `api/haeru-daily/route.ts` | 일일 기록 조회·최초 결과 등록과 입력 검증 |
 
 최상위 게임 파일에 새 순수 계산을 직접 늘리지 않습니다. 지형, 확률, 가격, 충돌 규칙은 독립 모듈로 옮기고 Node 테스트에서 검증합니다.
 
@@ -29,6 +32,8 @@
 - `choiceIds`, `nextSequence`: 기술 선택 복원과 엔티티 ID 충돌 방지용입니다.
 
 런타임의 새 필드는 저장 템플릿 검사 대상입니다. 이전 저장에도 기본값을 줄 수 있는 필드는 `decodeMudflatRun`에서 명시적으로 보완하고 테스트합니다. 의미가 달라져 안전하게 변환할 수 없으면 저장 버전을 올립니다.
+
+오늘의 갯벌 참가자 ID와 표시 이름은 일반 진행 저장과 별도인 브라우저 로컬 설정입니다. `/haeru-dev` 저장값 내보내기에는 포함하지 않습니다. 다른 기기로 복사하면 동일 참가자를 사칭할 수 있기 때문입니다. 공개 순위 기록은 D1의 `mudflat_daily_results`에 저장하며 `(challenge_date, participant_id)` 고유 인덱스로 하루 첫 결과만 받습니다.
 
 ## 4. 결정적 난수
 

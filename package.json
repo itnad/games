@@ -10,7 +10,7 @@
     "build": "vinext build",
     "start": "vinext start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs && npm run test:haeru && npm run test:stark-rift",
-    "test:haeru": "node --test tests/mudflat-cast-net.test.mjs tests/mudflat-rng.test.mjs tests/mudflat-run-save.test.mjs",
+    "test:haeru": "node --test tests/mudflat-cast-net.test.mjs tests/mudflat-daily-challenge.test.mjs tests/mudflat-rng.test.mjs tests/mudflat-run-save.test.mjs",
     "test:stark-rift": "npm run typecheck:stark-rift && vitest run --config vitest.config.ts",
     "typecheck:stark-rift": "tsc --project tsconfig.stark-rift.json",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
