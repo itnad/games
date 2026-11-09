@@ -2,7 +2,7 @@ import type { BattleMap } from "../data/maps";
 import type { SimulationState } from "../core/state";
 import type { NavigationJob } from "./state";
 import { checksum } from "../core/checksum";
-import { DestinationReservations } from "./destinations";
+import { DestinationReservations, destinationAvailable } from "./destinations";
 import { segmentNearCircle, segmentNearTile } from "./geometry";
 import { SpatialHash } from "./spatial-hash";
 export const CELL = 128;
@@ -147,7 +147,6 @@ export function navigate(state:SimulationState,map:BattleMap):void{
       if(corrected===undefined){m.status="blocked";continue;}start=corrected;
     }
     const goal=grid.cell(m.target),key=jobKey(goal,s.radius[i],s.layer[i],state.map.obstacleVersion);
-    const destinations=new DestinationReservations(state,[s.id[i]]);
     let cached=n.cache.find(c=>c.key===key);
     if(!cached&&grid.clear(grid.point(goal),s.radius[i],s.layer[i],s.id[i])){
       const corridor=n.cache.find(c=>{
@@ -157,7 +156,7 @@ export function navigate(state:SimulationState,map:BattleMap):void{
       });
       if(corridor)cached={key,path:[...corridor.path,goal]};
     }
-    if(cached&&cached.path.length&&(m.order==="focusAttack"||destinations.free(grid.point(cached.path[cached.path.length-1]),s.radius[i],s.layer[i]))){
+    if(cached&&cached.path.length&&(m.order==="focusAttack"||destinationAvailable(state,s.id[i],grid.point(cached.path[cached.path.length-1]),s.radius[i],s.layer[i]))){
       let join=-1,best=Infinity;
       for(let p=0;p<cached.path.length;p++){const point=grid.point(cached.path[p]),distance=(point.x-s.x[i])**2+(point.y-s.y[i])**2;if(distance<best&&grid.segment({x:s.x[i],y:s.y[i]},point,s.radius[i],s.layer[i],s.id[i])){best=distance;join=p;}}
       if(join>=0){n.lastReused++;m.path=cached.path.slice(join).map(c=>grid.point(c));m.pathIndex=0;m.status="moving";m.target=m.path.at(-1)!;continue;}
@@ -170,12 +169,18 @@ export function navigate(state:SimulationState,map:BattleMap):void{
     let end:number|null=null;
     const index=s.id.indexOf(job.entityId),motion=state.movement[index],destinations=new DestinationReservations(state,[job.entityId]);
     const available=(cell:number)=>motion.order==="focusAttack"||destinations.free(grid.point(cell),job.radius,job.layer);
+    // Reservations do not change while this job expands. Keep the best-cell predicate local.
+    let bestAvailable=available(job.best),bestHeuristic=heuristic(job.best,job.goal,grid.width);
     while(job.open.length&&n.lastExpanded<8000){
       const current=pop(job.open);
       if(job.closed[current.cell]||current.g!==job.cost[current.cell])continue;
       job.closed[current.cell]=1;n.lastExpanded++;
-      if(available(current.cell)&&(!available(job.best)||heuristic(current.cell,job.goal,grid.width)<heuristic(job.best,job.goal,grid.width)))job.best=current.cell;
-      if(current.cell===job.goal&&available(current.cell)){end=current.cell;break;}
+      const currentAvailable=available(current.cell);
+      if(currentAvailable){
+        const h=heuristic(current.cell,job.goal,grid.width);
+        if(!bestAvailable||h<bestHeuristic){job.best=current.cell;bestAvailable=true;bestHeuristic=h;}
+      }
+      if(current.cell===job.goal&&currentAvailable){end=current.cell;break;}
       const x=current.cell%grid.width,y=Math.floor(current.cell/grid.width);
       for(const [nx,ny] of [[x-1,y],[x+1,y],[x,y-1],[x,y+1]]){
         if(nx<0||ny<0||nx>=grid.width||ny>=grid.height)continue;
