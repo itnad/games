@@ -7,6 +7,7 @@ import {
   stwCommand,
   stwDone,
   stwDropCheck,
+  stwFreeSlots,
   stwHas,
   stwIncome,
   stwNexus,
@@ -154,6 +155,21 @@ function buildOrder(state, side, persona) {
   return [...PVZ_OPENER, ...BUILD_ORDERS[persona]];
 }
 
+/**
+ * 이미 끝낸 빌드 단계의 건물을 잃었는지: 앞마당이 없거나, 이 단계까지 지은 같은 종류(생산·테크 건물)보다 지금 가진 수가 적다.
+ * 방어·인구·가스 건물은 따로 챙기므로 세지 않는다.
+ */
+function lostStep(state, side, order, index, memory) {
+  const step = order[index];
+  if (!step.build) return false;
+  if (step.build === "expand") return !stwNexus(state, side, "natural");
+  if (!memory.built.includes(index)) return false;
+  const def = STW_BUILDINGS[step.build];
+  if (!def || def.defense || def.supply || def.refinery) return false;
+  const needed = memory.built.filter((item) => item <= index && order[item].build === step.build).length;
+  return stwOwnBuildings(state, side, step.build).length < needed;
+}
+
 const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22], bio: [8, 12, 16, 22], mech: [8, 12, 16, 20],
   tankbio: [10, 14, 20, 26], vulture: [8, 12, 16, 20], ling: [12, 20, 30, 42, 56], hydra: [14, 18, 24, 30], pool: [6, 10, 14, 20, 26], ultra: [12, 18, 24, 30],
   corsair: [8, 12, 16, 20], wraith: [8, 12, 16, 20], muta: [12, 18, 26, 36], carrier: [8, 12, 16, 20], bc: [8, 12, 16, 20], hive: [14, 18, 24, 30] };
@@ -180,8 +196,12 @@ const DROP_PLANS = {
   tankbio: { mission: "bomb", target: "production", sync: true },
 };
 const DEFAULT_PERSONA = { protoss: "dragoon", terran: "bio", zerg: "hydra" };
-/** 경계 중에도 짓는 1단계 유닛 해금 건물: 질럿 러시에 드라군·파이어뱃·히드라로 맞서야 한다. */
-const ALERT_TECH = new Set(["core", "academy", "den", "evo"]);
+/**
+ * 경계 중에도 짓는 1단계 유닛 해금 건물: 질럿 러시에 드라군·파이어뱃·히드라로 맞서야 한다.
+ * 머신 샵도 넣는다: 메카닉은 시즈 탱크가 수비의 중심인데, 질럿 압박으로 경계가 길어지면 샵을 못 지어 가스가 수백씩 쌓인 채
+ * 벌처·해병만 뽑았다(질럿 러시 상대로 6분부터 9분 30초까지 샵 없이 가스 470).
+ */
+const ALERT_TECH = new Set(["core", "academy", "den", "evo", "shop"]);
 
 export function stwAiThink(state, side) {
   const record = state.sides[side];
@@ -249,11 +269,15 @@ export function stwAiThink(state, side) {
   // 저글링 물량은 해처리마다 저글링이 50씩 쉬지 않고 광물을 먹어 드론 차례가 오지 않는다. 일꾼이 모자라면 드론 두 마리 값을 먼저 챙긴다.
   if ((persona === "ling" || persona === "muta") && record.probes + queued < probeTarget) save(STW_UNITS[race.worker].minerals * 2, 0, true);
 
+  // 1-1. 테란은 아머리가 없는 동안 건물 자리 하나를 비워 둔다(1기지 본진 20칸은 8~9분에 서플라이 디팟·생산 건물로 다 찬다).
+  // 자리가 없으면 캐리어·배틀크루저가 나온 뒤 아머리를 못 지어 골리앗 없이 졌다. 인구 건물·생산 건물·빌드 순서의 건물이 마지막 칸을 쓰지 않는다.
+  const keepSlot = race.id === "terran" && !stwOwnBuildings(state, side, "armory").length && stwFreeSlots(state, side) <= 1;
+
   // 2. 인구
   const supply = stwSupply(state, side);
   const gateways = race.producers.reduce((sum, type) => sum + stwOwnBuildings(state, side, type).length, 0);
   const pylonsBuilding = stwOwnBuildings(state, side, race.supply).filter((building) => !stwDone(building)).length;
-  if (supply.cap < 100 && supply.used + 3 + gateways * 2 >= supply.cap && pylonsBuilding < (supply.used > 40 ? 2 : 1)) {
+  if (!keepSlot && supply.cap < 100 && supply.used + 3 + gateways * 2 >= supply.cap && pylonsBuilding < (supply.used > 40 ? 2 : 1)) {
     const result = stwCommand(state, side, { type: "build", building: race.supply });
     if (!result.ok && /광물/.test(result.reason ?? "")) save(STW_BUILDINGS[race.supply].minerals, 0, true);
   }
@@ -261,10 +285,17 @@ export function stwAiThink(state, side) {
   // 3. 빌드 순서: 막힌 단계가 있으면 그 자원만 아껴 두고, 남는 자원으로 할 수 있는 다음 단계(최대 4개 앞)를 먼저 한다.
   const order = buildOrder(state, side, persona);
   memory.done ??= [];
+  memory.built ??= [];
   let blocked = 0;
   for (let index = 0; index < order.length && blocked < 4; index += 1) {
-    if (memory.done.includes(index)) continue;
     const step = order[index];
+    if (memory.done.includes(index)) {
+      // 부서진 앞마당·생산·테크 건물은 그 단계를 되살려 다시 짓는다(한 번 끝난 단계는 다시 보지 않아, 짓던 앞마당이 부서지면
+      // 끝까지 본진 하나에 일꾼 22기로 묶였다).
+      if (!lostStep(state, side, order, index, memory)) continue;
+      memory.done = memory.done.filter((item) => item !== index);
+      memory.built = memory.built.filter((item) => item !== index);
+    }
     if (step.at && state.time < step.at * STW_DIFFICULTIES[state.difficulty].waveScale) {
       blocked += 1;
       continue;
@@ -278,16 +309,28 @@ export function stwAiThink(state, side) {
       blocked += 1;
       continue;
     }
+    if (keepSlot && step.build && step.build !== "expand" && step.build !== "armory" && !STW_BUILDINGS[step.build]?.refinery && !STW_BUILDINGS[step.build]?.defense) {
+      blocked += 1;
+      continue;
+    }
     const check = step.build ? stwBuildCheck(state, side, step.build) : stwResearchCheck(state, side, step.research);
     const cost = step.build ? STW_BUILDINGS[step.build === "expand" ? race.base : step.build] : STW_RESEARCH[step.research];
     const fitsReserve = record.minerals - reserve.minerals >= cost.minerals && record.gas - reserve.gas >= cost.gas;
     if (check.ok && ((blocked === 0 && !signature) || fitsReserve)) {
       stwCommand(state, side, step.build ? { type: "build", building: step.build } : { type: "research", research: step.research });
       memory.done.push(index);
+      if (step.build) memory.built.push(index);
       continue;
     }
     // 앞마당에 적이 얼쩡거려 확장을 못 하면 대기 병력을 앞마당으로 옮겨 치운다(그냥 두면 영영 확장을 못 한다).
     if (step.build === "expand") memory.clearNatural = /앞마당에 적/.test(check.reason ?? "");
+    // 경계가 아닌데 확장이 앞 단계들 뒤에서 45초 넘게 광물 부족으로 밀리면 맨 앞 단계처럼 그 비용을 아낀다. 맨 앞 단계만 아끼면
+    // 앞의 연구·테크가 가스나 선행 건물을 기다리는 동안 광물이 병력으로 다 나간다. 경계 중에는 아끼지 않는다: 질럿 압박을 받는
+    // 메카닉이 7분 30초에 앞마당을 먹자 병력이 모자라 8판을 모두 졌다(아끼지 않으면 8판 모두 이긴다).
+    if (step.build === "expand" && blocked > 0 && !alert && /광물/.test(check.reason ?? "")) {
+      memory.expandWaitSince ??= state.time;
+      if (state.time - memory.expandWaitSince > 45) save(cost.minerals, 0, true);
+    } else if (step.build === "expand") memory.expandWaitSince = undefined;
     // "다른 연구 중"은 건물이 비면 다시 시도해야 하므로 건너뛴 것으로 치지 않는다.
     if (/이미|완료|자리|찼습니다|^연구 중$/.test(check.reason ?? "")) {
       memory.done.push(index);
@@ -314,7 +357,9 @@ export function stwAiThink(state, side) {
   // 광물이 남으면 생산 건물을 더 짓는다. 빌드 순서가 끝나기 전이라도 크게 남으면 짓는다.
   // 저그는 해처리 하나가 한 번에 한 마리씩만 만들므로 광물이 쌓이면 일찍 해처리를 늘린다.
   const floating = record.minerals > (memory.step >= order.length || race.id === "zerg" ? 300 : 600);
-  if (floating && stwOwnBuildings(state, side, extra).length < GATEWAY_CAP[persona]) stwCommand(state, side, { type: "build", building: extra });
+  if (keepSlot) {
+    // 마지막 자리는 아머리 몫이다.
+  } else if (floating && stwOwnBuildings(state, side, extra).length < GATEWAY_CAP[persona]) stwCommand(state, side, { type: "build", building: extra });
   else if (FALLBACK_PRODUCER[race.id] && record.minerals > 700 && stwOwnBuildings(state, side, FALLBACK_PRODUCER[race.id]).length < FALLBACK_CAP[race.id]) stwCommand(state, side, { type: "build", building: FALLBACK_PRODUCER[race.id] });
   if (memory.step >= order.length) {
     for (const research of LATE_UPGRADES[race.id]) {
@@ -350,7 +395,7 @@ export function stwAiThink(state, side) {
   }
 
   // 3-1-0. 공중에 당했거나 적 병력의 1/4 넘게 공중이면 대공 건물을 둘 갖춘다(캐논·터렛·스포어). 터렛·스포어는 탐지도 겸한다.
-  const needAA = (record.sawAirAt !== undefined && state.time - record.sawAirAt < 150) || airShare(foeMix(state, side)) > 0.25;
+  const needAA = (record.sawAirAt !== undefined && state.time - record.sawAirAt < 150) || airThreat(state, side) > 0.25;
   if (needAA && race.id === "protoss" && stwOwnBuildings(state, side, "cannon").length < 2) {
     if (!stwOwnBuildings(state, side, "forge").length) stwCommand(state, side, { type: "build", building: "forge" });
     else stwCommand(state, side, { type: "build", building: "cannon" });
@@ -386,6 +431,13 @@ export function stwAiThink(state, side) {
   if (race.id === "protoss" && units.filter((unit) => unit.type === "templar").length >= 4) stwCommand(state, side, { type: "merge" });
   // 다크템플러 기습: 마엘스트롬 연구 뒤 다크템플러가 넷 이상이면 둘을 다크 아콘으로(다크 아콘은 둘까지).
   if (persona === "dark" && stwResearchDone(state, side, "maelstrom") && units.filter((unit) => unit.type === "dark").length >= 4 && units.filter((unit) => unit.type === "darkArchon").length < 2) stwCommand(state, side, { type: "darkMerge" });
+
+  // 3-3-9. 테란이 공중에 밀리면 아머리를 먼저 세운다(골리앗·발키리 해금). 모자라면 그 비용을 아껴 둔다.
+  // 예전에는 팩토리 라인을 정할 때 돈이 있으면 짓는 정도라, 캐리어가 나온 뒤에도 아머리 없이 벌처·탱크만 뽑다 졌다.
+  if (race.id === "terran" && terranAirHeavy(state, side) && stwHas(state, side, "factory") && !stwOwnBuildings(state, side, "armory").length) {
+    const result = stwCommand(state, side, { type: "build", building: "armory" });
+    if (!result.ok && /부족/.test(result.reason ?? "")) save(STW_BUILDINGS.armory.minerals, STW_BUILDINGS.armory.gas, true);
+  }
 
   // 3-4. 테란 생산 라인: 배럭(해병·메딕·파이어뱃), 팩토리(벌처·시즈 탱크).
   if (race.id === "terran") {
@@ -427,7 +479,7 @@ export function stwAiThink(state, side) {
 
   // 3-3-1. 스타게이트 라인: 커세어 질럿은 커세어 6기까지, 그 뒤 가스가 남으면 스카웃. 다른 성향은 적 공중이 많을 때만 커세어.
   const corsairs = units.filter((unit) => unit.type === "corsair").length;
-  const foeAirHeavy = airShare(foeMix(state, side)) > 0.3 || (record.sawAirAt !== undefined && state.time - record.sawAirAt < 150);
+  const foeAirHeavy = airThreat(state, side) > 0.3 || (record.sawAirAt !== undefined && state.time - record.sawAirAt < 150);
   for (const stargate of stwOwnBuildings(state, side, "stargate", { doneOnly: true })) {
     let unit = null;
     // 상대가 대공 위주(절반 넘게 공중을 쏨)면 커세어는 4기에서 그치고 가스를 드라군에 쓴다.
@@ -506,13 +558,32 @@ function antiAirShare(mix) {
   return mix ? ANTI_AIR_TYPES.reduce((sum, type) => sum + (mix[type] ?? 0), 0) : 0;
 }
 
-/** 보이는 적 지상 병력 구성(비율). 4기 이상 보였을 때 갱신하고, 그 전에는 마지막으로 본 구성을 쓴다. */
+/**
+ * 보이는 적 지상 병력 구성(비율). 4기 이상 보였을 때 갱신하고, 그 전에는 마지막으로 본 구성을 쓴다.
+ * 같이 공중 전투 유닛의 값(광물 + 가스) 비율도 남긴다(memory.foeAirValue): 캐리어 넷은 질럿 열일곱 사이에서 수로는 19%지만 값으로는 절반이 넘는다.
+ */
 function foeMix(state, side) {
   const foe = stwOpponent(side);
   const seen = state.units.filter((unit) => unit.side === foe && !STW_UNITS[unit.type].worker && STW_UNITS[unit.type].role !== "support" && stwVisible(state, side, unit.x, unit.y));
   const memory = state.sides[side].ai;
-  if (seen.length >= 4) memory.foeMix = Object.fromEntries(MIX_TYPES.map((type) => [type, seen.filter((unit) => unit.type === type).length / seen.length]));
+  if (seen.length >= 4) {
+    memory.foeMix = Object.fromEntries(MIX_TYPES.map((type) => [type, seen.filter((unit) => unit.type === type).length / seen.length]));
+    const value = (unit) => STW_UNITS[unit.type].minerals + STW_UNITS[unit.type].gas;
+    const total = seen.reduce((sum, unit) => sum + value(unit), 0);
+    memory.foeAirValue = total ? seen.filter((unit) => AIR_TYPES.includes(unit.type)).reduce((sum, unit) => sum + value(unit), 0) / total : 0;
+  }
   return memory.foeMix ?? null;
+}
+
+/** 적 공중 위협: 본 적 병력 중 공중의 비율(수와 값 중 큰 쪽). */
+function airThreat(state, side) {
+  return Math.max(airShare(foeMix(state, side)), state.sides[side].ai?.foeAirValue ?? 0);
+}
+
+/** 테란이 대공을 갖춰야 하는지: 공중 위협이 30%를 넘거나 최근 2분 30초 안에 공중 유닛에게 맞았다. */
+function terranAirHeavy(state, side) {
+  const record = state.sides[side];
+  return airThreat(state, side) > 0.3 || (record.sawAirAt !== undefined && state.time - record.sawAirAt < 150);
 }
 
 /**
@@ -526,7 +597,7 @@ function protossCounter(state, side) {
   const bio = mix.marine + mix.firebat + mix.medic;
   const vehicles = mix.vulture + mix.tank;
   // 공중이 많으면 드라군 위주(질럿은 공중을 못 때린다).
-  if (airShare(mix) > 0.3) return { zealotShare: 0.15, storm: false };
+  if (airThreat(state, side) > 0.3) return { zealotShare: 0.15, storm: false };
   if (vehicles > 0.5) return { zealotShare: 0.15, storm: false };
   if (bio > 0.6) return { zealotShare: 0.55, storm: true };
   if (swarm > 0.6) return { zealotShare: 0.3, storm: mix.hydra > 0.4 };
@@ -547,14 +618,16 @@ function terranLines(state, side, persona, units, reserve) {
   const mix = foeMix(state, side);
   const meleeHeavy = mix && mix.zealot + mix.dark + mix.zergling + mix.ultra > 0.5;
   const armoredHeavy = mix && mix.dragoon + mix.reaver + mix.hydra + mix.lurker > 0.45;
-  const airHeavy = airShare(mix) > 0.3 || (record.sawAirAt !== undefined && state.time - record.sawAirAt < 150);
+  const airHeavy = terranAirHeavy(state, side);
+  // 적 병력 값의 절반 넘게 공중(캐리어·배틀크루저 함대)이면 팩토리를 모두 골리앗으로, 메카닉 배럭도 쉬지 않고 해병을 뽑는다.
+  const airDominant = airThreat(state, side) > 0.5;
   const armory = stwHas(state, side, "armory");
   stwOwnBuildings(state, side, "barracks").sort((a, b) => a.id - b.id).forEach((barracks, index) => {
     let unit = "marine";
     // 저그 상대로는 저글링에 강한 파이어뱃을 더 섞는다. 공중이 많으면 파이어뱃 대신 해병.
     if (academy && bioLike) unit = medics * 4 < marines ? "medic" : !airHeavy && index % (versusZerg || meleeHeavy ? 3 : 4) === (versusZerg || meleeHeavy ? 2 : 3) ? "firebat" : "marine";
     // 메카닉 성향은 배럭을 광물이 남을 때만 돌린다.
-    if ((persona === "mech" || persona === "vulture" || persona === "wraith" || persona === "bc") && units.length > 10 && record.minerals < 300) unit = null;
+    if ((persona === "mech" || persona === "vulture" || persona === "wraith" || persona === "bc") && units.length > 10 && record.minerals < 300 && !airDominant) unit = null;
     // 락다운을 연구했으면 배럭 하나는 고스트(셋까지): 드라군·리버·캐리어 같은 기계 유닛을 묶는다.
     if (index === 0 && stwResearchDone(state, side, "lockdown") && count("ghost") < 3) unit = "ghost";
     if (unit && STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas) unit = "marine";
@@ -577,7 +650,7 @@ function terranLines(state, side, persona, units, reserve) {
     if (airHeavy) {
       if (!armory) {
         if (!stwOwnBuildings(state, side, "armory").length) stwCommand(state, side, { type: "build", building: "armory" });
-      } else if (index % 2 === 0 || unit === null) unit = "goliath";
+      } else if (airDominant || index % 2 === 0 || unit === null) unit = "goliath";
     }
     if (unit === "tank" && record.gas < STW_UNITS.tank.gas + reserve.gas) unit = persona === "mech" || persona === "vulture" || persona === "bc" ? "vulture" : null;
     if (unit === "goliath" && record.gas < STW_UNITS.goliath.gas + reserve.gas) unit = "vulture";
@@ -647,7 +720,7 @@ function zergLines(state, side, persona, units, reserve) {
   const greater = stwResearchDone(state, side, "greaterSpire");
   const mix = foeMix(state, side);
   const foeAir = state.units.filter((unit) => unit.side === stwOpponent(side) && STW_UNITS[unit.type].flying && STW_UNITS[unit.type].role !== "support").length;
-  const airHeavy = airShare(mix) > 0.3 || (record.sawAirAt !== undefined && state.time - record.sawAirAt < 150);
+  const airHeavy = airThreat(state, side) > 0.3 || (record.sawAirAt !== undefined && state.time - record.sawAirAt < 150);
   let lingShare = baseLingShare(state, side, persona);
   let lurkerEvery = 4;
   // 공중이 많으면 저글링을 줄이고 히드라(없으면 스커지)로 대공한다.
@@ -705,6 +778,7 @@ function switchStrategy(state, side, memory) {
   if (pressured) {
     memory.switched = { from, to: SWITCH_TO[from](mix), at: state.time };
     memory.done = [];
+    memory.built = [];
     record.persona = memory.switched.to;
     return;
   }
@@ -714,6 +788,7 @@ function switchStrategy(state, side, memory) {
   const next = SWITCH_TO[from](foeMix(state, side) ?? {});
   memory.switched = { from, to: next, at: state.time };
   memory.done = [];
+  memory.built = [];
   memory.wave = Math.max(0, memory.wave - 2);
   record.persona = next;
 }
@@ -905,7 +980,9 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   const ownArmor = army.fighters.length ? army.fighters.reduce((sum, unit) => sum + STW_UNITS[unit.type].armor, 0) / army.fighters.length : 0;
   const estimate = alert && !allIn ? foeArmyEstimate(state, side, memory, ownArmor) : null;
   const outgunned = estimate !== null && (armyPower(army.fighters, estimate.armor) < estimate.power * 1.5 || incomingWave(state, side));
-  if (army.fighters.length >= size && !outgunned) {
+  // 기지에 적이 3기 이상 들어와 있으면 나가지 않고 집에서 받아친다. 총공격 조건(광물 바닥)과 기지 방어(후퇴)가 번갈아 걸려
+  // 2초마다 공격·후퇴를 오가며 병력이 길에서 녹던 문제.
+  if (army.fighters.length >= size && !outgunned && threat < 3) {
     // 폭탄 드랍 성향은 쉬는 수송선이 둘 이상이면 출격과 동시에 폭탄 드랍(남은 병력은 정면으로).
     if (dropPlan?.mission === "bomb" && stwDropCheck(state, side, "bomb").ok) stwCommand(state, side, { type: "drop", ...dropPlan });
     else stwCommand(state, side, { type: "attack" });

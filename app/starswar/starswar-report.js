@@ -34,6 +34,8 @@ function resultLabel(state) {
 
 /** 병력 구성 {종류: 수}를 "질럿 12 · 드라군 6"으로. 많은 순. */
 function mixText(mix) {
+  // 이 기능 전에 시작한 경기의 앞부분 기록에는 병력 구성이 없다.
+  if (mix === undefined) return "기록 없음";
   const entries = Object.entries(mix ?? {}).filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]);
   return entries.length ? entries.map(([type, count]) => `${unitName(type)} ${count}`).join(" · ") : "없음";
 }
@@ -222,10 +224,6 @@ function chronicleLines(state, side, limit = 80) {
   return lines.length ? lines : ["없음"];
 }
 
-function firstCommand(state, side, test) {
-  return (state.chronicle ?? []).find((entry) => entry[1] === side && test(entry[2]))?.[0] ?? null;
-}
-
 const antiAir = (type) => {
   const def = STW_UNITS[type];
   return Boolean(def?.damage) && (def.targets === "both" || def.targets === "air");
@@ -261,9 +259,19 @@ function bigFights(state, side, foe) {
 }
 
 /** 자동 진단: 진 AI(side)와 상대(foe)의 운영 차이를 숫자로 짚는다. 판단의 실마리일 뿐 결론은 아니다. */
+/** 병력 구성·보유 자원까지 기록하기 시작한 때(이 기능 전에 시작해 이어 한 경기는 중간부터다). 처음부터면 0. */
+function detailFrom(state) {
+  const history = state.history ?? [];
+  const first = history.find((point) => point.player?.mix !== undefined);
+  if (!first) return Infinity;
+  return history.indexOf(first) === 0 ? 0 : first.t;
+}
+
 function diagnose(state, side, foe) {
   const notes = [];
   const history = state.history ?? [];
+  const from = detailFrom(state);
+  if (from > 0) notes.push(from === Infinity ? "이 경기에는 자세한 기록(병력 구성·명령)이 없습니다(기능 전에 시작한 경기). 아래 판단 일부는 빠집니다" : `자세한 기록(병력 구성·보유 자원·명령)은 ${stwClock(from)}부터입니다(기능 전에 시작해 이어 한 경기). 그 전 일은 판단에 빠집니다`);
   for (const t of [300, 480, 600]) {
     const point = pointAt(state, t);
     if (!point?.[side] || !point[foe]) continue;
@@ -271,10 +279,16 @@ function diagnose(state, side, foe) {
     const theirs = point[foe].workers;
     notes.push(`일꾼 ${stwClock(t)}: AI ${mine} · 상대 ${theirs}${mine < theirs * 0.8 ? " ← AI 경제가 뒤짐" : ""}`);
   }
-  const expand = (who) => firstCommand(state, who, (command) => command.type === "build" && command.building === "expand");
-  const mineExpand = expand(side);
-  const foeExpand = expand(foe);
-  notes.push(`앞마당 확장: AI ${mineExpand === null ? "안 함" : stwClock(mineExpand)} · 상대 ${foeExpand === null ? "안 함" : stwClock(foeExpand)}`);
+  // 앞마당: 연대기의 확장 명령으로 시각을, 몇 번 지었는지(부서져 다시 지은 횟수)를 센다. 기록이 중간부터면 지금 앞마당이 있는지로 대신한다.
+  const expansions = (who) => (state.chronicle ?? []).filter((entry) => entry[1] === who && entry[2].type === "build" && entry[2].building === "expand").map((entry) => entry[0]);
+  const expandText = (who) => {
+    const times = expansions(who);
+    const now = state.buildings.some((building) => building.side === who && building.base === "natural" && STW_BUILDINGS[building.type]?.base);
+    if (times.length) return `${times.map((t) => stwClock(t)).join(" → ")}${times.length > 1 ? `(${times.length}번 지음)` : ""}${now ? "" : " · 지금 없음"}`;
+    if (from > 0) return now ? "있음(시각 기록 없음)" : `없음(${stwClock(from === Infinity ? state.time : from)} 이후)`;
+    return now ? "있음" : "안 함";
+  };
+  notes.push(`앞마당 확장: AI ${expandText(side)} · 상대 ${expandText(foe)}${from === 0 && expansions(side).length === 0 && !state.buildings.some((building) => building.side === side && building.base === "natural" && STW_BUILDINGS[building.type]?.base) && state.time > 480 ? " ← AI가 본진 하나로 버팀" : ""}`);
   const banked = history.filter((point) => point.t >= 180 && point[side]?.minerals !== undefined);
   if (banked.length) {
     const peak = banked.reduce((best, point) => (point[side].minerals > best[side].minerals ? point : best), banked[0]);
@@ -290,15 +304,15 @@ function diagnose(state, side, foe) {
     for (const point of armies) if (point[side].army >= point[foe].army && point[side].army > 0) lastAhead = point.t;
     notes.push(lastAhead === null ? "AI 병력이 상대보다 많았던 적이 없음" : `AI 병력이 상대 이상이던 마지막 때: ${stwClock(lastAhead)}`);
   }
-  // 상대 주력이 공중이면 AI의 대공 비율을 본다.
-  const foePeak = armies.reduce((best, point) => (mixValue(point[foe].mix) > mixValue(best?.[foe]?.mix) ? point : best), null);
-  if (foePeak?.[foe]?.mix) {
-    const foeAir = mixValue(foePeak[foe].mix, flyer) / Math.max(1, mixValue(foePeak[foe].mix));
-    if (foeAir >= 0.25) {
-      const mine = pointAt(state, foePeak.t)?.[side]?.mix ?? {};
-      const mineAa = mixValue(mine, antiAir) / Math.max(1, mixValue(mine));
-      notes.push(`상대 공중 병력 비율 ${Math.round(foeAir * 100)}%(${stwClock(foePeak.t)}) · 그때 AI 대공 가능 병력 비율 ${Math.round(mineAa * 100)}%${mineAa < foeAir ? " ← 대공이 모자람" : ""}`);
-    }
+  // 상대 병력 값의 1/4 넘게 공중이던 때들: 처음 그렇게 된 시각, 가장 높던 비율, 그동안 AI 병력이 있던 때의 대공 비율 평균.
+  const airPoints = armies.filter((point) => point[foe].mix && mixValue(point[foe].mix, flyer) / Math.max(1, mixValue(point[foe].mix)) >= 0.25);
+  if (airPoints.length) {
+    const share = (point) => mixValue(point[foe].mix, flyer) / Math.max(1, mixValue(point[foe].mix));
+    const peak = airPoints.reduce((best, point) => (share(point) > share(best) ? point : best), airPoints[0]);
+    const withArmy = airPoints.filter((point) => mixValue(point[side].mix) > 0);
+    const mineAa = withArmy.length ? withArmy.reduce((sum, point) => sum + mixValue(point[side].mix, antiAir) / mixValue(point[side].mix), 0) / withArmy.length : null;
+    const head = `상대 공중 병력(값 기준): ${stwClock(airPoints[0].t)}부터 25% 넘음, 최고 ${Math.round(share(peak) * 100)}%(${stwClock(peak.t)})`;
+    notes.push(mineAa === null ? `${head} · 그동안 AI 병력 없음` : `${head} · 그동안 AI 대공 가능 병력 비율 평균 ${Math.round(mineAa * 100)}%${mineAa < 0.4 ? " ← 대공이 모자람" : ""}`);
   }
   const foeCloak = new Set();
   for (const point of armies) for (const type of Object.keys(point[foe].mix ?? {})) if (cloaker(type)) foeCloak.add(unitName(type));
@@ -312,6 +326,10 @@ function diagnose(state, side, foe) {
   notes.push(`완료한 연구: AI ${researched(side)} · 상대 ${researched(foe)}`);
   const attacks = (state.chronicle ?? []).filter((entry) => entry[1] === side && entry[2].type === "attack").map((entry) => stwClock(entry[0]));
   notes.push(`AI 공격 명령: ${attacks.length ? attacks.slice(0, 12).join(", ") + (attacks.length > 12 ? " …" : "") : "없음"}`);
+  // 공격과 후퇴를 5초 안에 오간 횟수(판단이 흔들림).
+  const orders = (state.chronicle ?? []).filter((entry) => entry[1] === side && (entry[2].type === "attack" || entry[2].type === "retreat"));
+  const flips = orders.filter((entry, index) => index > 0 && entry[2].type !== orders[index - 1][2].type && entry[0] - orders[index - 1][0] < 5).length;
+  if (flips >= 3) notes.push(`공격·후퇴를 5초 안에 오간 횟수: ${flips} ← 출격 판단이 흔들림`);
   return notes.map((note) => `- ${note}`);
 }
 

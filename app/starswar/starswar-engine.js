@@ -428,6 +428,15 @@ function freeSlot(state, side, list, prefix, { frontFirst = false } = {}) {
   return index === undefined ? null : { key: `${prefix}-${index}`, point: stwPoint(side, list[index]) };
 }
 
+/** 일반 건물을 더 지을 수 있는 자리 수(본진 + 완성된 앞마당). AI가 꼭 필요한 테크 건물 자리를 남겨 둘 때 쓴다. */
+export function stwFreeSlots(state, side) {
+  const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
+  let free = STW_LAYOUT.mainSlots.filter((_, index) => !used.has(`main-${index}`)).length;
+  const natural = stwNexus(state, side, "natural");
+  if (natural && stwDone(natural)) free += STW_LAYOUT.naturalSlots.filter((_, index) => !used.has(`natural-${index}`)).length;
+  return free;
+}
+
 function placementFor(state, side, type) {
   if (STW_BUILDINGS[type]?.refinery) {
     const slot = freeSlot(state, side, STW_LAYOUT.geysers, "geyser");
@@ -2326,6 +2335,7 @@ function stepUnits(state, dt) {
   holdOutsideDetection(state, waryStarts);
   holdOutsideOwnStorms(state, stormStarts);
   separate(state);
+  spreadFlyers(state);
   keepOutOfTargets(state);
   // 밀어내기에 밀려 들어간 것도 되돌린다.
   holdOutsideOwnStorms(state, stormStarts);
@@ -3378,6 +3388,41 @@ function reportResources(state, side) {
 function planted(state, unit) {
   return unit.plantedAt === state.time || Boolean(unit.sieged) || Boolean(unit.burrowed);
 }
+
+/** 같은 편 공중 유닛끼리 떨어지는 거리(두 반지름 합에 곱함)와, 한 틱에 겹친 만큼의 몇 분의 일을 밀어낼지. */
+const FLYER_SPACING = 0.85;
+const FLYER_PUSH = 0.25;
+
+/**
+ * 같은 편 공중 유닛은 서로 겹치지 않게 조금씩 벌린다. 지상 밀어내기(separate)는 공중 유닛을 빼므로, 같은 목표로 날아가는
+ * 캐리어 셋이 한 점에 겹쳐 하나로 보였다. 한 번에 다 밀지 않고 겹친 만큼의 1/4씩 밀어, 이동과 맞서며 부드럽게 퍼진다.
+ * 적 공중 유닛과는 밀지 않는다(공중전은 서로 겹쳐도 된다).
+ */
+function spreadFlyers(state) {
+  const flyers = state.units.filter((unit) => isFlying(unit) && unit.group !== "cargo" && unit.hp > 0);
+  for (let i = 0; i < flyers.length; i += 1) {
+    const a = flyers[i];
+    for (let j = i + 1; j < flyers.length; j += 1) {
+      const b = flyers[j];
+      if (a.side !== b.side) continue;
+      const min = (a.radius + b.radius) * FLYER_SPACING;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      if (Math.abs(dx) > min || Math.abs(dy) > min) continue;
+      const d = Math.hypot(dx, dy);
+      if (d >= min) continue;
+      const push = (min - d) * 0.5 * FLYER_PUSH;
+      const nx = d > 0.001 ? dx / d : (a.id % 2 ? 1 : -1);
+      const ny = d > 0.001 ? dy / d : 0;
+      a.x = clampX(a.x - nx * push);
+      a.y -= ny * push;
+      b.x = clampX(b.x + nx * push);
+      b.y += ny * push;
+    }
+  }
+}
+
+const clampX = (x) => Math.min(STW_LANE_WIDTH - 0.5, Math.max(0.5, x));
 
 function separate(state) {
   const units = state.units;

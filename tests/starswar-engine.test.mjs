@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { STW_LANE_LENGTH, STW_LANE_WIDTH, STW_SPELLS, STW_STORM, STW_UNITS } from "../app/starswar/starswar-data.js";
+import { STW_BUILDINGS, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_SPELLS, STW_STORM, STW_UNITS } from "../app/starswar/starswar-data.js";
 import {
   createStarswarGame,
   stwCreateScenario,
@@ -9,6 +9,7 @@ import {
   stwCommand,
   stwDetected,
   stwDone,
+  stwFreeSlots,
   stwHitDamage,
   stwIssue,
   stwIncome,
@@ -1125,6 +1126,68 @@ test("starswar result reports: bug report with replay code, AI report only for a
   assert.equal(human.winner, "enemy");
   assert.deepEqual(stwLosingAiSides(human), []);
   assert.equal(stwAiReport(human), null);
+});
+
+test("starswar same-side air units spread out instead of stacking into one", () => {
+  const state = quiet();
+  const carriers = [0, 1, 2].map(() => stwSpawnUnitAt(state, "player", "carrier", 20, 70, "rally"));
+  const foeWraith = stwSpawnUnitAt(state, "enemy", "wraith", 20, 70, "rally");
+  foeWraith.stunUntil = 999;
+  for (const unit of [...carriers, foeWraith]) unit.stunUntil = 999;
+  run(state, 3);
+  for (let i = 0; i < carriers.length; i += 1) {
+    for (let j = i + 1; j < carriers.length; j += 1) {
+      const d = Math.hypot(carriers[i].x - carriers[j].x, carriers[i].y - carriers[j].y);
+      assert.ok(d > carriers[i].radius * 1.4, `캐리어끼리 벌어진다 (${d.toFixed(2)})`);
+    }
+  }
+  // 적 공중 유닛과는 밀지 않는다.
+  assert.equal(Math.round(foeWraith.x * 10) / 10, 20);
+  assert.equal(Math.round(foeWraith.y * 10) / 10, 70);
+});
+
+test("starswar natural adds building room on its flanks and front edge, keeping the centre path open", () => {
+  const state = quiet();
+  const record = state.sides.player;
+  record.minerals = 1e6;
+  record.gas = 1e6;
+  assert.ok(stwCommand(state, "player", { type: "build", building: "expand" }).ok);
+  const finish = () => {
+    for (const building of state.buildings) if (building.side === "player") building.progress = 1;
+  };
+  finish();
+  const before = stwFreeSlots(state, "player");
+  assert.equal(before, STW_LAYOUT.mainSlots.length + STW_LAYOUT.naturalSlots.length);
+  assert.ok(STW_LAYOUT.naturalSlots.length >= 16, "앞마당 자리 16칸");
+  let built = 0;
+  for (let round = 0; round < 80; round += 1) {
+    if (stwCommand(state, "player", { type: "build", building: round % 3 ? "pylon" : "gateway" }).ok) built += 1;
+    finish();
+  }
+  assert.equal(built, before, "모든 자리에 짓는다");
+  assert.equal(stwFreeSlots(state, "player"), 0);
+  const natural = state.buildings.find((building) => building.side === "player" && building.base === "natural" && STW_BUILDINGS[building.type].base);
+  for (const building of state.buildings.filter((item) => item.side === "player" && item !== natural && item.base === "natural")) {
+    // 앞마당 기지와 겹치지 않고, 가운데 길(x 16~24)을 막지 않는다.
+    assert.ok(Math.hypot(building.x - natural.x, building.y - natural.y) > natural.radius + building.radius * 0.8, `${building.type} ${building.x},${building.y}`);
+    assert.ok(Math.abs(building.x - STW_LANE_WIDTH / 2) - building.radius >= 3.5, `가운데 길 ${building.x}`);
+  }
+});
+
+test("starswar AI rebuilds a lost natural instead of staying on one base", () => {
+  const state = createStarswarGame({ seed: 4, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "mech", enemy: "dragoon" } });
+  let destroyed = false;
+  let rebuilt = false;
+  while (state.status === "playing" && state.time < 900 && !rebuilt) {
+    stepStarswar(state, stwAiThink);
+    const natural = stwNexus(state, "player", "natural");
+    if (!destroyed && natural && stwDone(natural)) {
+      natural.hp = 0;
+      destroyed = true;
+    } else if (destroyed && natural) rebuilt = true;
+  }
+  assert.ok(destroyed, "앞마당을 먹는다");
+  assert.ok(rebuilt, "부서진 앞마당을 다시 짓는다");
 });
 
 test("starswar carrier attacks launch one visible interceptor per hit", () => {
