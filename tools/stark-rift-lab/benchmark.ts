@@ -21,3 +21,5 @@ export function runBenchmark(id:ScenarioId,ticks:number){
   const summary=window.read(),remaining=activeCount(state),sampleChecksPassed=overlaps===0&&budgetViolations===0,arrivalGatePassed=id==='passage50'?remaining===0:null;
   return {scenario:id,simulatedTicks:ticks,entities:state.entities.id.length,mapTiles:[map.widthTiles,map.heightTiles],warmupTicks:20,warmup:distribution(warmup),...summary,snapshotCreation:distribution(snapshots),remainingOrders:remaining,overlapSamples:overlaps,budgetViolations,sampleChecksPassed,arrivalGatePassed,remainingByStatus:Object.fromEntries(['moving','waiting','blocked','arrived'].map(status=>[status,state.movement.filter(m=>m.order!=='idle'&&m.status===status).length])),budgets:{tickMeanMs:6,tickP95Ms:10,pathMeanMs:2.5},timingBudgetMet:summary.ticks.mean<=6&&summary.ticks.p95<=10&&(summary.systems.pathfinding?.mean??0)<=2.5,finalChecksum:checksum(state)};
 }
+
+export {runTrafficCheck} from './traffic';
