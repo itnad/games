@@ -376,7 +376,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     camera.cy = view.cy;
     viewRef.current = view;
     pixi.render(current, view, { clock, timeScale: pausedRef.current ? 0 : speedRef.current, rally: current.sides.player.rally });
-    // 지도 위 정찰 버튼: 아군 본진 광물 줄에 붙이고, 본진이 화면 밖이면 완성된 앞마당 광물 줄에 붙인다.
+    // 지도 위 정찰 버튼: 아군 본진 광물 줄 높이의 오른쪽 가장자리에 붙이고, 본진이 화면 밖이면 완성된 앞마당 광물 줄 높이에 붙인다.
     // 둘 다 화면 밖이면(전선을 따라가는 중) 지도 오른쪽 아래(아군 기지 쪽)에 붙여 둔다.
     // 카메라가 매 프레임 움직이므로 React 갱신(0.25초)이 아니라 여기서 바로 옮긴다.
     const tag = scoutTagRef.current;
@@ -389,7 +389,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         .find((point) => point.x > 40 && point.x < width - 40 && point.y > 60 && point.y < height + 6);
       tag.style.display = current.status === "playing" ? "flex" : "none";
       tag.classList.toggle("pinned", !spot);
-      tag.style.transform = spot ? `translate(${Math.round(spot.x)}px, ${Math.round(Math.min(spot.y, height - 22))}px) translate(-50%, -50%)` : "";
+      // 가로로는 지도 오른쪽 가장자리에 붙이고, 세로로만 광물 줄 높이를 따라간다(가운데 건물·광물을 가리지 않게).
+      tag.style.transform = spot ? `translateY(${Math.round(Math.max(70, Math.min(spot.y, height - 34)))}px) translateY(-50%)` : "";
     }
   }, []);
 

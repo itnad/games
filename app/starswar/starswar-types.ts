@@ -72,6 +72,8 @@ export type StwBuilding = {
   type: StwBuildingType;
   x: number;
   y: number;
+  /** 건물 자리 키(main-N, natural-N, geyser-N). */
+  slot?: string;
   base: "main" | "natural";
   radius: number;
   hp: number;

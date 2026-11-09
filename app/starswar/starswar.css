@@ -58,16 +58,16 @@
 .stw-map-error { position:absolute; inset:auto 16px 50% 16px; margin:0; text-align:center; color:#ffd2c4; }
 .stw-map-tools { position:absolute; left:8px; top:8px; display:flex; gap:6px; }
 .stw-map-tools button { min-height:36px; padding:0 12px; border:1px solid #e9c77a44; border-radius:10px; background:#120d07d9; font-size:14px !important; font-weight:800; }
-/* 지도 위 정찰 버튼: 아군 광물 줄을 따라다닌다(위치는 그리기 루프가 transform으로 정한다). */
-.stw-map-scout { position:absolute; left:0; top:0; z-index:3; display:none; gap:6px; pointer-events:none; }
-.stw-map-scout.pinned { left:auto; top:auto; right:8px; bottom:8px; }
-.stw-map-scout button { pointer-events:auto; min-height:32px; padding:0 10px; display:flex; align-items:center; gap:5px; border:1px solid #8fd3ff88; border-radius:999px; color:#dff3ff; background:#0b1a26e0; font-size:13px !important; font-weight:800; white-space:nowrap; box-shadow:0 2px 8px #0008; }
+/* 지도 위 정찰 버튼: 오른쪽 가장자리에 세로로 붙어 아군 광물 줄 높이를 따라간다(세로 위치는 그리기 루프가 transform으로 정한다). */
+.stw-map-scout { position:absolute; right:6px; top:0; z-index:3; display:none; flex-direction:column; align-items:stretch; gap:4px; pointer-events:none; }
+.stw-map-scout.pinned { top:auto; bottom:8px; }
+.stw-map-scout button { pointer-events:auto; min-height:26px; padding:0 8px; display:flex; align-items:center; justify-content:center; gap:4px; border:1px solid #8fd3ff77; border-radius:999px; color:#dff3ff; background:#0b1a26d9; font-size:11px !important; font-weight:800; line-height:1 !important; white-space:nowrap; box-shadow:0 2px 6px #0007; }
 .stw-map-scout button:disabled { opacity:.55; }
-.stw-map-scout em { min-width:18px; padding:0 5px; border-radius:9px; color:#062033; background:#8fd3ff; font-size:12px; font-style:normal; }
+.stw-map-scout em { min-width:15px; padding:0 4px; border-radius:8px; color:#062033; background:#8fd3ff; font-size:10px; font-style:normal; line-height:15px; }
 .stw-map-tools button.active { color:#2a1c05; border-color:var(--stw-gold); background:var(--stw-gold); }
 .stw-intel-chip { position:absolute; right:12px; top:52px; left:8px; margin:0; width:max-content; max-width:calc(100% - 20px); overflow:hidden; padding:5px 10px; border-radius:9px; color:#ffd8cc; background:#2a120bd9; font-size:13px !important; font-weight:800; line-height:1.35 !important; text-overflow:ellipsis; white-space:nowrap; pointer-events:none; }
-/* 지도 아래쪽 40px는 정찰 버튼 자리라 기록은 그 위에 띄운다. */
-.stw-log { position:absolute; left:8px; right:14px; bottom:46px; margin:0; padding:0; list-style:none; display:grid; gap:4px; pointer-events:none; }
+/* 정찰 버튼이 오른쪽 가장자리에 서므로 기록은 오른쪽을 비워 둔다. */
+.stw-log { position:absolute; left:8px; right:92px; bottom:8px; margin:0; padding:0; list-style:none; display:grid; gap:4px; pointer-events:none; }
 .stw-log li { width:max-content; max-width:100%; overflow:hidden; padding:4px 9px; border-radius:9px; background:#0d0905cf; font-size:13px !important; line-height:1.35 !important; text-overflow:ellipsis; white-space:nowrap; }
 .stw-log li.tone-danger { color:#ffc1b5; box-shadow:inset 3px 0 var(--stw-red); }
 .stw-log li.tone-good { color:#cdf5d3; box-shadow:inset 3px 0 var(--stw-green); }

@@ -1175,11 +1175,55 @@ function mineralField(PIXI: PixiModule) {
   return g;
 }
 
+/**
+ * 가스 간헐천: 거친 바위 둔덕 가운데 갈라진 분화구가 있고, 안쪽에서 초록 가스가 빛난다. 틈으로도 빛이 샌다.
+ * (위에서 피어오르는 김은 렌더러가 따로 움직여 그린다.)
+ */
 function geyser(PIXI: PixiModule) {
   const g = new PIXI.Graphics();
-  g.ellipse(0, 0, 30, 24).fill(0x3b3a33).stroke({ width: 2, color: 0x1e1d19 });
-  g.ellipse(0, 0, 18, 13).fill(0x23261d);
-  g.ellipse(0, 0, 10, 7).fill({ color: 0x6fe07a, alpha: 0.75 });
+  let seed = 11;
+  const rng = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const rock = (cx: number, cy: number, r: number, color: number) => {
+    const points: number[] = [];
+    const sides = 7;
+    for (let i = 0; i < sides; i += 1) {
+      const a = (i / sides) * Math.PI * 2 + rng() * 0.4;
+      const rr = r * (0.75 + rng() * 0.35);
+      points.push(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.8);
+    }
+    g.poly(points).fill(color).stroke({ width: 1.5, color: 0x1b1813 });
+    g.poly(points.slice(0, 6)).fill({ color: 0xffffff, alpha: 0.06 });
+  };
+  g.ellipse(3, 8, 36, 22).fill({ color: 0x000000, alpha: 0.32 });
+  const mound: [number, number, number, number][] = [
+    [-24, 6, 13, 0x4b443a], [24, 7, 12, 0x463f36], [-8, -15, 14, 0x544c40], [12, -13, 12, 0x4e473c],
+    [2, 16, 15, 0x403a31], [-28, -8, 10, 0x5a5246], [28, -7, 9, 0x5d5548], [-14, 18, 9, 0x4a4338], [17, 18, 9, 0x4d463b],
+  ];
+  for (const [x, y, r, c] of mound) rock(x, y, r, c);
+  // 분화구 테두리와 깊은 안쪽
+  g.ellipse(0, 0, 19, 13).fill(0x2b2721).stroke({ width: 2.5, color: 0x7a6e5a });
+  g.ellipse(0, 1, 15, 10).fill(0x15241a);
+  // 안쪽에서 올라오는 가스 빛(겹친 타원으로 번지는 느낌)
+  g.ellipse(0, 1, 12, 7.5).fill({ color: 0x2f9c4a, alpha: 0.9 });
+  g.ellipse(0, 0.5, 8.5, 5).fill({ color: 0x5fe07a, alpha: 0.9 });
+  g.ellipse(-0.5, 0, 4.8, 2.8).fill({ color: 0xb8ffbf, alpha: 0.95 });
+  g.ellipse(-1.5, -0.6, 1.8, 1).fill({ color: 0xffffff, alpha: 0.9 });
+  // 갈라진 틈으로 새는 빛
+  const cracks: [number, number, number, number][] = [[-16, -3, -27, -10], [15, 4, 26, 11], [-5, 11, -9, 22], [7, -11, 13, -21], [17, -5, 25, -3]];
+  for (const [x1, y1, x2, y2] of cracks) {
+    g.moveTo(x1, y1).lineTo(x2, y2).stroke({ width: 3, color: 0x2f9c4a, alpha: 0.55 });
+    g.moveTo(x1, y1).lineTo(x2, y2).stroke({ width: 1.2, color: 0x9dffab, alpha: 0.8 });
+  }
+  // 둘레의 잔돌
+  for (let i = 0; i < 9; i += 1) {
+    const a = rng() * Math.PI * 2;
+    const r = 30 + rng() * 6;
+    const size = 1.5 + rng() * 2.2;
+    g.circle(Math.cos(a) * r, Math.sin(a) * r * 0.75, size).fill(rng() > 0.5 ? 0x5d5548 : 0x3e382f);
+  }
   return g;
 }
 

@@ -1157,7 +1157,7 @@ test("starswar natural adds building room on its flanks and front edge, keeping 
   };
   finish();
   const before = stwFreeSlots(state, "player");
-  assert.equal(before, STW_LAYOUT.mainSlots.length + STW_LAYOUT.naturalSlots.length);
+  assert.equal(before, STW_LAYOUT.mainSlots.filter((slot) => !slot.blocked).length + STW_LAYOUT.naturalSlots.length);
   assert.ok(STW_LAYOUT.naturalSlots.length >= 16, "앞마당 자리 16칸");
   let built = 0;
   for (let round = 0; round < 80; round += 1) {

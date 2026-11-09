@@ -5,16 +5,27 @@ export const STW_LANE_WIDTH = 40;
 export const STW_LANE_LENGTH = 100;
 export const STW_TICK = 0.1;
 
+/** 가스 간헐천: 본진 광물 줄 양 끝에 바짝 둘, 앞마당 광물 줄 왼쪽 끝에 하나. 앞마당 간헐천은 앞마당 기지가 완성돼야 쓴다. */
+const GEYSERS = [{ x: 11.2, y: 98.4, base: "main" }, { x: 28.8, y: 98.4, base: "main" }, { x: 11.4, y: 75.6, base: "natural" }];
+
+/**
+ * 본진 건물 자리: 넥서스·광물·간헐천을 피한 격자. 일반 건물은 뒤쪽부터, 포톤 캐논은 앞쪽부터 채운다.
+ * 저장한 경기의 자리 번호(main-N)가 그대로 맞도록, 격자는 예전 간헐천 자리(5,98)·(35,98)를 피해 만들던 순서 그대로 둔다.
+ * 광물 줄 곁으로 옮긴 간헐천과 겹치는 칸은 막아 두고(blocked), 예전 간헐천 자리에 생긴 두 칸은 맨 뒤에 붙인다.
+ */
 function mainGrid() {
   const slots = [];
   for (const y of [96, 91, 86, 81]) {
     for (const x of [4, 9.2, 14.4, 19.6, 24.8, 30, 35.2]) {
       const nexus = Math.abs(x - 20) < 6.5 && Math.abs(y - 94) < 6.5;
       const minerals = Math.abs(x - 20) < 8 && y > 95;
-      const geyser = Math.hypot(x - 5, y - 98) < 4.5 || Math.hypot(x - 35, y - 98) < 4.5;
-      if (!nexus && !minerals && !geyser) slots.push({ x, y });
+      const oldGeyser = Math.hypot(x - 5, y - 98) < 4.5 || Math.hypot(x - 35, y - 98) < 4.5;
+      if (nexus || minerals || oldGeyser) continue;
+      const geyser = GEYSERS.some((point) => point.base === "main" && Math.hypot(x - point.x, y - point.y) < 5);
+      slots.push(geyser ? { x, y, blocked: true } : { x, y });
     }
   }
+  slots.push({ x: 4, y: 96 }, { x: 35.2, y: 96 });
   return slots;
 }
 
@@ -24,7 +35,7 @@ export const STW_LAYOUT = {
   naturalNexus: { x: 20, y: 73 },
   mainMinerals: { x: 20, y: 99.2 },
   naturalMinerals: { x: 20, y: 78.6 },
-  geysers: [{ x: 5, y: 98 }, { x: 35, y: 98 }],
+  geysers: GEYSERS,
   // 본진 건물 자리: 넥서스·광물·간헐천을 피한 격자. 일반 건물은 뒤쪽부터, 포톤 캐논은 앞쪽부터 채운다.
   mainSlots: mainGrid(),
   // 앞마당 건물 자리: 앞마당 기지가 완성되면 쓴다. 처음 6칸 뒤로 앞마당 양옆과 앞쪽 가장자리 10칸을 더했다(가운데 길은 비운다).

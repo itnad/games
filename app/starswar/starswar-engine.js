@@ -331,7 +331,10 @@ export function stwSupply(state, side) {
 /** 프로브 배치: 가스, 본진 광물, 앞마당 광물, 놀고 있는 수. */
 export function stwWorkerSplit(state, side) {
   const record = state.sides[side];
-  const gasSlots = state.buildings.filter((building) => building.side === side && STW_BUILDINGS[building.type].refinery && stwDone(building)).length * STW_ECONOMY.probesPerGas;
+  // 앞마당 가스 건물은 앞마당 기지가 서 있어야 캔다(기지가 부서지면 일꾼이 붙지 않는다).
+  const naturalBase = stwNexus(state, side, "natural");
+  const naturalReady = Boolean(naturalBase && stwDone(naturalBase));
+  const gasSlots = state.buildings.filter((building) => building.side === side && STW_BUILDINGS[building.type].refinery && stwDone(building) && (building.base !== "natural" || naturalReady)).length * STW_ECONOMY.probesPerGas;
   const gas = Math.min(gasSlots, Math.max(0, record.probes - STW_ECONOMY.minMineralProbes));
   let mineral = record.probes - gas;
   const split = { gas, main: 0, natural: 0, idle: 0 };
@@ -421,17 +424,18 @@ function costCheck(record, minerals, gas) {
 
 function freeSlot(state, side, list, prefix, { frontFirst = false } = {}) {
   const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
-  const order = list.map((_, i) => i);
-  // 목록은 뒤쪽(본진 안쪽)부터 정렬돼 있다. 방어 건물은 앞줄부터, 같은 줄에서는 가운데부터 채운다(적이 들어오는 길목).
+  // 일반 건물은 뒤쪽(본진 안쪽) 줄부터 채운다(목록 끝에 붙인 뒷줄 칸도 먼저 쓴다). 같은 줄에서는 목록 순서.
+  // 방어 건물은 앞줄부터, 같은 줄에서는 가운데부터 채운다(적이 들어오는 길목).
+  const order = list.map((_, i) => i).sort((a, b) => (prefix === "main" ? list[b].y - list[a].y : 0) || a - b);
   if (frontFirst) order.sort((a, b) => list[a].y - list[b].y || Math.abs(list[a].x - STW_LANE_WIDTH / 2) - Math.abs(list[b].x - STW_LANE_WIDTH / 2));
-  const index = order.find((i) => !used.has(`${prefix}-${i}`));
+  const index = order.find((i) => !list[i].blocked && !used.has(`${prefix}-${i}`));
   return index === undefined ? null : { key: `${prefix}-${index}`, point: stwPoint(side, list[index]) };
 }
 
 /** 일반 건물을 더 지을 수 있는 자리 수(본진 + 완성된 앞마당). AI가 꼭 필요한 테크 건물 자리를 남겨 둘 때 쓴다. */
 export function stwFreeSlots(state, side) {
   const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
-  let free = STW_LAYOUT.mainSlots.filter((_, index) => !used.has(`main-${index}`)).length;
+  let free = STW_LAYOUT.mainSlots.filter((slot, index) => !slot.blocked && !used.has(`main-${index}`)).length;
   const natural = stwNexus(state, side, "natural");
   if (natural && stwDone(natural)) free += STW_LAYOUT.naturalSlots.filter((_, index) => !used.has(`natural-${index}`)).length;
   return free;
@@ -439,8 +443,14 @@ export function stwFreeSlots(state, side) {
 
 function placementFor(state, side, type) {
   if (STW_BUILDINGS[type]?.refinery) {
-    const slot = freeSlot(state, side, STW_LAYOUT.geysers, "geyser");
-    return slot ? { ...slot, base: "main" } : null;
+    // 본진 간헐천 둘을 먼저, 앞마당 간헐천은 앞마당 기지가 완성된 뒤에 쓴다.
+    const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
+    const naturalBase = stwNexus(state, side, "natural");
+    const naturalReady = Boolean(naturalBase && stwDone(naturalBase));
+    const index = STW_LAYOUT.geysers.findIndex((point, i) => (point.base === "main" || naturalReady) && !used.has(`geyser-${i}`));
+    if (index < 0) return null;
+    const geyser = STW_LAYOUT.geysers[index];
+    return { key: `geyser-${index}`, point: stwPoint(side, geyser), base: geyser.base };
   }
   const natural = stwNexus(state, side, "natural");
   if (STW_BUILDINGS[type]?.defense) {
@@ -480,7 +490,11 @@ export function stwBuildCheck(state, side, type) {
   if (def.requires && !stwHas(state, side, def.requires)) return fail(`${withKoreanSubject(STW_BUILDINGS[def.requires].name)} 필요합니다`);
   if (def.requiresResearch && !stwResearchDone(state, side, def.requiresResearch)) return fail(`${withKoreanSubject(STW_RESEARCH[def.requiresResearch].name)} 필요합니다`);
   if (def.unique && stwOwnBuildings(state, side, type).length) return fail("이미 있습니다");
-  if (!placementFor(state, side, type)) return fail(def.refinery ? "가스 간헐천이 모두 찼습니다" : "지을 자리가 없습니다");
+  if (!placementFor(state, side, type)) {
+    if (!def.refinery) return fail("지을 자리가 없습니다");
+    const naturalTaken = state.buildings.some((building) => building.side === side && building.slot === `geyser-${STW_LAYOUT.geysers.findIndex((point) => point.base === "natural")}`);
+    return fail(naturalTaken ? "가스 간헐천이 모두 찼습니다" : "앞마당 기지가 서면 앞마당 간헐천에 지을 수 있습니다");
+  }
   return costCheck(record, def.minerals, def.gas);
 }
 

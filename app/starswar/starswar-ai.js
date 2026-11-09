@@ -330,6 +330,8 @@ export function stwAiThink(state, side) {
       continue;
     }
     const check = step.build ? stwBuildCheck(state, side, step.build) : stwResearchCheck(state, side, step.research);
+    // 본진 간헐천이 다 찼고 앞마당 간헐천은 앞마당을 기다리는 가스 단계는, 막힌 단계로 세지도 끝내지도 않고 앞마당이 서면 짓는다.
+    if (/앞마당 기지가 서면/.test(check.reason ?? "")) continue;
     const cost = step.build ? STW_BUILDINGS[step.build === "expand" ? race.base : step.build] : STW_RESEARCH[step.research];
     const fitsReserve = record.minerals - reserve.minerals >= cost.minerals && record.gas - reserve.gas >= cost.gas;
     if (check.ok && ((blocked === 0 && !signature) || fitsReserve)) {

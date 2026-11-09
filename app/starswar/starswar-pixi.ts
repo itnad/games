@@ -85,6 +85,8 @@ export class StwPixiRenderer {
   private readonly beamLayer: Graphics;
   private readonly tentacleLayer: Graphics;
   private readonly interceptorLayer: Graphics;
+  /** 비어 있는 가스 간헐천에서 피어오르는 김. */
+  private readonly steamLayer: Graphics;
   private readonly fog: Graphics;
   private readonly overlay: Container;
   private readonly bars: Graphics;
@@ -129,12 +131,14 @@ export class StwPixiRenderer {
         resources.addChild(minerals);
       }
       for (const point of STW_LAYOUT.geysers) {
-        const geyser = this.sprite(this.tex.geyser, 4);
+        const geyser = this.sprite(this.tex.geyser, 4.4);
         const p = stwPoint(side, point);
         geyser.position.set(p.x, p.y);
         resources.addChild(geyser);
       }
     }
+    this.steamLayer = new PIXI.Graphics();
+    this.steamLayer.blendMode = "add";
     this.decals = new PIXI.Container();
     this.underlay = new PIXI.Graphics();
     this.buildingLayer = new PIXI.Container();
@@ -154,7 +158,7 @@ export class StwPixiRenderer {
     this.rallyFlag.anchor.set(0.5, 0.9);
     this.flagScale = this.rallyFlag.scale.x;
     this.workerLayer = new PIXI.Container();
-    this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.tentacleLayer, this.rallyFlag, this.unitLayer, this.interceptorLayer, this.zoneLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
+    this.world.addChild(ground, resources, this.steamLayer, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.tentacleLayer, this.rallyFlag, this.unitLayer, this.interceptorLayer, this.zoneLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
     this.overlay = new PIXI.Container();
     this.bars = new PIXI.Graphics();
     this.overlay.addChild(this.bars);
@@ -220,6 +224,7 @@ export class StwPixiRenderer {
     this.flagPulse = Math.max(0, this.flagPulse - realDt * 2.5);
     const rallyY = stwRallyY("player", ui.rally);
     this.drawUnderlay(state, rallyY, ui.clock);
+    this.drawSteam(state, ui.clock);
     this.syncBuildings(state, realDt);
     this.syncWorkers(state, ui.clock);
     this.syncUnits(state, realDt);
@@ -285,6 +290,23 @@ export class StwPixiRenderer {
   }
 
   /* ───────── 건물 ───────── */
+
+  /** 가스 건물이 서지 않은 간헐천마다 초록 김 세 덩이가 피어오르다 흩어진다. */
+  private drawSteam(state: StwState, clock: number) {
+    const g = this.steamLayer;
+    g.clear();
+    for (const side of ["player", "enemy"] as StwSide[]) {
+      STW_LAYOUT.geysers.forEach((point, index) => {
+        if (state.buildings.some((building) => building.side === side && building.slot === `geyser-${index}`)) return;
+        const p = stwPoint(side, point);
+        for (let puff = 0; puff < 3; puff += 1) {
+          const t = ((clock * 0.32 + puff / 3 + index * 0.21) % 1 + 1) % 1;
+          const sway = Math.sin(clock * 1.3 + puff * 2.1 + index) * 0.35 * t;
+          g.circle(p.x + sway, p.y - 0.3 - t * 2.4, 0.45 + t * 0.95).fill({ color: 0x8dffa2, alpha: 0.3 * (1 - t) * Math.min(1, t * 4) });
+        }
+      });
+    }
+  }
 
   private drawUnderlay(state: StwState, rallyY: number, clock: number) {
     const g = this.underlay;
@@ -472,13 +494,14 @@ export class StwPixiRenderer {
           place(view, x, y, heading);
         }
       }
-      // 가스: 어시밀레이터마다 최대 3기가 넥서스와 오간다. 안에 들어가 있는 동안은 보이지 않는다.
-      const mainNexus = stwNexus(state, side, "main") as { x: number; y: number; radius: number } | null;
-      if (!mainNexus || (side !== "player" && !stwVisible(state, "player", mainNexus.x, mainNexus.y, 4))) continue;
+      // 가스: 어시밀레이터마다 최대 3기가 그 기지(본진·앞마당)의 넥서스와 오간다. 안에 들어가 있는 동안은 보이지 않는다.
       let gasLeft = split.gas;
       assimilators.forEach((assimilator, slot) => {
+        const mainNexus = stwNexus(state, side, assimilator.base === "natural" ? "natural" : "main") as { x: number; y: number; radius: number } | null;
+        if (!mainNexus || !stwDone(mainNexus as never)) return;
         const crew = Math.min(STW_ECONOMY.probesPerGas, gasLeft);
         gasLeft -= crew;
+        if (side !== "player" && !stwVisible(state, "player", mainNexus.x, mainNexus.y, 4)) return;
         for (let index = 0; index < crew; index += 1) {
           const view = take(side);
           const dx = assimilator.x - mainNexus.x;
