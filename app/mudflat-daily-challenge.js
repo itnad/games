@@ -39,3 +39,11 @@ export function mudflatDailyDefaultName(participantId) {
 export function validMudflatDailyParticipantId(value) {
   return typeof value === "string" && /^[a-z0-9-]{16,64}$/i.test(value);
 }
+
+export function mudflatDailyRecordIsBetter(current, candidate) {
+  if (!candidate?.completed) return false;
+  if (!current?.completed) return true;
+  if (candidate.score !== current.score) return candidate.score > current.score;
+  if (candidate.caught !== current.caught) return candidate.caught > current.caught;
+  return candidate.elapsed < current.elapsed;
+}

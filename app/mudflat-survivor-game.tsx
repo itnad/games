@@ -1835,7 +1835,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const submitDailyRecord = useCallback((result: MudflatDailyResult) => {
     setDailyResult({ ...result, submission: "submitting", message: "" });
     void submitMudflatDailyResult(result)
-      .then((participant) => setDailyResult((current) => current ? { ...current, submission: "saved", rank: participant.rank, message: "" } : current))
+      .then(({ participant, improved }) => setDailyResult((current) => current ? { ...current, submission: "saved", rank: participant.rank, recordImproved: improved, message: "" } : current))
       .catch((error) => setDailyResult((current) => current ? { ...current, submission: "failed", message: error instanceof Error ? error.message : "기록을 등록하지 못했습니다." } : current));
   }, []);
 

@@ -1,8 +1,9 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, or } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { mudflatDailyResults } from "../../../db/schema";
 import {
   mudflatDailyChallengeForDate,
+  mudflatDailyRecordIsBetter,
   normalizeMudflatDailyName,
   validMudflatDailyParticipantId,
 } from "../../mudflat-daily-challenge.js";
@@ -96,24 +97,56 @@ export async function POST(request: Request) {
       return Response.json({ error: "기록 수치가 허용 범위를 벗어났습니다." }, { status: 400 });
     }
 
+    const candidate = {
+      displayName,
+      stage,
+      seed,
+      score: completed ? score : 0,
+      caught,
+      elapsed,
+      remainingHp,
+      bossCaught,
+      completed,
+    };
     const db = getDb();
+    const existing = (await db
+      .select()
+      .from(mudflatDailyResults)
+      .where(and(eq(mudflatDailyResults.challengeDate, challenge.date), eq(mudflatDailyResults.participantId, participantId)))
+      .limit(1))[0] ?? null;
     const inserted = await db
       .insert(mudflatDailyResults)
       .values({
         challengeDate: challenge.date,
         participantId,
-        displayName,
-        stage,
-        seed,
-        score: completed ? score : 0,
-        caught,
-        elapsed,
-        remainingHp,
-        bossCaught,
-        completed,
+        ...candidate,
       })
       .onConflictDoNothing({ target: [mudflatDailyResults.challengeDate, mudflatDailyResults.participantId] })
       .returning({ id: mudflatDailyResults.id });
+
+    let improved = inserted.length > 0 && completed;
+    if (completed && (!existing || mudflatDailyRecordIsBetter(existing, candidate))) {
+      const updated = await db
+        .update(mudflatDailyResults)
+        .set(candidate)
+        .where(and(
+          eq(mudflatDailyResults.challengeDate, challenge.date),
+          eq(mudflatDailyResults.participantId, participantId),
+          or(
+            eq(mudflatDailyResults.completed, false),
+            lt(mudflatDailyResults.score, candidate.score),
+            and(eq(mudflatDailyResults.score, candidate.score), lt(mudflatDailyResults.caught, candidate.caught)),
+            and(eq(mudflatDailyResults.score, candidate.score), eq(mudflatDailyResults.caught, candidate.caught), gt(mudflatDailyResults.elapsed, candidate.elapsed)),
+          ),
+        ))
+        .returning({ id: mudflatDailyResults.id });
+      improved ||= updated.length > 0;
+    } else if (existing && existing.displayName !== displayName) {
+      await db
+        .update(mudflatDailyResults)
+        .set({ displayName })
+        .where(and(eq(mudflatDailyResults.challengeDate, challenge.date), eq(mudflatDailyResults.participantId, participantId)));
+    }
 
     const participant = (await db
       .select()
@@ -124,7 +157,8 @@ export async function POST(request: Request) {
     const rankIndex = ranking.findIndex((entry) => entry.participantId === participantId);
 
     return Response.json({
-      accepted: inserted.length > 0,
+      accepted: true,
+      improved,
       participant: { ...participant, participantId: undefined, rank: rankIndex >= 0 ? rankIndex + 1 : null },
     }, { status: inserted.length > 0 ? 201 : 200 });
   } catch (error) {

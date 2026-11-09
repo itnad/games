@@ -3609,9 +3609,12 @@ test("offers one shared daily Mudflat ranking without overwriting ordinary exped
   assert.match(source, /const runtime = makeRuntime\(dailyCampaign, challenge.seed\)/);
   assert.match(source, /if \(dailyChallengeRef.current\) return true/);
   assert.match(source, /finishDailyRun\(runtime, true\)/);
-  assert.match(source, /첫 결과만 오늘의 통합 순위에 등록됩니다/);
+  assert.match(source, /횟수 제한 없이 도전하고, 가장 좋은 귀환 기록을 통합 순위에 남깁니다/);
+  assert.match(source, /다시 도전 →/);
+  assert.doesNotMatch(source, /도전 횟수/);
   assert.match(source, /navigator\.share/);
-  assert.match(route, /onConflictDoNothing\(\{ target: \[mudflatDailyResults.challengeDate, mudflatDailyResults.participantId\] \}\)/);
+  assert.match(route, /mudflatDailyRecordIsBetter\(existing, candidate\)/);
+  assert.match(route, /lt\(mudflatDailyResults.score, candidate.score\)/);
   assert.match(route, /orderBy\(desc\(mudflatDailyResults.score\), desc\(mudflatDailyResults.caught\), asc\(mudflatDailyResults.elapsed\)/);
   assert.match(schema, /uniqueIndex\("mudflat_daily_results_date_participant_unique"\)/);
   assert.match(styles, /\.ms-daily-card/);

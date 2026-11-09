@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   mudflatDailyChallengeForDate,
   mudflatDailyDefaultName,
+  mudflatDailyRecordIsBetter,
   mudflatKstDate,
   normalizeMudflatDailyName,
   validMudflatDailyParticipantId,
@@ -16,6 +17,16 @@ test("today's mudflat uses a stable KST date, stage and seed", () => {
     seed: 3797903052,
   });
   assert.deepEqual(mudflatDailyChallengeForDate("2026-11-09"), mudflatDailyChallengeForDate("2026-11-09"));
+});
+
+test("daily ranking keeps only a better successful return without counting attempts", () => {
+  const current = { completed: true, score: 1200, caught: 40, elapsed: 150 };
+  assert.equal(mudflatDailyRecordIsBetter(current, { completed: false, score: 0, caught: 60, elapsed: 100 }), false);
+  assert.equal(mudflatDailyRecordIsBetter(current, { completed: true, score: 1199, caught: 99, elapsed: 90 }), false);
+  assert.equal(mudflatDailyRecordIsBetter(current, { completed: true, score: 1200, caught: 41, elapsed: 160 }), true);
+  assert.equal(mudflatDailyRecordIsBetter(current, { completed: true, score: 1200, caught: 40, elapsed: 149 }), true);
+  assert.equal(mudflatDailyRecordIsBetter(current, { completed: true, score: 1200, caught: 40, elapsed: 150 }), false);
+  assert.equal(mudflatDailyRecordIsBetter({ completed: false, score: 0, caught: 0, elapsed: 20 }, { completed: true, score: 1, caught: 1, elapsed: 200 }), true);
 });
 
 test("daily stages rotate only through the comparable regular stages", () => {

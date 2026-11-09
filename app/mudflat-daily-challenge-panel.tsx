@@ -37,6 +37,7 @@ export type MudflatDailyResult = MudflatDailyStart & {
   bossCaught: boolean;
   submission: "submitting" | "saved" | "failed";
   rank: number | null;
+  recordImproved?: boolean;
   message?: string;
 };
 
@@ -80,9 +81,9 @@ export async function submitMudflatDailyResult(result: MudflatDailyResult) {
       completed: result.completed,
     }),
   });
-  const payload = await response.json() as { participant?: DailyParticipantResult; error?: string };
+  const payload = await response.json() as { participant?: DailyParticipantResult; improved?: boolean; error?: string };
   if (!response.ok || !payload.participant) throw new Error(payload.error || "기록을 저장하지 못했습니다.");
-  return payload.participant;
+  return { participant: payload.participant, improved: payload.improved === true };
 }
 
 export function MudflatDailyChallengePanel({ onStart, hasActiveRun }: { onStart: (challenge: MudflatDailyStart) => void; hasActiveRun: boolean }) {
@@ -111,9 +112,8 @@ export function MudflatDailyChallengePanel({ onStart, hasActiveRun }: { onStart:
   }, []);
 
   const normalizedName = useMemo(() => normalizeMudflatDailyName(displayName), [displayName]);
-  const attempted = Boolean(payload?.participant);
   const start = () => {
-    if (!payload || !identity || !normalizedName || attempted) return;
+    if (!payload || !identity || !normalizedName) return;
     try { window.localStorage.setItem(MUDFLAT_DAILY_NAME_KEY, normalizedName); }
     catch { setStatus("참가자 이름을 저장하지 못했습니다."); return; }
     onStart({ ...payload.challenge, participantId: identity.participantId, displayName: normalizedName });
@@ -124,16 +124,16 @@ export function MudflatDailyChallengePanel({ onStart, hasActiveRun }: { onStart:
       <div><small>DAILY MUDFLAT</small><h2>오늘의 갯벌</h2></div>
       {payload && <span>{payload.challenge.date.replaceAll("-", ".")} · {payload.challenge.stage}단계</span>}
     </header>
-    <p>모두가 같은 단계·장비·환경에서 한 번 도전합니다. 첫 결과만 오늘의 통합 순위에 등록됩니다.</p>
+    <p>같은 단계·장비·환경에 횟수 제한 없이 도전하고, 가장 좋은 귀환 기록을 통합 순위에 남깁니다.</p>
     <div className="ms-daily-entry">
-      <label><span>기록 이름</span><input value={displayName} maxLength={12} onChange={(event) => setDisplayName(event.target.value)} disabled={attempted} aria-label="오늘의 갯벌 기록 이름" /></label>
-      <button type="button" onClick={start} disabled={!payload || !identity || !normalizedName || attempted}>{attempted ? "오늘 도전 완료" : "오늘의 갯벌 출정 →"}</button>
+      <label><span>기록 이름</span><input value={displayName} maxLength={12} onChange={(event) => setDisplayName(event.target.value)} aria-label="오늘의 갯벌 기록 이름" /></label>
+      <button type="button" onClick={start} disabled={!payload || !identity || !normalizedName}>{payload?.participant ? "다시 도전 →" : "오늘의 갯벌 출정 →"}</button>
     </div>
-    {hasActiveRun && !attempted && <p className="ms-daily-preserve">진행 중인 일반 원정 저장은 그대로 유지됩니다.</p>}
+    {hasActiveRun && <p className="ms-daily-preserve">진행 중인 일반 원정 저장은 그대로 유지됩니다.</p>}
     {payload?.participant && <div className={`ms-daily-own${payload.participant.completed ? " is-clear" : ""}`}>
-      <span>{payload.participant.completed ? `${payload.participant.rank ? `${payload.participant.rank}위` : "순위 집계 중"}` : "귀환 실패"}</span>
-      <b>{payload.participant.completed ? `${payload.participant.score.toLocaleString()}점` : "오늘 기록 종료"}</b>
-      <small>채집 {payload.participant.caught} · {formatElapsed(payload.participant.elapsed)}</small>
+      <span>{payload.participant.completed ? `${payload.participant.rank ? `${payload.participant.rank}위` : "순위 집계 중"}` : "재도전 가능"}</span>
+      <b>{payload.participant.completed ? `${payload.participant.score.toLocaleString()}점` : "아직 귀환 기록 없음"}</b>
+      <small>{payload.participant.completed ? `채집 ${payload.participant.caught} · ${formatElapsed(payload.participant.elapsed)}` : "귀환에 성공하면 최고 기록이 등록됩니다."}</small>
     </div>}
     {status && <p className="ms-daily-status" role="status">{status}</p>}
     <details className="ms-daily-ranking">
@@ -147,7 +147,7 @@ export function MudflatDailyChallengePanel({ onStart, hasActiveRun }: { onStart:
 
 export function MudflatDailyResultPanel({ result, onBack, onRetrySubmit }: { result: MudflatDailyResult; onBack: () => void; onRetrySubmit: () => void }) {
   const [shareStatus, setShareStatus] = useState("");
-  const shareText = `해루질럿 오늘의 갯벌 ${result.stage}단계\n${result.completed ? `${result.score.toLocaleString()}점 · 채집 ${result.caught}마리${result.rank ? ` · ${result.rank}위` : ""}` : `채집 ${result.caught}마리 · 귀환 실패`}\n같은 갯벌에 도전해보세요!`;
+  const shareText = `해루질럿 오늘의 갯벌 ${result.stage}단계\n${result.completed ? `${result.score.toLocaleString()}점 · 채집 ${result.caught}마리${result.recordImproved && result.rank ? ` · ${result.rank}위` : ""}` : `채집 ${result.caught}마리 · 귀환 실패`}\n같은 갯벌에 도전해보세요!`;
   const share = async () => {
     try {
       if (navigator.share) await navigator.share({ title: "해루질럿 오늘의 갯벌", text: shareText, url: `${window.location.origin}/haeru` });
@@ -163,7 +163,7 @@ export function MudflatDailyResultPanel({ result, onBack, onRetrySubmit }: { res
       <small>DAILY MUDFLAT · {result.date.replaceAll("-", ".")}</small>
       <h1>{result.completed ? "오늘의 갯벌 귀환 성공" : "오늘의 갯벌 도전 종료"}</h1>
       <p>{result.completed ? "같은 조건에서 도전한 해루질꾼들과 기록을 비교해 보세요." : "귀환에는 실패했지만 오늘의 채집 기록은 남았습니다."}</p>
-      <div className="ms-daily-result-score"><span>{result.rank ? `${result.rank}위` : result.submission === "saved" ? "집계 중" : "기록 중"}</span><b>{result.completed ? result.score.toLocaleString() : "–"}<em>{result.completed ? "점" : "귀환 실패"}</em></b></div>
+      <div className="ms-daily-result-score"><span>{result.submission !== "saved" ? "기록 중" : result.recordImproved ? result.rank ? `${result.rank}위` : "최고 기록 갱신" : "기존 최고 유지"}</span><b>{result.completed ? result.score.toLocaleString() : "–"}<em>{result.completed ? "점" : "귀환 실패"}</em></b></div>
       <div className="ms-daily-result-grid">
         <span><small>도전 단계</small><b>{result.stage}</b></span>
         <span><small>채집</small><b>{result.caught}마리</b></span>
@@ -172,7 +172,7 @@ export function MudflatDailyResultPanel({ result, onBack, onRetrySubmit }: { res
       </div>
       <div className="ms-daily-submit-state" role="status">
         {result.submission === "submitting" && "오늘의 기록판에 등록하는 중입니다."}
-        {result.submission === "saved" && "오늘의 첫 결과가 통합 순위에 등록되었습니다."}
+        {result.submission === "saved" && (result.recordImproved ? "오늘의 최고 기록이 통합 순위에 반영되었습니다." : result.completed ? "기존 최고 기록이 통합 순위에 유지됩니다." : "언제든 다시 도전해 귀환 기록을 남길 수 있습니다.")}
         {result.submission === "failed" && <><span>{result.message || "기록을 등록하지 못했습니다."}</span><button type="button" onClick={onRetrySubmit}>다시 등록</button></>}
       </div>
       <div className="ms-daily-result-actions"><button type="button" onClick={share}>결과 공유</button><button type="button" onClick={onBack}>해루질럿 메인</button></div>
