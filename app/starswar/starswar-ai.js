@@ -137,16 +137,18 @@ const BUILD_ORDERS = {
 };
 
 /**
- * 프로토스의 저그전 시작: 파일런 → 게이트웨이 → 포지 → 4분 앞마당, 그 뒤 성향의 빌드 순서. 이 단계들은 경계 중에도 짓는다.
+ * 프로토스의 저그전 시작: 파일런 → 게이트웨이 → 4분 앞마당 → 포지, 그 뒤 성향의 빌드 순서. 이 단계들은 경계 중에도 짓는다.
  * 빌드 순서는 막힌 단계를 4개까지만 건너뛰는데, 경계 중에는 테크 단계가 "경계라서 막힘"으로 그 4칸을 채워 순서 뒤쪽의
  * 앞마당에 닿지 못했다("6분 뒤에는 경계 중에도 확장" 규칙이 사실상 작동하지 않았다). 그래서 저그가 앞마당을 먹고 일꾼을
  * 38기까지 늘리는 동안 프로토스는 본진 하나에 일꾼 22기로 묶였다.
  * 시작 빌드별 프로토스 : 저그(성향 쌍마다 시드 8개): 없음 107 : 228, 포지→2분 30초 앞마당→캐논 280 : 56,
  * 게이트웨이→4분 앞마당 210 : 126, 게이트웨이→포지→4분 앞마당 180 : 156(채택).
+ * 그 뒤 처음 2분의 인구 건물 중복(파일런 둘)을 없애자 게이트웨이가 14초 빨라져 같은 시작이 121 : 47(시드 4개)로 기울었다.
+ * 시드 4개로: 포지→5분 앞마당 112 : 56, 포지→6분 앞마당 123 : 45, 포지 없음 71 : 97, 4분 앞마당→포지 87 : 81(채택), 4분 30초 앞마당→포지 113 : 55.
  * 질럿 러시 성향은 이미 저그를 잘 이겨서 쓰지 않는다.
  */
 const PVZ_OPENER = [
-  { build: "pylon", opener: true }, { build: "gateway", opener: true }, { build: "forge", opener: true }, { build: "expand", at: 240, opener: true },
+  { build: "pylon", opener: true }, { build: "gateway", opener: true }, { build: "expand", at: 240, opener: true }, { build: "forge", opener: true },
 ];
 
 function buildOrder(state, side, persona) {
@@ -304,8 +306,22 @@ export function stwAiThink(state, side) {
     // 5분이 지나면 1단계 유닛 해금 건물(코어·아카데미·덴·에볼루션 챔버)을, 방어 건물 비용을 기다리는 중이 아니면 연구도 허용한다
     // (경계가 길어지면 업그레이드까지 10분씩 밀린다).
     // 6분이 지나면 확장도 허용한다(견제로 경계가 끝없이 이어지면 경제가 영영 멈춘다). 확장 비용은 바로 아끼므로 노는 생산 건물이 멈춰 돈이 모인다.
-    const allowedInAlert = step.opener || (step.research ? state.time >= 300 && !reserve.hard : step.build === "expand" ? state.time >= 360 : step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && state.time >= 300) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length));
+    // 가스가 150 넘게 쌓였으면 1단계 해금 건물(코어 등)은 5분 전에도 짓는다. 가스를 쓸 유닛이 없으면 쌓이기만 한다.
+    const gasIdle = record.gas >= 150;
+    const allowedInAlert = step.opener || (step.research ? state.time >= 300 && !reserve.hard : step.build === "expand" ? state.time >= 360 : step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && (state.time >= 300 || gasIdle)) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length));
     if (alert && !allowedInAlert) {
+      blocked += 1;
+      continue;
+    }
+    // 인구 건물 단계는, 처음 2분 동안 이미 짓는 인구 건물이 있으면 그것으로 친다. 인구 규칙과 빌드 순서가 같은 생각에서
+    // 파일런을 둘 지어 광물 100을 버렸다(이른 질럿 압박 리포트에서는 이 100이 5분 30초 패배와 버팀을 갈랐다).
+    if (state.time < 120 && step.build === race.supply && stwOwnBuildings(state, side, race.supply).some((building) => !stwDone(building))) {
+      memory.done.push(index);
+      continue;
+    }
+    // 둘째 가스 건물은 일꾼이 18기는 돼야 짓는다. 13기에 둘째 가스를 지어 6기가 가스에 붙자, 광물이 모자라 코어도 질럿도 못 뽑고
+    // 가스만 626 쌓인 채 질럿 압박에 5분 30초에 졌다.
+    if (step.build === race.refinery && race.id !== "zerg" && stwOwnBuildings(state, side, race.refinery).length >= 1 && record.probes < 18) {
       blocked += 1;
       continue;
     }
@@ -347,7 +363,9 @@ export function stwAiThink(state, side) {
       // 저글링 물량은 15초 넘게 막힌 단계도 아낀다(해처리를 멈추지 않으면 연구 자금이 영영 안 모인다. 다른 저그 성향은 이 규칙으로 러시 방어가 약해져 쓰지 않는다).
       // 경계 중에는 방어 건물·인구 건물이 아니면 생산을 멈춰 가며 모으지 않는다(팩토리를 기다리느라 배럭이 놀다가 러시에 무너지던 문제).
       const strict = step.build === "expand" || race.id !== "zerg" || ((persona === "ling" || persona === "muta") && state.time - memory.headSince > 15);
-      save(cost.minerals, cost.gas, strict && (!alert || step.build === race.supply || Boolean(STW_BUILDINGS[step.build]?.defense)));
+      // 가스가 놀고 있으면 그 가스를 쓰게 하는 해금 건물(코어 등)도 반드시 산다(경계 중 질럿에 광물을 다 써 코어가 11분에야 섰다).
+      const unlocksGas = gasIdle && ALERT_TECH.has(step.build);
+      save(cost.minerals, cost.gas, (strict && (!alert || step.build === race.supply || Boolean(STW_BUILDINGS[step.build]?.defense))) || unlocksGas);
       if (step.build === "expand" && state.time - memory.headSince > 30) reserve.expand = true;
     }
     blocked += 1;

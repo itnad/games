@@ -1209,6 +1209,25 @@ test("starswar AI from a reported loss: expands, researches, and holds off a can
   assert.ok(state.sides.enemy.probes > 30, `일꾼 ${state.sides.enemy.probes}`);
 });
 
+test("starswar AI from a reported loss: no early second gas or double pylon, survives a one-gate zealot push", async () => {
+  // 사람이 게이트웨이 하나로 질럿을 모아 2분 40초부터 밀고 앞마당을 먹은 경기(5분 30초에 AI 패배). 사람 명령은 그대로 두고 지금 AI로 다시 돌린다.
+  // 예전 AI는 1분 15초에 파일런을 둘 짓고, 일꾼 13기에 둘째 가스를 지어 광물이 모자라 코어도 질럿도 못 뽑은 채 가스만 626 쌓였다.
+  const { readFile } = await import("node:fs/promises");
+  const code = JSON.parse(await readFile(new URL("./fixtures/starswar-early-zealot-replay.json", import.meta.url), "utf8"));
+  let pylonsAt75 = null;
+  let secondGasProbes = null;
+  const state = stwReplay(code, {
+    until: 420,
+    onTick: (current) => {
+      if (pylonsAt75 === null && current.time >= 75) pylonsAt75 = stwOwnBuildings(current, "enemy", "pylon").length;
+      if (secondGasProbes === null && stwOwnBuildings(current, "enemy", "assimilator").length >= 2) secondGasProbes = current.sides.enemy.probes;
+    },
+  });
+  assert.equal(pylonsAt75, 1, "1분 15초에 파일런은 하나");
+  assert.ok(secondGasProbes === null || secondGasProbes >= 18, `둘째 가스는 일꾼 18기 뒤 (${secondGasProbes})`);
+  assert.equal(state.status, "playing", "7분까지 버틴다");
+});
+
 test("starswar carrier attacks launch one visible interceptor per hit", () => {
   for (const [research, expected] of [[[], 4], [["carrierCapacity"], 8]]) {
     const state = stwCreateScenario({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { carrier: 1 }, research }, enemy: { units: { hydra: 6 } } } });
@@ -1399,7 +1418,9 @@ test("starswar protoss AI adapts its gateway mix to the enemy army it sees", () 
       stwCommand(state, "player", { type: "build", building });
       finishAll(state);
     }
-    for (let index = 0; index < 8; index += 1) stwSpawnUnitAt(state, "enemy", enemyType, 12 + index * 2, 76);
+    for (let index = 0; index < 8; index += 1) stwSpawnUnitAt(state, "enemy", enemyType, 12 + index * 2, 84);
+    // 시야는 0.5초마다 갱신된다. 본진 시야 안(84)에 두고 갱신해야 AI가 적 구성을 본다(예전에는 시야 밖 76에 두어 보지 못한 채 게이트웨이 수만으로 통과했다).
+    run(state, 0.5);
     stwAiThink(state, "player");
     return stwOwnBuildings(state, "player", "gateway").map((gateway) => gateway.line);
   };
