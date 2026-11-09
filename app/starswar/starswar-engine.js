@@ -1146,16 +1146,32 @@ function labFormation(state, side, units, frontY, group) {
 }
 
 /**
- * 실험실: 원하는 시각·병력·연구로 경기를 바로 세운다(테스트용).
- * sides.{player,enemy}: units {유닛: 수}, research [연구 id], workers, minerals, gas, natural(앞마당 있음).
+ * 실험실: 원하는 시각·건물·병력·연구·전략으로 경기를 바로 세운다(테스트용).
+ * sides.{player,enemy}:
+ * - control: 아군은 "manual"(직접 지휘) 또는 "ai", 적은 "fight"(운영하지 않고 주어진 병력으로만 싸움) 또는 "ai"
+ * - persona: AI 운영일 때의 전략(그 종족의 성향 id). 없으면 무작위
+ * - buildings {건물: 수}, units {유닛: 수}, research [연구 id], workers, minerals, gas, natural(앞마당 있음)
  * placement: "clash"(두 병력이 맵 가운데에서 마주 보고 공격 병력으로 시작) 또는 "home"(각자 집결지에서 대기).
- * enemyAi: "fight"(적은 새로 운영하지 않고 병력만 싸운다) 또는 "full"(적 AI가 계속 운영한다).
+ * 옛 설정의 enemyAi("fight" | "full")도 받는다.
  * 필요한 생산·테크 건물과 선행 연구는 자동으로 갖추고, 인구 상한은 건물 없이 100으로 채운다.
+ * 자리가 모자라 짓지 못한 건물은 기록으로 알린다.
  */
 export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, races = {}, placement = "clash", enemyAi = "fight", sides = {} } = {}) {
-  const state = createStarswarGame({ difficulty, seed, races, aiSides: enemyAi === "full" ? ["enemy"] : [] });
-  state.lab = { placement, enemyAi };
+  const control = {
+    player: sides.player?.control === "ai" ? "ai" : "manual",
+    enemy: sides.enemy?.control ? (sides.enemy.control === "ai" ? "ai" : "fight") : enemyAi === "full" ? "ai" : "fight",
+  };
+  const personas = {};
+  for (const side of STW_SIDES) {
+    const persona = sides[side]?.persona;
+    const race = STW_RACES[races[side]] ? races[side] : "protoss";
+    if (persona && STW_AI_PERSONAS[persona]?.race === race) personas[side] = persona;
+  }
+  const aiSides = STW_SIDES.filter((side) => control[side] === "ai");
+  const state = createStarswarGame({ difficulty, seed, races, aiSides, personas });
+  state.lab = { placement, control };
   state.time = Math.max(0, Math.round(time));
+  const missing = [];
   for (const side of STW_SIDES) {
     const plan = sides[side] ?? {};
     const record = state.sides[side];
@@ -1171,6 +1187,23 @@ export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, r
       if (def.from && STW_BUILDINGS[def.from] && !STW_BUILDINGS[def.from].base) grantPrerequisite(state, side, def.from);
       if (def.requires) grantPrerequisite(state, side, def.requires);
       if (def.requiresResearch) grantPrerequisite(state, side, def.requiresResearch);
+    }
+    // 고른 건물을 그 수만큼(이미 있는 것 포함) 짓는다. 선행 건물·연구는 먼저 갖춘다.
+    for (const [type, wanted] of Object.entries(plan.buildings ?? {})) {
+      const def = STW_BUILDINGS[type];
+      if (!def || def.base || (def.race ?? "protoss") !== race || !(wanted > 0)) continue;
+      grantPrerequisite(state, side, type);
+      const count = def.unique ? 1 : Math.min(30, Math.round(wanted));
+      while (stwOwnBuildings(state, side, type).length < count) {
+        const before = stwOwnBuildings(state, side, type).length;
+        record.minerals = 1e6;
+        record.gas = 1e6;
+        stwCommand(state, side, { type: "build", building: type });
+        if (stwOwnBuildings(state, side, type).length === before) {
+          missing.push({ side, type, short: count - before });
+          break;
+        }
+      }
     }
     for (const id of plan.research ?? []) if (STW_RESEARCH[id]) grantPrerequisite(state, side, id);
     for (const building of state.buildings) {
@@ -1198,6 +1231,9 @@ export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, r
   recordHistory(state);
   const enemyName = STW_RACES[state.sides.enemy.race].name;
   pushLog(state, "player", `실험실: ${stwClock(state.time)} 상황, ${enemyName} 상대로 시작합니다.`, "info");
+  for (const item of missing) {
+    pushLog(state, "player", `실험실: ${item.side === "player" ? "아군" : "적"} ${STW_BUILDINGS[item.type].name} ${item.short}개는 자리가 모자라 짓지 못했습니다.`, "warn");
+  }
   return state;
 }
 

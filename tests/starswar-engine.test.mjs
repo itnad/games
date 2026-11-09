@@ -877,7 +877,7 @@ test("starswar lab scenarios set the clock, armies, tech and research for an ins
     },
   });
   assert.equal(state.time, 900);
-  assert.deepEqual(state.lab, { placement: "clash", enemyAi: "fight" });
+  assert.deepEqual(state.lab, { placement: "clash", control: { player: "manual", enemy: "fight" } });
   assert.deepEqual(state.aiSides, [], "교전만: 적 AI가 운영하지 않는다");
   assert.equal(state.units.filter((unit) => unit.side === "player" && unit.type === "carrier").length, 8);
   assert.equal(state.units.filter((unit) => unit.side === "enemy" && unit.type === "hydra").length, 80);
@@ -902,11 +902,44 @@ test("starswar lab scenarios set the clock, armies, tech and research for an ins
   assert.ok(carriers.length < 8 || hydras.length < 80, "교전이 벌어진다");
   assert.equal(state.sides.enemy.stats.produced, 0, "교전만: 적은 생산하지 않는다");
 
+  // 옛 설정(enemyAi: "full")도 받는다.
   const home = stwCreateScenario({ time: 300, placement: "home", enemyAi: "full", races: { player: "terran", enemy: "protoss" }, sides: { player: { units: { marine: 10 } }, enemy: { units: { zealot: 6, carrier: 99 } } } });
   assert.deepEqual(home.aiSides, ["enemy"], "AI 계속 운영");
   assert.ok(home.units.every((unit) => unit.group === "rally"), "각자 집결지에서 대기");
   assert.equal(home.units.filter((unit) => unit.side === "enemy" && unit.type === "carrier").length, 99, "인구를 넘어도 요청한 만큼 나온다");
   assert.ok(!home.units.some((unit) => unit.side === "player" && unit.type !== "marine"));
+});
+
+test("starswar lab scenarios take each side's controller, strategy and building counts", () => {
+  const state = stwCreateScenario({
+    time: 600,
+    placement: "home",
+    races: { player: "protoss", enemy: "zerg" },
+    sides: {
+      player: { control: "ai", persona: "carrier", natural: true, buildings: { gateway: 4, cannon: 3, stargate: 2 } },
+      enemy: { control: "ai", persona: "hive", natural: true, buildings: { sunken: 4, hatch: 2, mound: 1 }, units: { hydra: 12 } },
+    },
+  });
+  assert.deepEqual(state.aiSides, ["player", "enemy"], "양쪽 AI 관전");
+  assert.equal(state.sides.player.persona, "carrier");
+  assert.equal(state.sides.enemy.persona, "hive");
+  assert.deepEqual(state.lab.control, { player: "ai", enemy: "ai" });
+  const count = (side, type) => stwOwnBuildings(state, side, type).filter((item) => stwDone(item)).length;
+  assert.equal(count("player", "gateway"), 4);
+  assert.equal(count("player", "cannon"), 3);
+  assert.equal(count("player", "stargate"), 2);
+  assert.equal(count("player", "forge"), 1, "캐논의 선행 건물");
+  assert.equal(count("enemy", "sunken"), 4);
+  assert.equal(count("enemy", "hatch"), 2);
+  assert.equal(count("enemy", "mound"), 1);
+  assert.equal(state.sides.enemy.research.hive, "done", "디파일러 마운드의 선행 연구(하이브)");
+  // 다른 종족의 전략은 무시하고 무작위로 고른다.
+  const mismatched = stwCreateScenario({ races: { player: "terran", enemy: "zerg" }, sides: { player: { control: "ai", persona: "carrier" }, enemy: {} } });
+  assert.equal(mismatched.sides.player.race, "terran");
+  assert.notEqual(mismatched.sides.player.persona, "carrier");
+  // 자리가 모자라 다 짓지 못한 건물은 기록으로 알린다.
+  const crowded = stwCreateScenario({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { natural: false, buildings: { gateway: 30 } }, enemy: {} } });
+  assert.ok(crowded.log.some((entry) => /^실험실: 아군 게이트웨이 \d+개는 자리가 모자라 짓지 못했습니다\.$/.test(entry.text)), "자리 부족 알림");
 });
 
 test("starswar terran AI personas field their signature units and finish a game", () => {

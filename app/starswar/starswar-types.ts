@@ -143,7 +143,7 @@ export type StwState = {
   time: number;
   history?: StwHistoryPoint[];
   /** 실험실에서 세운 경기(저장·전적 제외). */
-  lab?: { placement: "clash" | "home"; enemyAi: "fight" | "full" };
+  lab?: { placement: "clash" | "home"; control: { player: "manual" | "ai"; enemy: "fight" | "ai" } };
   hiddenEnemyRace?: boolean;
   difficulty: StwDifficulty;
   status: "playing" | "over";

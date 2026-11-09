@@ -44,7 +44,7 @@ import {
 import { stwAiThink } from "./starswar-ai.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
 import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
-import { LAB_PRESETS, LabScreen, type LabConfig } from "./starswar-lab";
+import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./starswar-lab";
 import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwOp, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
 
 type Screen = "menu" | "play" | "lab";
@@ -54,8 +54,8 @@ const LAB_KEY = "paperoid-starswar-lab";
 
 function readLab(): LabConfig {
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(LAB_KEY) ?? "null");
-    if (parsed && parsed.sides?.player && parsed.sides?.enemy && parsed.races) return parsed as LabConfig;
+    const parsed = normalizeLab(JSON.parse(window.localStorage.getItem(LAB_KEY) ?? "null"));
+    if (parsed) return parsed;
   } catch {
     // 무시한다.
   }
