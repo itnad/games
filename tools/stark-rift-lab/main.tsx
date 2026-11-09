@@ -93,6 +93,8 @@ function Lab({id}:{id:ScenarioId}){
         <p>상태 {phase} · 틱 {snapshot?.tick??0} · 개체 {snapshot?.entities.length??0}</p>
         <table><thead><tr><th>측정 항목</th><th>평균 ms</th><th>p95 ms</th><th>최대 ms</th></tr></thead><tbody>
           <tr><td>전체 틱</td><td>{ms(metrics?.ticks.mean)}</td><td>{ms(metrics?.ticks.p95)}</td><td>{ms(metrics?.ticks.max)}</td></tr>
+          <tr><td>상태 복사</td><td>{ms(metrics?.phases.checkpoint?.mean)}</td><td>{ms(metrics?.phases.checkpoint?.p95)}</td><td>{ms(metrics?.phases.checkpoint?.max)}</td></tr>
+          <tr><td>최종 검증</td><td>{ms(metrics?.phases.validation?.mean)}</td><td>{ms(metrics?.phases.validation?.p95)}</td><td>{ms(metrics?.phases.validation?.max)}</td></tr>
           <tr><td>경로 탐색</td><td>{ms(metrics?.systems.pathfinding?.mean)}</td><td>{ms(metrics?.systems.pathfinding?.p95)}</td><td>{ms(metrics?.systems.pathfinding?.max)}</td></tr>
           <tr><td>이동</td><td>{ms(metrics?.systems.movement?.mean)}</td><td>{ms(metrics?.systems.movement?.p95)}</td><td>{ms(metrics?.systems.movement?.max)}</td></tr>
           <tr><td>rAF 간격</td><td>{ms(frames.mean)}</td><td>{ms(frames.p95)}</td><td>{ms(frames.max)}</td></tr>
