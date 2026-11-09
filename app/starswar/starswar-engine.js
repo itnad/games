@@ -2942,28 +2942,85 @@ function spellFoes(state, caster, range) {
     && distance(caster.x, caster.y, unit.x, unit.y) <= range + unit.radius && stwDetected(state, unit, caster.side));
 }
 
-/** 범위 마법 자리: 시전 사거리 안의 적 가운데 조건에 맞는 유닛이 반경 안에 가장 많이 모인 곳(minTargets 이상). */
-function clusterSpot(state, caster, spell, filter) {
-  const pool = spellFoes(state, caster, spell.range + spell.radius).filter((unit) => !isPassive(unit) && filter(unit));
-  let best = null;
-  let bestCount = spell.minTargets - 1;
-  for (const center of pool) {
-    if (distance(caster.x, caster.y, center.x, center.y) > spell.range) continue;
+/** 깨끗한 마법 자리를 찾는 거리: 시전 사거리 밖 이만큼까지는 다가가서 쓴다(스톰과 범위 마법 공통). */
+const SPELL_LOOKAHEAD = 6;
+
+/** 범위 마법 판정: 유닛 반경의 절반까지 걸치면 맞는다(foesAround·스톰과 같은 식). */
+const inArea = (unit, spot, radius) => distance(unit.x, unit.y, spot.x, spot.y) <= radius + unit.radius * 0.5;
+
+/**
+ * 범위 마법을 떨어뜨릴 자리(스톰·플레이그·인스네어·EMP·마엘스트롬·스테이시스 공통).
+ * 마법은 아군에게 걸리지 않지만, 원작의 시전 습관처럼 아군과 맞붙은 적 최전선보다 아군이 없는 적 무리를 노린다.
+ * - 적 무리 한가운데와, 아군에게서 멀어지는 쪽으로 1·2칸 민 자리를 함께 따진다.
+ * - 아군이 반경에 걸리지 않는 자리 중 적 가치가 가장 큰 곳에 쓴다.
+ * - 그런 자리가 사거리 밖 SPELL_LOOKAHEAD칸 안에 있으면 이번에는 쓰지 않는다(다가가서 쓴다).
+ * - 없으면 (적 가치 − 아군 가치 × 2)가 가장 큰, 아군이 걸리는 자리에 쓴다.
+ * pool은 노릴 적, value는 유닛 하나의 가치, skip은 쓰면 안 되는 자리(겹치는 스톰 등)다.
+ */
+function areaSpot(state, caster, { pool, range, radius, minTargets, value, skip }) {
+  const allies = state.units.filter((unit) => unit.side === caster.side && unit.hp > 0 && unit.group !== "cargo");
+  let clean = null;
+  let cleanScore = -Infinity;
+  let cleanReachable = false;
+  let mixed = null;
+  let mixedScore = -Infinity;
+  const reach = range + SPELL_LOOKAHEAD;
+  for (const enemy of pool) {
+    if (distance(caster.x, caster.y, enemy.x, enemy.y) > reach) continue;
     let count = 0;
     let sx = 0;
     let sy = 0;
     for (const other of pool) {
-      if (distance(center.x, center.y, other.x, other.y) > spell.radius) continue;
-      count += 1;
-      sx += other.x;
-      sy += other.y;
+      if (distance(enemy.x, enemy.y, other.x, other.y) <= radius) {
+        count += 1;
+        sx += other.x;
+        sy += other.y;
+      }
     }
-    if (count > bestCount) {
-      bestCount = count;
-      best = { x: sx / count, y: sy / count };
+    if (count < minTargets) continue;
+    const center = { x: sx / count, y: sy / count };
+    // 아군에게서 멀어지는 쪽: 반경 + 3칸 안 아군들의 무게중심에서 무리 중심으로 향하는 방향.
+    const near = allies.filter((ally) => distance(ally.x, ally.y, center.x, center.y) <= radius + 3);
+    const spots = [center];
+    if (near.length) {
+      const ax = near.reduce((sum, ally) => sum + ally.x, 0) / near.length;
+      const ay = near.reduce((sum, ally) => sum + ally.y, 0) / near.length;
+      const length = distance(ax, ay, center.x, center.y);
+      if (length > 0.01) for (const shift of [1, 2]) spots.push({ x: center.x + ((center.x - ax) / length) * shift, y: center.y + ((center.y - ay) / length) * shift });
+    }
+    for (const spot of spots) {
+      const far = distance(caster.x, caster.y, spot.x, spot.y);
+      if (far > reach + 1) continue;
+      if (skip?.(spot)) continue;
+      const probe = { x: spot.x, y: spot.y };
+      const foes = pool.filter((unit) => inArea(unit, probe, radius));
+      if (foes.length < minTargets) continue;
+      const friends = allies.filter((unit) => inArea(unit, probe, radius));
+      const foeValue = foes.reduce((sum, unit) => sum + value(unit), 0);
+      const inRange = far <= range + 1;
+      if (!friends.length) {
+        cleanReachable = true;
+        if (inRange && foeValue > cleanScore) {
+          cleanScore = foeValue;
+          clean = probe;
+        }
+      } else if (inRange) {
+        const score = foeValue - friends.reduce((sum, unit) => sum + value(unit), 0) * 2;
+        if (score > mixedScore) {
+          mixedScore = score;
+          mixed = probe;
+        }
+      }
     }
   }
-  return best;
+  if (clean) return clean;
+  return cleanReachable ? null : mixed;
+}
+
+/** 범위 마법 자리: 조건에 맞는 적이 minTargets 이상 걸리는 곳(마릿수로 센다). 고르는 규칙은 areaSpot. */
+function clusterSpot(state, caster, spell, filter) {
+  const pool = spellFoes(state, caster, spell.range + SPELL_LOOKAHEAD + spell.radius).filter((unit) => !isPassive(unit) && filter(unit));
+  return areaSpot(state, caster, { pool, range: spell.range, radius: spell.radius, minTargets: spell.minTargets, value: () => 1 });
 }
 
 function foesAround(state, caster, spot, radius) {
@@ -3028,17 +3085,32 @@ const SPELL_CASTERS = {
     return spot;
   },
   irradiate(state, caster, spell) {
-    let best = null;
-    let bestScore = 1.5;
-    for (const unit of spellFoes(state, caster, spell.range)) {
+    // 아군이 바로 옆(반경 + 1칸)에 붙어 있지 않은 대상을 먼저 고른다. 그런 대상이 사거리 밖 SPELL_LOOKAHEAD칸 안에 있으면
+    // 다가가서 쓰고, 없을 때만 아군과 맞붙은 대상에게 쓴다(이레디에이트는 대상 편 생체 유닛에게만 피해를 준다).
+    const allies = state.units.filter((unit) => unit.side === caster.side && unit.hp > 0 && unit.group !== "cargo");
+    let clean = null;
+    let cleanScore = 1.5;
+    let cleanReachable = false;
+    let mixed = null;
+    let mixedScore = 1.5;
+    for (const unit of spellFoes(state, caster, spell.range + SPELL_LOOKAHEAD)) {
       if (!isBiological(unit) || isPassive(unit) || (unit.irradiateUntil ?? 0) > state.time) continue;
       const near = state.units.filter((other) => other.side === unit.side && other.hp > 0 && isBiological(other) && distance(other.x, other.y, unit.x, unit.y) <= spell.radius).length;
       const score = near + (unitValue(unit) >= 150 ? 2 : 0);
-      if (score > bestScore) {
-        bestScore = score;
-        best = unit;
+      if (score <= 1.5) continue;
+      const inRange = distance(caster.x, caster.y, unit.x, unit.y) <= spell.range + unit.radius;
+      if (!allies.some((ally) => inArea(ally, unit, spell.radius + 1))) {
+        cleanReachable = true;
+        if (inRange && score > cleanScore) {
+          cleanScore = score;
+          clean = unit;
+        }
+      } else if (inRange && score > mixedScore) {
+        mixedScore = score;
+        mixed = unit;
       }
     }
+    const best = clean ?? (cleanReachable ? null : mixed);
     if (!best) return null;
     best.irradiateUntil = state.time + spell.duration;
     return { x: best.x, y: best.y, targetId: best.id };
@@ -3148,90 +3220,24 @@ function stepStatuses(state, dt) {
   }
 }
 
-/**
- * 스톰을 떨어뜨릴 자리. 이미 아군 스톰 안에 있는 적은 세지 않으므로, 하이템플러가 여럿이어도 같은 무리에 겹쳐 쓰지 않는다.
- * 새 스톰의 중심은 기존 스톰 중심에서 반경 이상 떨어져야 한다.
- */
-/** 깨끗한 스톰 자리를 찾는 거리: 시전 사거리 밖 이만큼까지는 다가가서 쓴다. */
-const STORM_LOOKAHEAD = 6;
-
 /** 유닛이 스톰 판정 안에 있는지(유닛 반경의 절반까지 걸치면 맞는다). */
 function inStorm(unit, storm) {
-  return distance(unit.x, unit.y, storm.x, storm.y) <= STW_STORM.radius + unit.radius * 0.5;
+  return inArea(unit, storm, STW_STORM.radius);
 }
 
 /**
- * 스톰 자리: 아직 아군 스톰에 맞지 않는 적이 3기 이상 뭉친 곳.
- * 스톰은 아군에게 피해를 주지 않지만, 아군과 맞붙은 적 최전선보다 아군이 없는 적 뒷줄을 노리게 한다(원작의 시전 습관).
- * 적 무리 한가운데 말고도 아군에게서 멀어지는 쪽으로 1·2칸 민 자리를 함께 따진다.
- * 아군이 반경에 걸리지 않는 자리 중 적 가치가 가장 큰 곳을 고르고, 그런 자리가 사거리 밖 6칸 안에도 없으면
- * (적 가치 − 아군 가치 × 2)가 가장 큰, 아군이 걸리는 자리에 쓴다(아군 피해는 없으니 스톰을 아끼지 않는다).
+ * 스톰 자리: 아직 아군 스톰에 맞지 않는 적이 3기 이상 뭉친 곳. 고르는 규칙은 areaSpot(아군이 걸리지 않는 자리 우선, 적은 가치로 센다).
+ * 새 스톰의 중심은 기존 아군 스톰 중심에서 반경 이상 떨어져야 한다.
  */
 function stormSpot(state, caster) {
   const own = state.storms.filter((storm) => storm.side === caster.side);
   // 스톰에 맞는 판정(stepStorms)과 같은 식으로 "이미 맞고 있는" 적을 가린다. 일꾼·지원·죽은·안 보이는 유닛은 세지 않는다.
   const candidates = state.units.filter((unit) => unit.side !== caster.side && unit.hp > 0 && !isPassive(unit) && targetable(state, caster, unit));
-  const uncovered = candidates.filter((unit) => !own.some((storm) => inStorm(unit, storm)));
-  const allies = state.units.filter((unit) => unit.side === caster.side && unit.hp > 0 && unit.group !== "cargo");
-  // 깨끗한 자리(아군이 반경에 없음)와 아군이 걸리는 자리를 따로 고른다. 사거리 밖 STORM_LOOKAHEAD칸까지 깨끗한 자리를 찾아,
-  // 있으면 다가가서 거기에 쓰고(마법을 쓸 수 있는 템플러는 최전방으로 나온다), 없을 때만 아군이 걸리는 자리에 쓴다.
-  let clean = null;
-  let cleanScore = -Infinity;
-  let cleanReachable = false;
-  let mixed = null;
-  let mixedScore = -Infinity;
-  const reach = STW_STORM.castRange + STORM_LOOKAHEAD;
-  for (const enemy of uncovered) {
-    if (distance(caster.x, caster.y, enemy.x, enemy.y) > reach) continue;
-    let count = 0;
-    let sx = 0;
-    let sy = 0;
-    for (const other of uncovered) {
-      if (distance(enemy.x, enemy.y, other.x, other.y) <= STW_STORM.radius) {
-        count += 1;
-        sx += other.x;
-        sy += other.y;
-      }
-    }
-    if (count < STW_STORM.minTargets) continue;
-    const center = { x: sx / count, y: sy / count };
-    // 아군에게서 멀어지는 쪽: 반경 + 3칸 안 아군들의 무게중심에서 무리 중심으로 향하는 방향.
-    const near = allies.filter((ally) => distance(ally.x, ally.y, center.x, center.y) <= STW_STORM.radius + 3);
-    const spots = [center];
-    if (near.length) {
-      const ax = near.reduce((sum, ally) => sum + ally.x, 0) / near.length;
-      const ay = near.reduce((sum, ally) => sum + ally.y, 0) / near.length;
-      const length = distance(ax, ay, center.x, center.y);
-      if (length > 0.01) for (const shift of [1, 2]) spots.push({ x: center.x + ((center.x - ax) / length) * shift, y: center.y + ((center.y - ay) / length) * shift });
-    }
-    for (const spot of spots) {
-      const far = distance(caster.x, caster.y, spot.x, spot.y);
-      if (far > reach + 1) continue;
-      if (own.some((storm) => distance(storm.x, storm.y, spot.x, spot.y) < STW_STORM.radius)) continue;
-      const probe = { x: spot.x, y: spot.y };
-      const foes = uncovered.filter((unit) => inStorm(unit, probe));
-      if (foes.length < STW_STORM.minTargets) continue;
-      const friends = allies.filter((unit) => inStorm(unit, probe));
-      const foeValue = foes.reduce((sum, unit) => sum + armyValueOf(unit), 0);
-      const inRange = far <= STW_STORM.castRange + 1;
-      if (!friends.length) {
-        cleanReachable = true;
-        if (inRange && foeValue > cleanScore) {
-          cleanScore = foeValue;
-          clean = probe;
-        }
-      } else if (inRange) {
-        const score = foeValue - friends.reduce((sum, unit) => sum + armyValueOf(unit), 0) * 2;
-        if (score > mixedScore) {
-          mixedScore = score;
-          mixed = probe;
-        }
-      }
-    }
-  }
-  if (clean) return clean;
-  // 조금만 다가가면 깨끗한 자리가 있으면 이번에는 쓰지 않는다.
-  return cleanReachable ? null : mixed;
+  const pool = candidates.filter((unit) => !own.some((storm) => inStorm(unit, storm)));
+  return areaSpot(state, caster, {
+    pool, range: STW_STORM.castRange, radius: STW_STORM.radius, minTargets: STW_STORM.minTargets, value: armyValueOf,
+    skip: (spot) => own.some((storm) => distance(storm.x, storm.y, spot.x, spot.y) < STW_STORM.radius),
+  });
 }
 
 /**

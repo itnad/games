@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { STW_LANE_LENGTH, STW_LANE_WIDTH, STW_STORM, STW_UNITS } from "../app/starswar/starswar-data.js";
+import { STW_LANE_LENGTH, STW_LANE_WIDTH, STW_SPELLS, STW_STORM, STW_UNITS } from "../app/starswar/starswar-data.js";
 import {
   createStarswarGame,
   stwCreateScenario,
@@ -1017,6 +1017,42 @@ test("starswar storms spare allies, allies still step out of them, and templar a
     const allies = battle.units.filter((unit) => unit.side === "player" && Math.hypot(unit.x - storm.x, unit.y - storm.y) <= STW_STORM.radius + unit.radius * 0.5);
     assert.equal(allies.length, 0, `아군이 반경 안에 없다 (${storm.x.toFixed(1)}, ${storm.y.toFixed(1)})`);
     assert.ok(storm.y < 50, "뒷줄을 노린다");
+  }
+});
+
+test("starswar area spells and irradiate aim past our own front line like storms", () => {
+  // 인스네어(범위 마법 공통 규칙)와 이레디에이트도 아군이 걸리는 적 최전선 대신 아군이 없는 적을 노린다.
+  const cases = [
+    { races: { player: "zerg", enemy: "terran" }, caster: "queen", research: "ensnare", melee: "zergling", foe: "marine", spell: "ensnare", radius: STW_SPELLS.ensnare.radius },
+    { races: { player: "terran", enemy: "zerg" }, caster: "vessel", research: "irradiate", melee: "firebat", foe: "hydra", spell: "irradiate", radius: STW_SPELLS.irradiate.radius + 1 },
+  ];
+  for (const item of cases) {
+    const battle = createStarswarGame({ seed: 5, aiSides: [], races: item.races });
+    battle.sides.player.research[item.research] = "done";
+    for (const building of battle.buildings) building.hp = building.maxHp = 1e6;
+    const caster = stwSpawnUnitAt(battle, "player", item.caster, 20, 60, "attack");
+    caster.energy = 200;
+    for (let index = 0; index < 5; index += 1) stwSpawnUnitAt(battle, "player", item.melee, 17 + index * 1.5, 53.5, "attack");
+    const front = Array.from({ length: 5 }, (_, index) => stwSpawnUnitAt(battle, "enemy", item.foe, 17 + index * 1.5, 52, "rally"));
+    const back = Array.from({ length: 5 }, (_, index) => stwSpawnUnitAt(battle, "enemy", item.foe, 17 + index * 1.5, 46, "rally"));
+    // 이레디에이트는 비싼 생체 유닛(울트라)을 더 노린다: 앞줄 가운데와 뒷줄에 하나씩 둔다.
+    if (item.spell === "irradiate") {
+      front.push(stwSpawnUnitAt(battle, "enemy", "ultra", 20, 51, "rally"));
+      back.push(stwSpawnUnitAt(battle, "enemy", "ultra", 20, 43, "rally"));
+    }
+    for (const unit of [...front, ...back]) unit.hp = unit.maxHp = 1e4;
+    for (const unit of battle.units) if (unit !== caster) unit.stunUntil = 999;
+    let cast = null;
+    for (let step = 0; step < 60 && !cast; step += 1) {
+      stepStarswar(battle);
+      cast = battle.effects.find((effect) => effect.kind === "spell" && effect.spell === item.spell);
+    }
+    assert.ok(cast, `${item.spell}를 쓴다`);
+    const allies = battle.units.filter((unit) => unit.side === "player" && Math.hypot(unit.x - cast.x2, unit.y - cast.y2) <= item.radius + unit.radius * 0.5);
+    assert.equal(allies.length, 0, `${item.spell}: 아군이 반경 안에 없다 (${cast.x2.toFixed(1)}, ${cast.y2.toFixed(1)})`);
+    // 범위 마법은 앞줄에서 아군 반대쪽으로 민 자리도 고를 수 있다. 어느 쪽이든 아군은 빼고 적은 3기 이상 맞힌다.
+    const foes = battle.units.filter((unit) => unit.side === "enemy" && Math.hypot(unit.x - cast.x2, unit.y - cast.y2) <= item.radius + unit.radius * 0.5);
+    assert.ok(item.spell === "irradiate" ? cast.y2 < 50 : foes.length >= 3, `${item.spell}: 아군이 없는 적 무리를 노린다`);
   }
 });
 
