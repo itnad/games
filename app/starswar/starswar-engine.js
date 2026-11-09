@@ -1466,7 +1466,7 @@ function queueHit(state, attacker, target) {
   // 캐리어: 둘레를 나는 인터셉터가 공격 일부를 대신 맞는다.
   const decoy = target.kind === "unit" ? STW_UNITS[target.type].decoy : 0;
   if (decoy && nextRandom(state) < decoy) {
-    state.effects.push({ kind: "interceptor", side: target.side, x1: target.x, y1: target.y, x2: target.x, y2: target.y, ttl: 0.2, max: 0.2 });
+    state.effects.push({ kind: "decoy", side: target.side, x1: target.x, y1: target.y, x2: target.x, y2: target.y, ttl: 0.2, max: 0.2 });
     return;
   }
   state.pendingHits.push({ attacker, target, hits: stwHitDamage(state, attacker, target) });
@@ -2221,8 +2221,10 @@ function stepUnits(state, dt) {
           unit.cooldown = attackCooldown(state, unit, def, target);
           queueHit(state, unit, target);
           const kind = ATTACK_EFFECT[unit.type] ?? "plasma";
-          const ttl = kind === "slash" || kind === "bullet" || kind === "bite" ? 0.15 : kind === "flame" ? 0.3 : kind === "scarab" ? 0.6 : kind === "shock" || kind === "spine" ? 0.25 : kind === "burst" ? 0.5 : 0.35;
-          state.effects.push({ kind, side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl, max: ttl, radius: STW_UNITS[unit.type].splash?.radius, attackerId: unit.id, targetId: target.id });
+          // 캐리어 인터셉터는 날아갔다 돌아오는 데 0.9초(재장전 1초) 동안 그린다.
+          const ttl = kind === "slash" || kind === "bullet" || kind === "bite" ? 0.15 : kind === "flame" ? 0.3 : kind === "scarab" ? 0.6 : kind === "shock" || kind === "spine" ? 0.25 : kind === "burst" ? 0.5 : kind === "interceptor" ? 0.9 : 0.35;
+          const count = kind === "interceptor" ? stwHitDamage(state, unit, target).length : undefined;
+          state.effects.push({ kind, side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl, max: ttl, radius: STW_UNITS[unit.type].splash?.radius, attackerId: unit.id, targetId: target.id, count });
           // 스커지: 몸을 던져 터진다.
           if (def.suicide) {
             unit.hp = 0;

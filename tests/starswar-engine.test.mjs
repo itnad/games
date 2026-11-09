@@ -1013,6 +1013,20 @@ test("starswar storms spare allies, and templar still aim past the troops they a
   }
 });
 
+test("starswar carrier attacks launch one visible interceptor per hit", () => {
+  for (const [research, expected] of [[[], 4], [["carrierCapacity"], 8]]) {
+    const state = stwCreateScenario({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { carrier: 1 }, research }, enemy: { units: { hydra: 6 } } } });
+    let launch = null;
+    for (let step = 0; step < 200 && !launch; step += 1) {
+      stepStarswar(state);
+      launch = state.effects.find((effect) => effect.kind === "interceptor" && effect.side === "player");
+    }
+    assert.ok(launch, "캐리어가 공격한다");
+    assert.equal(launch.count, expected, `인터셉터 ${expected}기가 날아간다`);
+    assert.ok(launch.max >= 0.8, "날아갔다 돌아오는 동안 그린다");
+  }
+});
+
 test("starswar terran AI personas field their signature units and finish a game", () => {
   const bio = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
   const mech = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "bio" } });

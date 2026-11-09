@@ -84,6 +84,7 @@ export class StwPixiRenderer {
   private readonly zoneLayer: Graphics;
   private readonly beamLayer: Graphics;
   private readonly tentacleLayer: Graphics;
+  private readonly interceptorLayer: Graphics;
   private readonly fog: Graphics;
   private readonly overlay: Container;
   private readonly bars: Graphics;
@@ -144,6 +145,7 @@ export class StwPixiRenderer {
     this.beamLayer = new PIXI.Graphics();
     this.beamLayer.blendMode = "add";
     this.tentacleLayer = new PIXI.Graphics();
+    this.interceptorLayer = new PIXI.Graphics();
     this.fxLayer = new PIXI.Container();
     this.fog = new PIXI.Graphics();
     // 칸 단위로 그린 안개 경계를 흐려 부드러운 시야 가장자리로 만든다.
@@ -152,7 +154,7 @@ export class StwPixiRenderer {
     this.rallyFlag.anchor.set(0.5, 0.9);
     this.flagScale = this.rallyFlag.scale.x;
     this.workerLayer = new PIXI.Container();
-    this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.tentacleLayer, this.rallyFlag, this.unitLayer, this.zoneLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
+    this.world.addChild(ground, resources, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.tentacleLayer, this.rallyFlag, this.unitLayer, this.interceptorLayer, this.zoneLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
     this.overlay = new PIXI.Container();
     this.bars = new PIXI.Graphics();
     this.overlay.addChild(this.bars);
@@ -225,6 +227,7 @@ export class StwPixiRenderer {
     this.spawnEffects(state);
     this.drawProjectiles(state);
     this.drawTentacles(state, ui.clock);
+    this.drawInterceptors(state);
     this.drawStorms(state, ui.clock);
     this.stepParticles(dt);
     this.stepDecals(dt);
@@ -810,9 +813,9 @@ export class StwPixiRenderer {
       this.flash(effect.x2, effect.y2, radius * 2, 0.3, color);
       for (let i = 0; i < 8; i += 1) this.spark(effect.x2, effect.y2, color, 4 + radius, 0.5);
       if (effect.spell === "emp" || effect.spell === "stasis") this.shake = Math.max(this.shake, 0.25);
-    } else if (effect.kind === "interceptor") {
-      // 캐리어 인터셉터: 대상 주변에서 작은 불꽃 여럿.
-      for (let i = 0; i < 4; i += 1) this.flash(effect.x2 + (Math.random() - 0.5) * 2, effect.y2 + (Math.random() - 0.5) * 2, 0.7, 0.1, 0xffe7a0);
+    } else if (effect.kind === "decoy") {
+      // 캐리어 둘레의 인터셉터가 공격을 대신 맞음: 캐리어 둘레에서 작은 불꽃 여럿.
+      for (let i = 0; i < 4; i += 1) this.flash(effect.x2 + (Math.random() - 0.5) * 3, effect.y2 + (Math.random() - 0.5) * 3, 0.7, 0.1, 0xffe7a0);
     } else if (effect.kind === "burst") {
       // 스커지 자폭: 대상 위에서 작은 폭발.
       this.flash(effect.x2, effect.y2, 2.4, 0.16, 0xd8ffb0);
@@ -911,6 +914,64 @@ export class StwPixiRenderer {
    * 성큰 콜로니 촉수. 땅을 타고 꿈틀대며 대상까지 뻗어 나가(앞 30%) 찍은 뒤(흙·살점이 튀고 충격 고리) 되감긴다.
    * 멀리서 때려도 성큰과 맞는 유닛이 선으로 이어져 보인다.
    */
+  /**
+   * 캐리어 인터셉터: 공격마다 인터셉터(4기, 수용량 연구 뒤 8기)가 캐리어에서 부채꼴로 흩어져 목표까지 날아가
+   * 불꽃을 튀기고 캐리어로 돌아온다. 0~45% 출격, 45~60% 목표 둘레를 돌며 공격, 60~100% 귀환.
+   */
+  private drawInterceptors(state: StwState) {
+    const g = this.interceptorLayer;
+    g.clear();
+    for (const effect of state.effects) {
+      if (effect.kind !== "interceptor") continue;
+      if (effect.side !== "player" && !this.visiblePoint(state, effect.x1, effect.y1) && !this.visiblePoint(state, effect.x2, effect.y2)) continue;
+      const carrier = effect.attackerId === undefined ? undefined : state.units.find((unit) => unit.id === effect.attackerId);
+      const home = carrier ? { x: carrier.x, y: carrier.y } : { x: effect.x1, y: effect.y1 };
+      const target = effect.targetId === undefined ? undefined : state.units.find((unit) => unit.id === effect.targetId) ?? state.buildings.find((building) => building.id === effect.targetId);
+      const goal = target ? { x: target.x, y: target.y } : { x: effect.x2, y: effect.y2 };
+      const t = 1 - effect.ttl / effect.max;
+      const count = effect.count ?? 4;
+      const dx = goal.x - home.x;
+      const dy = goal.y - home.y;
+      const length = Math.hypot(dx, dy) || 1;
+      const nx = -dy / length;
+      const ny = dx / length;
+      const team = STW_TEAM[effect.side];
+      const where = (i: number, u: number) => {
+        // 인터셉터마다 조금씩 늦게 떠나고, 부채꼴로 휘어 날아간다.
+        const lane = count > 1 ? i / (count - 1) - 0.5 : 0;
+        const p = Math.max(0, Math.min(1, (u - i * 0.015) / (1 - (count - 1) * 0.015)));
+        const orbit = { x: goal.x + Math.cos(i * 2.4 + p * 12) * 1.4, y: goal.y + Math.sin(i * 2.4 + p * 12) * 1.4 };
+        if (p < 0.45) {
+          const s = p / 0.45;
+          const ease = 1 - (1 - s) ** 2;
+          const bend = Math.sin(s * Math.PI) * lane * Math.min(6, length * 0.45);
+          return { x: home.x + (orbit.x - home.x) * ease + nx * bend, y: home.y + (orbit.y - home.y) * ease + ny * bend };
+        }
+        if (p < 0.6) return orbit;
+        const s = (p - 0.6) / 0.4;
+        const ease = s * s;
+        const bend = Math.sin(s * Math.PI) * -lane * Math.min(5, length * 0.35);
+        return { x: orbit.x + (home.x - orbit.x) * ease + nx * bend, y: orbit.y + (home.y - orbit.y) * ease + ny * bend };
+      };
+      for (let i = 0; i < count; i += 1) {
+        const a = where(i, t);
+        const b = where(i, Math.min(1, t + 0.02));
+        const heading = Math.atan2(b.y - a.y, b.x - a.x);
+        const size = 0.42;
+        const cos = Math.cos(heading);
+        const sin = Math.sin(heading);
+        // 작은 화살촉 모양 인터셉터와 짧은 꼬리.
+        g.moveTo(a.x - cos * size * 1.6, a.y - sin * size * 1.6).lineTo(a.x, a.y).stroke({ width: 0.18, color: team.light, alpha: 0.45, cap: "round" });
+        g.poly([a.x + cos * size, a.y + sin * size, a.x - cos * size * 0.7 - sin * size * 0.6, a.y - sin * size * 0.7 + cos * size * 0.6, a.x - cos * size * 0.7 + sin * size * 0.6, a.y - sin * size * 0.7 - cos * size * 0.6]).fill({ color: 0xf2d98a }).stroke({ width: 0.12, color: 0x3a2a12 });
+      }
+      // 목표에 닿는 순간 작은 불꽃들.
+      if (t >= 0.45 && !this.impacted.has(effect)) {
+        this.impacted.add(effect);
+        for (let i = 0; i < count; i += 1) this.flash(goal.x + (Math.random() - 0.5) * 2.4, goal.y + (Math.random() - 0.5) * 2.4, 0.8, 0.12, 0xffe7a0);
+      }
+    }
+  }
+
   private drawTentacles(state: StwState, clock: number) {
     const g = this.tentacleLayer;
     g.clear();
