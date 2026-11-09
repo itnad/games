@@ -19,6 +19,7 @@ import {
 import {
   advanceStarswar,
   createStarswarGame,
+  stwCreateScenario,
   stwRestore,
   stwSerialize,
   stwArmy,
@@ -43,9 +44,23 @@ import {
 import { stwAiThink } from "./starswar-ai.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
 import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
+import { LAB_PRESETS, LabScreen, type LabConfig } from "./starswar-lab";
 import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwOp, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
 
-type Screen = "menu" | "play";
+type Screen = "menu" | "play" | "lab";
+
+/** 마지막으로 쓴 실험실 설정. */
+const LAB_KEY = "paperoid-starswar-lab";
+
+function readLab(): LabConfig {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(LAB_KEY) ?? "null");
+    if (parsed && parsed.sides?.player && parsed.sides?.enemy && parsed.races) return parsed as LabConfig;
+  } catch {
+    // 무시한다.
+  }
+  return structuredClone(LAB_PRESETS[0].config);
+}
 type Tab = "build" | "produce" | "army";
 type Toast = { id: number; text: string; tone: "good" | "warn" };
 type BattleRecord = { wins: number; losses: number; best: Partial<Record<StwDifficulty, number>> };
@@ -199,7 +214,8 @@ function readSave(): SavedBattle | null {
 }
 
 function writeSave(state: StwState) {
-  if (state.status !== "playing") return;
+  // 실험실 경기는 저장하지 않는다(진짜 경기의 이어하기를 덮어쓰지 않게).
+  if (state.status !== "playing" || state.lab) return;
   try {
     const text = stwSerialize(state) as string;
     window.localStorage.setItem(SAVE_KEY, `${text.slice(0, -1)},"savedAt":${Date.now()}}`);
@@ -236,6 +252,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [icons, setIcons] = useState<Record<string, string>>({});
   const [follow, setFollow] = useState(true);
   const [zoomed, setZoomed] = useState(false);
+  const [labConfig, setLabConfig] = useState<LabConfig | null>(null);
   const [saved, setSaved] = useState<SavedBattle | null>(() => (typeof window === "undefined" ? null : readSave()));
 
   const gameRef = useRef<StwState | null>(null);
@@ -248,6 +265,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const speedRef = useRef(1);
   const recordedRef = useRef(false);
   const savedAtRef = useRef(0);
+
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const gestureRef = useRef<{ moved: boolean; pinch: boolean; x: number; y: number; cx: number; cy: number; zoom: number; distance: number; anchor: { x: number; y: number } } | null>(null);
 
@@ -305,6 +323,17 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const discardSave = () => {
     clearSave();
     setSaved(null);
+  };
+
+  const startLab = (config: LabConfig) => {
+    setLabConfig(config);
+    try {
+      window.localStorage.setItem(LAB_KEY, JSON.stringify(config));
+    } catch {
+      // 무시한다.
+    }
+    const next = stwCreateScenario({ ...config, difficulty, seed: Math.floor(Math.random() * 2 ** 31) }) as unknown as StwState;
+    enterBattle(next);
   };
 
   const startBattle = () => {
@@ -434,7 +463,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const finished = screen === "play" && game?.status === "over";
 
   useEffect(() => {
-    if (!finished || !game || recordedRef.current) return;
+    // 실험실 경기는 전적에 넣지 않는다.
+    if (!finished || !game || recordedRef.current || game.lab) return;
     recordedRef.current = true;
     clearSave();
     const won = game.winner === "player";
@@ -575,6 +605,10 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
 
   /* ───────── 메뉴 ───────── */
 
+  if (screen === "lab") {
+    return <LabScreen initial={labConfig ?? readLab()} onStart={startLab} onBack={() => setScreen("menu")} />;
+  }
+
   if (screen === "menu" || !game) {
     return (
       <main className="stw-shell stw-menu-shell" data-game-menu="true">
@@ -620,6 +654,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             {RACE_MENU[races.player].howto.map(([title, body]) => <li key={title}><b>{title}</b><span>{body}</span></li>)}
           </ol>
           <button type="button" className="stw-start" onClick={startBattle}>전투 시작</button>
+          <button type="button" className="stw-secondary stw-lab-entry" onClick={() => setScreen("lab")}>실험실<small>원하는 병력·연구·시각으로 교전 시험</small></button>
           <p className="stw-record-line">전적 {record.wins}승 {record.losses}패</p>
         </section>
       </main>
@@ -703,16 +738,28 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       {confirmExit ? (
         <div className="stw-overlay stw-overlay-full" role="dialog" aria-modal="true" aria-labelledby="stw-exit-title">
           <section>
-            <h2 id="stw-exit-title">전투를 멈출까요?</h2>
-            <p>지금 상태가 저장되어 전투 설정 화면의 이어하기로 돌아올 수 있습니다. 포기하면 저장을 지웁니다(패배로 기록하지 않습니다).</p>
-            <button type="button" className="stw-primary" onClick={() => setConfirmExit(false)}>계속 지휘하기</button>
-            <button type="button" className="stw-secondary" onClick={() => { setConfirmExit(false); goMenu(); }}>저장하고 전투 설정으로</button>
-            <button type="button" className="stw-secondary" onClick={onExit}>저장하고 게임 목록으로</button>
-            <button type="button" className="stw-secondary stw-danger" onClick={() => { gameRef.current = null; clearSave(); setConfirmExit(false); goMenu(); }}>전투 포기</button>
+            {game.lab ? (
+              <>
+                <h2 id="stw-exit-title">실험을 끝낼까요?</h2>
+                <p>실험 경기는 저장하지 않습니다.</p>
+                <button type="button" className="stw-primary" onClick={() => setConfirmExit(false)}>계속 지휘하기</button>
+                <button type="button" className="stw-secondary" onClick={() => { gameRef.current = null; setConfirmExit(false); setScreen("lab"); }}>실험실로</button>
+                <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
+              </>
+            ) : (
+              <>
+                <h2 id="stw-exit-title">전투를 멈출까요?</h2>
+                <p>지금 상태가 저장되어 전투 설정 화면의 이어하기로 돌아올 수 있습니다. 포기하면 저장을 지웁니다(패배로 기록하지 않습니다).</p>
+                <button type="button" className="stw-primary" onClick={() => setConfirmExit(false)}>계속 지휘하기</button>
+                <button type="button" className="stw-secondary" onClick={() => { setConfirmExit(false); goMenu(); }}>저장하고 전투 설정으로</button>
+                <button type="button" className="stw-secondary" onClick={onExit}>저장하고 게임 목록으로</button>
+                <button type="button" className="stw-secondary stw-danger" onClick={() => { gameRef.current = null; clearSave(); setConfirmExit(false); goMenu(); }}>전투 포기</button>
+              </>
+            )}
           </section>
         </div>
       ) : null}
-      {finished ? <ResultOverlay game={game} record={record} onRestart={startBattle} onMenu={goMenu} onExit={onExit} /> : null}
+      {finished ? <ResultOverlay game={game} record={record} onRestart={game.lab && labConfig ? () => startLab(labConfig) : startBattle} onMenu={game.lab ? () => setScreen("lab") : goMenu} onExit={onExit} /> : null}
     </main>
   );
 }
@@ -1030,9 +1077,11 @@ function ArmyChart({ game }: { game: StwState }) {
   if (history.length < 2) return null;
   const width = 300;
   const height = 96;
-  const end = Math.max(1, history.at(-1)!.t);
+  // 실험실처럼 중간 시각에서 시작한 경기도 첫 기록부터 그린다.
+  const start = history[0].t;
+  const span = Math.max(1, history.at(-1)!.t - start);
   const top = Math.max(100, ...history.map((point) => Math.max(point.player.army, point.enemy.army)));
-  const line = (side: "player" | "enemy") => history.map((point) => `${((point.t / end) * width).toFixed(1)},${(height - (point[side].army / top) * (height - 6) - 3).toFixed(1)}`).join(" ");
+  const line = (side: "player" | "enemy") => history.map((point) => `${(((point.t - start) / span) * width).toFixed(1)},${(height - (point[side].army / top) * (height - 6) - 3).toFixed(1)}`).join(" ");
   const peak = (side: "player" | "enemy") => Math.max(...history.map((point) => point[side].army));
   return (
     <figure className="stw-result-chart">
@@ -1041,7 +1090,7 @@ function ArmyChart({ game }: { game: StwState }) {
         <polyline className="theirs" points={line("enemy")} />
         <polyline className="mine" points={line("player")} />
       </svg>
-      <div className="stw-result-axis"><span>00:00</span><span>{stwClock(game.time)}</span></div>
+      <div className="stw-result-axis"><span>{stwClock(start)}</span><span>{stwClock(game.time)}</span></div>
     </figure>
   );
 }
@@ -1055,7 +1104,7 @@ function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwS
   const switched = game.sides.enemy.ai?.switched;
   const matchup = `${raceOf(game, "player").name} 대 ${raceOf(game, "enemy").name}`;
   const best = record.best[game.difficulty];
-  const newBest = won && best !== undefined && Math.round(game.time) <= best;
+  const newBest = !game.lab && won && best !== undefined && Math.round(game.time) <= best;
   // 세 번째 값이 true인 줄은 적을수록 낫다(굵게 표시할 쪽이 반대).
   const rows: [string, number, number, boolean?][] = [
     ["채취 광물", Math.floor(mine.minerals), Math.floor(theirs.minerals)],
@@ -1072,12 +1121,12 @@ function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwS
   return (
     <div className="stw-overlay stw-overlay-full stw-result" role="dialog" aria-modal="true" aria-labelledby="stw-result-title">
       <section className={won ? "won" : draw ? "draw" : "lost"}>
-        <small>{won ? "VICTORY" : draw ? "DRAW" : "DEFEAT"}</small>
+        <small>{game.lab ? "실험실 · " : ""}{won ? "VICTORY" : draw ? "DRAW" : "DEFEAT"}</small>
         <h2 id="stw-result-title">{won ? "적 본진 함락" : draw ? "자원 고갈 무승부" : "아군 본진 함락"}</h2>
         <div className="stw-result-time">
           <span>경기 시간</span>
           <b>{stwClock(game.time)}</b>
-          {newBest ? <em>최단 승리 기록</em> : won && best !== undefined ? <em className="quiet">최단 {stwClock(best)}</em> : null}
+          {newBest ? <em>최단 승리 기록</em> : won && best !== undefined && !game.lab ? <em className="quiet">최단 {stwClock(best)}</em> : null}
         </div>
         <p>
           {STW_DIFFICULTIES[game.difficulty].name} · {matchup}
@@ -1094,9 +1143,9 @@ function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwS
             })}
           </tbody>
         </table>
-        <p className="stw-result-record">전적 {record.wins}승 {record.losses}패</p>
+        {game.lab ? <p className="stw-result-record">실험 경기는 전적에 넣지 않습니다.</p> : <p className="stw-result-record">전적 {record.wins}승 {record.losses}패</p>}
         <button type="button" className="stw-primary" onClick={onRestart}>같은 설정으로 다시</button>
-        <button type="button" className="stw-secondary" onClick={onMenu}>전투 설정</button>
+        <button type="button" className="stw-secondary" onClick={onMenu}>{game.lab ? "실험실" : "전투 설정"}</button>
         <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
       </section>
     </div>

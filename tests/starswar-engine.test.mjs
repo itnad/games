@@ -3,6 +3,7 @@ import test from "node:test";
 import { STW_LANE_LENGTH, STW_LANE_WIDTH, STW_STORM, STW_UNITS } from "../app/starswar/starswar-data.js";
 import {
   createStarswarGame,
+  stwCreateScenario,
   stwArmy,
   stwBuildCheck,
   stwCommand,
@@ -863,6 +864,49 @@ test("starswar records army value, supply peaks and lost value for the result sc
     assert.ok(stats.valueLost >= 0);
     if (stats.lost - (stats.workersLost ?? 0) > 0) assert.ok(stats.valueLost > 0, "잃은 병력 가치");
   }
+});
+
+test("starswar lab scenarios set the clock, armies, tech and research for an instant engagement", () => {
+  const state = stwCreateScenario({
+    seed: 3,
+    time: 900,
+    races: { player: "protoss", enemy: "zerg" },
+    sides: {
+      player: { workers: 20, units: { carrier: 8 }, research: ["carrierCapacity", "weapons1"] },
+      enemy: { workers: 20, units: { hydra: 80 }, research: ["spines", "augments", "zMissile2"] },
+    },
+  });
+  assert.equal(state.time, 900);
+  assert.deepEqual(state.lab, { placement: "clash", enemyAi: "fight" });
+  assert.deepEqual(state.aiSides, [], "교전만: 적 AI가 운영하지 않는다");
+  assert.equal(state.units.filter((unit) => unit.side === "player" && unit.type === "carrier").length, 8);
+  assert.equal(state.units.filter((unit) => unit.side === "enemy" && unit.type === "hydra").length, 80);
+  assert.deepEqual(stwSupply(state, "enemy"), { used: 100, cap: 100 }, "히드라 80 + 드론 20 = 인구 꽉");
+  assert.equal(stwSupply(state, "player").cap, 100);
+  // 생산·테크 건물과 선행 연구를 갖춘다.
+  for (const building of ["stargate", "beacon", "core"]) assert.ok(stwOwnBuildings(state, "player", building).some((item) => stwDone(item)), building);
+  assert.ok(stwOwnBuildings(state, "enemy", "den").length && stwOwnBuildings(state, "enemy", "evo").length);
+  for (const id of ["carrierCapacity", "weapons1"]) assert.equal(state.sides.player.research[id], "done", id);
+  for (const id of ["spines", "augments", "lair", "zMissile1", "zMissile2"]) assert.equal(state.sides.enemy.research[id], "done", id);
+  // 생산 라인은 비우고, 준비하며 지은 건물 기록은 남기지 않으며, 시작 시점을 첫 기록으로 남긴다.
+  assert.ok(state.buildings.every((building) => building.line === null && !building.current));
+  assert.equal(state.log.length, 1);
+  assert.deepEqual(state.history[0].t, 900);
+  assert.equal(state.history[0].enemy.supply, 100);
+  assert.equal(state.sides.enemy.stats.supplyPeak, 100);
+  // 정면 교전: 두 병력이 공격 병력으로 맵 가운데에서 마주 보고 시작해 곧 맞붙는다.
+  assert.ok(state.units.every((unit) => unit.group === "attack"));
+  run(state, 20);
+  const carriers = state.units.filter((unit) => unit.side === "player" && unit.type === "carrier");
+  const hydras = state.units.filter((unit) => unit.side === "enemy" && unit.type === "hydra");
+  assert.ok(carriers.length < 8 || hydras.length < 80, "교전이 벌어진다");
+  assert.equal(state.sides.enemy.stats.produced, 0, "교전만: 적은 생산하지 않는다");
+
+  const home = stwCreateScenario({ time: 300, placement: "home", enemyAi: "full", races: { player: "terran", enemy: "protoss" }, sides: { player: { units: { marine: 10 } }, enemy: { units: { zealot: 6, carrier: 99 } } } });
+  assert.deepEqual(home.aiSides, ["enemy"], "AI 계속 운영");
+  assert.ok(home.units.every((unit) => unit.group === "rally"), "각자 집결지에서 대기");
+  assert.equal(home.units.filter((unit) => unit.side === "enemy" && unit.type === "carrier").length, 99, "인구를 넘어도 요청한 만큼 나온다");
+  assert.ok(!home.units.some((unit) => unit.side === "player" && unit.type !== "marine"));
 });
 
 test("starswar terran AI personas field their signature units and finish a game", () => {

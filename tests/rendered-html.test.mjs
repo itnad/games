@@ -770,6 +770,7 @@ test("keeps Gate War in its own app/starswar folder and publishes it as a mobile
     "starswar-data.js",
     "starswar-engine.js",
     "starswar-game.tsx",
+    "starswar-lab.tsx",
     "starswar-pixi.ts",
     "starswar-sprites.ts",
     "starswar-types.ts",

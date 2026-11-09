@@ -318,6 +318,8 @@ export function stwSupply(state, side) {
     // 동행 중인 오버로드는 건물일 때처럼 인구를 제공한다.
     cap += STW_UNITS[unit.type].supplyProvided ?? 0;
   }
+  // 실험실 상황은 인구 건물 없이 상한을 채운다(건물 자리가 모자라 파일런을 다 지을 수 없다).
+  cap += record.bonusSupply ?? 0;
   // 저글링 반 칸은 올림해서 보여 준다.
   return { used: Math.ceil(used - 1e-9), cap: Math.min(STW_ECONOMY.supplyLimit, cap) };
 }
@@ -1094,6 +1096,109 @@ function recordHistory(state) {
     stats.supplyPeak = Math.max(stats.supplyPeak ?? 0, supply);
   }
   if (state.history.at(-1)?.t !== point.t) state.history.push(point);
+}
+
+/* ───────── 실험실 ───────── */
+
+/** 선행 조건 하나(건물 id 또는 연구 id)를 갖춘다: 연구는 끝난 것으로, 건물은 지어서 완성한다. 자리가 없으면 건너뛴다. */
+function grantPrerequisite(state, side, id, seen = new Set()) {
+  if (seen.has(id)) return;
+  seen.add(id);
+  const record = state.sides[side];
+  const research = STW_RESEARCH[id];
+  if (research) {
+    for (const need of research.requires ?? []) grantPrerequisite(state, side, need, seen);
+    if (research.at) grantPrerequisite(state, side, research.at, seen);
+    record.research[id] = "done";
+    return;
+  }
+  const def = STW_BUILDINGS[id];
+  if (!def || def.base || (def.race && def.race !== record.race)) return;
+  if (stwOwnBuildings(state, side, id).length) return;
+  if (def.requires) grantPrerequisite(state, side, def.requires, seen);
+  if (def.requiresResearch) grantPrerequisite(state, side, def.requiresResearch, seen);
+  const minerals = record.minerals;
+  const gas = record.gas;
+  record.minerals = 1e6;
+  record.gas = 1e6;
+  stwCommand(state, side, { type: "build", building: id });
+  record.minerals = minerals;
+  record.gas = gas;
+  for (const building of stwOwnBuildings(state, side, id)) {
+    building.progress = 1;
+    building.hp = building.maxHp;
+    building.shields = building.maxShields;
+  }
+}
+
+/** 실험실 병력의 대형: 근접 앞, 원거리 가운데, 마법·지원 뒤. 한 줄 12기, 아군 기준 y에서 뒤로 쌓는다. */
+function labFormation(state, side, units, frontY, group) {
+  const order = { melee: 0, ranged: 1, siege: 2, air: 3, caster: 4, support: 5 };
+  const list = units.sort((a, b) => order[STW_UNITS[a].role] - order[STW_UNITS[b].role]);
+  list.forEach((type, index) => {
+    const row = Math.floor(index / 12);
+    const inRow = Math.min(12, list.length - row * 12);
+    const column = index % 12;
+    const point = stwPoint(side, { x: STW_LANE_WIDTH / 2 + (column - (inRow - 1) / 2) * 2.7, y: frontY + row * 2.6 });
+    const unit = spawnUnit(state, side, type, point.x, point.y);
+    unit.group = group;
+  });
+}
+
+/**
+ * 실험실: 원하는 시각·병력·연구로 경기를 바로 세운다(테스트용).
+ * sides.{player,enemy}: units {유닛: 수}, research [연구 id], workers, minerals, gas, natural(앞마당 있음).
+ * placement: "clash"(두 병력이 맵 가운데에서 마주 보고 공격 병력으로 시작) 또는 "home"(각자 집결지에서 대기).
+ * enemyAi: "fight"(적은 새로 운영하지 않고 병력만 싸운다) 또는 "full"(적 AI가 계속 운영한다).
+ * 필요한 생산·테크 건물과 선행 연구는 자동으로 갖추고, 인구 상한은 건물 없이 100으로 채운다.
+ */
+export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, races = {}, placement = "clash", enemyAi = "fight", sides = {} } = {}) {
+  const state = createStarswarGame({ difficulty, seed, races, aiSides: enemyAi === "full" ? ["enemy"] : [] });
+  state.lab = { placement, enemyAi };
+  state.time = Math.max(0, Math.round(time));
+  for (const side of STW_SIDES) {
+    const plan = sides[side] ?? {};
+    const record = state.sides[side];
+    const race = record.race;
+    record.bonusSupply = STW_ECONOMY.supplyLimit;
+    if (plan.natural) {
+      record.minerals = 1e6;
+      stwCommand(state, side, { type: "build", building: "expand" });
+    }
+    const types = Object.entries(plan.units ?? {}).filter(([type, count]) => STW_UNITS[type] && (STW_UNITS[type].race ?? "protoss") === race && count > 0);
+    for (const [type] of types) {
+      const def = STW_UNITS[type];
+      if (def.from && STW_BUILDINGS[def.from] && !STW_BUILDINGS[def.from].base) grantPrerequisite(state, side, def.from);
+      if (def.requires) grantPrerequisite(state, side, def.requires);
+      if (def.requiresResearch) grantPrerequisite(state, side, def.requiresResearch);
+    }
+    for (const id of plan.research ?? []) if (STW_RESEARCH[id]) grantPrerequisite(state, side, id);
+    for (const building of state.buildings) {
+      if (building.side !== side) continue;
+      building.progress = 1;
+      building.hp = building.maxHp;
+      building.shields = building.maxShields;
+    }
+    record.probes = Math.max(0, Math.round(plan.workers ?? 20));
+    record.minerals = Math.max(0, plan.minerals ?? 500);
+    record.gas = Math.max(0, plan.gas ?? 300);
+    const army = types.flatMap(([type, count]) => Array(Math.round(count)).fill(type));
+    if (placement === "clash") labFormation(state, side, army, 60, "attack");
+    else labFormation(state, side, army, 78, "rally");
+  }
+  // 생산 라인은 비운 채 시작한다(기본 라인이 걸려 있으면 "교전만"인 적도 저글링·질럿을 계속 뽑는다). 아군 생산은 직접 켠다.
+  for (const building of state.buildings) {
+    building.line = null;
+    building.current = null;
+    building.queue = [];
+  }
+  // 상황을 세우며 지은 건물 기록은 지우고, 시작 시점의 인구·병력을 첫 기록으로 남긴다.
+  state.log = [];
+  state.history = [];
+  recordHistory(state);
+  const enemyName = STW_RACES[state.sides.enemy.race].name;
+  pushLog(state, "player", `실험실: ${stwClock(state.time)} 상황, ${enemyName} 상대로 시작합니다.`, "info");
+  return state;
 }
 
 /** 저장 형식 판. 엔진 상태의 모양이 바뀌어 옛 저장을 읽을 수 없게 되면 올린다. */

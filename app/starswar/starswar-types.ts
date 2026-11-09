@@ -127,6 +127,8 @@ export type StwSideState = {
   droppedAt?: number;
   dropPlan?: StwDropPlan;
   raidRelaunchAt?: number;
+  /** 실험실: 인구 건물 없이 더하는 인구 상한. */
+  bonusSupply?: number;
   stats: StwStats;
   /** AI의 기억(전략 전환 기록 등). 플레이어 쪽은 null. */
   ai?: { switched?: { from: string; to: string; at: number } } | null;
@@ -140,6 +142,8 @@ export type StwHistoryPoint = { t: number } & Record<StwSide, { supply: number; 
 export type StwState = {
   time: number;
   history?: StwHistoryPoint[];
+  /** 실험실에서 세운 경기(저장·전적 제외). */
+  lab?: { placement: "clash" | "home"; enemyAi: "fight" | "full" };
   hiddenEnemyRace?: boolean;
   difficulty: StwDifficulty;
   status: "playing" | "over";
