@@ -3,7 +3,7 @@
 // 스타즈워 실험실: 종족·전략·건물·유닛·연구·시각을 마음대로 정해 경기를 바로 세우고 시험하는 테스트용 메뉴.
 import { useState } from "react";
 import { withKoreanDirection, withKoreanObject } from "../korean-particles.js";
-import { STW_AI_PERSONAS, STW_BUILDINGS, STW_ECONOMY, STW_RACES, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
+import { STW_AI_PERSONAS, STW_BUILDINGS, STW_ECONOMY, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./starswar-data.js";
 import type { StwRaceId } from "./starswar-types";
 
 /** 아군은 직접 지휘 또는 AI 운영, 적은 교전만(운영하지 않음) 또는 AI 운영. */
@@ -15,6 +15,8 @@ export type LabSide = {
   minerals: number;
   gas: number;
   natural: boolean;
+  /** 마법 유닛 에너지: 가득(기본) 또는 갓 나온 유닛(시작 에너지 50). */
+  energy: "full" | "fresh";
   buildings: Record<string, number>;
   units: Record<string, number>;
   research: string[];
@@ -33,7 +35,28 @@ const SUPPLY_LIMIT = STW_ECONOMY.supplyLimit as number;
 /** 내가 저장한 실험 설정. */
 const CUSTOM_KEY = "paperoid-starswar-lab-presets";
 
-type UnitDef = { id: string; name: string; supply: number; race?: string; worker?: boolean };
+type UnitDef = { id: string; name: string; supply: number; race?: string; worker?: boolean; spells?: string[]; maxEnergy?: number };
+type SpellDef = { name: string; energy: number; research?: string };
+
+/** 마법마다 필요한 연구(없으면 null). 하이템플러의 사이오닉 스톰은 연구 "storm". */
+function spellsOf(type: string): { name: string; research: string | null }[] {
+  if (type === "templar") return [{ name: "사이오닉 스톰", research: "storm" }];
+  const def = (STW_UNITS as Record<string, UnitDef>)[type];
+  return (def?.spells ?? []).map((id) => {
+    const spell = (STW_SPELLS as Record<string, SpellDef>)[id];
+    return { name: spell.name, research: spell.research ?? null };
+  });
+}
+
+/** 고른 마법 유닛 중 쓸 수 있는 마법이 하나도 없는 유닛(필요한 연구가 모두 꺼짐)과 그 연구 이름. */
+function idleCasters(side: LabSide) {
+  return Object.entries(side.units).flatMap(([type, count]) => {
+    const spells = spellsOf(type);
+    if (!count || !spells.length || spells.some((spell) => !spell.research || side.research.includes(spell.research))) return [];
+    const names = spells.map((spell) => (STW_RESEARCH as Record<string, { name: string }>)[spell.research!]?.name ?? spell.name);
+    return [`${(STW_UNITS as Record<string, UnitDef>)[type].name}: ${names.join("·")}`];
+  });
+}
 type BuildingDef = { id: string; name: string; race?: string; base?: boolean; unique?: boolean; note?: string };
 type ResearchDef = { id: string; name: string; at: string };
 type PersonaDef = { id: string; name: string; note: string; race: string };
@@ -58,7 +81,7 @@ function racePersonas(race: StwRaceId) {
 }
 
 function emptySide(control: LabControl): LabSide {
-  return { control, persona: null, workers: 20, minerals: 500, gas: 300, natural: true, buildings: {}, units: {}, research: [] };
+  return { control, persona: null, workers: 20, minerals: 500, gas: 300, natural: true, energy: "full", buildings: {}, units: {}, research: [] };
 }
 
 /** 옛 설정이나 손상된 설정을 지금 모양으로 맞춘다. */
@@ -69,7 +92,7 @@ export function normalizeLab(raw: unknown): LabConfig | null {
     const given = value.sides![key] as Partial<LabSide>;
     const fallback: LabControl = key === "player" ? "manual" : value.enemyAi === "full" ? "ai" : "fight";
     const control = given.control === "ai" ? "ai" : key === "player" ? "manual" : given.control === "fight" ? "fight" : fallback;
-    return { ...emptySide(control), ...given, control, buildings: given.buildings ?? {}, units: given.units ?? {}, research: given.research ?? [], persona: given.persona ?? null };
+    return { ...emptySide(control), ...given, control, energy: given.energy === "fresh" ? "fresh" : "full", buildings: given.buildings ?? {}, units: given.units ?? {}, research: given.research ?? [], persona: given.persona ?? null };
   };
   const race = (id: unknown): StwRaceId => (RACE_IDS.includes(id as StwRaceId) ? (id as StwRaceId) : "protoss");
   return {
@@ -267,6 +290,15 @@ function SideEditor({ title, which, race, side, onRace, onChange }: { title: str
           })}
         </ul>
       </details>
+      {Object.entries(side.units).some(([type, count]) => count > 0 && (STW_UNITS as Record<string, UnitDef>)[type]?.maxEnergy) ? (
+        <>
+          <div className="stw-segment two" role="radiogroup" aria-label={`${title} 마법 에너지`}>
+            <button type="button" role="radio" aria-checked={side.energy === "full"} className={side.energy === "full" ? "active" : ""} onClick={() => onChange({ ...side, energy: "full" })}>마법 에너지 가득</button>
+            <button type="button" role="radio" aria-checked={side.energy === "fresh"} className={side.energy === "fresh" ? "active" : ""} onClick={() => onChange({ ...side, energy: "fresh" })}>새로 나온 유닛(50)</button>
+          </div>
+          {idleCasters(side).length ? <p className="stw-hint stw-hold">연구가 꺼져 있어 마법을 쓰지 않습니다 — {idleCasters(side).join(", ")}. 연구·업그레이드에서 켜세요.</p> : null}
+        </>
+      ) : null}
       <details className="stw-lab-group" open>
         <summary>유닛 <small>{pickedUnits ? `${pickedUnits}종 · 인구 ${supply - side.workers}` : "없음"}</small></summary>
         <ul className="stw-lab-units with-fill">

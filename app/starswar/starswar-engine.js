@@ -1151,6 +1151,7 @@ function labFormation(state, side, units, frontY, group) {
  * - control: 아군은 "manual"(직접 지휘) 또는 "ai", 적은 "fight"(운영하지 않고 주어진 병력으로만 싸움) 또는 "ai"
  * - persona: AI 운영일 때의 전략(그 종족의 성향 id). 없으면 무작위
  * - buildings {건물: 수}, units {유닛: 수}, research [연구 id], workers, minerals, gas, natural(앞마당 있음)
+ * - energy: 마법 유닛의 에너지. "full"(기본, 최대치) 또는 "fresh"(갓 나온 유닛의 시작 에너지)
  * placement: "clash"(두 병력이 맵 가운데에서 마주 보고 공격 병력으로 시작) 또는 "home"(각자 집결지에서 대기).
  * 옛 설정의 enemyAi("fight" | "full")도 받는다.
  * 필요한 생산·테크 건물과 선행 연구는 자동으로 갖추고, 인구 상한은 건물 없이 100으로 채운다.
@@ -1216,8 +1217,13 @@ export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, r
     record.minerals = Math.max(0, plan.minerals ?? 500);
     record.gas = Math.max(0, plan.gas ?? 300);
     const army = types.flatMap(([type, count]) => Array(Math.round(count)).fill(type));
+    const before = state.units.length;
     if (placement === "clash") labFormation(state, side, army, 60, "attack");
     else labFormation(state, side, army, 78, "rally");
+    // 마법 에너지: 기본은 가득(그 시각까지 쌓였다고 본다). "fresh"면 갓 나온 유닛처럼 시작 에너지.
+    if (plan.energy !== "fresh") {
+      for (const unit of state.units.slice(before)) if (STW_UNITS[unit.type].maxEnergy) unit.energy = STW_UNITS[unit.type].maxEnergy;
+    }
   }
   // 생산 라인은 비운 채 시작한다(기본 라인이 걸려 있으면 "교전만"인 적도 저글링·질럿을 계속 뽑는다). 아군 생산은 직접 켠다.
   for (const building of state.buildings) {

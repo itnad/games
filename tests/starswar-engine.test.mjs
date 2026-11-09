@@ -942,6 +942,35 @@ test("starswar lab scenarios take each side's controller, strategy and building 
   assert.ok(crowded.log.some((entry) => /^실험실: 아군 게이트웨이 \d+개는 자리가 모자라 짓지 못했습니다\.$/.test(entry.text)), "자리 부족 알림");
 });
 
+test("starswar lab casters start with full energy so their spells fire right away", () => {
+  const cast = (config) => {
+    const state = stwCreateScenario({ seed: 2, time: 600, ...config });
+    const spells = {};
+    const seen = new Set();
+    for (let step = 0; step < 100 && state.status === "playing"; step += 1) {
+      stepStarswar(state);
+      for (const effect of state.effects) {
+        if (effect.kind !== "spell" || effect.side !== "player" || seen.has(effect)) continue;
+        seen.add(effect);
+        spells[effect.spell] = (spells[effect.spell] ?? 0) + 1;
+      }
+    }
+    return { state, spells };
+  };
+  // 10초 안에: 스톰, 다크 스웜·플레이그, 브루들링.
+  const storm = cast({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { templar: 6, zealot: 10 }, research: ["storm"] }, enemy: { units: { zergling: 80 } } } });
+  assert.ok(storm.state.sides.player.stats.storms > 0, "스톰");
+  assert.ok(storm.state.units.filter((unit) => unit.type === "templar").every((unit) => unit.energy <= 200));
+  const defiler = cast({ races: { player: "zerg", enemy: "terran" }, sides: { player: { units: { defiler: 4, hydra: 20 }, research: ["plague"] }, enemy: { units: { marine: 40, medic: 6 } } } });
+  assert.ok(defiler.spells.darkSwarm > 0 && defiler.spells.plague > 0, `다크 스웜·플레이그 ${JSON.stringify(defiler.spells)}`);
+  const queen = cast({ races: { player: "zerg", enemy: "zerg" }, sides: { player: { units: { queen: 4, hydra: 12 }, research: ["ensnare", "broodling"] }, enemy: { units: { ultra: 4, hydra: 20 } } } });
+  // 퀸은 브루들링(150)부터 쓰므로 10초 안에는 남은 에너지(50)로 인스네어(75)까지는 못 쓴다.
+  assert.ok(queen.spells.broodling > 0, `브루들링 ${JSON.stringify(queen.spells)}`);
+  // "새로 나온 유닛"으로 두면 시작 에너지(50)라 스톰(75)을 바로 못 쓴다.
+  const fresh = cast({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { energy: "fresh", units: { templar: 6, zealot: 10 }, research: ["storm"] }, enemy: { units: { zergling: 80 } } } });
+  assert.equal(fresh.state.sides.player.stats.storms, 0);
+});
+
 test("starswar terran AI personas field their signature units and finish a game", () => {
   const bio = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
   const mech = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "bio" } });
