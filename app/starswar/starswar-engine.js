@@ -2053,6 +2053,7 @@ function stepUnits(state, dt) {
     if (unit.targetId !== null && unit.hp > 0 && STW_UNITS[unit.type].role === "melee") meleeFocus.set(unit.targetId, (meleeFocus.get(unit.targetId) ?? 0) + 1);
   }
   // 경계 중인 은폐 유닛의 이번 틱 시작 자리(탐지 밖일 때만). 틱 끝에 탐지 안으로 들어갔으면 되돌린다.
+  const stormStarts = stormSafeStarts(state);
   const waryStarts = new Map();
   for (const unit of state.units) {
     if (unit.hp > 0 && wary(state, unit) && !detectionCovers(state, stwOpponent(unit.side), unit)) waryStarts.set(unit, { x: unit.x, y: unit.y });
@@ -2146,6 +2147,15 @@ function stepUnits(state, dt) {
       // 후퇴 중: 교전을 끊고 전속력으로 집결지에 돌아온다.
       unit.targetId = null;
       moveToward(unit, slot.x, slot.y, speed, dt);
+      continue;
+    }
+    // 아군 스톰 안에 있으면(시전 순간 걸쳤거나 밀려 들어감) 싸움을 멈추고 스톰 중심에서 멀어지는 쪽으로 빠져나온다(피해는 없다).
+    const ownStorm = !isFlying(unit) && state.storms.find((storm) => storm.side === unit.side && inStorm(unit, storm));
+    if (ownStorm) {
+      const away = Math.atan2(unit.y - ownStorm.y, unit.x - ownStorm.x);
+      const edge = STW_STORM.radius + unit.radius + 0.5;
+      moveToward(unit, ownStorm.x + Math.cos(away) * edge, ownStorm.y + Math.sin(away) * edge, speed, dt);
+      unit.approach = undefined;
       continue;
     }
     const before = unit.targetId;
@@ -2259,8 +2269,11 @@ function stepUnits(state, dt) {
     }
   }
   holdOutsideDetection(state, waryStarts);
+  holdOutsideOwnStorms(state, stormStarts);
   separate(state);
   keepOutOfTargets(state);
+  // 밀어내기에 밀려 들어간 것도 되돌린다.
+  holdOutsideOwnStorms(state, stormStarts);
 }
 
 /**
@@ -3219,6 +3232,31 @@ function stormSpot(state, caster) {
   if (clean) return clean;
   // 조금만 다가가면 깨끗한 자리가 있으면 이번에는 쓰지 않는다.
   return cleanReachable ? null : mixed;
+}
+
+/**
+ * 아군 스톰을 피하는 걸음(보이는 모습을 원작처럼): 스톰은 아군에게 피해를 주지 않지만, 이번 틱 시작 때 아군 스톰 밖에 있던
+ * 지상 유닛이 그 안으로 들어갔으면 제자리로 되돌린다. 스톰은 3초면 끝나므로 경계에서 기다렸다가 다시 들어간다.
+ * 적은 원작처럼 피하지 않는다.
+ */
+function stormSafeStarts(state) {
+  const starts = new Map();
+  if (!state.storms.length) return starts;
+  for (const unit of state.units) {
+    if (unit.hp <= 0 || isFlying(unit)) continue;
+    if (!state.storms.some((storm) => storm.side === unit.side && inStorm(unit, storm))) starts.set(unit, { x: unit.x, y: unit.y });
+  }
+  return starts;
+}
+
+function holdOutsideOwnStorms(state, starts) {
+  for (const [unit, start] of starts) {
+    if (unit.hp <= 0 || !state.storms.some((storm) => storm.side === unit.side && inStorm(unit, storm))) continue;
+    unit.x = start.x;
+    unit.y = start.y;
+    // 스톰 경계에서 기다리는 것은 막힌 것이 아니다(막힘 판정이 목표를 포기하지 않게 잰 자리를 새로 잡는다).
+    unit.approach = undefined;
+  }
 }
 
 function stepStorms(state, dt) {
