@@ -1190,6 +1190,25 @@ test("starswar AI rebuilds a lost natural instead of staying on one base", () =>
   assert.ok(rebuilt, "부서진 앞마당을 다시 짓는다");
 });
 
+test("starswar AI from a reported loss: expands, researches, and holds off a cannon turtle instead of starving", async () => {
+  // 사람이 앞마당에 캐논을 두르고 캐리어를 모아 이긴 경기(결과 화면 리포트의 재현 코드). 사람 명령은 그대로 두고 지금 AI로 다시 돌린다.
+  // 예전 AI는 사거리 연구(가스 100)를 커세어·드라군이 가스를 먹어 끝내 못 하고, 그 뒤의 확장도 못 해 일꾼 22기로 13분에 졌다.
+  const { readFile } = await import("node:fs/promises");
+  const code = JSON.parse(await readFile(new URL("./fixtures/starswar-cannon-carrier-replay.json", import.meta.url), "utf8"));
+  let expandedAt = null;
+  let rangeAt = null;
+  const state = stwReplay(code, {
+    until: 720,
+    onTick: (current) => {
+      if (expandedAt === null && stwNexus(current, "enemy", "natural")) expandedAt = current.time;
+      if (rangeAt === null && current.sides.enemy.research.range === "done") rangeAt = current.time;
+    },
+  });
+  assert.ok(expandedAt !== null && expandedAt < 420, `7분 전에 확장 (${expandedAt})`);
+  assert.ok(rangeAt !== null && rangeAt < 600, `10분 전에 사거리 연구 (${rangeAt})`);
+  assert.ok(state.sides.enemy.probes > 30, `일꾼 ${state.sides.enemy.probes}`);
+});
+
 test("starswar carrier attacks launch one visible interceptor per hit", () => {
   for (const [research, expected] of [[[], 4], [["carrierCapacity"], 8]]) {
     const state = stwCreateScenario({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { carrier: 1 }, research }, enemy: { units: { hydra: 6 } } } });

@@ -218,9 +218,17 @@ export function stwLosingAiSides(state) {
 
 /** 연대기에서 한 진영의 운영 명령(빌드·연구·라인·공격·수송 등). */
 function chronicleLines(state, side, limit = 80) {
-  const entries = (state.chronicle ?? []).filter((entry) => entry[1] === side);
+  const all = (state.chronicle ?? []).filter((entry) => entry[1] === side);
+  // 생산 라인을 20초 안에 다시 바꾼 기록(자원에 따라 질럿↔드라군을 오가는 것)은 빼고, 자리 잡은 바꿈만 남긴다.
+  const lineId = (command) => command.buildingId ?? command.gatewayId;
+  const entries = all.filter((entry, index) => {
+    if (entry[2].type !== "line") return true;
+    const next = all.slice(index + 1).find((item) => item[2].type === "line" && lineId(item[2]) === lineId(entry[2]));
+    return !next || next[0] - entry[0] >= 20;
+  });
   const lines = entries.slice(0, limit).map(([time, , command]) => `${stwClock(time)} ${stwDescribeCommand(state, command)}`);
   if (entries.length > limit) lines.push(`… 이후 ${entries.length - limit}개 생략`);
+  if (all.length > entries.length) lines.push(`(20초 안에 다시 바꾼 생산 라인 ${all.length - entries.length}개는 뺐습니다)`);
   return lines.length ? lines : ["없음"];
 }
 
@@ -365,7 +373,7 @@ export function stwAiReport(state, env = {}) {
       "### 경제·병력 흐름 (30초마다)",
       ...sampled(state, 30).map((point) => flowRow(point, [side, foe])),
       "",
-      "### AI 운영 기록 (성공한 명령, 같은 명령 30초 안 반복은 생략)",
+      "### AI 운영 기록 (성공한 명령, 같은 명령 30초 안 반복과 금방 되돌린 생산 라인은 생략)",
       ...chronicleLines(state, side),
       "",
       `### 상대 운영 기록`,

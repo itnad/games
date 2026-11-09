@@ -353,6 +353,8 @@ export function stwAiThink(state, side) {
     blocked += 1;
   }
   memory.step = memory.done.length;
+  // 리포트용: 이번 생각에서 아껴 둔 자원(판단에는 다시 쓰지 않는다).
+  memory.reserve = { minerals: reserve.minerals, gas: reserve.gas, hard: reserve.hard, expand: reserve.expand };
   const extra = EXTRA_PRODUCER[persona] ?? race.mainProducer;
   // 광물이 남으면 생산 건물을 더 짓는다. 빌드 순서가 끝나기 전이라도 크게 남으면 짓는다.
   // 저그는 해처리 하나가 한 번에 한 마리씩만 만들므로 광물이 쌓이면 일찍 해처리를 늘린다.
@@ -491,8 +493,9 @@ export function stwAiThink(state, side) {
     // 커세어·캐리어는 그 성향의 핵심이라 연구용 가스보다 먼저 만든다.
     const core = persona === "corsair" || persona === "carrier";
     if (unit && !core && record.gas < STW_UNITS[unit].gas + reserve.gas && record.minerals < 400) unit = null;
-    // 확장·방어 비용을 모으는 중에 놀고 있으면 멈춘다.
-    if (unit && !core && ((reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && !stargate.current) || reserve.expand)) unit = null;
+    // 확장·방어 비용을 모으는 중에 놀고 있으면 멈춘다. 커세어·캐리어 성향도 반드시 사야 할 비용(hard)은 지킨다:
+    // 예전에는 핵심 유닛이라 빼 줬더니, 캐논에 녹는 커세어를 계속 다시 뽑느라 확장 400을 9분 넘게 못 모았다.
+    if (unit && ((reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && !stargate.current) || (!core && reserve.expand))) unit = null;
     if (stargate.line !== unit) stwCommand(state, side, { type: "line", buildingId: stargate.id, unit });
   }
 
@@ -524,7 +527,10 @@ export function stwAiThink(state, side) {
     }
     // 가스가 남고 광물이 모자라면 가스를 많이 쓰는 유닛으로.
     if (unit === "zealot" && record.gas > 300 && record.minerals < 150 && stwHas(state, side, "core")) unit = stwHas(state, side, "archives") && persona !== "dark" ? "templar" : "dragoon";
-    if (STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas && record.minerals > 250) unit = "zealot";
+    // 가스를 아끼는 중이면 가스 유닛 대신 질럿. 광물이 250 넘을 때만 바꾸면, 드라군·커세어가 가스를 계속 먹어
+    // 사거리 연구(가스 100)가 13분 동안 한 번도 안 끝나고 그 뒤의 확장까지 막혔다. 30초 넘게 막힌 단계면 광물과 상관없이 바꾼다.
+    const gasStarved = reserve.gas > 0 && memory.headSince !== undefined && state.time - memory.headSince > 30;
+    if (STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas && (record.minerals > 250 || gasStarved)) unit = "zealot";
     const def = STW_UNITS[unit];
     const starving = reserve.hard && record.minerals - def.minerals < reserve.hard;
     // 게이트웨이 셋 중 하나는 아끼는 중에도 계속 소환한다.
@@ -894,6 +900,27 @@ function armyPower(units, targetArmor = 0) {
 }
 
 /**
+ * 본 적 방어 건물의 힘: 한 개마다 √(초당 피해 × 체력·보호막) × 1.5. 방어 건물은 사거리가 길고 병력이 그 뒤에서 함께 싸우므로 유닛보다 무겁게 친다.
+ * 포톤 캐논은 약 85(질럿 1.8기 몫)다.
+ */
+function defensePower(state, side) {
+  return Object.values(state.sides[side].seen ?? {}).reduce((sum, item) => {
+    const def = STW_BUILDINGS[item.type];
+    if (!def?.damage || !def.defense) return sum;
+    const dps = (def.damage * (def.hits ?? 1)) / (def.cooldown ?? 1);
+    return sum + Math.sqrt(dps * (def.hp + def.shields)) * 1.5;
+  }, 0);
+}
+
+/** 최근 90초 안에 한 번에 본 가장 많은 적 전투 병력의 힘(정찰로 짐작한 생산량은 더하지 않는다). */
+function seenFoePower(state, side, memory) {
+  const types = memory.foeTypes ?? [];
+  if (!types.length || !memory.peakFoe) return 0;
+  const each = types.reduce((sum, type) => sum + unitPower(type), 0) / types.length;
+  return memory.peakFoe * each;
+}
+
+/**
  * 경계 중에 늘리는 생산 건물: 성향의 추가 생산 건물(메카닉의 팩토리 등)이 가스를 먹는데 가스가 모자라면 광물만 드는 기본 생산 건물(배럭·게이트웨이).
  * 가스가 모자라 팩토리를 못 짓는 동안 광물이 500 넘게 쌓인 채 러시를 맞던 문제. 가스가 있으면 그대로 짓는다(벌처는 질럿에 강하다).
  */
@@ -980,9 +1007,12 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   const ownArmor = army.fighters.length ? army.fighters.reduce((sum, unit) => sum + STW_UNITS[unit.type].armor, 0) / army.fighters.length : 0;
   const estimate = alert && !allIn ? foeArmyEstimate(state, side, memory, ownArmor) : null;
   const outgunned = estimate !== null && (armyPower(army.fighters, estimate.armor) < estimate.power * 1.5 || incomingWave(state, side));
+  // 방어 건물 앞에서는 수가 아니라 힘을 본다: 본 적 방어 건물(캐논·벙커·성큰)의 힘과 최근 본 적 병력의 힘을 더한 것보다
+  // 우리 전투력이 커야 나간다. 출격 규모만 보고 캐논 7~8개가 선 앞마당에 들이받아 두 번에 걸쳐 병력을 다 잃었다(사람의 캐논 수비 + 캐리어).
+  const fortified = !allIn && !estimate && defensePower(state, side) > 0 && armyPower(army.fighters) < (defensePower(state, side) + seenFoePower(state, side, memory)) * 1.1;
   // 기지에 적이 3기 이상 들어와 있으면 나가지 않고 집에서 받아친다. 총공격 조건(광물 바닥)과 기지 방어(후퇴)가 번갈아 걸려
   // 2초마다 공격·후퇴를 오가며 병력이 길에서 녹던 문제.
-  if (army.fighters.length >= size && !outgunned && threat < 3) {
+  if (army.fighters.length >= size && !outgunned && !fortified && threat < 3) {
     // 폭탄 드랍 성향은 쉬는 수송선이 둘 이상이면 출격과 동시에 폭탄 드랍(남은 병력은 정면으로).
     if (dropPlan?.mission === "bomb" && stwDropCheck(state, side, "bomb").ok) stwCommand(state, side, { type: "drop", ...dropPlan });
     else stwCommand(state, side, { type: "attack" });
