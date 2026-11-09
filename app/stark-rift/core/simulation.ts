@@ -1,4 +1,5 @@
 import { emptyControlGroups } from "./orders";
+import { cloneSimulationState } from "./clone";
 import { validateGameCommand, type CommandAcknowledgement, type CommandFailureCode, type CommandKind, type GameCommand } from "./commands";
 import { add } from "./fixed-point";
 import { createRngStreams } from "./rng";
@@ -91,14 +92,22 @@ function runTick(state: SimulationState, rules: EngineRules = {}): CommandAcknow
 export class SimulationFault extends Error {
   constructor(readonly tick: number, readonly cause: unknown) { super(`Simulation tick ${tick} failed; restored and paused.`); this.name = "SimulationFault"; }
 }
+export type StepTimings = {checkpointMs:number;executionMs:number;validationMs:number};
 /** No caller may observe a partly applied failed tick as running state. */
-export function stepSimulation(state: SimulationState, rules: EngineRules = {}): CommandAcknowledgement[] {
+export function stepSimulation(state: SimulationState, rules: EngineRules = {}, observe?: (timings:StepTimings)=>void): CommandAcknowledgement[] {
   if (state.phase !== "running") return [];
-  const checkpoint = structuredClone(state);
+  const start=observe?performance.now():0;
+  const checkpoint = cloneSimulationState(state);
+  const copied=observe?performance.now():0;
   try {
     const result = runTick(state, rules);
+    const executed=observe?performance.now():0;
     const validated = parse(simulationStateSchema, state);
     if (!validated.ok) throw new TypeError(JSON.stringify(validated.issues));
+    if(observe){
+      const finished=performance.now();
+      try{observe({checkpointMs:Math.max(0,copied-start),executionMs:Math.max(0,executed-copied),validationMs:Math.max(0,finished-executed)});}catch{}
+    }
     return result;
   }
   catch (cause) {
