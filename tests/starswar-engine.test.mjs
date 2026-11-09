@@ -10,6 +10,7 @@ import {
   stwDetected,
   stwDone,
   stwHitDamage,
+  stwIssue,
   stwIncome,
   stwNexus,
   stwOwnBuildings,
@@ -26,6 +27,8 @@ import {
   stepStarswar,
 } from "../app/starswar/starswar-engine.js";
 import { stwAiThink } from "../app/starswar/starswar-ai.js";
+import { stwFingerprint, stwReplay, stwReplayCode, stwReplayMatches } from "../app/starswar/starswar-replay.js";
+import { stwAiReport, stwBugReport, stwLosingAiSides } from "../app/starswar/starswar-report.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwScreenToMap, stwViewport } from "../app/starswar/starswar-camera.js";
 
 const run = (state, seconds, ai = null) => {
@@ -1054,6 +1057,74 @@ test("starswar area spells and irradiate aim past our own front line like storms
     const foes = battle.units.filter((unit) => unit.side === "enemy" && Math.hypot(unit.x - cast.x2, unit.y - cast.y2) <= item.radius + unit.radius * 0.5);
     assert.ok(item.spell === "irradiate" ? cast.y2 < 50 : foes.length >= 3, `${item.spell}: 아군이 없는 적 무리를 노린다`);
   }
+});
+
+test("starswar replay code rebuilds the same game from the setup and the player's commands, across a save and resume", () => {
+  let state = createStarswarGame({ seed: 4242, races: { player: "terran", enemy: "protoss" } });
+  const plan = [[3, { type: "worker" }], [40, { type: "build", building: "supply" }], [70, { type: "build", building: "barracks" }], [130, { type: "build", building: "barracks" }], [160, { type: "autoWave", size: 8 }], [260, { type: "rally", point: "natural" }], [330, { type: "move", y: 55 }], [420, { type: "attack" }]];
+  let next = 0;
+  let resumed = false;
+  while (state.status === "playing" && state.time < 1800) {
+    while (next < plan.length && state.time >= plan[next][0]) stwIssue(state, "player", plan[next++][1]);
+    if (Math.round(state.time * 10) % 150 === 0) {
+      stwIssue(state, "player", { type: "worker" });
+      stwIssue(state, "player", { type: "build", building: "supply" });
+    }
+    stepStarswar(state, stwAiThink);
+    if (!resumed && state.time >= 300) {
+      // 화면의 이어하기처럼 저장했다가 되살려 이어 간다.
+      state = stwRestore(stwSerialize(state));
+      resumed = true;
+    }
+  }
+  assert.equal(state.status, "over");
+  const code = JSON.parse(JSON.stringify(stwReplayCode(state, "test")));
+  assert.ok(code.commands.length >= plan.length, "사람 명령이 남는다");
+  assert.ok(code.commands.every(([tick, side]) => Number.isInteger(tick) && side === "player"));
+  const replayed = stwReplay(code);
+  assert.ok(stwReplayMatches(code, replayed), `같은 경기: ${JSON.stringify(stwFingerprint(replayed))} vs ${JSON.stringify(code.end)}`);
+  // 중간 시각에서 멈출 수 있다.
+  assert.equal(Math.round(stwReplay(code, { until: 200 }).time), 200);
+
+  // 실험실 경기는 실험실 설정으로 다시 선다.
+  const lab = stwCreateScenario({ seed: 9, time: 600, races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { zealot: 8, dragoon: 6 } }, enemy: { units: { hydra: 14 } } } });
+  stwIssue(lab, "player", { type: "retreat" });
+  run(lab, 3, stwAiThink);
+  stwIssue(lab, "player", { type: "attack" });
+  run(lab, 120, stwAiThink);
+  const labCode = JSON.parse(JSON.stringify(stwReplayCode(lab)));
+  assert.ok(labCode.scenario && !labCode.setup);
+  assert.ok(stwReplayMatches(labCode, stwReplay(labCode)), "실험실 경기도 같다");
+});
+
+test("starswar result reports: bug report with replay code, AI report only for a losing AI", () => {
+  const state = createStarswarGame({ seed: 11, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "dragoon", enemy: "hydra" } });
+  run(state, 2400, stwAiThink);
+  assert.equal(state.status, "over");
+  const loser = state.winner === "player" ? "enemy" : "player";
+  assert.deepEqual(stwLosingAiSides(state), [loser]);
+
+  const bug = stwBugReport(state, { build: "abc1234", device: "test", note: "드라군이 멈춤" });
+  for (const heading of ["# 스타즈워 버그 리포트", "- 드라군이 멈춤", "## 결과 표", "## 흐름 (30초마다)", "## 내 명령", "## 최근 경기 기록", "## 마지막 상태", "## 재현 코드", "게임 판: abc1234"]) assert.ok(bug.includes(heading), heading);
+  const code = JSON.parse(bug.match(/```json\n(.+)\n```/)[1]);
+  assert.ok(stwReplayMatches(code, stwReplay(code)), "리포트의 재현 코드로 같은 경기가 된다");
+
+  const ai = stwAiReport(state, { build: "abc1234" });
+  for (const heading of ["# 스타즈워 AI 개선 자료", "### 자동 진단", "앞마당 확장:", "최대 병력 가치:", "### 큰 교전", "### 병력 구성 흐름 (1분마다)", "### AI 운영 기록", "### 상대 운영 기록", "### AI 내부 기억", "## 재현 코드"]) assert.ok(ai.includes(heading), heading);
+  // 운영 기록에는 빌드 순서가 남고, 생산 라인을 멈췄다 켜는 반복은 남지 않는다.
+  const lines = (state.chronicle ?? []).filter((entry) => entry[1] === loser);
+  assert.ok(lines.some((entry) => entry[2].type === "build"), "건설 기록");
+  assert.ok(!lines.some((entry) => entry[2].type === "line" && !entry[2].unit), "라인 멈춤은 남기지 않는다");
+  // 히스토리에는 병력 구성과 보유 자원이 남는다.
+  const point = state.history.find((item) => item.t === 300);
+  assert.ok(point.player.mix && point.player.minerals !== undefined);
+
+  // 사람 대 AI에서 사람이 지면 AI 개선 자료는 없다.
+  const human = createStarswarGame({ seed: 3, races: { player: "protoss", enemy: "zerg" } });
+  run(human, 2400, stwAiThink);
+  assert.equal(human.winner, "enemy");
+  assert.deepEqual(stwLosingAiSides(human), []);
+  assert.equal(stwAiReport(human), null);
 });
 
 test("starswar carrier attacks launch one visible interceptor per hit", () => {

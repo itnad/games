@@ -139,11 +139,16 @@ export type StwSideState = {
 export type StwLogEntry = { id: number; time: number; side: StwSide; text: string; tone: "info" | "good" | "warn" | "danger" | "order" };
 
 /** 경기 기록 한 점(10초마다): 양쪽 인구, 병력 가치(광물 + 가스, 일꾼 제외), 일꾼 수. */
-export type StwHistoryPoint = { t: number } & Record<StwSide, { supply: number; army: number; workers: number }>;
+export type StwHistoryPoint = { t: number } & Record<StwSide, { supply: number; army: number; workers: number; minerals?: number; gas?: number; mix?: Partial<Record<StwUnitType, number>> }>;
+/** 재현 정보: 경기를 만든 설정(또는 실험실 설정)과 사람이 내린 명령 [틱, 진영, 명령]. */
+export type StwReplayInfo = { setup?: Record<string, unknown>; scenario?: Record<string, unknown>; commands: [number, StwSide, StwCommand][] };
 
 export type StwState = {
   time: number;
   history?: StwHistoryPoint[];
+  replay?: StwReplayInfo;
+  /** 양쪽이 성공한 명령 [시각, 진영, 명령]: 리포트의 빌드 순서. */
+  chronicle?: [number, StwSide, StwCommand & { at?: string }][];
   /** 실험실에서 세운 경기(저장·전적 제외). */
   lab?: { placement: "clash" | "home"; control: { player: "manual" | "ai"; enemy: "fight" | "ai" } };
   hiddenEnemyRace?: boolean;

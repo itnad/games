@@ -1,11 +1,23 @@
 // 스타즈워을 HTML 파일 하나로 묶는다.
 //   node scripts/build-game-standalone.mjs            → dist-standalone/starswar.html (React·PixiJS 포함, 오프라인 실행)
 //   node scripts/build-game-standalone.mjs --artifact → dist-standalone/starswar-artifact.html (React는 cdnjs, PixiJS는 jsDelivr에서 로드)
+import { execSync } from "node:child_process";
 import { build } from "esbuild";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const artifact = process.argv.includes("--artifact");
+// 게임 판: 결과 화면의 리포트에 넣어, 재현 코드가 어느 코드에서 나온 경기인지 알 수 있게 한다.
+const gitText = (command) => {
+  try {
+    return execSync(command, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return "";
+  }
+};
+const commit = gitText("git rev-parse --short HEAD") || "unknown";
+const dirty = gitText("git status --porcelain --untracked-files=no") ? "+수정" : "";
+const buildId = `${commit}${dirty} · ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`;
 const pixiVersion = JSON.parse(await readFile(new URL("../node_modules/pixi.js/package.json", import.meta.url), "utf8")).version;
 const here = fileURLToPath(new URL("./game-standalone/", import.meta.url));
 const outDir = fileURLToPath(new URL("../dist-standalone/", import.meta.url));
@@ -35,7 +47,7 @@ const result = await build({
   target: ["es2020"],
   jsx: "automatic",
   outdir: "out",
-  define: { "process.env.NODE_ENV": '"production"' },
+  define: { "process.env.NODE_ENV": '"production"', __STW_BUILD__: JSON.stringify(buildId) },
   plugins: artifact ? [globalsPlugin] : [],
   logLevel: "warning",
 });

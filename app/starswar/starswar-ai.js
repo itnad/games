@@ -199,6 +199,11 @@ export function stwAiThink(state, side) {
   if (!memory.scouted && state.time >= 120 && record.probes >= 7 && stwCommand(state, side, { type: "scout" }).ok) memory.scouted = true;
   if (memory.scouted && !memory.scouted2 && state.time >= 210 && record.probes >= 8 && stwCommand(state, side, { type: "scout" }).ok) memory.scouted2 = true;
   const alert = assessThreat(state, side, memory);
+  // 리포트용 기록: 경계 상태로 보낸 시간과 처음 경계에 들어간 시각(판단에는 쓰지 않는다).
+  if (alert) {
+    memory.alertSeconds = Math.round(((memory.alertSeconds ?? 0) + settings.thinkEvery) * 10) / 10;
+    memory.alertFirst ??= state.time;
+  }
   const scoutingNow = state.units.filter((unit) => unit.side === side && unit.group === "scout").length;
 
   // 다음 건물·연구에 필요한 자원만 아껴 둔다(모자란 쪽만). 생산 건물이 유닛을 멈추고 기다리는 것은

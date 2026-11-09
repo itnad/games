@@ -225,6 +225,10 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
     alerts: {},
     aiSides: [...aiSides],
     history: [],
+    // 재현 정보: 경기를 만든 설정과 사람이 내린 명령(틱, 명령). 같은 코드에서 그대로 다시 돌리면 같은 경기가 된다.
+    replay: { setup: { difficulty, seed, aiSides: [...aiSides], personas: { ...personas }, races: { ...races }, hiddenEnemyRace }, commands: [] },
+    // 양쪽이 성공한 명령의 시간순 기록(빌드 순서·연구·공격 시점). 결과 화면의 리포트에 쓴다.
+    chronicle: [],
   };
   for (const side of STW_SIDES) {
     if (!state.sides[side].persona && state.aiSides.includes(side)) {
@@ -671,7 +675,51 @@ function producerGroup(state, side, producer) {
 
 /* ───────── 명령 ───────── */
 
+/** 기록에 남길 명령 수 상한(저장 크기를 묶어 둔다). */
+const CHRONICLE_LIMIT = 900;
+
+/**
+ * 명령을 실행한다. 플레이어와 AI가 같은 함수를 쓴다.
+ * 성공한 명령은 경기 연대기(state.chronicle)에 [시각, 진영, 명령]으로 남긴다. 일꾼 생산은 너무 잦아 빼고,
+ * 같은 진영이 30초 안에 똑같은 명령을 되풀이하면 한 번만 남긴다(AI가 생각할 때마다 같은 공격 명령을 내린다).
+ */
 export function stwCommand(state, side, command) {
+  const result = runCommand(state, side, command);
+  if (result.ok && command.type !== "probe" && command.type !== "worker") chronicle(state, side, command);
+  return result;
+}
+
+/**
+ * 연대기에 남긴다. 생산 라인은 AI가 자원을 아끼느라 멈췄다 켰다를 되풀이하므로, 건물마다 "다른 유닛으로 바꾼" 때만 남기고
+ * 나중에 건물이 부서져도 읽을 수 있게 건물 종류(at)를 붙인다.
+ */
+function chronicle(state, side, command) {
+  state.chronicle ??= [];
+  if (state.chronicle.length >= CHRONICLE_LIMIT) return;
+  const entry = JSON.parse(JSON.stringify(command));
+  if (command.type === "line") {
+    const id = command.buildingId ?? command.gatewayId;
+    if (!command.unit) return;
+    const previous = state.chronicle.findLast((item) => item[1] === side && item[2].type === "line" && (item[2].buildingId ?? item[2].gatewayId) === id);
+    if (previous?.[2].unit === command.unit) return;
+    entry.at = state.buildings.find((building) => building.id === id)?.type;
+  }
+  const text = JSON.stringify(entry);
+  const last = state.chronicle.findLast((item) => item[1] === side);
+  if (last && JSON.stringify(last[2]) === text && state.time - last[0] < 30) return;
+  state.chronicle.push([state.time, side, entry]);
+}
+
+/**
+ * 사람이 내린 명령: 재현 정보(state.replay.commands)에 [틱, 명령]으로 남기고 실행한다.
+ * 화면의 버튼·지도 조작은 모두 이 함수를 쓴다. AI는 stwCommand를 바로 쓴다.
+ */
+export function stwIssue(state, side, command) {
+  if (state.status === "playing" && state.replay) state.replay.commands.push([Math.round(state.time * 10), side, JSON.parse(JSON.stringify(command))]);
+  return stwCommand(state, side, command);
+}
+
+function runCommand(state, side, command) {
   if (state.status !== "playing") return fail("전투가 끝났습니다");
   const record = state.sides[side];
   switch (command.type) {
@@ -1091,7 +1139,11 @@ function recordHistory(state) {
   for (const side of STW_SIDES) {
     const supply = stwSupply(state, side).used;
     const army = state.units.filter((unit) => unit.side === side && !isWorker(unit) && unit.group !== "scout").reduce((sum, unit) => sum + armyValueOf(unit), 0);
-    point[side] = { supply, army: Math.round(army), workers: state.sides[side].probes };
+    // 병력 구성(일꾼·정찰 제외, 종류별 수)과 쓰지 않고 쌓아 둔 자원도 남긴다(AI 개선 자료에 쓴다).
+    const mix = {};
+    for (const unit of state.units) if (unit.side === side && !isWorker(unit) && unit.group !== "scout" && unit.hp > 0) mix[unit.type] = (mix[unit.type] ?? 0) + 1;
+    const record = state.sides[side];
+    point[side] = { supply, army: Math.round(army), workers: record.probes, minerals: Math.floor(record.minerals), gas: Math.floor(record.gas), mix };
     const stats = state.sides[side].stats;
     stats.supplyPeak = Math.max(stats.supplyPeak ?? 0, supply);
   }
@@ -1232,8 +1284,11 @@ export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, r
     building.queue = [];
   }
   // 상황을 세우며 지은 건물 기록은 지우고, 시작 시점의 인구·병력을 첫 기록으로 남긴다.
+  // 재현 정보는 실험실 설정 자체다(설정을 다시 넣으면 같은 상황이 선다).
   state.log = [];
   state.history = [];
+  state.chronicle = [];
+  state.replay = { scenario: JSON.parse(JSON.stringify({ difficulty, seed, time, races, placement, enemyAi, sides })), commands: [] };
   recordHistory(state);
   const enemyName = STW_RACES[state.sides.enemy.race].name;
   pushLog(state, "player", `실험실: ${stwClock(state.time)} 상황, ${enemyName} 상대로 시작합니다.`, "info");

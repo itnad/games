@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { withKoreanDirection, withKoreanObject, withKoreanSubject } from "../korean-particles.js";
 import {
   STW_AI_PERSONAS,
@@ -25,7 +25,7 @@ import {
   stwArmy,
   stwBuildCheck,
   stwClock,
-  stwCommand,
+  stwIssue,
   stwDone,
   stwDropCheck,
   stwIncome,
@@ -42,6 +42,7 @@ import {
   intelSummary,
 } from "./starswar-engine.js";
 import { stwAiThink } from "./starswar-ai.js";
+import { stwAiReport, stwBugReport, stwLosingAiSides } from "./starswar-report.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
 import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
 import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./starswar-lab";
@@ -480,7 +481,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
 
   const issue = (command: StwCommand, success?: string) => {
     if (!game) return;
-    const result = stwCommand(game, "player", command) as StwCheck;
+    const result = stwIssue(game, "player", command) as StwCheck;
     if (!result.ok) showToast(result.reason ?? "지금은 할 수 없습니다");
     else if (success) showToast(success, "good");
     refresh();
@@ -1095,7 +1096,95 @@ function ArmyChart({ game }: { game: StwState }) {
   );
 }
 
+/** 단일 HTML 빌드가 넣는 게임 판(커밋·날짜). 웹 빌드에는 없다. */
+declare const __STW_BUILD__: string | undefined;
+const STW_BUILD = typeof __STW_BUILD__ === "string" ? __STW_BUILD__ : "웹 빌드";
+
+type ReportKind = "bug" | "ai";
+
+/** 리포트에 붙일 기기 정보와 복사한 때. */
+function reportEnv() {
+  const screen = typeof window === "undefined" ? "" : ` · 화면 ${window.innerWidth}×${window.innerHeight} @${window.devicePixelRatio}`;
+  const agent = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  return { build: STW_BUILD, device: `${agent}${screen}`, copiedAt: new Date().toLocaleString("ko-KR") };
+}
+
+/** 클립보드에 쓴다. 막혀 있으면(앱 안 화면 등) 숨은 입력칸으로 한 번 더 시도한다. */
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // 아래 방법으로 넘어간다.
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 결과 화면의 리포트 창.
+ * - 버그 리포트: 겪은 일을 적을 칸과 함께 경기 정보·명령·최근 기록·재현 코드를 복사한다.
+ * - AI 개선 자료: 진 AI의 운영과 이긴 쪽 비교, 큰 교전, 자동 진단, 재현 코드를 복사한다.
+ * 자동 복사가 막히면 글을 보여 주고 직접 복사하게 한다.
+ */
+function ReportPanel({ game, kind, onClose }: { game: StwState; kind: ReportKind; onClose: () => void }) {
+  const [note, setNote] = useState("");
+  const [status, setStatus] = useState<"idle" | "copied" | "manual">("idle");
+  const [env] = useState(reportEnv);
+  const areaRef = useRef<HTMLTextAreaElement | null>(null);
+  const text = useMemo(
+    () => (kind === "bug" ? (stwBugReport(game, { ...env, note: note.trim() }) as string) : ((stwAiReport(game, env) as string | null) ?? "")),
+    [env, game, kind, note],
+  );
+  useEffect(() => {
+    if (status !== "manual" || !areaRef.current) return;
+    areaRef.current.focus();
+    areaRef.current.select();
+  }, [status]);
+  const copy = async () => setStatus((await copyText(text)) ? "copied" : "manual");
+  const title = kind === "bug" ? "버그 리포트" : "AI 개선 자료";
+  return (
+    <div className="stw-overlay stw-overlay-full stw-report" role="dialog" aria-modal="true" aria-labelledby="stw-report-title">
+      <section>
+        <h2 id="stw-report-title">{title}</h2>
+        <p>
+          {kind === "bug"
+            ? "경기 설정·결과 흐름·내 명령·최근 기록과, 이 경기를 처음부터 똑같이 다시 돌릴 수 있는 재현 코드를 복사합니다. 개선 요청 대화에 그대로 붙여 넣어 주세요."
+            : "진 AI의 빌드 순서·일꾼·자원·병력 구성과 이긴 쪽의 운영, 큰 교전, 자동 진단, 재현 코드를 복사합니다. AI 개선 요청 대화에 붙여 넣어 주세요."}
+        </p>
+        {kind === "bug" ? (
+          <label className="stw-report-note">
+            <span>무슨 일이 있었나요? (선택)</span>
+            <textarea value={note} rows={3} placeholder="예: 7분쯤 드라군이 앞마당에서 멈춰 움직이지 않았어요" onChange={(event) => { setNote(event.target.value); setStatus("idle"); }} />
+          </label>
+        ) : null}
+        <button type="button" className="stw-primary" onClick={copy}>{status === "copied" ? "복사했습니다 ✓" : "클립보드에 복사"}</button>
+        {status === "manual" ? <p className="stw-report-warn">이 화면에서는 자동 복사가 막혀 있습니다. 아래 글을 전체 선택해 복사해 주세요.</p> : null}
+        <details className="stw-report-text" open={status === "manual"}>
+          <summary>내용 보기 ({text.length.toLocaleString("en-US")}자)</summary>
+          <textarea ref={areaRef} readOnly value={text} rows={10} onFocus={(event) => event.currentTarget.select()} />
+        </details>
+        <button type="button" className="stw-secondary" onClick={onClose}>닫기</button>
+      </section>
+    </div>
+  );
+}
+
 function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwState; record: BattleRecord; onRestart: () => void; onMenu: () => void; onExit: () => void }) {
+  const [report, setReport] = useState<ReportKind | null>(null);
+  const aiLost = stwLosingAiSides(game).length > 0;
   const won = game.winner === "player";
   const draw = game.winner === "draw";
   const mine = game.sides.player.stats;
@@ -1144,10 +1233,15 @@ function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwS
           </tbody>
         </table>
         {game.lab ? <p className="stw-result-record">실험 경기는 전적에 넣지 않습니다.</p> : <p className="stw-result-record">전적 {record.wins}승 {record.losses}패</p>}
+        <div className={aiLost ? "stw-result-tools" : "stw-result-tools one"}>
+          <button type="button" className="stw-secondary" onClick={() => setReport("bug")}>버그 리포트</button>
+          {aiLost ? <button type="button" className="stw-secondary" onClick={() => setReport("ai")}>AI 개선 자료</button> : null}
+        </div>
         <button type="button" className="stw-primary" onClick={onRestart}>같은 설정으로 다시</button>
         <button type="button" className="stw-secondary" onClick={onMenu}>{game.lab ? "실험실" : "전투 설정"}</button>
         <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
       </section>
+      {report ? <ReportPanel game={game} kind={report} onClose={() => setReport(null)} /> : null}
     </div>
   );
 }
