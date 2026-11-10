@@ -2,15 +2,19 @@ import { Application, Container, Graphics, Sprite, Texture, Ticker, type WebGLRe
 import type { BattleMap } from "../data/maps";
 import { validateRenderSnapshot, type RenderSnapshot } from "../worker/render-snapshot";
 import { BattleCamera } from "./camera";
+import { isPortraitViewport } from "../input/portrait-mode";
+import { updateMinimapMarker, updateUnitMarker } from "./marker-visual";
 
 const TERRAIN_COLORS = [0x202a38, 0x39445b, 0x101420, 0x536174, 0x090a1d];
 export class BattleRenderer {
   readonly camera: BattleCamera;
   private app = new Application(); private minimap = new Application();
-  private world = new Container(); private units = new Container(); private minimapUnits = new Graphics();
+  private world = new Container(); private units = new Container(); private minimapUnits = new Container();
   private viewportOutline = new Graphics(); private terrainTexture?: Texture; private minimapTerrainTexture?: Texture; private fogTexture?: Texture;
   private fogCanvas = document.createElement("canvas"); private fogMask: Uint8Array;
   private sprites = new Map<number, Graphics>(); private pool: Graphics[] = [];
+  private miniSprites = new Map<number, Graphics>(); private miniPool: Graphics[] = [];
+  private viewportKey = "";
   private snapshot: RenderSnapshot | null = null; private disposed = false; private initialized = false;
   private initializing = false; private cleaned = false; private pendingTerrain?: Graphics;
   private previousPositions = new Map<number, { x: number; y: number }>(); private receivedAt = 0;
@@ -51,6 +55,7 @@ export class BattleRenderer {
       const lost = (event: Event) => { event.preventDefault(); this.ticker.stop(); this.contextLost(); };
       for (const canvas of [this.app.canvas, this.minimap.canvas]) { canvas.addEventListener("webglcontextlost", lost); this.cleanups.push(() => canvas.removeEventListener("webglcontextlost", lost)); }
       const recenter = (event: PointerEvent) => {
+        if (!isPortraitViewport()) return;
         if (event.type === "pointermove" && !this.minimap.canvas.hasPointerCapture(event.pointerId)) return;
         if (event.type === "pointerdown") this.minimap.canvas.setPointerCapture(event.pointerId);
         const r = this.minimap.canvas.getBoundingClientRect();
@@ -78,35 +83,38 @@ export class BattleRenderer {
     for (const entity of this.snapshot?.entities ?? []) this.previousPositions.set(entity.id, { x: entity.x, y: entity.y });
     this.snapshot = snapshot; this.receivedAt = performance.now(); this.updateFog(snapshot.visibility);
     const current = new Set(snapshot.entities.map(e => e.id));
-    for (const [id, sprite] of this.sprites) if (!current.has(id)) { this.units.removeChild(sprite); this.sprites.delete(id); this.pool.push(sprite); }
+    for (const [id, sprite] of this.sprites) if (!current.has(id)) {
+      this.units.removeChild(sprite); this.sprites.delete(id); this.pool.push(sprite);
+      const mini=this.miniSprites.get(id)!;this.minimapUnits.removeChild(mini);this.miniSprites.delete(id);this.miniPool.push(mini);
+    }
     for (const entity of snapshot.entities) if (!this.sprites.has(entity.id)) {
       const sprite = this.pool.pop() ?? new Graphics(); this.sprites.set(entity.id, sprite); this.units.addChild(sprite);
+      const mini=this.miniPool.pop()??new Graphics();this.miniSprites.set(entity.id,mini);this.minimapUnits.addChild(mini);
     }
     this.draw();
   }
   private resize(): void {
-    if (this.disposed) return;
+    if (this.disposed || !isPortraitViewport()) return;
     this.app.renderer.resize(Math.max(1, this.battlefield.clientWidth), Math.max(1, this.battlefield.clientHeight));
     this.minimap.renderer.resize(Math.max(1, this.minimapHost.clientWidth), Math.max(1, this.minimapHost.clientHeight));
     this.camera.setCenter(this.camera.centerX, this.camera.centerY, this.app.screen.width, this.app.screen.height); this.draw();
   }
   draw = (): void => {
-    if (this.disposed || !this.initialized) return;
+    if (this.disposed || !this.initialized || !isPortraitViewport()) return;
     const w = this.app.screen.width, h = this.app.screen.height, scale = this.camera.scale(w, h), bounds = this.camera.bounds(w, h);
     this.world.scale.set(scale * 256); this.world.position.set(w / 2 - this.camera.centerX * scale, h / 2 - this.camera.centerY * scale);
-    this.minimapUnits.clear();
     const alpha = Math.min(1, Math.max(0, (performance.now() - this.receivedAt) / 50));
     for (const entity of this.snapshot?.entities ?? []) {
       const previous = this.previousPositions.get(entity.id) ?? entity;
       const x = previous.x + (entity.x - previous.x) * alpha, y = previous.y + (entity.y - previous.y) * alpha;
-      const sprite = this.sprites.get(entity.id)!; sprite.clear(); sprite.position.set(x / 256, y / 256);
+      const sprite = this.sprites.get(entity.id)!; sprite.position.set(x / 256, y / 256);
       sprite.visible = x >= bounds.left - 256 && x <= bounds.right + 256 && y >= bounds.top - 256 && y <= bounds.bottom + 256;
       const color = entity.owner === this.snapshot!.viewerPlayerId ? 0x64dce0 : 0xf57278;
-      if (sprite.visible) { if (this.camera.zoom >= 1.5) sprite.rect(-0.22, -0.22, 0.44, 0.44).fill(color); else sprite.circle(0, 0, 0.32).fill(color); }
-      if(sprite.visible&&(this.selectedIds.has(entity.id)||this.previewIds.has(entity.id)))sprite.circle(0,0,Math.max(.4,entity.radius/256+.1)).stroke({width:.06,color:this.previewIds.has(entity.id)?0xffd479:0x80ffaa});
-      this.minimapUnits.circle(entity.x / 256, entity.y / 256, 0.65).fill(color);
+      if(sprite.visible)updateUnitMarker(sprite,color,this.camera.zoom>=1.5,this.previewIds.has(entity.id)?0xffd479:this.selectedIds.has(entity.id)?0x80ffaa:null,entity.radius);
+      const mini=this.miniSprites.get(entity.id)!;updateMinimapMarker(mini,color);mini.position.set(entity.x/256,entity.y/256);
     }
-    this.viewportOutline.clear().rect(bounds.left / 256, bounds.top / 256, (bounds.right - bounds.left) / 256, (bounds.bottom - bounds.top) / 256).stroke({ width: 0.4, color: 0xffffff });
+    const viewportKey=`${bounds.left}:${bounds.top}:${bounds.right}:${bounds.bottom}`;
+    if(viewportKey!==this.viewportKey){this.viewportKey=viewportKey;this.viewportOutline.clear().rect(bounds.left / 256, bounds.top / 256, (bounds.right - bounds.left) / 256, (bounds.bottom - bounds.top) / 256).stroke({ width: 0.4, color: 0xffffff });}
     this.minimap.stage.scale.set(this.minimap.screen.width / this.map.widthTiles, this.minimap.screen.height / this.map.heightTiles);
     this.app.render(); this.minimap.render();
   };
@@ -125,6 +133,6 @@ export class BattleRenderer {
     this.pendingTerrain?.destroy(); this.pendingTerrain = undefined;
     this.destroyApplications();
     for (const display of [this.world, this.minimapUnits, this.viewportOutline]) if (!display.destroyed) display.destroy({children:true});
-    this.pool.forEach(sprite => sprite.destroy()); this.terrainTexture?.destroy(true); this.minimapTerrainTexture?.destroy(true); this.fogTexture?.destroy(true);
+    this.pool.forEach(sprite => sprite.destroy()); this.miniPool.forEach(sprite=>sprite.destroy()); this.terrainTexture?.destroy(true); this.minimapTerrainTexture?.destroy(true); this.fogTexture?.destroy(true);
   }
 }
