@@ -81,6 +81,22 @@ describe("map bundle integration", () => {
 });
 describe("runtime integration and flow control", () => {
   function runtime(rules?: EngineRules) { const messages: WorkerToMainMessage[] = []; const runtime = new SimulationRuntime({ emit: m => messages.push(m), rules }); runtime.receive(wire("init", init)); return {runtime,messages}; }
+  it("updates command controls on pause/resume without advancing a tick or releasing render buffers", () => {
+    const {runtime:r,messages}=runtime();
+    r.advance(50); r.advance(50); // Fill both render slots, then change phase at the same tick.
+    const renderCount=messages.filter(m=>m.kind==="renderSnapshot").length;
+    for(const phase of ["paused","running","paused"] as const){
+      const before=messages.length;
+      r.receive(wire(phase==="paused"?"pause":"resume",{reason:"user"}));
+      expect(messages.slice(before).filter(m=>m.kind==="uiState").map(m=>m.payload)).toEqual([
+        expect.objectContaining({tick:2,phase}),
+      ]);
+      expect(messages.filter(m=>m.kind==="renderSnapshot")).toHaveLength(renderCount);
+    }
+    r.advance(500);
+    r.receive(wire("debugMetrics",{windowTicks:20}));
+    expect(messages.at(-1)?.payload).toMatchObject({tick:2});
+  });
   it("ticks, bounds in-flight snapshots, publishes latest on release and does not loop at the same tick", () => {
     const {runtime: r,messages} = runtime(); r.advance(50); r.advance(50);
     expect(messages.filter(m=>m.kind==="renderSnapshot")).toHaveLength(2);
