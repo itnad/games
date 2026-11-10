@@ -774,6 +774,10 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   }
   const squadTypes = [...squadCounts.entries()].sort((a, b) => b[1] - a[1]);
   const squadSpots = game.sides.player.squads ?? {};
+  const closeSquad = () => {
+    setSelected([]);
+    setSquadOpen(false);
+  };
   const toggleSquad = (type: string) => setSelected((current) => (current.includes(type) ? current.filter((item) => item !== type) : [...current, type]));
   const mapScouts = game.units.filter((unit) => unit.side === "player" && unit.group === "scout");
   const mapScoutsMain = mapScouts.filter((unit) => unit.scoutMode !== "resources").length;
@@ -811,30 +815,10 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           <div className="stw-map-tools">
             <button type="button" onClick={toggleZoom}>{zoomed ? "전체" : "확대"}</button>
             <button type="button" className={follow ? "active" : ""} aria-pressed={follow} onClick={() => setFollow((value) => !value)}>전선 따라가기</button>
-            <button type="button" className={squadOpen ? "active" : ""} aria-pressed={squadOpen} onClick={() => { if (squadOpen) setSelected([]); setSquadOpen((value) => !value); }}>
+            <button type="button" className={squadOpen ? "active" : ""} aria-pressed={squadOpen} onClick={() => (squadOpen ? closeSquad() : setSquadOpen(true))}>
               부대{selected.length ? ` ${selected.length}` : ""}
             </button>
           </div>
-          {squadOpen ? (
-            <div className="stw-squad-bar" role="group" aria-label="부대 고르기">
-              <div className="stw-squad-chips">
-                {squadTypes.length ? squadTypes.map(([type, count]) => (
-                  <button key={type} type="button" className={selected.includes(type) ? "active" : ""} aria-pressed={selected.includes(type)} onClick={() => toggleSquad(type)}>
-                    {STW_UNITS[type as keyof typeof STW_UNITS].name} {count}
-                    {squadSpots[type] ? <small>{stwRallyName(squadSpots[type]!.y, game) as string}</small> : null}
-                  </button>
-                )) : <span>옮길 전투 유닛이 없습니다</span>}
-              </div>
-              {selected.length ? (
-                <div className="stw-squad-actions">
-                  <span>지도를 누르면 고른 부대만 갑니다</span>
-                  <button type="button" onClick={() => issue({ type: "squadMove", units: selected, y: 20 })}>이 부대 출격</button>
-                  <button type="button" disabled={!selected.some((type) => squadSpots[type])} onClick={() => issue({ type: "squadRelease", units: selected })}>본대로</button>
-                  <button type="button" onClick={() => setSelected([])} aria-label="선택 해제">✕</button>
-                </div>
-              ) : <p className="stw-squad-hint">옮길 유닛 종류를 고르세요. 그 종류의 새 유닛도 그 부대로 갑니다. 출격 버튼은 모두 합칩니다.</p>}
-            </div>
-          ) : null}
           <div ref={scoutTagRef} className="stw-map-scout" role="group" aria-label="정찰">
             <button type="button" disabled={!mapScout.ok} title={mapScout.ok ? "적 본진의 건물·병력·연구 확인" : mapScout.reason} onClick={() => issue({ type: "scout", target: "main" })}>
               본진 정찰{mapScoutsMain ? <em>{mapScoutsMain}</em> : null}
@@ -843,7 +827,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
               자원 정찰{mapScouts.length - mapScoutsMain ? <em>{mapScouts.length - mapScoutsMain}</em> : null}
             </button>
           </div>
-          <p className="stw-intel-chip" hidden={squadOpen}>{intel ? `적 ${stwClock(intel.time)} · ${intelSummary(intel)}` : "적 정보 없음 · 정찰 필요"}</p>
+          <p className="stw-intel-chip">{intel ? `적 ${stwClock(intel.time)} · ${intelSummary(intel)}` : "적 정보 없음 · 정찰 필요"}</p>
           <ul className="stw-log" aria-live="polite">
             {recentLog.map((entry) => <li key={entry.id} className={`tone-${entry.tone}`}>{entry.text}</li>)}
           </ul>
@@ -861,18 +845,43 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         <section className="stw-panel" aria-label="선택 패널">
           <nav className="stw-tabs">
             {TABS.map((item) => (
-              <button key={item.id} type="button" aria-pressed={tab === item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>
+              <button key={item.id} type="button" aria-pressed={!squadOpen && tab === item.id} className={!squadOpen && tab === item.id ? "active" : ""} onClick={() => { setTab(item.id); closeSquad(); }}>
                 {item.label}
                 {item.id === "army" && army.rally.length ? <em>{army.rally.length}</em> : null}
               </button>
             ))}
           </nav>
-          <div className="stw-panel-body" key={tab}>
-            {tab === "build" ? <BuildTab game={game} issue={issue} /> : null}
-            {tab === "produce" ? <ProduceTab game={game} issue={issue} /> : null}
-            {tab === "research" ? <ResearchTab game={game} issue={issue} /> : null}
-            {tab === "army" ? <ArmyTab game={game} issue={issue} /> : null}
-          </div>
+          {squadOpen ? (
+            // 부대 지휘: 지도를 가리지 않게 아래 패널에 둔다. 탭 내용 대신 나오고 그만큼 패널이 낮아져 지도가 넓어진다.
+            <div className="stw-panel-body stw-squad-panel" role="group" aria-label="부대 고르기">
+              <div className="stw-squad-head">
+                <b>부대 지휘</b>
+                <span>{selected.length ? "지도를 누르면 고른 부대만 그 자리로 갑니다" : "옮길 유닛 종류를 고르세요"}</span>
+                <button type="button" onClick={closeSquad}>닫기</button>
+              </div>
+              <div className="stw-squad-chips">
+                {squadTypes.length ? squadTypes.map(([type, count]) => (
+                  <button key={type} type="button" className={selected.includes(type) ? "active" : ""} aria-pressed={selected.includes(type)} onClick={() => toggleSquad(type)}>
+                    {STW_UNITS[type as keyof typeof STW_UNITS].name} {count}
+                    {squadSpots[type] ? <small>{stwRallyName(squadSpots[type]!.y, game) as string}</small> : null}
+                  </button>
+                )) : <span>옮길 전투 유닛이 없습니다</span>}
+              </div>
+              <div className="stw-squad-actions">
+                <button type="button" disabled={!selected.length} onClick={() => issue({ type: "squadMove", units: selected, y: 20 })}>이 부대 출격</button>
+                <button type="button" disabled={!selected.some((type) => squadSpots[type])} onClick={() => issue({ type: "squadRelease", units: selected })}>본대로</button>
+                <button type="button" disabled={!selected.length} onClick={() => setSelected([])}>선택 해제</button>
+              </div>
+              <p className="stw-squad-hint">그 종류의 새 유닛도 그 부대로 갑니다. 병력 탭의 출격은 모든 부대를 합칩니다.</p>
+            </div>
+          ) : (
+            <div className="stw-panel-body" key={tab}>
+              {tab === "build" ? <BuildTab game={game} issue={issue} /> : null}
+              {tab === "produce" ? <ProduceTab game={game} issue={issue} /> : null}
+              {tab === "research" ? <ResearchTab game={game} issue={issue} /> : null}
+              {tab === "army" ? <ArmyTab game={game} issue={issue} /> : null}
+            </div>
+          )}
         </section>
       </div>
       {confirmExit ? (

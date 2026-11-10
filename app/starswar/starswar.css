@@ -66,18 +66,20 @@
 .stw-map-scout em { min-width:15px; padding:0 4px; border-radius:8px; color:#062033; background:#8fd3ff; font-size:10px; font-style:normal; line-height:15px; }
 .stw-map-tools button.active { color:#2a1c05; border-color:var(--stw-gold); background:var(--stw-gold); }
 /* 지도 위 부대 고르기: 도구줄 아래에 유닛 종류 칩, 고르면 동작 버튼. */
-.stw-squad-bar { position:absolute; left:8px; right:8px; top:52px; z-index:4; display:grid; gap:5px; }
-.stw-squad-chips { display:flex; gap:5px; overflow-x:auto; scrollbar-width:none; padding-bottom:1px; }
-.stw-squad-chips::-webkit-scrollbar { display:none; }
-.stw-squad-chips button { flex:0 0 auto; min-height:32px; padding:0 10px; display:flex; align-items:center; gap:5px; border:1px solid #e9c77a55; border-radius:999px; background:#120d07e0; font-size:13px !important; font-weight:800; white-space:nowrap; }
+.stw-squad-panel { display:grid; gap:8px; align-content:start; }
+.stw-squad-head { display:flex; align-items:center; gap:8px; }
+.stw-squad-head b { flex:0 0 auto; color:var(--stw-gold); font-size:15px; }
+.stw-squad-head span { flex:1 1 auto; min-width:0; color:var(--stw-muted); font-size:13px !important; line-height:1.3 !important; }
+.stw-squad-head button { flex:0 0 auto; min-height:34px; padding:0 12px; border:1px solid var(--stw-line); border-radius:10px; background:#ffffff08; font-size:13px !important; font-weight:800; }
+.stw-squad-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.stw-squad-chips button { flex:0 0 auto; min-height:38px; padding:0 12px; display:flex; align-items:center; gap:6px; border:1px solid #e9c77a55; border-radius:999px; background:#ffffff08; font-size:14px !important; font-weight:800; white-space:nowrap; }
 .stw-squad-chips button.active { color:#2a1c05; border-color:var(--stw-gold); background:var(--stw-gold); }
 .stw-squad-chips small { padding:0 5px; border-radius:7px; color:#2a1c05; background:#ffd27acc; font-size:11px; }
-.stw-squad-chips span { padding:6px 10px; border-radius:9px; color:var(--stw-muted); background:#120d07d9; font-size:13px; }
-.stw-squad-actions { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
-.stw-squad-actions span { flex:1 1 140px; padding:5px 9px; border-radius:9px; color:#ffe7b0; background:#120d07d9; font-size:12px !important; font-weight:800; }
-.stw-squad-actions button { min-height:32px; padding:0 10px; border:1px solid #e9c77a55; border-radius:10px; background:#120d07e6; font-size:13px !important; font-weight:900; }
+.stw-squad-chips span { padding:8px 2px; color:var(--stw-muted); font-size:13px; }
+.stw-squad-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+.stw-squad-actions button { min-height:40px; padding:0 6px; border:1px solid #e9c77a55; border-radius:10px; background:#ffffff08; font-size:14px !important; font-weight:900; white-space:nowrap; }
 .stw-squad-actions button:disabled { opacity:.45; }
-.stw-squad-hint { margin:0; width:max-content; max-width:100%; padding:5px 9px; border-radius:9px; color:var(--stw-muted); background:#120d07d9; font-size:12px !important; font-weight:700; }
+.stw-squad-hint { margin:0; color:var(--stw-muted); font-size:12px !important; line-height:1.4 !important; }
 .stw-intel-chip { position:absolute; right:12px; top:52px; left:8px; margin:0; width:max-content; max-width:calc(100% - 20px); overflow:hidden; padding:5px 10px; border-radius:9px; color:#ffd8cc; background:#2a120bd9; font-size:13px !important; font-weight:800; line-height:1.35 !important; text-overflow:ellipsis; white-space:nowrap; pointer-events:none; }
 /* 정찰 버튼이 오른쪽 가장자리에 서므로 기록은 오른쪽을 비워 둔다. */
 .stw-log { position:absolute; left:8px; right:92px; bottom:8px; margin:0; padding:0; list-style:none; display:grid; gap:4px; pointer-events:none; }
