@@ -1,6 +1,6 @@
 // 스타즈워 엔진 상태의 TypeScript 표면 타입.
 export type StwSide = "player" | "enemy";
-export type StwDifficulty = "easy" | "normal" | "hard" | "master";
+export type StwDifficulty = "easy" | "normal" | "hard" | "master" | "pro";
 export type StwRaceId = "protoss" | "terran" | "zerg";
 export type StwArmyType = "zealot" | "dragoon" | "templar" | "dark" | "archon" | "darkArchon" | "observer" | "shuttle" | "reaver" | "scout" | "corsair" | "carrier" | "arbiter"
   | "marine" | "firebat" | "medic" | "ghost" | "vulture" | "tank" | "goliath" | "wraith" | "dropship" | "vessel" | "valkyrie" | "battlecruiser"

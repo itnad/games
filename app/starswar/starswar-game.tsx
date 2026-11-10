@@ -77,7 +77,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "research", label: "연구" },
   { id: "army", label: "병력" },
 ];
-const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard", "master"];
+const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard", "master", "pro"];
 /** 최상급 AI가 쓰는 지난 경기 분석(사람 대 AI 경기마다 갱신). 화면에는 드러내지 않는다. */
 const LEARN_KEY = "paperoid-starswar-learning";
 
@@ -374,7 +374,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const startBattle = () => {
     const enemy = races.enemy === "random" ? RACE_IDS[Math.floor(Math.random() * RACE_IDS.length)] : races.enemy;
     // 엔진 쪽 매개변수는 JS라 기본값(null)으로 타입이 잡힌다.
-    const learned = (difficulty === "master" ? stwLearnSnapshot(readLearning()) : null) as never;
+    const learned = ((STW_DIFFICULTIES[difficulty] as { master?: boolean }).master ? stwLearnSnapshot(readLearning()) : null) as never;
     const player = races.player === "random" ? RACE_IDS[Math.floor(Math.random() * RACE_IDS.length)] : races.player;
     const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), races: { player, enemy }, hiddenEnemyRace: races.enemy === "random", learned }) as unknown as StwState;
     clearSave();

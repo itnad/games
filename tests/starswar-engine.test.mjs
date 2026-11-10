@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { STW_BUILDINGS, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_SPELLS, STW_STORM, STW_UNITS } from "../app/starswar/starswar-data.js";
+import { STW_BUILDINGS, STW_DIFFICULTIES, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_SPELLS, STW_STORM, STW_UNITS } from "../app/starswar/starswar-data.js";
 import {
   createStarswarGame,
   stwCreateScenario,
@@ -1302,6 +1302,11 @@ test("starswar learning: tags the human's strategy, keeps a plan from AI losses,
   const master = createStarswarGame({ seed: 9, difficulty: "master", races: { player: "zerg", enemy: "protoss" }, learned: snapshot });
   assert.equal(master.sides.enemy.plan?.id, kept.id);
   assert.equal(master.sides.enemy.persona, "rush");
+  // 프로급도 같은 판단을 쓰고 수입만 +15%다. 최상급은 수입 보너스가 없다.
+  const pro = createStarswarGame({ seed: 9, difficulty: "pro", races: { player: "zerg", enemy: "protoss" }, learned: snapshot });
+  assert.equal(pro.sides.enemy.plan?.id, kept.id);
+  assert.equal(STW_DIFFICULTIES.master.income, 1);
+  assert.equal(STW_DIFFICULTIES.pro.income, 1.15);
   run(master, 240, stwAiThink);
   const firstBuilds = master.chronicle.filter((entry) => entry[1] === "enemy" && entry[2].type === "build").map((entry) => entry[2].building);
   assert.ok(firstBuilds.includes("gateway"));
