@@ -11,14 +11,10 @@ import {
   STW_ECONOMY,
   STW_LANE_LENGTH,
   STW_LANE_WIDTH,
-  STW_LAYOUT,
   STW_AI_PERSONAS,
   STW_PRODUCERS,
   STW_PRODUCER_UNITS,
   STW_RACES,
-  STW_ATTACK_ZONE_Y,
-  STW_RALLY_POINTS,
-  STW_RALLY_RANGE,
   STW_RAID_UNITS,
   STW_RESEARCH,
   STW_SIZE_MULTIPLIER,
@@ -29,9 +25,19 @@ import {
   STW_TRANSPORT,
   STW_UNITS,
   STW_WORKER_HP,
+  stwGroundSpan,
+  stwMapData,
 } from "./starswar-data.js";
 
 export const STW_SIDES = ["player", "enemy"];
+
+/**
+ * 경기의 맵 묶음(위치·집결 눈금·지형). 맵 이름이 없는 옛 저장 경기는 평원이다.
+ * @param {any} [state]
+ */
+export function stwMap(state) {
+  return stwMapData(state?.map);
+}
 
 /** 진영의 종족 설정. */
 export function stwRace(state, side) {
@@ -154,16 +160,27 @@ export function stwForward(side) {
   return side === "player" ? -1 : 1;
 }
 
-/** 집결지의 전장 세로 위치. rally는 이름표나 아군 기준 숫자. */
-export function stwRallyY(side, rally) {
-  const own = typeof rally === "number" ? rally : (STW_RALLY_POINTS.find((item) => item.id === rally) ?? STW_RALLY_POINTS[0]).y;
+/**
+ * 집결지의 전장 세로 위치. rally는 이름표나 아군 기준 숫자. 이름표의 위치는 맵마다 다르므로 경기(state)를 함께 준다.
+ * @param {string} side
+ * @param {string | number} rally
+ * @param {any} [state]
+ */
+export function stwRallyY(side, rally, state = null) {
+  const points = stwMap(state).rallyPoints;
+  const own = typeof rally === "number" ? rally : (points.find((item) => item.id === rally) ?? points[0]).y;
   return side === "player" ? own : STW_LANE_LENGTH - own;
 }
 
-/** 아군 기준 세로 위치에 가장 가까운 집결 위치 이름(로그용). */
-export function stwRallyName(rally) {
-  if (typeof rally !== "number") return (STW_RALLY_POINTS.find((item) => item.id === rally) ?? STW_RALLY_POINTS[0]).name;
-  return STW_RALLY_POINTS.reduce((best, item) => (Math.abs(item.y - rally) < Math.abs(best.y - rally) ? item : best), STW_RALLY_POINTS[0]).name;
+/**
+ * 아군 기준 세로 위치에 가장 가까운 집결 위치 이름(로그용).
+ * @param {string | number} rally
+ * @param {any} [state]
+ */
+export function stwRallyName(rally, state = null) {
+  const points = stwMap(state).rallyPoints;
+  if (typeof rally !== "number") return (points.find((item) => item.id === rally) ?? points[0]).name;
+  return points.reduce((best, item) => (Math.abs(item.y - rally) < Math.abs(best.y - rally) ? item : best), points[0]).name;
 }
 
 function distance(ax, ay, bx, by) {
@@ -177,14 +194,14 @@ function nextRandom(state) {
 
 /* ───────── 생성 ───────── */
 
-function createSide(id, persona, race) {
+function createSide(id, persona, race, map) {
   return {
     id,
     race,
     minerals: STW_ECONOMY.startMinerals,
     gas: 0,
     probes: STW_ECONOMY.startProbes,
-    bases: { main: { minerals: STW_ECONOMY.mainMinerals }, natural: { minerals: STW_ECONOMY.naturalMinerals } },
+    bases: { main: { minerals: STW_ECONOMY.mainMinerals }, natural: { minerals: map.naturalMinerals } },
     research: {},
     rally: "main",
     autoWave: 0,
@@ -204,9 +221,11 @@ function createSide(id, persona, race) {
 /**
  * learned: 최상급 경기에서 AI가 쓸 학습 묶음(stwLearnSnapshot). 재현 정보에 함께 남아 같은 경기가 다시 돌아간다.
  */
-export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {}, races = {}, hiddenEnemyRace = false, learned = null } = {}) {
+export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {}, races = {}, hiddenEnemyRace = false, learned = null, map = "plain" } = {}) {
+  const mapData = stwMapData(map);
   const state = {
     version: 1,
+    map: mapData.id,
     hiddenEnemyRace,
     time: 0,
     difficulty: STW_DIFFICULTIES[difficulty] ? difficulty : "normal",
@@ -216,8 +235,8 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
     nextId: 1,
     accumulator: 0,
     sides: {
-      player: createSide("player", personas.player ?? null, STW_RACES[races.player] ? races.player : "protoss"),
-      enemy: createSide("enemy", personas.enemy ?? null, STW_RACES[races.enemy] ? races.enemy : "protoss"),
+      player: createSide("player", personas.player ?? null, STW_RACES[races.player] ? races.player : "protoss", mapData),
+      enemy: createSide("enemy", personas.enemy ?? null, STW_RACES[races.enemy] ? races.enemy : "protoss", mapData),
     },
     units: [],
     buildings: [],
@@ -232,7 +251,7 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
     aiSides: [...aiSides],
     history: [],
     // 재현 정보: 경기를 만든 설정과 사람이 내린 명령(틱, 명령). 같은 코드에서 그대로 다시 돌리면 같은 경기가 된다.
-    replay: { setup: { difficulty, seed, aiSides: [...aiSides], personas: { ...personas }, races: { ...races }, hiddenEnemyRace, ...(learned ? { learned } : {}) }, commands: [] },
+    replay: { setup: { difficulty, seed, aiSides: [...aiSides], personas: { ...personas }, races: { ...races }, hiddenEnemyRace, ...(mapData.id !== "plain" ? { map: mapData.id } : {}), ...(learned ? { learned } : {}) }, commands: [] },
     // 양쪽이 성공한 명령의 시간순 기록(빌드 순서·연구·공격 시점). 결과 화면의 리포트에 쓴다.
     chronicle: [],
   };
@@ -241,7 +260,7 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
   for (const side of STW_SIDES) {
     if (!state.sides[side].persona && state.aiSides.includes(side) && master) {
       // 최상급: 지난 경기들의 승패와 상대가 자주 쓰는 전략으로 고른다(이긴 사람의 운영을 따라 한 계획도 후보).
-      const pick = stwLearnPick(state.learned, state.sides[side].race, state.sides[stwOpponent(side)].race, () => nextRandom(state));
+      const pick = stwLearnPick(state.learned, state.sides[side].race, state.sides[stwOpponent(side)].race, () => nextRandom(state), state.map);
       state.sides[side].persona = pick.persona;
       if (pick.plan) state.sides[side].plan = JSON.parse(JSON.stringify(pick.plan));
     } else if (!state.sides[side].persona && state.aiSides.includes(side)) {
@@ -251,7 +270,7 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
         .map((persona) => persona.id);
       state.sides[side].persona = personas[Math.floor(nextRandom(state) * personas.length)];
     }
-    const nexus = placeBuilding(state, side, stwRace(state, side).base, stwPoint(side, STW_LAYOUT.mainNexus), "main", "nexus-main");
+    const nexus = placeBuilding(state, side, stwRace(state, side).base, stwPoint(side, stwMap(state).layout.mainNexus), "main", "nexus-main");
     nexus.progress = 1;
     nexus.hp = nexus.maxHp;
     nexus.shields = nexus.maxShields;
@@ -366,10 +385,11 @@ export function stwWorkerSplit(state, side) {
   return split;
 }
 
-function mineralRate(count) {
+/** 광물 채취 속도(초당). rate는 그 기지 광물의 배율(황금 앞마당은 1보다 크다). */
+function mineralRate(count, rate = 1) {
   const full = Math.min(count, STW_ECONOMY.fullSaturation);
   const over = Math.max(0, Math.min(count, STW_ECONOMY.maxSaturation) - STW_ECONOMY.fullSaturation);
-  return (full + over * STW_ECONOMY.overflowRate) * STW_ECONOMY.mineralRate;
+  return (full + over * STW_ECONOMY.overflowRate) * STW_ECONOMY.mineralRate * rate;
 }
 
 function incomeMultiplier(state, side) {
@@ -381,7 +401,7 @@ export function stwIncome(state, side) {
   const split = stwWorkerSplit(state, side);
   const multiplier = incomeMultiplier(state, side);
   return {
-    minerals: Math.round((mineralRate(split.main) + mineralRate(split.natural)) * multiplier * 60),
+    minerals: Math.round((mineralRate(split.main) + mineralRate(split.natural, stwMap(state).naturalRate)) * multiplier * 60),
     gas: Math.round(split.gas * STW_ECONOMY.gasPerProbe * multiplier * 60),
   };
 }
@@ -448,9 +468,9 @@ function freeSlot(state, side, list, prefix, { frontFirst = false } = {}) {
 /** 일반 건물을 더 지을 수 있는 자리 수(본진 + 완성된 앞마당). AI가 꼭 필요한 테크 건물 자리를 남겨 둘 때 쓴다. */
 export function stwFreeSlots(state, side) {
   const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
-  let free = STW_LAYOUT.mainSlots.filter((slot, index) => !slot.blocked && !used.has(`main-${index}`)).length;
+  let free = stwMap(state).layout.mainSlots.filter((slot, index) => !slot.blocked && !used.has(`main-${index}`)).length;
   const natural = stwNexus(state, side, "natural");
-  if (natural && stwDone(natural)) free += STW_LAYOUT.naturalSlots.filter((_, index) => !used.has(`natural-${index}`)).length;
+  if (natural && stwDone(natural)) free += stwMap(state).layout.naturalSlots.filter((_, index) => !used.has(`natural-${index}`)).length;
   return free;
 }
 
@@ -460,9 +480,9 @@ function placementFor(state, side, type) {
     const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
     const naturalBase = stwNexus(state, side, "natural");
     const naturalReady = Boolean(naturalBase && stwDone(naturalBase));
-    const index = STW_LAYOUT.geysers.findIndex((point, i) => (point.base === "main" || naturalReady) && !used.has(`geyser-${i}`));
+    const index = stwMap(state).layout.geysers.findIndex((point, i) => (point.base === "main" || naturalReady) && !used.has(`geyser-${i}`));
     if (index < 0) return null;
-    const geyser = STW_LAYOUT.geysers[index];
+    const geyser = stwMap(state).layout.geysers[index];
     return { key: `geyser-${index}`, point: stwPoint(side, geyser), base: geyser.base };
   }
   const natural = stwNexus(state, side, "natural");
@@ -470,20 +490,20 @@ function placementFor(state, side, type) {
     // 상대 수송선을 본 뒤에는 같은 종류의 방어 건물이 본진에 하나도 없으면 본진(광물 줄 가까운 뒤쪽)에 먼저 세운다.
     const record = state.sides[side];
     if (natural && record.sawTransportAt !== undefined && !state.buildings.some((building) => building.side === side && building.type === type && building.base === "main")) {
-      const back = freeSlot(state, side, STW_LAYOUT.mainSlots, "main");
+      const back = freeSlot(state, side, stwMap(state).layout.mainSlots, "main");
       if (back) return { ...back, base: "main" };
     }
     if (natural) {
-      const slot = freeSlot(state, side, STW_LAYOUT.naturalSlots, "natural");
+      const slot = freeSlot(state, side, stwMap(state).layout.naturalSlots, "natural");
       if (slot) return { ...slot, base: "natural" };
     }
-    const front = freeSlot(state, side, STW_LAYOUT.mainSlots, "main", { frontFirst: true });
+    const front = freeSlot(state, side, stwMap(state).layout.mainSlots, "main", { frontFirst: true });
     return front ? { ...front, base: "main" } : null;
   }
-  const main = freeSlot(state, side, STW_LAYOUT.mainSlots, "main");
+  const main = freeSlot(state, side, stwMap(state).layout.mainSlots, "main");
   if (main) return { ...main, base: "main" };
   if (natural && stwDone(natural)) {
-    const slot = freeSlot(state, side, STW_LAYOUT.naturalSlots, "natural");
+    const slot = freeSlot(state, side, stwMap(state).layout.naturalSlots, "natural");
     if (slot) return { ...slot, base: "natural" };
   }
   return null;
@@ -493,7 +513,7 @@ export function stwBuildCheck(state, side, type) {
   const record = state.sides[side];
   if (type === "expand") {
     if (stwNexus(state, side, "natural")) return fail("이미 앞마당에 기지가 있습니다");
-    const point = stwPoint(side, STW_LAYOUT.naturalNexus);
+    const point = stwPoint(side, stwMap(state).layout.naturalNexus);
     if (state.units.some((unit) => unit.side !== side && distance(unit.x, unit.y, point.x, point.y) < 12)) return fail("앞마당에 적이 있습니다");
     return costCheck(record, STW_BUILDINGS[stwRace(state, side).base].minerals, 0);
   }
@@ -505,7 +525,7 @@ export function stwBuildCheck(state, side, type) {
   if (def.unique && stwOwnBuildings(state, side, type).length) return fail("이미 있습니다");
   if (!placementFor(state, side, type)) {
     if (!def.refinery) return fail("지을 자리가 없습니다");
-    const naturalTaken = state.buildings.some((building) => building.side === side && building.slot === `geyser-${STW_LAYOUT.geysers.findIndex((point) => point.base === "natural")}`);
+    const naturalTaken = state.buildings.some((building) => building.side === side && building.slot === `geyser-${stwMap(state).layout.geysers.findIndex((point) => point.base === "natural")}`);
     return fail(naturalTaken ? "가스 간헐천이 모두 찼습니다" : "앞마당 기지가 서면 앞마당 간헐천에 지을 수 있습니다");
   }
   return costCheck(record, def.minerals, def.gas);
@@ -604,10 +624,6 @@ export function stwDropCheck(state, side, mission = state.sides[side].dropPlan?.
   return { ok: true, carriers, passengers };
 }
 
-/** 적 기지의 착륙 후보(적 기준 좌표). 앞 둘은 본진 광물 줄 양옆. */
-const LAND_MAIN = [{ x: 11, y: 96.5 }, { x: 29, y: 96.5 }, { x: 4.5, y: 93 }, { x: 35.5, y: 93 }, { x: 4.5, y: 84 }, { x: 35.5, y: 84 }];
-const LAND_NATURAL = [{ x: 8, y: 80 }, { x: 32, y: 80 }];
-
 /** 건물 분류: 생산(생산 라인), 기술(연구·해금 건물), 본진(기지 건물). */
 function buildingKind(type) {
   const def = STW_BUILDINGS[type];
@@ -627,7 +643,7 @@ function groundDefenses(state, side) {
  */
 function landingPoint(state, side, target, base) {
   const foe = stwOpponent(side);
-  const list = (base === "natural" ? LAND_NATURAL : LAND_MAIN).map((point, index) => ({ ...stwPoint(foe, point), index }));
+  const list = (base === "natural" ? stwMap(state).landNatural : stwMap(state).landMain).map((point, index) => ({ ...stwPoint(foe, point), index }));
   const defenses = groundDefenses(state, foe);
   const goals = target === "tech" || target === "production" ? state.buildings.filter((building) => building.side === foe && buildingKind(building.type) === target) : [];
   const focus = goals.length ? { x: goals.reduce((sum, item) => sum + item.x, 0) / goals.length, y: goals.reduce((sum, item) => sum + item.y, 0) / goals.length } : null;
@@ -654,9 +670,10 @@ function homePath(side, transport) {
 }
 
 /** 광물 줄 한가운데(광물과 기지 건물 사이). */
-function mineralCenter(side, base) {
-  const minerals = stwPoint(side, base === "natural" ? STW_LAYOUT.naturalMinerals : STW_LAYOUT.mainMinerals);
-  const nexus = stwPoint(side, base === "natural" ? STW_LAYOUT.naturalNexus : STW_LAYOUT.mainNexus);
+function mineralCenter(state, side, base) {
+  const layout = stwMap(state).layout;
+  const minerals = stwPoint(side, base === "natural" ? layout.naturalMinerals : layout.mainMinerals);
+  const nexus = stwPoint(side, base === "natural" ? layout.naturalNexus : layout.mainNexus);
   return { x: minerals.x, y: minerals.y + (nexus.y - minerals.y) * 0.35 };
 }
 
@@ -783,7 +800,7 @@ function runCommand(state, side, command) {
       if (command.building === "expand") {
         const base = STW_BUILDINGS[race.base];
         record.minerals -= base.minerals;
-        placeBuilding(state, side, race.base, stwPoint(side, STW_LAYOUT.naturalNexus), "natural", "nexus-natural");
+        placeBuilding(state, side, race.base, stwPoint(side, stwMap(state).layout.naturalNexus), "natural", "nexus-natural");
         if (side === "player") pushLog(state, side, `앞마당 ${withKoreanObject(base.name)} ${race.buildVerb}하기 시작했습니다.`, "info");
         return { ok: true };
       }
@@ -881,7 +898,7 @@ function runCommand(state, side, command) {
       const members = state.units.filter((unit) => unit.side === side && unit.hp > 0 && types.includes(unit.type) && (unit.group === "rally" || unit.group === "attack") && unit.raid === undefined);
       if (!members.length) return fail("옮길 유닛이 없습니다");
       const names = types.map((type) => STW_UNITS[type].name).join("·");
-      if (command.y <= STW_ATTACK_ZONE_Y) {
+      if (command.y <= stwMap(state).attackZoneY) {
         for (const type of types) delete record.squads[type];
         for (const unit of members) {
           delete unit.squad;
@@ -890,13 +907,13 @@ function runCommand(state, side, command) {
         if (side === "player") pushLog(state, side, `${names} 부대 ${members.length}기가 출격합니다!`, "order");
         return { ok: true, mode: "attack" };
       }
-      const y = Math.round(Math.min(STW_RALLY_RANGE.max, Math.max(STW_RALLY_RANGE.min, command.y)));
+      const y = Math.round(Math.min(stwMap(state).rallyRange.max, Math.max(stwMap(state).rallyRange.min, command.y)));
       for (const type of types) record.squads[type] = { y };
       for (const unit of members) {
         unit.group = "rally";
         unit.squad = unit.type;
       }
-      if (side === "player") pushLog(state, side, `${names} 부대 ${members.length}기가 ${withKoreanDirection(stwRallyName(y))} 갑니다.`, "order");
+      if (side === "player") pushLog(state, side, `${names} 부대 ${members.length}기가 ${withKoreanDirection(stwRallyName(y, state))} 갑니다.`, "order");
       return { ok: true, mode: "squad", y };
     }
     case "squadRelease": {
@@ -973,7 +990,7 @@ function runCommand(state, side, command) {
         const op = { id: state.nextId++, side, kind: "bomb", target: plan.target, base: "main", transports: transports.map((item) => item.id), riders: [], phase: "gather", since: state.time, sync: Boolean(plan.sync), repeat: false, value: 0 };
         state.ops.push(op);
         const land = landingPoint(state, side, plan.target, "main");
-        const gatherY = stwPoint(stwOpponent(side), { x: 0, y: 66 }).y;
+        const gatherY = stwPoint(stwOpponent(side), { x: 0, y: stwMap(state).dropGatherY }).y;
         for (const transport of transports) {
           transport.op = op.id;
           transport.group = "drop";
@@ -986,10 +1003,10 @@ function runCommand(state, side, command) {
       return { ok: true, transports: transports.length, loaded, mission: plan.mission };
     }
     case "rally": {
-      if (!STW_RALLY_POINTS.some((point) => point.id === command.point)) return fail("알 수 없는 위치입니다");
+      if (!stwMap(state).rallyPoints.some((point) => point.id === command.point)) return fail("알 수 없는 위치입니다");
       record.rally = command.point;
       if (side === "player") {
-        const name = STW_RALLY_POINTS.find((point) => point.id === command.point).name;
+        const name = stwMap(state).rallyPoints.find((point) => point.id === command.point).name;
         pushLog(state, side, `집결지를 ${withKoreanDirection(name)} 옮깁니다.`, "order");
       }
       return { ok: true };
@@ -997,13 +1014,13 @@ function runCommand(state, side, command) {
     case "move": {
       // 지도 탭: 적 앞마당 안쪽이면 출격, 병력 앞쪽이면 싸우며 전진, 뒤쪽이면 교전을 끊고 후퇴.
       if (typeof command.y !== "number" || Number.isNaN(command.y)) return fail("알 수 없는 위치입니다");
-      if (command.y <= STW_ATTACK_ZONE_Y) return stwCommand(state, side, { type: "attack" });
-      const y = Math.round(Math.min(STW_RALLY_RANGE.max, Math.max(STW_RALLY_RANGE.min, command.y)));
+      if (command.y <= stwMap(state).attackZoneY) return stwCommand(state, side, { type: "attack" });
+      const y = Math.round(Math.min(stwMap(state).rallyRange.max, Math.max(stwMap(state).rallyRange.min, command.y)));
       const army = stwArmy(state, side);
       // 아군 기준 좌표로 병력 선두를 잰다(작을수록 앞). 따로 둔 부대는 본대 지시를 따르지 않으므로 세지 않는다.
       const units = [...army.fighters, ...army.attackers].filter((unit) => unit.squad === undefined);
       const front = units.length ? Math.min(...units.map((unit) => (side === "player" ? unit.y : STW_LANE_LENGTH - unit.y))) : null;
-      const name = stwRallyName(y);
+      const name = stwRallyName(y, state);
       record.rally = y;
       if (front !== null && y > front + 2 && (army.attack.length || units.some((unit) => (side === "player" ? unit.y : STW_LANE_LENGTH - unit.y) < y - 2))) {
         // 뒤쪽: 전군 후퇴.
@@ -1043,7 +1060,7 @@ function runCommand(state, side, command) {
       return { ok: true };
     }
     case "recall": {
-      const point = STW_RALLY_POINTS.find((item) => item.id === command.point);
+      const point = stwMap(state).rallyPoints.find((item) => item.id === command.point);
       if (!point) return fail("알 수 없는 위치입니다");
       const army = stwArmy(state, side);
       record.rally = point.id;
@@ -1093,7 +1110,7 @@ function runCommand(state, side, command) {
       if (command.target === "resources") {
         const foe = stwOpponent(side);
         unit.scoutMode = "resources";
-        unit.scoutPath = RESOURCE_SCOUT_PATH.map((point) => stwPoint(foe, point));
+        unit.scoutPath = stwMap(state).scoutPath.map((point) => stwPoint(foe, point));
       }
       if (side === "player") pushLog(state, side, `${STW_UNITS[workerType].name} 1기를 ${withKoreanDirection(unit.scoutMode === "resources" ? "적 자원 지대" : "적 본진")} 정찰 보냅니다.`, "order");
       return { ok: true };
@@ -1323,7 +1340,7 @@ function labFormation(state, side, units, frontY, group) {
  * 필요한 생산·테크 건물과 선행 연구는 자동으로 갖추고, 인구 상한은 건물 없이 100으로 채운다.
  * 자리가 모자라 짓지 못한 건물은 기록으로 알린다.
  */
-export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, races = {}, placement = "clash", enemyAi = "fight", sides = {} } = {}) {
+export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, races = {}, placement = "clash", enemyAi = "fight", sides = {}, map = "plain" } = {}) {
   const control = {
     player: sides.player?.control === "ai" ? "ai" : "manual",
     enemy: sides.enemy?.control ? (sides.enemy.control === "ai" ? "ai" : "fight") : enemyAi === "full" ? "ai" : "fight",
@@ -1335,7 +1352,7 @@ export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, r
     if (persona && STW_AI_PERSONAS[persona]?.race === race) personas[side] = persona;
   }
   const aiSides = STW_SIDES.filter((side) => control[side] === "ai");
-  const state = createStarswarGame({ difficulty, seed, races, aiSides, personas });
+  const state = createStarswarGame({ difficulty, seed, races, aiSides, personas, map });
   state.lab = { placement, control };
   state.time = Math.max(0, Math.round(time));
   const missing = [];
@@ -1402,7 +1419,7 @@ export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, r
   state.log = [];
   state.history = [];
   state.chronicle = [];
-  state.replay = { scenario: JSON.parse(JSON.stringify({ difficulty, seed, time, races, placement, enemyAi, sides })), commands: [] };
+  state.replay = { scenario: JSON.parse(JSON.stringify({ difficulty, seed, time, races, placement, enemyAi, sides, ...(state.map !== "plain" ? { map: state.map } : {}) })), commands: [] };
   recordHistory(state);
   const enemyName = STW_RACES[state.sides.enemy.race].name;
   pushLog(state, "player", `실험실: ${stwClock(state.time)} 상황, ${enemyName} 상대로 시작합니다.`, "info");
@@ -1443,10 +1460,10 @@ function stepEconomy(state, side, dt) {
     if (!split[base]) continue;
     const nexus = stwNexus(state, side, base);
     // 대피: 기지 건물 12칸 안이나 광물 줄 구역에 적 전투 유닛이 있으면 일꾼이 피해 채취가 줄어든다.
-    const line = mineralCenter(side, base);
+    const line = mineralCenter(state, side, base);
     const threatened = nexus && state.units.some((unit) => unit.side !== side && unit.hp > 0 && !isPassive(unit) && unit.group !== "cargo"
       && (distance(unit.x, unit.y, nexus.x, nexus.y) < 12 || distance(unit.x, unit.y, line.x, line.y) < STW_ECONOMY.mineralZone));
-    const mined = Math.min(record.bases[base].minerals, mineralRate(split[base]) * dt * (threatened ? STW_ECONOMY.evacuation : 1));
+    const mined = Math.min(record.bases[base].minerals, mineralRate(split[base], base === "natural" ? stwMap(state).naturalRate : 1) * dt * (threatened ? STW_ECONOMY.evacuation : 1));
     record.bases[base].minerals -= mined;
     record.minerals += mined * multiplier;
     record.stats.minerals += mined * multiplier;
@@ -2247,16 +2264,21 @@ function rallySlots(state, side, units, anchorY) {
   const slots = new Map();
   const byRole = { melee: [], ranged: [], siege: [], air: [], caster: [], support: [] };
   for (const unit of sorted) byRole[STW_UNITS[unit.type].role].push(unit);
+  // 좁은 길(협곡)에 서면 한 줄에 설 수 있는 만큼만 세우고, 역할 순서대로 줄을 뒤로 이어 쌓는다.
+  const [left, right] = stwGroundSpan(stwMap(state), anchorY);
+  const perRow = Math.max(3, Math.min(12, Math.floor((right - left - 2) / 2.7) + 1));
+  let stacked = 0;
   for (const [role, list] of Object.entries(byRole)) {
     list.forEach((unit, index) => {
-      const row = Math.floor(index / 12);
-      const inRow = Math.min(12, list.length - row * 12);
-      const column = index % 12;
+      const row = Math.floor(index / perRow);
+      const inRow = Math.min(perRow, list.length - row * perRow);
+      const column = index % perRow;
       slots.set(unit.id, {
         x: STW_LANE_WIDTH / 2 + (column - (inRow - 1) / 2) * 2.7,
-        y: anchorY + forward * (ROLE_DEPTH[role] - row * 2.6),
+        y: anchorY + forward * (perRow < 12 ? 2 - (stacked + row) * 2.6 : ROLE_DEPTH[role] - row * 2.6),
       });
     });
+    stacked += Math.ceil(list.length / perRow);
   }
   return slots;
 }
@@ -2279,7 +2301,7 @@ function stepUnits(state, dt) {
       for (const unit of army.attack) unit.group = "rally";
       army = stwArmy(state, side);
     }
-    const rallyY = stwRallyY(side, state.sides[side].rally);
+    const rallyY = stwRallyY(side, state.sides[side].rally, state);
     const attackSlots = rallySlots(state, side, army.attack, 0);
     // 공격 병력은 가장 느린 지상 유닛에 맞춰 움직인다. 동행 오버로드도 같이 다니므로 속도에 포함한다.
     const speeds = army.attack.filter((unit) => !isFlying(unit) || unit.type === "overlord").map((unit) => unitSpeed(state, unit));
@@ -2304,7 +2326,7 @@ function stepUnits(state, dt) {
       }
     }
     const allRallySlots = rallySlots(state, side, mainRally, rallyY);
-    for (const [type, members] of squadMembers) for (const [id, slot] of rallySlots(state, side, members, stwRallyY(side, squads[type].y))) allRallySlots.set(id, slot);
+    for (const [type, members] of squadMembers) for (const [id, slot] of rallySlots(state, side, members, stwRallyY(side, squads[type].y, state))) allRallySlots.set(id, slot);
     plans[side] = {
       rallySlots: allRallySlots,
       attackSlots,
@@ -2820,7 +2842,7 @@ function observerStep(state, unit, plan, dt) {
     const lead = escort.reduce((best, ally) => (forward < 0 ? Math.min(best, ally.y) : Math.max(best, ally.y)), escort[0].y);
     goal = { x: cx, y: lead - forward * 2 };
   } else {
-    goal = plan.rallySlots.get(unit.id) ?? { x: 20, y: stwRallyY(unit.side, state.sides[unit.side].rally) };
+    goal = plan.rallySlots.get(unit.id) ?? { x: 20, y: stwRallyY(unit.side, state.sides[unit.side].rally, state) };
   }
   moveToward(unit, goal.x, goal.y, unitSpeed(state, unit), dt);
 }
@@ -3135,7 +3157,7 @@ function raidRiderStep(state, unit, dt) {
   const split = stwWorkerSplit(state, foe);
   const workers = op.base === "natural" ? split.natural : split.main + split.idle;
   if (!workers) return false;
-  const center = mineralCenter(foe, op.base);
+  const center = mineralCenter(state, foe, op.base);
   if (distance(unit.x, unit.y, center.x, center.y) > 3) {
     unit.targetId = null;
     moveToward(unit, center.x + ((unit.id % 5) - 2) * 1.2, center.y, unitSpeed(state, unit), dt);
@@ -3565,9 +3587,6 @@ function stepStorms(state, dt) {
   }
 }
 
-/** 자원 정찰 경로(적 기준 좌표): 왼쪽 가장자리 → 왼쪽 가스 → 광물 줄 → 오른쪽 가스 → 오른쪽 가장자리. */
-const RESOURCE_SCOUT_PATH = [{ x: 2, y: 58 }, { x: 2, y: 88 }, { x: 9, y: 97.5 }, { x: 31, y: 97.5 }, { x: 38, y: 88 }, { x: 38, y: 58 }];
-
 function scoutStep(state, unit, dt) {
   const def = STW_UNITS[unit.type];
   if (unit.scoutPhase === "out") {
@@ -3645,6 +3664,7 @@ const clampX = (x) => Math.min(STW_LANE_WIDTH - 0.5, Math.max(0.5, x));
 
 function separate(state) {
   const units = state.units;
+  const map = stwMap(state);
   for (let i = 0; i < units.length; i += 1) {
     const a = units[i];
     if (isFlying(a) || a.group === "cargo") continue;
@@ -3693,8 +3713,10 @@ function separate(state) {
       b.x += bx;
       b.y += by;
     }
-    a.x = Math.min(STW_LANE_WIDTH - 1, Math.max(1, a.x));
+    // 지상 유닛은 전장 안에, 협곡에서는 절벽 사이 길 안에 둔다(공중 유닛은 위에서 걸러져 절벽을 넘는다).
     a.y = Math.min(STW_LANE_LENGTH - 1, Math.max(1, a.y));
+    const [left, right] = stwGroundSpan(map, a.y);
+    a.x = Math.min(right, Math.max(left, a.x));
   }
 }
 
@@ -3847,7 +3869,7 @@ function autoWaves(state) {
     const record = state.sides[side];
     if (!record.autoWave || record.autoWaveHold) continue;
     const army = stwArmy(state, side);
-    const rallyY = stwRallyY(side, record.rally);
+    const rallyY = stwRallyY(side, record.rally, state);
     // "즉시"(1)는 집결지에 모이기를 기다리지 않고 생산되는 대로 내보낸다.
     // 따로 둔 부대는 세지도 내보내지도 않는다.
     const main = army.fighters.filter((unit) => unit.squad === undefined);

@@ -548,6 +548,102 @@ export const STW_ECONOMY = {
   mineralZone: 7,
 };
 
+/**
+ * 맵. 위치·집결 눈금·착륙 지점·정찰 경로처럼 전장 모양에 달린 값을 한 묶음으로 둔다. 좌표는 모두 아군 기준(적은 점대칭).
+ * - plain(평원): 처음부터 있던 탁 트인 전장. 위의 STW_LAYOUT·STW_RALLY_* 값 그대로다.
+ * - canyon(협곡): 한가운데가 절벽으로 좁아진다. 지상 유닛은 좁은 길로만 지나고, 공중 유닛은 절벽 위로 넘는다.
+ * - gold(황금 앞마당): 앞마당이 앞으로 나와 지키기 어렵지만, 광물이 많고 빨리 캔다.
+ * corridor: y가 from~to인 구간은 가로 inset~(40 - inset)만 지상 유닛이 설 수 있고, 그 밖 taper칸에 걸쳐 다시 넓어진다.
+ */
+const PLAIN_MAP = {
+  id: "plain",
+  name: "평원",
+  note: "탁 트인 기본 전장",
+  layout: STW_LAYOUT,
+  rallyRange: STW_RALLY_RANGE,
+  attackZoneY: STW_ATTACK_ZONE_Y,
+  rallyPoints: STW_RALLY_POINTS,
+  /** 적 기지의 착륙 후보(적 기준 좌표). 앞 둘은 본진 광물 줄 양옆. */
+  landMain: [{ x: 11, y: 96.5 }, { x: 29, y: 96.5 }, { x: 4.5, y: 93 }, { x: 35.5, y: 93 }, { x: 4.5, y: 84 }, { x: 35.5, y: 84 }],
+  landNatural: [{ x: 8, y: 80 }, { x: 32, y: 80 }],
+  /** 자원 정찰 경로(적 기준 좌표): 왼쪽 가장자리 → 왼쪽 가스 → 광물 줄 → 오른쪽 가스 → 오른쪽 가장자리. */
+  scoutPath: [{ x: 2, y: 58 }, { x: 2, y: 88 }, { x: 9, y: 97.5 }, { x: 31, y: 97.5 }, { x: 38, y: 88 }, { x: 38, y: 58 }],
+  /** 폭탄 드랍 수송선이 모이는 세로 위치(적 기준). */
+  dropGatherY: 66,
+  naturalMinerals: STW_ECONOMY.naturalMinerals,
+  /** 앞마당 광물 채취 속도 배율. */
+  naturalRate: 1,
+  corridor: null,
+};
+
+/** 협곡: 평원의 앞쪽 가장자리 칸은 절벽에 걸리므로, 협곡 어귀와 앞마당 옆 빈 땅으로 옮긴다. */
+const CANYON_SLOTS = STW_LAYOUT.naturalSlots.slice(0, 10).concat([
+  { x: 9, y: 62.4 }, { x: 31, y: 62.4 }, { x: 14.2, y: 61.6 }, { x: 25.8, y: 61.6 }, { x: 7.4, y: 66 }, { x: 32.6, y: 66 },
+]);
+
+/** 황금 앞마당: 앞마당 기지와 광물·간헐천이 5칸 앞으로 나온다. 앞쪽 가장자리 칸 대신 본진과 앞마당 사이 빈 땅에 자리를 둔다. */
+const GOLD_SHIFT = 5;
+const GOLD_SLOTS = STW_LAYOUT.naturalSlots.slice(0, 10).map((slot) => ({ x: slot.x, y: slot.y - GOLD_SHIFT })).concat([
+  { x: 2.9, y: 76.4 }, { x: 37.1, y: 76.4 }, { x: 8.2, y: 77 }, { x: 31.8, y: 77 }, { x: 13.6, y: 77.4 }, { x: 26.4, y: 77.4 },
+]);
+
+export const STW_MAPS = {
+  plain: PLAIN_MAP,
+  canyon: {
+    ...PLAIN_MAP,
+    id: "canyon",
+    name: "협곡",
+    note: "가운데가 좁은 길 · 지상군은 줄지어 지나고 공중은 넘어간다",
+    layout: { ...STW_LAYOUT, naturalSlots: CANYON_SLOTS },
+    scoutPath: [{ x: 2, y: 66 }, { x: 2, y: 88 }, { x: 9, y: 97.5 }, { x: 31, y: 97.5 }, { x: 38, y: 88 }, { x: 38, y: 66 }],
+    corridor: { from: 42, to: 58, taper: 4, inset: 12 },
+  },
+  gold: {
+    ...PLAIN_MAP,
+    id: "gold",
+    name: "황금 앞마당",
+    note: "앞마당이 앞으로 나와 있다 · 광물이 많고 40% 빨리 캔다",
+    layout: {
+      ...STW_LAYOUT,
+      naturalNexus: { x: 20, y: STW_LAYOUT.naturalNexus.y - GOLD_SHIFT },
+      naturalMinerals: { x: 20, y: STW_LAYOUT.naturalMinerals.y - GOLD_SHIFT },
+      geysers: GEYSERS.map((point) => (point.base === "natural" ? { ...point, y: point.y - GOLD_SHIFT } : point)),
+      naturalSlots: GOLD_SLOTS,
+    },
+    rallyRange: { min: 38, max: 84 },
+    attackZoneY: 35,
+    rallyPoints: [
+      { id: "main", name: "본진 앞", short: "본진", y: 77 },
+      { id: "natural", name: "앞마당", short: "앞마당", y: 60 },
+      { id: "center", name: "중앙", short: "중앙", y: 50 },
+      { id: "forward", name: "적 앞마당 앞", short: "전진", y: 40 },
+    ],
+    landNatural: [{ x: 8, y: 75 }, { x: 32, y: 75 }],
+    scoutPath: [{ x: 2, y: 54 }, { x: 2, y: 88 }, { x: 9, y: 97.5 }, { x: 31, y: 97.5 }, { x: 38, y: 88 }, { x: 38, y: 54 }],
+    dropGatherY: 61,
+    naturalMinerals: 12000,
+    naturalRate: 1.4,
+  },
+};
+
+/** 고를 수 있는 맵 순서. */
+export const STW_MAP_IDS = ["plain", "canyon", "gold"];
+
+/** 맵 묶음. 모르는 이름(옛 저장 경기 포함)은 평원이다. */
+export function stwMapData(id) {
+  return STW_MAPS[id] ?? STW_MAPS.plain;
+}
+
+/** 그 세로 위치에서 지상 유닛이 설 수 있는 가로 범위 [왼쪽, 오른쪽]. 협곡의 좁은 길 말고는 전장 전체다. */
+export function stwGroundSpan(map, y) {
+  const corridor = map.corridor;
+  if (!corridor) return [1, STW_LANE_WIDTH - 1];
+  const out = y < corridor.from ? corridor.from - y : y > corridor.to ? y - corridor.to : 0;
+  if (out >= corridor.taper) return [1, STW_LANE_WIDTH - 1];
+  const inset = Math.max(1, corridor.inset * (1 - out / corridor.taper));
+  return [inset, STW_LANE_WIDTH - inset];
+}
+
 /** 일꾼 체력(보호막 포함). 게릴라 드랍에 내린 병력이 광물 줄에서 이만큼 피해를 쌓을 때마다 일꾼 1기가 죽는다. */
 export const STW_WORKER_HP = { probe: 40, scv: 60, drone: 40 };
 

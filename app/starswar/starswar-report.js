@@ -1,7 +1,7 @@
 // 스타즈워 결과 화면의 리포트 글. 클립보드에 복사해 개발 대화에 붙여 넣는 용도다.
 // - 버그 리포트: 경기 설정, 결과, 흐름, 내 명령, 최근 기록, 마지막 상태, 재현 코드
 // - AI 개선 자료: 진 AI의 운영(빌드 순서·일꾼·자원·병력 구성)과 이긴 쪽 비교, 큰 교전, 자동 진단, 재현 코드
-import { STW_AI_PERSONAS, STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RALLY_POINTS, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
+import { STW_AI_PERSONAS, STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RALLY_POINTS, STW_RESEARCH, STW_UNITS, stwMapData } from "./starswar-data.js";
 import { stwClock, stwSupply } from "./starswar-engine.js";
 import { stwReplayCode } from "./starswar-replay.js";
 
@@ -165,7 +165,7 @@ function replayBlock(state, build) {
 
 function headerLines(state, env) {
   const lines = [
-    `- 결과: ${resultLabel(state)} · 경기 시간 ${stwClock(state.time)} · 난이도 ${STW_DIFFICULTIES[state.difficulty]?.name ?? state.difficulty}`,
+    `- 결과: ${resultLabel(state)} · 경기 시간 ${stwClock(state.time)} · 난이도 ${STW_DIFFICULTIES[state.difficulty]?.name ?? state.difficulty} · 맵 ${stwMapData(state.map).name}`,
     `- 나: ${sideLabel(state, "player")}`,
     `- 적: ${sideLabel(state, "enemy")}${state.hiddenEnemyRace ? " (무작위 종족)" : ""}`,
   ];

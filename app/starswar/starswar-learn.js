@@ -172,9 +172,20 @@ export function stwLearnPlan(features, tags, id) {
   return { id, race: race.id, base: basePersona(race.id, features, tags), tag: tags[0], order, waves: waves.slice(0, 6) };
 }
 
+/** 승패 통계의 맵 머리표: 평원은 없고(예전 기록 그대로), 다른 맵은 "canyon:"처럼 붙는다. */
+function mapPrefix(map) {
+  return map && map !== "plain" ? `${map}:` : "";
+}
+
+/** 그 맵의 승패 표. 다른 맵은 아직 해 보지 않은 선택에 한해 평원의 기록을 빌려 쓴다. */
+function mapTable(tables, key, map) {
+  const prefix = mapPrefix(map);
+  return prefix ? { ...(tables?.[key] ?? {}), ...(tables?.[`${prefix}${key}`] ?? {}) } : tables?.[key] ?? {};
+}
+
 /**
  * 끝난 경기를 학습 묶음에 더한다(새 묶음을 돌려준다). 사람 대 AI 경기만 센다.
- * - 모든 경기: AI가 고른 전략(성향 또는 따라 하기 계획)의 승패를 (AI 종족·상대 종족)과 (…·상대 전략 꼬리표)로 센다
+ * - 모든 경기: AI가 고른 전략(성향 또는 따라 하기 계획)의 승패를 (AI 종족·상대 종족)과 (…·상대 전략 꼬리표)로 센다. 맵마다 따로 센다
  * - 사람의 전략 꼬리표를 상대 종족별로 센다(어떤 전략을 자주 쓰는지)
  * - AI가 졌으면: 이긴 사람의 운영을 따라 하기 계획으로 남긴다(최근 것 위주로 보관)
  */
@@ -196,8 +207,9 @@ export function stwLearnAdd(store, state) {
       const [games, wins] = table[key][choice] ?? [0, 0];
       table[key][choice] = [games + 1, wins + (won ? 1 : 0)];
     };
-    bump(next.stats, `${aiRace}|${foeRace}`);
-    bump(next.tagStats, `${aiRace}|${foeRace}|${tags[0]}`);
+    const prefix = mapPrefix(state.map);
+    bump(next.stats, `${prefix}${aiRace}|${foeRace}`);
+    bump(next.tagStats, `${prefix}${aiRace}|${foeRace}|${tags[0]}`);
     next.foeTags[foeRace] ??= {};
     next.foeTags[foeRace][tags[0]] = (next.foeTags[foeRace][tags[0]] ?? 0) + 1;
     if (!won && state.winner === human) {
@@ -234,14 +246,14 @@ function score(entry, total) {
  * 상대가 자주 쓰는 전략 꼬리표가 있으면 그 꼬리표에서의 승패를 더 무겁게 본다. rand(0~1)는 엔진의 결정적 난수.
  * 돌려주는 값: { persona, plan } (plan이 있으면 그 계획을 밟는다).
  */
-export function stwLearnPick(snapshot, aiRace, foeRace, rand) {
+export function stwLearnPick(snapshot, aiRace, foeRace, rand, map = "plain") {
   const personas = Object.values(STW_AI_PERSONAS).filter((persona) => persona.race === aiRace || (!persona.race && aiRace === "protoss")).map((persona) => persona.id);
   const plans = (snapshot?.plans ?? []).filter((plan) => plan.race === aiRace);
   const choices = [...personas.map((id) => ({ key: id, persona: id, plan: null })), ...plans.map((plan) => ({ key: `plan:${plan.id}`, persona: plan.base, plan }))];
-  const overall = snapshot?.stats?.[`${aiRace}|${foeRace}`] ?? {};
+  const overall = mapTable(snapshot?.stats, `${aiRace}|${foeRace}`, map);
   const tagCounts = snapshot?.foeTags?.[foeRace] ?? {};
   const likelyTag = Object.entries(tagCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
-  const byTag = likelyTag ? snapshot?.tagStats?.[`${aiRace}|${foeRace}|${likelyTag}`] ?? {} : {};
+  const byTag = likelyTag ? mapTable(snapshot?.tagStats, `${aiRace}|${foeRace}|${likelyTag}`, map) : {};
   const total = Object.values(overall).reduce((sum, [games]) => sum + games, 0);
   let best = null;
   let bestScore = -Infinity;
@@ -262,9 +274,9 @@ export function stwLearnPick(snapshot, aiRace, foeRace, rand) {
  * 정찰로 짐작한 상대 꼬리표에서, 지금 전략보다 확실히 나은 선택이 있으면 그것을 돌려준다(없으면 null).
  * 3판 이상 해 보고 승률이 25%p 넘게 높아야 바꾼다(적은 판으로 바꾸면 운에 휘둘린다).
  */
-export function stwLearnSwitch(snapshot, aiRace, foeRace, tag, currentKey) {
-  const table = snapshot?.tagStats?.[`${aiRace}|${foeRace}|${tag}`];
-  if (!table) return null;
+export function stwLearnSwitch(snapshot, aiRace, foeRace, tag, currentKey, map = "plain") {
+  const table = mapTable(snapshot?.tagStats, `${aiRace}|${foeRace}|${tag}`, map);
+  if (!Object.keys(table).length) return null;
   const rate = ([games, wins]) => (wins + 1) / (games + 2);
   const current = rate(table[currentKey] ?? [0, 0]);
   let best = null;

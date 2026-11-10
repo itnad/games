@@ -151,7 +151,37 @@ export type StwHistoryPoint = { t: number } & Record<StwSide, { supply: number; 
 /** 재현 정보: 경기를 만든 설정(또는 실험실 설정)과 사람이 내린 명령 [틱, 진영, 명령]. */
 export type StwReplayInfo = { setup?: Record<string, unknown>; scenario?: Record<string, unknown>; commands: [number, StwSide, StwCommand][] };
 
+/** 맵 이름: 평원, 협곡, 황금 앞마당. */
+export type StwMapId = "plain" | "canyon" | "gold";
+
+type StwSpot = { x: number; y: number };
+
+/** 맵 묶음(starswar-data.js의 STW_MAPS). 좌표는 아군 기준. */
+export type StwMapData = {
+  id: StwMapId;
+  name: string;
+  note: string;
+  layout: {
+    mainNexus: StwSpot;
+    naturalNexus: StwSpot;
+    mainMinerals: StwSpot;
+    naturalMinerals: StwSpot;
+    geysers: (StwSpot & { base: "main" | "natural" })[];
+    mainSlots: (StwSpot & { blocked?: boolean })[];
+    naturalSlots: StwSpot[];
+  };
+  rallyRange: { min: number; max: number };
+  attackZoneY: number;
+  rallyPoints: { id: string; name: string; short: string; y: number }[];
+  naturalMinerals: number;
+  naturalRate: number;
+  /** 협곡의 좁은 길: y가 from~to인 구간은 가로 inset~(40 - inset)만 지상 유닛이 선다. */
+  corridor: { from: number; to: number; taper: number; inset: number } | null;
+};
+
 export type StwState = {
+  /** 맵 이름(없으면 평원). */
+  map?: StwMapId;
   time: number;
   history?: StwHistoryPoint[];
   replay?: StwReplayInfo;

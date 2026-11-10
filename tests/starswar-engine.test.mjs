@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { STW_BUILDINGS, STW_DIFFICULTIES, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_SPELLS, STW_STORM, STW_UNITS } from "../app/starswar/starswar-data.js";
+import { STW_BUILDINGS, STW_DIFFICULTIES, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_MAPS, STW_MAP_IDS, STW_SPELLS, STW_STORM, STW_UNITS, stwGroundSpan, stwMapData } from "../app/starswar/starswar-data.js";
 import {
   createStarswarGame,
   stwCreateScenario,
@@ -14,6 +14,7 @@ import {
   stwHitDamage,
   stwIssue,
   stwIncome,
+  stwMap,
   stwNexus,
   stwOwnBuildings,
   stwPoint,
@@ -2635,4 +2636,175 @@ test("starswar AI scouts early and goes on alert against a rush: defense first, 
   assert.ok(stwOwnBuildings(state, "enemy", "forge").length >= 1 && stwOwnBuildings(state, "enemy", "cannon").length >= 1, "포지와 캐논을 먼저 세움");
   assert.ok(stwOwnBuildings(state, "enemy", "gateway").length >= 2, "생산 건물을 늘림");
   assert.equal(state.sides.enemy.ai.attacking, false, "경계 중에는 출격하지 않음");
+});
+
+test("starswar maps: plain is the default, every map keeps its buildings clear of resources and cliffs", () => {
+  assert.deepEqual(STW_MAP_IDS, ["plain", "canyon", "gold"]);
+  assert.equal(stwMapData("nowhere").id, "plain", "모르는 맵은 평원");
+  assert.equal(STW_MAPS.plain.layout, STW_LAYOUT);
+  const plain = quiet();
+  assert.equal(plain.map, "plain");
+  assert.equal(plain.replay.setup.map, undefined, "평원은 재현 코드가 예전 그대로다");
+  // 맵 이름이 없는 옛 저장 경기는 평원으로 이어진다.
+  const old = stwRestore(stwSerialize(plain));
+  delete old.map;
+  assert.equal(stwMap(old).id, "plain");
+  for (const id of STW_MAP_IDS) {
+    const map = STW_MAPS[id];
+    const { layout } = map;
+    const slots = [...layout.mainSlots.filter((slot) => !slot.blocked), ...layout.naturalSlots];
+    assert.equal(layout.naturalSlots.length, 16, `${id} 앞마당 자리 수`);
+    for (const slot of slots) {
+      const [left, right] = stwGroundSpan(map, slot.y);
+      assert.ok(slot.x >= left + 1.5 && slot.x <= right - 1.5, `${id} 자리 (${slot.x}, ${slot.y})가 길 안에 있다`);
+      for (const nexus of [layout.mainNexus, layout.naturalNexus]) assert.ok(Math.hypot(slot.x - nexus.x, slot.y - nexus.y) > 5, `${id} 자리 (${slot.x}, ${slot.y})가 기지와 겹치지 않는다`);
+      for (const geyser of layout.geysers) assert.ok(Math.hypot(slot.x - geyser.x, slot.y - geyser.y) > 4, `${id} 자리 (${slot.x}, ${slot.y})가 간헐천과 겹치지 않는다`);
+      for (const minerals of [layout.mainMinerals, layout.naturalMinerals]) assert.ok(Math.abs(slot.x - minerals.x) > 8 || Math.abs(slot.y - minerals.y) > 2, `${id} 자리 (${slot.x}, ${slot.y})가 광물 줄과 겹치지 않는다`);
+    }
+    for (let i = 0; i < slots.length; i += 1) for (let j = i + 1; j < slots.length; j += 1) assert.ok(Math.hypot(slots[i].x - slots[j].x, slots[i].y - slots[j].y) > 3.5, `${id} 자리 ${i}·${j}가 겹치지 않는다`);
+    // 정찰 경로와 착륙 지점도 지상 유닛이 설 수 있는 곳이다.
+    for (const point of [...map.scoutPath, ...map.landMain, ...map.landNatural]) {
+      const [left, right] = stwGroundSpan(map, point.y);
+      assert.ok(point.x >= left && point.x <= right, `${id} 경로 (${point.x}, ${point.y})`);
+    }
+    assert.ok(map.rallyRange.min > map.attackZoneY && map.rallyPoints.every((point) => point.y >= map.rallyRange.min && point.y <= map.rallyRange.max), `${id} 집결 눈금`);
+  }
+});
+
+test("starswar gold natural sits forward, holds more minerals, and mines 40% faster", () => {
+  const state = createStarswarGame({ seed: 5, aiSides: [], map: "gold" });
+  const plain = quiet();
+  assert.equal(state.map, "gold");
+  assert.equal(state.replay.setup.map, "gold");
+  assert.equal(state.sides.player.bases.natural.minerals, 12000);
+  assert.equal(plain.sides.player.bases.natural.minerals, 9000);
+  for (const game of [state, plain]) {
+    game.sides.player.minerals = 5000;
+    game.sides.player.probes = 40;
+    assert.equal(stwCommand(game, "player", { type: "build", building: "expand" }).ok, true);
+    finishAll(game);
+  }
+  assert.equal(stwNexus(state, "player", "natural").y, 68);
+  assert.equal(stwNexus(plain, "player", "natural").y, 73);
+  assert.equal(stwNexus(state, "enemy", "main").y, stwNexus(plain, "enemy", "main").y, "본진은 그대로");
+  const split = stwWorkerSplit(state, "player");
+  assert.deepEqual([split.main, split.natural], [stwWorkerSplit(plain, "player").main, stwWorkerSplit(plain, "player").natural]);
+  const rate = (count) => Math.min(count, 16) * 0.95 + Math.max(0, Math.min(count, 24) - 16) * 0.95 * 0.45;
+  assert.equal(stwIncome(plain, "player").minerals, Math.round((rate(split.main) + rate(split.natural)) * 60));
+  assert.equal(stwIncome(state, "player").minerals, Math.round((rate(split.main) + rate(split.natural) * 1.4) * 60));
+  const before = [state.sides.player.minerals, plain.sides.player.minerals];
+  run(state, 10);
+  run(plain, 10);
+  const mined = [state.sides.player.minerals - before[0], plain.sides.player.minerals - before[1]];
+  assert.ok(Math.abs(mined[0] - mined[1] - rate(split.natural) * 0.4 * 10) < 0.01, `앞마당 몫만 40% 더 캔다 (${mined})`);
+  // 앞마당 간헐천과 집결 이름표도 앞으로 나온다.
+  state.sides.player.minerals = 5000;
+  for (let i = 0; i < 3; i += 1) assert.equal(stwCommand(state, "player", { type: "build", building: "assimilator" }).ok, true);
+  assert.deepEqual(stwOwnBuildings(state, "player", "assimilator").map((building) => building.y).sort((a, b) => a - b), [70.6, 98.4, 98.4]);
+  assert.equal(stwRallyY("player", "natural", state), 60);
+  assert.equal(stwRallyY("enemy", "natural", state), 40);
+  assert.equal(stwRallyY("player", "natural", plain), 64);
+  assert.equal(stwRallyY("player", "natural"), 64, "경기를 주지 않으면 평원 눈금");
+  assert.equal(stwRallyName(41, state), "적 앞마당 앞");
+  // 적 앞마당 안쪽을 누르면 출격: 황금 앞마당은 그 선도 앞으로 나온다.
+  stwSpawnUnitAt(state, "player", "zealot", 20, 60, "rally");
+  stwSpawnUnitAt(plain, "player", "zealot", 20, 60, "rally");
+  stwCommand(state, "player", { type: "move", y: 34 });
+  stwCommand(plain, "player", { type: "move", y: 34 });
+  assert.equal(stwArmy(state, "player").attack.length, 1, "황금 앞마당에서는 34가 출격 구역");
+  assert.equal(stwArmy(plain, "player").attack.length, 0);
+  assert.equal(plain.sides.player.rally, 34);
+});
+
+test("starswar canyon keeps ground units between the cliffs while flyers cross over them", () => {
+  const map = STW_MAPS.canyon;
+  assert.deepEqual(stwGroundSpan(map, 50), [12, 28]);
+  assert.deepEqual(stwGroundSpan(map, 60), [6, 34]);
+  assert.deepEqual(stwGroundSpan(map, 70), [1, 39]);
+  assert.deepEqual(stwGroundSpan(STW_MAPS.plain, 50), [1, 39]);
+  const state = createStarswarGame({ seed: 5, aiSides: [], map: "canyon" });
+  // 가운데에 선 큰 부대: 지상 유닛은 길 안에 줄을 이어 서고, 공중 유닛은 절벽 위에 떠도 된다.
+  const ground = Array.from({ length: 30 }, (_, index) => stwSpawnUnitAt(state, "player", index < 18 ? "zealot" : "dragoon", 4 + (index % 10) * 3.5, 66 + Math.floor(index / 10) * 2, "rally"));
+  const flyer = stwSpawnUnitAt(state, "player", "scout", 3, 50, "rally");
+  stwCommand(state, "player", { type: "rally", point: "center" });
+  let outside = 0;
+  for (let step = 0; step < 300; step += 1) {
+    stepStarswar(state, null);
+    for (const unit of ground) {
+      const [left, right] = stwGroundSpan(map, unit.y);
+      if (unit.x < left - 1e-6 || unit.x > right + 1e-6) outside += 1;
+    }
+  }
+  assert.equal(outside, 0, "지상 유닛이 절벽에 들어가지 않는다");
+  assert.ok(ground.every((unit) => unit.y > 40 && unit.y < 62 && unit.x >= 12 - 1e-6 && unit.x <= 28 + 1e-6), "모두 좁은 길 안의 집결지에 섰다");
+  const rows = new Set(ground.map((unit) => Math.round(unit.y)));
+  assert.ok(rows.size >= 4, `좁은 길에서는 줄을 뒤로 이어 선다 (${[...rows]})`);
+  // 절벽 위(가로 3)에 둔 공중 유닛은 밀려나지 않는다.
+  stwCommand(state, "player", { type: "squadMove", units: ["scout"], y: 50 });
+  run(state, 5);
+  assert.ok(flyer.y > 44 && flyer.y < 56, `공중 유닛은 가운데에 선다 (${flyer.y})`);
+  const high = stwSpawnUnitAt(state, "enemy", "wraith", 4, 50, "attack");
+  run(state, 0.5);
+  assert.ok(high.x < 11, `공중 유닛은 절벽 위를 지난다 (${high.x})`);
+  // 길을 지나 적 본진까지 간다(벽에 걸려 멈추지 않는다).
+  const march = createStarswarGame({ seed: 5, aiSides: [], map: "canyon" });
+  const runner = stwSpawnUnitAt(march, "player", "zealot", 2, 70, "rally");
+  stwCommand(march, "player", { type: "attack" });
+  run(march, 40);
+  assert.ok(runner.y < 30 || runner.hp <= 0, `가장자리에서 출발해도 협곡을 빠져나간다 (${runner.y})`);
+  // 자원 정찰 일꾼도 협곡을 지나 한 바퀴 돌고 돌아온다.
+  const scouting = createStarswarGame({ seed: 5, aiSides: [], map: "canyon" });
+  scouting.sides.player.probes = 8;
+  assert.equal(stwCommand(scouting, "player", { type: "scout", mode: "resources" }).ok, true);
+  const probes = scouting.sides.player.probes;
+  run(scouting, 140);
+  assert.equal(scouting.units.filter((unit) => unit.group === "scout").length, 0, "정찰 일꾼이 길에 걸리지 않는다");
+  assert.equal(scouting.sides.player.probes, probes + 1, "돌아와 다시 일한다");
+});
+
+test("starswar replays and learning carry the map", () => {
+  let state = createStarswarGame({ seed: 11, aiSides: ["enemy"], races: { player: "terran", enemy: "zerg" }, personas: { enemy: "hydra" }, map: "canyon" });
+  for (const [at, command] of [[1, { type: "probe" }], [20, { type: "build", building: "depot" }], [60, { type: "build", building: "barracks" }], [150, { type: "move", y: 50 }]]) {
+    while (state.time < at) stepStarswar(state, stwAiThink);
+    stwIssue(state, "player", command);
+  }
+  while (state.status === "playing" && state.time < 420) stepStarswar(state, stwAiThink);
+  const code = JSON.parse(JSON.stringify(stwReplayCode(state, "test")));
+  assert.equal(code.setup.map, "canyon");
+  const replayed = stwReplay(code, { until: state.time });
+  assert.equal(replayed.map, "canyon");
+  assert.ok(stwReplayMatches(code, replayed), `같은 경기: ${JSON.stringify(stwFingerprint(replayed))} vs ${JSON.stringify(code.end)}`);
+  // 같은 설정이라도 평원이면 다른 경기다.
+  const onPlain = stwReplay({ ...code, setup: { ...code.setup, map: "plain" } }, { until: state.time });
+  assert.equal(onPlain.map, "plain");
+  const lab = stwCreateScenario({ seed: 3, map: "gold", races: { player: "protoss", enemy: "zerg" }, sides: { player: { natural: true, units: { zealot: 4 } }, enemy: { units: { zergling: 6 } } } });
+  assert.equal(lab.map, "gold");
+  assert.equal(lab.replay.scenario.map, "gold");
+  assert.equal(stwNexus(lab, "player", "natural").y, 68);
+  assert.equal(stwReplay(JSON.parse(JSON.stringify(stwReplayCode(lab)))).map, "gold");
+  assert.match(stwBugReport(lab, {}), /맵 황금 앞마당/);
+
+  // 승패는 맵마다 따로 센다. 다른 맵은 해 보지 않은 선택에 한해 평원의 기록을 빌린다.
+  const finish = (map, persona, winner) => {
+    const game = createStarswarGame({ seed: 2, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: persona }, map });
+    game.status = "over";
+    game.winner = winner;
+    return game;
+  };
+  let store = stwLearnEmpty();
+  for (let i = 0; i < 6; i += 1) store = stwLearnAdd(store, finish("plain", "mech", "enemy"));
+  for (let i = 0; i < 6; i += 1) store = stwLearnAdd(store, finish("plain", "bio", "player"));
+  assert.deepEqual(store.stats["terran|protoss"].mech, [6, 6]);
+  assert.equal(store.stats["canyon:terran|protoss"], undefined);
+  const snapshot = stwLearnSnapshot(store);
+  const pick = (map, data = snapshot) => stwLearnPick(data, "terran", "protoss", () => 0.5, map).persona;
+  assert.equal(pick("plain"), "mech");
+  assert.equal(pick("canyon"), "mech", "협곡 기록이 없으면 평원에서 이긴 전략부터");
+  for (let i = 0; i < 6; i += 1) store = stwLearnAdd(store, finish("canyon", "mech", "player"));
+  for (let i = 0; i < 6; i += 1) store = stwLearnAdd(store, finish("canyon", "wraith", "enemy"));
+  assert.deepEqual(store.stats["canyon:terran|protoss"].mech, [6, 0]);
+  assert.deepEqual(store.stats["terran|protoss"].mech, [6, 6], "평원 기록은 그대로");
+  const later = stwLearnSnapshot(store);
+  assert.equal(pick("canyon", later), "wraith", "협곡에서는 협곡에서 이긴 전략");
+  assert.equal(pick("plain", later), "mech");
 });

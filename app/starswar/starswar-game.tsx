@@ -9,11 +9,11 @@ import {
   STW_CANCEL_REFUND,
   STW_DIFFICULTIES,
   STW_ECONOMY,
-  STW_LAYOUT,
+  STW_MAPS,
+  STW_MAP_IDS,
   STW_PRODUCER_UNITS,
   STW_PRODUCERS,
   STW_RACES,
-  STW_RALLY_POINTS,
   STW_RESEARCH,
   STW_UNITS,
 } from "./starswar-data.js";
@@ -29,6 +29,7 @@ import {
   stwIssue,
   stwDone,
   stwNexus,
+  stwMap,
   stwRallyName,
   stwDropCheck,
   stwIncome,
@@ -50,7 +51,7 @@ import { stwLearnAdd, stwLearnEmpty, stwLearnNormalize, stwLearnSnapshot } from 
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
 import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
 import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./starswar-lab";
-import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwOp, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
+import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwMapData, StwMapId, StwOp, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
 
 type Screen = "menu" | "play" | "lab";
 
@@ -127,6 +128,24 @@ const RACE_IDS: StwRaceId[] = ["protoss", "terran", "zerg"];
 type EnemyRace = StwRaceId | "random";
 const ENEMY_RACE_IDS: EnemyRace[] = ["protoss", "terran", "zerg", "random"];
 const RACE_KEY = "paperoid-starswar-race";
+type MapChoice = StwMapId | "random";
+const MAP_IDS = STW_MAP_IDS as StwMapId[];
+const MAP_CHOICES: MapChoice[] = [...MAP_IDS, "random"];
+const MAP_KEY = "paperoid-starswar-map";
+
+function mapOf(game: StwState) {
+  return stwMap(game) as unknown as StwMapData;
+}
+
+function readMap(): MapChoice {
+  try {
+    const stored = window.localStorage.getItem(MAP_KEY) as MapChoice | null;
+    if (stored && MAP_CHOICES.includes(stored)) return stored;
+  } catch {
+    // 저장소를 쓸 수 없으면 기본값을 쓴다.
+  }
+  return "plain";
+}
 
 type RaceInfo = {
   id: StwRaceId;
@@ -193,7 +212,7 @@ const RESEARCH_IDS = Object.keys(STW_RESEARCH) as StwResearchId[];
 /** 자동 출격: 0은 끔, 1은 생산되는 대로 즉시, 나머지는 집결지에 모인 전투 병력 수. */
 const WAVE_SIZES = [0, 1, 3, 6, 10];
 /** "본진 수비" 버튼이 쓰는 집결 위치(본진 앞). */
-const HOME_Y = STW_RALLY_POINTS.find((point) => point.id === "main")!.y;
+const homeY = (game: StwState) => mapOf(game).rallyPoints.find((point) => point.id === "main")!.y;
 
 function readRecord(): BattleRecord {
   try {
@@ -264,6 +283,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [screen, setScreen] = useState<Screen>("menu");
   const [difficulty, setDifficulty] = useState<StwDifficulty>("normal");
   const [races, setRaces] = useState<{ player: EnemyRace; enemy: EnemyRace }>(() => (typeof window === "undefined" ? { player: "protoss", enemy: "random" } : readRace()));
+  const [mapChoice, setMapChoice] = useState<MapChoice>(() => (typeof window === "undefined" ? "plain" : readMap()));
   const [game, setGame] = useState<StwState | null>(null);
   const [, setFrame] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -376,7 +396,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     // 엔진 쪽 매개변수는 JS라 기본값(null)으로 타입이 잡힌다.
     const learned = ((STW_DIFFICULTIES[difficulty] as { master?: boolean }).master ? stwLearnSnapshot(readLearning()) : null) as never;
     const player = races.player === "random" ? RACE_IDS[Math.floor(Math.random() * RACE_IDS.length)] : races.player;
-    const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), races: { player, enemy }, hiddenEnemyRace: races.enemy === "random", learned }) as unknown as StwState;
+    const map = mapChoice === "random" ? MAP_IDS[Math.floor(Math.random() * MAP_IDS.length)] : mapChoice;
+    const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), races: { player, enemy }, hiddenEnemyRace: races.enemy === "random", learned, map }) as unknown as StwState;
     clearSave();
     enterBattle(next);
   };
@@ -400,7 +421,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       const army = stwArmy(current, "player");
       const focus = army.attack.length
         ? army.attack.reduce((best, unit) => Math.min(best, unit.y), 100) + 6
-        : stwRallyY("player", current.sides.player.rally) + 4;
+        : stwRallyY("player", current.sides.player.rally, current) + 4;
       camera.cy += (focus - camera.cy) * 0.06;
     }
     const view = stwViewport(width, height, camera) as StwView;
@@ -414,9 +435,10 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     // 카메라가 매 프레임 움직이므로 React 갱신(0.25초)이 아니라 여기서 바로 옮긴다.
     const tag = scoutTagRef.current;
     if (tag) {
-      const anchors = [STW_LAYOUT.mainMinerals];
+      const layout = mapOf(current).layout;
+      const anchors = [layout.mainMinerals];
       const natural = stwNexus(current, "player", "natural");
-      if (natural && stwDone(natural)) anchors.push(STW_LAYOUT.naturalMinerals);
+      if (natural && stwDone(natural)) anchors.push(layout.naturalMinerals);
       const spot = anchors
         .map((point) => ({ x: view.ox + point.x * view.scale, y: view.oy + point.y * view.scale }))
         .find((point) => point.x > 40 && point.x < width - 40 && point.y > 60 && point.y < height + 6);
@@ -652,6 +674,15 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     });
   };
 
+  const pickMap = (next: MapChoice) => {
+    setMapChoice(next);
+    try {
+      window.localStorage.setItem(MAP_KEY, next);
+    } catch {
+      // 선택 저장 실패는 무시한다.
+    }
+  };
+
   const requestExit = () => {
     if (screen === "play" && game?.status === "playing") {
       setConfirmExit(true);
@@ -694,6 +725,13 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 <button key={id} type="button" role="radio" aria-checked={races.enemy === id} className={races.enemy === id ? "active" : ""} onClick={() => pickRace({ enemy: id })}>{id === "random" ? "무작위" : STW_RACES[id].name}</button>
               ))}
             </div>
+            <h3 className="stw-section">맵</h3>
+            <div className="stw-segment" role="radiogroup" aria-label="맵">
+              {MAP_CHOICES.map((id) => (
+                <button key={id} type="button" role="radio" aria-checked={mapChoice === id} className={mapChoice === id ? "active" : ""} onClick={() => pickMap(id)}>{id === "random" ? "무작위" : STW_MAPS[id].name}</button>
+              ))}
+            </div>
+            <p className="stw-hint">{mapChoice === "random" ? "전투를 시작할 때 맵 하나가 정해집니다." : STW_MAPS[mapChoice].note}</p>
           </div>
           <div className="stw-difficulty" role="radiogroup" aria-label="난이도">
             {DIFFICULTY_IDS.map((id) => {
@@ -744,7 +782,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     <main className="stw-shell stw-play-shell" data-game-menu={finished ? "true" : undefined}>
       <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
-        <div><span className="stw-brand">{STW_DIFFICULTIES[game.difficulty].name} · {raceOf(game).name} 대 {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
+        <div><span className="stw-brand">{STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).id === "plain" ? "" : `${mapOf(game).name} · `}{raceOf(game).name} 대 {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
         <QueueStrip game={game} icons={icons} issue={issue} />
       </header>
       <section className="stw-hud" aria-label="자원 현황">
@@ -783,7 +821,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 {squadTypes.length ? squadTypes.map(([type, count]) => (
                   <button key={type} type="button" className={selected.includes(type) ? "active" : ""} aria-pressed={selected.includes(type)} onClick={() => toggleSquad(type)}>
                     {STW_UNITS[type as keyof typeof STW_UNITS].name} {count}
-                    {squadSpots[type] ? <small>{stwRallyName(squadSpots[type]!.y) as string}</small> : null}
+                    {squadSpots[type] ? <small>{stwRallyName(squadSpots[type]!.y, game) as string}</small> : null}
                   </button>
                 )) : <span>옮길 전투 유닛이 없습니다</span>}
               </div>
@@ -1092,7 +1130,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
       <h3 className="stw-section">병력 이동</h3>
       <p className="stw-hint">지도를 톡 누르면 그 자리로 병력이 모입니다. 병력 앞쪽을 누르면 싸우며 전진하고, 뒤쪽을 누르면 교전을 끊고 물러납니다. 적 앞마당 안쪽을 누르면 출격입니다.</p>
       <div className="stw-recall">
-        <button type="button" disabled={!army.rally.length && !army.attack.length} onClick={() => issue({ type: "move", y: HOME_Y })}>본진 수비<small>전원 본진 앞으로</small></button>
+        <button type="button" disabled={!army.rally.length && !army.attack.length} onClick={() => issue({ type: "move", y: homeY(game) })}>본진 수비<small>전원 본진 앞으로</small></button>
         <button type="button" disabled={!army.attack.length} onClick={() => issue({ type: "retreat" })}>후퇴<small>공격 병력을 집결지로</small></button>
       </div>
       <h3 className="stw-section">공격 목표</h3>
@@ -1344,7 +1382,7 @@ function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwS
           {newBest ? <em>최단 승리 기록</em> : won && best !== undefined && !game.lab ? <em className="quiet">최단 {stwClock(best)}</em> : null}
         </div>
         <p>
-          {STW_DIFFICULTIES[game.difficulty].name} · {matchup}
+          {STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).name} · {matchup}
           {persona ? ` · 상대 전략: ${STW_AI_PERSONAS[switched ? switched.from as keyof typeof STW_AI_PERSONAS : persona].name}` : ""}
           {switched ? ` → ${stwClock(switched.at)}에 ${withKoreanDirection(STW_AI_PERSONAS[switched.to as keyof typeof STW_AI_PERSONAS].name)} 전환` : ""}
         </p>
@@ -1382,7 +1420,7 @@ function ResumeCard({ saved, onResume, onDiscard }: { saved: SavedBattle; onResu
     <section className="stw-resume" aria-label="멈춘 전투">
       <div>
         <small>멈춘 전투</small>
-        <b>{raceOf(game).name} 대 {enemy} · {STW_DIFFICULTIES[game.difficulty].name}</b>
+        <b>{raceOf(game).name} 대 {enemy} · {STW_DIFFICULTIES[game.difficulty].name}{mapOf(game).id === "plain" ? "" : ` · ${mapOf(game).name}`}</b>
         <span>{stwClock(game.time)} 진행{ago}</span>
       </div>
       <button type="button" className="stw-primary" onClick={onResume}>이어하기</button>

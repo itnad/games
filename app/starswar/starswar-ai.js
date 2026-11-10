@@ -1,6 +1,6 @@
 // 스타즈워 AI. 플레이어와 같은 stwCommand만 쓴다.
 // 성향마다 빌드 순서와 출격 규모가 다르다. 프로토스·테란·저그가 같은 틀을 쓴다.
-import { STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RALLY_RANGE, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
+import { STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
 import { stwIntelTag, stwLearnSwitch } from "./starswar-learn.js";
 import {
   stwArmy,
@@ -11,6 +11,7 @@ import {
   stwFreeSlots,
   stwHas,
   stwIncome,
+  stwMap,
   stwNexus,
   stwOpponent,
   stwOwnBuildings,
@@ -631,7 +632,7 @@ function readOpponent(state, side, record, memory) {
   if (memory.readSwitch || state.time >= 300) return;
   const foeRace = state.sides[stwOpponent(side)].race;
   const current = record.plan ? `plan:${record.plan.id}` : record.persona;
-  const pick = stwLearnSwitch(state.learned, record.race, foeRace, tag, current);
+  const pick = stwLearnSwitch(state.learned, record.race, foeRace, tag, current, state.map);
   if (!pick) return;
   memory.readSwitch = { from: current, to: pick.key, tag, at: state.time };
   record.persona = pick.persona;
@@ -1006,7 +1007,8 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 들어온 근접 유닛은 가장 가까운 위협인 방어 건물부터 치고, 병력은 그 뒤에서 쏜다. 앞에 나가 서 있으면 해병·드라군이 질럿에게 먼저 잡힌다.
   const natural = stwNexus(state, side, "natural");
   if (alert && !natural) {
-    if (record.rally !== STW_RALLY_RANGE.max) stwCommand(state, side, { type: "move", y: STW_RALLY_RANGE.max });
+    const back = stwMap(state).rallyRange.max;
+    if (record.rally !== back) stwCommand(state, side, { type: "move", y: back });
   } else {
     const desiredRally = natural || (memory.clearNatural && stwArmy(state, side).fighters.length >= 4) ? "natural" : "main";
     if (record.rally !== desiredRally) stwCommand(state, side, { type: "rally", point: desiredRally });

@@ -1,9 +1,11 @@
 // 스타즈워 PixiJS 렌더러. 엔진 상태를 읽기만 하며, 플레이어 시야 밖의 적은 감춘다.
 import type { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
-import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_STORM, STW_UNITS } from "./starswar-data.js";
-import { stwArmy, stwDetected, stwDone, stwIsCloaked, stwNexus, stwPoint, stwRace, stwRallyName, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
-import { STW_TEAM, createStwTextures, type StwTextureSet } from "./starswar-sprites";
-import type { StwBuilding, StwEffect, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./starswar-types";
+import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_MAPS, STW_STORM, STW_UNITS, stwGroundSpan, stwMapData } from "./starswar-data.js";
+import { stwArmy, stwDetected, stwDone, stwIsCloaked, stwMap, stwNexus, stwPoint, stwRace, stwRallyName, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
+import { STW_TEAM, createStwTextures, stwTerrainTexture, type StwTextureSet } from "./starswar-sprites";
+import type { StwBuilding, StwEffect, StwMapData, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./starswar-types";
+
+type MapData = StwMapData;
 
 type PixiModule = typeof import("pixi.js");
 
@@ -111,6 +113,11 @@ export class StwPixiRenderer {
   private impacted = new WeakSet<object>();
   private lastClock = 0;
   private lastState: StwState | null = null;
+  private ground!: Sprite;
+  private resources!: Container;
+  private readonly terrains = new Map<string, Texture>();
+  private map = STW_MAPS.plain as MapData;
+  private mapId = "";
   private fogAt = -1;
   private visibleCache = new Set<number>();
 
@@ -122,21 +129,10 @@ export class StwPixiRenderer {
     const ground = new PIXI.Sprite(this.tex.terrain);
     ground.width = STW_LANE_WIDTH;
     ground.height = STW_LANE_LENGTH;
+    this.ground = ground;
+    this.terrains.set("plain", this.tex.terrain);
     const resources = new PIXI.Container();
-    for (const side of ["player", "enemy"] as StwSide[]) {
-      for (const point of [STW_LAYOUT.mainMinerals, STW_LAYOUT.naturalMinerals]) {
-        const minerals = this.sprite(this.tex.minerals, 13);
-        const p = stwPoint(side, point);
-        minerals.position.set(p.x, p.y);
-        resources.addChild(minerals);
-      }
-      for (const point of STW_LAYOUT.geysers) {
-        const geyser = this.sprite(this.tex.geyser, 4.4);
-        const p = stwPoint(side, point);
-        geyser.position.set(p.x, p.y);
-        resources.addChild(geyser);
-      }
-    }
+    this.resources = resources;
     this.steamLayer = new PIXI.Graphics();
     this.steamLayer.blendMode = "add";
     this.decals = new PIXI.Container();
@@ -182,6 +178,42 @@ export class StwPixiRenderer {
       this.labels.push({ root, text, y });
     }
     app.stage.addChild(this.world, this.overlay);
+    this.applyMap("plain");
+  }
+
+  /** 맵에 달린 그림을 바꾼다: 바닥 그림, 광물·간헐천 자리, 앞마당 이름표 높이. */
+  private applyMap(id: string) {
+    this.map = stwMapData(id) as MapData;
+    this.mapId = this.map.id;
+    let texture = this.terrains.get(this.mapId);
+    if (!texture) {
+      texture = stwTerrainTexture(this.PIXI, this.mapId);
+      this.terrains.set(this.mapId, texture);
+    }
+    this.ground.texture = texture;
+    this.ground.width = STW_LANE_WIDTH;
+    this.ground.height = STW_LANE_LENGTH;
+    for (const child of this.resources.removeChildren()) child.destroy();
+    const layout = this.map.layout;
+    for (const side of ["player", "enemy"] as StwSide[]) {
+      for (const point of [layout.mainMinerals, layout.naturalMinerals]) {
+        const minerals = this.sprite(point === layout.naturalMinerals && this.map.naturalRate > 1 ? this.tex.goldMinerals : this.tex.minerals, 13);
+        const p = stwPoint(side, point);
+        minerals.position.set(p.x, p.y);
+        this.resources.addChild(minerals);
+      }
+      for (const point of layout.geysers) {
+        const geyser = this.sprite(this.tex.geyser, 4.4);
+        const p = stwPoint(side, point);
+        geyser.position.set(p.x, p.y);
+        this.resources.addChild(geyser);
+      }
+    }
+    // 이름표는 [적 본진, 적 앞마당, 중앙, 앞마당, 아군 본진] 순서다.
+    if (this.labels.length >= 4) {
+      this.labels[1].y = STW_LANE_LENGTH - layout.naturalNexus.y;
+      this.labels[3].y = layout.naturalNexus.y;
+    }
   }
 
   resize(width: number, height: number) {
@@ -222,7 +254,7 @@ export class StwPixiRenderer {
       this.flagPulse = 1;
     }
     this.flagPulse = Math.max(0, this.flagPulse - realDt * 2.5);
-    const rallyY = stwRallyY("player", ui.rally);
+    const rallyY = stwRallyY("player", ui.rally, state);
     this.drawUnderlay(state, rallyY, ui.clock, ui.selected ?? []);
     this.drawSteam(state, ui.clock);
     this.syncBuildings(state, realDt);
@@ -247,6 +279,7 @@ export class StwPixiRenderer {
 
   private reset(state: StwState) {
     this.lastState = state;
+    if (stwMap(state).id !== this.mapId) this.applyMap(stwMap(state).id);
     this.processed = new WeakSet<object>();
     this.impacted = new WeakSet<object>();
     for (const view of this.unitViews.values()) view.root.destroy({ children: true });
@@ -296,7 +329,7 @@ export class StwPixiRenderer {
     const g = this.steamLayer;
     g.clear();
     for (const side of ["player", "enemy"] as StwSide[]) {
-      STW_LAYOUT.geysers.forEach((point, index) => {
+      this.map.layout.geysers.forEach((point, index) => {
         if (state.buildings.some((building) => building.side === side && building.slot === `geyser-${index}`)) return;
         const p = stwPoint(side, point);
         for (let puff = 0; puff < 3; puff += 1) {
@@ -308,14 +341,20 @@ export class StwPixiRenderer {
     }
   }
 
+  /** 그 세로 위치에서 지상 유닛이 설 수 있는 길의 반폭(협곡에서는 좁다). 집결 구역 타원이 절벽 위로 넘어가지 않게 한다. */
+  private halfWidth(y: number) {
+    const [left, right] = stwGroundSpan(this.map, y) as [number, number];
+    return (right - left) / 2;
+  }
+
   private drawUnderlay(state: StwState, rallyY: number, clock: number, selected: string[]) {
     const g = this.underlay;
     g.clear();
     // 따로 둔 부대의 자리(금색 타원)와, 고른 종류의 유닛 발밑 고리.
     for (const [type, spot] of Object.entries(state.sides.player.squads ?? {})) {
       if (!spot) continue;
-      const y = stwRallyY("player", spot.y);
-      g.ellipse(STW_LANE_WIDTH / 2, y, 11, 3.2).fill({ color: 0xffd27a, alpha: selected.includes(type) ? 0.12 : 0.05 }).stroke({ width: 0.16, color: 0xffd27a, alpha: 0.45 });
+      const y = stwRallyY("player", spot.y, state);
+      g.ellipse(STW_LANE_WIDTH / 2, y, Math.min(11, this.halfWidth(y)), 3.2).fill({ color: 0xffd27a, alpha: selected.includes(type) ? 0.12 : 0.05 }).stroke({ width: 0.16, color: 0xffd27a, alpha: 0.45 });
     }
     if (selected.length) {
       const pulse = 0.55 + Math.sin(clock * 5) * 0.2;
@@ -326,12 +365,12 @@ export class StwPixiRenderer {
     }
     // 집결 구역: 새 유닛과 대기 병력이 서는 자리.
     const team = STW_TEAM.player;
-    g.ellipse(STW_LANE_WIDTH / 2, rallyY, 15, 4.5).fill({ color: team.glow, alpha: 0.07 }).stroke({ width: 0.18, color: team.glow, alpha: 0.35 });
+    g.ellipse(STW_LANE_WIDTH / 2, rallyY, Math.min(15, this.halfWidth(rallyY)), 4.5).fill({ color: team.glow, alpha: 0.07 }).stroke({ width: 0.18, color: team.glow, alpha: 0.35 });
     // 본진에서 집결지로 가는 유닛이 있으면 점선이 흐른다.
     const army = stwArmy(state, "player");
     const transit = army.rally.some((unit) => Math.abs(unit.y - rallyY) > 6 && unit.y > rallyY + 6);
     if (transit) {
-      const from = STW_LAYOUT.mainNexus.y - 6;
+      const from = this.map.layout.mainNexus.y - 6;
       const to = rallyY + 5;
       const phase = (clock * 3) % 2;
       for (let y = from - phase; y > to; y -= 2) g.circle(STW_LANE_WIDTH / 2, y, 0.28).fill({ color: team.glow, alpha: 0.4 });
@@ -463,7 +502,7 @@ export class StwPixiRenderer {
         const nexus = stwNexus(state, side, base) as { x: number; y: number; radius: number } | null;
         if (!nexus || !stwDone(nexus as never)) continue;
         if (side !== "player" && !stwVisible(state, "player", nexus.x, nexus.y, 4)) continue;
-        const minerals = stwPoint(side, base === "main" ? STW_LAYOUT.mainMinerals : STW_LAYOUT.naturalMinerals);
+        const minerals = stwPoint(side, base === "main" ? this.map.layout.mainMinerals : this.map.layout.naturalMinerals);
         const dir = Math.sign(minerals.y - nexus.y) || 1;
         const threatened = state.units.some((unit) => unit.side !== side && !flags(STW_UNITS[unit.type]).worker && !flags(STW_UNITS[unit.type]).flying && Math.hypot(unit.x - nexus.x, unit.y - nexus.y) < 12);
         const count = base === "main" ? split.main + split.idle : split.natural;
@@ -591,7 +630,7 @@ export class StwPixiRenderer {
       const count = state.units.filter((unit) => unit.side === "player" && unit.hp > 0 && unit.squad === type).length;
       if (!count) continue;
       const def = STW_UNITS[type as StwUnitType];
-      show(`squad:${type}`, `${def?.name ?? type} ${count}`, 0xffd27a, STW_LANE_WIDTH / 2 + 12.5, stwRallyY("player", spot.y));
+      show(`squad:${type}`, `${def?.name ?? type} ${count}`, 0xffd27a, STW_LANE_WIDTH / 2 + 12.5, stwRallyY("player", spot.y, state));
     }
     for (const [key, badge] of this.badges) {
       if (live.has(key)) continue;
@@ -1190,7 +1229,7 @@ export class StwPixiRenderer {
     {
       const waiting = stwArmy(state, "player").rally.length;
       const label = this.rallyLabel;
-      const text = `${stwRallyName(state.sides.player.rally)} 집결 · 대기 ${waiting}`;
+      const text = `${stwRallyName(state.sides.player.rally, state)} 집결 · 대기 ${waiting}`;
       if (label.key !== text) {
         label.key = text;
         label.text.text = text;

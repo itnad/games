@@ -3,8 +3,8 @@
 // 스타즈워 실험실: 종족·전략·건물·유닛·연구·시각을 마음대로 정해 경기를 바로 세우고 시험하는 테스트용 메뉴.
 import { useState } from "react";
 import { withKoreanDirection, withKoreanObject } from "../korean-particles.js";
-import { STW_AI_PERSONAS, STW_BUILDINGS, STW_ECONOMY, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./starswar-data.js";
-import type { StwRaceId } from "./starswar-types";
+import { STW_AI_PERSONAS, STW_BUILDINGS, STW_ECONOMY, STW_MAPS, STW_MAP_IDS, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./starswar-data.js";
+import type { StwMapId, StwRaceId } from "./starswar-types";
 
 /** 아군은 직접 지휘 또는 AI 운영, 적은 교전만(운영하지 않음) 또는 AI 운영. */
 export type LabControl = "manual" | "fight" | "ai";
@@ -24,9 +24,12 @@ export type LabSide = {
 export type LabConfig = {
   time: number;
   placement: "clash" | "home";
+  /** 맵(없으면 평원). */
+  map?: StwMapId;
   races: { player: StwRaceId; enemy: StwRaceId };
   sides: { player: LabSide; enemy: LabSide };
 };
+const MAP_IDS = STW_MAP_IDS as StwMapId[];
 type LabPreset = { id: string; name: string; note: string; config: LabConfig; custom?: boolean };
 
 const RACE_IDS: StwRaceId[] = ["protoss", "terran", "zerg"];
@@ -98,6 +101,7 @@ export function normalizeLab(raw: unknown): LabConfig | null {
   return {
     time: Number(value.time) || 0,
     placement: value.placement === "home" ? "home" : "clash",
+    map: MAP_IDS.includes(value.map as StwMapId) ? (value.map as StwMapId) : "plain",
     races: { player: race(value.races.player), enemy: race(value.races.enemy) },
     sides: { player: side("player"), enemy: side("enemy") },
   };
@@ -380,6 +384,13 @@ export function LabScreen({ initial, onStart, onBack }: { initial: LabConfig; on
           <button type="button" role="radio" aria-checked={config.placement === "home"} className={config.placement === "home" ? "active" : ""} onClick={() => setConfig({ ...config, placement: "home" })}>각자 기지</button>
         </div>
         <p className="stw-hint">{config.placement === "clash" ? "두 병력이 맵 가운데에서 마주 본 채 공격 병력으로 시작합니다." : "두 병력이 각자 집결지에서 대기합니다. 출격은 직접 정하거나 AI가 정합니다."}</p>
+        <h3 className="stw-section">맵</h3>
+        <div className="stw-segment" role="radiogroup" aria-label="맵">
+          {MAP_IDS.map((id) => (
+            <button key={id} type="button" role="radio" aria-checked={(config.map ?? "plain") === id} className={(config.map ?? "plain") === id ? "active" : ""} onClick={() => setConfig({ ...config, map: id })}>{STW_MAPS[id].name}</button>
+          ))}
+        </div>
+        <p className="stw-hint">{STW_MAPS[config.map ?? "plain"].note}</p>
         <SideEditor title="아군" which="player" race={config.races.player} side={config.sides.player} onRace={(race) => setRace("player", race)} onChange={(side) => setSide("player", side)} />
         <SideEditor title="적" which="enemy" race={config.races.enemy} side={config.sides.enemy} onRace={(race) => setRace("enemy", race)} onChange={(side) => setSide("enemy", side)} />
         {over.length ? <p className="stw-hint stw-hold">인구가 {withKoreanObject(String(SUPPLY_LIMIT))} 넘었습니다. 넘는 만큼도 나오지만 그쪽은 더 생산할 수 없습니다.</p> : null}

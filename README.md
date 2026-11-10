@@ -43,7 +43,7 @@ npm run dev
 | `npm ci` | `package-lock.json`과 동일한 의존성 설치 |
 | `npm run dev` | Vinext 로컬 개발 서버 실행 |
 | `npm run build` | 프로덕션 빌드 생성 |
-| `npm test` | 프로덕션 빌드 후 전체 210개 회귀 테스트 실행 |
+| `npm test` | 프로덕션 빌드 후 전체 214개 회귀 테스트 실행 |
 | `npm run lint` | ESLint 검사 |
 | `npm run db:generate` | `db/schema.ts` 변경분으로 D1 마이그레이션 생성 |
 

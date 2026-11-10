@@ -1,8 +1,8 @@
 // 스타즈워 텍스처 공장. 그림 파일 없이 PixiJS Graphics와 Canvas 2D로 그려 텍스처로 굽는다.
 // 외부 그림이 생기면 같은 키의 텍스처를 StwTextureSet에 넣어 바꿔 끼우면 된다.
 import type { Container, Graphics, Renderer, Texture } from "pixi.js";
-import { STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT } from "./starswar-data.js";
-import type { StwBuildingType, StwSide, StwUnitType } from "./starswar-types";
+import { STW_LANE_LENGTH, STW_LANE_WIDTH, stwMapData } from "./starswar-data.js";
+import type { StwBuildingType, StwMapData, StwSide, StwUnitType } from "./starswar-types";
 
 type PixiModule = typeof import("pixi.js");
 
@@ -26,6 +26,7 @@ export type StwTextureSet = {
   zergParts: Record<StwSide, { lair: Texture; lurkerBurrowed: Texture }>;
   buildings: Record<StwSide, Record<StwBuildingType, Texture>>;
   minerals: Texture;
+  goldMinerals: Texture;
   geyser: Texture;
   terrain: Texture;
   soft: Texture;
@@ -1165,12 +1166,13 @@ function cavern(PIXI: PixiModule, side: StwSide) {
   return g;
 }
 
-function mineralField(PIXI: PixiModule) {
+/** 광물 줄. gold면 황금 앞마당의 금빛 광물. */
+function mineralField(PIXI: PixiModule, gold = false) {
   const g = new PIXI.Graphics();
   const rocks: [number, number, number][] = [[-38, 4, 1], [-24, -2, 1.2], [-10, 4, 0.95], [4, -3, 1.25], [18, 3, 1], [32, -1, 1.1], [44, 5, 0.85]];
   for (const [x, y, s] of rocks) {
-    crystal(g, x, y, 7 * s, 15 * s, 0x3f8fe8, 0xd5ecff);
-    crystal(g, x + 5 * s, y + 4 * s, 4.5 * s, 9 * s, 0x2f72c4, 0xbfe0ff);
+    crystal(g, x, y, 7 * s, 15 * s, gold ? 0xf2b530 : 0x3f8fe8, gold ? 0xfff4c4 : 0xd5ecff);
+    crystal(g, x + 5 * s, y + 4 * s, 4.5 * s, 9 * s, gold ? 0xc98a1a : 0x2f72c4, gold ? 0xffe59a : 0xbfe0ff);
   }
   return g;
 }
@@ -1272,8 +1274,13 @@ function radial(PIXI: PixiModule, size: number, stops: [number, string][]) {
   });
 }
 
-/** 아이어의 사암 평원: 양옆 절벽, 가운데 돌길, 기지마다 황금 바닥 타일, 풀숲과 바위. */
-function terrain(PIXI: PixiModule) {
+/**
+ * 아이어의 사암 평원: 양옆 절벽, 가운데 돌길, 기지마다 황금 바닥 타일, 풀숲과 바위.
+ * 맵에 따라 앞마당 바닥의 자리가 다르고, 협곡은 가운데 양옆에 지상 유닛이 못 지나는 바위 절벽을 그린다.
+ */
+export function stwTerrainTexture(PIXI: PixiModule, mapId = "plain") {
+  const map = stwMapData(mapId) as StwMapData;
+  const layout = map.layout;
   const unit = 16;
   const width = STW_LANE_WIDTH * unit;
   const height = STW_LANE_LENGTH * unit;
@@ -1337,9 +1344,9 @@ function terrain(PIXI: PixiModule) {
       ctx.arc(cx * unit, cy * unit, r * unit, 0, Math.PI * 2);
       ctx.stroke();
     };
-    for (const point of [STW_LAYOUT.mainNexus, STW_LAYOUT.naturalNexus]) {
-      plaza(point.x, point.y, point === STW_LAYOUT.mainNexus ? 17 : 10);
-      plaza(STW_LANE_WIDTH - point.x, STW_LANE_LENGTH - point.y, point === STW_LAYOUT.mainNexus ? 17 : 10);
+    for (const point of [layout.mainNexus, layout.naturalNexus]) {
+      plaza(point.x, point.y, point === layout.mainNexus ? 17 : 10);
+      plaza(STW_LANE_WIDTH - point.x, STW_LANE_LENGTH - point.y, point === layout.mainNexus ? 17 : 10);
     }
     // 중앙 제단
     ctx.strokeStyle = "rgba(240, 214, 140, 0.4)";
@@ -1376,6 +1383,67 @@ function terrain(PIXI: PixiModule) {
       gradient.addColorStop(1, "rgba(20, 14, 8, 0)");
       ctx.fillStyle = gradient;
       ctx.fillRect(side ? width - unit * 3 : 0, 0, unit * 3, height);
+    }
+    // 협곡: 가운데 양옆의 바위 절벽. 유닛 몸이 벽에 묻히지 않게 길보다 조금 바깥에 벽을 세운다.
+    const corridor = map.corridor;
+    if (corridor) {
+      const wall = corridor.inset - 0.9;
+      const top = corridor.from - corridor.taper - 0.6;
+      const bottom = corridor.to + corridor.taper + 0.6;
+      for (const side of [0, 1]) {
+        const px = (x: number) => (side ? STW_LANE_WIDTH - x : x) * unit;
+        const outline = (inset: number) => {
+          ctx.beginPath();
+          ctx.moveTo(px(-1), top * unit);
+          ctx.lineTo(px(0.6), (top + inset * 0.4) * unit);
+          ctx.lineTo(px(wall - inset), (corridor.from + inset * 0.2) * unit);
+          ctx.lineTo(px(wall - inset), (corridor.to - inset * 0.2) * unit);
+          ctx.lineTo(px(0.6), (bottom - inset * 0.4) * unit);
+          ctx.lineTo(px(-1), bottom * unit);
+          ctx.closePath();
+        };
+        // 길바닥에 드리운 그림자
+        ctx.save();
+        ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+        ctx.shadowBlur = unit * 1.6;
+        ctx.shadowOffsetX = (side ? -1 : 1) * unit * 0.5;
+        ctx.shadowOffsetY = unit * 0.4;
+        outline(0);
+        ctx.fillStyle = "#33291b";
+        ctx.fill();
+        ctx.restore();
+        // 절벽 면(어두운 띠)과 그 위 고원
+        outline(0);
+        ctx.fillStyle = "#3a2e1e";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(226, 200, 140, 0.55)";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.save();
+        outline(1.1);
+        ctx.clip();
+        const plateau = ctx.createLinearGradient(px(0), 0, px(wall), 0);
+        plateau.addColorStop(0, "#4a3c28");
+        plateau.addColorStop(1, "#6b5839");
+        ctx.fillStyle = plateau;
+        ctx.fillRect(0, (top - 1) * unit, width, (bottom - top + 2) * unit);
+        for (let i = 0; i < 150; i += 1) {
+          const x = px(rng() * wall);
+          const y = (top + rng() * (bottom - top)) * unit;
+          const r = (0.4 + rng() * 1.1) * unit;
+          ctx.globalAlpha = 0.25 + rng() * 0.25;
+          ctx.fillStyle = ["#7d6944", "#3b2f1f", "#8a7650", "#554630"][Math.floor(rng() * 4)];
+          ctx.beginPath();
+          ctx.ellipse(x, y, r, r * (0.45 + rng() * 0.4), rng() * Math.PI, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
+        outline(1.1);
+        ctx.strokeStyle = "rgba(20, 14, 8, 0.55)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
     }
   });
 }
@@ -1495,9 +1563,10 @@ export function createStwTextures(PIXI: PixiModule, renderer: Renderer): StwText
     buildings,
     flag: flags,
     minerals: bake(mineralField(PIXI)),
+    goldMinerals: bake(mineralField(PIXI, true)),
     geyser: bake(geyser(PIXI)),
     rubble: bake(rubble(PIXI)),
-    terrain: terrain(PIXI),
+    terrain: stwTerrainTexture(PIXI),
     soft: radial(PIXI, 64, [[0, "rgba(255,255,255,1)"], [0.45, "rgba(255,255,255,0.55)"], [1, "rgba(255,255,255,0)"]]),
     spark: radial(PIXI, 32, [[0, "rgba(255,255,255,1)"], [0.3, "rgba(255,255,255,0.85)"], [1, "rgba(255,255,255,0)"]]),
     shadow: radial(PIXI, 64, [[0, "rgba(0,0,0,0.5)"], [0.6, "rgba(0,0,0,0.28)"], [1, "rgba(0,0,0,0)"]]),
