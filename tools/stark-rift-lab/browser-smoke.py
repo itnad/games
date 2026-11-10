@@ -1,10 +1,10 @@
 """Optional Chromium/CDP touch checks for the internal lab; requires Python Playwright.
 
-Run the lab server separately. This does not certify physical Android/iOS or GPU performance.
+Build the lab and run npm run preview:stark-rift-lab separately. This does not certify physical Android/iOS or GPU performance.
 """
 import argparse
 import json
-import os
+import re
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -14,7 +14,9 @@ from playwright.sync_api import expect, sync_playwright
 
 
 # Observe real Worker traffic without modifying game state or production entry points.
-OBSERVER = """window.__qa={commands:[],events:[],snapshot:null,session:null,live:0};
+OBSERVER = """window.__qa={commands:[],events:[],snapshot:null,session:null,live:0,confirmations:0};
+// Synthetic fixtures accept group replacement deterministically; a native modal can block CDP touchEnd.
+window.confirm=()=>{window.__qa.confirmations++;return true;};
 const OriginalWorker=window.Worker; window.Worker=class extends OriginalWorker {
   constructor(...args) {
     super(...args); window.__qa.live++; this.__qaClosed=false;
@@ -221,7 +223,8 @@ def process_memory():
                 continue
             rss = next((int(line.split()[1]) * 1024 for line in raw.splitlines() if line.startswith("VmRSS:")), 0)
             command = status.with_name("cmdline").read_bytes().decode(errors="replace").split("\0")
-            role = next((part[7:] for part in command if part.startswith("--type=")), "browser")
+            role_match = re.search(r"--type=([^\s\x00]+)", " ".join(command))
+            role = role_match.group(1) if role_match else "browser"
             roles[role] = roles.get(role, 0) + rss
         except (OSError, ValueError):
             pass
@@ -260,7 +263,7 @@ def check_soak(page, context, checks, args):
         assert observed["ui"]["phase"] == "running"
         assert not any(e["kind"] == "fatalError" or (e["kind"] == "commandAck" and not e["payload"]["accepted"]) for e in observed["events"])
         metrics = {m["name"]: m["value"] for m in cdp.send("Performance.getMetrics")["metrics"]}
-        samples.append({"elapsedSeconds": elapsed, "tick": observed["snapshot"]["tick"], "heapBytes": metrics.get("JSHeapUsedSize"), "dom": cdp.send("Memory.getDOMCounters"), "processMemory": process_memory()})
+        samples.append({"elapsedSeconds": elapsed, "tick": observed["snapshot"]["tick"], "heapBytes": metrics.get("JSHeapUsedSize"), "dom": cdp.send("Memory.getDOMCounters"), "processMemory": process_memory(), "userTimingEntries": page.evaluate("performance.getEntriesByType('measure').length")})
         (args.output / "stark-rift-browser-soak-progress.json").write_text(json.dumps(samples, indent=2) + "\n")
         page.wait_for_timeout(min(5000, max(1, (args.soak_seconds - (time.monotonic() - started)) * 1000)))
     cdp.send("HeapProfiler.collectGarbage")
@@ -280,7 +283,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--only-soak", action="store_true")
     parser.add_argument("--soak-seconds", type=int, default=0, help="Optional repeated 50-unit movement observation; 600 for ten minutes")
-    parser.add_argument("--url", default="http://127.0.0.1:4174/")
+    parser.add_argument("--url", default="http://127.0.0.1:4175/")
     parser.add_argument("--chromium", default="/usr/bin/chromium")
     parser.add_argument("--output", type=Path, default=Path("work/stage3-browser"))
     args = parser.parse_args()
