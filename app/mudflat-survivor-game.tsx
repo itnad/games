@@ -3401,7 +3401,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         <div className="ms-main-expedition-heading">
           <span>MAIN</span>
           <h2>일반 원정</h2>
-          <p>모드와 채집꾼을 정하고 단계별 갯벌에 도전하세요.</p>
+          <p>모드·채집꾼을 골라 출정하세요.</p>
         </div>
         <h3 className="ms-mode-heading">원정 방식 선택</h3>
         <div className="ms-mode-picker">
