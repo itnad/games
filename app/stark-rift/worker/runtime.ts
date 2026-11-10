@@ -31,7 +31,12 @@ export class SimulationRuntime {
   private error(code: string, recoverable = true) {
     this.send(createWorkerEnvelope(++this.messageId, "fatalError", { code, recoverable, diagnosticId: null }));
   }
-  private phase() { if (this.state) this.send(createWorkerEnvelope(++this.messageId, "phaseChanged", { tick: this.state.tick, phase: this.state.phase })); }
+  private phase() {
+    if (!this.state) return;
+    this.send(createWorkerEnvelope(++this.messageId, "phaseChanged", { tick: this.state.tick, phase: this.state.phase }));
+    // Pause/resume can happen without a new render tick. Controls still need the current phase.
+    this.ui();
+  }
   private installRules(map:BattleMap){
     const defaults=createMovementRules(map,(state,viewer,index)=>{
       const mask=this.options.visibility?.(state,map,viewer);const x=Math.floor(state.entities.x[index]/256),y=Math.floor(state.entities.y[index]/256);
