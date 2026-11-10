@@ -19,6 +19,7 @@ import {createRenderSnapshot} from "../../app/stark-rift/worker/render-snapshot"
 import {BattleCamera} from "../../app/stark-rift/render/camera";
 import type {BattleMap} from "../../app/stark-rift/data/maps";
 import type {SessionState} from "../../app/stark-rift/core/state";
+import {isPortraitViewport,subscribePortraitMode} from "../../app/stark-rift/input/portrait-mode";
 afterEach(()=>vi.unstubAllGlobals());
 function fixture(){
   hooks.state=[];hooks.refs=[];hooks.effects=[];
@@ -33,6 +34,22 @@ function fixture(){
   return {props,send,onSessionChange,render,camera,size};
 }
 describe("selection after swiping",()=>{
+  it("reuses the media query during rendering and detaches orientation subscriptions",()=>{
+    const query={matches:false,addEventListener:vi.fn(),removeEventListener:vi.fn()},matchMedia=vi.fn(()=>query);
+    vi.stubGlobal("window",{matchMedia});
+    for(let frame=0;frame<10000;frame++)expect(isPortraitViewport()).toBe(true);
+    const changed=vi.fn(),detach=subscribePortraitMode(changed);
+    expect(matchMedia).toHaveBeenCalledTimes(1);query.matches=true;
+    expect(isPortraitViewport()).toBe(false);detach();
+    expect(query.removeEventListener).toHaveBeenCalledWith("change",changed);
+  });
+  it("does not replace existing groups when their confirmation is declined",()=>{
+    const confirm=vi.fn(()=>false);vi.stubGlobal("window",{matchMedia:()=>({matches:false}),confirm});
+    const f=fixture(),before=structuredClone(f.props.ui.controlGroups);
+    f.render().props.inputFactory(f.camera,f.size).group({entityId:3,kind:"combat"});
+    expect(confirm).toHaveBeenCalledTimes(1);expect(f.send).not.toHaveBeenCalled();
+    expect(f.props.ui.controlGroups).toEqual(before);
+  });
   it("blocks landscape commands without consuming their sequence",()=>{
     let landscape=true;
     vi.stubGlobal("window",{matchMedia:()=>({get matches(){return landscape;}})});
