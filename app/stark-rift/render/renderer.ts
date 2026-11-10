@@ -2,6 +2,7 @@ import { Application, Container, Graphics, Sprite, Texture, Ticker, type WebGLRe
 import type { BattleMap } from "../data/maps";
 import { validateRenderSnapshot, type RenderSnapshot } from "../worker/render-snapshot";
 import { BattleCamera } from "./camera";
+import { isPortraitViewport } from "../input/portrait-mode";
 
 const TERRAIN_COLORS = [0x202a38, 0x39445b, 0x101420, 0x536174, 0x090a1d];
 export class BattleRenderer {
@@ -51,6 +52,7 @@ export class BattleRenderer {
       const lost = (event: Event) => { event.preventDefault(); this.ticker.stop(); this.contextLost(); };
       for (const canvas of [this.app.canvas, this.minimap.canvas]) { canvas.addEventListener("webglcontextlost", lost); this.cleanups.push(() => canvas.removeEventListener("webglcontextlost", lost)); }
       const recenter = (event: PointerEvent) => {
+        if (!isPortraitViewport()) return;
         if (event.type === "pointermove" && !this.minimap.canvas.hasPointerCapture(event.pointerId)) return;
         if (event.type === "pointerdown") this.minimap.canvas.setPointerCapture(event.pointerId);
         const r = this.minimap.canvas.getBoundingClientRect();
@@ -85,13 +87,13 @@ export class BattleRenderer {
     this.draw();
   }
   private resize(): void {
-    if (this.disposed) return;
+    if (this.disposed || !isPortraitViewport()) return;
     this.app.renderer.resize(Math.max(1, this.battlefield.clientWidth), Math.max(1, this.battlefield.clientHeight));
     this.minimap.renderer.resize(Math.max(1, this.minimapHost.clientWidth), Math.max(1, this.minimapHost.clientHeight));
     this.camera.setCenter(this.camera.centerX, this.camera.centerY, this.app.screen.width, this.app.screen.height); this.draw();
   }
   draw = (): void => {
-    if (this.disposed || !this.initialized) return;
+    if (this.disposed || !this.initialized || !isPortraitViewport()) return;
     const w = this.app.screen.width, h = this.app.screen.height, scale = this.camera.scale(w, h), bounds = this.camera.bounds(w, h);
     this.world.scale.set(scale * 256); this.world.position.set(w / 2 - this.camera.centerX * scale, h / 2 - this.camera.centerY * scale);
     this.minimapUnits.clear();
