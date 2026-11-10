@@ -16,6 +16,7 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "dev:stark-rift-lab": "vite --config tools/stark-rift-lab/vite.config.ts",
+    "preview:stark-rift-lab": "vite preview --config tools/stark-rift-lab/vite.config.ts --host 127.0.0.1 --port 4175 --strictPort",
     "build:stark-rift-lab": "npm run typecheck:stark-rift && vite build --config tools/stark-rift-lab/vite.config.ts",
     "bench:stark-rift": "node tools/stark-rift-lab/benchmark.mjs"
   },
