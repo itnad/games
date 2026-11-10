@@ -1,4 +1,4 @@
-import {describe,it,expect,vi} from "vitest";
+import {afterEach,describe,it,expect,vi} from "vitest";
 import type {ComponentProps} from "react";
 const hooks=vi.hoisted(()=>({state:[] as unknown[],refs:[] as {current:unknown}[],effects:[] as (()=>void)[],si:0,ri:0}));
 // Exercise the component's callbacks and snapshot effect without requiring a GPU/DOM.
@@ -19,6 +19,7 @@ import {createRenderSnapshot} from "../../app/stark-rift/worker/render-snapshot"
 import {BattleCamera} from "../../app/stark-rift/render/camera";
 import type {BattleMap} from "../../app/stark-rift/data/maps";
 import type {SessionState} from "../../app/stark-rift/core/state";
+afterEach(()=>vi.unstubAllGlobals());
 function fixture(){
   hooks.state=[];hooks.refs=[];hooks.effects=[];
   const map:BattleMap={id:"selection",widthTiles:32,heightTiles:32,symmetry:"rotational-180",terrain:new Uint8Array(1024),height:new Uint8Array(1024),walkable:new Uint8Array(1024).fill(1),buildable:new Uint8Array(1024).fill(1),spawnPoints:[{x:4,y:4},{x:28,y:28}],resourceNodes:[],regions:[]};
@@ -32,6 +33,24 @@ function fixture(){
   return {props,send,onSessionChange,render,camera,size};
 }
 describe("selection after swiping",()=>{
+  it("blocks landscape commands without consuming their sequence",()=>{
+    let landscape=true;
+    vi.stubGlobal("window",{matchMedia:()=>({get matches(){return landscape;}})});
+    const f=fixture(),actions=f.render().props.inputFactory(f.camera,f.size);
+    actions.groundTap({x:200,y:220});
+    expect(f.send).not.toHaveBeenCalled();
+    landscape=false;
+    actions.groundTap({x:200,y:220});
+    expect(f.send.mock.lastCall![0]).toMatchObject({kind:"move",sequence:1,entityIds:[1,2]});
+  });
+  it("keeps a temporary group selected while paused without registering it or opening confirmation",()=>{
+    const confirm=vi.fn();vi.stubGlobal("window",{matchMedia:()=>({matches:false}),confirm});
+    const f=fixture();f.props.ui={...f.props.ui,phase:"paused"};
+    f.render().props.inputFactory(f.camera,f.size).group({entityId:3,kind:"combat"});
+    expect(f.send).not.toHaveBeenCalled();expect(confirm).not.toHaveBeenCalled();
+    f.props.snapshot={...f.props.snapshot,tick:1};f.render();hooks.effects.slice(0,1).forEach(effect=>effect());f.render();
+    expect(f.onSessionChange.mock.lastCall![0].selection).toEqual({entityIds:expect.arrayContaining([1,2,3]),controlGroupIds:[]});
+  });
   it.each([
     {id:3,kind:"combat" as const,attack:true,ids:[3],slots:[]},
     {id:4,kind:"worker" as const,attack:false,ids:[4],slots:[]},
