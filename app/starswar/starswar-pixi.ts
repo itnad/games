@@ -1,6 +1,6 @@
 // 스타즈워 PixiJS 렌더러. 엔진 상태를 읽기만 하며, 플레이어 시야 밖의 적은 감춘다.
 import type { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
-import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_MAPS, STW_STORM, STW_UNITS, stwGroundSpan, stwMapData } from "./starswar-data.js";
+import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_MAPS, STW_STORM, STW_UNITS, stwMapData } from "./starswar-data.js";
 import { stwArmy, stwDetected, stwDone, stwIsCloaked, stwMap, stwNexus, stwPoint, stwRace, stwRallyName, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
 import { STW_TEAM, createStwTextures, stwTerrainTexture, type StwTextureSet } from "./starswar-sprites";
 import type { StwBuilding, StwEffect, StwMapData, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./starswar-types";
@@ -341,12 +341,6 @@ export class StwPixiRenderer {
     }
   }
 
-  /** 그 세로 위치에서 지상 유닛이 설 수 있는 길의 반폭(협곡에서는 좁다). 집결 구역 타원이 절벽 위로 넘어가지 않게 한다. */
-  private halfWidth(y: number) {
-    const [left, right] = stwGroundSpan(this.map, y) as [number, number];
-    return (right - left) / 2;
-  }
-
   private drawUnderlay(state: StwState, rallyY: number, clock: number, selected: string[]) {
     const g = this.underlay;
     g.clear();
@@ -354,7 +348,7 @@ export class StwPixiRenderer {
     for (const [type, spot] of Object.entries(state.sides.player.squads ?? {})) {
       if (!spot) continue;
       const y = stwRallyY("player", spot.y, state);
-      g.ellipse(STW_LANE_WIDTH / 2, y, Math.min(11, this.halfWidth(y)), 3.2).fill({ color: 0xffd27a, alpha: selected.includes(type) ? 0.12 : 0.05 }).stroke({ width: 0.16, color: 0xffd27a, alpha: 0.45 });
+      g.ellipse(STW_LANE_WIDTH / 2, y, 11, 3.2).fill({ color: 0xffd27a, alpha: selected.includes(type) ? 0.12 : 0.05 }).stroke({ width: 0.16, color: 0xffd27a, alpha: 0.45 });
     }
     if (selected.length) {
       const pulse = 0.55 + Math.sin(clock * 5) * 0.2;
@@ -365,7 +359,7 @@ export class StwPixiRenderer {
     }
     // 집결 구역: 새 유닛과 대기 병력이 서는 자리.
     const team = STW_TEAM.player;
-    g.ellipse(STW_LANE_WIDTH / 2, rallyY, Math.min(15, this.halfWidth(rallyY)), 4.5).fill({ color: team.glow, alpha: 0.07 }).stroke({ width: 0.18, color: team.glow, alpha: 0.35 });
+    g.ellipse(STW_LANE_WIDTH / 2, rallyY, 15, 4.5).fill({ color: team.glow, alpha: 0.07 }).stroke({ width: 0.18, color: team.glow, alpha: 0.35 });
     // 본진에서 집결지로 가는 유닛이 있으면 점선이 흐른다.
     const army = stwArmy(state, "player");
     const transit = army.rally.some((unit) => Math.abs(unit.y - rallyY) > 6 && unit.y > rallyY + 6);
