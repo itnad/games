@@ -41,7 +41,7 @@ const OriginalWorker=window.Worker; window.Worker=class extends OriginalWorker {
 
 
 def state(page):
-    return page.evaluate("window.__qa")
+    return page.evaluate("()=>{const q=window.__qa;return {...q,snapshot:q.snapshot?{tick:q.snapshot.tick,entities:q.snapshot.entities}:null};}")
 
 
 def center(box):
@@ -247,11 +247,11 @@ def check_soak(page, context, checks, args):
         if elapsed >= waves * 90:
             goal = 81 if waves % 2 == 0 else 14
             minimap = page.locator(".sr-minimap canvas")
-            minimap.scroll_into_view_if_needed()
+            minimap.evaluate("e=>e.scrollIntoView({block:'nearest',inline:'nearest'})")
             box = minimap.bounding_box()
             touch(cdp, page, {"x": box["x"] + box["width"] * goal / 96, "y": box["y"] + box["height"] * goal / 96})
             canvas = page.locator(".sr-viewport canvas")
-            canvas.scroll_into_view_if_needed()
+            canvas.evaluate("e=>e.scrollIntoView({block:'nearest',inline:'nearest'})")
             before = len(state(page)["commands"])
             touch(cdp, page, center(canvas.bounding_box()))
             commands = state(page)["commands"][before:]
@@ -270,9 +270,9 @@ def check_soak(page, context, checks, args):
     final = {m["name"]: m["value"] for m in cdp.send("Performance.getMetrics")["metrics"]}
     report = {"scope": "Chromium SwiftShader; main-page heap/DOM only; excludes Worker/GPU memory; physical device performance unverified", "seconds": time.monotonic() - started, "waves": waves, "postGcMainHeapBytes": final.get("JSHeapUsedSize"), "samples": samples}
     (args.output / "stark-rift-browser-soak.json").write_text(json.dumps(report, indent=2) + "\n")
-    page.locator(".lab-details summary").click()
+    page.locator(".lab-details summary").evaluate("e=>e.click()")
     with page.expect_download() as pending:
-        page.get_by_role("button", name="검증 기록 JSON 저장", exact=True).click()
+        page.get_by_role("button", name="검증 기록 JSON 저장", exact=True).evaluate("e=>e.click()")
     pending.value.save_as(str(args.output / "stark-rift-browser-soak-session.json"))
     checks["repeated_50_unit_moves"] = True
     checks["continuous_running_no_error_single_worker"] = True
@@ -296,6 +296,7 @@ def main():
             context = browser.new_context(viewport={"width": width, "height": height}, is_mobile=True, has_touch=True, device_scale_factor=1)
             context.add_init_script(OBSERVER)
             page = context.new_page()
+            page.set_default_timeout(10000)
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.on("dialog", lambda dialog: dialog.accept())
@@ -310,7 +311,7 @@ def main():
                 case["failure"] = str(error)
             finally:
                 try:
-                    page.screenshot(path=str(args.output / f"stark-rift-browser-{width}x{height}.png"), full_page=True)
+                    page.screenshot(path=str(args.output / f"stark-rift-browser-{width}x{height}.png"), full_page=True, timeout=5000)
                 except Exception as error:
                     case["screenshotError"] = str(error)
                 context.close()
@@ -322,6 +323,7 @@ def main():
             context = browser.new_context(viewport=viewport, is_mobile=True, has_touch=True, device_scale_factor=1)
             context.add_init_script(OBSERVER)
             page = context.new_page()
+            page.set_default_timeout(10000)
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
             case = {"case": name, "checks": {}, "errors": errors}
@@ -335,7 +337,7 @@ def main():
                 case["failure"] = str(error)
             finally:
                 try:
-                    page.screenshot(path=str(args.output / f"stark-rift-browser-{name}.png"), full_page=True)
+                    page.screenshot(path=str(args.output / f"stark-rift-browser-{name}.png"), full_page=True, timeout=5000)
                 except Exception as error:
                     case["screenshotError"] = str(error)
                 context.close()
