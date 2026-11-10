@@ -9,6 +9,7 @@ import { hitTest, selectNearby } from "../input/selection";
 import type { BattleCamera } from "../render/camera";
 import type { GestureActions } from "../input/camera-gestures";
 import { BattleScreen } from "./battle-screen";
+import { isPortraitViewport, subscribePortraitMode } from "../input/portrait-mode";
 type UiState=Extract<WorkerToMainMessage,{kind:"uiState"}>["payload"];
 type Body<T=GameCommand>=T extends GameCommand?Omit<T,"sequence"|"issuedTick"|"executeTick"|"playerId"|"source">:never;
 export function InteractiveBattle({map,snapshot,ui,send,onPause,onRenderFailure,initialSession,onSessionChange,notice}:{map:BattleMap;snapshot:RenderSnapshot;ui:UiState;send:(command:GameCommand)=>void;onPause:()=>void;onRenderFailure:()=>void;initialSession:SessionState;onSessionChange:(session:SessionState)=>void;notice:string|null}){
@@ -27,9 +28,11 @@ export function InteractiveBattle({map,snapshot,ui,send,onPause,onRenderFailure,
   },[snapshot,ui]);
   const issue=(body:Body)=>{
     const current=latest.current,tick=Math.max(current.snapshot.tick,current.ui.tick);
+    if(current.ui.phase!=="running"||!isPortraitViewport())return;
     callbacks.current.send({...body,sequence:++sequence.current,issuedTick:tick,executeTick:tick+1,playerId:current.snapshot.viewerPlayerId,source:"player"} as GameCommand);
   };
   const register=(ids:number[],slot:number)=>{
+    if(latest.current.ui.phase!=="running"||!isPortraitViewport())return;
     const groups=latest.current.ui.controlGroups;
     const conflict=groups[slot].entityIds.some(id=>!ids.includes(id))||groups.some((g,i)=>i!==slot&&g.entityIds.some(id=>ids.includes(id)));
     if(conflict&&!window.confirm("기존 부대를 옮기거나 이 슬롯을 교체할까요?"))return;
@@ -71,6 +74,7 @@ export function InteractiveBattle({map,snapshot,ui,send,onPause,onRenderFailure,
     };
   };
   const drag=useRef<{id:number;origin:number;x:number;y:number;visited:number[]}|null>(null);
+  useEffect(()=>subscribePortraitMode(()=>{if(!isPortraitViewport()){drag.current=null;setPreview([]);}}),[]);
   const chooseSlot=(slot:number,add=false)=>{const groups=add?[...new Set([...latest.current.slots,slot])]:[slot];select(groups.flatMap(i=>latest.current.ui.controlGroups[i].entityIds),groups);};
   const controls=<><div className="sr-groups" onPointerMove={event=>{
     const d=drag.current;if(!d||d.id!==event.pointerId)return;
@@ -87,9 +91,9 @@ export function InteractiveBattle({map,snapshot,ui,send,onPause,onRenderFailure,
   </div><div className="sr-command-space sr-commands">
     {pending&&<span>등록할 부대 슬롯을 선택해 주세요.</span>}{mode&&<span>전장에서 목적지를 선택해 주세요.</span>}{notice&&<span role="status">{notice}</span>}
     <span>선택 {selected.length}</span>
-    <button disabled={!selected.length} onClick={()=>issue({kind:"stop",entityIds:selected})}>정지</button><button disabled={!selected.length} onClick={()=>issue({kind:"hold",entityIds:selected})}>위치 사수</button><button disabled={!selected.length} onClick={()=>setMode("patrol")}>순찰</button>
-    {(["line","column","spread"] as const).map((formation,i)=><button key={formation} disabled={!selected.length} onClick={()=>issue({kind:"setFormation",entityIds:selected,payload:{formation}})}>{["전열","종대","분산"][i]}</button>)}
-    {(["free","formation","breakthrough"] as const).map((stance,i)=><button key={stance} disabled={!selected.length} onClick={()=>issue({kind:"setStance",entityIds:selected,payload:{stance}})}>{["자율 교전","대열 유지","목표 돌파"][i]}</button>)}
+    <button disabled={ui.phase!=="running"||!selected.length} onClick={()=>issue({kind:"stop",entityIds:selected})}>정지</button><button disabled={ui.phase!=="running"||!selected.length} onClick={()=>issue({kind:"hold",entityIds:selected})}>위치 사수</button><button disabled={ui.phase!=="running"||!selected.length} onClick={()=>setMode("patrol")}>순찰</button>
+    {(["line","column","spread"] as const).map((formation,i)=><button key={formation} disabled={ui.phase!=="running"||!selected.length} onClick={()=>issue({kind:"setFormation",entityIds:selected,payload:{formation}})}>{["전열","종대","분산"][i]}</button>)}
+    {(["free","formation","breakthrough"] as const).map((stance,i)=><button key={stance} disabled={ui.phase!=="running"||!selected.length} onClick={()=>issue({kind:"setStance",entityIds:selected,payload:{stance}})}>{["자율 교전","대열 유지","목표 돌파"][i]}</button>)}
     <button onClick={()=>{select([]);setMode(null);setPending(null);}}>선택 해제</button>
   </div></>;
   return <BattleScreen map={map} snapshot={snapshot} initialCamera={initialSession.camera} inputFactory={bind} controls={controls} selectedIds={selected} previewIds={preview} onPause={onPause} onRenderFailure={onRenderFailure} onCameraChange={value=>{session.current.camera=value;callbacks.current.onSessionChange(structuredClone(session.current));}}/>;
