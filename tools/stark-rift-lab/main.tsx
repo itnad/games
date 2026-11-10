@@ -53,7 +53,12 @@ function Lab({id,header}:{id:ScenarioId;header:ReactNode}){
     instance.send('init',{seed:42,mapId:fixture.map.id,dataVersion:fixture.dataVersion,players:[{id:0,faction:'terran',controller:'human'},{id:1,faction:'terran',controller:'ai'}]});
     const visibility=()=>{instance.suspendHealthCheck();if(document.hidden){hiddenGaps.current++;instance.send('pause',{reason:'background'});record('background');}};
     document.addEventListener('visibilitychange',visibility);
-    const timer=setInterval(()=>{if(!document.hidden)instance.checkHealth();},1000);
+    const timer=setInterval(()=>{
+      if(!document.hidden)instance.checkHealth();
+      // React development UserTiming retains component details. Lab measurements use
+      // performance.now() and bounded windows, so release this separate debug buffer.
+      if(import.meta.env.DEV){performance.clearMeasures();performance.clearMarks();}
+    },1000);
     return ()=>{active=false;clearInterval(timer);document.removeEventListener('visibilitychange',visibility);channel.port1.close();instance.dispose();client.current=null;};
   },[fixture]);
   useEffect(()=>{
