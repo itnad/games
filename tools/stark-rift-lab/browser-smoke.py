@@ -4,6 +4,7 @@ Run the lab server separately. This does not certify physical Android/iOS or GPU
 """
 import argparse
 import json
+import os
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -211,6 +212,22 @@ def check_initial_landscape(page, context, checks):
     checks["portrait_ready_requires_explicit_resume"] = True
 
 
+def process_memory():
+    roles = {}
+    for status in Path("/proc").glob("[0-9]*/status"):
+        try:
+            raw = status.read_text()
+            if not raw.startswith("Name:\tchromium\n"):
+                continue
+            rss = next((int(line.split()[1]) * 1024 for line in raw.splitlines() if line.startswith("VmRSS:")), 0)
+            command = status.with_name("cmdline").read_bytes().decode(errors="replace").split("\0")
+            role = next((part[7:] for part in command if part.startswith("--type=")), "browser")
+            roles[role] = roles.get(role, 0) + rss
+        except (OSError, ValueError):
+            pass
+    return {"chromiumRssByRole": roles, "cgroupBytes": int(Path("/sys/fs/cgroup/memory.current").read_text()), "cgroupEvents": Path("/sys/fs/cgroup/memory.events").read_text()}
+
+
 def check_soak(page, context, checks, args):
     page.get_by_role("combobox", name="검증 시나리오").select_option("basin50")
     page.wait_for_function("window.__qa.snapshot?.entities.length===50&&window.__qa.ui?.phase==='paused'")
@@ -243,7 +260,7 @@ def check_soak(page, context, checks, args):
         assert observed["ui"]["phase"] == "running"
         assert not any(e["kind"] == "fatalError" or (e["kind"] == "commandAck" and not e["payload"]["accepted"]) for e in observed["events"])
         metrics = {m["name"]: m["value"] for m in cdp.send("Performance.getMetrics")["metrics"]}
-        samples.append({"elapsedSeconds": elapsed, "tick": observed["snapshot"]["tick"], "heapBytes": metrics.get("JSHeapUsedSize"), "dom": cdp.send("Memory.getDOMCounters")})
+        samples.append({"elapsedSeconds": elapsed, "tick": observed["snapshot"]["tick"], "heapBytes": metrics.get("JSHeapUsedSize"), "dom": cdp.send("Memory.getDOMCounters"), "processMemory": process_memory()})
         (args.output / "stark-rift-browser-soak-progress.json").write_text(json.dumps(samples, indent=2) + "\n")
         page.wait_for_timeout(min(5000, max(1, (args.soak_seconds - (time.monotonic() - started)) * 1000)))
     cdp.send("HeapProfiler.collectGarbage")
@@ -261,6 +278,7 @@ def check_soak(page, context, checks, args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--only-soak", action="store_true")
     parser.add_argument("--soak-seconds", type=int, default=0, help="Optional repeated 50-unit movement observation; 600 for ten minutes")
     parser.add_argument("--url", default="http://127.0.0.1:4174/")
     parser.add_argument("--chromium", default="/usr/bin/chromium")
@@ -270,7 +288,7 @@ def main():
     results = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True, executable_path=args.chromium, args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
-        for width, height in [(390, 844), (360, 640)]:
+        for width, height in ([] if args.only_soak else [(390, 844), (360, 640)]):
             print(f"Checking {width}x{height}", flush=True)
             context = browser.new_context(viewport={"width": width, "height": height}, is_mobile=True, has_touch=True, device_scale_factor=1)
             context.add_init_script(OBSERVER)
@@ -288,10 +306,13 @@ def main():
             except Exception as error:
                 case["failure"] = str(error)
             finally:
-                page.screenshot(path=str(args.output / f"stark-rift-browser-{width}x{height}.png"), full_page=True)
+                try:
+                    page.screenshot(path=str(args.output / f"stark-rift-browser-{width}x{height}.png"), full_page=True)
+                except Exception as error:
+                    case["screenshotError"] = str(error)
                 context.close()
         for name, viewport, test in [
-            ("landscape_initial_block", {"width": 844, "height": 390}, check_initial_landscape),
+            *([] if args.only_soak else [("landscape_initial_block", {"width": 844, "height": 390}, check_initial_landscape)]),
             *(([("portrait_soak", {"width": 390, "height": 844}, lambda page, context, checks: check_soak(page, context, checks, args))]) if args.soak_seconds else []),
         ]:
             print(f"Checking {name}", flush=True)
@@ -310,7 +331,10 @@ def main():
             except Exception as error:
                 case["failure"] = str(error)
             finally:
-                page.screenshot(path=str(args.output / f"stark-rift-browser-{name}.png"), full_page=True)
+                try:
+                    page.screenshot(path=str(args.output / f"stark-rift-browser-{name}.png"), full_page=True)
+                except Exception as error:
+                    case["screenshotError"] = str(error)
                 context.close()
         version = browser.version
         browser.close()
