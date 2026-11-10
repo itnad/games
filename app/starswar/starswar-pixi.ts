@@ -223,7 +223,7 @@ export class StwPixiRenderer {
     }
     this.flagPulse = Math.max(0, this.flagPulse - realDt * 2.5);
     const rallyY = stwRallyY("player", ui.rally);
-    this.drawUnderlay(state, rallyY, ui.clock);
+    this.drawUnderlay(state, rallyY, ui.clock, ui.selected ?? []);
     this.drawSteam(state, ui.clock);
     this.syncBuildings(state, realDt);
     this.syncWorkers(state, ui.clock);
@@ -308,9 +308,22 @@ export class StwPixiRenderer {
     }
   }
 
-  private drawUnderlay(state: StwState, rallyY: number, clock: number) {
+  private drawUnderlay(state: StwState, rallyY: number, clock: number, selected: string[]) {
     const g = this.underlay;
     g.clear();
+    // 따로 둔 부대의 자리(금색 타원)와, 고른 종류의 유닛 발밑 고리.
+    for (const [type, spot] of Object.entries(state.sides.player.squads ?? {})) {
+      if (!spot) continue;
+      const y = stwRallyY("player", spot.y);
+      g.ellipse(STW_LANE_WIDTH / 2, y, 11, 3.2).fill({ color: 0xffd27a, alpha: selected.includes(type) ? 0.12 : 0.05 }).stroke({ width: 0.16, color: 0xffd27a, alpha: 0.45 });
+    }
+    if (selected.length) {
+      const pulse = 0.55 + Math.sin(clock * 5) * 0.2;
+      for (const unit of state.units) {
+        if (unit.side !== "player" || unit.hp <= 0 || !selected.includes(unit.type) || (unit.group !== "rally" && unit.group !== "attack")) continue;
+        g.circle(unit.x, unit.y, unit.radius + 0.45).stroke({ width: 0.22, color: 0xffd27a, alpha: pulse });
+      }
+    }
     // 집결 구역: 새 유닛과 대기 병력이 서는 자리.
     const team = STW_TEAM.player;
     g.ellipse(STW_LANE_WIDTH / 2, rallyY, 15, 4.5).fill({ color: team.glow, alpha: 0.07 }).stroke({ width: 0.18, color: team.glow, alpha: 0.35 });
@@ -571,6 +584,14 @@ export class StwPixiRenderer {
       const crew = Math.min(STW_ECONOMY.probesPerGas, gasLeft);
       gasLeft -= crew;
       show(`gas:${assimilator.id}`, `가스 ${crew}/${STW_ECONOMY.probesPerGas}`, tone(crew, STW_ECONOMY.probesPerGas), assimilator.x, assimilator.y);
+    }
+    // 따로 둔 부대 이름표: "커세어 4" (부대 자리 옆).
+    for (const [type, spot] of Object.entries(state.sides.player.squads ?? {})) {
+      if (!spot) continue;
+      const count = state.units.filter((unit) => unit.side === "player" && unit.hp > 0 && unit.squad === type).length;
+      if (!count) continue;
+      const def = STW_UNITS[type as StwUnitType];
+      show(`squad:${type}`, `${def?.name ?? type} ${count}`, 0xffd27a, STW_LANE_WIDTH / 2 + 12.5, stwRallyY("player", spot.y));
     }
     for (const [key, badge] of this.badges) {
       if (live.has(key)) continue;

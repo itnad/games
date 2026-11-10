@@ -1388,6 +1388,42 @@ test("starswar drops can be recalled on demand: a raid comes back with its squad
   assert.equal(stwIssue(bomb, "player", { type: "dropRecall" }).ok, false, "거둘 작전이 없으면 실패");
 });
 
+test("starswar squads by unit type: move only chosen types, new units join their squad, the attack button merges everyone", () => {
+  const state = stwCreateScenario({ seed: 3, time: 600, placement: "home", races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { zealot: 6, corsair: 3, dark: 2 }, buildings: { stargate: 1 }, minerals: 3000, gas: 2000 }, enemy: { units: { zergling: 2 } } } });
+  run(state, 3);
+  const mean = (type) => {
+    const list = state.units.filter((unit) => unit.side === "player" && unit.type === type);
+    return list.reduce((sum, unit) => sum + unit.y, 0) / list.length;
+  };
+  const zealotsBefore = mean("zealot");
+  assert.ok(stwIssue(state, "player", { type: "squadMove", units: ["corsair"], y: 50 }).ok);
+  const stargate = stwOwnBuildings(state, "player", "stargate")[0];
+  stwIssue(state, "player", { type: "line", buildingId: stargate.id, unit: "corsair" });
+  run(state, 35);
+  const corsairs = state.units.filter((unit) => unit.side === "player" && unit.type === "corsair");
+  assert.ok(corsairs.length >= 4, "커세어가 하나 더 나온다");
+  assert.ok(corsairs.every((unit) => unit.squad === "corsair"), "새 커세어도 커세어 부대로");
+  assert.ok(Math.abs(mean("corsair") - 50) < 6, `커세어 부대는 50 근처 (${mean("corsair").toFixed(1)})`);
+  assert.ok(Math.abs(mean("zealot") - zealotsBefore) < 3, "질럿은 그대로");
+  // 본대 지도 탭은 따로 둔 부대를 움직이지 않는다. 자동 출격도 본대만 내보낸다.
+  stwIssue(state, "player", { type: "squadMove", units: ["dark"], y: 62 });
+  stwIssue(state, "player", { type: "move", y: 72 });
+  stwIssue(state, "player", { type: "autoWave", size: 1 });
+  run(state, 2);
+  assert.ok(state.units.filter((unit) => unit.side === "player" && unit.type === "zealot").every((unit) => unit.group === "attack"), "자동 출격: 본대 질럿");
+  assert.ok(state.units.filter((unit) => unit.side === "player" && (unit.type === "corsair" || unit.type === "dark")).every((unit) => unit.group === "rally" && unit.squad), "자동 출격은 부대를 두고 간다");
+  // 출격 버튼(공격 명령)은 모두 합친다.
+  stwIssue(state, "player", { type: "retreat" });
+  run(state, 1);
+  assert.ok(stwIssue(state, "player", { type: "attack" }).ok);
+  assert.deepEqual(state.sides.player.squads, {});
+  assert.ok(state.units.filter((unit) => unit.side === "player" && !STW_UNITS[unit.type].worker).every((unit) => unit.group === "attack" && unit.squad === undefined), "모두 합쳐 출격");
+  // 본대로 되돌리기
+  stwIssue(state, "player", { type: "squadMove", units: ["dark"], y: 60 });
+  assert.ok(stwIssue(state, "player", { type: "squadRelease", units: ["dark"] }).ok);
+  assert.ok(state.units.filter((unit) => unit.type === "dark" && unit.side === "player").every((unit) => unit.squad === undefined));
+});
+
 test("starswar carrier attacks launch one visible interceptor per hit", () => {
   for (const [research, expected] of [[[], 4], [["carrierCapacity"], 8]]) {
     const state = stwCreateScenario({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { carrier: 1 }, research }, enemy: { units: { hydra: 6 } } } });

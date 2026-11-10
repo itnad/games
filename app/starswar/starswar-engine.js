@@ -195,6 +195,8 @@ function createSide(id, persona, race) {
     focus: "fight",
     stats: { minerals: 0, gas: 0, produced: 0, lost: 0, kills: 0, buildingsLost: 0, buildingsDestroyed: 0, storms: 0, overkill: 0, workersLost: 0, workersKilled: 0, valueLost: 0, supplyPeak: 0 },
     dropPlan: { mission: "raid", target: "main", repeat: false, sync: false },
+    /** 유닛 종류별로 따로 둔 부대: { 종류: { y } }. */
+    squads: {},
     ai: null,
   };
 }
@@ -567,7 +569,7 @@ function idleCarriers(state, side) {
  * AI는 예전처럼 빠른 유닛만 쓴다(AI 균형을 그대로 둔다).
  */
 function dropPassengers(state, side, mission) {
-  const pool = state.units.filter((unit) => unit.side === side && unit.group === "rally" && unit.hp > 0 && !isWorker(unit) && !isFlying(unit) && !isSupport(unit));
+  const pool = state.units.filter((unit) => unit.side === side && unit.group === "rally" && unit.squad === undefined && unit.hp > 0 && !isWorker(unit) && !isFlying(unit) && !isSupport(unit));
   if (mission === "raid") {
     const order = STW_RAID_UNITS[state.sides[side].race] ?? [];
     const fast = pool.filter((unit) => order.includes(unit.type)).sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type) || a.id - b.id);
@@ -869,6 +871,44 @@ function runCommand(state, side, command) {
       if (!plan.repeat) record.raidRelaunchAt = undefined;
       return { ok: true, plan };
     }
+    case "squadMove": {
+      // 유닛 종류별 부대: 고른 종류만 그 자리로 옮긴다(앞이면 싸우며 전진, 뒤면 교전을 끊고). 적 앞마당 안쪽이면 그 부대만 출격.
+      // 그 종류의 새 유닛도 이 부대로 간다. 본대 지시(지도 탭·후퇴·본진 수비)와 자동 출격은 따로 둔 부대에 닿지 않고, 출격 버튼은 모두 합친다.
+      const types = (command.units ?? []).filter((type) => STW_UNITS[type] && !STW_UNITS[type].worker);
+      if (!types.length) return fail("옮길 부대를 고르세요");
+      if (typeof command.y !== "number" || Number.isNaN(command.y)) return fail("알 수 없는 위치입니다");
+      record.squads ??= {};
+      const members = state.units.filter((unit) => unit.side === side && unit.hp > 0 && types.includes(unit.type) && (unit.group === "rally" || unit.group === "attack") && unit.raid === undefined);
+      if (!members.length) return fail("옮길 유닛이 없습니다");
+      const names = types.map((type) => STW_UNITS[type].name).join("·");
+      if (command.y <= STW_ATTACK_ZONE_Y) {
+        for (const type of types) delete record.squads[type];
+        for (const unit of members) {
+          delete unit.squad;
+          if (!STW_UNITS[unit.type].transport) unit.group = "attack";
+        }
+        if (side === "player") pushLog(state, side, `${names} 부대 ${members.length}기가 출격합니다!`, "order");
+        return { ok: true, mode: "attack" };
+      }
+      const y = Math.round(Math.min(STW_RALLY_RANGE.max, Math.max(STW_RALLY_RANGE.min, command.y)));
+      for (const type of types) record.squads[type] = { y };
+      for (const unit of members) {
+        unit.group = "rally";
+        unit.squad = unit.type;
+      }
+      if (side === "player") pushLog(state, side, `${names} 부대 ${members.length}기가 ${withKoreanDirection(stwRallyName(y))} 갑니다.`, "order");
+      return { ok: true, mode: "squad", y };
+    }
+    case "squadRelease": {
+      // 따로 둔 부대를 본대로 되돌린다(새 유닛도 다시 본대 집결지로).
+      record.squads ??= {};
+      const types = (command.units ?? Object.keys(record.squads)).filter((type) => record.squads[type]);
+      if (!types.length) return fail("따로 둔 부대가 없습니다");
+      for (const type of types) delete record.squads[type];
+      for (const unit of state.units) if (unit.side === side && types.includes(unit.squad)) delete unit.squad;
+      if (side === "player") pushLog(state, side, `${types.map((type) => STW_UNITS[type].name).join("·")} 부대가 본대로 돌아갑니다.`, "order");
+      return { ok: true };
+    }
     case "dropRecall": {
       // 진행 중인 수송 작전을 지금 거둔다. 게릴라는 내렸으면 태워서, 가는 중이면 그대로 돌아온다.
       // 폭탄은 내리기 전(집결·진입 중)에만 거둘 수 있다(내린 병력은 끝까지 싸운다).
@@ -960,8 +1000,8 @@ function runCommand(state, side, command) {
       if (command.y <= STW_ATTACK_ZONE_Y) return stwCommand(state, side, { type: "attack" });
       const y = Math.round(Math.min(STW_RALLY_RANGE.max, Math.max(STW_RALLY_RANGE.min, command.y)));
       const army = stwArmy(state, side);
-      // 아군 기준 좌표로 병력 선두를 잰다(작을수록 앞).
-      const units = [...army.fighters, ...army.attackers];
+      // 아군 기준 좌표로 병력 선두를 잰다(작을수록 앞). 따로 둔 부대는 본대 지시를 따르지 않으므로 세지 않는다.
+      const units = [...army.fighters, ...army.attackers].filter((unit) => unit.squad === undefined);
       const front = units.length ? Math.min(...units.map((unit) => (side === "player" ? unit.y : STW_LANE_LENGTH - unit.y))) : null;
       const name = stwRallyName(y);
       record.rally = y;
@@ -982,7 +1022,13 @@ function runCommand(state, side, command) {
       // 옵저버·오버로드만 있으면 혼자 나가 죽을 뿐이다. 동행을 끈 오버로드는 기지에 남는다.
       if (!army.fighters.length) return fail("출격할 전투 병력이 없습니다");
       // 수송선은 출격하지 않는다(본진 침투로만 움직인다).
-      const going = army.rally.filter((unit) => (unit.type !== "overlord" || (record.escort && unit.escort)) && !STW_UNITS[unit.type].transport);
+      // 출격 버튼은 따로 둔 부대까지 모두 합쳐 내보낸다. 자동 출격(keepSquads)은 본대만 내보낸다.
+      const going = army.rally.filter((unit) => (unit.type !== "overlord" || (record.escort && unit.escort)) && !STW_UNITS[unit.type].transport && (!command.keepSquads || unit.squad === undefined));
+      if (!going.length) return fail("출격할 대기 병력이 없습니다");
+      if (!command.keepSquads) {
+        record.squads = {};
+        for (const unit of army.rally) delete unit.squad;
+      }
       for (const unit of going) unit.group = "attack";
       record.autoWaveHold = false;
       if (side === "player") pushLog(state, side, `대기 병력 ${going.length}기가 출격합니다!`, "order");
@@ -1473,9 +1519,12 @@ function stepProducer(state, building, record, dt) {
     building.current = null;
     const forward = stwForward(building.side);
     // 저글링은 한 번에 2기가 나온다.
-    const reinforce = joinsAttack(state, building.side, unitType);
+    // 그 종류를 따로 둔 부대가 있으면 새 유닛은 그 부대로 간다. 아니면 싸우는 공격 병력에 합류하거나 집결지로.
+    const squad = record.squads?.[unitType] !== undefined;
+    const reinforce = !squad && joinsAttack(state, building.side, unitType);
     for (let index = 0; index < (STW_UNITS[unitType].pair ? 2 : 1); index += 1) {
       const unit = spawnUnit(state, building.side, unitType, building.x + (nextRandom(state) - 0.5) * 2 + index * 1.4, building.y + forward * (building.radius + 1.5));
+      if (squad) unit.squad = unitType;
       if (reinforce) {
         unit.group = "attack";
         unit.reinforcing = true;
@@ -2241,8 +2290,23 @@ function stepUnits(state, dt) {
     const rearY = marching.length ? marching.reduce((rear, unit) => (unit.y * forwardSign < rear * forwardSign ? unit.y : rear), marching[0].y) : null;
     for (const unit of army.attack) if (unit.reinforcing && (rearY === null || (unit.y - rearY) * -forwardSign < 6)) delete unit.reinforcing;
     for (const unit of army.rally) if (unit.reinforcing) delete unit.reinforcing;
+    // 따로 둔 부대는 종류마다 제 자리에 선다(집결지 규칙을 그 자리로 쓴다). 부대가 사라진 유닛은 본대로.
+    const squads = state.sides[side].squads ?? {};
+    const mainRally = [];
+    const squadMembers = new Map();
+    for (const unit of army.rally) {
+      if (unit.squad !== undefined && squads[unit.squad]) {
+        if (!squadMembers.has(unit.squad)) squadMembers.set(unit.squad, []);
+        squadMembers.get(unit.squad).push(unit);
+      } else {
+        delete unit.squad;
+        mainRally.push(unit);
+      }
+    }
+    const allRallySlots = rallySlots(state, side, mainRally, rallyY);
+    for (const [type, members] of squadMembers) for (const [id, slot] of rallySlots(state, side, members, stwRallyY(side, squads[type].y))) allRallySlots.set(id, slot);
     plans[side] = {
-      rallySlots: rallySlots(state, side, army.rally, rallyY),
+      rallySlots: allRallySlots,
       attackSlots,
       waveSpeed: speeds.length ? Math.min(...speeds) : 3,
       rearY,
@@ -2371,7 +2435,8 @@ function stepUnits(state, dt) {
       continue;
     }
     let target = resolve(state, unit.targetId, unit);
-    const intruders = isAttack ? [] : plan.intruders.filter((enemy) => targetable(state, unit, enemy));
+    // 따로 둔 부대는 제 자리 가까이(14칸) 들어온 적만 쫓는다(기지로 불려 가지 않는다).
+    const intruders = isAttack ? [] : plan.intruders.filter((enemy) => targetable(state, unit, enemy) && (unit.squad === undefined || !slot || distance(enemy.x, enemy.y, slot.x, slot.y) < 14));
     // 집결지에 와 있는 대기 병력은 멀리 있는 적을 쫓지 않는다. 집결지로 이동 중(싸우며 전진)일 때는 만나는 적과 모두 싸운다.
     const settled = slot && distance(unit.x, unit.y, slot.x, slot.y) < RALLY_LEASH;
     const leashed = (item) => !isAttack && settled && distance(item.x, item.y, slot.x, slot.y) - item.radius > RALLY_LEASH;
@@ -3784,8 +3849,10 @@ function autoWaves(state) {
     const army = stwArmy(state, side);
     const rallyY = stwRallyY(side, record.rally);
     // "즉시"(1)는 집결지에 모이기를 기다리지 않고 생산되는 대로 내보낸다.
-    const ready = record.autoWave <= 1 ? army.fighters : army.fighters.filter((unit) => Math.abs(unit.y - rallyY) < 8);
-    if (ready.length >= record.autoWave) stwCommand(state, side, { type: "attack" });
+    // 따로 둔 부대는 세지도 내보내지도 않는다.
+    const main = army.fighters.filter((unit) => unit.squad === undefined);
+    const ready = record.autoWave <= 1 ? main : main.filter((unit) => Math.abs(unit.y - rallyY) < 8);
+    if (ready.length && ready.length >= record.autoWave) stwCommand(state, side, { type: "attack", keepSquads: true });
   }
 }
 

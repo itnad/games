@@ -88,7 +88,10 @@ export function stwDescribeCommand(state, command) {
     case "dropPlan": return `수송 작전 설정: ${[command.mission, command.target, command.repeat === undefined ? null : `반복 ${command.repeat ? "켬" : "끔"}`, command.sync === undefined ? null : `동시 ${command.sync ? "켬" : "끔"}`].filter(Boolean).join(" · ")}`;
     case "rally": return `집결지: ${rallyName(command.point)}`;
     case "move": return `지도 이동: y=${Math.round(command.y)}`;
-    case "attack": return "공격";
+    case "attack": return command.keepSquads ? "공격(자동)" : "공격";
+    case "squadMove": return `부대 이동(${(command.units ?? []).map((type) => unitName(type)).join("·")}): ${command.y <= 30 ? "출격" : `y=${Math.round(command.y)}`}`;
+    case "squadRelease": return `부대 합류(${(command.units ?? []).map((type) => unitName(type)).join("·") || "모두"})`;
+    case "dropRecall": return "수송 작전 회수";
     case "retreat": return "후퇴";
     case "recall": return `귀환: ${rallyName(command.point)}`;
     case "focus": return `공격 목표: ${command.mode === "buildings" ? "건물 먼저" : "싸울 수 있는 적 먼저"}`;
