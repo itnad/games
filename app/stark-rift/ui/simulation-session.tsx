@@ -7,6 +7,8 @@ import type { RenderSnapshot } from "../worker/render-snapshot";
 import { openSimulationClient, type SimulationClient } from "../worker/client";
 import { InteractiveBattle } from "./interactive-battle";
 import { CheckpointStore } from "./checkpoints";
+import { PortraitOnly } from "./portrait-only";
+import { isPortraitViewport } from "../input/portrait-mode";
 
 /** Internal integration host. No gameplay content or public route is installed here. */
 export function SimulationSession({ seed, onSave }: { seed: number; onSave?: (snapshot: PersistenceEnvelope) => void | Promise<void> }) {
@@ -37,7 +39,11 @@ export function SimulationSession({ seed, onSave }: { seed: number; onSave?: (sn
         if (message.kind === "ready") {
           initialized = true;
           if (restoration) instance?.send("loadSnapshot", { snapshot: restoration });
-          else { setPhase("running"); save(); }
+          else {
+            if(!isPortraitViewport())instance?.send("pause",{reason:"orientation"});
+            else setPhase("running");
+            save();
+          }
         }
         if (message.kind === "renderSnapshot" && !restoring && !failed) setSnapshot(message.payload);
         if(message.kind==="uiState")setUi(message.payload);
@@ -77,11 +83,11 @@ export function SimulationSession({ seed, onSave }: { seed: number; onSave?: (sn
     pendingRestore.current = { seed, snapshot: saved };
     client.current?.dispose(); client.current = null; setRestart(value => value + 1);
   };
-  return <div>
+  return <PortraitOnly onBlocked={()=>client.current?.send("pause",{reason:"orientation"})}><div>
     {snapshot && ui && <InteractiveBattle key={generation} map={registered.map} snapshot={snapshot} initialSession={session.current} ui={ui} notice={notice} send={command=>client.current?.send("commandBatch",{commands:[command],lastSeenTick:command.issuedTick})} onPause={() => client.current?.send("pause", { reason: "menu" })} onRenderFailure={() => setError("화면 연결이 끊어졌습니다. 마지막 저장으로 화면과 경기를 복구해 주세요.")} onSessionChange={value => { session.current = value; }} />}
     {!snapshot && !error && <p role="status">경기를 준비하고 있습니다.</p>}
     {error && <div role="alert"><p>{error}</p>{hasCheckpoint && <button onClick={recover}>마지막 저장으로 복구</button>}</div>}
     {saveError && <p role="status">외부 저장에 실패했습니다. 현재 창의 복구본은 유지하고 있습니다.</p>}
     {phase === "paused" && !error && <button onClick={() => client.current?.send("resume", { reason: "user" })}>이어서 진행</button>}
-  </div>;
+  </div></PortraitOnly>;
 }
