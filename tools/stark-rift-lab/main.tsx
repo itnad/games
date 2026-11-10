@@ -1,5 +1,7 @@
-import {useEffect,useMemo,useRef,useState} from 'react';
+import {useEffect,useMemo,useRef,useState,type ReactNode} from 'react';
 import {createRoot} from 'react-dom/client';
+import {PortraitOnly} from '../../app/stark-rift/ui/portrait-only';
+import {isPortraitViewport} from '../../app/stark-rift/input/portrait-mode';
 import {InteractiveBattle} from '../../app/stark-rift/ui/interactive-battle';
 import {CheckpointStore} from '../../app/stark-rift/ui/checkpoints';
 import {SimulationClient} from '../../app/stark-rift/worker/client';
@@ -17,7 +19,7 @@ function download(value:unknown){
   const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));
   const link=document.createElement('a');link.href=url;link.download=`stark-rift-lab-${Date.now()}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-function Lab({id}:{id:ScenarioId}){
+function Lab({id,header}:{id:ScenarioId;header:ReactNode}){
   const fixture=useMemo(()=>createScenario(id),[id]),session=useRef(structuredClone(fixture.session));
   const client=useRef<SimulationClient|null>(null),checkpoint=useRef(new CheckpointStore()),sequence=useRef(0);
   const [snapshot,setSnapshot]=useState<RenderSnapshot|null>(null),[ui,setUi]=useState<UiState|null>(null),[phase,setPhase]=useState('setup');
@@ -51,7 +53,12 @@ function Lab({id}:{id:ScenarioId}){
     instance.send('init',{seed:42,mapId:fixture.map.id,dataVersion:fixture.dataVersion,players:[{id:0,faction:'terran',controller:'human'},{id:1,faction:'terran',controller:'ai'}]});
     const visibility=()=>{instance.suspendHealthCheck();if(document.hidden){hiddenGaps.current++;instance.send('pause',{reason:'background'});record('background');}};
     document.addEventListener('visibilitychange',visibility);
-    const timer=setInterval(()=>{if(!document.hidden)instance.checkHealth();},1000);
+    const timer=setInterval(()=>{
+      if(!document.hidden)instance.checkHealth();
+      // React development UserTiming retains component details. Lab measurements use
+      // performance.now() and bounded windows, so release this separate debug buffer.
+      if(import.meta.env.DEV){performance.clearMeasures();performance.clearMarks();}
+    },1000);
     return ()=>{active=false;clearInterval(timer);document.removeEventListener('visibilitychange',visibility);channel.port1.close();instance.dispose();client.current=null;};
   },[fixture]);
   useEffect(()=>{
@@ -72,17 +79,18 @@ function Lab({id}:{id:ScenarioId}){
     return ()=>{cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',reset);};
   },[]);
   const send=(command:GameCommand)=>{
+    if(!isPortraitViewport())return;
     const normalized={...command,sequence:Math.max(command.sequence,sequence.current+1)};sequence.current=normalized.sequence;
     client.current?.send('commandBatch',{commands:[normalized],lastSeenTick:normalized.issuedTick});
   };
   const autoMove=()=>{
-    if(!ui||!snapshot||error)return;
+    if(!ui||!snapshot||error||!isPortraitViewport())return;
     client.current?.send('resume',{reason:'lab'});const tick=Math.max(snapshot.tick,ui.tick);
     send({kind:'move',entityIds:fixture.ids,target:{kind:'point',...fixture.goal},sequence:sequence.current+1,issuedTick:tick,executeTick:tick+1,playerId:0,source:'player'});record('scenarioMove',tick);
   };
   const exportReport=()=>download({format:'stark-rift-lab-v1',recordedAt:new Date().toISOString(),engine:STARK_RIFT_ENGINE_VERSION,source:__LAB_SOURCE__,scenario:id,fixture:'synthetic units; full visibility; no combat/economy',environment:{userAgent:navigator.userAgent,width:innerWidth,height:innerHeight,pixelRatio:devicePixelRatio,hardwareConcurrency:navigator.hardwareConcurrency},worker:metrics,frameIntervals:frames,jsHeapBytes:heap,sessionPeaks:peaks.current,historyEveryFiveSeconds:history.current,backgroundTransitions:hiddenGaps.current,manualChecks:CHECKS.map(label=>({label,result:checks[label]??'pending'})),notes,events:events.current,limits:['rAF intervals are not GPU render durations','JS heap excludes GPU/Worker memory','Manual checks are self-reported, not automated passes']});
   const ms=(value:number|undefined)=>value===undefined?'—':value.toFixed(2);
-  return <>
+  return <PortraitOnly onBlocked={()=>client.current?.send('pause',{reason:'orientation'})}><main className="lab">{header}
     <div className="lab-actions">
       <button disabled={!ui||!!error} onClick={autoMove}>시나리오 이동</button>
       <button disabled={!ui||!!error} onClick={()=>client.current?.send(phase==='paused'?'resume':'pause',{reason:'lab'})}>{phase==='paused'?'이어서 진행':'일시정지'}</button>
@@ -110,10 +118,10 @@ function Lab({id}:{id:ScenarioId}){
     </div>
     {error&&<p role="alert" className="lab-error">{error} · 시나리오를 다시 열어 재시작할 수 있습니다.</p>}
     <div className="lab-battle">{snapshot&&ui?<InteractiveBattle key={generation} map={fixture.map} snapshot={snapshot} ui={ui} send={send} initialSession={session.current} onSessionChange={value=>{session.current=value;}} onPause={()=>client.current?.send('pause',{reason:'menu'})} onRenderFailure={()=>{client.current?.send('pause',{reason:'renderer'});setError('전장 화면 연결이 끊겼습니다.');}} notice={notice}/>:<p role="status">검증 전장을 준비하고 있습니다.</p>}</div>
-  </>;
+  </main></PortraitOnly>;
 }
 function App(){
   const [id,setId]=useState<ScenarioId>('controls'),[revision,setRevision]=useState(0);
-  return <main className="lab"><header className="lab-header"><strong>Stark Rift 내부 검증</strong><select aria-label="검증 시나리오" value={id} onChange={event=>setId(event.target.value as ScenarioId)}>{Object.entries(SCENARIOS).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select><button onClick={()=>setRevision(value=>value+1)}>초기화</button></header><Lab key={`${id}:${revision}`} id={id}/></main>;
+  return <Lab key={`${id}:${revision}`} id={id} header={<header className="lab-header"><strong>Stark Rift 내부 검증</strong><select aria-label="검증 시나리오" value={id} onChange={event=>setId(event.target.value as ScenarioId)}>{Object.entries(SCENARIOS).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select><button onClick={()=>setRevision(value=>value+1)}>초기화</button></header>}/>;
 }
 createRoot(document.getElementById('root')!).render(<App/>);
