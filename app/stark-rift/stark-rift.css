@@ -13,8 +13,17 @@
 .sr-viewport canvas, .sr-minimap canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .sr-status { position: absolute; inset: 0; display: grid; place-content: center; margin: 0; padding: 24px; text-align: center; background: #070b12ed; z-index: 1; }
 .sr-bottom { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 8px; gap: 8px; box-sizing: border-box; }
-.sr-groups { display: grid; grid-template-columns: repeat(5, minmax(52px, 1fr)); gap: 6px; }
+.sr-groups { display: grid; grid-template-columns: repeat(5, minmax(52px, 1fr)); gap: 6px; touch-action: none; user-select: none; }
 .sr-command-space { border: 1px solid #243349; border-radius: 8px; }
 
 .sr-commands { display:flex; flex-wrap:wrap; align-content:start; gap:4px; padding:6px; overflow:auto; font-size:12px; }
 .sr-commands span {flex-basis:100%;}
+
+.sr-portrait-root, .sr-portrait-content { height: 100%; min-height: 0; }
+.sr-orientation-notice { display: none; }
+@media (orientation: landscape) {
+  .sr-portrait-content { visibility: hidden; pointer-events: none; }
+  .sr-orientation-notice { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; background: #070b12; color: #d9e5f4; text-align: center; font: 16px/1.5 system-ui,sans-serif; }
+  .sr-orientation-notice strong { font-size: 22px; }
+  .sr-orientation-notice p { margin: 0; }
+}
