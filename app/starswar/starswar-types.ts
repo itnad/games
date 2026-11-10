@@ -194,7 +194,8 @@ export type StwCommand =
   | { type: "cancelBuild"; buildingId: number }
   | { type: "cancelProbe" }
   | { type: "cancelResearch"; research: StwResearchId }
-  | { type: "cancelUnit"; buildingId: number };
+  | { type: "cancelUnit"; buildingId: number }
+  | { type: "dropRecall"; opId?: number };
 
 export type StwView = { width: number; height: number; scale: number; zoom: number; cx: number; cy: number; ox: number; oy: number };
 export type StwUi = { clock: number; timeScale: number; rally: StwRallyId | number };

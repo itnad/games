@@ -1083,11 +1083,29 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
         </>
       ) : null}
       <h3 className="stw-section">수송 작전</h3>
-      <p className={drop.ok ? "stw-drop-status ready" : "stw-drop-status"} role="status">
-        {drop.ok
-          ? `출발 준비: 쉬는 ${transportName} ${(drop as StwCheck & { carriers?: unknown[] }).carriers?.length ?? 0}기 · 태울 병력 ${(drop as StwCheck & { passengers?: unknown[] }).passengers?.length ?? 0}기 (아래 "출발")`
-          : `지금은 출발할 수 없습니다: ${drop.reason}`}
-      </p>
+      <div className="stw-drop-head">
+        <p className={drop.ok ? "stw-drop-status ready" : "stw-drop-status"} role="status">
+          {drop.ok
+            ? `쉬는 ${transportName} ${(drop as StwCheck & { carriers?: unknown[] }).carriers?.length ?? 0}기 · 태울 병력 ${(drop as StwCheck & { passengers?: unknown[] }).passengers?.length ?? 0}기`
+            : drop.reason}
+        </p>
+        <button type="button" className="stw-primary" disabled={!drop.ok} onClick={() => issue({ type: "drop" })}>{plan.mission === "raid" ? "견제 출발" : "폭탄 드랍 출발"}</button>
+      </div>
+      {ops.length ? (
+        <ul className="stw-ops">
+          {ops.map((op) => {
+            const recallable = op.kind === "raid" ? op.phase === "out" || op.phase === "fight" : op.phase === "gather" || op.phase === "in";
+            return (
+              <li key={op.id}>
+                <span>{opStatus(game, op)}</span>
+                <button type="button" disabled={!recallable} onClick={() => issue({ type: "dropRecall", opId: op.id }, "수송 작전 병력을 거둬들입니다.")}>
+                  {recallable ? "지금 회수" : op.phase === "pickup" ? "회수 중" : op.kind === "bomb" && op.phase === "home" ? "내린 병력은 끝까지" : "귀환 중"}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
       <p className="stw-hint">{plan.mission === "raid"
         ? `게릴라 드랍: ${transportName} 1기에 대기 병력 한 분대(8칸)를 태워 본진이나 앞마당 광물 줄의 일꾼을 칩니다(빠른 병력부터, 없으면 다른 지상 병력. 기술 건물을 고르면 그 건물을). 적이 몰려오거나 25초가 지나면 회수해 돌아옵니다.`
         : `폭탄 드랍: 쉬는 ${transportName} 모두에 대기 병력을 비싼 것부터 가득 싣고 가장자리에 모였다가 한꺼번에 내립니다(1기부터). 내린 병력은 끝까지 싸웁니다.`}</p>
@@ -1107,15 +1125,6 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
         ) : (
           <button type="button" className={plan.sync ? "active" : ""} aria-pressed={plan.sync} onClick={() => issue({ type: "dropPlan", sync: !plan.sync }, plan.sync ? "정면 출격과 따로 들어갑니다." : "정면이 맞붙을 때 함께 들어갑니다.")}>{plan.sync ? "정면 출격과 동시에 켬" : "정면 출격과 동시에 끔"}</button>
         )}
-      </div>
-      <div className="stw-scout">
-        <Card
-          title={plan.mission === "raid" ? "견제 출발" : "폭탄 드랍 출발"}
-          sub={ops.length ? ops.map((op) => opStatus(game, op)).join(" · ") : `${transportName} 수송`}
-          note={drop.ok ? (plan.mission === "raid" ? "쉬는 수송선마다 한 분대씩 출발합니다" : "쉬는 수송선이 모두 함께 출발합니다") : drop.reason}
-          disabled={!drop.ok}
-          onClick={() => issue({ type: "drop" })}
-        />
       </div>
       <h3 className="stw-section">정찰</h3>
       <div className="stw-scout">

@@ -1314,6 +1314,80 @@ test("starswar learning: tags the human's strategy, keeps a plan from AI losses,
   assert.equal(stwIntelTag({ race: "protoss", buildings: { nexus: 1, archives: 1 }, units: {}, research: [] }, 280), "cloak");
 });
 
+test("starswar detected cloaked units fight through when the local fight favours them, and break the detector first", () => {
+  // 캐논 둘과 질럿 셋이 지키는 곳에 다크템플러 넷과 질럿 넷이 들어간다: 우리 힘이 앞서므로 맞더라도 캐논부터 깬다.
+  const setup = (darkCount, zealots, foeZealots) => {
+    const state = quiet();
+    state.sides.enemy.minerals = 9999;
+    for (const building of ["pylon", "forge", "cannon", "cannon"]) {
+      stwCommand(state, "enemy", { type: "build", building });
+      finishAll(state);
+    }
+    state.sides.enemy.minerals = 0;
+    state.sides.player.minerals = 0;
+    const cannon = stwOwnBuildings(state, "enemy", "cannon")[0];
+    for (let index = 0; index < foeZealots; index += 1) stwSpawnUnitAt(state, "enemy", "zealot", cannon.x - 4 + index * 2, cannon.y + 5, "rally");
+    const darks = Array.from({ length: darkCount }, (_, index) => stwSpawnUnitAt(state, "player", "dark", cannon.x - 3 + index * 2, cannon.y + 14, "attack"));
+    for (let index = 0; index < zealots; index += 1) stwSpawnUnitAt(state, "player", "zealot", cannon.x - 6 + index * 1.8, cannon.y + 16, "attack");
+    return { state, darks };
+  };
+  const strong = setup(4, 4, 3);
+  let committed = 0;
+  let detectorTargeted = false;
+  for (let step = 0; step < 150; step += 1) {
+    stepStarswar(strong.state);
+    for (const dark of strong.darks) {
+      if ((dark.commitUntil ?? 0) > strong.state.time) committed += 1;
+      const target = strong.state.buildings.find((building) => building.id === dark.targetId);
+      if (target && STW_BUILDINGS[target.type].detector) detectorTargeted = true;
+    }
+  }
+  assert.ok(committed > 0, "맞더라도 싸우기로 한다");
+  assert.ok(detectorTargeted, "탐지 건물부터 노린다");
+  assert.ok(stwOwnBuildings(strong.state, "enemy", "cannon").length < 2, "캐논을 깬다");
+  // 불리하면(다크템플러 둘 대 캐논 둘·질럿 여섯) 예전처럼 비킨다.
+  const weak = setup(2, 0, 6);
+  let evaded = false;
+  for (let step = 0; step < 150; step += 1) {
+    stepStarswar(weak.state);
+    if (weak.darks.some((dark) => dark.evadeTo)) evaded = true;
+    assert.ok(weak.darks.every((dark) => !((dark.commitUntil ?? 0) > weak.state.time)), "불리하면 싸우기로 하지 않는다");
+  }
+  assert.ok(evaded, "비킨다");
+});
+
+test("starswar drops can be recalled on demand: a raid comes back with its squad, an unlanded bomb drop unloads at home", () => {
+  const scenario = () => stwCreateScenario({ seed: 1, time: 900, placement: "home", races: { player: "terran", enemy: "protoss" }, sides: { player: { units: { dropship: 2, marine: 8, vulture: 4 } }, enemy: { units: { zealot: 2 } } } });
+  // 게릴라: 내려서 견제 중에 지금 회수하면 태워서 돌아와 집결지에 내린다.
+  const raid = scenario();
+  run(raid, 1);
+  assert.ok(stwIssue(raid, "player", { type: "drop" }).ok);
+  const op = raid.ops[0];
+  for (let index = 0; index < 600 && op.phase !== "fight"; index += 1) stepStarswar(raid);
+  assert.equal(op.phase, "fight");
+  assert.ok(stwIssue(raid, "player", { type: "dropRecall", opId: op.id }).ok);
+  run(raid, 1);
+  assert.ok(op.phase === "pickup" || op.phase === "home", op.phase);
+  for (let index = 0; index < 900 && raid.ops.includes(op); index += 1) stepStarswar(raid);
+  assert.ok(!raid.ops.includes(op), "작전이 끝난다");
+  // 거둔 작전의 드랍십만 돌아온다(다른 드랍십은 제 작전을 계속한다).
+  const transport = raid.units.find((unit) => unit.id === op.transports[0]);
+  assert.ok(transport.group === "rally" && !transport.cargo?.length);
+  // 폭탄: 내리기 전에 거두면 태운 병력을 집결지에 내린다.
+  const bomb = scenario();
+  run(bomb, 1);
+  stwIssue(bomb, "player", { type: "dropPlan", mission: "bomb", sync: true });
+  assert.ok(stwIssue(bomb, "player", { type: "drop" }).ok);
+  run(bomb, 3);
+  assert.ok(stwIssue(bomb, "player", { type: "dropRecall" }).ok);
+  for (let index = 0; index < 900 && bomb.ops.length; index += 1) stepStarswar(bomb);
+  assert.equal(bomb.ops.length, 0);
+  const army = bomb.units.filter((unit) => unit.side === "player" && (unit.type === "marine" || unit.type === "vulture"));
+  assert.equal(army.length, 12, "아무도 잃지 않는다");
+  assert.ok(army.every((unit) => unit.group === "rally"), "집결지로 돌아온다");
+  assert.equal(stwIssue(bomb, "player", { type: "dropRecall" }).ok, false, "거둘 작전이 없으면 실패");
+});
+
 test("starswar carrier attacks launch one visible interceptor per hit", () => {
   for (const [research, expected] of [[[], 4], [["carrierCapacity"], 8]]) {
     const state = stwCreateScenario({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { carrier: 1 }, research }, enemy: { units: { hydra: 6 } } } });

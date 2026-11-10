@@ -869,6 +869,32 @@ function runCommand(state, side, command) {
       if (!plan.repeat) record.raidRelaunchAt = undefined;
       return { ok: true, plan };
     }
+    case "dropRecall": {
+      // 진행 중인 수송 작전을 지금 거둔다. 게릴라는 내렸으면 태워서, 가는 중이면 그대로 돌아온다.
+      // 폭탄은 내리기 전(집결·진입 중)에만 거둘 수 있다(내린 병력은 끝까지 싸운다).
+      const ops = (state.ops ?? []).filter((op) => op.side === side && (command.opId === undefined || op.id === command.opId));
+      let recalled = 0;
+      for (const op of ops) {
+        const transports = op.transports.map((id) => state.units.find((item) => item.id === id && item.hp > 0)).filter(Boolean);
+        if (op.kind === "raid") {
+          if (op.phase === "out") {
+            for (const transport of transports) transport.dropPath = homePath(side, transport);
+            op.phase = "home";
+            recalled += 1;
+          } else if (op.phase === "fight") {
+            op.recallNow = true;
+            recalled += 1;
+          }
+        } else if (op.phase === "gather" || op.phase === "in") {
+          for (const transport of transports) if (transport.cargo?.length) transport.dropPath = homePath(side, transport);
+          op.phase = "home";
+          recalled += 1;
+        }
+      }
+      if (!recalled) return fail("거둘 수 있는 수송 작전이 없습니다");
+      if (side === "player") pushLog(state, side, "수송 작전 병력을 거둬들입니다.", "order");
+      return { ok: true, recalled };
+    }
     case "drop": {
       const plan = { ...(record.dropPlan ?? { mission: "raid", target: "main", repeat: false, sync: false }) };
       for (const key of ["mission", "target", "repeat", "sync"]) if (command[key] !== undefined) plan[key] = command[key];
@@ -1696,11 +1722,64 @@ function holdOutsideDetection(state, starts) {
  * 은폐 유닛의 회피: 적에게 탐지된 채 맞으면(1초 안) 적 탐지가 닿지 않는 가장 가까운 자리로 비켜선다(최대 5초).
  * 비킨 뒤에는 탐지 밖의 적부터 노린다(findTarget). 숨을 데가 없으면 그 자리에서 싸운다.
  */
+/** 한 기(유닛·건물)의 지금 전투력: √(초당 피해 × 남은 체력·보호막). 무기가 없으면 0. */
+function livePower(item) {
+  const def = item.kind === "unit" ? STW_UNITS[item.type] : STW_BUILDINGS[item.type];
+  if (!def?.damage) return 0;
+  const dps = (def.damage * (def.hits ?? 1)) / (def.cooldown ?? 1);
+  return Math.sqrt(dps * Math.max(1, item.hp + (item.shields ?? 0)));
+}
+
+/** 탐지된 은폐 유닛이 싸울지 따지는 반경과 문턱. */
+const CLOAK_FIGHT_RADIUS = 9;
+/** 이 반경 안의 탐지원(탐지 건물·탐지 유닛)은 직접 깨러 간다. 방어 건물은 기지 구역 전체를 쏘므로 사거리보다 넓게 본다. */
+const CLOAK_DETECTOR_REACH = 12;
+/** 우리 힘이 상대 힘의 이 배수를 넘으면: 깰 수 있는 탐지원이 있을 때(1.2) / 없어도(1.6) 비키지 않고 싸운다. */
+const CLOAK_FIGHT_WITH_DETECTOR = 1.2;
+const CLOAK_FIGHT_ANYWAY = 1.6;
+/** 한 번 싸우기로 하면 이만큼(초) 다시 따지지 않는다(비켰다 들어갔다를 되풀이하지 않게). */
+const CLOAK_COMMIT = 6;
+
+/**
+ * 탐지된 은폐 유닛이 비킬지, 맞더라도 싸울지.
+ * - 우리 힘: 이 유닛 곁 9칸 안의 아군 전투 유닛(이 유닛 포함)의 지금 전투력 합
+ * - 상대 힘: 9칸 안에서 이 유닛을 때릴 수 있는 적 유닛 + 이 유닛을 쏠 수 있는 방어 건물(사거리 안이거나 기지 구역 안, 1.5배)
+ * - 깰 수 있는 탐지원: 이 유닛을 탐지하고 있고 12칸 안에 있으며 이 유닛이 때릴 수 있는 탐지 건물(캐논·터렛·스포어 등)이나 탐지 유닛(옵저버·오버로드·베슬)
+ * 탐지원이 있고 우리 힘이 1.2배를 넘으면 그 탐지원부터 깨고, 없어도 1.6배를 넘으면 그 자리에서 싸운다. 아니면 예전처럼 비킨다.
+ * 이 유닛이 체력·보호막 30% 아래면 따지지 않고 비킨다. 컴샛 스캔은 깰 수 없어 탐지원으로 치지 않는다.
+ */
+function cloakFight(state, unit, foe) {
+  if (unit.hp + unit.shields < (unit.maxHp + unit.maxShields) * 0.3) return null;
+  const near = (item, radius) => distance(item.x, item.y, unit.x, unit.y) <= radius;
+  const ours = state.units
+    .filter((ally) => ally.side === unit.side && ally.hp > 0 && ally.group !== "cargo" && !isWorker(ally) && near(ally, CLOAK_FIGHT_RADIUS))
+    .reduce((sum, ally) => sum + livePower(ally), 0);
+  const threats = state.units
+    .filter((enemy) => enemy.side === foe && enemy.hp > 0 && enemy.group !== "cargo" && near(enemy, CLOAK_FIGHT_RADIUS) && canHit(enemy, unit))
+    .reduce((sum, enemy) => sum + livePower(enemy), 0);
+  const towers = state.buildings
+    .filter((building) => building.side === foe && stwDone(building) && STW_BUILDINGS[building.type].damage && canHit(building, unit)
+      && (distance(building.x, building.y, unit.x, unit.y) - unit.radius <= STW_BUILDINGS[building.type].range || inBaseZone(state, foe, building.base, unit)))
+    .reduce((sum, building) => sum + livePower(building) * 1.5, 0);
+  const ratio = ours / Math.max(1, threats + towers);
+  if (ratio < CLOAK_FIGHT_WITH_DETECTOR) return null;
+  const detectors = [
+    ...state.units.filter((item) => item.side === foe && item.hp > 0 && STW_UNITS[item.type].detector && distance(item.x, item.y, unit.x, unit.y) <= STW_UNITS[item.type].detector),
+    ...state.buildings.filter((item) => item.side === foe && stwDone(item) && STW_BUILDINGS[item.type].detector
+      && (distance(item.x, item.y, unit.x, unit.y) <= STW_BUILDINGS[item.type].detector || inBaseZone(state, foe, item.base, unit))),
+  ].filter((item) => near(item, CLOAK_DETECTOR_REACH + item.radius) && canHit(unit, item));
+  const detector = detectors.sort((a, b) => distance(a.x, a.y, unit.x, unit.y) - distance(b.x, b.y, unit.x, unit.y))[0] ?? null;
+  if (detector) return { detector };
+  return ratio >= CLOAK_FIGHT_ANYWAY ? { detector: null } : null;
+}
+
 function cloakEvade(state, unit, speed, dt) {
   if (!selfCloaked(state, unit)) {
     unit.evadeTo = undefined;
     return false;
   }
+  // 싸우기로 했으면 정한 시간 동안은 비키지 않는다(그 사이 체력이 25% 아래로 떨어지면 다시 따진다).
+  if ((unit.commitUntil ?? 0) > state.time && unit.hp + unit.shields >= (unit.maxHp + unit.maxShields) * 0.25) return false;
   if (unit.evadeTo && state.time < (unit.evadeUntil ?? 0)) {
     if (moveToward(unit, unit.evadeTo.x, unit.evadeTo.y, speed, dt)) unit.evadeTo = undefined;
     return true;
@@ -1709,6 +1788,14 @@ function cloakEvade(state, unit, speed, dt) {
   const foe = stwOpponent(unit.side);
   const hit = unit.hitAt !== undefined && state.time - unit.hitAt < 1;
   if (!hit || !detectionCovers(state, foe, unit)) return false;
+  const fight = cloakFight(state, unit, foe);
+  if (fight) {
+    unit.commitUntil = state.time + CLOAK_COMMIT;
+    unit.commitTarget = fight.detector?.id;
+    unit.waryUntil = 0;
+    if (fight.detector) unit.targetId = fight.detector.id;
+    return false;
+  }
   const hitter = resolve(state, unit.hitBy);
   let best = null;
   let bestScore = Infinity;
@@ -1850,7 +1937,8 @@ function targetScore(state, attacker, unit, d) {
 function findTarget(state, attacker, radius, { unitsOnly = false, threatsOnly = false } = {}) {
   // 스스로 은폐하는 유닛은 적 탐지 밖에 있는 목표를 먼저 고른다(탐지 안의 목표는 다른 목표보다 10칸 먼 것으로 친다).
   // 탐지에 맞고 비킨 지 얼마 안 됐으면(경계 중) 탐지 안의 목표는 아예 고르지 않는다.
-  const cloaker = attacker.kind === "unit" && selfCloaked(state, attacker);
+  // 싸우기로 한 은폐 유닛(cloakFight)은 탐지 안의 목표도 가리지 않는다.
+  const cloaker = attacker.kind === "unit" && selfCloaked(state, attacker) && !((attacker.commitUntil ?? 0) > state.time);
   const cautious = cloaker && wary(state, attacker);
   const exposed = (target) => (cloaker && detectionCovers(state, target.side, { x: target.x, y: target.y, radius: attacker.radius }) ? (cautious ? Infinity : 10) : 0);
   let best = null;
@@ -2316,6 +2404,12 @@ function stepUnits(state, dt) {
       }
     }
     if (!intruders.length) target = focusTarget(state, unit, target, { isAttack, sight, leashed });
+    // 싸우기로 한 은폐 유닛은 자기를 드러낸 탐지원부터 깬다.
+    if ((unit.commitUntil ?? 0) > state.time && unit.commitTarget !== undefined) {
+      const detector = resolve(state, unit.commitTarget, unit);
+      if (detector) target = detector;
+      else unit.commitTarget = undefined;
+    }
     if ((target?.id ?? null) !== unit.targetId) {
       retarget(unit, unit.targetId, target?.id ?? null);
       unit.lastTargetDistance = undefined;
@@ -2861,7 +2955,7 @@ function stepOps(state) {
         const cy = alive.reduce((sum, rider) => sum + rider.y, 0) / alive.length;
         const aliveValue = alive.reduce((sum, rider) => sum + unitValue(rider) * (rider.hp + rider.shields) / (rider.maxHp + rider.maxShields), 0);
         const health = alive.reduce((sum, rider) => sum + rider.hp + rider.shields, 0) / alive.reduce((sum, rider) => sum + rider.maxHp + rider.maxShields, 0);
-        const timeUp = state.time - op.since > STW_TRANSPORT.raidDwell;
+        const timeUp = state.time - op.since > STW_TRANSPORT.raidDwell || Boolean(op.recallNow);
         const outnumbered = threatValue(state, op.side, cx, cy, 10) > aliveValue * STW_TRANSPORT.retreatRatio;
         if (timeUp || outnumbered || health < STW_TRANSPORT.hpRatio) {
           op.phase = "pickup";
@@ -2870,7 +2964,7 @@ function stepOps(state) {
             rider.group = "board";
             rider.targetId = null;
           }
-          if (op.side === "player") pushLog(state, "player", timeUp ? "견제를 마치고 병력을 회수합니다." : "적 병력이 몰려와 견제 병력을 회수합니다.", "order");
+          if (op.side === "player" && !op.recallNow) pushLog(state, "player", timeUp ? "견제를 마치고 병력을 회수합니다." : "적 병력이 몰려와 견제 병력을 회수합니다.", "order");
         }
       } else if (op.phase === "pickup") {
         const waiting = riders.filter((rider) => rider.group === "board");
@@ -2926,6 +3020,11 @@ function stepOps(state) {
       if (transports.every((transport) => !transport.cargo?.length)) op.phase = "home";
     } else if (op.phase === "home" && transports.every((transport) => !transport.dropPath.length)) {
       for (const transport of transports) {
+        // 내리기 전에 거둔 폭탄 드랍은 태운 병력을 집결지에 내린다.
+        if (transport.cargo?.length) unloadCargo(state, transport, (rider) => {
+          rider.group = "rally";
+          rider.bomb = undefined;
+        });
         transport.op = undefined;
         transport.group = "rally";
       }

@@ -163,7 +163,14 @@
 .stw-segment.one { grid-template-columns:minmax(0,1fr); margin:5px 0; }
 .stw-scout { display:grid; gap:6px; }
 .stw-scout-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+.stw-drop-head { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; }
+.stw-drop-head button { min-height:44px; padding:0 16px; border-radius:12px; font-weight:900; }
+.stw-drop-head button:disabled { opacity:.45; }
 .stw-drop-status { margin:0; padding:7px 10px; border-radius:10px; color:#ffd8a8; background:#ff9a6e1c; font-size:13px !important; font-weight:800; }
+.stw-ops { margin:0; padding:0; list-style:none; display:grid; gap:6px; }
+.stw-ops li { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; padding:6px 8px 6px 12px; border:1px solid #e9c77a30; border-radius:12px; background:var(--stw-card); font-size:14px; font-weight:800; }
+.stw-ops button { min-height:36px; padding:0 12px; border:1px solid #ff9a6e88; border-radius:10px; color:#ffd8c4; background:#ff715822; font-weight:900; }
+.stw-ops button:disabled { border-color:#e9c77a30; color:var(--stw-muted); background:transparent; }
 .stw-drop-status.ready { color:#cdf5d3; background:#7fe08f1c; }
 .stw-hint.stw-hold { margin-top:6px; color:var(--stw-gold); }
 .stw-intel { padding:8px 10px; display:grid; gap:3px; border:1px dashed #e9c77a40; border-radius:12px; color:#dccdaa; font-size:14px; }
