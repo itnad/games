@@ -1,5 +1,6 @@
 import type { BattleCamera } from "../render/camera";
 import { GestureMachine, type GestureCallbacks } from "./gesture-machine";
+import { isPortraitViewport, subscribePortraitMode } from "./portrait-mode";
 export type GestureActions = Pick<GestureCallbacks, "hitTest" | "tap" | "preview" | "group" | "swipe" | "groundTap">;
 export function attachCameraGestures(canvas: HTMLCanvasElement, camera: BattleCamera, changed: () => void, actions?: GestureActions): () => void {
   const pointers = new Set<number>(); let pinchZoom = camera.zoom;
@@ -22,6 +23,7 @@ export function attachCameraGestures(canvas: HTMLCanvasElement, camera: BattleCa
   });
   const point = (event: PointerEvent) => { const r = canvas.getBoundingClientRect(); return {x: event.clientX - r.left, y: event.clientY - r.top}; };
   const down = (event: PointerEvent) => {
+    if (!isPortraitViewport()) return;
     if (event.button !== 0 || pointers.size >= 2) return;
     if (pointers.size === 1) pinchZoom = camera.zoom;
     pointers.add(event.pointerId); canvas.setPointerCapture(event.pointerId);
@@ -40,9 +42,11 @@ export function attachCameraGestures(canvas: HTMLCanvasElement, camera: BattleCa
     changed();
   };
   const lost = (event: PointerEvent) => { if (pointers.has(event.pointerId)) cancel(); };
+  const detachOrientation = subscribePortraitMode(() => { if (!isPortraitViewport()) cancel(); });
   canvas.addEventListener("pointerdown", down); canvas.addEventListener("pointermove", move); canvas.addEventListener("pointerup", up);
   canvas.addEventListener("pointercancel", cancel); canvas.addEventListener("lostpointercapture", lost);
   return () => {
+    detachOrientation();
     canvas.removeEventListener("pointerdown", down); canvas.removeEventListener("pointermove", move); canvas.removeEventListener("pointerup", up); canvas.removeEventListener("pointercancel", cancel); canvas.removeEventListener("lostpointercapture", lost);
     clearTimeout(timer); const ids = [...pointers]; pointers.clear(); machine.cancel();
     for (const id of ids) if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
