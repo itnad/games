@@ -1,6 +1,7 @@
 // 스타즈워 AI. 플레이어와 같은 stwCommand만 쓴다.
 // 성향마다 빌드 순서와 출격 규모가 다르다. 프로토스·테란·저그가 같은 틀을 쓴다.
 import { STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RALLY_RANGE, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
+import { stwIntelTag, stwLearnSwitch } from "./starswar-learn.js";
 import {
   stwArmy,
   stwBuildCheck,
@@ -152,6 +153,8 @@ const PVZ_OPENER = [
 ];
 
 function buildOrder(state, side, persona) {
+  // 최상급의 따라 하기 계획: 이긴 사람의 빌드 순서를 그대로 밟는다.
+  if (state.sides[side].plan) return state.sides[side].plan.order;
   const versusZerg = state.sides[stwOpponent(side)].race === "zerg";
   if (state.sides[side].race !== "protoss" || !versusZerg || persona === "rush") return BUILD_ORDERS[persona];
   return [...PVZ_OPENER, ...BUILD_ORDERS[persona]];
@@ -220,6 +223,7 @@ export function stwAiThink(state, side) {
   // 2분에 첫 정찰(상대 두 번째 생산 건물이 설 무렵 도착), 3분 30초에 두 번째 정찰.
   if (!memory.scouted && state.time >= 120 && record.probes >= 7 && stwCommand(state, side, { type: "scout" }).ok) memory.scouted = true;
   if (memory.scouted && !memory.scouted2 && state.time >= 210 && record.probes >= 8 && stwCommand(state, side, { type: "scout" }).ok) memory.scouted2 = true;
+  if (settings.master) readOpponent(state, side, record, memory);
   const alert = assessThreat(state, side, memory);
   // 리포트용 기록: 경계 상태로 보낸 시간과 처음 경계에 들어간 시각(판단에는 쓰지 않는다).
   if (alert) {
@@ -395,7 +399,7 @@ export function stwAiThink(state, side) {
 
   // 3-1. 은폐 유닛에 당했으면 탐지기를 갖춘다: 로보가 있으면 옵저버, 없으면 포지와 포톤 캐논.
   const units = state.units.filter((unit) => unit.side === side);
-  const needDetection = record.sawCloakAt !== undefined && state.time - record.sawCloakAt < 150;
+  const needDetection = (record.sawCloakAt !== undefined && state.time - record.sawCloakAt < 150) || (memory.expectCloak && state.time > 300);
   if (needDetection && race.id === "protoss") {
     const hasRobo = stwHas(state, side, "robo");
     const cannons = stwOwnBuildings(state, side, "cannon").length;
@@ -601,9 +605,40 @@ function foeMix(state, side) {
   return memory.foeMix ?? null;
 }
 
-/** 적 공중 위협: 본 적 병력 중 공중의 비율(수와 값 중 큰 쪽). */
+/** 적 공중 위협: 본 적 병력 중 공중의 비율(수와 값 중 큰 쪽). 최상급이 정찰로 공중 테크를 봤으면 5분 뒤부터 0.35로 본다. */
 function airThreat(state, side) {
-  return Math.max(airShare(foeMix(state, side)), state.sides[side].ai?.foeAirValue ?? 0);
+  const memory = state.sides[side].ai;
+  const expected = memory?.expectAir && state.time > 300 ? 0.35 : 0;
+  return Math.max(airShare(foeMix(state, side)), memory?.foeAirValue ?? 0, expected);
+}
+
+/**
+ * 최상급: 정찰 정보로 상대 전략 꼬리표를 짐작하고(stwIntelTag), 지난 경기에서 그 전략에 확실히 더 잘 싸운 선택이 있으면
+ * 5분 전에 한 번 갈아탄다(stwLearnSwitch). 꼬리표마다 미리 대비한다.
+ * - 러시: 7분까지 경계 상태로(방어 건물·생산 건물 먼저)
+ * - 공중: 5분 뒤부터 공중 위협이 있다고 보고 대공을 갖춘다
+ * - 은폐: 5분 뒤부터 탐지기를 갖춘다
+ */
+function readOpponent(state, side, record, memory) {
+  const intel = record.intel;
+  if (!intel || intel.time === memory.readIntelAt) return;
+  memory.readIntelAt = intel.time;
+  const tag = stwIntelTag(intel, state.time);
+  memory.readTag = tag;
+  if (tag === "rush") memory.alertUntil = Math.max(memory.alertUntil ?? 0, 420);
+  if (tag === "air") memory.expectAir = true;
+  if (tag === "cloak") memory.expectCloak = true;
+  if (memory.readSwitch || state.time >= 300) return;
+  const foeRace = state.sides[stwOpponent(side)].race;
+  const current = record.plan ? `plan:${record.plan.id}` : record.persona;
+  const pick = stwLearnSwitch(state.learned, record.race, foeRace, tag, current);
+  if (!pick) return;
+  memory.readSwitch = { from: current, to: pick.key, tag, at: state.time };
+  record.persona = pick.persona;
+  if (pick.plan) record.plan = JSON.parse(JSON.stringify(pick.plan));
+  else delete record.plan;
+  memory.done = [];
+  memory.built = [];
 }
 
 /** 테란이 대공을 갖춰야 하는지: 공중 위협이 30%를 넘거나 최근 2분 30초 안에 공중 유닛에게 맞았다. */
@@ -806,6 +841,7 @@ function switchStrategy(state, side, memory) {
     memory.done = [];
     memory.built = [];
     record.persona = memory.switched.to;
+    delete record.plan;
     return;
   }
   // 공중 성향은 스타게이트·스타포트·스파이어가 서고 주력이 나와 본 뒤(11분)에야 갈아탄다. 그 전의 실패는 테크를 올리는 중의 일이다.
@@ -817,6 +853,7 @@ function switchStrategy(state, side, memory) {
   memory.built = [];
   memory.wave = Math.max(0, memory.wave - 2);
   record.persona = next;
+  delete record.plan;
 }
 
 /** 전략 전환 표: 큰 물량이 거듭 막힌 성향이 상대 구성을 보고 갈아타는 곳. 공중 성향은 대공이 두꺼운 상대에게 지상 운영으로 돌아선다. */
@@ -1015,7 +1052,7 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
     memory.attacking = false;
     return;
   }
-  const waves = WAVES[persona];
+  const waves = record.plan?.waves ?? WAVES[persona];
   // 목록이 끝난 뒤에는 실패할 때마다 출격 규모를 4기씩 키운다(최대 40기).
   const listed = waves[Math.min(memory.wave, waves.length - 1)] + Math.max(0, memory.wave - waves.length + 1) * 4;
   // 적 방어 건물(캐논·벙커·성큰)을 본 만큼 더 모아서 간다(하나당 4기, 최대 12기). 방어 건물은 기지 전체를 지키므로 소수로 찔러 봐야 손해다.

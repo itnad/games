@@ -45,6 +45,7 @@ import {
 } from "./starswar-engine.js";
 import { stwAiThink } from "./starswar-ai.js";
 import { stwAiReport, stwBugReport, stwLosingAiSides } from "./starswar-report.js";
+import { stwLearnAdd, stwLearnEmpty, stwLearnNormalize, stwLearnSnapshot } from "./starswar-learn.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
 import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
 import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./starswar-lab";
@@ -75,7 +76,25 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "research", label: "연구" },
   { id: "army", label: "병력" },
 ];
-const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard"];
+const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard", "master"];
+/** 최상급 AI가 쓰는 지난 경기 분석(사람 대 AI 경기마다 갱신). 화면에는 드러내지 않는다. */
+const LEARN_KEY = "paperoid-starswar-learning";
+
+function readLearning() {
+  try {
+    return stwLearnNormalize(JSON.parse(window.localStorage.getItem(LEARN_KEY) ?? "null"));
+  } catch {
+    return stwLearnEmpty();
+  }
+}
+
+function writeLearning(data: unknown) {
+  try {
+    window.localStorage.setItem(LEARN_KEY, JSON.stringify(data));
+  } catch {
+    // 저장소가 가득 찼으면 이번 경기는 반영하지 못할 뿐이다.
+  }
+}
 const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
 const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", stargate: "스타게이트", barracks: "배럭", factory: "팩토리", starport: "스타포트", hatchery: "해처리", hatch: "해처리" };
 /** 진행 중인 수송 작전 한 줄 요약. */
@@ -343,7 +362,9 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
 
   const startBattle = () => {
     const enemy = races.enemy === "random" ? RACE_IDS[Math.floor(Math.random() * RACE_IDS.length)] : races.enemy;
-    const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), races: { player: races.player, enemy }, hiddenEnemyRace: races.enemy === "random" }) as unknown as StwState;
+    // 엔진 쪽 매개변수는 JS라 기본값(null)으로 타입이 잡힌다.
+    const learned = (difficulty === "master" ? stwLearnSnapshot(readLearning()) : null) as never;
+    const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), races: { player: races.player, enemy }, hiddenEnemyRace: races.enemy === "random", learned }) as unknown as StwState;
     clearSave();
     enterBattle(next);
   };
@@ -497,6 +518,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     const next = { wins: current.wins + (won ? 1 : 0), losses: current.losses + (lost ? 1 : 0), best };
     writeRecord(next);
     setRecord(next);
+    // 최상급 AI용 분석: 어떤 난이도든 사람 대 AI 경기의 승패와 사람의 운영을 쌓는다.
+    writeLearning(stwLearnAdd(readLearning(), game));
   }, [finished, game]);
 
   const issue = (command: StwCommand, success?: string) => {
@@ -1060,9 +1083,14 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
         </>
       ) : null}
       <h3 className="stw-section">수송 작전</h3>
+      <p className={drop.ok ? "stw-drop-status ready" : "stw-drop-status"} role="status">
+        {drop.ok
+          ? `출발 준비: 쉬는 ${transportName} ${(drop as StwCheck & { carriers?: unknown[] }).carriers?.length ?? 0}기 · 태울 병력 ${(drop as StwCheck & { passengers?: unknown[] }).passengers?.length ?? 0}기 (아래 "출발")`
+          : `지금은 출발할 수 없습니다: ${drop.reason}`}
+      </p>
       <p className="stw-hint">{plan.mission === "raid"
-        ? `게릴라 드랍: ${transportName} 1기에 빠른 병력 한 분대(8칸)를 태워 본진이나 앞마당 광물 줄의 일꾼을 칩니다(기술 건물을 고르면 그 건물을). 적이 몰려오거나 25초가 지나면 회수해 돌아옵니다.`
-        : `폭탄 드랍: ${transportName} 2기 이상에 대기 병력을 비싼 것부터 가득 싣고 가장자리에 모였다가 한꺼번에 내립니다. 내린 병력은 끝까지 싸웁니다.`}</p>
+        ? `게릴라 드랍: ${transportName} 1기에 대기 병력 한 분대(8칸)를 태워 본진이나 앞마당 광물 줄의 일꾼을 칩니다(빠른 병력부터, 없으면 다른 지상 병력. 기술 건물을 고르면 그 건물을). 적이 몰려오거나 25초가 지나면 회수해 돌아옵니다.`
+        : `폭탄 드랍: 쉬는 ${transportName} 모두에 대기 병력을 비싼 것부터 가득 싣고 가장자리에 모였다가 한꺼번에 내립니다(1기부터). 내린 병력은 끝까지 싸웁니다.`}</p>
       <div className="stw-segment two">
         {([["raid", "게릴라 드랍"], ["bomb", "폭탄 드랍"]] as [StwDropMission, string][]).map(([mission, label]) => (
           <button key={mission} type="button" className={plan.mission === mission ? "active" : ""} aria-pressed={plan.mission === mission} onClick={() => issue({ type: "dropPlan", mission })}>{label}</button>

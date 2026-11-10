@@ -8,6 +8,7 @@ import {
   stwBuildCheck,
   stwCommand,
   stwDetected,
+  stwDropCheck,
   stwDone,
   stwFreeSlots,
   stwHitDamage,
@@ -30,6 +31,7 @@ import {
 import { stwAiThink } from "../app/starswar/starswar-ai.js";
 import { stwFingerprint, stwReplay, stwReplayCode, stwReplayMatches } from "../app/starswar/starswar-replay.js";
 import { stwAiReport, stwBugReport, stwLosingAiSides } from "../app/starswar/starswar-report.js";
+import { stwIntelTag, stwLearnAdd, stwLearnEmpty, stwLearnFeatures, stwLearnPick, stwLearnSnapshot, stwLearnTags } from "../app/starswar/starswar-learn.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwScreenToMap, stwViewport } from "../app/starswar/starswar-camera.js";
 
 const run = (state, seconds, ai = null) => {
@@ -1253,6 +1255,65 @@ test("starswar new units join the attack group while the player is fighting, oth
   assert.equal(produce(ai).group, "rally");
 });
 
+test("starswar player drops work with any ground army and a single transport; AI keeps its stricter rules", () => {
+  const scenario = () => stwCreateScenario({ seed: 1, time: 900, placement: "home", races: { player: "terran", enemy: "protoss" }, sides: { player: { units: { dropship: 1, goliath: 10 } }, enemy: { units: { zealot: 2 } } } });
+  const state = scenario();
+  run(state, 2);
+  // 골리앗만 있어도 게릴라, 드랍십 1기로도 폭탄 드랍.
+  assert.ok(stwDropCheck(state, "player", "raid").ok, "게릴라");
+  assert.ok(stwDropCheck(state, "player", "bomb").ok, "폭탄");
+  const result = stwIssue(state, "player", { type: "drop" });
+  assert.ok(result.ok && result.loaded > 0, JSON.stringify(result));
+  // AI 진영은 예전처럼 빠른 유닛만, 폭탄은 2기 이상.
+  const ai = scenario();
+  ai.aiSides = ["player", "enemy"];
+  run(ai, 2);
+  assert.equal(stwDropCheck(ai, "player", "raid").ok, false);
+  assert.equal(stwDropCheck(ai, "player", "bomb").ok, false);
+});
+
+test("starswar learning: tags the human's strategy, keeps a plan from AI losses, and the master AI uses it reproducibly", () => {
+  // 사람(여기서는 질럿 러시 성향 AI로 흉내)이 어려움 AI를 이긴 경기를 사람 대 AI 경기처럼 쌓는다.
+  let store = stwLearnEmpty();
+  for (const seed of [1, 2]) {
+    const game = createStarswarGame({ seed, difficulty: "hard", aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "rush" } });
+    run(game, 1500, stwAiThink);
+    assert.equal(game.status, "over");
+    game.aiSides = ["enemy"];
+    const tags = stwLearnTags(stwLearnFeatures(game, "player"));
+    assert.equal(tags[0], "rush", `꼬리표 ${tags}`);
+    store = stwLearnAdd(store, game);
+  }
+  assert.ok(store.records.length >= 1, "AI가 진 판의 계획이 남는다");
+  const plan = store.records[0].plan;
+  assert.equal(plan.race, "protoss");
+  assert.equal(plan.base, "rush");
+  assert.ok(plan.order.some((step) => step.build === "gateway"), "빌드 순서");
+  assert.ok(plan.waves.every((size, index) => index === 0 || size > plan.waves[index - 1]), "출격 규모는 늘어난다");
+  assert.ok(store.foeTags.protoss.rush >= 2);
+  // 최상급: 그 계획을 후보로 고르고(통계가 유리하면), 같은 묶음으로 다시 돌리면 같은 경기가 된다.
+  // 묶음에는 같은 기본 성향·꼬리표의 계획 중 최신 하나만 든다.
+  const snapshot = stwLearnSnapshot(store);
+  assert.equal(snapshot.plans.filter((item) => item.base === "rush").length, 1);
+  const kept = snapshot.plans[0];
+  snapshot.stats["protoss|zerg"] = { [`plan:${kept.id}`]: [5, 5] };
+  const pick = stwLearnPick(snapshot, "protoss", "zerg", () => 0.5);
+  assert.equal(pick.plan?.id, kept.id);
+  const master = createStarswarGame({ seed: 9, difficulty: "master", races: { player: "zerg", enemy: "protoss" }, learned: snapshot });
+  assert.equal(master.sides.enemy.plan?.id, kept.id);
+  assert.equal(master.sides.enemy.persona, "rush");
+  run(master, 240, stwAiThink);
+  const firstBuilds = master.chronicle.filter((entry) => entry[1] === "enemy" && entry[2].type === "build").map((entry) => entry[2].building);
+  assert.ok(firstBuilds.includes("gateway"));
+  const code = JSON.parse(JSON.stringify(stwReplayCode(master)));
+  assert.ok(code.setup.learned, "학습 묶음이 재현 정보에 남는다");
+  assert.equal(stwReplay(code, { until: 240 }).rngState, master.rngState, "같은 경기");
+  // 정찰 정보로 상대 전략을 짐작한다.
+  assert.equal(stwIntelTag({ race: "protoss", buildings: { nexus: 1, gateway: 3, pylon: 2 }, units: {}, research: [] }, 150), "rush");
+  assert.equal(stwIntelTag({ race: "terran", buildings: { cc: 1, starport: 1 }, units: {}, research: [] }, 280), "air");
+  assert.equal(stwIntelTag({ race: "protoss", buildings: { nexus: 1, archives: 1 }, units: {}, research: [] }, 280), "cloak");
+});
+
 test("starswar carrier attacks launch one visible interceptor per hit", () => {
   for (const [research, expected] of [[[], 4], [["carrierCapacity"], 8]]) {
     const state = stwCreateScenario({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { carrier: 1 }, research }, enemy: { units: { hydra: 6 } } } });
@@ -2299,7 +2360,12 @@ test("starswar bomb drops gather, wait for the front to engage, land together, a
   }
   const shuttles = [stwSpawnUnitAt(state, "player", "shuttle", 18, 80, "rally")];
   stwSpawnUnitAt(state, "player", "zealot", 20, 78, "rally");
-  assert.match(stwCommand(state, "player", { type: "drop", mission: "bomb" }).reason, /2기 이상/);
+  // 사람은 셔틀 1기로도 폭탄 드랍을 할 수 있다(AI는 2기 이상). 여기서는 둘로 이어 간다.
+  assert.equal(stwDropCheck(state, "player", "bomb").ok, true);
+  const aiSides = state.aiSides;
+  state.aiSides = [...aiSides, "player"];
+  assert.match(stwDropCheck(state, "player", "bomb").reason, /2기 이상/);
+  state.aiSides = aiSides;
   shuttles.push(stwSpawnUnitAt(state, "player", "shuttle", 22, 80, "rally"));
   for (let index = 0; index < 8; index += 1) stwSpawnUnitAt(state, "player", "zealot", 12 + index * 2, 78, "rally");
   stwSpawnUnitAt(state, "player", "dragoon", 20, 76, "rally");

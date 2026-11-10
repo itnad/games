@@ -1,6 +1,7 @@
 // 스타즈워 규칙 엔진. React와 DOM에 의존하지 않는 결정적 시뮬레이션.
 // 플레이어와 AI는 같은 stwCommand만 쓴다.
 import { withKoreanDirection, withKoreanObject, withKoreanSubject } from "../korean-particles.js";
+import { stwLearnPick } from "./starswar-learn.js";
 import {
   STW_ARMY_UNITS,
   STW_BUILDINGS,
@@ -198,7 +199,10 @@ function createSide(id, persona, race) {
   };
 }
 
-export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {}, races = {}, hiddenEnemyRace = false } = {}) {
+/**
+ * learned: 최상급 경기에서 AI가 쓸 학습 묶음(stwLearnSnapshot). 재현 정보에 함께 남아 같은 경기가 다시 돌아간다.
+ */
+export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {}, races = {}, hiddenEnemyRace = false, learned = null } = {}) {
   const state = {
     version: 1,
     hiddenEnemyRace,
@@ -226,12 +230,19 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
     aiSides: [...aiSides],
     history: [],
     // 재현 정보: 경기를 만든 설정과 사람이 내린 명령(틱, 명령). 같은 코드에서 그대로 다시 돌리면 같은 경기가 된다.
-    replay: { setup: { difficulty, seed, aiSides: [...aiSides], personas: { ...personas }, races: { ...races }, hiddenEnemyRace }, commands: [] },
+    replay: { setup: { difficulty, seed, aiSides: [...aiSides], personas: { ...personas }, races: { ...races }, hiddenEnemyRace, ...(learned ? { learned } : {}) }, commands: [] },
     // 양쪽이 성공한 명령의 시간순 기록(빌드 순서·연구·공격 시점). 결과 화면의 리포트에 쓴다.
     chronicle: [],
   };
+  const master = Boolean(STW_DIFFICULTIES[state.difficulty].master);
+  if (master) state.learned = learned ? JSON.parse(JSON.stringify(learned)) : { v: 1, plans: [], stats: {}, tagStats: {}, foeTags: {} };
   for (const side of STW_SIDES) {
-    if (!state.sides[side].persona && state.aiSides.includes(side)) {
+    if (!state.sides[side].persona && state.aiSides.includes(side) && master) {
+      // 최상급: 지난 경기들의 승패와 상대가 자주 쓰는 전략으로 고른다(이긴 사람의 운영을 따라 한 계획도 후보).
+      const pick = stwLearnPick(state.learned, state.sides[side].race, state.sides[stwOpponent(side)].race, () => nextRandom(state));
+      state.sides[side].persona = pick.persona;
+      if (pick.plan) state.sides[side].plan = JSON.parse(JSON.stringify(pick.plan));
+    } else if (!state.sides[side].persona && state.aiSides.includes(side)) {
       const race = state.sides[side].race;
       const personas = Object.values(STW_AI_PERSONAS)
         .filter((persona) => persona.race === race && !(state.difficulty === "easy" && EASY_EXCLUDED_PERSONAS.includes(persona.id)))
@@ -550,12 +561,19 @@ function idleCarriers(state, side) {
   return state.units.filter((unit) => unit.side === side && STW_UNITS[unit.type].transport && unit.group === "rally" && !unit.cargo?.length && !unit.dropPath?.length && unit.op === undefined);
 }
 
-/** 태울 병력: 게릴라는 빠르고 싼 유닛만(STW_RAID_UNITS 순서), 폭탄은 대기 중인 지상 병력 전부를 비싼 것부터. */
+/**
+ * 태울 병력: 게릴라는 빠르고 싼 유닛부터(STW_RAID_UNITS 순서), 폭탄은 대기 중인 지상 병력 전부를 비싼 것부터.
+ * 사람이 지휘하는 진영의 게릴라는 빠른 유닛이 없으면 다른 지상 병력을 싼 것부터 태운다(골리앗·탱크만 있어도 견제를 나갈 수 있게).
+ * AI는 예전처럼 빠른 유닛만 쓴다(AI 균형을 그대로 둔다).
+ */
 function dropPassengers(state, side, mission) {
   const pool = state.units.filter((unit) => unit.side === side && unit.group === "rally" && unit.hp > 0 && !isWorker(unit) && !isFlying(unit) && !isSupport(unit));
   if (mission === "raid") {
     const order = STW_RAID_UNITS[state.sides[side].race] ?? [];
-    return pool.filter((unit) => order.includes(unit.type)).sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type) || a.id - b.id);
+    const fast = pool.filter((unit) => order.includes(unit.type)).sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type) || a.id - b.id);
+    if (state.aiSides.includes(side)) return fast;
+    const rest = pool.filter((unit) => !order.includes(unit.type)).sort((a, b) => unitValue(a) - unitValue(b) || a.id - b.id);
+    return [...fast, ...rest];
   }
   return pool.sort((a, b) => unitValue(b) - unitValue(a) || a.id - b.id);
 }
@@ -577,9 +595,10 @@ export function stwDropCheck(state, side, mission = state.sides[side].dropPlan?.
   const carriers = idleCarriers(state, side);
   const name = transportName(record.race);
   if (!carriers.length) return fail(record.race === "zerg" ? "기지에 남길 오버로드 2기 말고 쓸 오버로드가 없습니다" : `쉬는 ${name} 필요`);
-  if (mission === "bomb" && carriers.length < 2) return fail(`폭탄 드랍은 쉬는 ${name} 2기 이상 필요`);
+  // 사람은 수송선 1기로도 폭탄 드랍을 할 수 있다(8칸 가득). AI는 예전처럼 2기 이상 모아서 간다.
+  if (mission === "bomb" && carriers.length < (state.aiSides.includes(side) ? 2 : 1)) return fail(`폭탄 드랍은 쉬는 ${name} 2기 이상 필요`);
   const passengers = dropPassengers(state, side, mission);
-  if (!passengers.length) return fail(mission === "raid" ? "견제에 쓸 빠른 지상 병력이 없습니다" : "태울 지상 병력이 없습니다");
+  if (!passengers.length) return fail(mission === "raid" && state.aiSides.includes(side) ? "견제에 쓸 빠른 지상 병력이 없습니다" : "대기 병력(집결지)에 태울 지상 병력이 없습니다");
   return { ok: true, carriers, passengers };
 }
 

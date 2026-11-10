@@ -22,7 +22,7 @@
 .stw-race-pick .stw-hint { margin:0 0 6px; }
 .stw-race-pick .stw-segment { grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); }
 .stw-race-pick .stw-segment button { min-height:46px; font-size:15px !important; }
-.stw-difficulty { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.stw-difficulty { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
 .stw-difficulty button { min-height:104px; padding:14px; display:grid; align-content:start; gap:6px; text-align:left; border:1px solid var(--stw-line); border-radius:14px; background:#ffffff08; }
 .stw-difficulty b { font-size:19px; }
 .stw-difficulty span { color:var(--stw-muted); font-size:14px; line-height:1.4; }
@@ -163,6 +163,8 @@
 .stw-segment.one { grid-template-columns:minmax(0,1fr); margin:5px 0; }
 .stw-scout { display:grid; gap:6px; }
 .stw-scout-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+.stw-drop-status { margin:0; padding:7px 10px; border-radius:10px; color:#ffd8a8; background:#ff9a6e1c; font-size:13px !important; font-weight:800; }
+.stw-drop-status.ready { color:#cdf5d3; background:#7fe08f1c; }
 .stw-hint.stw-hold { margin-top:6px; color:var(--stw-gold); }
 .stw-intel { padding:8px 10px; display:grid; gap:3px; border:1px dashed #e9c77a40; border-radius:12px; color:#dccdaa; font-size:14px; }
 
@@ -235,7 +237,6 @@
   .stw-res { padding:4px 6px; gap:4px; }
   .stw-res b { font-size:15px; }
   .stw-res em { display:none; }
-  .stw-difficulty { grid-template-columns:1fr; }
   .stw-difficulty button { min-height:0; }
 }
 @media (prefers-reduced-motion:reduce) { .stw-shell * { animation:none !important; transition:none !important; } }
