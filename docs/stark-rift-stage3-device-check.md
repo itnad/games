@@ -1,31 +1,36 @@
 # 3단계 내부 검증 화면과 성능 측정
 
-최신 브라우저 검증: [터치 보완 기록](stark-rift-stage3-touch-review.md). Chromium의 합성 터치 검증을 수행했고 실제 휴대폰 심사는 계속 미확인이다. 아래의 브라우저 도구 부재·최초 성능 수치는 각 측정 당시 기록이다.
+최신 브라우저 검증·장시간 결과: [최종 검토](stark-rift-stage3-final-review.md). Chromium의 합성 터치 검증을 수행했고 실제 휴대폰 심사는 계속 미확인이다. 아래의 브라우저 도구 부재·최초 성능 수치는 각 측정 당시 기록이다.
 
 2026-11-03. 엔진 0.6.2-stage3. 이번 작업은 개발 검증 도구이며 공개 게임 기능 추가가 아니다.
 
 ## 실행
 
-```sh
-npm run dev:stark-rift-lab
-```
+빠른 코드 수정은 `npm run dev:stark-rift-lab`과 `http://127.0.0.1:4174`를 사용한다. 별도 Vite 루트인 `tools/stark-rift-lab`만 사용하며 공개 라우트나 게임 목록에는 연결하지 않는다. 개체는 합성 수치이며 전맵 가시성도 실제 전투 시야 규칙이 아니다.
 
-같은 컴퓨터의 브라우저에서 `http://127.0.0.1:4174`를 연다. 별도 Vite 루트인 `tools/stark-rift-lab`만 사용하며, Paperoid의 공개 `app` 라우트·메인 게임 목록에는 연결하지 않는다. 테스트 개체는 합성 수치이며 원작 데이터나 경제·전투 구현으로 취급하지 않는다. 검증용 전맵 가시성도 실제 시야 규칙이 아니다.
-
-휴대폰에서 확인할 때는 개발자가 실행하는 컴퓨터와 같은 네트워크를 사용한다.
-
-```sh
-npm run dev:stark-rift-lab -- --host 0.0.0.0
-```
-
-휴대폰에서 해당 컴퓨터의 LAN 주소와 포트 4174로 접속한다. 개발 서버의 호스트 설정은 이 명령에서만 바뀌며 기본값은 127.0.0.1이다. 휴대폰 접근·브라우저 실행은 이번 클라우드 작업에서 확인하지 않았다.
+장시간 측정과 모바일 성능 확인은 배포와 같은 프로덕션 빌드로 실행한다.
 
 ```sh
 npm run build:stark-rift-lab
-npm run bench:stark-rift
+npm run preview:stark-rift-lab
+# 다른 터미널에서: 세로 터치·가로 차단·10분 반복 이동
+python tools/stark-rift-lab/browser-smoke.py --soak-seconds 600
 ```
 
-첫 명령은 타입 검사 후 `work/stark-rift-lab/dist`에 별도 검증 번들을 생성한다. 이 폴더는 Git에서 제외되며 Sites의 공개 배포 산출물에 넣지 않는다. 두 번째 명령은 서버(Node) 측정을 실행하고 `work/stark-rift-lab/benchmark.json`에 환경·소스 식별자·측정 결과를 기록한다. Git 식별자를 읽지 못하면 `null`로 표시하며 임의의 커밋으로 채우지 않는다.
+프로덕션 검증 주소는 `http://127.0.0.1:4175`다. 검증 스크립트의 기본 주소도 이 주소다. 브라우저 경로·주소·결과 폴더는 `--chromium`, `--url`, `--output`으로 바꿀 수 있다. Python Playwright와 Chromium이 있는 환경의 선택 실행 도구이며 기본 Node 테스트에는 브라우저 설치를 요구하지 않는다.
+
+실제 휴대폰에서는 개발 컴퓨터와 같은 네트워크에서 아래 명령으로 접근한다.
+
+```sh
+npm run build:stark-rift-lab
+npm run preview:stark-rift-lab -- --host 0.0.0.0
+```
+
+휴대폰에서 해당 컴퓨터의 LAN 주소와 포트 4175를 연다. 기본 호스트는 127.0.0.1이며 위 명령에서만 바꾼다. 실제 휴대폰 접근은 아직 확인하지 않았다.
+
+검증 번들은 Git 제외 폴더 `work/stark-rift-lab/dist`에 생성되며 Sites 공개 산출물에 넣지 않는다. `npm run bench:stark-rift`는 Node 측정을 별도로 수행한다.
+
+개발 모드 React의 UserTiming 기록이 장시간 누적될 수 있어 내부 도구에서 개발 모드 기록 버퍼를 1초마다 비운다. 자체 틱·프레임 통계는 `performance.now()`와 유한한 표본 창을 사용하며 이 버퍼에 의존하지 않는다. 프로덕션에서는 이 정리를 실행하지 않는다. 개발 모드 측정과 실제 배포 성능을 혼동하지 않는다.
 
 ## 검증 시나리오
 
