@@ -1,4 +1,4 @@
-import { array, boolean, enumeration, integer, literal, object, parse, refine, taggedUnion, text, unique, union, type Infer, type Schema } from "./validation";
+import { array, boolean, enumeration, integer, literal, object, optional, parse, refine, taggedUnion, text, unique, union, type Infer, type Schema } from "./validation";
 
 export const MAX_COMMANDS_PER_BATCH = 256;
 export const MAX_COMMAND_ENTITIES = 200;
@@ -32,10 +32,14 @@ export const commandSchemas = {
   setFormation: command("setFormation", { entityIds: actors, payload: object({ formation: enumeration(["line", "column", "spread"]) }) }),
   setStance: command("setStance", { entityIds: actors, payload: object({ stance: enumeration(["free", "formation", "breakthrough"]) }) }),
   setRallyPoint: command("setRallyPoint", { entityIds: actors, target: pointTargetSchema }),
+  gather: command("gather",{entityIds:actors,payload:object({resourceId:text})}),
+  returnCargo: command("returnCargo",{entityIds:actors}),
+  autoGather: command("autoGather",{entityIds:actors}),
+  resumeConstruction: command("resumeConstruction",{entityIds:actors,target:entityTargetSchema}),
   produce: command("produce", { entityIds: actors, payload: object({ unitId: text }) }),
   toggleRepeatProduction: command("toggleRepeatProduction", { entityIds: actors, payload: object({ unitId: text, enabled: boolean }) }),
   cancelProduction: command("cancelProduction", { entityIds: actors, payload: object({ queueEntryId: integer(1) }) }),
-  placeBuilding: command("placeBuilding", { entityIds: actors, target: pointTargetSchema, payload: object({ buildingId: text }) }),
+  placeBuilding: command("placeBuilding", { entityIds: actors, target: pointTargetSchema, payload: object({ buildingId: text,queued:optional(boolean) }) }),
   cancelConstruction: command("cancelConstruction", { entityIds: actors }),
   research: command("research", { entityIds: actors, payload: object({ technologyId: text }) }),
   cancelResearch: command("cancelResearch", { entityIds: actors }),
