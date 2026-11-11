@@ -2808,3 +2808,26 @@ test("starswar replays and learning carry the map", () => {
   assert.equal(pick("canyon", later), "wraith", "협곡에서는 협곡에서 이긴 전략");
   assert.equal(pick("plain", later), "mech");
 });
+
+test("starswar report copied while paused replays exactly up to that moment", () => {
+  const state = createStarswarGame({ seed: 21, aiSides: ["enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { enemy: "ling" } });
+  for (const [at, command] of [[1, { type: "probe" }], [30, { type: "build", building: "pylon" }], [95, { type: "build", building: "gateway" }], [180, { type: "move", y: 70 }]]) {
+    while (state.time < at) stepStarswar(state, stwAiThink);
+    stwIssue(state, "player", command);
+  }
+  while (state.time < 250) stepStarswar(state, stwAiThink);
+  // 일시정지 중에 내린 명령(같은 틱)도 남는다.
+  stwIssue(state, "player", { type: "probe" });
+  assert.equal(state.status, "playing");
+  const report = stwBugReport(state, { build: "test" });
+  assert.match(report, /결과: 진행 중 · 경기 시간 04:10/);
+  assert.match(report, /경기 중\(04:10\)에 복사한 코드/);
+  const code = JSON.parse(report.match(/```json\n(.+)\n```/)[1]);
+  assert.equal(code.end.status, "playing");
+  const replayed = stwReplay(code);
+  assert.equal(Math.round(replayed.time * 10), Math.round(state.time * 10), "복사한 시각에서 멈춘다");
+  assert.ok(stwReplayMatches(code, replayed), `같은 상태: ${JSON.stringify(stwFingerprint(replayed))} vs ${JSON.stringify(code.end)}`);
+  assert.equal(replayed.sides.player.probes + replayed.buildings.length, state.sides.player.probes + state.buildings.length);
+  // 더 앞의 시각까지만 돌릴 수도 있다.
+  assert.equal(Math.round(stwReplay(code, { until: 120 }).time), 120);
+});

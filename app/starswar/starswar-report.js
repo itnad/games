@@ -160,7 +160,10 @@ function sideState(state, side) {
 function replayBlock(state, build) {
   const code = stwReplayCode(state, build);
   if (!code) return "## 재현 코드\n없음(이 기능 전에 시작해 이어 한 경기입니다)";
-  return ["## 재현 코드", "같은 판의 게임에서 이 코드로 경기를 처음부터 똑같이 다시 돌릴 수 있습니다.", "```json", JSON.stringify(code), "```"].join("\n");
+  const note = state.status === "playing"
+    ? `경기 중(${stwClock(state.time)})에 복사한 코드입니다. 같은 판의 게임에서 처음부터 이 시각까지 똑같이 다시 돌릴 수 있습니다.`
+    : "같은 판의 게임에서 이 코드로 경기를 처음부터 똑같이 다시 돌릴 수 있습니다.";
+  return ["## 재현 코드", note, "```json", JSON.stringify(code), "```"].join("\n");
 }
 
 function headerLines(state, env) {

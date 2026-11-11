@@ -837,6 +837,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
               <section>
                 <h2>일시정지</h2>
                 <button type="button" className="stw-primary" onClick={() => setPaused(false)}>계속하기</button>
+                <PauseReportButton game={game} />
                 <button type="button" className="stw-secondary" onClick={() => setConfirmExit(true)}>나가기</button>
               </section>
             </div>
@@ -1352,6 +1353,27 @@ function ReportPanel({ game, kind, onClose }: { game: StwState; kind: ReportKind
         <button type="button" className="stw-secondary" onClick={onClose}>닫기</button>
       </section>
     </div>
+  );
+}
+
+/**
+ * 일시정지 화면의 리포트 복사: 경기가 끝나기를 기다리지 않고 지금까지의 버그 리포트(흐름·명령·기록·지금 상태·재현 코드)를 바로 복사한다.
+ * 재현 코드는 이 시각에서 멈추도록 남는다. 자동 복사가 막히면 리포트 창을 열어 직접 복사하게 한다.
+ */
+function PauseReportButton({ game }: { game: StwState }) {
+  const [status, setStatus] = useState<"idle" | "copied">("idle");
+  const [panel, setPanel] = useState(false);
+  const copy = async () => {
+    const ok = await copyText(stwBugReport(game, reportEnv()) as string);
+    if (ok) setStatus("copied");
+    else setPanel(true);
+  };
+  return (
+    <>
+      <button type="button" className="stw-secondary" onClick={copy}>{status === "copied" ? `복사했습니다 ✓ (${stwClock(game.time)})` : "리포트 데이터 복사"}</button>
+      <button type="button" className="stw-link" onClick={() => setPanel(true)}>메모를 붙여 복사하거나 내용 보기</button>
+      {panel ? <ReportPanel game={game} kind="bug" onClose={() => setPanel(false)} /> : null}
+    </>
   );
 }
 

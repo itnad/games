@@ -196,6 +196,7 @@
 .stw-overlay h2 { margin:0; font-size:26px; }
 .stw-overlay p { margin:0 0 6px; color:#d3c4a2; }
 .stw-overlay button { min-height:50px; border-radius:14px; font-weight:900; }
+.stw-overlay button.stw-link { min-height:32px; margin-top:-4px; border:0; background:transparent; color:var(--stw-muted); font-size:13px !important; font-weight:700; text-decoration:underline; text-underline-offset:3px; }
 .stw-primary { border:0; color:#2a1c05 !important; background:var(--stw-gold); }
 .stw-secondary { border:1px solid #e9c77a40; background:#ffffff0c; }
 .stw-result section > small { color:var(--stw-gold); font-weight:900; letter-spacing:.2em; }

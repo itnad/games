@@ -32,13 +32,15 @@ export function stwReplayCode(state, build = "") {
 /**
  * 재현 코드로 경기를 다시 돌린다. 매 틱 전에 그 틱까지의 사람 명령을 넣고, AI는 원래처럼 생각한다.
  * until(초)을 주면 그 시각에서 멈춘다(그 시점의 상태를 살펴볼 때). 경기가 끝나면 멈춘다.
+ * 경기 중에(일시정지 화면에서) 뽑은 코드는 따로 주지 않으면 뽑은 시각에서 멈춘다(그 뒤는 사람 명령이 없어 원래 경기와 다르다).
  * onTick(state)를 주면 틱마다 부른다.
  */
-export function stwReplay(code, { until = Infinity, onTick = null } = {}) {
+export function stwReplay(code, { until = code?.end?.status === "playing" ? code.end.time : Infinity, onTick = null } = {}) {
   if (!code || code.v !== STW_REPLAY_VERSION) throw new Error("재현 코드 형식이 맞지 않습니다");
   const state = code.scenario ? stwCreateScenario(code.scenario) : createStarswarGame(code.setup);
   const commands = code.commands ?? [];
-  const limit = Math.min(until, REPLAY_TIME_LIMIT);
+  // 시각은 0.1초씩 더해 가며 쌓여 소수 오차가 있으므로 틱 수로 견준다.
+  const limitTick = Math.round(Math.min(until, REPLAY_TIME_LIMIT) * 10);
   let next = 0;
   for (;;) {
     const tick = Math.round(state.time * 10);
@@ -47,7 +49,7 @@ export function stwReplay(code, { until = Infinity, onTick = null } = {}) {
       stwIssue(state, side, command);
       next += 1;
     }
-    if (state.status !== "playing" || state.time >= limit) break;
+    if (state.status !== "playing" || tick >= limitTick) break;
     stepStarswar(state, stwAiThink);
     onTick?.(state);
   }
