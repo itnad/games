@@ -279,6 +279,12 @@ def check_soak(page, context, checks, args):
     checks["observed_seconds"] = round(report["seconds"], 1)
 
 
+class Progress(dict):
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        print(f"  {key}: {value}", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--only-soak", action="store_true")
@@ -300,10 +306,10 @@ def main():
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.on("dialog", lambda dialog: dialog.accept())
-            case = {"viewport": [width, height], "checks": {}, "errors": errors}
+            case = {"viewport": [width, height], "checks": Progress(), "errors": errors}
             results.append(case)
             try:
-                page.goto(args.url, wait_until="networkidle")
+                page.goto(args.url + ("&" if "?" in args.url else "?") + "scenario=controls", wait_until="networkidle")
                 check_case(page, context, case["checks"])
                 assert not errors, f"JavaScript errors: {errors}"
                 case["checks"]["no_runtime_error"] = True
@@ -326,10 +332,10 @@ def main():
             page.set_default_timeout(10000)
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
-            case = {"case": name, "checks": {}, "errors": errors}
+            case = {"case": name, "checks": Progress(), "errors": errors}
             results.append(case)
             try:
-                page.goto(args.url, wait_until="networkidle")
+                page.goto(args.url + ("&" if "?" in args.url else "?") + "scenario=controls", wait_until="networkidle")
                 test(page, context, case["checks"])
                 assert not errors, f"JavaScript errors: {errors}"
                 case["checks"]["no_runtime_error"] = True
