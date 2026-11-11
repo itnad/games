@@ -3759,6 +3759,11 @@ function cleanup(state) {
     if (unit.returned) continue;
     state.sides[unit.side].stats.lost += 1;
     state.sides[stwOpponent(unit.side)].stats.kills += 1;
+    // 지도 위의 일꾼(정찰 등)이 죽으면 잃은 일꾼·처치한 일꾼에도 센다(결과 표에 정찰 일꾼이 빠졌다).
+    if (isWorker(unit)) {
+      state.sides[unit.side].stats.workersLost = (state.sides[unit.side].stats.workersLost ?? 0) + 1;
+      state.sides[stwOpponent(unit.side)].stats.workersKilled = (state.sides[stwOpponent(unit.side)].stats.workersKilled ?? 0) + 1;
+    }
     state.effects.push({ kind: "death", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.7, max: 0.7, radius: ["dragoon", "reaver", "archon", "tank", "vulture", "lurker", "ultra", "overlord"].includes(unit.type) ? 3.6 : STW_UNITS[unit.type].supply >= 4 ? 5 : unit.radius * 2 });
     if (isWorker(unit) && unit.group === "scout" && unit.side === "player") pushLog(state, "player", `정찰 ${withKoreanObject(STW_UNITS[unit.type].name)} 잃었습니다.`, "warn");
     if (unit.type === "overlord" && unit.side === "player") pushLog(state, "player", state.sides.player.escort ? "동행 오버로드를 잃었습니다. 인구 상한이 8 줄었습니다." : "기지를 떠난 오버로드를 잃었습니다. 인구 상한이 8 줄었습니다.", "danger");
