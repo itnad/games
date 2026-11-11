@@ -34,7 +34,7 @@ describe('local-only lab fixtures',()=>{
     const fixture=createScenario(id),grid=new NavigationGrid(fixture.map,fixture.state);
     expect(()=>scenarioEnvelope(fixture)).not.toThrow();
     fixture.state.entities.id.forEach((entity,i)=>expect(grid.clear({x:fixture.state.entities.x[i],y:fixture.state.entities.y[i]},fixture.state.entities.radius[i],fixture.state.entities.layer[i],entity)).toBe(true));
-    expect(fixture.ids).toHaveLength(id==='cross200'?100:id==='controls'?10:50);
+    expect(fixture.ids).toHaveLength(id.startsWith('economy-')?id==='economy-zerg'?6:5:id==='cross200'?100:id==='controls'?10:50);
     expect(resolveLabMap(fixture.map.id).dataVersion).toBe(fixture.dataVersion);
   });
   it('rejects lab IDs in the production runtime and isolates observer failures in a lab runtime',()=>{
