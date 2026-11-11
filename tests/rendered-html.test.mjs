@@ -758,7 +758,7 @@ test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
   assert.doesNotMatch(hiddenSet, /"mudflat-survivor"/);
 });
 
-test("keeps Gate War in its own app/starswar folder as a mobile game, hidden until renamed", async () => {
+test("keeps StarDraft in its own app/starswar folder as a mobile game at /stardraft, hidden for now", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const viteConfig = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
@@ -785,8 +785,11 @@ test("keeps Gate War in its own app/starswar folder as a mobile game, hidden unt
   assert.match(layoutSource, /import "\.\/starswar\/starswar\.css";/);
   assert.match(pageSource, /id: "starswar",[\s\S]*?title: "스타드래프트",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
-  // 유닛·건물 이름을 독자 이름으로 바꾸기 전까지 홈 목록에서 숨긴다.
+  // 유닛·건물은 원작 이름 그대로라 공개 시점을 정할 때까지 홈 목록에서 숨긴다.
   assert.match(hiddenSet, /"starswar"/);
+  // 주소는 제목을 따라 /stardraft(내부 ID는 starswar 그대로).
+  assert.match(pageSource, /stardraft: "starswar"/);
+  assert.match(pageSource, /if \(gameId === "starswar"\) return "\/stardraft"/);
 
   const pixiSource = await readFile(new URL("../app/starswar/starswar-pixi.ts", import.meta.url), "utf8");
   assert.match(pixiSource, /await import\("pixi\.js"\)/, "PixiJS는 브라우저에서만 동적으로 불러온다");

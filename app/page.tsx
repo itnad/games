@@ -485,6 +485,7 @@ const PENDING_GAME_AFTER_UPDATE_KEY = "paperoid-pending-game-after-update";
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const PUBLIC_GAME_PATH_ALIASES: Readonly<Record<string, GameId>> = {
   haeru: "mudflat-survivor",
+  stardraft: "starswar",
 };
 
 function publicGameIdFromPath(value: string | null | undefined): GameId | null {
@@ -496,6 +497,7 @@ function publicGameIdFromPath(value: string | null | undefined): GameId | null {
 
 function gamePath(gameId: GameId | null) {
   if (gameId === "mudflat-survivor") return "/haeru";
+  if (gameId === "starswar") return "/stardraft";
   return gameId ? `/${gameId}` : "/";
 }
 
