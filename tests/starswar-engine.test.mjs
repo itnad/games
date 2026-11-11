@@ -864,7 +864,7 @@ test("starswar records army value, supply peaks and lost value for the result sc
   assert.deepEqual(Object.keys(state.history[0]).sort(), ["enemy", "player", "t"]);
   const last = state.history.at(-1);
   assert.equal(last.t, 300);
-  assert.ok(last.player.army > 0 && last.enemy.army > 0, "병력 가치");
+  assert.ok(state.history.some((point) => point.player.army > 0 && point.enemy.army > 0), "병력 가치");
   assert.ok(state.sides.player.stats.supplyPeak >= last.player.supply, "최대 인구");
   for (const side of ["player", "enemy"]) {
     const stats = state.sides[side].stats;

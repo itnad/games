@@ -99,9 +99,11 @@ const BUILD_ORDERS = {
     { build: "expand", at: 280 }, { build: "factory" }, { build: "refinery" }, { build: "armory" }, { research: "wraithCloak" }, { build: "academy" }, { build: "comsat" }, { build: "ebay" }, { build: "turret" },
   ],
   // 뮤탈 저글링: 저글링 물량의 경제 위에 레어·스파이어를 얹어 해처리 절반에서 뮤탈리스크를 띄운다.
+  // 레어는 3분 30초, 스파이어는 레어 바로 뒤. 발업은 스파이어 다음이다(예전에는 발업·확장·해처리 뒤에 레어가 4분 50초,
+  // 첫 뮤탈이 평균 8분 43초라 그 전에 13판 중 11판을 졌다).
   muta: [
-    { build: "pool" }, { build: "overlord" }, { build: "extractor" }, { research: "metabolic" }, { build: "hatch" },
-    { build: "overlord" }, { build: "expand", at: 200 }, { research: "lair", at: 240 }, { build: "extractor" }, { build: "spire" },
+    { build: "pool" }, { build: "overlord" }, { build: "extractor" }, { build: "hatch" }, { build: "overlord" },
+    { research: "lair", at: 210 }, { build: "expand", at: 210 }, { build: "extractor" }, { build: "spire" }, { research: "metabolic" },
     { build: "hatch" }, { build: "evo" }, { build: "sunken" }, { research: "zCarapace1" }, { research: "zMelee1" }, { build: "hatch" },
     { build: "nest", at: 480 }, { research: "hive" }, { research: "greaterSpire" },
   ],
@@ -110,10 +112,11 @@ const BUILD_ORDERS = {
     { build: "overlord" }, { build: "hatch" }, { build: "evo", at: 300 }, { research: "zMelee1" }, { build: "expand", at: 330 },
     { build: "den" }, { research: "zCarapace1" }, { build: "extractor" },
   ],
+  // 울트라리스크 동굴은 레어와 덴만 있으면 된다. 레어 바로 뒤에 동굴을 올린다(예전에는 업그레이드 둘 뒤라 13판 중 한 번도 울트라를 못 뽑았다).
   ultra: [
     { build: "overlord" }, { build: "pool" }, { build: "expand", at: 150 }, { build: "extractor" }, { build: "sunken" },
-    { build: "overlord" }, { build: "sunken" }, { build: "den" }, { build: "extractor" }, { research: "lair", at: 270 },
-    { build: "evo" }, { research: "zMelee1" }, { research: "zCarapace1" }, { build: "cavern" }, { research: "chitin" },
+    { build: "overlord" }, { build: "den" }, { build: "extractor" }, { research: "lair", at: 240 }, { build: "sunken" },
+    { build: "cavern" }, { build: "evo" }, { research: "zMelee1" }, { research: "chitin" }, { research: "zCarapace1" },
     { research: "metabolic" }, { build: "hatch" }, { research: "zMelee2" },
     { build: "nest", at: 480 }, { research: "hive" }, { build: "mound" }, { research: "plague" },
   ],
@@ -209,6 +212,27 @@ const DEFAULT_PERSONA = { protoss: "dragoon", terran: "bio", zerg: "hydra" };
  */
 const ALERT_TECH = new Set(["core", "academy", "den", "evo", "shop"]);
 
+/**
+ * 테크 성향의 핵심 테크 단계: 이 단계가 빌드 순서의 맨 앞에서 자원을 기다리면, 병력이 안전한 동안 생산을 멈춰서라도 그 비용을 모은다.
+ * 예전에는 저그가 맨 앞 단계를 아끼지 않고(확장만 아꼈다) 프로토스·테란은 경계 중 테크를 막아, 테크 성향이 본진 일꾼 22기로
+ * 8~9분까지 묶인 채 대표 유닛을 못 뽑았다(평원, 다른 종족 상대: 울트라 0/13판, 리버 2/12, 디파일러·가디언 3/13, 캐리어 4/12, 배틀크루저 5/13).
+ */
+const TECH_STEPS = {
+  muta: ["lair", "spire"], ultra: ["lair", "cavern"], hive: ["lair", "nest", "hive", "mound"],
+  carrier: ["core", "stargate", "beacon"], bc: ["factory", "starport", "science"], templar: ["core", "citadel", "archives", "storm"],
+  robo: ["core", "robo", "bay"], dark: ["core", "citadel", "archives"], wraith: ["factory", "starport"],
+};
+
+/**
+ * 병력이 안전한지: 지금 싸울 수 있는 병력의 힘이 최근 본 가장 큰 적 병력의 80%(최소 질럿 1.5기쯤) 이상.
+ * 안전할 때만 생산을 멈추고 테크·확장 자원을 모은다. 병력이 얇은데 생산을 멈추면 첫 웨이브에 무너지고, 그 뒤로는 새 유닛이 나오는 대로 잡힌다.
+ */
+function armySafe(state, side, memory) {
+  const army = stwArmy(state, side);
+  const own = armyPower(army.fighters) + armyPower(army.attackers);
+  return own >= Math.max(seenFoePower(state, side, memory) * 0.8, 70);
+}
+
 export function stwAiThink(state, side) {
   const record = state.sides[side];
   const settings = STW_DIFFICULTIES[state.difficulty];
@@ -226,6 +250,7 @@ export function stwAiThink(state, side) {
   if (memory.scouted && !memory.scouted2 && state.time >= 210 && record.probes >= 8 && stwCommand(state, side, { type: "scout" }).ok) memory.scouted2 = true;
   if (settings.master) readOpponent(state, side, record, memory);
   const alert = assessThreat(state, side, memory);
+  trackFoe(state, side, memory);
   // 리포트용 기록: 경계 상태로 보낸 시간과 처음 경계에 들어간 시각(판단에는 쓰지 않는다).
   if (alert) {
     memory.alertSeconds = Math.round(((memory.alertSeconds ?? 0) + settings.thinkEvery) * 10) / 10;
@@ -236,7 +261,9 @@ export function stwAiThink(state, side) {
   // 다음 건물·연구에 필요한 자원만 아껴 둔다(모자란 쪽만). 생산 건물이 유닛을 멈추고 기다리는 것은
   // 확장·인구·경계 중 방어 건물처럼 늦으면 크게 손해인 것(hard)뿐이고, 연구·테크 건물은 남는 자원으로만 한다.
   // expand: 확장이 30초 넘게 자원 부족으로 막혀 있으면 첫 생산 건물만 남기고 모두 멈춰 확장부터 한다(경계가 길어지면 경제가 영영 멈추던 문제).
-  const reserve = { minerals: 0, gas: 0, hard: 0, expand: false };
+  // safe: 병력이 안전한 동안만 생산 건물을 멈춰 가며 자원을 모은다(armySafe). 생산 라인 규칙이 함께 본다.
+  const safe = armySafe(state, side, memory);
+  const reserve = { minerals: 0, gas: 0, hard: 0, expand: false, safe };
   const save = (minerals, gas, hard = false) => {
     if (record.minerals < minerals) {
       reserve.minerals = Math.max(reserve.minerals, minerals);
@@ -313,7 +340,9 @@ export function stwAiThink(state, side) {
     // 6분이 지나면 확장도 허용한다(견제로 경계가 끝없이 이어지면 경제가 영영 멈춘다). 확장 비용은 바로 아끼므로 노는 생산 건물이 멈춰 돈이 모인다.
     // 가스가 150 넘게 쌓였으면 1단계 해금 건물(코어 등)은 5분 전에도 짓는다. 가스를 쓸 유닛이 없으면 쌓이기만 한다.
     const gasIdle = record.gas >= 150;
-    const allowedInAlert = step.opener || (step.research ? state.time >= 300 && !reserve.hard : step.build === "expand" ? state.time >= 360 : step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && (state.time >= 300 || gasIdle)) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length));
+    const techStep = Boolean(TECH_STEPS[persona]?.includes(step.build ?? step.research));
+    // 테크 성향의 핵심 테크는 병력이 안전하면 경계 중에도 올린다(경계가 길면 대표 유닛이 영영 늦었다).
+    const allowedInAlert = step.opener || (techStep && safe) || (step.research ? state.time >= 300 && !reserve.hard : step.build === "expand" ? state.time >= 360 : step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && (state.time >= 300 || gasIdle)) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length));
     if (alert && !allowedInAlert) {
       blocked += 1;
       continue;
@@ -326,7 +355,8 @@ export function stwAiThink(state, side) {
     }
     // 둘째 가스 건물은 일꾼이 18기는 돼야 짓는다. 13기에 둘째 가스를 지어 6기가 가스에 붙자, 광물이 모자라 코어도 질럿도 못 뽑고
     // 가스만 626 쌓인 채 질럿 압박에 5분 30초에 졌다.
-    if (step.build === race.refinery && race.id !== "zerg" && stwOwnBuildings(state, side, race.refinery).length >= 1 && record.probes < 18) {
+    // 가스를 많이 쓰는 테크 성향(캐리어·배틀크루저·템플러·다크·로보·레이스)은 16기에 짓는다.
+    if (step.build === race.refinery && race.id !== "zerg" && stwOwnBuildings(state, side, race.refinery).length >= 1 && record.probes < (TECH_STEPS[persona] ? 16 : 18)) {
       blocked += 1;
       continue;
     }
@@ -369,10 +399,11 @@ export function stwAiThink(state, side) {
       // 프로토스·테란은 바로 아낀다(놀고 있는 생산 건물만 멈추므로 손해가 작다). 저그는 확장만 바로 아끼고,
       // 저글링 물량은 15초 넘게 막힌 단계도 아낀다(해처리를 멈추지 않으면 연구 자금이 영영 안 모인다. 다른 저그 성향은 이 규칙으로 러시 방어가 약해져 쓰지 않는다).
       // 경계 중에는 방어 건물·인구 건물이 아니면 생산을 멈춰 가며 모으지 않는다(팩토리를 기다리느라 배럭이 놀다가 러시에 무너지던 문제).
-      const strict = step.build === "expand" || race.id !== "zerg" || ((persona === "ling" || persona === "muta") && state.time - memory.headSince > 15);
+      // 테크 성향의 핵심 테크 단계도 병력이 안전하면 반드시 아낀다(저그도).
+      const strict = step.build === "expand" || race.id !== "zerg" || (persona === "ling" && state.time - memory.headSince > 15) || (techStep && safe);
       // 가스가 놀고 있으면 그 가스를 쓰게 하는 해금 건물(코어 등)도 반드시 산다(경계 중 질럿에 광물을 다 써 코어가 11분에야 섰다).
       const unlocksGas = gasIdle && ALERT_TECH.has(step.build);
-      save(cost.minerals, cost.gas, (strict && (!alert || step.build === race.supply || Boolean(STW_BUILDINGS[step.build]?.defense))) || unlocksGas);
+      save(cost.minerals, cost.gas, (strict && (!alert || step.build === race.supply || Boolean(STW_BUILDINGS[step.build]?.defense) || (techStep && safe))) || unlocksGas);
       if (step.build === "expand" && state.time - memory.headSince > 30) reserve.expand = true;
     }
     blocked += 1;
@@ -520,7 +551,7 @@ export function stwAiThink(state, side) {
     if (unit && !core && record.gas < STW_UNITS[unit].gas + reserve.gas && record.minerals < 400) unit = null;
     // 확장·방어 비용을 모으는 중에 놀고 있으면 멈춘다. 커세어·캐리어 성향도 반드시 사야 할 비용(hard)은 지킨다:
     // 예전에는 핵심 유닛이라 빼 줬더니, 캐논에 녹는 커세어를 계속 다시 뽑느라 확장 400을 9분 넘게 못 모았다.
-    if (unit && ((reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && !stargate.current) || (!core && reserve.expand))) unit = null;
+    if (unit && safe && ((reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && !stargate.current) || (!core && reserve.expand))) unit = null;
     if (stargate.line !== unit) stwCommand(state, side, { type: "line", buildingId: stargate.id, unit });
   }
 
@@ -563,7 +594,8 @@ export function stwAiThink(state, side) {
     // 광물을 기다리며 놀고 있는 게이트웨이만 멈춘다(만드는 중이면 그것까지는 끝낸다).
     // 확장을 기다릴 때 커세어 질럿은 스타게이트만 남기고 게이트웨이를 모두 멈춘다. 스타게이트가 광물을 기다리면 첫 게이트웨이만 돌린다.
     const stargateWaiting = persona === "corsair" && stwOwnBuildings(state, side, "stargate", { doneOnly: true }).some((stargate) => stargate.line && !stargate.current);
-    const desired = (starving && !thin && !keepRunning && !gateway.current) || (reserve.expand && index > 0) || (stargateWaiting && index > 1) ? null : unit;
+    // 병력이 안전하지 않으면 멈추지 않는다(생산을 멈춘 채 첫 웨이브를 맞으면 무너진다).
+    const desired = (starving && !thin && safe && !keepRunning && !gateway.current) || (reserve.expand && safe && index > 0) || (stargateWaiting && safe && index > 1) ? null : unit;
     if (gateway.line !== desired) stwCommand(state, side, { type: "line", gatewayId: gateway.id, unit: desired });
   });
 
@@ -693,9 +725,9 @@ function terranLines(state, side, persona, units, reserve) {
     // 락다운을 연구했으면 배럭 하나는 고스트(셋까지): 드라군·리버·캐리어 같은 기계 유닛을 묶는다.
     if (index === 0 && stwResearchDone(state, side, "lockdown") && count("ghost") < 3) unit = "ghost";
     if (unit && STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas) unit = "marine";
-    const starving = unit && reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && units.length >= 3;
-    // 광물을 기다리며 놀고 있는 배럭만 멈춘다(만드는 중이면 그것까지는 끝낸다).
-    const desired = (starving && !barracks.current) || (reserve.expand && index > 0) ? null : unit;
+    const starving = unit && reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && units.length >= 3 && reserve.safe;
+    // 광물을 기다리며 놀고 있는 배럭만 멈춘다(만드는 중이면 그것까지는 끝낸다). 병력이 안전하지 않으면 멈추지 않는다.
+    const desired = (starving && !barracks.current) || (reserve.expand && reserve.safe && index > 0) ? null : unit;
     if (barracks.line !== desired) stwCommand(state, side, { type: "line", buildingId: barracks.id, unit: desired });
   });
   stwOwnBuildings(state, side, "factory").sort((a, b) => a.id - b.id).forEach((factory, index) => {
@@ -714,9 +746,10 @@ function terranLines(state, side, persona, units, reserve) {
         if (!stwOwnBuildings(state, side, "armory").length) stwCommand(state, side, { type: "build", building: "armory" });
       } else if (airDominant || index % 2 === 0 || unit === null) unit = "goliath";
     }
-    if (unit === "tank" && record.gas < STW_UNITS.tank.gas + reserve.gas) unit = persona === "mech" || persona === "vulture" || persona === "bc" ? "vulture" : null;
+    // 가스가 모자라 탱크를 못 뽑으면 벌처(레이스 메카닉도: 예전에는 팩토리가 가스를 기다리며 경기당 몇 분씩 놀았다).
+    if (unit === "tank" && record.gas < STW_UNITS.tank.gas + reserve.gas) unit = persona === "mech" || persona === "vulture" || persona === "bc" || persona === "wraith" ? "vulture" : null;
     if (unit === "goliath" && record.gas < STW_UNITS.goliath.gas + reserve.gas) unit = "vulture";
-    if (reserve.expand && index > 0) unit = null;
+    if (reserve.expand && reserve.safe && index > 0) unit = null;
     if (factory.line !== unit) stwCommand(state, side, { type: "line", buildingId: factory.id, unit });
   });
   // 스타포트: 레이스 메카닉은 레이스를 계속, 다른 성향은 가스가 남을 때만.
@@ -738,7 +771,7 @@ function terranLines(state, side, persona, units, reserve) {
     // 레이스·배틀크루저는 그 성향의 핵심이라 연구용 가스보다 먼저 만든다.
     const core = persona === "wraith" || persona === "bc";
     if (unit && !core && record.gas < STW_UNITS[unit].gas + reserve.gas && record.minerals < 400) unit = null;
-    if (unit && !core && ((reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && !starport.current) || reserve.expand)) unit = null;
+    if (unit && !core && reserve.safe && ((reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && !starport.current) || reserve.expand)) unit = null;
     if (starport.line !== unit) stwCommand(state, side, { type: "line", buildingId: starport.id, unit });
   });
 }
@@ -815,10 +848,11 @@ function zergLines(state, side, persona, units, reserve) {
     if (STW_UNITS[unit].gas && record.gas < gasFor(unit)) unit = ["lurker", "ultra", "guardian", "devourer", "defiler", "queen"].includes(unit) && den ? "hydra" : "zergling";
     if (unit === "zergling" && (airHeavy || mix?.wraith > 0.2) && !den && spire && record.gas >= 75) unit = "scourge";
     if (STW_UNITS[unit].gas && record.gas < gasFor(unit)) unit = "zergling";
-    const starving = reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && army >= 4;
+    const starving = reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && army >= 4 && reserve.safe;
     // 본진 해처리는 아끼는 중에도 계속 변태시킨다. 저글링 물량은 나머지를 지금 만드는 것까지만 끝내고 멈춘다
     // (저글링은 50이라 해처리가 노는 때가 없어, 노는 해처리만 멈추는 규칙으로는 앞마당·연구 자금이 영영 안 모인다). 다른 성향은 노는 해처리만 멈춘다.
-    const desired = index > 0 && (reserve.expand || (starving && (persona === "ling" || persona === "muta" || !hatchery.current))) ? null : unit;
+    // 뮤탈 저글링도 예전에는 저글링 물량처럼 멈췄는데, 레어·스파이어를 모으는 5분 30초부터 해처리를 세워 둔 채 병력이 0이 되어 졌다.
+    const desired = index > 0 && ((reserve.expand && reserve.safe) || (starving && (persona === "ling" || !hatchery.current))) ? null : unit;
     if (hatchery.line !== desired) stwCommand(state, side, { type: "line", buildingId: hatchery.id, unit: desired });
   });
 }
@@ -847,7 +881,8 @@ function switchStrategy(state, side, memory) {
   }
   // 공중 성향은 스타게이트·스타포트·스파이어가 서고 주력이 나와 본 뒤(11분)에야 갈아탄다. 그 전의 실패는 테크를 올리는 중의 일이다.
   const since = SWITCH_AFTER[from] ?? 480;
-  if (state.time < since || failed < (state.time < since + 240 ? 2 : 1)) return;
+  // 빠른 저글링은 한 번 막히면 바로 갈아탄다.
+  if (state.time < since || failed < (from === "pool" || state.time >= since + 240 ? 1 : 2)) return;
   const next = SWITCH_TO[from](foeMix(state, side) ?? {});
   memory.switched = { from, to: next, at: state.time };
   memory.done = [];
@@ -859,14 +894,16 @@ function switchStrategy(state, side, memory) {
 
 /** 전략 전환 표: 큰 물량이 거듭 막힌 성향이 상대 구성을 보고 갈아타는 곳. 공중 성향은 대공이 두꺼운 상대에게 지상 운영으로 돌아선다. */
 const SWITCH_TO = {
+  // 빠른 저글링: 첫 웨이브가 막히면 바로 운영으로 넘어간다(그대로 두면 일꾼 14기에 묶여 7분 안에 40%를 졌다).
+  pool: (mix) => ((mix.zealot ?? 0) + (mix.dark ?? 0) + (mix.marine ?? 0) + (mix.medic ?? 0) + (mix.firebat ?? 0) + (mix.vulture ?? 0) + (mix.tank ?? 0) > 0.5 ? "hydra" : "ling"),
   ling: (mix) => ((mix.vulture ?? 0) + (mix.tank ?? 0) + (mix.firebat ?? 0) > 0.4 ? "ultra" : "hydra"),
   muta: (mix) => ((mix.vulture ?? 0) + (mix.tank ?? 0) + (mix.goliath ?? 0) > 0.4 ? "ultra" : "hydra"),
   corsair: (mix) => ((mix.marine ?? 0) + (mix.medic ?? 0) + (mix.zergling ?? 0) + (mix.hydra ?? 0) > 0.5 ? "templar" : "dragoon"),
   wraith: (mix) => ((mix.dragoon ?? 0) + (mix.hydra ?? 0) + (mix.goliath ?? 0) > 0.4 ? "mech" : "tankbio"),
 };
 /** 전략 전환 판단에 세는 "제대로 모은 물량"의 크기와, 전환을 생각하기 시작하는 시각(초). */
-const BIG_WAVE = { ling: 24, muta: 14, corsair: 12, wraith: 12 };
-const SWITCH_AFTER = { ling: 480, muta: 660, corsair: 660, wraith: 660 };
+const BIG_WAVE = { pool: 6, ling: 24, muta: 14, corsair: 12, wraith: 12 };
+const SWITCH_AFTER = { pool: 0, ling: 480, muta: 660, corsair: 660, wraith: 660 };
 
 /**
  * 위협 판단. 다음 중 하나면 경계 상태(memory.alertUntil)로 들어간다.
@@ -900,15 +937,26 @@ function assessThreat(state, side, memory) {
  * 보이는 적만 세면 적 본진에 모여 있는 러시 병력을 모른 채 출격해 길에서 맞붙는다.
  * power는 우리 병력의 평균 방어력(ownArmor)을 뺀 화력으로, armor는 적 한 기의 평균 방어력이다(우리 전투력을 셀 때 쓴다).
  */
-function foeArmyEstimate(state, side, memory, ownArmor = 0) {
-  const record = state.sides[side];
+/**
+ * 지금 보이는 적 전투 병력을 기억한다: 최근 90초 동안 한 번에 본 가장 많은 수(peakFoe)와 그 구성(foeTypes).
+ * 생각할 때마다 부른다. 예전에는 경계 중에만 갱신해서, 경계가 아닐 때의 출격 판단이 오래된(또는 빈) 기억을 썼다.
+ */
+function trackFoe(state, side, memory) {
   const foe = stwOpponent(side);
-  const foeRace = STW_RACES[state.sides[foe].race ?? "protoss"];
   const visible = state.units.filter((unit) => unit.side === foe && !STW_UNITS[unit.type].worker && STW_UNITS[unit.type].role !== "support" && stwVisible(state, side, unit.x, unit.y));
   if (visible.length >= (memory.peakFoe ?? 0) || state.time - (memory.peakFoeAt ?? 0) > 90) {
     memory.peakFoe = visible.length;
     memory.peakFoeAt = state.time;
+    if (visible.length) memory.peakTypes = visible.map((unit) => unit.type);
   }
+  return visible;
+}
+
+function foeArmyEstimate(state, side, memory, ownArmor = 0) {
+  const record = state.sides[side];
+  const foe = stwOpponent(side);
+  const foeRace = STW_RACES[state.sides[foe].race ?? "protoss"];
+  const visible = trackFoe(state, side, memory);
   // 적 병력 구성: 지금 보이는 적, 없으면 정찰 때 본 적, 그것도 없으면 마지막으로 본 구성이나 그 종족의 기본 유닛.
   const intel = record.intel && state.time - record.intel.time < 180 ? record.intel : null;
   const mix = visible.length ? visible.map((unit) => unit.type) : Object.entries(intel?.units ?? {}).flatMap(([type, count]) => (STW_UNITS[type] && STW_UNITS[type].role !== "support" ? Array(count).fill(type) : []));
@@ -972,7 +1020,7 @@ function defensePower(state, side) {
 
 /** 최근 90초 안에 한 번에 본 가장 많은 적 전투 병력의 힘(정찰로 짐작한 생산량은 더하지 않는다). */
 function seenFoePower(state, side, memory) {
-  const types = memory.foeTypes ?? [];
+  const types = memory.peakTypes ?? memory.foeTypes ?? [];
   if (!types.length || !memory.peakFoe) return 0;
   const each = types.reduce((sum, type) => sum + unitPower(type), 0) / types.length;
   return memory.peakFoe * each;
@@ -1068,7 +1116,9 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   const outgunned = estimate !== null && (armyPower(army.fighters, estimate.armor) < estimate.power * 1.5 || incomingWave(state, side));
   // 방어 건물 앞에서는 수가 아니라 힘을 본다: 본 적 방어 건물(캐논·벙커·성큰)의 힘과 최근 본 적 병력의 힘을 더한 것보다
   // 우리 전투력이 커야 나간다. 출격 규모만 보고 캐논 7~8개가 선 앞마당에 들이받아 두 번에 걸쳐 병력을 다 잃었다(사람의 캐논 수비 + 캐리어).
-  const fortified = !allIn && !estimate && defensePower(state, side) > 0 && armyPower(army.fighters) < (defensePower(state, side) + seenFoePower(state, side, memory)) * 1.1;
+  // 방어 건물을 못 봤어도 같은 규칙으로 본다: 최근 본 적 병력보다 힘이 모자라면 나가지 않는다. 예전에는 방어 건물을 봐야만 따져서,
+  // 저그가 4분에 저글링 16기를 해병·메딕에 던져 잃고 무너지는 일이 잦았다(바이오닉이 저그를 100% 이겼다).
+  const fortified = !allIn && !estimate && armyPower(army.fighters) < (defensePower(state, side) + seenFoePower(state, side, memory)) * 1.1;
   // 기지에 적이 3기 이상 들어와 있으면 나가지 않고 집에서 받아친다. 총공격 조건(광물 바닥)과 기지 방어(후퇴)가 번갈아 걸려
   // 2초마다 공격·후퇴를 오가며 병력이 길에서 녹던 문제.
   if (army.fighters.length >= size && !outgunned && !fortified && threat < 3) {
