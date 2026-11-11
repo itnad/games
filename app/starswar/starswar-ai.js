@@ -58,9 +58,10 @@ const BUILD_ORDERS = {
     { build: "gateway" }, { build: "forge" }, { build: "cannon" }, { research: "weapons1" }, { build: "gateway" }, { build: "citadel" }, { research: "charge" },
   ],
   // 캐리어 함대: 드라군 운영으로 버티며 스타게이트 둘과 플릿 비컨을 올려 캐리어를 모은다.
+  // 앞마당을 스타게이트보다 먼저 먹는다. 테크를 우선하게 한 뒤 비컨·캐리어 자원을 모으느라 확장이 8분까지 밀려 일꾼 22기로 버티다 졌다.
   carrier: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "assimilator" },
-    { build: "pylon" }, { build: "stargate" }, { build: "gateway" }, { build: "beacon" }, { build: "expand", at: 270 },
+    { build: "pylon" }, { build: "gateway" }, { build: "expand", at: 240 }, { build: "stargate" }, { build: "beacon" },
     { build: "forge" }, { build: "cannon" }, { build: "stargate" }, { research: "carrierCapacity" }, { research: "range" }, { build: "cannon" }, { research: "weapons1" },
   ],
   bio: [
