@@ -476,6 +476,8 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "winners-circle",
   "paper-dungeon",
   "tetris",
+  // 스타즈워: 유닛·건물 이름을 독자 이름으로 바꾸기 전까지 숨긴다(원작 이름 그대로라 공개 목록에 올리지 않는다).
+  "starswar",
 ]);
 
 const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";

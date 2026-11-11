@@ -5,6 +5,7 @@
 - 코드 접두어: 함수 `stw…`, 상수 `STW_…`, 타입 `Stw…`, CSS 클래스 `stw-` (`sw-`는 7대 문명이 쓰고 있어 피한다)
 
 - 주소: `/starswar`
+- 사이트 목록에서는 숨김(`app/page.tsx`의 `DEFAULT_HIDDEN_GAME_IDS`). 홈 바닥글의 "즐거운"을 눌러 모든 게임을 켰을 때만 보이고, 숨긴 동안에는 주소로 바로 들어가도 홈으로 간다. 유닛·건물 이름을 독자 이름으로 바꾼 뒤 공개한다
 - 소스 폴더: `app/starswar/`
 - 테스트: `tests/starswar-engine.test.mjs`
 

@@ -76,7 +76,7 @@ tests/                           게임 규칙·저장·렌더링 회귀 테스�
 
 ## 3-1. 스타즈워
 
-`/starswar`에서 실행되는 모바일 웨이브 전략 게임입니다. 화면은 PixiJS로 그리며, PixiJS는 브라우저에서만 불러옵니다. 모든 소스는 `app/starswar/` 폴더에 있고, 기획과 규칙은 [스타즈워 기획·구현 문서](docs/starswar-design.md)에 있습니다. 엔진과 AI 테스트는 `tests/starswar-engine.test.mjs`에 있습니다. 결과 화면의 리포트에 담긴 재현 코드는 `node scripts/starswar-replay.mjs 리포트.txt`로 다시 돌려 볼 수 있습니다.
+`/starswar`에서 실행되는 모바일 웨이브 전략 게임입니다. 유닛·건물 이름을 독자 이름으로 바꾸기 전까지 홈 목록에서 숨겨 두었습니다(바닥글의 "즐거운"으로 모든 게임을 켜면 보입니다). 화면은 PixiJS로 그리며, PixiJS는 브라우저에서만 불러옵니다. 모든 소스는 `app/starswar/` 폴더에 있고, 기획과 규칙은 [스타즈워 기획·구현 문서](docs/starswar-design.md)에 있습니다. 엔진과 AI 테스트는 `tests/starswar-engine.test.mjs`에 있습니다. 결과 화면의 리포트에 담긴 재현 코드는 `node scripts/starswar-replay.mjs 리포트.txt`로 다시 돌려 볼 수 있습니다.
 
 사이트 없이 휴대폰에서 바로 시험하려면 HTML 파일 하나로 묶을 수 있습니다. 결과는 Git에 올라가지 않는 `dist-standalone/` 폴더에 생깁니다.
 

@@ -415,6 +415,7 @@ test("hides unverified games by default and reveals them from the footer phrase"
     "winners-circle",
     "paper-dungeon",
     "tetris",
+    "starswar",
   ];
 
   for (const id of hiddenIds) {
@@ -757,7 +758,7 @@ test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
   assert.doesNotMatch(hiddenSet, /"mudflat-survivor"/);
 });
 
-test("keeps Gate War in its own app/starswar folder and publishes it as a mobile game", async () => {
+test("keeps Gate War in its own app/starswar folder as a mobile game, hidden until renamed", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const viteConfig = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
@@ -784,7 +785,8 @@ test("keeps Gate War in its own app/starswar folder and publishes it as a mobile
   assert.match(layoutSource, /import "\.\/starswar\/starswar\.css";/);
   assert.match(pageSource, /id: "starswar",[\s\S]*?title: "스타즈워",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
-  assert.doesNotMatch(hiddenSet, /"starswar"/);
+  // 유닛·건물 이름을 독자 이름으로 바꾸기 전까지 홈 목록에서 숨긴다.
+  assert.match(hiddenSet, /"starswar"/);
 
   const pixiSource = await readFile(new URL("../app/starswar/starswar-pixi.ts", import.meta.url), "utf8");
   assert.match(pixiSource, /await import\("pixi\.js"\)/, "PixiJS는 브라우저에서만 동적으로 불러온다");
