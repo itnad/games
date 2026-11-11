@@ -1,4 +1,4 @@
-// 스타즈워을 HTML 파일 하나로 묶는다.
+// 스타드래프트를 HTML 파일 하나로 묶는다.
 //   node scripts/build-game-standalone.mjs            → dist-standalone/starswar.html (React·PixiJS 포함, 오프라인 실행)
 //   node scripts/build-game-standalone.mjs --artifact → dist-standalone/starswar-artifact.html (React는 cdnjs, PixiJS는 jsDelivr에서 로드)
 import { execSync } from "node:child_process";
@@ -54,7 +54,7 @@ const result = await build({
 
 const js = result.outputFiles.find((file) => file.path.endsWith(".js")).text.replace(/<\/script/gi, "<\\/script");
 const css = result.outputFiles.find((file) => file.path.endsWith(".css")).text.replace(/<\/style/gi, "<\\/style");
-const title = "<title>스타즈워</title>";
+const title = "<title>스타드래프트</title>";
 const body = `<div id="game-root"></div>`;
 const react = artifact
   ? [

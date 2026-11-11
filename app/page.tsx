@@ -448,7 +448,7 @@ const GAMES: GameDefinition[] = [
   },
   {
     id: "starswar",
-    title: "스타즈워",
+    title: "스타드래프트",
     subtitle: "테크와 생산만 고르면 병력이 웨이브로 진격합니다",
     category: "모바일",
     players: "AI 1:1 웨이브 전략",
@@ -476,7 +476,7 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "winners-circle",
   "paper-dungeon",
   "tetris",
-  // 스타즈워: 유닛·건물 이름을 독자 이름으로 바꾸기 전까지 숨긴다(원작 이름 그대로라 공개 목록에 올리지 않는다).
+  // 스타드래프트: 유닛·건물은 원작 이름 그대로라 공개 시점을 정할 때까지 홈 목록에서 숨긴다.
   "starswar",
 ]);
 

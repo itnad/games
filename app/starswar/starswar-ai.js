@@ -1,4 +1,4 @@
-// 스타즈워 AI. 플레이어와 같은 stwCommand만 쓴다.
+// 스타드래프트 AI. 플레이어와 같은 stwCommand만 쓴다.
 // 성향마다 빌드 순서와 출격 규모가 다르다. 프로토스·테란·저그가 같은 틀을 쓴다.
 import { STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
 import { stwIntelTag, stwLearnSwitch } from "./starswar-learn.js";

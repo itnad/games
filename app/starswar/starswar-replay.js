@@ -1,4 +1,4 @@
-// 스타즈워 경기 재현. 엔진은 결정적이므로 경기를 만든 설정과 사람이 내린 명령(틱, 명령)만 있으면
+// 스타드래프트 경기 재현. 엔진은 결정적이므로 경기를 만든 설정과 사람이 내린 명령(틱, 명령)만 있으면
 // 같은 코드에서 같은 경기를 처음부터 다시 돌릴 수 있다. 결과 화면의 리포트에 이 재현 코드를 넣는다.
 import { createStarswarGame, stepStarswar, stwCreateScenario, stwIssue } from "./starswar-engine.js";
 import { stwAiThink } from "./starswar-ai.js";

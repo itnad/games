@@ -1,4 +1,4 @@
-// 스타즈워 단독 실행 진입점. 사이트 없이 HTML 파일 하나로 게임을 띄운다.
+// 스타드래프트 단독 실행 진입점. 사이트 없이 HTML 파일 하나로 게임을 띄운다.
 import { createRoot } from "react-dom/client";
 import { StarswarGame } from "../../app/starswar/starswar-game";
 import "../../app/game-readability.css";

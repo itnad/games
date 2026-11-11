@@ -783,7 +783,7 @@ test("keeps Gate War in its own app/starswar folder as a mobile game, hidden unt
   assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^(starswar|frontline)/.test(file) && file !== "starswar"), false);
   assert.match(pageSource, /import \{ StarswarGame \} from "\.\/starswar\/starswar-game";/);
   assert.match(layoutSource, /import "\.\/starswar\/starswar\.css";/);
-  assert.match(pageSource, /id: "starswar",[\s\S]*?title: "스타즈워",[\s\S]*?category: "모바일"/);
+  assert.match(pageSource, /id: "starswar",[\s\S]*?title: "스타드래프트",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
   // 유닛·건물 이름을 독자 이름으로 바꾸기 전까지 홈 목록에서 숨긴다.
   assert.match(hiddenSet, /"starswar"/);

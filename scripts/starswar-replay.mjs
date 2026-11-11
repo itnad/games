@@ -1,4 +1,4 @@
-// 스타즈워 리포트의 재현 코드로 경기를 다시 돌린다(개발용).
+// 스타드래프트 리포트의 재현 코드로 경기를 다시 돌린다(개발용).
 //   node scripts/starswar-replay.mjs 리포트.txt            → 끝까지 돌리고 원래 경기와 같은지 확인
 //   node scripts/starswar-replay.mjs 리포트.txt --at 7:30  → 그 시각의 양쪽 병력·건물·자원을 보여 준다
 //   node scripts/starswar-replay.mjs 리포트.txt --dump 7:30 > state.json → 그 시각의 엔진 상태 전체

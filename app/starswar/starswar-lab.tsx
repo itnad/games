@@ -1,6 +1,6 @@
 "use client";
 
-// 스타즈워 실험실: 종족·전략·건물·유닛·연구·시각을 마음대로 정해 경기를 바로 세우고 시험하는 테스트용 메뉴.
+// 스타드래프트 실험실: 종족·전략·건물·유닛·연구·시각을 마음대로 정해 경기를 바로 세우고 시험하는 테스트용 메뉴.
 import { useState } from "react";
 import { withKoreanDirection, withKoreanObject } from "../korean-particles.js";
 import { STW_AI_PERSONAS, STW_BUILDINGS, STW_ECONOMY, STW_MAPS, STW_MAP_IDS, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./starswar-data.js";
@@ -356,7 +356,7 @@ export function LabScreen({ initial, onStart, onBack }: { initial: LabConfig; on
     <main className="stw-shell stw-menu-shell" data-game-menu="true">
       <header className="stw-topbar">
         <button type="button" onClick={onBack} aria-label="전투 설정으로">←</button>
-        <div><span className="stw-brand">스타즈워</span><strong>실험실</strong></div>
+        <div><span className="stw-brand">스타드래프트</span><strong>실험실</strong></div>
       </header>
       <section className="stw-menu stw-lab">
         <p className="stw-hint">종족·전략·건물·유닛·연구·시각을 마음대로 정해 경기를 바로 세웁니다. 필요한 생산·테크 건물과 선행 연구는 자동으로 갖추고, 인구 상한은 {withKoreanDirection(String(SUPPLY_LIMIT))} 채웁니다. 실험 경기는 전적과 이어하기에 남지 않습니다.</p>

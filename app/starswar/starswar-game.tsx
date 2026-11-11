@@ -702,7 +702,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       <main className="stw-shell stw-menu-shell" data-game-menu="true">
         <header className="stw-topbar">
           <button type="button" onClick={onExit} aria-label="게임 목록으로">←</button>
-          <div><span className="stw-brand">paperoid</span><strong>스타즈워</strong></div>
+          <div><span className="stw-brand">paperoid</span><strong>스타드래프트</strong></div>
         </header>
         <section className="stw-menu">
           <div className="stw-menu-hero">

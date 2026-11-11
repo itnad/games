@@ -1,4 +1,4 @@
-// 스타즈워 엔진 상태의 TypeScript 표면 타입.
+// 스타드래프트 엔진 상태의 TypeScript 표면 타입.
 export type StwSide = "player" | "enemy";
 export type StwDifficulty = "easy" | "normal" | "hard" | "master" | "pro";
 export type StwRaceId = "protoss" | "terran" | "zerg";

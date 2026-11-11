@@ -1109,12 +1109,12 @@ test("starswar result reports: bug report with replay code, AI report only for a
   assert.deepEqual(stwLosingAiSides(state), [loser]);
 
   const bug = stwBugReport(state, { build: "abc1234", device: "test", note: "드라군이 멈춤" });
-  for (const heading of ["# 스타즈워 버그 리포트", "- 드라군이 멈춤", "## 결과 표", "## 흐름 (30초마다)", "## 내 명령", "## 최근 경기 기록", "## 마지막 상태", "## 재현 코드", "게임 판: abc1234"]) assert.ok(bug.includes(heading), heading);
+  for (const heading of ["# 스타드래프트 버그 리포트", "- 드라군이 멈춤", "## 결과 표", "## 흐름 (30초마다)", "## 내 명령", "## 최근 경기 기록", "## 마지막 상태", "## 재현 코드", "게임 판: abc1234"]) assert.ok(bug.includes(heading), heading);
   const code = JSON.parse(bug.match(/```json\n(.+)\n```/)[1]);
   assert.ok(stwReplayMatches(code, stwReplay(code)), "리포트의 재현 코드로 같은 경기가 된다");
 
   const ai = stwAiReport(state, { build: "abc1234" });
-  for (const heading of ["# 스타즈워 AI 개선 자료", "### 자동 진단", "앞마당 확장:", "최대 병력 가치:", "### 큰 교전", "### 병력 구성 흐름 (1분마다)", "### AI 운영 기록", "### 상대 운영 기록", "### AI 내부 기억", "## 재현 코드"]) assert.ok(ai.includes(heading), heading);
+  for (const heading of ["# 스타드래프트 AI 개선 자료", "### 자동 진단", "앞마당 확장:", "최대 병력 가치:", "### 큰 교전", "### 병력 구성 흐름 (1분마다)", "### AI 운영 기록", "### 상대 운영 기록", "### AI 내부 기억", "## 재현 코드"]) assert.ok(ai.includes(heading), heading);
   // 운영 기록에는 빌드 순서가 남고, 생산 라인을 멈췄다 켜는 반복은 남지 않는다.
   const lines = (state.chronicle ?? []).filter((entry) => entry[1] === loser);
   assert.ok(lines.some((entry) => entry[2].type === "build"), "건설 기록");

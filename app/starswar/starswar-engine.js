@@ -1,4 +1,4 @@
-// 스타즈워 규칙 엔진. React와 DOM에 의존하지 않는 결정적 시뮬레이션.
+// 스타드래프트 규칙 엔진. React와 DOM에 의존하지 않는 결정적 시뮬레이션.
 // 플레이어와 AI는 같은 stwCommand만 쓴다.
 import { withKoreanDirection, withKoreanObject, withKoreanSubject } from "../korean-particles.js";
 import { stwLearnPick } from "./starswar-learn.js";

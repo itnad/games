@@ -1,4 +1,4 @@
-// 스타즈워 텍스처 공장. 그림 파일 없이 PixiJS Graphics와 Canvas 2D로 그려 텍스처로 굽는다.
+// 스타드래프트 텍스처 공장. 그림 파일 없이 PixiJS Graphics와 Canvas 2D로 그려 텍스처로 굽는다.
 // 외부 그림이 생기면 같은 키의 텍스처를 StwTextureSet에 넣어 바꿔 끼우면 된다.
 import type { Container, Graphics, Renderer, Texture } from "pixi.js";
 import { STW_LANE_LENGTH, STW_LANE_WIDTH, stwMapData } from "./starswar-data.js";

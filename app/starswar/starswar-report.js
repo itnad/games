@@ -1,4 +1,4 @@
-// 스타즈워 결과 화면의 리포트 글. 클립보드에 복사해 개발 대화에 붙여 넣는 용도다.
+// 스타드래프트 결과 화면의 리포트 글. 클립보드에 복사해 개발 대화에 붙여 넣는 용도다.
 // - 버그 리포트: 경기 설정, 결과, 흐름, 내 명령, 최근 기록, 마지막 상태, 재현 코드
 // - AI 개선 자료: 진 AI의 운영(빌드 순서·일꾼·자원·병력 구성)과 이긴 쪽 비교, 큰 교전, 자동 진단, 재현 코드
 import { STW_AI_PERSONAS, STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RALLY_POINTS, STW_RESEARCH, STW_UNITS, stwMapData } from "./starswar-data.js";
@@ -188,7 +188,7 @@ export function stwBugReport(state, env = {}) {
   const shownCommands = commands.slice(-150);
   const log = (state.log ?? []).slice(-40);
   return [
-    "# 스타즈워 버그 리포트",
+    "# 스타드래프트 버그 리포트",
     "",
     "무슨 일이 있었나요? (언제쯤, 어떤 유닛·버튼에서, 기대한 것과 실제로 일어난 것)",
     env?.note ? `- ${env.note}` : "- (여기에 적어 주세요)",
@@ -351,7 +351,7 @@ function diagnose(state, side, foe) {
 export function stwAiReport(state, env = {}) {
   const sides = stwLosingAiSides(state);
   if (!sides.length) return null;
-  const parts = ["# 스타즈워 AI 개선 자료", "", "이 경기에서 진 AI가 왜 졌는지 살펴 대응을 고치기 위한 자료입니다.", "", "## 경기", ...headerLines(state, env)];
+  const parts = ["# 스타드래프트 AI 개선 자료", "", "이 경기에서 진 AI가 왜 졌는지 살펴 대응을 고치기 위한 자료입니다.", "", "## 경기", ...headerLines(state, env)];
   for (const side of sides) {
     const foe = opponent(side);
     const label = `${SIDE_NAME[side]} AI`;

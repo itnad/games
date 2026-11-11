@@ -1,4 +1,4 @@
-/* 스타즈워: 황금 갑주와 사이오닉 청색. 모바일 세로 화면 우선(지도 위, 선택 패널 아래). */
+/* 스타드래프트: 황금 갑주와 사이오닉 청색. 모바일 세로 화면 우선(지도 위, 선택 패널 아래). */
 .stw-shell { --stw-bg:#120d07; --stw-panel:#1c150c; --stw-card:#261d11; --stw-line:#e9c77a26; --stw-text:#f5ecd8; --stw-muted:#bfae8c; --stw-gold:#e6bd62; --stw-blue:#57c6ff; --stw-red:#ff7158; --stw-green:#7fe08f; min-height:100dvh; color:var(--stw-text); background:radial-gradient(circle at 70% 0%,#4b3a1c55,transparent 45%),linear-gradient(175deg,#1b140b,#0d0905 70%); font-family:var(--font-geist-sans),system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif; }
 .stw-shell button { font:inherit; color:inherit; cursor:pointer; touch-action:manipulation; }
 .stw-shell button:disabled { cursor:not-allowed; opacity:.45; }
