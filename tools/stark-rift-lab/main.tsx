@@ -88,16 +88,16 @@ function Lab({id,header}:{id:ScenarioId;header:ReactNode}){
     client.current?.send('resume',{reason:'lab'});const tick=Math.max(snapshot.tick,ui.tick);
     send({kind:'move',entityIds:fixture.ids,target:{kind:'point',...fixture.goal},sequence:sequence.current+1,issuedTick:tick,executeTick:tick+1,playerId:0,source:'player'});record('scenarioMove',tick);
   };
-  const exportReport=()=>download({format:'stark-rift-lab-v1',recordedAt:new Date().toISOString(),engine:STARK_RIFT_ENGINE_VERSION,source:__LAB_SOURCE__,scenario:id,fixture:'synthetic units; full visibility; no combat/economy',environment:{userAgent:navigator.userAgent,width:innerWidth,height:innerHeight,pixelRatio:devicePixelRatio,hardwareConcurrency:navigator.hardwareConcurrency},worker:metrics,frameIntervals:frames,jsHeapBytes:heap,sessionPeaks:peaks.current,historyEveryFiveSeconds:history.current,backgroundTransitions:hiddenGaps.current,manualChecks:CHECKS.map(label=>({label,result:checks[label]??'pending'})),notes,events:events.current,limits:['rAF intervals are not GPU render durations','JS heap excludes GPU/Worker memory','Manual checks are self-reported, not automated passes']});
+  const exportReport=()=>download({format:'stark-rift-lab-v1',recordedAt:new Date().toISOString(),engine:STARK_RIFT_ENGINE_VERSION,source:__LAB_SOURCE__,scenario:id,fixture:fixture.state.economy.enabled?'stage4 economy; local friendly visibility; no combat':'synthetic units; full visibility; no combat/economy',environment:{userAgent:navigator.userAgent,width:innerWidth,height:innerHeight,pixelRatio:devicePixelRatio,hardwareConcurrency:navigator.hardwareConcurrency},worker:metrics,frameIntervals:frames,jsHeapBytes:heap,sessionPeaks:peaks.current,historyEveryFiveSeconds:history.current,backgroundTransitions:hiddenGaps.current,manualChecks:CHECKS.map(label=>({label,result:checks[label]??'pending'})),notes,events:events.current,limits:['rAF intervals are not GPU render durations','JS heap excludes GPU/Worker memory','Manual checks are self-reported, not automated passes']});
   const ms=(value:number|undefined)=>value===undefined?'—':value.toFixed(2);
   return <PortraitOnly onBlocked={()=>client.current?.send('pause',{reason:'orientation'})}><main className="lab">{header}
     <div className="lab-actions">
-      <button disabled={!ui||!!error} onClick={autoMove}>시나리오 이동</button>
+      {!fixture.state.economy.enabled&&<button disabled={!ui||!!error} onClick={autoMove}>시나리오 이동</button>}
       <button disabled={!ui||!!error} onClick={()=>client.current?.send(phase==='paused'?'resume':'pause',{reason:'lab'})}>{phase==='paused'?'이어서 진행':'일시정지'}</button>
       <button disabled={!ui||!!error} onClick={()=>client.current?.send('saveSnapshot',{requestId:Date.now(),session:session.current})}>저장</button>
       <button disabled={!saved||!!error} onClick={()=>{const value=checkpoint.current.read();if(value){session.current=value.session;client.current?.send('loadSnapshot',{snapshot:value});}}}>복원</button>
       <details className="lab-details"><summary>측정·확인</summary><div className="lab-panel">
-        <p>테스트용 개체·전맵 가시성. 전투·경제가 없는 내부 검증 화면입니다.</p>
+        <p>{fixture.state.economy.enabled?'본부·일꾼 4기·미네랄 50으로 시작합니다. 채취·건설·생산을 확인할 수 있습니다. 전투는 다음 단계입니다.':'테스트용 개체·전맵 가시성. 이동과 터치 조작을 검증합니다.'}</p>
         <p>상태 {phase} · 틱 {snapshot?.tick??0} · 개체 {snapshot?.entities.length??0}</p>
         <table><thead><tr><th>측정 항목</th><th>평균 ms</th><th>p95 ms</th><th>최대 ms</th></tr></thead><tbody>
           <tr><td>전체 틱</td><td>{ms(metrics?.ticks.mean)}</td><td>{ms(metrics?.ticks.p95)}</td><td>{ms(metrics?.ticks.max)}</td></tr>
@@ -121,7 +121,7 @@ function Lab({id,header}:{id:ScenarioId;header:ReactNode}){
   </main></PortraitOnly>;
 }
 function App(){
-  const [id,setId]=useState<ScenarioId>('controls'),[revision,setRevision]=useState(0);
+  const [id,setId]=useState<ScenarioId>((new URLSearchParams(location.search).get('scenario') as ScenarioId)||'economy-terran'),[revision,setRevision]=useState(0);
   return <Lab key={`${id}:${revision}`} id={id} header={<header className="lab-header"><strong>Stark Rift 내부 검증</strong><select aria-label="검증 시나리오" value={id} onChange={event=>setId(event.target.value as ScenarioId)}>{Object.entries(SCENARIOS).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select><button onClick={()=>setRevision(value=>value+1)}>초기화</button></header>}/>;
 }
 createRoot(document.getElementById('root')!).render(<App/>);
