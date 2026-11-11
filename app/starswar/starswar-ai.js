@@ -45,9 +45,10 @@ const BUILD_ORDERS = {
     { build: "forge" }, { build: "expand", at: 330 }, { build: "cannon" }, { build: "gateway" }, { research: "weapons1" }, { research: "charge" },
     { research: "maelstrom", at: 420 },
   ],
+  // 로보틱스 퍼실리티가 드라군 사거리 연구(150/150)보다 먼저다(사거리를 먼저 하면 리버가 10분 넘어 나왔다).
   robo: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "pylon" },
-    { build: "assimilator" }, { build: "gateway" }, { research: "range" }, { build: "robo" }, { build: "bay" },
+    { build: "assimilator" }, { build: "gateway" }, { build: "robo" }, { research: "range" }, { build: "bay" },
     { build: "expand", at: 260 }, { build: "gateway" }, { build: "forge" }, { build: "cannon" }, { research: "weapons1" }, { research: "scarab" }, { build: "gateway" },
   ],
   // 커세어 질럿: 드라군 운영에 스타게이트 하나를 얹어 커세어로 하늘을 잡는다(공중만으로는 어떤 상대도 못 이긴다).
@@ -107,9 +108,10 @@ const BUILD_ORDERS = {
     { build: "hatch" }, { build: "evo" }, { build: "sunken" }, { research: "zCarapace1" }, { research: "zMelee1" }, { build: "hatch" },
     { build: "nest", at: 480 }, { research: "hive" }, { research: "greaterSpire" },
   ],
+  // 빠른 저글링: 첫 찌르기 뒤 4분에 앞마당을 먹는다(예전에는 5분 30초 뒤 단계라 일꾼 14~19기에 묶인 채 56%가 끝까지 확장을 못 했다).
   pool: [
     { build: "pool" }, { build: "overlord" }, { build: "extractor" }, { research: "metabolic" }, { build: "hatch" },
-    { build: "overlord" }, { build: "hatch" }, { build: "evo", at: 300 }, { research: "zMelee1" }, { build: "expand", at: 330 },
+    { build: "overlord" }, { build: "expand", at: 240 }, { build: "hatch" }, { build: "evo", at: 300 }, { research: "zMelee1" },
     { build: "den" }, { research: "zCarapace1" }, { build: "extractor" },
   ],
   // 울트라리스크 동굴은 레어와 덴만 있으면 된다. 레어 바로 뒤에 동굴을 올린다(예전에는 업그레이드 둘 뒤라 13판 중 한 번도 울트라를 못 뽑았다).
@@ -845,7 +847,9 @@ function zergLines(state, side, persona, units, reserve) {
     if (persona === "hive" && stwHas(state, side, "nest") && stwResearchDone(state, side, "ensnare") && count("queen") < 1 && index === 2) unit = "queen";
     // 히드라는 주력이라 초반(6분 전)에는 연구용 가스를 절반만 아끼고 만든다. 그 뒤에는 상위 테크를 위해 다 아낀다. 상위 유닛은 연구보다 먼저 만든다.
     const gasFor = (type) => STW_UNITS[type].gas + (["lurker", "ultra", "mutalisk", "scourge", "guardian", "devourer", "defiler", "queen"].includes(type) ? 0 : type === "hydra" && state.time < 360 ? reserve.gas / 2 : reserve.gas);
-    if (STW_UNITS[unit].gas && record.gas < gasFor(unit)) unit = ["lurker", "ultra", "guardian", "devourer", "defiler", "queen"].includes(unit) && den ? "hydra" : "zergling";
+    // 가스가 모자란 상위 유닛 대신에는 저글링(가스 0)을 뽑아 가스를 모은다. 럴커만 히드라로 바꾼다.
+    // 예전에는 울트라리스크 대신 히드라(가스 25)를 뽑아 가스가 200에 영영 닿지 않았다(동굴이 7분 42초에 서고도 울트라 0기).
+    if (STW_UNITS[unit].gas && record.gas < gasFor(unit)) unit = unit === "lurker" && den ? "hydra" : "zergling";
     if (unit === "zergling" && (airHeavy || mix?.wraith > 0.2) && !den && spire && record.gas >= 75) unit = "scourge";
     if (STW_UNITS[unit].gas && record.gas < gasFor(unit)) unit = "zergling";
     const starving = reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && army >= 4 && reserve.safe;
@@ -902,6 +906,8 @@ const SWITCH_TO = {
   wraith: (mix) => ((mix.dragoon ?? 0) + (mix.hydra ?? 0) + (mix.goliath ?? 0) > 0.4 ? "mech" : "tankbio"),
 };
 /** 전략 전환 판단에 세는 "제대로 모은 물량"의 크기와, 전환을 생각하기 시작하는 시각(초). */
+/** 출격 규모를 셀 때 저글링을 반 기로 치는 성향(저글링이 주력이 아닌 저그 운영). */
+const HALF_LING = new Set(["hydra", "hive", "ultra", "muta"]);
 const BIG_WAVE = { pool: 6, ling: 24, muta: 14, corsair: 12, wraith: 12 };
 const SWITCH_AFTER = { pool: 0, ling: 480, muta: 660, corsair: 660, wraith: 660 };
 
@@ -998,8 +1004,14 @@ const FIRST_UNIT = { protoss: "zealot", terran: "marine", zerg: "zergling" };
 function unitPower(type, targetArmor = 0) {
   const def = STW_UNITS[type];
   const dps = def.damage ? (Math.max(0.5, def.damage - targetArmor) * (def.hits ?? 1)) / def.cooldown : 2;
-  return Math.sqrt(Math.max(2, dps) * (def.hp + def.shields));
+  return Math.sqrt(Math.max(2, dps) * (def.hp + def.shields)) * (MELEE_DISCOUNT[type] ?? 1);
 }
+
+/**
+ * 공식보다 약한 근접 유닛의 보정. 저글링은 몸이 작고 체력이 낮아 사거리 유닛에게 다가가는 동안 많이 녹는다.
+ * 실측: 저글링 16기는 해병 7기에게 지고 24기는 이긴다(공식대로면 16기가 해병 13기 몫이라, 저그 AI가 4분에 저글링 16기를 해병에 던져 잃었다).
+ */
+const MELEE_DISCOUNT = { zergling: 0.55 };
 
 function armyPower(units, targetArmor = 0) {
   return units.reduce((sum, unit) => sum + unitPower(unit.type, targetArmor), 0);
@@ -1118,10 +1130,14 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 우리 전투력이 커야 나간다. 출격 규모만 보고 캐논 7~8개가 선 앞마당에 들이받아 두 번에 걸쳐 병력을 다 잃었다(사람의 캐논 수비 + 캐리어).
   // 방어 건물을 못 봤어도 같은 규칙으로 본다: 최근 본 적 병력보다 힘이 모자라면 나가지 않는다. 예전에는 방어 건물을 봐야만 따져서,
   // 저그가 4분에 저글링 16기를 해병·메딕에 던져 잃고 무너지는 일이 잦았다(바이오닉이 저그를 100% 이겼다).
-  const fortified = !allIn && !estimate && armyPower(army.fighters) < (defensePower(state, side) + seenFoePower(state, side, memory)) * 1.1;
+  // 8분 전에는 본 병력만으로는 모자라다(정찰 뒤 생산 건물이 더 뽑았다). 경계 때 쓰는 짐작(정찰 + 그 뒤 생산량)과 견줘 큰 쪽을 쓴다.
+  const foeSeen = Math.max(seenFoePower(state, side, memory), !estimate && state.time < 480 ? foeArmyEstimate(state, side, memory).power : 0);
+  const fortified = !allIn && !estimate && armyPower(army.fighters) < (defensePower(state, side) + foeSeen) * 1.1;
   // 기지에 적이 3기 이상 들어와 있으면 나가지 않고 집에서 받아친다. 총공격 조건(광물 바닥)과 기지 방어(후퇴)가 번갈아 걸려
   // 2초마다 공격·후퇴를 오가며 병력이 길에서 녹던 문제.
-  if (army.fighters.length >= size && !outgunned && !fortified && threat < 3) {
+  // 히드라·하이브·울트라·뮤탈 운영은 저글링을 반 기로 센다(인구 0.5). 그대로 세면 "14기"가 저글링 14기라 4분에 저글링만으로 나갔다.
+  const fighterCount = HALF_LING.has(persona) ? army.fighters.reduce((sum, unit) => sum + (unit.type === "zergling" ? 0.5 : 1), 0) : army.fighters.length;
+  if (fighterCount >= size && !outgunned && !fortified && threat < 3) {
     // 폭탄 드랍 성향은 쉬는 수송선이 둘 이상이면 출격과 동시에 폭탄 드랍(남은 병력은 정면으로).
     if (dropPlan?.mission === "bomb" && stwDropCheck(state, side, "bomb").ok) stwCommand(state, side, { type: "drop", ...dropPlan });
     else stwCommand(state, side, { type: "attack" });
