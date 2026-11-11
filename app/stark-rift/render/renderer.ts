@@ -1,3 +1,4 @@
+import {updateEconomicMarker,drawResource} from './economy-art';
 import { Application, Container, Graphics, Sprite, Texture, Ticker, type WebGLRenderer } from "pixi.js";
 import type { BattleMap } from "../data/maps";
 import { validateRenderSnapshot, type RenderSnapshot } from "../worker/render-snapshot";
@@ -5,10 +6,12 @@ import { BattleCamera } from "./camera";
 import { isPortraitViewport } from "../input/portrait-mode";
 import { updateMinimapMarker, updateUnitMarker } from "./marker-visual";
 
-const TERRAIN_COLORS = [0x202a38, 0x39445b, 0x101420, 0x536174, 0x090a1d];
+const TERRAIN_COLORS = [0x1d3035, 0x2f4443, 0x111c27, 0x536762, 0x090f1d];
 export class BattleRenderer {
   readonly camera: BattleCamera;
+  minimapAction?: (point:{x:number;y:number})=>boolean;
   private app = new Application(); private minimap = new Application();
+  private creep=new Graphics(); private resources=new Container(); private resourceSprites=new Map<string,Graphics>(); private creepKey=""; private placement=new Graphics();
   private world = new Container(); private units = new Container(); private minimapUnits = new Container();
   private viewportOutline = new Graphics(); private terrainTexture?: Texture; private minimapTerrainTexture?: Texture; private fogTexture?: Texture;
   private fogCanvas = document.createElement("canvas"); private fogMask: Uint8Array;
@@ -42,11 +45,19 @@ export class BattleRenderer {
       this.app.stage.addChild(this.world);
       const terrain = new Graphics(); this.pendingTerrain = terrain;
       for (let i = 0; i < this.map.terrain.length; i++) terrain.rect(i % this.map.widthTiles, Math.floor(i / this.map.widthTiles), 1, 1).fill(TERRAIN_COLORS[this.map.terrain[i]]);
-      for (const node of this.map.resourceNodes) terrain.rect(node.x, node.y, 1, 1).fill(node.kind === "mineral" ? 0x65cae4 : 0x74b884);
-      this.terrainTexture = this.app.renderer.generateTexture({ target: terrain, resolution: 2 });
+      for(let i=0;i<this.map.terrain.length;i++)if(this.map.walkable[i]){
+        const x=i%this.map.widthTiles,y=Math.floor(i/this.map.widthTiles),v=(x*17+y*37)%11;
+        if(v<7)terrain.poly([x+.1,y+.75,x+.3,y+.6,x+.65,y+.68]).stroke({width:.035,color:this.map.terrain[i]===1?0x526361:0x40515a});
+        if(v===4||v===8)terrain.circle(x+.65,y+.34,.065).fill(0x1e3436);
+        if(v===6)terrain.rect(x+.2,y+.15,.55,.035).fill(0x253c3e);
+        if(this.map.terrain[i]===3)terrain.rect(x+.08,y+.2,.84,.12).fill(0x78828a);
+      }
+      // Terrain texture generation is static; resource silhouettes remain individually removable.
+      for(const node of this.map.resourceNodes){const sprite=new Graphics();drawResource(sprite,node.kind);sprite.position.set(node.x+.5,node.y+.5);this.resources.addChild(sprite);this.resourceSprites.set(node.id,sprite);}
+      this.terrainTexture = this.app.renderer.generateTexture({ target: terrain, resolution: 8 });
       // RenderTextures live on their creating GPU context; minimap has a separate renderer.
-      this.minimapTerrainTexture = this.minimap.renderer.generateTexture({ target: terrain, resolution: 2 }); terrain.destroy(); this.pendingTerrain = undefined;
-      this.world.addChild(new Sprite(this.terrainTexture), this.units);
+      this.minimapTerrainTexture = this.minimap.renderer.generateTexture({ target: terrain, resolution: 8 }); terrain.destroy(); this.pendingTerrain = undefined;
+      this.world.addChild(new Sprite(this.terrainTexture),this.creep,this.resources,this.units,this.placement);
       const miniTerrain = new Sprite(this.minimapTerrainTexture); miniTerrain.label = "terrain"; this.minimap.stage.addChild(miniTerrain, this.minimapUnits);
       this.fogCanvas.width = this.map.widthTiles; this.fogCanvas.height = this.map.heightTiles;
       this.fogTexture = Texture.from(this.fogCanvas); this.fogTexture.source.scaleMode = "nearest";
@@ -57,8 +68,9 @@ export class BattleRenderer {
       const recenter = (event: PointerEvent) => {
         if (!isPortraitViewport()) return;
         if (event.type === "pointermove" && !this.minimap.canvas.hasPointerCapture(event.pointerId)) return;
-        if (event.type === "pointerdown") this.minimap.canvas.setPointerCapture(event.pointerId);
         const r = this.minimap.canvas.getBoundingClientRect();
+        if(event.type==='pointerdown'&&this.minimapAction?.({x:Math.max(0,Math.min(this.map.widthTiles*256-1,(event.clientX-r.left)/r.width*this.map.widthTiles*256)),y:Math.max(0,Math.min(this.map.heightTiles*256-1,(event.clientY-r.top)/r.height*this.map.heightTiles*256))}))return;
+        if (event.type === "pointerdown") this.minimap.canvas.setPointerCapture(event.pointerId);
         this.camera.setCenter((event.clientX - r.left) / r.width * this.map.widthTiles * 256, (event.clientY - r.top) / r.height * this.map.heightTiles * 256, this.app.screen.width, this.app.screen.height); this.draw();this.cameraMoved?.();
       };
       this.minimap.canvas.addEventListener("pointerdown", recenter); this.minimap.canvas.addEventListener("pointermove", recenter);
@@ -81,6 +93,9 @@ export class BattleRenderer {
     if (!validateRenderSnapshot(snapshot).ok || snapshot.widthTiles !== this.map.widthTiles || snapshot.heightTiles !== this.map.heightTiles) throw new RangeError("Invalid render snapshot.");
     this.previousPositions.clear();
     for (const entity of this.snapshot?.entities ?? []) this.previousPositions.set(entity.id, { x: entity.x, y: entity.y });
+    if(snapshot.economy){for(const r of snapshot.economy.resources){const sprite=this.resourceSprites.get(r.nodeId);if(sprite)sprite.visible=r.amount>0||this.map.resourceNodes.find(n=>n.id===r.nodeId)?.kind==='gas';}
+      const key=snapshot.economy.creepCells.join(',');if(key!==this.creepKey){this.creepKey=key;this.creep.clear();for(const cell of snapshot.economy.creepCells)this.creep.rect(cell%this.map.widthTiles,Math.floor(cell/this.map.widthTiles),1,1).fill({color:0x673b60,alpha:.5});}
+    }
     this.snapshot = snapshot; this.receivedAt = performance.now(); this.updateFog(snapshot.visibility);
     const current = new Set(snapshot.entities.map(e => e.id));
     for (const [id, sprite] of this.sprites) if (!current.has(id)) {
@@ -92,6 +107,9 @@ export class BattleRenderer {
       const mini=this.miniPool.pop()??new Graphics();this.miniSprites.set(entity.id,mini);this.minimapUnits.addChild(mini);
     }
     this.draw();
+  }
+  setPlacement(value:{tileX:number;tileY:number;width:number;height:number;status:'valid'|'blocked'|'warning'}|null):void{
+    this.placement.clear();if(value){const color=value.status==='valid'?0x73dfb7:value.status==='warning'?0xf0c26a:0xf07679;this.placement.rect(value.tileX,value.tileY,value.width,value.height).fill({color,alpha:.2}).stroke({color,width:.08});}this.draw();
   }
   private resize(): void {
     if (this.disposed || !isPortraitViewport()) return;
@@ -108,9 +126,11 @@ export class BattleRenderer {
       const previous = this.previousPositions.get(entity.id) ?? entity;
       const x = previous.x + (entity.x - previous.x) * alpha, y = previous.y + (entity.y - previous.y) * alpha;
       const sprite = this.sprites.get(entity.id)!; sprite.position.set(x / 256, y / 256);
-      sprite.visible = x >= bounds.left - 256 && x <= bounds.right + 256 && y >= bounds.top - 256 && y <= bounds.bottom + 256;
+      sprite.visible = x >= bounds.left - 768 && x <= bounds.right + 768 && y >= bounds.top - 768 && y <= bounds.bottom + 768;
       const color = entity.owner === this.snapshot!.viewerPlayerId ? 0x64dce0 : 0xf57278;
-      if(sprite.visible)updateUnitMarker(sprite,color,this.camera.zoom>=1.5,this.previewIds.has(entity.id)?0xffd479:this.selectedIds.has(entity.id)?0x80ffaa:null,entity.radius);
+      if(sprite.visible){const ring=this.previewIds.has(entity.id)?0xffd479:this.selectedIds.has(entity.id)?0x80ffaa:null,b=this.snapshot!.economy?.structures.find(b=>b.entityId===entity.id);
+        if(!updateEconomicMarker(sprite,entity,color,ring,b&&!b.completed?1-b.remainingTicks/b.totalTicks:null,b?.started??true))updateUnitMarker(sprite,color,this.camera.zoom>=1.5,ring,entity.radius);
+      }
       const mini=this.miniSprites.get(entity.id)!;updateMinimapMarker(mini,color);mini.position.set(entity.x/256,entity.y/256);
     }
     const viewportKey=`${bounds.left}:${bounds.top}:${bounds.right}:${bounds.bottom}`;
