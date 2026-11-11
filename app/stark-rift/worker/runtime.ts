@@ -1,3 +1,6 @@
+import {createEconomyRules} from '../economy/rules';
+import {initializeEconomy,localVisibility} from '../economy/helpers';
+import {economyFitsMap} from '../economy/validation';
 import { checksum } from "../core/checksum";
 import { profileStep, type TickSample } from "../diagnostics/profiler";
 import { navigationFitsMap } from "../pathfinding/navigation";
@@ -39,10 +42,11 @@ export class SimulationRuntime {
   }
   private installRules(map:BattleMap){
     const defaults=createMovementRules(map,(state,viewer,index)=>{
-      const mask=this.options.visibility?.(state,map,viewer);const x=Math.floor(state.entities.x[index]/256),y=Math.floor(state.entities.y[index]/256);
+      const mask=this.options.visibility?.(state,map,viewer)??(state.economy.enabled?localVisibility(state,map,viewer):undefined);const x=Math.floor(state.entities.x[index]/256),y=Math.floor(state.entities.y[index]/256);
       return !!mask&&x>=0&&x<map.widthTiles&&y>=0&&y<map.heightTiles&&mask[y*map.widthTiles+x]===2;
     });
-    this.rules={commands:{...defaults.commands,...this.options.rules?.commands},systems:{...defaults.systems,...this.options.rules?.systems}};
+    const combined=createEconomyRules(map,defaults);
+    this.rules={commands:{...combined.commands,...this.options.rules?.commands},systems:{...combined.systems,...this.options.rules?.systems}};
   }
   private ui(){
     if(!this.state)return;
@@ -54,7 +58,7 @@ export class SimulationRuntime {
   private publish() {
     if (!this.state || !this.map || this.inFlight.size >= 2 || this.disposed || this.lastPublishedTick === this.state.tick) return;
     // No visibility rules are invented here. Stage 5 will supply the gameplay visibility provider.
-    const visibility = this.options.visibility?.(this.state, this.map, this.viewer) ?? new Uint8Array(this.map.widthTiles * this.map.heightTiles);
+    const visibility = this.options.visibility?.(this.state, this.map, this.viewer) ?? (this.state.economy.enabled?localVisibility(this.state,this.map,this.viewer):new Uint8Array(this.map.widthTiles * this.map.heightTiles));
     const snapshot = createRenderSnapshot(this.state, this.map, this.viewer, visibility);
     snapshot.bufferId = ++this.bufferId; snapshot.previousTick = this.previousTick; this.previousTick = snapshot.tick; this.ui();
     this.inFlight.add(snapshot.bufferId);
@@ -77,6 +81,7 @@ export class SimulationRuntime {
         if (dataVersion !== message.payload.dataVersion) { this.error("VERSION_MISMATCH", false); return; }
         this.viewer = message.payload.players.find(p => p.controller === "human")?.id ?? 0;
         this.state = startSimulation(message.payload.seed, map.id, dataVersion, message.payload.players.map(p => ({ id: p.id, faction: p.faction, minerals: 50, gas: 0, supplyUsedHalf: 0, supplyCapHalf: 0 })));
+        if(map.id==="rift-basin")initializeEconomy(this.state,map);
         this.map = map;
         this.installRules(map);
         this.send(createWorkerEnvelope(++this.messageId, "ready", { tick: 0, engineVersion: STARK_RIFT_ENGINE_VERSION, dataVersion })); this.publish(); return;
@@ -108,7 +113,7 @@ export class SimulationRuntime {
           if (saved.dataVersion !== registered.dataVersion) { this.error("VERSION_MISMATCH", false); break; }
           const maxX = registered.map.widthTiles * 256, maxY = registered.map.heightTiles * 256;
           const inside = (point: { x: number; y: number }) => point.x >= 0 && point.x < maxX && point.y >= 0 && point.y < maxY;
-          if (!navigationFitsMap(saved.simulation,registered.map) || saved.simulation.entities.x.some((x, i) => !inside({ x, y: saved.simulation.entities.y[i] })) ||
+          if (!economyFitsMap(saved.simulation,registered.map)||!navigationFitsMap(saved.simulation,registered.map) || saved.simulation.entities.x.some((x, i) => !inside({ x, y: saved.simulation.entities.y[i] })) ||
               saved.simulation.movement.some(m => (m.target !== null && !inside(m.target)) || m.path.some(p => !inside(p)))) {
             this.error("INVALID_MAP_STATE"); break;
           }
