@@ -227,6 +227,52 @@ const TECH_STEPS = {
 };
 
 /**
+ * 늦게 정하는 성향: 프로토스·저그의 테크·운영 성향은 처음에 그 종족의 기본 빌드(드라군 운영·히드라 운영)로 시작하고,
+ * 수비가 안정되면 그때 자기 전략으로 넘어간다. 처음부터 테크를 올리면 병력이 얇아 첫 압박에 무너졌다.
+ * 질럿 러시·다크템플러 기습·빠른 저글링·저글링 물량은 시점이 생명인 전략이라 처음부터 자기 빌드를 따른다.
+ */
+const DELAYED_PERSONAS = new Set(["templar", "robo", "carrier", "corsair", "ultra", "hive", "muta"]);
+/** 기본 빌드에서 자기 전략으로 넘어가는 조건: 4분 30초 뒤, 경계가 아니고, 전투 병력이 이만큼 있고(저글링은 반 기), 병력이 안전할 때. 늦어도 7분 30초에는 넘어간다. */
+const COMMIT_ARMY = { protoss: 6, zerg: 10 };
+const COMMIT_EARLIEST = 270;
+const COMMIT_LATEST = 450;
+
+function openingPersona(state, side, memory, race, alert) {
+  const record = state.sides[side];
+  const chosen = record.persona ?? DEFAULT_PERSONA[race.id];
+  if (record.plan || memory.committedAt !== undefined || !DELAYED_PERSONAS.has(chosen) || !COMMIT_ARMY[race.id]) return chosen;
+  const opener = DEFAULT_PERSONA[race.id];
+  const army = stwArmy(state, side);
+  const fighters = [...army.fighters, ...army.attackers].reduce((sum, unit) => sum + (unit.type === "zergling" ? 0.5 : 1), 0);
+  const stable = state.time >= COMMIT_EARLIEST && !alert && fighters >= COMMIT_ARMY[race.id] && armySafe(state, side, memory, opener);
+  if (!stable && state.time < COMMIT_LATEST) return opener;
+  // 넘어갈 때는 자기 빌드 순서를 처음부터 다시 보되, 이미 가진 건물·끝낸 연구는 한 것으로 친다(게이트웨이를 또 짓지 않게).
+  memory.committedAt = state.time;
+  memory.done = [];
+  memory.built = [];
+  markOwnedSteps(state, side, buildOrder(state, side, chosen), memory);
+  return chosen;
+}
+
+/** 빌드 순서에서 이미 해 둔 단계를 끝낸 것으로 표시한다: 같은 건물은 순서에 나온 횟수만큼 가졌으면, 연구는 끝났거나 하는 중이면, 확장은 앞마당이 있으면. */
+function markOwnedSteps(state, side, order, memory) {
+  const record = state.sides[side];
+  const seen = {};
+  order.forEach((step, index) => {
+    let owned = false;
+    if (step.build === "expand") owned = Boolean(stwNexus(state, side, "natural"));
+    else if (step.build) {
+      seen[step.build] = (seen[step.build] ?? 0) + 1;
+      owned = stwOwnBuildings(state, side, step.build).length >= seen[step.build];
+    } else if (step.research) owned = Boolean(record.research[step.research]);
+    if (owned) {
+      memory.done.push(index);
+      if (step.build) memory.built.push(index);
+    }
+  });
+}
+
+/**
  * 병력이 안전한지: 지금 싸울 수 있는 병력의 힘이 최근 본 가장 큰 적 병력의 80%(최소 질럿 1.5기쯤) 이상.
  * 안전할 때만 생산을 멈추고 테크·확장 자원을 모은다. 병력이 얇은데 생산을 멈추면 첫 웨이브에 무너지고, 그 뒤로는 새 유닛이 나오는 대로 잡힌다.
  */
@@ -246,7 +292,6 @@ export function stwAiThink(state, side) {
   memory.nextThink = state.time + settings.thinkEvery;
   const race = STW_RACES[record.race ?? "protoss"];
   switchStrategy(state, side, memory);
-  const persona = record.persona ?? DEFAULT_PERSONA[race.id];
 
   // 0. 정찰과 위협 판단: 일꾼 1기를 두 번 정찰 보내고, 이른 러시 조짐이나 침입을 보면 경계 태세로 들어간다.
   // 2분에 첫 정찰(상대 두 번째 생산 건물이 설 무렵 도착), 3분 30초에 두 번째 정찰.
@@ -255,6 +300,8 @@ export function stwAiThink(state, side) {
   if (settings.master) readOpponent(state, side, record, memory);
   const alert = assessThreat(state, side, memory);
   trackFoe(state, side, memory);
+  // 지금 따르는 성향: 프로토스·저그의 테크 성향은 수비가 안정될 때까지 기본 빌드(드라군·히드라 운영)로 시작한다.
+  const persona = openingPersona(state, side, memory, race, alert);
   // 리포트용 기록: 경계 상태로 보낸 시간과 처음 경계에 들어간 시각(판단에는 쓰지 않는다).
   if (alert) {
     memory.alertSeconds = Math.round(((memory.alertSeconds ?? 0) + settings.thinkEvery) * 10) / 10;
