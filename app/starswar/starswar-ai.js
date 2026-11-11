@@ -220,9 +220,10 @@ const ALERT_TECH = new Set(["core", "academy", "den", "evo", "shop"]);
  * 예전에는 저그가 맨 앞 단계를 아끼지 않고(확장만 아꼈다) 프로토스·테란은 경계 중 테크를 막아, 테크 성향이 본진 일꾼 22기로
  * 8~9분까지 묶인 채 대표 유닛을 못 뽑았다(평원, 다른 종족 상대: 울트라 0/13판, 리버 2/12, 디파일러·가디언 3/13, 캐리어 4/12, 배틀크루저 5/13).
  */
+// 캐리어 함대는 넣지 않는다: 비컨·캐리어 자원을 먼저 모으게 하면 병력이 얇아 평원 승률이 19% → 11%로 떨어졌다.
 const TECH_STEPS = {
   muta: ["lair", "spire"], ultra: ["lair", "cavern"], hive: ["lair", "nest", "hive", "mound"],
-  carrier: ["core", "stargate", "beacon"], bc: ["factory", "starport", "science"], templar: ["core", "citadel", "archives", "storm"],
+  bc: ["factory", "starport", "science"], templar: ["core", "citadel", "archives", "storm"],
   robo: ["core", "robo", "bay"], dark: ["core", "citadel", "archives"], wraith: ["factory", "starport"],
 };
 
