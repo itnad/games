@@ -1131,8 +1131,10 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 우리 전투력이 커야 나간다. 출격 규모만 보고 캐논 7~8개가 선 앞마당에 들이받아 두 번에 걸쳐 병력을 다 잃었다(사람의 캐논 수비 + 캐리어).
   // 방어 건물을 못 봤어도 같은 규칙으로 본다: 최근 본 적 병력보다 힘이 모자라면 나가지 않는다. 예전에는 방어 건물을 봐야만 따져서,
   // 저그가 4분에 저글링 16기를 해병·메딕에 던져 잃고 무너지는 일이 잦았다(바이오닉이 저그를 100% 이겼다).
-  // 8분 전에는 본 병력만으로는 모자라다(정찰 뒤 생산 건물이 더 뽑았다). 경계 때 쓰는 짐작(정찰 + 그 뒤 생산량)과 견줘 큰 쪽을 쓴다.
-  const foeSeen = Math.max(seenFoePower(state, side, memory), !estimate && state.time < 480 ? foeArmyEstimate(state, side, memory).power : 0);
+  // 저그는 8분 전에 본 병력만으로 판단하지 않는다(정찰 뒤 생산 건물이 더 뽑았다). 경계 때 쓰는 짐작(정찰 + 그 뒤 생산량)과 견줘 큰 쪽을 쓴다.
+  // 저글링을 해병·벙커에 던져 잃던 문제(빠른 저글링 승률 8% → 27%, 히드라 50% → 65%). 프로토스·테란에도 쓰면 이른 압박을 못 해
+  // 프로토스 성향 평균이 52%에서 44%로 떨어져 저그만 쓴다(평원, 성향마다 다른 종족 상대 24~26판).
+  const foeSeen = Math.max(seenFoePower(state, side, memory), !estimate && record.race === "zerg" && state.time < 480 ? foeArmyEstimate(state, side, memory).power : 0);
   const fortified = !allIn && !estimate && armyPower(army.fighters) < (defensePower(state, side) + foeSeen) * 1.1;
   // 기지에 적이 3기 이상 들어와 있으면 나가지 않고 집에서 받아친다. 총공격 조건(광물 바닥)과 기지 방어(후퇴)가 번갈아 걸려
   // 2초마다 공격·후퇴를 오가며 병력이 길에서 녹던 문제.
