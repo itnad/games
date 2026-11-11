@@ -13,7 +13,7 @@ export function PortraitOnly({children,onBlocked}:{children:ReactNode;onBlocked:
     <div className="sr-orientation-notice" role="status" aria-hidden={portrait}>
       <strong>세로 화면으로 돌려 주세요</strong>
       <p>스타크 리프트는 세로 화면에서 플레이할 수 있습니다.</p>
-      <p>세로 화면으로 돌아온 뒤 이어서 진행해 주세요.</p>
+      <p>세로 화면으로 돌아온 뒤 이어서 진행해 주세요.</p><p>PC에서는 브라우저 창의 폭을 높이보다 좁게 줄여 주세요.</p>
     </div>
   </div>;
 }
