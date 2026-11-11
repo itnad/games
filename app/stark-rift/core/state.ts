@@ -1,3 +1,5 @@
+import {validEconomy} from '../economy/validation';
+import {economyStateSchema,emptyEconomy,type EconomyState} from '../economy/state';
 import { navigationSchema, emptyNavigation, type NavigationState } from "../pathfinding/state";
 import { controlGroupSchema, movementStateSchema, type ControlGroup, type MovementState } from "./orders";
 import { checksum } from "./checksum";
@@ -79,6 +81,7 @@ export type SimulationState = {
   entities: EntityStore;
   movement: MovementState[];
   navigation: NavigationState;
+  economy: EconomyState;
   projectiles: ProjectileStore;
   gameplayEffects: GameplayEffectStore;
   scheduledEvents: ScheduledEventQueue;
@@ -126,6 +129,7 @@ export function createEmptySimulationState(seed: number): SimulationState {
     entities: emptyEntityStore(),
     movement: [],
     navigation: emptyNavigation(),
+    economy: emptyEconomy(),
     projectiles: {},
     gameplayEffects: {},
     scheduledEvents: [],
@@ -182,11 +186,13 @@ export const simulationStateSchema: Schema<SimulationState> = refine(object({
   map: object({ definitionId: union(text, literal("")), obstacleVersion: integer() }),
   players: refine(array(playerSchema, 0, 2), players => new Set(players.map(p => p.id)).size === players.length, "Duplicate player ID."),
   navigation: navigationSchema,
+  economy:economyStateSchema,
   movement: array(movementStateSchema, 0, 2048),
   entities: entityStoreSchema, projectiles: emptyStore, gameplayEffects: emptyStore,
   scheduledEvents: array(emptyStore, 0, 0), ai: array(emptyStore, 0, 0),
   outcome: nullable(object({ kind: enumeration(["victory", "defeat", "draw", "surrender"]), winnerPlayerId: nullable(integer()), decidedTick: integer() })),
 }), state => {
+  if(!validEconomy(state))return false;
   const ids = state.players.map(p => p.id);
   if (!ids.every((id, i) => id === i)) return false;
   if (state.entities.id.some((id, i) => id >= state.counters.nextEntityId || !ids.includes(state.entities.owner[i]))) return false;
