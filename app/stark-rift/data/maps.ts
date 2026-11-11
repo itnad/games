@@ -1,3 +1,4 @@
+import {ECONOMY_DATA_VERSION} from './economy-catalog';
 import { array, enumeration, integer, literal, object, refine, reject, text, type Schema } from "../core/validation";
 import { checksum } from "../core/checksum";
 export type MapPoint = { x: number; y: number };
@@ -109,5 +110,5 @@ export function getRuntimeMap(id: string): { map: BattleMap; dataVersion: string
   if (id !== "rift-basin") throw new RangeError("Unknown map ID.");
   const map = createRiftBasin();
   const canonical = { ...map, terrain: [...map.terrain], height: [...map.height], walkable: [...map.walkable], buildable: [...map.buildable] };
-  return { map, dataVersion: `map-${checksum(canonical)}` };
+  return { map, dataVersion: `map-${checksum(canonical)}-${ECONOMY_DATA_VERSION}` };
 }
