@@ -297,13 +297,13 @@ async function readMudflatSourceBundle() {
   return (await Promise.all(files.map((file) => readFile(new URL(file, import.meta.url), "utf8")))).join("\n");
 }
 
-async function render() {
+async function render(path = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("http://localhost/", {
+    new Request(new URL(path, "http://localhost/"), {
       headers: { accept: "text/html" },
     }),
     {
@@ -3629,4 +3629,17 @@ test("offers one shared daily Mudflat ranking without overwriting ordinary exped
   assert.match(styles, /\.ms-main-mode-badge\{display:none\}/);
   assert.match(styles, /\.ms-setup \.ms-mode-picker small\{display:none\}/);
   assert.match(styles, /\.ms-daily-result-card/);
+});
+
+
+test("serves the Stark Rift playtest as its own noindex page with a home entry", async () => {
+  const response = await render("/stark-rift-dev");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /스타크 리프트/);
+  assert.match(html, /새 테스트 시작/);
+  assert.match(html, /전투와 승패 판정은 준비 중/);
+  assert.match(html, /name="robots"[^>]*content="noindex[^"]*nofollow/);
+  const home = await (await render()).text();
+  assert.match(home, /href="\/stark-rift-dev"/);
 });
