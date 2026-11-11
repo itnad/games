@@ -1,8 +1,9 @@
+import {economyDefinition} from '../data/economy-catalog';
 import type { RenderEntity, RenderSnapshot } from "../worker/render-snapshot";
 import type { Point } from "../pathfinding/navigation";
 export const GROUP_RADIUS = 4 * 256;
 export function hitTest(snapshot:RenderSnapshot,point:Point,tolerance=64):RenderEntity|null{
-  return snapshot.entities.filter(entity=>(entity.x-point.x)**2+(entity.y-point.y)**2<=(entity.radius+tolerance)**2)
+  return snapshot.entities.filter(entity=>{const d=economyDefinition(entity.definitionId);return d?.kind==='building'?Math.abs(entity.x-point.x)<=d.width*128+tolerance&&Math.abs(entity.y-point.y)<=d.height*128+tolerance:(entity.x-point.x)**2+(entity.y-point.y)**2<=(entity.radius+tolerance)**2;})
     .sort((a,b)=>(a.x-point.x)**2+(a.y-point.y)**2-(b.x-point.x)**2-(b.y-point.y)**2||a.id-b.id)[0]??null;
 }
 export function selectNearby(snapshot:RenderSnapshot,anchorId:number,existing:number[]=[]):number[]{
