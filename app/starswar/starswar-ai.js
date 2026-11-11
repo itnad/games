@@ -1002,20 +1002,22 @@ const FIRST_UNIT = { protoss: "zealot", terran: "marine", zerg: "zergling" };
  * 화력은 상대 방어력(targetArmor)을 뺀 값이다. 저글링(공격력 5)은 방어력 1인 질럿에게 20% 덜 들어간다.
  * 해병(√(8×45) ≈ 19)은 질럿(√(14.5×160) ≈ 48)의 약 0.4다. 무기 없는 유닛(메딕 등)은 화력 2로 친다.
  */
-function unitPower(type, targetArmor = 0) {
+function unitPower(type, targetArmor = 0, own = false) {
   const def = STW_UNITS[type];
   const dps = def.damage ? (Math.max(0.5, def.damage - targetArmor) * (def.hits ?? 1)) / def.cooldown : 2;
-  return Math.sqrt(Math.max(2, dps) * (def.hp + def.shields)) * (MELEE_DISCOUNT[type] ?? 1);
+  return Math.sqrt(Math.max(2, dps) * (def.hp + def.shields)) * (own ? MELEE_DISCOUNT[type] ?? 1 : 1);
 }
 
 /**
- * 공식보다 약한 근접 유닛의 보정. 저글링은 몸이 작고 체력이 낮아 사거리 유닛에게 다가가는 동안 많이 녹는다.
+ * 우리 병력으로 쳐들어갈 때 공식보다 약한 근접 유닛의 보정. 저글링은 몸이 작고 체력이 낮아 사거리 유닛에게 다가가는 동안 많이 녹는다.
  * 실측: 저글링 16기는 해병 7기에게 지고 24기는 이긴다(공식대로면 16기가 해병 13기 몫이라, 저그 AI가 4분에 저글링 16기를 해병에 던져 잃었다).
+ * 상대 저글링을 셀 때는 쓰지 않는다: 막는 쪽의 저글링은 그대로 세다(프로토스가 저글링을 얕보고 질럿 7기로 저글링 21기에 들이받았다).
  */
 const MELEE_DISCOUNT = { zergling: 0.55 };
 
+/** 우리 병력의 전투력(쳐들어갈 때의 보정을 넣는다). */
 function armyPower(units, targetArmor = 0) {
-  return units.reduce((sum, unit) => sum + unitPower(unit.type, targetArmor), 0);
+  return units.reduce((sum, unit) => sum + unitPower(unit.type, targetArmor, true), 0);
 }
 
 /**
