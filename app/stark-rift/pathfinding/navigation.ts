@@ -1,3 +1,4 @@
+import {isBlueprint,tileWalkable,bodyContains,segmentHitsBody} from '../economy/footprints';
 import type { BattleMap } from "../data/maps";
 import type { SimulationState } from "../core/state";
 import type { NavigationJob } from "./state";
@@ -21,7 +22,7 @@ export class NavigationGrid {
     // Only the command/pathfinding/movement epoch opts in; ordinary grids remain live.
     if(snapshotTerrain){
       this.blockedRows=Array.from({length:map.heightTiles},()=>[]);
-      for(let i=0;i<map.walkable.length;i++)if(!map.walkable[i])this.blockedRows[Math.floor(i/map.widthTiles)].push(i%map.widthTiles);
+      for(let i=0;i<map.walkable.length;i++)if(!tileWalkable(map,state,i))this.blockedRows[Math.floor(i/map.widthTiles)].push(i%map.widthTiles);
     }
     if(snapshotObstacles){
       this.clearTables=new Map();this.edgeTables=new Map();
@@ -30,7 +31,7 @@ export class NavigationGrid {
   }
   trackStaticObstacles():void{
     this.staticIndices=[];this.staticIds.clear();const s=this.state.entities;
-    s.id.forEach((id,i)=>{if(s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")){this.staticIndices!.push(i);this.staticIds.add(id);}});
+    s.id.forEach((id,i)=>{if(s.health[i]>0&&!isBlueprint(this.state,i)&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")){this.staticIndices!.push(i);this.staticIds.add(id);}});
     this.staticSpatial=this.staticIndices.length>16?new SpatialHash(this.state,this.staticIndices):undefined;
   }
   addStaticObstacle(index:number):void{
@@ -59,13 +60,13 @@ export class NavigationGrid {
     const {x,y}=point, w=this.map.widthTiles,h=this.map.heightTiles;
     if(x-radius<0||y-radius<0||x+radius>=w*256||y+radius>=h*256)return false;
     if(layer!=="air")for(let ty=Math.floor((y-radius)/256);ty<=Math.floor((y+radius)/256);ty++) for(let tx=Math.floor((x-radius)/256);tx<=Math.floor((x+radius)/256);tx++){
-      if(this.map.walkable[ty*w+tx])continue;
+      if(tileWalkable(this.map,this.state,ty*w+tx))continue;
       const dx=x-Math.max(tx*256,Math.min((tx+1)*256,x)),dy=y-Math.max(ty*256,Math.min((ty+1)*256,y));
       if(dx*dx+dy*dy<radius*radius)return false;
     }
     const s=this.state.entities;
     const candidates=this.obstacleCandidates(x-radius,y-radius,x+radius,y+radius);
-    for(const i of candidates)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")){const dx=x-s.x[i],dy=y-s.y[i],r=radius+s.radius[i];if(dx*dx+dy*dy<r*r)return false;}
+    for(const i of candidates)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")){if(bodyContains(this.state,i,x,y,radius))return false;}
     return true;
   }
   segment(a:Point,b:Point,radius:number,layer:string,ignore=0):boolean{
@@ -106,12 +107,12 @@ export class NavigationGrid {
           let low=0,high=row.length;
           while(low<high){const mid=(low+high)>>>1;if(row[mid]<rowLeft)low=mid+1;else high=mid;}
           for(let i=low;i<row.length&&row[i]<=rowRight;i++)if(segmentNearTile(a,b,row[i]*256,y*256,radius))return false;
-        }else for(let x=left;x<=right;x++)if(!this.map.walkable[y*this.map.widthTiles+x]&&segmentNearTile(a,b,x*256,y*256,radius))return false;
+        }else for(let x=left;x<=right;x++)if(!tileWalkable(this.map,this.state,y*this.map.widthTiles+x)&&segmentNearTile(a,b,x*256,y*256,radius))return false;
       }
     }
     const s=this.state.entities;
     const candidates=this.obstacleCandidates(Math.min(a.x,b.x)-radius,Math.min(a.y,b.y)-radius,Math.max(a.x,b.x)+radius,Math.max(a.y,b.y)+radius);
-    for(const i of candidates)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")&&segmentNearCircle(a,b,{x:s.x[i],y:s.y[i]},radius+s.radius[i]))return false;
+    for(const i of candidates)if(s.id[i]!==ignore&&s.layer[i]===layer&&s.health[i]>0&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")&&segmentHitsBody(this.state,i,a,b,radius))return false;
     return true;
   }
 }
@@ -127,7 +128,7 @@ function jobKey(goal:number,radius:number,layer:string,version:number){return `$
 /** Search queues and caches are state, so save/restore preserves scheduling and path completion ticks. */
 export function navigate(state:SimulationState,map:BattleMap):void{
   const s=state.entities,n=state.navigation,grid=new NavigationGrid(map,state,new SpatialHash(state),true,true);
-  const obstacles=s.id.flatMap((id,i)=>s.health[i]>0&&(s.kind[i]==="building"||state.movement[i].order==="idle"||state.movement[i].order==="hold")?[[id,s.x[i],s.y[i],s.radius[i],s.layer[i]]]:[]);
+  const obstacles=s.id.flatMap((id,i)=>s.health[i]>0&&!isBlueprint(state,i)&&(s.kind[i]==="building"||state.movement[i].order==="idle"||state.movement[i].order==="hold")?[[id,s.x[i],s.y[i],s.radius[i],s.layer[i]]]:[]);
   const signature=obstacles.length?checksum(obstacles):"none";
   if(n.obstacleSignature!==signature){n.obstacleSignature=signature;state.map.obstacleVersion++;}
   n.lastStarted=0;n.lastExpanded=0;n.lastReused=0;
