@@ -58,10 +58,10 @@ const BUILD_ORDERS = {
     { build: "gateway" }, { build: "forge" }, { build: "cannon" }, { research: "weapons1" }, { build: "gateway" }, { build: "citadel" }, { research: "charge" },
   ],
   // 캐리어 함대: 드라군 운영으로 버티며 스타게이트 둘과 플릿 비컨을 올려 캐리어를 모은다.
-  // 앞마당을 스타게이트보다 먼저 먹는다. 테크를 우선하게 한 뒤 비컨·캐리어 자원을 모으느라 확장이 8분까지 밀려 일꾼 22기로 버티다 졌다.
+  // (앞마당을 스타게이트보다 먼저 먹게 해 봤는데 오히려 승률이 42% → 29%로 떨어져 되돌렸다.)
   carrier: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "assimilator" },
-    { build: "pylon" }, { build: "gateway" }, { build: "expand", at: 240 }, { build: "stargate" }, { build: "beacon" },
+    { build: "pylon" }, { build: "stargate" }, { build: "gateway" }, { build: "beacon" }, { build: "expand", at: 270 },
     { build: "forge" }, { build: "cannon" }, { build: "stargate" }, { research: "carrierCapacity" }, { research: "range" }, { build: "cannon" }, { research: "weapons1" },
   ],
   bio: [
@@ -230,9 +230,10 @@ const TECH_STEPS = {
  * 병력이 안전한지: 지금 싸울 수 있는 병력의 힘이 최근 본 가장 큰 적 병력의 80%(최소 질럿 1.5기쯤) 이상.
  * 안전할 때만 생산을 멈추고 테크·확장 자원을 모은다. 병력이 얇은데 생산을 멈추면 첫 웨이브에 무너지고, 그 뒤로는 새 유닛이 나오는 대로 잡힌다.
  */
-function armySafe(state, side, memory) {
+function armySafe(state, side, memory, persona) {
   const army = stwArmy(state, side);
-  const own = armyPower(army.fighters) + armyPower(army.attackers);
+  const discount = persona !== "ling";
+  const own = armyPower(army.fighters, 0, discount) + armyPower(army.attackers, 0, discount);
   return own >= Math.max(seenFoePower(state, side, memory) * 0.8, 70);
 }
 
@@ -265,7 +266,7 @@ export function stwAiThink(state, side) {
   // 확장·인구·경계 중 방어 건물처럼 늦으면 크게 손해인 것(hard)뿐이고, 연구·테크 건물은 남는 자원으로만 한다.
   // expand: 확장이 30초 넘게 자원 부족으로 막혀 있으면 첫 생산 건물만 남기고 모두 멈춰 확장부터 한다(경계가 길어지면 경제가 영영 멈추던 문제).
   // safe: 병력이 안전한 동안만 생산 건물을 멈춰 가며 자원을 모은다(armySafe). 생산 라인 규칙이 함께 본다.
-  const safe = armySafe(state, side, memory);
+  const safe = armySafe(state, side, memory, persona);
   const reserve = { minerals: 0, gas: 0, hard: 0, expand: false, safe };
   const save = (minerals, gas, hard = false) => {
     if (record.minerals < minerals) {
@@ -1015,9 +1016,9 @@ function unitPower(type, targetArmor = 0, own = false) {
  */
 const MELEE_DISCOUNT = { zergling: 0.55 };
 
-/** 우리 병력의 전투력(쳐들어갈 때의 보정을 넣는다). */
-function armyPower(units, targetArmor = 0) {
-  return units.reduce((sum, unit) => sum + unitPower(unit.type, targetArmor, true), 0);
+/** 우리 병력의 전투력(discount면 쳐들어갈 때의 보정을 넣는다). */
+function armyPower(units, targetArmor = 0, discount = true) {
+  return units.reduce((sum, unit) => sum + unitPower(unit.type, targetArmor, discount), 0);
 }
 
 /**
@@ -1136,8 +1137,12 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 저그는 8분 전에 본 병력만으로 판단하지 않는다(정찰 뒤 생산 건물이 더 뽑았다). 경계 때 쓰는 짐작(정찰 + 그 뒤 생산량)과 견줘 큰 쪽을 쓴다.
   // 저글링을 해병·벙커에 던져 잃던 문제(빠른 저글링 승률 8% → 27%, 히드라 50% → 65%). 프로토스·테란에도 쓰면 이른 압박을 못 해
   // 프로토스 성향 평균이 52%에서 44%로 떨어져 저그만 쓴다(평원, 성향마다 다른 종족 상대 24~26판).
-  const foeSeen = Math.max(seenFoePower(state, side, memory), !estimate && record.race === "zerg" && state.time < 480 ? foeArmyEstimate(state, side, memory).power : 0);
-  const fortified = !allIn && !estimate && armyPower(army.fighters) < (defensePower(state, side) + foeSeen) * 1.1;
+  const foeSeen = Math.max(seenFoePower(state, side, memory), !estimate && record.race === "zerg" && persona !== "ling" && state.time < 480 ? foeArmyEstimate(state, side, memory).power : 0);
+  // 저글링 물량은 쉬지 않고 밀어붙이는 성향이라 예전 규칙(본 방어 건물이 있을 때만, 보정 없이)을 그대로 쓴다.
+  // 새 규칙을 쓰면 너무 망설여 승률이 50%에서 29%(협곡·황금 앞마당 13%)로 떨어졌다.
+  const fortified = persona === "ling"
+    ? !allIn && !estimate && defensePower(state, side) > 0 && armyPower(army.fighters, 0, false) < (defensePower(state, side) + seenFoePower(state, side, memory)) * 1.1
+    : !allIn && !estimate && armyPower(army.fighters) < (defensePower(state, side) + foeSeen) * 1.1;
   // 기지에 적이 3기 이상 들어와 있으면 나가지 않고 집에서 받아친다. 총공격 조건(광물 바닥)과 기지 방어(후퇴)가 번갈아 걸려
   // 2초마다 공격·후퇴를 오가며 병력이 길에서 녹던 문제.
   // 히드라·하이브·울트라·뮤탈 운영은 저글링을 반 기로 센다(인구 0.5). 그대로 세면 "14기"가 저글링 14기라 4분에 저글링만으로 나갔다.
