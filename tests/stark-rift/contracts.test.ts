@@ -11,6 +11,7 @@ const point = { kind: "point", x: 256, y: 512 };
 const target = { kind: "entity", entityId: 2 };
 const base = { sequence: 1, issuedTick: 9, executeTick: 10, playerId: 0, source: "player", entityIds: [1] };
 const commands = {
+  gather:{payload:{resourceId:'main-0-0'}},returnCargo:{},autoGather:{},resumeConstruction:{target},
   assignGroup: {payload:{slot:0,confirmed:false}},
   move: { target: point }, attackMove: { target: point }, focusAttack: { target },
   stop: {}, hold: {}, patrol: { target: point },
