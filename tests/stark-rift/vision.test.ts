@@ -1,3 +1,4 @@
+import { ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION } from "../../app/stark-rift/data/economy-catalog";
 import { describe, it, expect, vi } from "vitest";
 import { getRuntimeMap, type BattleMap } from "../../app/stark-rift/data/maps";
 import {
@@ -277,6 +278,7 @@ describe("height and concealed target rules", () => {
     const f = fixture("zerg"),
       scout = f.add(0, "zerg-hydralisk", 40, 40),
       enemy = f.add(1, "zerg-drone", 42, 40);
+    f.state.economy.upgrades.push({ playerId: 1, technologyId: "burrowing", level: 1 });
     f.state.vision!.concealed.push({ entityId: enemy, kind: "burrow" });
     updateVision(f.state, f.map);
     expect(canSeeEntity(f.state, f.map, 0, indexOf(f.state, enemy))).toBe(
@@ -458,6 +460,7 @@ describe("fog and in-flight save compatibility", () => {
     old.simulation.combat.rulesVersion = RANGED_COMBAT_RULES_VERSION;
     for (const r of old.simulation.combat.records) delete r.lastSeenTarget;
     for (const p of old.simulation.combat.projectiles) delete p.miss;
+    old.dataVersion = old.simulation.dataVersion = old.dataVersion.replace(ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION);
     old.checksum = checksum(old.simulation);
     const raw = JSON.stringify(old),
       key = DEVELOPMENT_SAVE_PREFIX + "terran",
