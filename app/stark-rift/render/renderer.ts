@@ -24,6 +24,8 @@ import { updateMinimapMarker, updateUnitMarker } from "./marker-visual";
 const TERRAIN_COLORS = [0x1d3035, 0x2f4443, 0x111c27, 0x536762, 0x090f1d];
 export class BattleRenderer {
   private combatEffects = new Graphics();
+  private flying = new Graphics();
+  private previousBullets = new Map<number, { x: number; y: number }>();
   private commandMarker = new Graphics();
   private commandFeedback: CommandFeedback | null = null;
   private feedbackAt = 0;
@@ -169,6 +171,7 @@ export class BattleRenderer {
         this.creep,
         this.resources,
         this.units,
+        this.flying,
         this.combatEffects,
         this.placement,
       );
@@ -296,6 +299,12 @@ export class BattleRenderer {
       snapshot.heightTiles !== this.map.heightTiles
     )
       throw new RangeError("Invalid render snapshot.");
+    this.previousBullets = new Map(
+      (this.snapshot?.combat?.projectiles ?? []).map((p) => [
+        p.id,
+        { x: p.x, y: p.y },
+      ]),
+    );
     this.previousPositions.clear();
     for (const entity of this.snapshot?.entities ?? [])
       this.previousPositions.set(entity.id, { x: entity.x, y: entity.y });
@@ -325,13 +334,28 @@ export class BattleRenderer {
     }
     this.combatEffects.clear();
     for (const e of snapshot.combat?.effects ?? []) {
-      const color = e.owner === snapshot.viewerPlayerId ? 0xffda8b : 0xff7c80,
+      const color =
+          e.weaponId === "Needle_Spines"
+            ? 0x9de387
+            : e.weaponId === "Phase_Disruptor"
+              ? 0x8ac9ff
+              : e.owner === snapshot.viewerPlayerId
+                ? 0xffda8b
+                : 0xff7c80,
         age = (snapshot.tick - e.tick) / 9;
       if (e.kind === "death")
         this.combatEffects
           .circle(e.x / 256, e.y / 256, 0.3 + age * 0.5)
           .stroke({ color: 0xff9d65, width: 0.08, alpha: 1 - age });
+      else if (e.kind === "launch")
+        this.combatEffects
+          .circle(e.x / 256, e.y / 256, 0.12)
+          .fill({ color, alpha: 1 - age });
       else {
+        if (e.weaponId === "Arclite_Cannon")
+          this.combatEffects
+            .circle(e.toX / 256, e.toY / 256, 0.25 + age * 0.35)
+            .stroke({ color: 0xffc875, width: 0.1, alpha: 1 - age });
         if (e.kind === "shot")
           this.combatEffects
             .moveTo(e.x / 256, e.y / 256)
@@ -464,6 +488,30 @@ export class BattleRenderer {
       1,
       Math.max(0, (performance.now() - this.receivedAt) / 50),
     );
+    this.flying.clear();
+    for (const bullet of this.snapshot?.combat?.projectiles ?? []) {
+      const last = this.previousBullets.get(bullet.id) ?? bullet;
+      const px = (last.x + (bullet.x - last.x) * alpha) / 256,
+        py = (last.y + (bullet.y - last.y) * alpha) / 256;
+      // Interpolation may cross a newly hidden tile; render only currently visible positions.
+      if (
+        this.snapshot!.visibility[
+          Math.floor(py) * this.map.widthTiles + Math.floor(px)
+        ] !== 2
+      )
+        continue;
+      if (bullet.weaponId === "Phase_Disruptor")
+        this.flying
+          .circle(px, py, 0.22)
+          .fill({ color: 0x5b97ff, alpha: 0.25 })
+          .circle(px, py, 0.12)
+          .fill(0xa9dcff);
+      else
+        this.flying
+          .poly([px, py - 0.15, px + 0.12, py, px, py + 0.15, px - 0.12, py])
+          .fill(0xffce7a)
+          .stroke({ color: 0x6c4324, width: 0.035 });
+    }
     for (const entity of this.snapshot?.entities ?? []) {
       const previous = this.previousPositions.get(entity.id) ?? entity;
       const x = previous.x + (entity.x - previous.x) * alpha,
@@ -560,6 +608,7 @@ export class BattleRenderer {
       this.viewportOutline,
       this.commandMarker,
       this.combatEffects,
+      this.flying,
     ])
       if (!display.destroyed) display.destroy({ children: true });
     this.pool.forEach((sprite) => sprite.destroy());
