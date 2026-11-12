@@ -3,7 +3,7 @@
 > 상태: 구현 기준안  
 > 작성일: 2026-10-30  
 > 구현 설계 고도화: 2026-11-01
-> 구현 진행: 단계 3 코드·자동 검증 완료, 실제 기기 심사 대기 (`docs/stark-rift-stage3.md`, `docs/stark-rift-progress.md`)
+> 구현 진행: 단계 4 운영·사이트 테스트 연결 완료, 단계 5A 기본 전투 구현 (`docs/stark-rift-stage5a.md`). 단계 5 전체와 실제 기기 검증은 진행 대상.
 > 기반 검토: `docs/stark-rift-foundation-review.md` (초기 계약의 검증 범위와 미구현 경계)
 > 상위 기획: `docs/stark-rift-game-design.md`
 
