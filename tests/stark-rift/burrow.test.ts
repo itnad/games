@@ -171,12 +171,15 @@ describe("burrow persistence and migration", () => {
     expect(parse(simulationStateSchema, f.state).ok).toBe(false);
   });
   it("migrates checked 5C vision, contacts, RNG and misses while preserving and backing up the original", () => {
-    const f = fixture(), saved = f.saved(), old = JSON.parse(JSON.stringify(saved));
+    const f = fixture("terran"); f.add(0, "zerg-drone"); f.add(1, "terran-vulture", 21, 18); f.tick();
+    expect(f.state.combat!.projectiles).toHaveLength(1); f.state.combat!.projectiles[0].miss = true;
+    const saved = f.saved(), old = JSON.parse(JSON.stringify(saved));
     old.formatVersion = old.simulation.schemaVersion = 9; old.engineVersion = old.simulation.engineVersion = "0.10.0-stage5c";
     old.dataVersion = old.simulation.dataVersion = old.dataVersion.replace(ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION);
     old.simulation.combat.rulesVersion = TERRAIN_COMBAT_RULES_VERSION; old.checksum = checksum(old.simulation);
     const key = DEVELOPMENT_SAVE_PREFIX + "zerg", raw = JSON.stringify(old), records = new Map([[key, raw]]), store = new DevelopmentSaveStore({ getItem: k => records.get(k) ?? null, setItem: (k, v) => { records.set(k, v); } });
     const read = store.read("zerg"); expect(read.status).toBe("ready"); if (read.status !== "ready") throw Error();
+    expect(read.snapshot.simulation.combat!.projectiles).toEqual(old.simulation.combat.projectiles); expect(read.snapshot.simulation.combat!.projectiles[0].miss).toBe(true);
     expect(read.snapshot.simulation.vision).toEqual(old.simulation.vision); expect(read.snapshot.simulation.rngStreams).toEqual(old.simulation.rngStreams); expect(records.get(key)).toBe(raw);
     expect(store.write(read.snapshot)).toBe(true); expect(records.get(key + ".stage5c-backup")).toBe(raw);
     old.simulation.players[0].minerals++; expect(() => migrateLegacyEnvelope(old)).toThrow("Invalid legacy save");
