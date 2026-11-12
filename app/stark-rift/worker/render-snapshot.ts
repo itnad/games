@@ -1,3 +1,4 @@
+import { isBurrowed } from "../abilities/burrow";
 import { SCENARIOS } from "../combat/state";
 import { contactSchema, MEMORY_TICKS, type Contact } from "../vision/state";
 import {
@@ -19,6 +20,7 @@ import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import {
   array,
+  boolean,
   integer,
   object,
   parse,
@@ -37,6 +39,7 @@ export type RenderEntity = {
   y: number;
   health: number;
   shield?: number;
+  burrowed?: boolean;
   kind: "combat" | "worker" | "building";
   layer: "ground" | "air";
   radius: number;
@@ -95,6 +98,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         y: integer(),
         health: integer(),
         shield: optional(integer()),
+        burrowed: optional(boolean),
         kind: enumeration(["combat", "worker", "building"]),
         layer: enumeration(["ground", "air"]),
         radius: integer(1, 512),
@@ -251,6 +255,7 @@ export function createRenderSnapshot(
       continue;
     entities.push({
       ...(state.economy.enabled ? { shield: s.shield[i] } : {}),
+      ...(isBurrowed(state, s.id[i]) ? { burrowed: true } : {}),
       id: s.id[i],
       owner: s.owner[i],
       definitionId: s.definitionId[i],
