@@ -4,6 +4,7 @@ import type { BattleMap } from "../data/maps";
 import type { EconomyDefinition } from "../data/economy-catalog";
 import {
   ECONOMY_MECHANICS,
+  countsAsDefinition, economyLayer, isLarvaProducer,
   economyDefinition,
   factionHeadquarters,
   factionWorker,
@@ -32,7 +33,7 @@ export function hasCompleted(
     (b) =>
       complete(b) &&
       s.entities.owner[indexOf(s, b.entityId)] === owner &&
-      definitionOf(s, b.entityId)?.id === id,
+      countsAsDefinition(definitionOf(s, b.entityId)?.id ?? "", id),
   );
 }
 export function meetsRequirements(
@@ -55,7 +56,7 @@ export function createEconomicEntity(
     health: d.health,
     shield: d.shield,
     kind: d.kind,
-    layer: d.icon === "airSupply" ? "air" : "ground",
+    layer: economyLayer(d),
     speed: d.speed,
     radius: d.radius,
   });
@@ -91,7 +92,7 @@ export function newStructure(
     repeatUnitId: null,
     queue: [],
     research: null,
-    larva: done && d.id === "zerg-hatchery" ? 3 : 0,
+    larva: done && isLarvaProducer(d.id) ? 3 : 0,
     larvaTicks: ECONOMY_MECHANICS.larvaTicks,
   };
 }
