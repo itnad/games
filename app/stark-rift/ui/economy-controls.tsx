@@ -101,11 +101,12 @@ export function EconomyControls({
         </p>
       </div>
     );
+  const mixed = entities.some((e) => e.definitionId !== first.definitionId);
   return (
     <div className="sr-economy-controls">
       <div className="sr-selection-title sr-selection-toolbar">
         <strong>
-          {def.name}
+          {mixed ? "혼합 병력" : def.name}
           {entities.length > 1 ? ` × ${entities.length}` : ""}
         </strong>
         {def.kind === "combat" && hasBasicWeapon(def.id) && (
@@ -129,7 +130,7 @@ export function EconomyControls({
           )
         )}
         <span>
-          체력 {first.health}
+          {mixed ? "선두 체력" : "체력"} {first.health}
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
@@ -418,10 +419,7 @@ export function EconomyControls({
         </p>
       )}
       {def.kind === "combat" && !hasBasicWeapon(def.id) && (
-        <p className="sr-help">
-          이 유닛의 무기는 다음 전투 작업에서 연결됩니다. 현재 이동만
-          가능합니다.
-        </p>
+        <p className="sr-help">비무장 유닛입니다. 이동과 정찰에 활용하세요.</p>
       )}
       {def.kind === "combat" && (
         <div className="sr-action-row">
