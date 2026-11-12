@@ -1,9 +1,13 @@
+import { validBurrowState } from "../abilities/burrow";
+import { getRuntimeMap } from "../data/maps";
+import { ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION } from "../data/economy-catalog";
 import { visionStateSchema, type VisionState } from "../vision/state";
 import {
   combatStateSchema,
   PREVIOUS_COMBAT_RULES_VERSION,
   COMBAT_RULES_VERSION,
   RANGED_COMBAT_RULES_VERSION,
+  TERRAIN_COMBAT_RULES_VERSION,
   type CombatState,
 } from "../combat/state";
 import { validEconomy } from "../economy/validation";
@@ -282,7 +286,7 @@ export const simulationStateSchema: Schema<SimulationState> = refine(
     outcome: nullable(matchOutcomeSchema),
   }),
   (state) => {
-    if (!validEconomy(state)) return false;
+    if (!validEconomy(state) || !validBurrowState(state)) return false;
     if (state.vision) {
       const v = state.vision;
       if (
@@ -515,10 +519,10 @@ export const validatePersistenceEnvelope = (input: unknown) =>
 export function migrateLegacyEnvelope(input: unknown): unknown {
   if (!input || typeof input !== "object") return input;
   const old = input as PersistenceEnvelope;
-  if (![6, 7, 8].includes(old.formatVersion)) return input;
+  if (![6, 7, 8, 9].includes(old.formatVersion)) return input;
   const source = old.simulation,
     engine = (
-      { 6: "0.7.0-stage4", 7: "0.8.0-stage5a", 8: "0.9.0-stage5b" } as Record<
+      { 6: "0.7.0-stage4", 7: "0.8.0-stage5a", 8: "0.9.0-stage5b", 9: "0.10.0-stage5c" } as Record<
         number,
         string
       >
@@ -529,19 +533,23 @@ export function migrateLegacyEnvelope(input: unknown): unknown {
     source.engineVersion !== engine ||
     source.schemaVersion !== old.formatVersion ||
     old.checksum !== checksum(source) ||
-    source.vision !== undefined
+    (old.formatVersion < 9 && source.vision !== undefined)
   )
     throw new TypeError("Invalid legacy save");
+  const currentDataVersion = getRuntimeMap("rift-basin").dataVersion,
+    previousDataVersion = currentDataVersion.replace(ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION);
+  if (old.dataVersion !== source.dataVersion || source.map?.definitionId !== "rift-basin" || old.dataVersion !== previousDataVersion)
+    throw new TypeError("Unknown legacy data version");
   if (old.formatVersion === 6 && source.combat !== undefined)
     throw new TypeError("Unexpected legacy combat");
   if (source.combat) {
     const expected =
       old.formatVersion === 7
         ? PREVIOUS_COMBAT_RULES_VERSION
-        : RANGED_COMBAT_RULES_VERSION;
+        : old.formatVersion === 8 ? RANGED_COMBAT_RULES_VERSION : TERRAIN_COMBAT_RULES_VERSION;
     if (
       source.combat.rulesVersion !== expected ||
-      !["economy", "combat-practice", "ranged-practice"].includes(
+      !(old.formatVersion === 9 ? ["economy", "combat-practice", "ranged-practice", "siege-practice"] : ["economy", "combat-practice", "ranged-practice"]).includes(
         source.combat.scenario,
       )
     )
@@ -566,6 +574,7 @@ export function migrateLegacyEnvelope(input: unknown): unknown {
       throw new TypeError("Invalid legacy flight");
   }
   const saved = structuredClone(old);
+  saved.dataVersion = saved.simulation.dataVersion = currentDataVersion;
   saved.formatVersion = STARK_RIFT_FORMAT_VERSION;
   saved.engineVersion = STARK_RIFT_ENGINE_VERSION;
   saved.simulation.schemaVersion = STARK_RIFT_SCHEMA_VERSION;
@@ -573,7 +582,8 @@ export function migrateLegacyEnvelope(input: unknown): unknown {
   if (saved.simulation.combat) {
     saved.simulation.combat.rulesVersion = COMBAT_RULES_VERSION;
     saved.simulation.combat.projectiles ??= [];
-    for (const p of saved.simulation.combat.projectiles) p.miss = false;
+    if (old.formatVersion < 9)
+      for (const p of saved.simulation.combat.projectiles) p.miss = false;
     for (const r of saved.simulation.combat.records) r.lastSeenTarget ??= null;
   }
   for (const m of saved.simulation.movement)
