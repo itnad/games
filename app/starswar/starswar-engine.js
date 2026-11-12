@@ -1709,6 +1709,8 @@ export function stwHitDamage(state, attacker, target) {
 function applyDamage(state, target, amount, { ignoreArmor = false } = {}) {
   // 스테이시스 필드 안의 유닛은 다치지 않는다.
   if (target.kind === "unit" && inStasis(state, target)) return;
+  // 마지막으로 무엇이든 맞은 때(자원이 바닥난 뒤 싸움이 멈췄는지 판단한다).
+  if (amount > 0) state.lastDamageAt = state.time;
   let remaining = amount;
   // 디펜시브 매트릭스가 먼저 흡수한다.
   if (target.matrix && state.time < target.matrix.until && target.matrix.hp > 0) {
@@ -4091,12 +4093,17 @@ function autoWaves(state) {
   }
 }
 
-/** 양쪽 모두 수입·병력·생산이 없어 더 이상 승부가 날 수 없는 상태인지. */
-function exhausted(state, side) {
+/** 광물 수입이 없고 남은 광물로 아무것도 만들 수 없으며 만드는 중인 것도 없는지(모든 유닛에 광물이 든다. 가스만 남아도 못 만든다). */
+function cannotProduce(state, side) {
   const record = state.sides[side];
   if (stwIncome(state, side).minerals > 0 || record.minerals >= 50) return false;
-  if (state.units.some((unit) => unit.side === side && !isWorker(unit))) return false;
   return !state.buildings.some((building) => building.side === side && (building.current || building.queue.length));
+}
+
+/** 양쪽 모두 수입·공격할 수 있는 병력·생산이 없어 더 이상 승부가 날 수 없는 상태인지. 오버로드·수송선·메딕처럼 공격하지 못하는 유닛은 세지 않는다. */
+function exhausted(state, side) {
+  if (!cannotProduce(state, side)) return false;
+  return !state.units.some((unit) => unit.side === side && !isWorker(unit) && unit.hp > 0 && STW_UNITS[unit.type].damage);
 }
 
 function checkVictory(state) {
@@ -4105,10 +4112,12 @@ function checkVictory(state) {
   if (playerMain && enemyMain) {
     // 양쪽 다 자원이 바닥나고 병력도 없으면 30초 뒤 무승부로 끝낸다.
     state.stalemate = exhausted(state, "player") && exhausted(state, "enemy") ? (state.stalemate ?? 0) + STW_TICK : 0;
-    if (state.stalemate < 30) return;
+    // 양쪽 다 더 만들 수 없는데 90초 동안 아무것도 맞지 않았으면 무승부(병력이 남아도 서로 닿지 않으면 끝나지 않던 문제).
+    const stuck = cannotProduce(state, "player") && cannotProduce(state, "enemy") && state.time - (state.lastDamageAt ?? 0) >= 90;
+    if (state.stalemate < 30 && !stuck) return;
     state.status = "over";
     state.winner = "draw";
-    pushLog(state, "player", "양쪽 모두 자원과 병력이 바닥나 무승부입니다.", "info");
+    pushLog(state, "player", stuck ? "양쪽 모두 자원이 바닥나고 90초 동안 싸움이 없어 무승부입니다." : "양쪽 모두 자원과 병력이 바닥나 무승부입니다.", "info");
     return;
   }
   state.status = "over";

@@ -53,6 +53,7 @@ import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } f
 import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
 import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./starswar-lab";
 import { THEMES, ThemeFonts, themeProps, type ThemeId } from "./starswar-theme";
+import { PAPEROID_BUILD_ID, PAPEROID_GIT_SHA } from "../app-version";
 import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwMapData, StwMapId, StwOp, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
 
 type Screen = "menu" | "play" | "lab";
@@ -1431,9 +1432,11 @@ function ArmyChart({ game }: { game: StwState }) {
   );
 }
 
-/** 단일 HTML 빌드가 넣는 게임 판(커밋·날짜). 웹 빌드에는 없다. */
+/** 게임 판: 단일 HTML 빌드는 빌드 스크립트가 넣는 커밋·날짜, 웹 빌드는 빌드한 커밋과 배포 번호. */
 declare const __STW_BUILD__: string | undefined;
-const STW_BUILD = typeof __STW_BUILD__ === "string" ? __STW_BUILD__ : "웹 빌드";
+const STW_BUILD = typeof __STW_BUILD__ === "string"
+  ? __STW_BUILD__
+  : `웹 빌드 · 커밋 ${PAPEROID_GIT_SHA}${PAPEROID_BUILD_ID !== PAPEROID_GIT_SHA && !PAPEROID_GIT_SHA.startsWith(PAPEROID_BUILD_ID) ? ` · 배포 ${PAPEROID_BUILD_ID}` : ""}`;
 
 type ReportKind = "bug" | "ai";
 

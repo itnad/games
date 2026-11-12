@@ -207,6 +207,8 @@ export type StwState = {
   ops?: StwOp[];
   scans?: StwScan[];
   stalemate?: number;
+  /** 마지막으로 무엇이든 피해를 입은 시각(자원이 바닥난 뒤 싸움이 멈췄는지 판단). */
+  lastDamageAt?: number;
   effects: StwEffect[];
   log: StwLogEntry[];
 };

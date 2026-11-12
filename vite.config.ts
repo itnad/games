@@ -10,6 +10,15 @@ const LOCAL_GIT_SHA = (() => {
   try { return execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim(); }
   catch { return "development"; }
 })();
+// 빌드한 커밋(리포트의 재현용). 작업 트리가 커밋과 다르면 "+수정"을 붙인다.
+const PAPEROID_GIT_SHA = (() => {
+  try {
+    const dirty = execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim() ? "+수정" : "";
+    return `${process.env.GITHUB_SHA?.slice(0, 12) ?? LOCAL_GIT_SHA}${dirty}`;
+  } catch {
+    return process.env.GITHUB_SHA?.slice(0, 12) ?? LOCAL_GIT_SHA;
+  }
+})();
 const PAPEROID_BUILD_ID =
   process.env.OAI_SITE_VERSION ??
   process.env.CF_PAGES_COMMIT_SHA ??
@@ -71,6 +80,7 @@ export default defineConfig(async () => {
   return {
     define: {
       "import.meta.env.VITE_PAPEROID_BUILD_ID": JSON.stringify(PAPEROID_BUILD_ID),
+      "import.meta.env.VITE_PAPEROID_GIT_SHA": JSON.stringify(PAPEROID_GIT_SHA),
     },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }

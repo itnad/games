@@ -1699,6 +1699,31 @@ test("starswar warns about depleting minerals and ends an exhausted game as a dr
   stwSpawnUnitAt(alive, "player", "zealot", 20, 80);
   run(alive, 31);
   assert.equal(alive.status, "playing");
+  // 그래도 양쪽 다 더 만들 수 없고 90초 동안 아무것도 맞지 않으면 무승부(후반 리포트: 남은 병력이 서로 닿지 않아 30분 가까이 끝나지 않았다).
+  run(alive, 60);
+  assert.equal(alive.status, "over");
+  assert.equal(alive.winner, "draw");
+  assert.ok(alive.log.some((entry) => /90초 동안 싸움이 없어 무승부/.test(entry.text)));
+
+  // 공격하지 못하는 유닛(옵저버·오버로드·수송선 등)만 남았으면 병력으로 치지 않는다.
+  const support = quiet();
+  for (const side of ["player", "enemy"]) {
+    support.sides[side].bases.main.minerals = 0;
+    support.sides[side].bases.natural.minerals = 0;
+    support.sides[side].minerals = 10;
+  }
+  stwSpawnUnitAt(support, "player", "observer", 20, 80);
+  run(support, 31);
+  assert.equal(support.winner, "draw");
+
+  // 한쪽이 아직 만들 수 있으면(광물 50 이상) 싸움이 멈춰도 끝나지 않는다.
+  const rich = quiet();
+  rich.sides.enemy.bases.main.minerals = 0;
+  rich.sides.enemy.bases.natural.minerals = 0;
+  rich.sides.enemy.minerals = 10;
+  stwSpawnUnitAt(rich, "player", "zealot", 20, 80);
+  run(rich, 95);
+  assert.equal(rich.status, "playing");
 });
 
 test("starswar AI attacks with everything once its minerals run dry", () => {

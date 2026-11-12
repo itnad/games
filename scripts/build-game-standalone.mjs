@@ -47,7 +47,8 @@ const result = await build({
   target: ["es2020"],
   jsx: "automatic",
   outdir: "out",
-  define: { "process.env.NODE_ENV": '"production"', __STW_BUILD__: JSON.stringify(buildId) },
+  // 웹 빌드용 값(app-version.ts). 단일 HTML은 __STW_BUILD__로 게임 판을 적으므로 자리만 채운다.
+  define: { "process.env.NODE_ENV": '"production"', __STW_BUILD__: JSON.stringify(buildId), "import.meta.env.VITE_PAPEROID_BUILD_ID": '"standalone"', "import.meta.env.VITE_PAPEROID_GIT_SHA": '"standalone"' },
   plugins: artifact ? [globalsPlugin] : [],
   logLevel: "warning",
 });
