@@ -151,6 +151,14 @@ export function createBaksalAudio(context) {
       tone({ at, frequency: 2093, peak: 0.3, decay: 0.08 });
       tone({ at: at + 0.05, frequency: 2637, peak: 0.3, decay: 0.14 });
     },
+    dryFire(at) {
+      tone({ at, frequency: 1800, type: "square", peak: 0.12, decay: 0.03 });
+    },
+    reload(at) {
+      noise({ at, peak: 0.35, decay: 0.12, highpass: 1500 });
+      tone({ at: at + 0.09, frequency: 520, type: "triangle", peak: 0.3, decay: 0.08 });
+      tone({ at: at + 0.16, frequency: 780, type: "triangle", peak: 0.3, decay: 0.1 });
+    },
     whisper(at, relativeAzimuth) {
       const pan = panFor(relativeAzimuth);
       noise({ at, peak: 0.18, decay: 0.45, pan, highpass: 4000 });

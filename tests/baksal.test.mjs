@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   BEATS_PER_BAR,
@@ -31,10 +32,28 @@ import { classifyImpulse, classifyShake, createDodgeDetector, createWalkDetector
 import { GHOST_TYPES, GHOST_TYPE_IDS, masteryLevel } from "../app/baksal/baksal-ghosts.js";
 import { CHOICE_BEATS, chartBpmAtBeat, createRunChart, createStageZeroChart, ghostAzimuthAt, roomAtBeat } from "../app/baksal/baksal-chart.js";
 import { BASE_TALISMAN_IDS, TALISMANS, TALISMAN_IDS, defaultModifiers, offerTalismans, unlockedTalismanIds } from "../app/baksal/baksal-talismans.js";
-import { normalizeCodex, readCodex, recordRun, writeCodex } from "../app/baksal/baksal-codex.js";
+import { exportBaksalSave, normalizeCodex, parseBaksalSave, readCodex, recordRun, weeklyActivity, writeCodex } from "../app/baksal/baksal-codex.js";
 import {
+  BAKSAL_BARRIER_TARGET,
+  BAKSAL_DAILY_BPM,
+  BAKSAL_DAILY_TALISMANS,
+  baksalBarrierStatus,
+  baksalChartLimits,
+  baksalDailyChallengeForDate,
+  baksalDailyChart,
+  baksalDailyDefaultName,
+  baksalDailyRecordIsBetter,
+  baksalDailyResultIsPlausible,
+  baksalKstDate,
+  baksalPreviousDate,
+  normalizeBaksalDailyName,
+  validBaksalDailyParticipantId,
+} from "../app/baksal/baksal-daily.js";
+import {
+  BASE_AMMO,
   PLAYER_MAX_HP,
   advanceRun,
+  reloadRun,
   chooseTalisman,
   createRun,
   cuesBetween,
@@ -200,7 +219,7 @@ test("run chart builds four rooms and a boss with choice gaps and rising tempo",
 });
 
 test("talismans apply modifiers and unlock by purification count", () => {
-  assert.equal(TALISMAN_IDS.length, 14);
+  assert.equal(TALISMAN_IDS.length, 15);
   let modifiers = defaultModifiers();
   modifiers = TALISMANS["salt-wide"].apply(modifiers);
   modifiers = TALISMANS["beat-purify"].apply(modifiers);
@@ -426,4 +445,156 @@ test("a full run that dodges everything finishes after the boss with per-room st
   assert.ok(summary.dodges.ok > 20);
   assert.equal(summary.dodges.fail, 0);
   assert.equal(state.talismans.length + (state.active ? 1 : 0), 4, "one talisman per room gap");
+});
+
+test("ammo runs out, empty shots are counted, and reloading refills on the beat", () => {
+  const { state, aim } = runWithFirstGhost();
+  advanceRun(state, 0);
+  for (let shot = 0; shot < BASE_AMMO; shot += 1) assert.notEqual(shootRun(state, 0.5 + shot * 0.01, { yaw: aim.yaw + 120, pitch: 0 }).empty, true);
+  assert.equal(state.ammo, 0);
+  const empty = shootRun(state, 1, aim);
+  assert.equal(empty.empty, true);
+  assert.equal(state.emptyShots, 1);
+  assert.equal(state.shotsFired, BASE_AMMO, "dry fire is not a shot");
+  const reload = reloadRun(state, 2.02);
+  assert.equal(reload.ok, true);
+  assert.equal(reload.judgment, "ttak");
+  assert.equal(state.ammo, BASE_AMMO);
+  assert.equal(reload.comboed, true, "an empty magazine refilled on the beat keeps the combo going");
+  assert.equal(reloadRun(state, 3).reason, "full");
+  const comboBefore = state.combo;
+  shootRun(state, 3.5, { yaw: aim.yaw + 120, pitch: 0 });
+  const topUp = reloadRun(state, 4);
+  assert.equal(topUp.ok, true);
+  assert.equal(topUp.comboed, false, "topping up a partial magazine never adds combo");
+  assert.equal(state.combo, comboBefore);
+  state.phase = "choice";
+  state.choice = { offered: ["salt-bag"], deadlineBeat: 100, forRoom: 1 };
+  state.ammo = 1;
+  chooseTalisman(state, "salt-bag");
+  assert.equal(state.maxAmmo, BASE_AMMO + 4);
+  assert.equal(state.ammo, BASE_AMMO + 4, "the bigger salt bag arrives full");
+  assert.equal(summarizeRun(state).reloads, 2);
+});
+
+test("daily challenge uses KST dates, a server seed, fixed tempo, and optional reinforcement", () => {
+  assert.equal(baksalKstDate(Date.parse("2026-11-12T15:30:00Z")), "2026-11-13");
+  assert.equal(baksalPreviousDate("2026-11-01"), "2026-10-31");
+  const plain = baksalDailyChallengeForDate("2026-11-13");
+  assert.deepEqual(plain, baksalDailyChallengeForDate("2026-11-13"));
+  assert.equal(plain.bpm, BAKSAL_DAILY_BPM);
+  assert.equal(plain.reinforced, false);
+  assert.notEqual(plain.seed, baksalDailyChallengeForDate("2026-11-14").seed);
+  const reinforced = baksalDailyChallengeForDate("2026-11-13", { reinforced: true });
+  assert.equal(reinforced.seed, plain.seed, "reinforcement does not change the seed");
+  const plainChart = baksalDailyChart(plain);
+  const strongChart = baksalDailyChart(reinforced);
+  assert.equal(strongChart.ghosts.length, plainChart.ghosts.length + 1);
+  const extra = strongChart.rooms[1].ghosts.filter((ghost) => ghost.type === "mongdal");
+  assert.equal(extra.length, 1, "the shadow yard gains one scholar ghost");
+  assert.ok(extra[0].leaveBeat <= strongChart.rooms[1].endBeat);
+  assert.deepEqual(baksalDailyChart(plain), baksalDailyChart(plain), "everyone gets the same chart");
+  assert.ok(BAKSAL_DAILY_TALISMANS.every((id) => TALISMANS[id]), "daily talisman pool ignores personal unlocks");
+});
+
+test("daily barrier, names, identities, and best-record ordering are bounded", () => {
+  assert.deepEqual(baksalBarrierStatus(15_000), { total: 15_000, target: BAKSAL_BARRIER_TARGET, ratio: 0.5, holding: false });
+  assert.equal(baksalBarrierStatus(99_999).ratio, 1);
+  assert.equal(baksalBarrierStatus(-5).total, 0);
+  assert.equal(normalizeBaksalDailyName("  야경\n  최고   선수  "), "야경 최고 선수");
+  assert.equal(Array.from(normalizeBaksalDailyName("가나다라마바사아자차카타파하")).length, 12);
+  assert.equal(baksalDailyDefaultName("12345678-abcd-ef00"), "야경꾼 EF00");
+  assert.equal(validBaksalDailyParticipantId("12345678-abcd-ef00"), true);
+  assert.equal(validBaksalDailyParticipantId("short"), false);
+  const current = { score: 5000, roomsCleared: 3, maxCombo: 20, remainingHp: 2 };
+  assert.equal(baksalDailyRecordIsBetter(null, current), true);
+  assert.equal(baksalDailyRecordIsBetter(current, { ...current, score: 4999, roomsCleared: 5 }), false);
+  assert.equal(baksalDailyRecordIsBetter(current, { ...current, roomsCleared: 4 }), true);
+  assert.equal(baksalDailyRecordIsBetter(current, { ...current, maxCombo: 21 }), true);
+  assert.equal(baksalDailyRecordIsBetter(current, { ...current, remainingHp: 3 }), true);
+  assert.equal(baksalDailyRecordIsBetter(current, { ...current }), false);
+});
+
+test("daily plausibility accepts a real simulated run and rejects impossible numbers", () => {
+  const challenge = baksalDailyChallengeForDate("2026-11-13");
+  const chart = baksalDailyChart(challenge);
+  const state = createRun(chart, { unlockedTalismans: BAKSAL_DAILY_TALISMANS });
+  for (let beat = -1; beat < chart.lengthBeats + 8 && !state.finished; beat += 0.25) {
+    advanceRun(state, beat);
+    for (const projectile of state.projectiles) {
+      if (projectile.status !== "flying") continue;
+      if (projectile.gesture) dodgeRun(state, projectile.arriveBeat, projectile.gesture);
+      else {
+        const position = projectilePosition(state, projectile, beat);
+        shootRun(state, Math.round(beat), { yaw: position.azimuth, pitch: position.elevation });
+        if (state.ammo === 0) reloadRun(state, Math.round(beat));
+      }
+    }
+  }
+  const summary = summarizeRun(state);
+  const payload = {
+    score: summary.score,
+    roomsCleared: summary.roomsCleared,
+    maxCombo: summary.maxCombo,
+    remainingHp: summary.hp,
+    purified: summary.purified,
+    dodges: summary.dodges.ok,
+    ttak: summary.counts.ttak,
+    judged: summary.judged,
+    completed: !summary.failed && summary.roomsCleared === chart.rooms.length,
+  };
+  assert.equal(payload.completed, true);
+  assert.equal(baksalDailyResultIsPlausible(chart, payload), true);
+  const limits = baksalChartLimits(chart);
+  assert.equal(baksalDailyResultIsPlausible(chart, { ...payload, score: limits.maxScore + 1 }), false);
+  assert.equal(baksalDailyResultIsPlausible(chart, { ...payload, purified: limits.ghosts + 1 }), false);
+  assert.equal(baksalDailyResultIsPlausible(chart, { ...payload, ttak: payload.judged + 1 }), false);
+  assert.equal(baksalDailyResultIsPlausible(chart, { ...payload, completed: true, roomsCleared: 3 }), false);
+  assert.equal(baksalDailyResultIsPlausible(chart, { ...payload, remainingHp: 1.5 }), false);
+});
+
+test("codex keeps daily runs out of history and unlocks but tracks weekly activity", () => {
+  const now = Date.parse("2026-11-12T03:00:00Z");
+  const base = recordRun(normalizeCodex(null), { score: 700, purified: 2, roomsCleared: 2, dodges: { ok: 5 }, ghostStats: { "egg-ghost": { seen: 1, purified: 2 } } }, { at: now, rotation: 720, seconds: 150 });
+  const daily = recordRun(base.codex, { score: 9_000, purified: 30, roomsCleared: 5, dodges: { ok: 12 }, ghostStats: { "egg-ghost": { seen: 2, purified: 30 } } }, { at: now + 1000, rotation: 360, seconds: 170, daily: true, dailyDate: "2026-11-12" });
+  assert.equal(daily.codex.totalPurified, 2, "daily purifications do not count toward unlocks");
+  assert.deepEqual(daily.newTalismans, []);
+  assert.equal(daily.codex.runs.length, 1, "daily runs stay out of the normal history");
+  assert.equal(daily.codex.best, 700, "daily scores do not replace the normal best");
+  assert.equal(daily.codex.ghosts["egg-ghost"].purified, 32, "but the codex still learns");
+  assert.deepEqual(daily.codex.daily, { date: "2026-11-12", best: 9_000, attempts: 1 });
+  const again = recordRun(daily.codex, { score: 100, dodges: { ok: 0 } }, { at: now + 2000, daily: true, dailyDate: "2026-11-12" });
+  assert.deepEqual(again.codex.daily, { date: "2026-11-12", best: 9_000, attempts: 2 });
+  assert.equal(again.isBest, false);
+  const week = weeklyActivity(again.codex, now);
+  assert.deepEqual(week, { runs: 3, rotation: 1080, dodges: 17, seconds: 320, days: 1 });
+  assert.equal(weeklyActivity(again.codex, now + 8 * 24 * 60 * 60 * 1000).runs, 0, "old days fall out of the week");
+});
+
+test("save export round-trips the codex and settings without the daily identity", () => {
+  const record = recordRun(normalizeCodex(null), { score: 1234, purified: 3, ghostStats: { "dokkaebi-fire": { seen: 2, purified: 3 } } }, { at: 1 });
+  const text = exportBaksalSave(record.codex, { bpm: 90, offsetMs: 40 }, { at: 0 });
+  assert.doesNotMatch(text, /participant/i);
+  const parsed = parseBaksalSave(text);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.codex.best, 1234);
+  assert.equal(parsed.codex.ghosts["dokkaebi-fire"].purified, 3);
+  assert.equal(parsed.settings.bpm, 90);
+  assert.deepEqual(parseBaksalSave("not json"), { ok: false, reason: "json" });
+  assert.deepEqual(parseBaksalSave(JSON.stringify({ format: "other" })), { ok: false, reason: "format" });
+  assert.deepEqual(parseBaksalSave(JSON.stringify({ format: "baksal-save", version: 99 })), { ok: false, reason: "version" });
+});
+
+test("daily API decides conditions on the server and never returns participant identities", async () => {
+  const route = await readFile(new URL("../app/api/baksal-daily/route.ts", import.meta.url), "utf8");
+  const schema = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
+  const migration = await readFile(new URL("../drizzle/0002_baksal_daily_results.sql", import.meta.url), "utf8");
+  assert.match(route, /BAKSAL_BARRIER_TARGET/);
+  assert.match(route, /baksalPreviousDate\(date\)/, "reinforcement comes from yesterday's barrier");
+  assert.match(route, /payload\.date !== challenge\.date \|\| Number\(payload\.seed\) !== challenge\.seed/, "client conditions are only compared, never trusted");
+  assert.match(route, /baksalDailyResultIsPlausible\(baksalDailyChart\(challenge\)/);
+  assert.match(route, /publicEntry/);
+  assert.doesNotMatch(route, /participantId: (?:entry|participant|saved)\.participantId/);
+  assert.match(schema, /uniqueIndex\("baksal_daily_results_date_participant_unique"\)/);
+  assert.match(migration, /CREATE UNIQUE INDEX `baksal_daily_results_date_participant_unique`/);
 });

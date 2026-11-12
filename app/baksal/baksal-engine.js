@@ -14,6 +14,7 @@ import { CHOICE_BEATS, PURIFY_WINDOW_BEATS, chartBpmAtBeat, ghostAzimuthAt, room
 import { TALISMANS, defaultModifiers, offerTalismans, BASE_TALISMAN_IDS } from "./baksal-talismans.js";
 
 export const PLAYER_MAX_HP = 5;
+export const BASE_AMMO = 8;
 export const BASE_SHIELDS = 1;
 export const SHIELD_BEATS = 1;
 export const STAGGER_BEATS = 4;
@@ -65,6 +66,10 @@ export function createRun(chart, { windows = "standard", unlockedTalismans = BAS
     active: null,
     torchUntil: -Infinity,
     cleanseUntil: -Infinity,
+    ammo: BASE_AMMO,
+    maxAmmo: BASE_AMMO,
+    reloads: 0,
+    emptyShots: 0,
     shieldsLeft: BASE_SHIELDS,
     shieldUntil: -Infinity,
     curse: { shakeUntil: -Infinity, blurUntil: -Infinity },
@@ -200,6 +205,10 @@ export function chooseTalisman(state, id) {
     }
     if (state.modifiers.comboShields > before.comboShields) state.comboShieldsLeft += state.modifiers.comboShields - before.comboShields;
     if (state.modifiers.shieldBonus > before.shieldBonus) state.shieldsLeft += state.modifiers.shieldBonus - before.shieldBonus;
+    if (state.modifiers.ammoBonus > before.ammoBonus) {
+      state.maxAmmo = BASE_AMMO + state.modifiers.ammoBonus;
+      state.ammo = state.maxAmmo;
+    }
   }
   state.phase = "room";
   state.roomIndex = state.choice.forRoom;
@@ -330,6 +339,11 @@ function nearestTarget(candidates, aim, radius) {
 /** 사격. 박 판정은 목표가 있을 때만 기록한다. 빈 곳에 쏘면 벌칙이 없다. */
 export function shootRun(state, beat, aim) {
   if (state.finished) return { judgment: null, hit: null };
+  if (state.ammo <= 0) {
+    state.emptyShots += 1;
+    return { judgment: null, hit: null, empty: true };
+  }
+  state.ammo -= 1;
   state.shotsFired += 1;
   const judgment = judgeOffset(nearestBeatOffset(beat, bpmAt(state, beat)).offsetMs, windowsOf(state));
   let multiplier = JUDGMENT_DAMAGE_MULTIPLIER[judgment];
@@ -445,6 +459,22 @@ export function purifyRun(state, beat, aim) {
   return { ok: true, judgment, targetId: target.target.id, name: target.target.name, ghostType: target.target.type };
 }
 
+/**
+ * 재장전: 폰을 아래로 향한 채 1박을 버티면 호출된다. 탄창이 가득 차 있으면 무시한다.
+ * 빈 탄창을 정박에 맞춰 채우면 콤보를 하나 잇는다. 쏘자마자 다시 채우는 반복으로 콤보를 늘릴 수는 없다.
+ */
+export function reloadRun(state, beat) {
+  if (state.finished) return { ok: false, reason: "finished" };
+  if (state.ammo >= state.maxAmmo) return { ok: false, reason: "full" };
+  const wasEmpty = state.ammo === 0;
+  state.ammo = state.maxAmmo;
+  state.reloads += 1;
+  const judgment = judgeOffset(nearestBeatOffset(beat, bpmAt(state, beat)).offsetMs, windowsOf(state));
+  const comboed = wasEmpty && judgment !== "miss" && state.phase === "room";
+  if (comboed) addCombo(state);
+  return { ok: true, judgment, ammo: state.ammo, comboed };
+}
+
 /** 긴급 결계: 1박 동안 도착하는 공격을 막는다. 저주 파동은 막지 못한다. */
 export function shieldRun(state, beat) {
   if (state.finished || state.phase !== "room") return { ok: false, reason: "phase" };
@@ -544,5 +574,8 @@ export function summarizeRun(state) {
     ghostStats: Object.fromEntries(Object.entries(state.ghostStats).map(([type, counts]) => [type, { ...counts }])),
     talismans: [...state.talismans, ...(state.active ? [state.active.id] : [])],
     bpm: state.chart.bpm,
+    reloads: state.reloads,
+    emptyShots: state.emptyShots,
+    windows: state.windows,
   };
 }

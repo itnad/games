@@ -157,12 +157,17 @@ function buildRoom(plan, index, startBeat, rngState, isBoss) {
  * 전체 런 채보. bpmBase는 1~2방 템포이고, 이후 방은 계획표의 상대 비율로 올라간다.
  * 70/80/90 선택은 전체 템포를 비례 조정한다.
  */
-export function createRunChart(seed, { bpm = 80 } = {}) {
+/** 결계가 약해진 다음 날: 그림자 마당에 원귀가 하나 더 나온다. */
+export const REINFORCEMENT = Object.freeze({ roomIndex: 1, ghost: { type: "mongdal", bar: 3, bars: 4, azimuth: 160, spread: 30 } });
+
+export function createRunChart(seed, { bpm = 80, reinforced = false } = {}) {
   const scale = bpm / 80;
   let rng = normalizeMudflatSeed(seed);
   const rooms = [];
   let cursor = 0;
-  const plans = [...ROOM_PLANS, BOSS_PLAN];
+  const plans = [...ROOM_PLANS, BOSS_PLAN].map((plan, index) => (
+    reinforced && index === REINFORCEMENT.roomIndex ? { ...plan, ghosts: [...plan.ghosts, REINFORCEMENT.ghost] } : plan
+  ));
   plans.forEach((plan, index) => {
     const scaledPlan = { ...plan, bpm: Math.round(plan.bpm * scale), tempoShifts: (plan.tempoShifts ?? []).map((shift) => ({ ...shift, bpm: Math.round(shift.bpm * scale) })) };
     const built = buildRoom(scaledPlan, index, cursor, rng, index === plans.length - 1);
@@ -179,6 +184,7 @@ export function createRunChart(seed, { bpm = 80 } = {}) {
     id: "run-v1",
     seed: normalizeMudflatSeed(seed),
     bpm,
+    reinforced: Boolean(reinforced),
     rooms,
     segments,
     lengthBeats: rooms[rooms.length - 1].endBeat,

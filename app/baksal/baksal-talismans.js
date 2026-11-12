@@ -6,6 +6,7 @@ import { nextMudflatRandom, normalizeMudflatSeed } from "../mudflat-rng.js";
 export const TALISMANS = Object.freeze({
   "salt-wide": { id: "salt-wide", axis: "소금총", name: "넓은 산탄", summary: "조준 보정 반경이 4도 넓어진다.", apply: (m) => ({ ...m, aimAssistDeg: m.aimAssistDeg + 4 }) },
   "salt-joa": { id: "salt-joa", axis: "소금총", name: "너그러운 소금", summary: "좋아 판정도 피해가 2배다.", apply: (m) => ({ ...m, joaDoubles: true }) },
+  "salt-bag": { id: "salt-bag", axis: "소금총", name: "큰 소금통", summary: "탄창이 4발 늘고 바로 가득 찬다.", apply: (m) => ({ ...m, ammoBonus: m.ammoBonus + 4 }) },
   "salt-weak": { id: "salt-weak", axis: "소금총", name: "쇠침 소금", summary: "약점 피해가 절반 더 늘고 약점 반경이 2도 넓어진다.", apply: (m) => ({ ...m, weakPointBonus: m.weakPointBonus + 0.5, weakPointDeg: m.weakPointDeg + 2 }) },
   "lantern-wide": { id: "lantern-wide", axis: "등롱", name: "큰 등롱", summary: "등롱 시야가 12도 넓어진다.", apply: (m) => ({ ...m, lanternConeDeg: m.lanternConeDeg + 12 }) },
   "lantern-reveal": { id: "lantern-reveal", axis: "등롱", name: "맑은 불", summary: "은신 악귀가 등롱 안 어디서나 보인다.", apply: (m) => ({ ...m, revealHidden: true }) },
@@ -21,7 +22,7 @@ export const TALISMANS = Object.freeze({
 });
 
 export const TALISMAN_IDS = Object.freeze(Object.keys(TALISMANS));
-export const BASE_TALISMAN_IDS = Object.freeze(["salt-wide", "salt-joa", "lantern-wide", "lantern-torch", "body-hp", "body-window", "beat-combo", "cleanse"]);
+export const BASE_TALISMAN_IDS = Object.freeze(["salt-wide", "salt-joa", "salt-bag", "lantern-wide", "lantern-torch", "body-hp", "body-window", "beat-combo", "cleanse"]);
 export const TALISMAN_UNLOCKS = Object.freeze([
   { purified: 8, ids: ["body-shield", "beat-purify"] },
   { purified: 20, ids: ["salt-weak", "lantern-reveal"] },
@@ -43,6 +44,7 @@ export function defaultModifiers() {
     comboStep: 5,
     comboShields: 0,
     purifyBeats: [0],
+    ammoBonus: 0,
   };
 }
 

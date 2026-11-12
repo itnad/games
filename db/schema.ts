@@ -27,3 +27,27 @@ export const mudflatDailyResults = sqliteTable("mudflat_daily_results", {
   uniqueIndex("mudflat_daily_results_date_participant_unique").on(table.challengeDate, table.participantId),
   index("mudflat_daily_results_ranking_index").on(table.challengeDate, table.completed, table.score),
 ]);
+
+export const baksalDailyResults = sqliteTable("baksal_daily_results", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  challengeDate: text("challenge_date").notNull(),
+  participantId: text("participant_id").notNull(),
+  displayName: text("display_name").notNull(),
+  seed: integer("seed").notNull(),
+  bpm: integer("bpm").notNull(),
+  reinforced: integer("reinforced", { mode: "boolean" }).notNull().default(false),
+  score: integer("score").notNull(),
+  roomsCleared: integer("rooms_cleared").notNull(),
+  maxCombo: integer("max_combo").notNull(),
+  remainingHp: integer("remaining_hp").notNull(),
+  purified: integer("purified").notNull(),
+  dodges: integer("dodges").notNull(),
+  ttak: integer("ttak").notNull(),
+  judged: integer("judged").notNull(),
+  completed: integer("completed", { mode: "boolean" }).notNull().default(false),
+  lenient: integer("lenient", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("baksal_daily_results_date_participant_unique").on(table.challengeDate, table.participantId),
+  index("baksal_daily_results_ranking_index").on(table.challengeDate, table.score),
+]);

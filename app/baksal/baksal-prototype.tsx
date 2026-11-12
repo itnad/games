@@ -35,6 +35,7 @@ import {
   cuesBetween,
   currentRoom,
   dodgeRun,
+  reloadRun,
   ghostPosition,
   ghostVisibility,
   isCursed,
@@ -49,7 +50,16 @@ import {
   weakPointPosition,
 } from "./baksal-engine.js";
 import { TALISMANS, nextTalismanUnlock, unlockedTalismanIds } from "./baksal-talismans.js";
-import { codexMastery, readCodex, recordRun, writeCodex } from "./baksal-codex.js";
+import { codexMastery, exportBaksalSave, parseBaksalSave, readCodex, recordRun, weeklyActivity, writeCodex } from "./baksal-codex.js";
+import { BAKSAL_DAILY_TALISMANS, baksalDailyChart } from "./baksal-daily.js";
+import {
+  BaksalDailyPanel,
+  BaksalLeaderboard,
+  submitBaksalDaily,
+  type BaksalDailyChallenge,
+  type BaksalDailyIdentity,
+  type BaksalDailySubmission,
+} from "./baksal-daily-panel";
 import { createBaksalAudio } from "./baksal-audio.js";
 import { DEFAULT_BAKSAL_SETTINGS, normalizeBaksalSettings, readBaksalSettings, writeBaksalSettings } from "./baksal-settings.js";
 import { createMudflatSeed } from "../mudflat-rng.js";
@@ -66,7 +76,25 @@ type RunSummary = ReturnType<typeof summarizeRun>;
 type Clock = ReturnType<typeof createTempoMap>;
 type CodexGhostEntry = { seen: number; purified: number };
 type CodexRun = { at: number; score: number; failed: boolean; roomsCleared: number; bpm: number; maxCombo: number };
-type Codex = { ghosts: Record<string, CodexGhostEntry>; totalPurified: number; runs: CodexRun[]; best: number };
+type CodexActivity = { runs: number; rotation: number; dodges: number; seconds: number };
+type Codex = {
+  ghosts: Record<string, CodexGhostEntry>;
+  totalPurified: number;
+  runs: CodexRun[];
+  best: number;
+  activity: Record<string, CodexActivity>;
+  daily: { date: string; best: number; attempts: number } | null;
+};
+type DailySession = { challenge: BaksalDailyChallenge; identity: BaksalDailyIdentity };
+type ResultState = {
+  summary: RunSummary;
+  rotation: number;
+  seconds: number;
+  runIndex: number;
+  record: RunRecord;
+  daily: DailySession | null;
+  submission: BaksalDailySubmission | null;
+};
 type RunRecord = { codex: Codex; newEntries: string[]; masteryUps: { type: string; level: number }[]; newTalismans: string[]; isBest: boolean };
 type TalismanInfo = { id: string; axis: string; name: string; summary: string; active?: { uses: number; effect: string; beats: number } };
 const TALISMAN_BY_ID: Record<string, TalismanInfo> = TALISMANS;
@@ -81,6 +109,9 @@ type RunState = {
   maxHp: number;
   shieldsLeft: number;
   shieldUntil: number;
+  ammo: number;
+  maxAmmo: number;
+  beat: number;
   torchUntil: number;
   curse: { shakeUntil: number; blurUntil: number };
   active: ActiveTalisman | null;
@@ -121,7 +152,8 @@ export function BaksalPrototype({ onExit }: { onExit?: () => void } = {}) {
   const [codex, setCodex] = useState<Codex>(() => readCodex(() => undefined as unknown as Storage) as Codex);
   const [sensors, setSensors] = useState<SensorState>({ gyro: null, motion: null, camera: "pending" });
   const [starting, setStarting] = useState(false);
-  const [result, setResult] = useState<{ summary: RunSummary; rotation: number; runIndex: number; record: RunRecord } | null>(null);
+  const [result, setResult] = useState<ResultState | null>(null);
+  const [daily, setDaily] = useState<DailySession | null>(null);
   const [runKey, setRunKey] = useState(0);
   const [audio, setAudio] = useState<Audio | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -189,7 +221,8 @@ export function BaksalPrototype({ onExit }: { onExit?: () => void } = {}) {
     }, 1800);
   }, []);
 
-  const beginSession = useCallback(async () => {
+  const beginSession = useCallback(async (session: DailySession | null = null) => {
+    setDaily(session);
     setStarting(true);
     try {
       type AudioContextCtor = typeof AudioContext;
@@ -234,14 +267,39 @@ export function BaksalPrototype({ onExit }: { onExit?: () => void } = {}) {
     setScreen("run");
   }, []);
 
-  const finishRun = useCallback((summary: RunSummary, rotation: number) => {
+  const finishRun = useCallback((summary: RunSummary, rotation: number, seconds: number) => {
     const runIndex = settings.runsPlayed + 1;
     updateSettings({ runsPlayed: runIndex });
-    const record = recordRun(codex, summary) as RunRecord;
+    const record = recordRun(codex, summary, { rotation, seconds, daily: Boolean(daily), dailyDate: daily?.challenge.date ?? null }) as RunRecord;
     setCodex(writeCodex(record.codex) as Codex);
-    setResult({ summary, rotation, runIndex, record });
+    setResult({ summary, rotation, seconds, runIndex, record, daily, submission: daily ? { status: "submitting" } : null });
     setScreen("result");
-  }, [codex, settings.runsPlayed, updateSettings]);
+    if (daily) {
+      const judged = summary.counts.ttak + summary.counts.joa + summary.counts.miss;
+      void submitBaksalDaily(daily.challenge, daily.identity, {
+        score: summary.score,
+        roomsCleared: summary.roomsCleared,
+        maxCombo: summary.maxCombo,
+        remainingHp: summary.hp,
+        purified: summary.purified,
+        dodges: summary.dodges.ok,
+        ttak: summary.counts.ttak,
+        judged,
+        completed: !summary.failed && summary.roomsCleared === 5,
+        lenient: summary.windows === "lenient",
+      }).then((submission) => {
+        setResult((current) => (current && current.runIndex === runIndex ? { ...current, submission } : current));
+      });
+    }
+  }, [codex, daily, settings.runsPlayed, updateSettings]);
+
+  const importSave = useCallback((text: string) => {
+    const parsed = parseBaksalSave(text);
+    if (!parsed.ok) return parsed.reason === "version" ? "더 새 버전에서 만든 기록입니다." : "박살 기록 파일이 아닙니다.";
+    setCodex(writeCodex(parsed.codex) as Codex);
+    if (parsed.settings) setSettings(writeBaksalSettings({ ...normalizeBaksalSettings(parsed.settings), runsPlayed: Math.max(settings.runsPlayed, normalizeBaksalSettings(parsed.settings).runsPlayed) }));
+    return "";
+  }, [settings.runsPlayed]);
 
   const fixedStance = settings.fixedStance || sensors.gyro === false;
 
@@ -255,7 +313,9 @@ export function BaksalPrototype({ onExit }: { onExit?: () => void } = {}) {
             starting={starting}
             codex={codex}
             onChange={updateSettings}
-            onStart={beginSession}
+            onStart={() => beginSession(null)}
+            onStartDaily={(challenge, identity) => beginSession({ challenge, identity })}
+            onImport={importSave}
             onRecalibrate={() => updateSettings({ offsetMs: null })}
             onCodex={() => setScreen("codex")}
             onExit={onExit}
@@ -277,6 +337,7 @@ export function BaksalPrototype({ onExit }: { onExit?: () => void } = {}) {
             stream={stream}
             settings={settings}
             codex={codex}
+            daily={daily?.challenge ?? null}
             fixedStance={fixedStance}
             motionAvailable={sensors.motion !== false}
             orientationRef={orientationRef}
@@ -292,6 +353,7 @@ export function BaksalPrototype({ onExit }: { onExit?: () => void } = {}) {
             settings={settings}
             codex={codex}
             onAgain={startRun}
+            onNormal={() => { setDaily(null); startRun(); }}
             onCodex={() => setScreen("codex")}
             onHome={() => setScreen("start")}
           />
@@ -305,22 +367,44 @@ export function BaksalPrototype({ onExit }: { onExit?: () => void } = {}) {
   );
 }
 
-function StartScreen({ settings, sensors, starting, codex, onChange, onStart, onRecalibrate, onCodex, onExit }: {
+function formatMinutes(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  return minutes > 0 ? `${minutes}분 ${seconds % 60}초` : `${seconds}초`;
+}
+
+function downloadText(filename: string, text: string) {
+  const blob = new Blob([text], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function StartScreen({ settings, sensors, starting, codex, onChange, onStart, onStartDaily, onImport, onRecalibrate, onCodex, onExit }: {
   settings: Settings;
   sensors: SensorState;
   starting: boolean;
   codex: Codex;
   onChange: (patch: Partial<Settings>) => void;
   onStart: () => void;
+  onStartDaily: (challenge: BaksalDailyChallenge, identity: BaksalDailyIdentity) => void;
+  onImport: (text: string) => string;
   onRecalibrate: () => void;
   onCodex: () => void;
   onExit?: () => void;
 }) {
   const seen = GHOST_TYPE_IDS.filter((id) => codex.ghosts[id].seen > 0).length;
   const unlock = nextTalismanUnlock(codex.totalPurified);
+  const week = weeklyActivity(codex);
+  const [importMessage, setImportMessage] = useState("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
   return (
     <main className="bk-panel">
-      <span className="bk-stage-tag">1단계 · 방 4개 + 지박령</span>
+      <span className="bk-stage-tag">2단계 · 오늘의 순찰</span>
       <header className="bk-brand">
         <small>BAKSAL: BEAT THE GHOSTS</small>
         <h1>박<em>살</em></h1>
@@ -333,6 +417,15 @@ function StartScreen({ settings, sensors, starting, codex, onChange, onStart, on
         <span><small>누적 정화</small><b>{codex.totalPurified}</b></span>
       </section>
       {unlock && <p className="bk-note">누적 정화 {unlock.purified}회가 되면 부적 {withKoreanSubject(unlock.ids.map((id: string) => TALISMAN_BY_ID[id].name).join("·"))} 열립니다.</p>}
+
+      <section className="bk-card bk-meta-row bk-activity" aria-label="최근 7일 활동량">
+        <span><small>7일 런</small><b>{week.runs}</b></span>
+        <span><small>7일 회전</small><b>{Math.round(week.rotation / 360)}<em>바퀴</em></b></span>
+        <span><small>7일 회피</small><b>{week.dodges}</b></span>
+        <p className="bk-note">최근 7일 중 {week.days}일, 서서 움직인 시간 {formatMinutes(week.seconds)}. 칼로리로 바꾸지 않은 실제 동작 수입니다.</p>
+      </section>
+
+      <BaksalDailyPanel starting={starting} onStart={onStartDaily} />
 
       <section className="bk-card">
         <h2>이렇게 합니다</h2>
@@ -385,7 +478,7 @@ function StartScreen({ settings, sensors, starting, codex, onChange, onStart, on
 
       <div className="bk-actions">
         <button type="button" className="bk-primary" disabled={starting} onClick={onStart}>
-          {starting ? "권한을 확인하는 중" : settings.offsetMs === null ? "권한 허용하고 보정 시작" : "권한 허용하고 시작"}
+          {starting ? "권한을 확인하는 중" : settings.offsetMs === null ? "자유 순찰 · 보정 먼저" : `자유 순찰 시작 · ${settings.bpm} BPM`}
         </button>
         <button type="button" className="bk-secondary" onClick={onCodex}>악귀 도감</button>
         {settings.offsetMs !== null && (
@@ -395,6 +488,28 @@ function StartScreen({ settings, sensors, starting, codex, onChange, onStart, on
         )}
         {onExit && <button type="button" className="bk-secondary" onClick={onExit}>게임 목록으로</button>}
       </div>
+      <section className="bk-card bk-save">
+        <h2>기록 옮기기</h2>
+        <p className="bk-note">도감과 기록은 이 기기에만 저장됩니다. 기기를 바꿀 때 파일로 옮기세요. 오늘의 순찰 참가 정보는 담기지 않습니다.</p>
+        <div className="bk-save-actions">
+          <button type="button" className="bk-secondary" onClick={() => downloadText(`baksal-${new Date().toISOString().slice(0, 10)}.json`, exportBaksalSave(codex, settings))}>내보내기</button>
+          <button type="button" className="bk-secondary" onClick={() => fileRef.current?.click()}>가져오기</button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file) return;
+              const error = onImport(await file.text());
+              setImportMessage(error || "기록을 가져왔습니다.");
+            }}
+          />
+        </div>
+        {importMessage && <p className="bk-note" role="status">{importMessage}</p>}
+      </section>
       {sensors.camera === "denied" && <p className="bk-note warn">카메라를 쓸 수 없어 어두운 배경으로 진행합니다. 게임 규칙은 같습니다.</p>}
       {sensors.gyro === false && <p className="bk-note warn">방향 센서를 읽을 수 없어 고정 자세 모드로 진행합니다.</p>}
       <p className="bk-note">카메라 영상은 기기 밖으로 나가지 않습니다. 위치 정보는 쓰지 않습니다. 지금까지 {settings.runsPlayed}런을 했습니다.</p>
@@ -573,24 +688,34 @@ type HudState = {
   active: { id: string; name: string; usesLeft: number; ready: boolean } | null;
   choice: { offered: string[]; remaining: number } | null;
   bpm: number;
+  ammo: number;
+  maxAmmo: number;
 };
 
-function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailable, orientationRef, gestureListenerRef, motionListenerRef, onFinish, onExit }: {
+/** 폰을 이만큼 아래로 내리면 재장전 자세다. 1박 버티면 재장전, 1마디 넘게 버티면 내려놓은 것으로 보고 멈춘다. */
+const RELOAD_PITCH_DEG = -40;
+const RELOAD_RAISE_PITCH_DEG = -25;
+const PUT_DOWN_BEATS = 4;
+
+function RunScreen({ audio, stream, settings, codex, daily, fixedStance, motionAvailable, orientationRef, gestureListenerRef, motionListenerRef, onFinish, onExit }: {
   audio: Audio;
   stream: MediaStream | null;
   settings: Settings;
   codex: Codex;
+  daily: BaksalDailyChallenge | null;
   fixedStance: boolean;
   motionAvailable: boolean;
   orientationRef: React.MutableRefObject<Orientation>;
   gestureListenerRef: React.MutableRefObject<GestureListener | null>;
   motionListenerRef: React.MutableRefObject<((sample: { t: number; x: number; y: number; z: number }) => void) | null>;
-  onFinish: (summary: RunSummary, rotation: number) => void;
+  onFinish: (summary: RunSummary, rotation: number, seconds: number) => void;
   onExit: () => void;
 }) {
+  const onFinishRef = useRef(onFinish);
+  useEffect(() => { onFinishRef.current = onFinish; }, [onFinish]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [hud, setHud] = useState<HudState>({ room: 1, roomName: "", boss: false, score: 0, combo: 0, hp: 5, maxHp: 5, message: "", shields: 1, active: null, choice: null, bpm: settings.bpm });
+  const [hud, setHud] = useState<HudState>({ room: 1, roomName: "", boss: false, score: 0, combo: 0, hp: 5, maxHp: 5, message: "", shields: 1, active: null, choice: null, bpm: daily?.bpm ?? settings.bpm, ammo: 8, maxAmmo: 8 });
   const [paused, setPaused] = useState<PauseReason | null>(null);
   const [resuming, setResuming] = useState(false);
   const pausedRef = useRef<PauseReason | null>(null);
@@ -612,6 +737,7 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
     message: { text: string; until: number } | null;
     finishedAt: number | null;
     downSince: number | null;
+    reloadedThisDown: boolean;
     drag: { id: number; x: number; y: number; moved: boolean; t: number } | null;
     holdTimer: number | null;
     hudAt: number;
@@ -667,6 +793,11 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
     const beat = correctedBeat(audioTime);
     if (beat < 0 || state.run.phase === "choice") return;
     const result = shootRun(state.run, beat, aimNow());
+    if (result.empty) {
+      audio.dryFire(audio.now());
+      flashAction(fixedStance ? "탄이 없다 · 재장전" : "탄이 없다 · 폰을 내려라", "#ff8c8c");
+      return;
+    }
     audio.shot(audio.now());
     if (result.hit) {
       flashJudgment(result.judgment);
@@ -678,7 +809,17 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
       if (result.destroyed) flashAction(result.kind === "curse" ? "저주 격파!" : "격파!", "#9be7ff");
       if (result.killed) flashAction("정화 가능", "#dcc8ff");
     }
-  }, [aimNow, audio, correctedBeat, flashAction, flashJudgment, inputBlocked]);
+  }, [aimNow, audio, correctedBeat, fixedStance, flashAction, flashJudgment, inputBlocked]);
+
+  const reloadAt = useCallback((audioTime: number) => {
+    const state = runtime.current;
+    if (!state || inputBlocked()) return;
+    const result = reloadRun(state.run, correctedBeat(audioTime));
+    if (result.ok) {
+      audio.reload(audio.now());
+      flashAction(result.comboed ? "박자 재장전!" : "재장전", "#ffe7c9");
+    }
+  }, [audio, correctedBeat, flashAction, inputBlocked]);
 
   const purifyAt = useCallback((audioTime: number) => {
     const state = runtime.current;
@@ -789,9 +930,11 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const chart = createRunChart(createMudflatSeed(), { bpm: settings.bpm });
-    const mastery = Object.fromEntries(GHOST_TYPE_IDS.map((id) => [id, codexMastery(codex, id)]));
-    const run = createRun(chart, { windows: settings.windows, unlockedTalismans: unlockedTalismanIds(codex.totalPurified), mastery }) as unknown as RunState;
+    // 오늘의 순찰은 서버가 정한 조건으로 모두 같은 채보·부적 후보를 받고, 숙련 약점 표시는 끈다.
+    const chart = daily ? baksalDailyChart(daily) : createRunChart(createMudflatSeed(), { bpm: settings.bpm });
+    const mastery = daily ? {} : Object.fromEntries(GHOST_TYPE_IDS.map((id) => [id, codexMastery(codex, id)]));
+    const unlockedTalismans = daily ? BAKSAL_DAILY_TALISMANS : unlockedTalismanIds(codex.totalPurified);
+    const run = createRun(chart, { windows: settings.windows, unlockedTalismans, mastery }) as unknown as RunState;
     runtime.current = {
       clock: createTempoMap(audio.now() + 0.5, chart.segments),
       run,
@@ -807,6 +950,7 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
       message: { text: `${chart.rooms[0].name} · 주변 1m를 비우고 폰을 세워 주세요`, until: performance.now() + 3000 },
       finishedAt: null,
       downSince: null,
+      reloadedThisDown: false,
       drag: null,
       holdTimer: null,
       hudAt: 0,
@@ -899,11 +1043,19 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
 
       if (!frozen && state.finishedAt === null) {
         if (!fixedStance && orientationRef.current) {
-          if (aim.pitch < -60) {
-            if (state.downSince === null) state.downSince = audioNow;
-            else if (audioNow - state.downSince > secondsPerBeat(clockBpmAtBeat(state.clock, beat))) pauseRun("down");
-          } else {
+          const spb = secondsPerBeat(clockBpmAtBeat(state.clock, beat));
+          if (aim.pitch < RELOAD_PITCH_DEG) {
+            const downSince = state.downSince ?? audioNow;
+            state.downSince = downSince;
+            const heldFor = audioNow - downSince;
+            if (!state.reloadedThisDown && heldFor >= spb) {
+              state.reloadedThisDown = true;
+              reloadAt(audioNow);
+            }
+            if (heldFor > spb * PUT_DOWN_BEATS) pauseRun("down");
+          } else if (aim.pitch > RELOAD_RAISE_PITCH_DEG) {
             state.downSince = null;
+            state.reloadedThisDown = false;
           }
         }
         for (const event of advanceRun(state.run, beat)) {
@@ -945,7 +1097,8 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
       }
 
       if (state.finishedAt !== null && now - state.finishedAt > 900) {
-        onFinish(summarizeRun(state.run), state.rotation);
+        const seconds = Math.max(0, Math.round(clockTimeOfBeat(state.run.beat, state.clock) - clockTimeOfBeat(-COUNT_IN_BEATS, state.clock)));
+        onFinishRef.current(summarizeRun(state.run), state.rotation, seconds);
         return;
       }
 
@@ -1036,6 +1189,8 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
           active: active ? { id: active.id, name: TALISMAN_BY_ID[active.id].name, usesLeft: active.usesLeft, ready: active.usesLeft > 0 && !(active.effect === "torch" && torch) } : null,
           choice: state.run.phase === "choice" && state.run.choice ? { offered: [...state.run.choice.offered], remaining: Math.max(0, state.run.choice.deadlineBeat - beat) } : null,
           bpm: clockBpmAtBeat(state.clock, beat),
+          ammo: state.run.ammo,
+          maxAmmo: state.run.maxAmmo,
         });
       }
       frameId = window.requestAnimationFrame(loop);
@@ -1051,7 +1206,7 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
       gestureListenerRef.current = null;
       if (runtime.current?.holdTimer) window.clearTimeout(runtime.current.holdTimer);
     };
-  }, [aimNow, audio, codex, dodgeAt, fixedStance, flashAction, flashJudgment, gestureListenerRef, motionListenerRef, onFinish, orientationRef, pauseRun, resumeRun, settings.bpm, settings.runsPlayed, settings.windows, showMessage]);
+  }, [aimNow, audio, codex, daily, dodgeAt, fixedStance, flashAction, flashJudgment, gestureListenerRef, motionListenerRef, orientationRef, pauseRun, reloadAt, resumeRun, settings.bpm, settings.runsPlayed, settings.windows, showMessage]);
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const state = runtime.current;
@@ -1129,7 +1284,7 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
           <div className="bk-hearts" aria-label={`체력 ${hud.hp}`}>
             {Array.from({ length: hud.maxHp }, (_, index) => <i key={index} className={index < hud.hp ? "on" : ""}>♥</i>)}
           </div>
-          <strong>{hud.boss ? "지박령" : `방 ${hud.room}/5`} · {hud.score}점{hud.combo >= 2 ? ` · ${hud.combo}콤보` : ""} · {hud.bpm}</strong>
+          <strong>{daily ? "오늘의 순찰 · " : ""}{hud.boss ? "지박령" : `방 ${hud.room}/5`} · {hud.score}점{hud.combo >= 2 ? ` · ${hud.combo}콤보` : ""} · {hud.bpm}</strong>
           {hud.message && <span>{hud.message}</span>}
         </div>
         <button type="button" aria-label="잠시 멈춤" onClick={() => pauseRun("manual")}>❚❚</button>
@@ -1156,7 +1311,23 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
             <b>{hud.active ? hud.active.name : "—"}</b>
             {hud.active && <em>{hud.active.usesLeft}회</em>}
           </button>
-          <span className="bk-fire-hint">{fixedStance ? "끌어서 조준 · 탭하면 발사" : "화면 전체가 발사 · 몸을 돌려 조준"}</span>
+          <div className="bk-center-stack">
+            <span className={`bk-ammo${hud.ammo === 0 ? " empty" : ""}`} aria-label={`소금 ${hud.ammo}/${hud.maxAmmo}발`}>
+              {Array.from({ length: hud.maxAmmo }, (_, index) => <i key={index} className={index < hud.ammo ? "on" : ""} />)}
+            </span>
+            {buttonsOnly ? (
+              <button
+                type="button"
+                className="bk-reload"
+                disabled={hud.ammo >= hud.maxAmmo}
+                onPointerDown={(event) => { event.stopPropagation(); reloadAt(eventAudioTime(audio, event.timeStamp)); }}
+              >
+                재장전
+              </button>
+            ) : (
+              <span className="bk-fire-hint">{hud.ammo === 0 ? "폰을 1박 내려 재장전" : "화면 전체가 발사 · 몸을 돌려 조준"}</span>
+            )}
+          </div>
           <button
             type="button"
             className={`bk-slot shield${hud.shields > 0 ? " ready" : ""}`}
@@ -1203,11 +1374,44 @@ function RunScreen({ audio, stream, settings, codex, fixedStance, motionAvailabl
   );
 }
 
-function ResultScreen({ result, settings, codex, onAgain, onCodex, onHome }: {
-  result: { summary: RunSummary; rotation: number; runIndex: number; record: RunRecord };
+function DailyResult({ result }: { result: ResultState }) {
+  const submission = result.submission;
+  if (!result.daily || !submission) return null;
+  const board = submission.participant;
+  return (
+    <section className="bk-card bk-daily" aria-label="오늘의 순찰 결과">
+      <header>
+        <div>
+          <small>오늘의 순찰 · {result.daily.challenge.date}</small>
+          <h2>{submission.status === "submitting" ? "점수판에 올리는 중" : submission.status === "failed" ? "점수판에 올리지 못했다" : submission.improved ? "오늘 최고 기록 갱신" : "오늘 최고 기록은 그대로"}</h2>
+        </div>
+        {result.daily.challenge.reinforced && <span className="bk-badge">원귀 강화</span>}
+      </header>
+      {submission.status === "failed" && <p className="bk-note warn">{submission.message}</p>}
+      {submission.status === "saved" && board && (
+        <div className="bk-daily-me">
+          <span><small>내 오늘 최고</small><b>{board.score.toLocaleString("ko-KR")}</b></span>
+          <span><small>순위</small><b>{board.rank}위</b></span>
+        </div>
+      )}
+      {submission.status === "saved" && submission.barrier && (
+        <div className="bk-barrier" aria-label={`오늘의 결계 ${submission.barrier.total}점`}>
+          <span><small>오늘의 결계 · {submission.barrier.participants ?? 0}명</small><b>{submission.barrier.total.toLocaleString("ko-KR")}<em> / {submission.barrier.target.toLocaleString("ko-KR")}</em></b></span>
+          <i aria-hidden="true"><span style={{ width: `${Math.round(submission.barrier.ratio * 100)}%` }} /></i>
+        </div>
+      )}
+      {submission.status === "saved" && board && <BaksalLeaderboard entries={[board]} highlightRank={board.rank} />}
+      <p className="bk-note">도감에는 반영되고 일반 기록·부적 해금 수에는 들어가지 않습니다.</p>
+    </section>
+  );
+}
+
+function ResultScreen({ result, settings, codex, onAgain, onNormal, onCodex, onHome }: {
+  result: ResultState;
   settings: Settings;
   codex: Codex;
   onAgain: () => void;
+  onNormal: () => void;
   onCodex: () => void;
   onHome: () => void;
 }) {
@@ -1216,9 +1420,9 @@ function ResultScreen({ result, settings, codex, onAgain, onCodex, onHome }: {
   const ghostName = (type: string) => GHOST_TYPES[type as keyof typeof GHOST_TYPES]?.name ?? type;
   return (
     <main className="bk-panel">
-      <span className="bk-stage-tag">{runIndex}번째 런 · {settings.bpm} BPM · {settings.windows === "lenient" ? "넉넉한 판정" : "표준 판정"}</span>
+      <span className="bk-stage-tag">{result.daily ? "오늘의 순찰" : `${runIndex}번째 런`} · {summary.bpm} BPM · {settings.windows === "lenient" ? "넉넉한 판정" : "표준 판정"}</span>
       <header className="bk-score">
-        <small>{summary.failed ? "쓰러졌다" : "밤을 지켰다"}{record.isBest ? " · 최고 기록" : ""}</small>
+        <small>{summary.failed ? "쓰러졌다" : "밤을 지켰다"}{record.isBest && !result.daily ? " · 최고 기록" : ""}</small>
         <b>{summary.score}</b>
         <span>방 {summary.roomsCleared}/5 · 최대 {summary.maxCombo}콤보 · 체력 {summary.hp}/{summary.maxHp}</span>
       </header>
@@ -1232,7 +1436,11 @@ function ResultScreen({ result, settings, codex, onAgain, onCodex, onHome }: {
         <span><small>약점</small><b>{summary.weakHits}</b></span>
         <span><small>저주</small><b>{summary.cursedCount}</b></span>
         <span><small>회전</small><b>{Math.round(rotation)}<em>°</em></b></span>
+        <span><small>재장전</small><b>{summary.reloads}</b></span>
+        <span><small>빈 탄창</small><b>{summary.emptyShots}</b></span>
+        <span><small>시간</small><b>{formatMinutes(result.seconds)}</b></span>
       </section>
+      <DailyResult result={result} />
       <section className="bk-card">
         <h2>방별 기록</h2>
         <table className="bk-rooms">
@@ -1265,7 +1473,8 @@ function ResultScreen({ result, settings, codex, onAgain, onCodex, onHome }: {
         한 번 더 하고 싶은가? 누적 정화 {codex.totalPurified}회. 회피가 잘 안 잡히면 시작 화면에서 회피 감도를 조절한다.
       </p>
       <div className="bk-actions">
-        <button type="button" className="bk-primary" onClick={onAgain}>한 번 더</button>
+        <button type="button" className="bk-primary" onClick={onAgain}>{result.daily ? "오늘의 순찰 다시" : "한 번 더"}</button>
+        {result.daily && <button type="button" className="bk-secondary" onClick={onNormal}>자유 순찰로</button>}
         <button type="button" className="bk-secondary" onClick={onCodex}>악귀 도감</button>
         <button type="button" className="bk-secondary" onClick={onHome}>처음으로</button>
       </div>

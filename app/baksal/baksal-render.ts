@@ -82,10 +82,15 @@ export function lanternRadiusPx(width: number, coneDeg: number) {
   return focal * Math.tan((coneDeg / 2) * DEG);
 }
 
-function drawOutlinedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, color: string, alpha = 1) {
+function drawOutlinedText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, color: string, alpha = 1, maxWidth = Infinity) {
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.font = `900 ${size}px system-ui, sans-serif`;
+  const measured = ctx.measureText(text).width;
+  if (measured > maxWidth) {
+    size = Math.max(12, Math.floor(size * (maxWidth / measured)));
+    ctx.font = `900 ${size}px system-ui, sans-serif`;
+  }
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineWidth = Math.max(3, size / 7);
@@ -530,7 +535,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, width: number, height: 
     if (frame.showHintText) {
       const size = 22 + 14 * urgency;
       const label = GESTURE_HINTS[key] ?? DODGE_GESTURE_LABELS[key as keyof typeof DODGE_GESTURE_LABELS] ?? "";
-      drawOutlinedText(ctx, label, cx, cy + lantern + 48, size, color);
+      drawOutlinedText(ctx, label, cx, cy + lantern + 48, size, color, 1, width - 32);
     } else {
       ctx.save();
       ctx.globalAlpha = 0.5 + 0.5 * urgency;
@@ -548,7 +553,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, width: number, height: 
     const age = frame.now - flash.at;
     if (age > 520) continue;
     const alpha = age < 80 ? 1 : 1 - (age - 80) / 440;
-    drawOutlinedText(ctx, flash.text, cx, cy + offsetY - age * 0.05, 30, flash.color, Math.max(0, alpha));
+    drawOutlinedText(ctx, flash.text, cx, cy + offsetY - age * 0.05, 30, flash.color, Math.max(0, alpha), width - 32);
   }
 
   // 보스 체력

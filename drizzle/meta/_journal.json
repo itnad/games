@@ -15,6 +15,13 @@
       "when": 1794206645193,
       "tag": "0001_slippery_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794475827655,
+      "tag": "0002_baksal_daily_results",
+      "breakpoints": true
     }
   ]
 }
