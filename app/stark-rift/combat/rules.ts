@@ -1,3 +1,6 @@
+import { uphillAttack } from "../vision/rules";
+import { nextUint32 } from "../core/rng";
+import type { BattleMap } from "../data/maps";
 import { projectileRule, MAX_COMBAT_PROJECTILES } from "./mechanics";
 import { integrate } from "../core/fixed-point";
 import { integerSqrt } from "../pathfinding/formation";
@@ -28,6 +31,7 @@ export function synchronizeCombat(s: SimulationState) {
       entityId: id,
       definitionId,
       resumeTarget: old?.resumeTarget ?? null,
+      lastSeenTarget: null,
       nextAttackTick: old?.nextAttackTick ?? 0,
       remainder: old?.remainder ?? 3,
       healthFraction: restored?.health ?? 0,
@@ -73,20 +77,21 @@ export function initializeCombat(
           y: (ranged ? 19 + n : 18 + (n % 3)) * 256,
         }),
       );
-    for (const [x, y, id] of [
-      [22, 18, "zerg-zergling"],
-      [22, 20, "zerg-zergling"],
-      [23, 18, ranged && race !== "terran" ? "zerg-overlord" : "zerg-drone"],
-    ] as const) {
-      const eid = createEconomicEntity(s, 1, economyDefinition(id)!, {
-        x: x * 256,
-        y: y * 256,
-      });
-      s.combat.targetIds.push(eid);
-      s.movement[s.entities.id.indexOf(eid)].order = "hold";
-      const worker = workerOf(s, eid);
-      if (worker) releaseWork(s, worker, false);
-    }
+    if (scenario !== "siege-practice")
+      for (const [x, y, id] of [
+        [22, 18, "zerg-zergling"],
+        [22, 20, "zerg-zergling"],
+        [23, 18, ranged && race !== "terran" ? "zerg-overlord" : "zerg-drone"],
+      ] as const) {
+        const eid = createEconomicEntity(s, 1, economyDefinition(id)!, {
+          x: x * 256,
+          y: y * 256,
+        });
+        s.combat.targetIds.push(eid);
+        s.movement[s.entities.id.indexOf(eid)].order = "hold";
+        const worker = workerOf(s, eid);
+        if (worker) releaseWork(s, worker, false);
+      }
     const groups = new Map<string, number[]>();
     for (const id of s.combat.friendlyIds) {
       const d = s.entities.definitionId[s.entities.id.indexOf(id)];
@@ -96,6 +101,36 @@ export function initializeCombat(
     [...groups.values()].forEach(
       (ids, slot) => (s.players[0].controlGroups[slot].entityIds = ids),
     );
+    recomputeSupply(s);
+  }
+  if (scenario === "siege-practice") {
+    const enemyHQ = s.economy.structures.find(
+      (b) =>
+        s.entities.owner[s.entities.id.indexOf(b.entityId)] === 1 &&
+        economyDefinition(
+          s.entities.definitionId[s.entities.id.indexOf(b.entityId)],
+        )?.headquarters,
+    )!;
+    const i = s.entities.id.indexOf(enemyHQ.entityId),
+      d = economyDefinition(s.entities.definitionId[i])!;
+    enemyHQ.tileX = 20;
+    enemyHQ.tileY = 31;
+    enemyHQ.started = true;
+    enemyHQ.completedTick = -1;
+    enemyHQ.builderId = null;
+    enemyHQ.remainingTicks =
+      enemyHQ.totalTicks - Math.floor(enemyHQ.totalTicks / 8);
+    s.entities.x[i] = (20 + d.width / 2) * 256;
+    s.entities.y[i] = (31 + d.height / 2) * 256;
+    s.entities.health[i] = Math.max(
+      1,
+      Math.floor(
+        (d.health * (enemyHQ.totalTicks - enemyHQ.remainingTicks)) /
+          enemyHQ.totalTicks,
+      ),
+    );
+    s.combat!.targetIds = [enemyHQ.entityId];
+    s.map.obstacleVersion++;
     recomputeSupply(s);
   }
   synchronizeCombat(s);
@@ -250,7 +285,7 @@ function acquireAttackMove(
   s.combat!.records[a].resumeTarget = m.target ? { ...m.target } : null;
   m.order = "focusAttack";
   m.targetEntityId = e.id[best];
-  m.trackedTarget={x:e.x[best],y:e.y[best]};
+  m.trackedTarget = { x: e.x[best], y: e.y[best] };
   m.target = { x: e.x[best], y: e.y[best] };
   m.path = [];
   m.pathIndex = 0;
@@ -263,7 +298,7 @@ function acquireAttackMove(
 
 function effect(
   s: SimulationState,
-  kind: "shot" | "slash" | "death" | "launch" | "impact",
+  kind: "shot" | "slash" | "death" | "launch" | "impact" | "miss",
   a: number,
   b = a,
   weaponId?: string,
@@ -285,6 +320,7 @@ function effect(
 export function createCombatRules(
   base: EngineRules,
   visible: VisibilityCheck,
+  map?: BattleMap,
 ): EngineRules {
   const commands = { ...base.commands },
     focus = commands.focusAttack!;
@@ -322,7 +358,10 @@ export function createCombatRules(
       apply: (s, c, ids) => {
         if (s.combat)
           for (const r of s.combat.records)
-            if (ids.includes(r.entityId)) r.resumeTarget = null;
+            if (ids.includes(r.entityId)) {
+              r.resumeTarget = null;
+              r.lastSeenTarget = null;
+            }
         baseHandler.apply(s, c, ids);
       },
     };
@@ -355,7 +394,7 @@ export function createCombatRules(
             if (m.order !== "focusAttack") continue;
             const b = s.entities.id.indexOf(m.targetEntityId!);
             if (!validTarget(s, a, b, visible)) {
-              const target = m.trackedTarget??m.target;
+              const target = m.trackedTarget ?? m.target;
               Object.assign(m, idleMovement(m.entityId));
               if (target) {
                 m.order = "move";
@@ -387,6 +426,19 @@ export function createCombatRules(
             }
         base.systems?.movement?.(s);
         for (const f of frozen) s.movement[f.index].status = f.status;
+      },
+      targeting: (s) => {
+        base.systems?.targeting?.(s);
+        if (!s.combat) return;
+        for (let a = 0; a < s.entities.id.length; a++) {
+          const m = s.movement[a],
+            b = s.entities.id.indexOf(m.targetEntityId!);
+          if (m.order === "focusAttack" && validTarget(s, a, b, visible))
+            s.combat.records[a].lastSeenTarget = {
+              x: s.entities.x[b],
+              y: s.entities.y[b],
+            };
+        }
       },
       damage: (s) => {
         base.systems?.damage?.(s);
@@ -420,18 +472,19 @@ export function createCombatRules(
             travel = integrate(rule.speed, bullet.remainder);
           bullet.remainder = travel.remainder;
           if (distance <= travel.delta) {
-            shots.push({
-              a: -1,
-              b,
-              damage: bullet.damage,
-              hits: bullet.hits,
-              type: combatWeapon(bullet.weaponId)!.damageType,
-              weaponId: bullet.weaponId,
-            });
+            if (!bullet.miss)
+              shots.push({
+                a: -1,
+                b,
+                damage: bullet.damage,
+                hits: bullet.hits,
+                type: combatWeapon(bullet.weaponId)!.damageType,
+                weaponId: bullet.weaponId,
+              });
             s.combat.effects.push({
               id: allocateId(s, "nextEventId"),
               tick: s.tick,
-              kind: "impact",
+              kind: bullet.miss ? "miss" : "impact",
               weaponId: bullet.weaponId,
               owner: bullet.owner,
               x: e.x[b],
@@ -471,6 +524,11 @@ export function createCombatRules(
           const frames = w.wpnDamageCooldowns * 5 + r.remainder;
           r.nextAttackTick = s.tick + Math.max(1, Math.floor(frames / 6));
           r.remainder = frames % 6;
+          const miss =
+            !!map &&
+            w.wpnMaxRange > 32 &&
+            uphillAttack(s, map, a, b) &&
+            (nextUint32(s.rngStreams, "combat") & 1) === 0;
           const damage =
             (w.defaultWpnDamageAmt + w.defaultWpnDamageBonus * level) * 256;
           if (flight) {
@@ -487,19 +545,22 @@ export function createCombatRules(
               expiresTick: s.tick + flight.lifetime,
               remainder: 0,
               damage,
+              miss,
               hits: p.hits,
             });
             effect(s, "launch", a, a, w.name);
           } else {
-            shots.push({
-              a,
-              b,
-              damage,
-              hits: p.hits,
-              type: w.damageType,
-              weaponId: w.name,
-            });
+            if (!miss)
+              shots.push({
+                a,
+                b,
+                damage,
+                hits: p.hits,
+                type: w.damageType,
+                weaponId: w.name,
+              });
             effect(s, w.wpnMaxRange >= 128 ? "shot" : "slash", a, b, w.name);
+            if (miss) effect(s, "miss", a, b, w.name);
           }
         }
         // Every shot is collected before damage: simultaneous lethal attacks both resolve.
@@ -547,9 +608,15 @@ export function combatFitsMap(
 ) {
   return (
     !s.combat ||
-    (s.combat.projectiles.every(
-      (p) => p.x < map.widthTiles * 256 && p.y < map.heightTiles * 256,
+    (s.combat.records.every(
+      (r) =>
+        !r.lastSeenTarget ||
+        (r.lastSeenTarget.x < map.widthTiles * 256 &&
+          r.lastSeenTarget.y < map.heightTiles * 256),
     ) &&
+      s.combat.projectiles.every(
+        (p) => p.x < map.widthTiles * 256 && p.y < map.heightTiles * 256,
+      ) &&
       s.combat.records.every(
         (r) =>
           !r.resumeTarget ||
