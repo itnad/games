@@ -16,7 +16,7 @@ export function updateEconomicMarker(
   const hp = Math.floor((e.health / d.health) * 10),
     sp = Math.floor(((e.shield ?? 0) / Math.max(1, d.shield)) * 10),
     p = progress === null ? -1 : Math.floor(progress * 20),
-    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked].join(":");
+    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, Math.floor((e.energy ?? 0) / 10)].join(":");
   if (keys.get(g) === key) return true;
   keys.set(g, key);
   g.clear();
@@ -241,6 +241,14 @@ export function updateEconomicMarker(
       g.rect(-0.45, -0.22, 0.9, 0.45).fill(0x3e5660);
       g.rect(-0.3, -0.3, 0.6, 0.15).fill(0x91a7a8);
       g.rect(-0.1, -0.12, 0.2, 0.6).fill(color);
+    } else if (d.id === "terran-wraith") {
+      g.poly([-0.72, 0.4, -0.48, -0.05, -0.22, -0.12, 0, -0.7, 0.22, -0.12, 0.48, -0.05, 0.72, 0.4, 0.2, 0.23, 0, 0.4, -0.2, 0.23]).fill(0x718b9a).stroke({ color: 0xc1d7df, width: 0.04 });
+      g.poly([-0.1, 0.1, 0, -0.45, 0.1, 0.1]).fill(color);
+      for (const x of [-0.45, 0.45]) g.rect(x - 0.06, 0.18, 0.12, 0.24).fill(0x7edce8);
+    } else if (d.id === "terran-ghost") {
+      g.circle(0, -0.2, 0.12).fill(0xb0c8d0);
+      g.poly([-0.15, -0.08, 0.15, -0.08, 0.2, 0.32, -0.2, 0.32]).fill(0x73969e).stroke({ color, width: 0.05 });
+      g.rect(0.12, -0.05, 0.07, 0.65).fill(0xc5d8dc);
     } else if (terr) {
       g.circle(0, -0.18, 0.17).fill(0xa7b3ae);
       g.roundRect(-0.23, -0.1, 0.46, 0.45, 0.1).fill(color);
@@ -310,6 +318,11 @@ export function updateEconomicMarker(
       (width * Math.max(0, sp)) / 10,
       0.08,
     ).fill(0x7ebdff);
+  }
+  if (e.energy !== undefined) {
+    const width = 1;
+    g.rect(-width / 2, -h / 2 - 0.42, width, 0.08).fill(0x172327);
+    g.rect(-width / 2, -h / 2 - 0.42, width * e.energy / (e.maxEnergy ?? 200), 0.08).fill(0xc28cff);
   }
   return true;
 }
