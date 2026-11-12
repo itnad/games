@@ -461,6 +461,7 @@ describe("fog and in-flight save compatibility", () => {
     for (const r of old.simulation.combat.records) delete r.lastSeenTarget;
     for (const p of old.simulation.combat.projectiles) delete p.miss;
     old.dataVersion = old.simulation.dataVersion = old.dataVersion.replace(ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION);
+    if (old.simulation.vision) old.simulation.vision.rulesVersion = "fog-1-los-edge-detector11-memory600";
     old.checksum = checksum(old.simulation);
     const raw = JSON.stringify(old),
       key = DEVELOPMENT_SAVE_PREFIX + "terran",
