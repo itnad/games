@@ -1,56 +1,53 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { installGameRefreshGuard } from "./game-refresh.js";
-import {
-  BattleshipGame,
-  CheckersGame,
-  DiceDuelGame,
-  MancalaGame,
-  ReversiGame,
-} from "./more-games";
-import { JanggiGame } from "./janggi-game";
-import { WinnersCircleGame } from "./winners-circle-game";
-import { IncanGoldGame } from "./incan-gold-game";
-import { QwixxGame } from "./qwixx-game";
-import { ConfrontationGame } from "./confrontation-game";
-import { LoveLetterGame } from "./love-letter-game";
-import { MinivilleGame } from "./miniville-game";
-import { PickPicnicGame } from "./pick-picnic-game";
-import { EpicDuelsGame } from "./epic-duels-game";
-import { SdGundamDeluxeGame } from "./sd-gundam-deluxe-game";
-import { ScotlandYardGame } from "./scotland-yard-game";
-import { WhitechapelGame } from "./whitechapel-game";
-import { SevenWondersGame } from "./seven-wonders-game";
-import { CamelUpGame } from "./camel-up-game";
-import { TichuGame } from "./tichu-game";
-import { CashflowEscapeGame } from "./cashflow-escape-game";
-import { BaccaratGame } from "./baccarat-game";
-import { ClocktowersGame } from "./clocktowers-game";
-import {
-  ColorChainGame,
-  DotSurvivorGame,
-  NumberDropGame,
-  ParkingEscapeGame,
-  PocketStackGame,
-  UntangleGame,
-} from "./casual-games";
-import { PaperDungeonGame } from "./paper-dungeon-game";
-import { TenSecondsGame } from "./ten-seconds-game";
-import { MudflatSurvivorGame } from "./mudflat-survivor-game";
-import { TetrisGame } from "./tetris-game";
-import { StarswarGame } from "./starswar/starswar-game";
-import { ChessGame } from "./chess-game";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import { PAPEROID_BUILD_ID } from "./app-version";
-import {
-  BackgammonGame,
-  ChineseCheckersGame,
-  DiamondGame,
-  DominoGame,
-  GonuGame,
-  NineMensMorrisGame,
-} from "./classic-games";
+
+const GomokuGame = lazy(() => import("./gomoku-game").then((module) => ({ default: module.GomokuGame })));
+const MemoryGame = lazy(() => import("./memory-game").then((module) => ({ default: module.MemoryGame })));
+const ReversiGame = lazy(() => import("./more-games").then((module) => ({ default: module.ReversiGame })));
+const MancalaGame = lazy(() => import("./more-games").then((module) => ({ default: module.MancalaGame })));
+const BattleshipGame = lazy(() => import("./more-games").then((module) => ({ default: module.BattleshipGame })));
+const DiceDuelGame = lazy(() => import("./more-games").then((module) => ({ default: module.DiceDuelGame })));
+const CheckersGame = lazy(() => import("./more-games").then((module) => ({ default: module.CheckersGame })));
+const JanggiGame = lazy(() => import("./janggi-game").then((module) => ({ default: module.JanggiGame })));
+const WinnersCircleGame = lazy(() => import("./winners-circle-game").then((module) => ({ default: module.WinnersCircleGame })));
+const IncanGoldGame = lazy(() => import("./incan-gold-game").then((module) => ({ default: module.IncanGoldGame })));
+const QwixxGame = lazy(() => import("./qwixx-game").then((module) => ({ default: module.QwixxGame })));
+const ConfrontationGame = lazy(() => import("./confrontation-game").then((module) => ({ default: module.ConfrontationGame })));
+const LoveLetterGame = lazy(() => import("./love-letter-game").then((module) => ({ default: module.LoveLetterGame })));
+const MinivilleGame = lazy(() => import("./miniville-game").then((module) => ({ default: module.MinivilleGame })));
+const PickPicnicGame = lazy(() => import("./pick-picnic-game").then((module) => ({ default: module.PickPicnicGame })));
+const EpicDuelsGame = lazy(() => import("./epic-duels-game").then((module) => ({ default: module.EpicDuelsGame })));
+const SdGundamDeluxeGame = lazy(() => import("./sd-gundam-deluxe-game").then((module) => ({ default: module.SdGundamDeluxeGame })));
+const ScotlandYardGame = lazy(() => import("./scotland-yard-game").then((module) => ({ default: module.ScotlandYardGame })));
+const WhitechapelGame = lazy(() => import("./whitechapel-game").then((module) => ({ default: module.WhitechapelGame })));
+const SevenWondersGame = lazy(() => import("./seven-wonders-game").then((module) => ({ default: module.SevenWondersGame })));
+const CamelUpGame = lazy(() => import("./camel-up-game").then((module) => ({ default: module.CamelUpGame })));
+const TichuGame = lazy(() => import("./tichu-game").then((module) => ({ default: module.TichuGame })));
+const CashflowEscapeGame = lazy(() => import("./cashflow-escape-game").then((module) => ({ default: module.CashflowEscapeGame })));
+const BaccaratGame = lazy(() => import("./baccarat-game").then((module) => ({ default: module.BaccaratGame })));
+const ClocktowersGame = lazy(() => import("./clocktowers-game").then((module) => ({ default: module.ClocktowersGame })));
+const PocketStackGame = lazy(() => import("./casual-games").then((module) => ({ default: module.PocketStackGame })));
+const ColorChainGame = lazy(() => import("./casual-games").then((module) => ({ default: module.ColorChainGame })));
+const NumberDropGame = lazy(() => import("./casual-games").then((module) => ({ default: module.NumberDropGame })));
+const DotSurvivorGame = lazy(() => import("./casual-games").then((module) => ({ default: module.DotSurvivorGame })));
+const UntangleGame = lazy(() => import("./casual-games").then((module) => ({ default: module.UntangleGame })));
+const ParkingEscapeGame = lazy(() => import("./casual-games").then((module) => ({ default: module.ParkingEscapeGame })));
+const PaperDungeonGame = lazy(() => import("./paper-dungeon-game").then((module) => ({ default: module.PaperDungeonGame })));
+const TenSecondsGame = lazy(() => import("./ten-seconds-game").then((module) => ({ default: module.TenSecondsGame })));
+const MudflatSurvivorGame = lazy(() => import("./mudflat-survivor-game").then((module) => ({ default: module.MudflatSurvivorGame })));
+const TetrisGame = lazy(() => import("./tetris-game").then((module) => ({ default: module.TetrisGame })));
+const StarswarGame = lazy(() => import("./starswar/starswar-game").then((module) => ({ default: module.StarswarGame })));
+const ChessGame = lazy(() => import("./chess-game").then((module) => ({ default: module.ChessGame })));
+const NineMensMorrisGame = lazy(() => import("./classic-games").then((module) => ({ default: module.NineMensMorrisGame })));
+const GonuGame = lazy(() => import("./classic-games").then((module) => ({ default: module.GonuGame })));
+const DominoGame = lazy(() => import("./classic-games").then((module) => ({ default: module.DominoGame })));
+const BackgammonGame = lazy(() => import("./classic-games").then((module) => ({ default: module.BackgammonGame })));
+const ChineseCheckersGame = lazy(() => import("./classic-games").then((module) => ({ default: module.ChineseCheckersGame })));
+const DiamondGame = lazy(() => import("./classic-games").then((module) => ({ default: module.DiamondGame })));
 
 type GameId =
   | "gomoku"
@@ -513,6 +510,8 @@ const IconSearch = () => (
   <span className="search-icon" aria-hidden="true" />
 );
 
+const memoryCharacterImage = (id: string) => `/memory-characters/${id}.png`;
+
 function BrandMark() {
   return (
     <span className="brand-mark" aria-hidden="true">
@@ -524,11 +523,26 @@ function BrandMark() {
   );
 }
 
+function GameLoadingScreen({ gameId }: { gameId: GameId }) {
+  const title = GAMES.find((game) => game.id === gameId)?.title ?? "게임";
+  return (
+    <main className="game-loading-shell" role="status" aria-live="polite">
+      <div className="game-loading-card">
+        <BrandMark />
+        <small>paperoid</small>
+        <strong>{title}</strong>
+        <span className="game-loading-dots" aria-hidden="true"><i /><i /><i /></span>
+        <p>게임을 준비하고 있습니다.</p>
+      </div>
+    </main>
+  );
+}
+
 function GuidedGame({ gameId, children }: { gameId: GameId; children: ReactNode }) {
   return (
     <div className="game-readability-scope" data-game-id={gameId}>
       {gameId !== "mudflat-survivor" && <GameObjectiveGuide gameId={gameId} />}
-      {children}
+      <Suspense fallback={<GameLoadingScreen gameId={gameId} />}>{children}</Suspense>
     </div>
   );
 }
@@ -1270,610 +1284,6 @@ function SuggestionBoard() {
         </div>
       )}
     </section>
-  );
-}
-
-const BOARD_SIZE = 15;
-type Stone = 0 | 1 | 2;
-type GomokuResult = 0 | 1 | 2 | 3;
-type GomokuRule = "exact" | "freestyle";
-
-const newBoard = (): Stone[] =>
-  Array.from({ length: BOARD_SIZE * BOARD_SIZE }, () => 0 as Stone);
-
-function checkWinner(board: Stone[], index: number, player: Stone, rule: GomokuRule) {
-  const row = Math.floor(index / BOARD_SIZE);
-  const col = index % BOARD_SIZE;
-  const directions = [
-    [1, 0],
-    [0, 1],
-    [1, 1],
-    [1, -1],
-  ];
-
-  for (const [dr, dc] of directions) {
-    let count = 1;
-    for (const sign of [-1, 1]) {
-      let r = row + dr * sign;
-      let c = col + dc * sign;
-      while (
-        r >= 0 &&
-        r < BOARD_SIZE &&
-        c >= 0 &&
-        c < BOARD_SIZE &&
-        board[r * BOARD_SIZE + c] === player
-      ) {
-        count += 1;
-        r += dr * sign;
-        c += dc * sign;
-      }
-    }
-    if (rule === "exact" ? count === 5 : count >= 5) return true;
-  }
-  return false;
-}
-
-function lineStrength(board: Stone[], index: number, player: Stone) {
-  const row = Math.floor(index / BOARD_SIZE);
-  const col = index % BOARD_SIZE;
-  const directions = [
-    [1, 0],
-    [0, 1],
-    [1, 1],
-    [1, -1],
-  ];
-  let score = 0;
-
-  for (const [dr, dc] of directions) {
-    let linked = 1;
-    let open = 0;
-    for (const sign of [-1, 1]) {
-      let r = row + dr * sign;
-      let c = col + dc * sign;
-      while (
-        r >= 0 &&
-        r < BOARD_SIZE &&
-        c >= 0 &&
-        c < BOARD_SIZE &&
-        board[r * BOARD_SIZE + c] === player
-      ) {
-        linked += 1;
-        r += dr * sign;
-        c += dc * sign;
-      }
-      if (
-        r >= 0 &&
-        r < BOARD_SIZE &&
-        c >= 0 &&
-        c < BOARD_SIZE &&
-        board[r * BOARD_SIZE + c] === 0
-      ) {
-        open += 1;
-      }
-    }
-    score += linked ** 3 * (open + 1);
-  }
-  return score;
-}
-
-function pickAiMove(board: Stone[], rule: GomokuRule) {
-  const occupied = board.some(Boolean);
-  if (!occupied) return Math.floor(BOARD_SIZE / 2) * BOARD_SIZE + 7;
-
-  const candidates: number[] = [];
-  board.forEach((value, index) => {
-    if (value !== 0) return;
-    const row = Math.floor(index / BOARD_SIZE);
-    const col = index % BOARD_SIZE;
-    let nearby = false;
-    for (let dr = -2; dr <= 2 && !nearby; dr += 1) {
-      for (let dc = -2; dc <= 2; dc += 1) {
-        const r = row + dr;
-        const c = col + dc;
-        if (
-          r >= 0 &&
-          r < BOARD_SIZE &&
-          c >= 0 &&
-          c < BOARD_SIZE &&
-          board[r * BOARD_SIZE + c] !== 0
-        ) {
-          nearby = true;
-          break;
-        }
-      }
-    }
-    if (nearby) candidates.push(index);
-  });
-
-  for (const candidate of candidates) {
-    const test = [...board];
-    test[candidate] = 2;
-    if (checkWinner(test, candidate, 2, rule)) return candidate;
-  }
-  for (const candidate of candidates) {
-    const test = [...board];
-    test[candidate] = 1;
-    if (checkWinner(test, candidate, 1, rule)) return candidate;
-  }
-
-  return candidates
-    .map((index) => {
-      const attack = lineStrength(board, index, 2);
-      const defense = lineStrength(board, index, 1);
-      const row = Math.floor(index / BOARD_SIZE);
-      const col = index % BOARD_SIZE;
-      const center = 14 - (Math.abs(7 - row) + Math.abs(7 - col));
-      return { index, score: attack * 1.1 + defense + center + Math.random() * 2 };
-    })
-    .sort((a, b) => b.score - a.score)[0]?.index ?? 112;
-}
-
-function ModeSwitch() {
-  return (
-    <div className="mode-switch" aria-label="대전 모드">
-      <button className="active">
-        <span className="bot-face" aria-hidden="true">•ᴗ•</span>
-        AI 대전
-      </button>
-      <button disabled title="친구 대전은 추후 제공됩니다">
-        <span aria-hidden="true">♙</span>
-        친구 대전
-        <small>준비 중</small>
-      </button>
-    </div>
-  );
-}
-
-function GameTopbar({
-  title,
-  onExit,
-}: {
-  title: string;
-  onExit: () => void;
-}) {
-  return (
-    <header className="game-topbar">
-      <button className="back-button" onClick={onExit} aria-label="게임 목록으로">
-        ←
-      </button>
-      <div className="game-title-lockup">
-        <BrandMark />
-        <div>
-          <span>paperoid</span>
-          <strong title={title}>{title}</strong>
-        </div>
-      </div>
-      <button className="exit-button" onClick={onExit}>
-        나가기
-      </button>
-    </header>
-  );
-}
-
-function GomokuGame({ onExit }: { onExit: () => void }) {
-  const [board, setBoard] = useState<Stone[]>(newBoard);
-  const [turn, setTurn] = useState<1 | 2>(1);
-  const [winner, setWinner] = useState<GomokuResult>(0);
-  const [lastMove, setLastMove] = useState<number | null>(null);
-  const [round, setRound] = useState(1);
-  const [rule, setRule] = useState<GomokuRule | null>("freestyle");
-  const [nextRule, setNextRule] = useState<GomokuRule | null>("freestyle");
-  const [started, setStarted] = useState(false);
-
-  const reset = () => {
-    const selectedRule = nextRule ?? rule;
-    setBoard(newBoard());
-    setTurn(1);
-    setWinner(0);
-    setLastMove(null);
-    setRule(selectedRule);
-    setNextRule(selectedRule);
-    setRound((value) => value + 1);
-  };
-
-  const start = () => {
-    if (!rule) return;
-    setBoard(newBoard());
-    setTurn(1);
-    setWinner(0);
-    setLastMove(null);
-    setRound(1);
-    setNextRule(rule);
-    setStarted(true);
-  };
-
-  const playAt = (index: number) => {
-    if (!started || !rule || board[index] !== 0 || turn !== 1 || winner) return;
-    const next = [...board];
-    next[index] = 1;
-    setBoard(next);
-    setLastMove(index);
-    if (checkWinner(next, index, 1, rule)) {
-      setWinner(1);
-      return;
-    }
-    if (next.every(Boolean)) {
-      setWinner(3);
-      return;
-    }
-    setTurn(2);
-  };
-
-  useEffect(() => {
-    if (!started || !rule || turn !== 2 || winner) return;
-    const timer = window.setTimeout(() => {
-      const move = pickAiMove(board, rule);
-      const next = [...board];
-      next[move] = 2;
-      setBoard(next);
-      setLastMove(move);
-      if (checkWinner(next, move, 2, rule)) setWinner(2);
-      else if (next.every(Boolean)) setWinner(3);
-      else setTurn(1);
-    }, 520);
-    return () => window.clearTimeout(timer);
-  }, [board, rule, started, turn, winner]);
-
-  const status =
-    winner === 1
-      ? "승리했어요!"
-      : winner === 2
-        ? "AI가 승리했어요"
-        : winner === 3
-          ? "무승부예요"
-          : turn === 1
-            ? "내 차례"
-            : "AI가 생각 중…";
-
-  return (
-    <main className="game-shell">
-      <GameTopbar title="오목" onExit={onExit} />
-      <section className="game-content">
-        <div className="game-info-panel">
-          <div>
-            <span className="eyebrow">{started ? `ROUND ${String(round).padStart(2, "0")}` : "SELECT RULE"}</span>
-            <h1>다섯 돌을<br />먼저 이으세요</h1>
-            <p>
-              {!started
-                ? "대국을 시작하기 전에 장목을 인정할지 선택하세요."
-                : rule === "exact"
-                  ? "가로, 세로, 대각선으로 정확히 다섯 개를 연결해야 승리합니다."
-                  : "가로, 세로, 대각선으로 다섯 개 이상 연결하면 승리합니다."}
-            </p>
-          </div>
-          <ModeSwitch />
-          <div className="versus-card">
-            <div className={`player-side ${started && turn === 1 && !winner ? "thinking" : ""}`}>
-              <span className="avatar user-avatar">나</span>
-              <strong>플레이어</strong>
-              <small>흑돌</small>
-            </div>
-            <span className="versus">VS</span>
-            <div className={`player-side ${started && turn === 2 && !winner ? "thinking" : ""}`}>
-              <span className="avatar ai-avatar">AI</span>
-              <strong>모모</strong>
-              <small>백돌</small>
-            </div>
-          </div>
-        </div>
-        <div className="board-panel">
-          {!started ? (
-            <div className="gomoku-setup" data-game-menu aria-labelledby="gomoku-rule-title">
-              <span className="gomoku-setup-kicker">GAME RULES</span>
-              <h2 id="gomoku-rule-title">승리 규칙을 선택하세요</h2>
-              <p>선택한 규칙은 대국 화면에도 계속 표시됩니다.</p>
-              <div className="gomoku-rule-options" role="radiogroup" aria-label="오목 승리 규칙">
-                <button
-                  className={rule === "exact" ? "selected" : ""}
-                  onClick={() => setRule("exact")}
-                  role="radio"
-                  aria-checked={rule === "exact"}
-                >
-                  <span className="gomoku-rule-icon">5</span>
-                  <strong>정확히 5목</strong>
-                  <small>6목 이상의 장목은 승리가 아닙니다</small>
-                </button>
-                <button
-                  className={rule === "freestyle" ? "selected" : ""}
-                  onClick={() => setRule("freestyle")}
-                  role="radio"
-                  aria-checked={rule === "freestyle"}
-                >
-                  <span className="gomoku-rule-icon">5+</span>
-                  <strong>5목 이상</strong>
-                  <small>6목 이상의 장목도 승리로 인정합니다</small>
-                </button>
-              </div>
-              <button className="gomoku-start-button" onClick={start} disabled={!rule}>
-                {rule ? "선택한 규칙으로 시작" : "규칙을 선택해 주세요"}
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="gomoku-status-row">
-                <div className="board-status" role="status">
-                  <span className={`turn-stone ${turn === 1 ? "black" : "white"}`} />
-                  <strong>{status}</strong>
-                  <span>{winner ? "한 판 더 도전해 볼까요?" : turn === 1 ? "교차점을 선택하세요" : "잠시만 기다려 주세요"}</span>
-                </div>
-                <span className="gomoku-rule-pill">
-                  {rule === "exact" ? "정확히 5목" : "5목 이상"}
-                </span>
-              </div>
-              <div className="gomoku-frame">
-                <div className="gomoku-board" role="grid" aria-label={`15 곱하기 15 오목판, ${rule === "exact" ? "정확히 5목" : "5목 이상"} 규칙`}>
-                  {board.map((stone, index) => (
-                    <button
-                      key={index}
-                      className={`gomoku-cell ${stone ? "placed" : ""}`}
-                      onClick={() => playAt(index)}
-                      disabled={stone !== 0 || turn !== 1 || Boolean(winner)}
-                      role="gridcell"
-                      aria-label={`${Math.floor(index / BOARD_SIZE) + 1}행 ${(index % BOARD_SIZE) + 1}열${stone === 1 ? " 흑돌" : stone === 2 ? " 백돌" : ""}`}
-                    >
-                      {stone !== 0 && (
-                        <span
-                          className={`stone ${stone === 1 ? "black" : "white"} ${lastMove === index ? "last" : ""}`}
-                        />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="game-actions gomoku-actions">
-                <button
-                  className="gomoku-rule-switch"
-                  type="button"
-                  role="switch"
-                  aria-checked={(nextRule ?? rule) === "freestyle"}
-                  aria-label={`다음 판 규칙: ${(nextRule ?? rule) === "exact" ? "정확히 5목" : "5목 이상"}. 누르면 규칙이 바뀝니다.`}
-                  onClick={() =>
-                    setNextRule((current) =>
-                      (current ?? rule) === "exact" ? "freestyle" : "exact",
-                    )
-                  }
-                >
-                  <span className="gomoku-switch-track" aria-hidden="true">
-                    <i />
-                  </span>
-                  <span className="gomoku-switch-label">
-                    <small>다음 판 규칙</small>
-                    <strong>{(nextRule ?? rule) === "exact" ? "정확히 5목" : "5목 이상"}</strong>
-                  </span>
-                </button>
-                {winner ? (
-                  <button className="primary-action" onClick={reset}>다시 플레이</button>
-                ) : (
-                  <button className="text-action" onClick={reset}>↻ 새 게임</button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </section>
-    </main>
-  );
-}
-
-const MEMORY_CHARACTERS = [
-  ["moon-jelly", "달빛 해파리"],
-  ["teapot-snail", "주전자 달팽이"],
-  ["lantern-owl", "등불 부엉이"],
-  ["coral-cat", "산호 고양이"],
-  ["paper-dragon", "종이 아기용"],
-  ["star-moth", "별날개 나방"],
-  ["mushroom-diver", "버섯 잠수부"],
-  ["cloud-whale", "구름 아기고래"],
-] as const;
-
-const MEMORY_SYMBOLS = MEMORY_CHARACTERS.map(([id]) => id);
-
-function memoryCharacterLabel(id: string) {
-  return MEMORY_CHARACTERS.find(([characterId]) => characterId === id)?.[1] ?? "신비한 친구";
-}
-
-function memoryCharacterImage(id: string) {
-  return `/memory-characters/${id}.png`;
-}
-
-type MemoryCard = {
-  id: number;
-  symbol: string;
-  matched: boolean;
-};
-
-function createMemoryDeck(): MemoryCard[] {
-  return [...MEMORY_SYMBOLS, ...MEMORY_SYMBOLS]
-    .map((symbol, index) => ({
-      id: index,
-      symbol,
-      matched: false,
-      order: Math.random(),
-    }))
-    .sort((a, b) => a.order - b.order)
-    .map(({ id: _id, symbol, matched }, index) => ({ id: index, symbol, matched }));
-}
-
-function MemoryGame({ onExit }: { onExit: () => void }) {
-  const [cards, setCards] = useState<MemoryCard[]>(createMemoryDeck);
-  const [revealed, setRevealed] = useState<number[]>([]);
-  const [turn, setTurn] = useState<"player" | "ai">("player");
-  const [score, setScore] = useState({ player: 0, ai: 0 });
-  const [moves, setMoves] = useState(0);
-  const [round, setRound] = useState(1);
-  const memory = useRef<Map<string, Set<number>>>(new Map());
-  const busy = useRef(false);
-
-  const remember = useCallback((indexes: number[], currentCards: MemoryCard[]) => {
-    indexes.forEach((index) => {
-      const symbol = currentCards[index].symbol;
-      const known = memory.current.get(symbol) ?? new Set<number>();
-      known.add(index);
-      memory.current.set(symbol, known);
-    });
-  }, []);
-
-  const resolvePair = useCallback(
-    (first: number, second: number, owner: "player" | "ai") => {
-      const isMatch = cards[first].symbol === cards[second].symbol;
-      window.setTimeout(() => {
-        if (isMatch) {
-          setCards((current) =>
-            current.map((card, index) =>
-              index === first || index === second ? { ...card, matched: true } : card,
-            ),
-          );
-          setScore((current) => ({ ...current, [owner]: current[owner] + 1 }));
-          const symbol = cards[first].symbol;
-          memory.current.delete(symbol);
-        }
-        setRevealed([]);
-        busy.current = false;
-        setTurn(owner === "player" ? "ai" : "player");
-      }, 760);
-    },
-    [cards],
-  );
-
-  const chooseCard = (index: number) => {
-    if (
-      turn !== "player" ||
-      busy.current ||
-      cards[index].matched ||
-      revealed.includes(index)
-    ) return;
-    const nextRevealed = [...revealed, index];
-    setRevealed(nextRevealed);
-    remember([index], cards);
-    if (nextRevealed.length === 2) {
-      busy.current = true;
-      setMoves((value) => value + 1);
-      resolvePair(nextRevealed[0], nextRevealed[1], "player");
-    }
-  };
-
-  useEffect(() => {
-    if (turn !== "ai" || busy.current || cards.every((card) => card.matched)) return;
-    busy.current = true;
-    const available = cards
-      .map((card, index) => ({ card, index }))
-      .filter(({ card }) => !card.matched)
-      .map(({ index }) => index);
-
-    const knownPair = [...memory.current.values()]
-      .map((indexes) => [...indexes].filter((index) => available.includes(index)))
-      .find((indexes) => indexes.length >= 2);
-
-    const first = knownPair?.[0] ?? available[Math.floor(Math.random() * available.length)];
-    const secondPool = available.filter((index) => index !== first);
-    const firstKnown = memory.current.get(cards[first].symbol);
-    const rememberedMatch = firstKnown
-      ? [...firstKnown].find((index) => index !== first && secondPool.includes(index))
-      : undefined;
-    const second =
-      knownPair?.[1] ??
-      rememberedMatch ??
-      secondPool[Math.floor(Math.random() * secondPool.length)];
-
-    const firstTimer = window.setTimeout(() => {
-      setRevealed([first]);
-      remember([first], cards);
-      const secondTimer = window.setTimeout(() => {
-        setRevealed([first, second]);
-        remember([second], cards);
-        setMoves((value) => value + 1);
-        resolvePair(first, second, "ai");
-      }, 620);
-      return () => window.clearTimeout(secondTimer);
-    }, 580);
-    return () => window.clearTimeout(firstTimer);
-  }, [cards, remember, resolvePair, turn]);
-
-  const finished = cards.every((card) => card.matched);
-  const result =
-    score.player > score.ai
-      ? "기억력 챔피언!"
-      : score.player < score.ai
-        ? "AI가 한발 앞섰어요"
-        : "멋진 무승부!";
-
-  const reset = () => {
-    memory.current.clear();
-    busy.current = false;
-    setCards(createMemoryDeck());
-    setRevealed([]);
-    setTurn("player");
-    setScore({ player: 0, ai: 0 });
-    setMoves(0);
-    setRound((value) => value + 1);
-  };
-
-  return (
-    <main className="game-shell memory-shell">
-      <GameTopbar title="짝 맞추기" onExit={onExit} />
-      <section className="game-content">
-        <div className="game-info-panel">
-          <div>
-            <span className="eyebrow">ROUND {String(round).padStart(2, "0")}</span>
-            <h1>같은 그림을<br />찾아보세요</h1>
-            <p>카드의 위치를 기억해 같은 그림을 한 쌍씩 찾아보세요.</p>
-          </div>
-          <ModeSwitch />
-          <div className="memory-score-card">
-            <div className={turn === "player" && !finished ? "active" : ""}>
-              <span>나</span>
-              <strong>{score.player}</strong>
-              <small>PAIRS</small>
-            </div>
-            <i />
-            <div className={turn === "ai" && !finished ? "active" : ""}>
-              <span>AI</span>
-              <strong>{score.ai}</strong>
-              <small>PAIRS</small>
-            </div>
-          </div>
-        </div>
-        <div className="board-panel memory-panel">
-          <div className="board-status" role="status">
-            <span className="memory-status-icon">{finished ? "✓" : turn === "player" ? "✦" : "…"}</span>
-            <strong>{finished ? result : turn === "player" ? "내 차례" : "AI가 기억을 더듬는 중…"}</strong>
-            <span>{finished ? `${moves}번 만에 모든 짝을 찾았습니다` : turn === "player" ? "카드 두 장을 뒤집으세요" : "AI의 선택을 지켜보세요"}</span>
-          </div>
-          <div className="memory-grid" role="grid" aria-label="4 곱하기 4 기억력 카드">
-            {cards.map((card, index) => {
-              const open = card.matched || revealed.includes(index);
-              return (
-                <button
-                  key={card.id}
-                  className={`memory-card ${open ? "open" : ""} ${card.matched ? "matched" : ""}`}
-                  onClick={() => chooseCard(index)}
-                  disabled={turn !== "player" || busy.current || card.matched}
-                  aria-label={open ? `${memoryCharacterLabel(card.symbol)} 카드${card.matched ? ", 짝 맞춤" : ""}` : "뒤집힌 카드"}
-                  role="gridcell"
-                >
-                  <span className="card-inner">
-                    <span className="card-back"><BrandMark /></span>
-                    <span className="card-front">
-                      <img
-                        className="memory-character"
-                        src={memoryCharacterImage(card.symbol)}
-                        alt=""
-                        aria-hidden="true"
-                      />
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="game-actions">
-            <button className="text-action" onClick={reset}>↻ 새 게임</button>
-            <span className="game-hint">{moves}번 선택 · {cards.filter((card) => card.matched).length / 2}/8 짝</span>
-            {finished && <button className="primary-action" onClick={reset}>다시 플레이</button>}
-          </div>
-        </div>
-      </section>
-    </main>
   );
 }
 

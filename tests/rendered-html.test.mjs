@@ -153,6 +153,9 @@ import {
   mudflatHeadlampDiscoveryRange,
   mudflatJoystickVector,
   mudflatNetStats,
+  mudflatMosquitoAppears,
+  mudflatMosquitoChance,
+  mudflatMosquitoRunEnabled,
   mudflatMarketImageScale,
   mudflatPufferBleedOnContact,
   mudflatPufferBleedStep,
@@ -439,6 +442,7 @@ test("hides unverified games by default and reveals them from the footer phrase"
 test("uses the game guide as a normal topbar action instead of a duplicate exit action", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const janggiSource = await readFile(new URL("../app/janggi-game.tsx", import.meta.url), "utf8");
+  const simpleChromeSource = await readFile(new URL("../app/simple-game-chrome.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.match(pageSource, /<GameObjectiveGuide gameId=\{gameId\} \/>/);
@@ -447,7 +451,7 @@ test("uses the game guide as a normal topbar action instead of a duplicate exit 
   assert.match(styles, /\.game-readability-scope \.exit-button\s*\{\s*display:\s*none;/);
   assert.match(styles, /\.game-readability-scope \.game-topbar\s*\{[\s\S]*?grid-template-columns:\s*48px minmax\(0, 1fr\) 128px;/);
   assert.match(styles, /\.game-title-lockup strong\s*\{[\s\S]*?text-overflow:\s*ellipsis;[\s\S]*?white-space:\s*nowrap;/);
-  assert.match(pageSource, /<strong title=\{title\}>\{title\}<\/strong>/);
+  assert.match(simpleChromeSource, /<strong title=\{title\}>\{title\}<\/strong>/);
 });
 
 test("folds the mudflat departure panel and keeps its guide out of the active HUD", async () => {
@@ -617,7 +621,7 @@ test("provides a complete objective and victory guide for every game", async () 
 });
 
 test("uses independently centered Paperoid character images in the memory game", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const memorySource = await readFile(new URL("../app/memory-game.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const characterIds = [
     "moon-jelly",
@@ -635,13 +639,27 @@ test("uses independently centered Paperoid character images in the memory game",
     assert.equal(image.subarray(1, 4).toString(), "PNG");
     assert.ok(image.length > 100_000);
   }
-  assert.match(pageSource, /\["moon-jelly", "달빛 해파리"\]/);
-  assert.match(pageSource, /\["cloud-whale", "구름 아기고래"\]/);
-  assert.match(pageSource, /memoryCharacterLabel\(card\.symbol\)/);
-  assert.match(pageSource, /return `\/memory-characters\/\$\{id\}\.png`/);
-  assert.match(pageSource, /<img\s+className="memory-character"/);
+  assert.match(memorySource, /\["moon-jelly", "달빛 해파리"\]/);
+  assert.match(memorySource, /\["cloud-whale", "구름 아기고래"\]/);
+  assert.match(memorySource, /memoryCharacterLabel\(card\.symbol\)/);
+  assert.match(memorySource, /return `\/memory-characters\/\$\{id\}\.png`/);
+  assert.match(memorySource, /<img\s+className="memory-character"/);
   assert.match(styles, /\.memory-character \{[\s\S]*object-fit: contain;[\s\S]*object-position: center;/);
   assert.doesNotMatch(styles, /memory-character-atlas\.png|--memory-atlas-/);
+});
+
+test("loads every playable game through an independent lazy module", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const lazyGames = [...pageSource.matchAll(/^const \w+Game = lazy\(\(\) => import\(/gm)];
+
+  assert.equal(lazyGames.length, 43);
+  assert.match(pageSource, /lazy\(\(\) => import\("\.\/mudflat-survivor-game"\)/);
+  assert.match(pageSource, /lazy\(\(\) => import\("\.\/gomoku-game"\)/);
+  assert.match(pageSource, /lazy\(\(\) => import\("\.\/memory-game"\)/);
+  assert.match(pageSource, /lazy\(\(\) => import\("\.\/starswar\/starswar-game"\)/);
+  assert.match(pageSource, /<Suspense fallback=\{<GameLoadingScreen gameId=\{gameId\} \/>\}>/);
+  assert.doesNotMatch(pageSource, /from "\.\/mudflat-survivor-game"/);
+  assert.doesNotMatch(pageSource, /from "\.\/more-games"/);
 });
 
 test("applies the shared readable typography contract to every current and future game", async () => {
@@ -801,7 +819,7 @@ test("keeps StarDraft in its own app/starswar folder as a mobile game at /stardr
     "starswar.css",
   ]);
   assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^(starswar|frontline)/.test(file) && file !== "starswar"), false);
-  assert.match(pageSource, /import \{ StarswarGame \} from "\.\/starswar\/starswar-game";/);
+  assert.match(pageSource, /const StarswarGame = lazy\(\(\) => import\("\.\/starswar\/starswar-game"\)/);
   assert.match(layoutSource, /import "\.\/starswar\/starswar\.css";/);
   assert.match(pageSource, /id: "starswar",[\s\S]*?title: "스타드래프트",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
@@ -1522,14 +1540,17 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const MOSQUITO_REPELLENT_PRICE = 100/);
   assert.match(source, /const MOSQUITO_DAMAGE = 6/);
   assert.match(source, /const MOSQUITO_LOW_HP_THRESHOLD = 10/);
-  assert.match(source, /모기떼 · 16~24초마다 \$\{MOSQUITO_DAMAGE\} 피해, 체력 \$\{MOSQUITO_LOW_HP_THRESHOLD\} 미만은 피해 없음/);
+  assert.match(source, /모기떼 · 판 진입 \$\{chance\}% · 발생 시점마다 \$\{chance\}% · 피해 \$\{MOSQUITO_DAMAGE\}, 체력 \$\{MOSQUITO_LOW_HP_THRESHOLD\} 미만은 피해 없음/);
   assert.match(source, /showPlayerMessage\("해충기피제 덕분에 모기떼를 피했다\.", 2\.2\)/);
   assert.match(source, /runtime\.player\.hp < MOSQUITO_LOW_HP_THRESHOLD/);
   assert.match(source, /showPlayerMessage\("모기떼가 성가시게 구네\.", 2\.2\)/);
   assert.match(source, /damagePlayer\(MOSQUITO_DAMAGE, "#d69d68"\)/);
   assert.match(source, /showPlayerMessage\("모기떼에 물렸다!", 2\.2\)/);
   assert.match(source, /mosquitoClock: 10/);
-  assert.match(source, /stageProfile\.mosquitoes/);
+  assert.match(source, /mosquitoRunEnabled: mudflatMosquitoRunEnabled\(campaign\.stage, mosquitoRoll\)/);
+  assert.match(source, /if \(!tutorialActiveAtFrame && runtime\.mosquitoRunEnabled\)/);
+  assert.match(source, /mudflatMosquitoAppears\(runtime\.stage, runtime\.mosquitoRunEnabled, runtimeRandom\(runtime\)\)/);
+  assert.doesNotMatch(source, /stageProfile\.mosquitoes/);
   assert.doesNotMatch(source, /nextProfile\.mosquitoes/);
   assert.doesNotMatch(source, /mosquitoRepellentAvailable/);
   assert.match(source, /function withoutMosquitoRepellent\(equipment: CountMap\)/);
@@ -1542,9 +1563,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /<small>해충기피제<\/small><b>\{hud\.mosquitoRepellent \? "사용 중" : "없음"\}<\/b>/);
   assert.doesNotMatch(source, /거센 파도 · 16~24초마다 체력 피해/);
   assert.doesNotMatch(source, /거센 파도가 체력을 깎았다!/);
-  assert.match(engineSource, /바람과 모기떼 사이로/);
-  assert.match(engineSource, /잦은 돌발 물살과 모기떼/);
-  assert.match(engineSource, /name: "돌풍과 모기떼"/);
+  assert.match(engineSource, /거센 바람 사이로/);
+  assert.match(engineSource, /잦은 돌발 물살을 피해/);
+  assert.match(engineSource, /name: "거센 돌풍"/);
   assert.match(source, /function mudflatHiddenRockStage\(stage: number\)/);
   assert.match(source, /return stage === 3 \|\| stage === 4/);
   assert.match(source, /hiddenRockClock: mudflatHiddenRockStage\(campaign\.stage\) \? \.5 : 0/);
@@ -1796,7 +1817,7 @@ test("distributes persistent stage-three water channels without adding recurring
   assert.equal(mudflatStageStats(1).rockLimit, 13);
   assert.equal(profile.tideInterval, 0);
   assert.equal(profile.safeZone, "none");
-  assert.equal(profile.mosquitoes, false);
+  assert.equal(profile.mosquitoes, true);
   const lanes = mudflatWaterChannelLanes(-3000, 3000, 3);
   assert.ok(lanes.length > 6 && lanes.some((lane) => lane < 0) && lanes.some((lane) => lane > 0));
   for (const y of [-2400, -173, 0, 417, 3200]) {
@@ -1816,6 +1837,20 @@ test("distributes persistent stage-three water channels without adding recurring
   assert.deepEqual(mudflatWaterChannelLanes(-3000, 3000, 2), [0]);
   assert.deepEqual(mudflatWaterChannelLanes(-3000, 3000, 8), [0, 1]);
   assert.deepEqual(mudflatWaterChannelLanes(-3000, 3000, 1), []);
+});
+
+test("scales mosquito nuisance chance by stage and applies both run and timing gates", () => {
+  const expected = [0, .1, .2, .3, .4, .5, .6, .7, .8, .9];
+  expected.forEach((chance, index) => assert.ok(Math.abs(mudflatMosquitoChance(index + 1) - chance) < Number.EPSILON));
+  assert.equal(mudflatMosquitoChance(11), .9);
+  assert.equal(mudflatMosquitoChance(99), .9);
+  assert.equal(mudflatMosquitoRunEnabled(1, 0), false);
+  assert.equal(mudflatMosquitoRunEnabled(2, .099), true);
+  assert.equal(mudflatMosquitoRunEnabled(2, .1), false);
+  assert.equal(mudflatMosquitoRunEnabled(10, .899), true);
+  assert.equal(mudflatMosquitoAppears(8, false, 0), false, "a mosquito-free run must stay mosquito-free");
+  assert.equal(mudflatMosquitoAppears(3, true, .199), true);
+  assert.equal(mudflatMosquitoAppears(3, true, .2), false);
 });
 
 test("uses official classic Battleship fleet and American checkers crowning", async () => {

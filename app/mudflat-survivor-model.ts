@@ -8,6 +8,7 @@ import {
   mudflatEquipmentStats,
   mudflatHarpoonStats,
   mudflatNetStats,
+  mudflatMosquitoChance,
   mudflatRockTurnerStats,
   mudflatTongStats,
 } from "./mudflat-survivor-engine.js";
@@ -113,7 +114,6 @@ export function mudflatHiddenRockStage(stage: number) {
 export function mudflatStageHazardNotes(profile: StageProfile) {
   const notes: string[] = [];
   if (profile.tideInterval > 0) notes.push(`돌발 물살 · 약 ${profile.tideInterval}초 주기 대피`);
-  if (profile.mosquitoes) notes.push(`모기떼 · 16~24초마다 ${MOSQUITO_DAMAGE} 피해, 체력 ${MOSQUITO_LOW_HP_THRESHOLD} 미만은 피해 없음`);
   if (profile.wind > 0) notes.push("바람 · 이동 방향이 흔들림");
   if (profile.swarms) notes.push("해산물 무리 · 추가 출현");
   if (profile.waterChannels) notes.push("물골 · 지나갈 때 이동 감속");
@@ -121,6 +121,10 @@ export function mudflatStageHazardNotes(profile: StageProfile) {
   if (profile.fallingRocks > 0) notes.push("낙석 · 충돌 피해와 바위 생성");
   if (profile.darkness >= DARK_STAGE_VISION_DARKNESS) notes.push("어둠 · 시야 제한");
   if (profile.stage === GAEBUL_STAGE) notes.push("깊은 펄 · 감속과 발 빠짐");
+  if (profile.mosquitoes) {
+    const chance = Math.round(mudflatMosquitoChance(profile.stage) * 100);
+    notes.push(`모기떼 · 판 진입 ${chance}% · 발생 시점마다 ${chance}% · 피해 ${MOSQUITO_DAMAGE}, 체력 ${MOSQUITO_LOW_HP_THRESHOLD} 미만은 피해 없음`);
+  }
   return notes;
 }
 
