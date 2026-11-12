@@ -1539,6 +1539,19 @@ test("starswar lurkers burrow, cloak, and spine every enemy on the line", () => 
   assert.equal(lurker.burrowed, false, "후퇴 명령에 땅 위로");
 });
 
+test("starswar burrowed lurkers do not wait forever for a building just out of range", () => {
+  // 후반 리포트: 적 병력이 없는데 럴커 둘이 적 건물 바로 옆(사거리 밖 6~10칸)에서 10분 가까이 땅속에 멈춰 경기가 끝나지 않았다.
+  // "다가오는 적"을 기다리는 규칙이 움직이지 않는 건물까지 셌다.
+  const state = zerg("terran");
+  const cc = stwNexus(state, "enemy", "main");
+  const lurker = stwSpawnUnitAt(state, "player", "lurker", cc.x, cc.y + cc.radius + 8.5, "attack");
+  lurker.burrowed = true;
+  lurker.lastBurrowTargetAt = state.time;
+  const before = cc.hp + cc.shields;
+  run(state, 12);
+  assert.ok(cc.hp + cc.shields < before, `사거리 밖 건물로 다가가 가시를 쏜다 (${before} → ${cc.hp + cc.shields})`);
+});
+
 test("starswar zerg units regenerate and use separate melee and missile upgrades", () => {
   const state = zerg();
   const ling = stwSpawnUnitAt(state, "player", "zergling", 20, 80);

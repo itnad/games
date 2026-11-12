@@ -2690,7 +2690,7 @@ function nearestMelee(state, unit, radius) {
 }
 
 /** 사거리 안이면서 최소 사거리 밖에 있는 가장 가까운 적(유닛 우선). */
-function findTargetBand(state, attacker, minRange, maxRange) {
+function findTargetBand(state, attacker, minRange, maxRange, { unitsOnly = false } = {}) {
   let best = null;
   let bestScore = Infinity;
   const consider = (item, bias) => {
@@ -2704,7 +2704,7 @@ function findTargetBand(state, attacker, minRange, maxRange) {
     }
   };
   for (const unit of state.units) consider(unit, isWorker(unit) ? 3 : 0);
-  for (const building of state.buildings) consider(building, 6);
+  if (!unitsOnly) for (const building of state.buildings) consider(building, 6);
   return best;
 }
 
@@ -2760,8 +2760,10 @@ function lurkerStep(state, unit, retreating) {
   if (unit.burrowed) {
     const target = findTargetBand(state, unit, 0, range + unit.radius * 0.5);
     if (target) unit.lastBurrowTargetAt = state.time;
-    // 사거리 조금 밖에 적이 다가오는 중이면 계속 숨어 있는다(들락거리며 1초씩 버리지 않도록).
-    const approaching = !target && findTargetBand(state, unit, 0, range + 4);
+    // 사거리 조금 밖에 적 유닛이 다가오는 중이면 계속 숨어 있는다(들락거리며 1초씩 버리지 않도록).
+    // 건물은 다가오지 않으므로 세지 않는다: 건물을 부순 뒤 다음 건물이 사거리 바로 밖(6~10칸)에 있으면 영영 땅속에서 기다렸다
+    // (적 병력이 없는 후반에 럴커 둘이 적 앞마당 옆에서 10분 가까이 멈춰 경기가 끝나지 않았다).
+    const approaching = !target && findTargetBand(state, unit, 0, range + 4, { unitsOnly: true });
     if (retreating || (!target && !approaching && state.time - (unit.lastBurrowTargetAt ?? 0) > 3)) {
       unit.burrowed = false;
       unit.burrowUntil = state.time + def.burrow.setup;
