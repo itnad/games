@@ -313,6 +313,14 @@
 
 **0단계가 전부다.** 0단계에서 "한 번 더"가 안 나오면 1단계 이후를 만들지 않고 이 문서를 보관한다. 0단계 전에는 다른 단계 코드를 쓰지 않는다.
 
+### 15.1 0단계 구현 위치
+
+- 화면: `/baksal` (`app/baksal/page.tsx`, `app/baksal/baksal-prototype.tsx`). 검색 제외, Paperoid 메인·게임 목록에 미등록.
+- 순수 모듈: `beat-clock.js`(박·판정·보정), `aim-projection.js`(방향 센서 → 조준, 구면 좌표 → 화면), `dodge-detector.js`(박 창 안 가속 충격 → 회피 동작, 걷기 감지), `baksal-chart.js`(16마디 채보), `baksal-engine.js`(런 상태·판정·정화·신호).
+- 브라우저 모듈: `baksal-audio.js`(딱딱이와 악귀 신호 합성, 오디오 클럭 예약), `baksal-render.ts`(캔버스), `baksal-settings.js`(로컬 설정).
+- 테스트: `tests/baksal.test.mjs` (`npm run test:baksal`). 밸런스 수치의 최종 원본은 각 모듈 상수다.
+- 0단계 범위 밖이라 구현하지 않은 것: 재장전, 긴급 결계(흔들기), 부적, 결과 저장, 점수판.
+
 ## 16. 검증 지표
 
 - 0단계: 개발자 본인과 지인 3명 이상이 각 10런 뒤 자발적으로 더 하는지(정성 지표가 유일한 기준)
