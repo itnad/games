@@ -20,6 +20,13 @@ export function initializeSpecialPractice(s: SimulationState) {
     s.combat!.friendlyIds.push(id);
     if (n >= 2) s.players[0].controlGroups[n < 4 ? 0 : 1].entityIds.push(id);
   }
+  if (race === "terran") {
+    for (const technologyId of ["personnel-cloaking", "cloaking-field"]) s.economy.upgrades.push({ playerId: 0, technologyId, level: 1 });
+    for (const [n, definition] of ["terran-ghost", "terran-wraith"].entries()) {
+      const id = createEconomicEntity(s, 0, economyDefinition(definition)!, { x: (16 + n * 4) * 256, y: 24 * 256 });
+      s.combat!.friendlyIds.push(id); s.players[0].controlGroups[n + 2].entityIds.push(id);
+    }
+  }
   if (race === "protoss") s.combat!.friendlyIds.push(createEconomicEntity(s, 0, economyDefinition("protoss-observer")!, { x: 14 * 256, y: 18 * 256 }));
   const target = race === "protoss" ? "protoss-dark-templar" : "protoss-probe";
   const id = createEconomicEntity(s, 1, economyDefinition(target)!, { x: 29 * 256, y: 20 * 256 });
