@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { withKoreanDirection, withKoreanObject, withKoreanSubject } from "../korean-particles.js";
+import { stwResultTips, stwTipQueue } from "./starswar-tips.js";
 import {
   STW_AI_PERSONAS,
   STW_ARMY_UNITS,
@@ -239,6 +240,57 @@ function writeRecord(record: BattleRecord) {
 }
 
 /** 진행 중인 경기 저장(이어하기). 경기가 끝나거나 새 경기를 시작하면 지운다. */
+const TIPS_KEY = "paperoid-starswar-tips-seen";
+
+function readSeenTips(): string[] {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(TIPS_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function markTipSeen(id: string) {
+  try {
+    const seen = readSeenTips().filter((item) => item !== id);
+    window.localStorage.setItem(TIPS_KEY, JSON.stringify([...seen, id].slice(-80)));
+  } catch {
+    /* 저장소를 못 써도 팁은 보인다. */
+  }
+}
+
+/**
+ * 게임 팁 한 줄: 안 본 팁부터 보여 주고, rotate(초)마다 다음 팁으로 바뀐다. 누르면 바로 다음 팁.
+ * 화면 표시용이라 엔진·리플레이와 상관없다.
+ */
+function TipLine({ race, rotate, className }: { race: string; rotate?: number; className?: string }) {
+  const build = (forRace: string) => ({ race: forRace, list: typeof window === "undefined" ? [] : stwTipQueue(forRace, readSeenTips()) });
+  const [queue, setQueue] = useState(() => build(race));
+  const [index, setIndex] = useState(0);
+  // 종족을 바꾸면 그 종족 팁으로 다시 줄을 세운다(렌더 중 상태 맞추기).
+  if (queue.race !== race) {
+    setQueue(build(race));
+    setIndex(0);
+  }
+  const tip = queue.list.length ? queue.list[index % queue.list.length] : null;
+  useEffect(() => {
+    if (tip) markTipSeen(tip.id);
+  }, [tip]);
+  useEffect(() => {
+    if (!rotate || queue.list.length < 2) return undefined;
+    const timer = window.setInterval(() => setIndex((value) => value + 1), rotate * 1000);
+    return () => window.clearInterval(timer);
+  }, [queue, rotate]);
+  if (!tip) return null;
+  return (
+    <button type="button" className={`stw-tip ${className ?? ""}`} onClick={() => setIndex((value) => value + 1)} aria-label={`게임 팁: ${tip.text} (누르면 다음 팁)`}>
+      <b>TIP</b>
+      <span key={tip.id} aria-live="polite">{tip.text}</span>
+    </button>
+  );
+}
+
 const SAVE_KEY = "paperoid-starswar-save";
 /** 자동 저장 간격(경기 시간, 초). */
 const SAVE_EVERY = 5;
@@ -715,6 +767,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             <small>BUILD · TECH · WAVE</small>
             <h1>전략은 당신이,<br />전투는 병력이.</h1>
             <p>무엇을 짓고 연구할지, 언제 진격할지 정하세요.</p>
+            <TipLine race={races.player} rotate={9} className="stw-tip-menu" />
           </div>
           {saved ? <ResumeCard saved={saved} onResume={resumeBattle} onDiscard={discardSave} /> : null}
           <div className="stw-race-pick">
@@ -851,6 +904,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 <button type="button" className="stw-primary" onClick={() => setPaused(false)}>계속하기</button>
                 <PauseReportButton game={game} />
                 <button type="button" className="stw-secondary" onClick={() => setConfirmExit(true)}>나가기</button>
+                <TipLine race={game.sides.player.race} className="stw-tip-pause" />
               </section>
             </div>
           ) : null}
@@ -1414,6 +1468,8 @@ function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwS
   const switched = game.sides.enemy.ai?.switched;
   const matchup = `${raceOf(game, "player").name} 대 ${raceOf(game, "enemy").name}`;
   const best = record.best[game.difficulty];
+  // 실험실 경기는 연습이라 다음 판 팁을 띄우지 않는다.
+  const nextTips = useMemo(() => (game.lab ? [] : stwResultTips(game)), [game]);
   const newBest = !game.lab && won && best !== undefined && Math.round(game.time) <= best;
   // 세 번째 값이 true인 줄은 적을수록 낫다(굵게 표시할 쪽이 반대).
   const rows: [string, number, number, boolean?][] = [
@@ -1453,6 +1509,12 @@ function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwS
             })}
           </tbody>
         </table>
+        {nextTips.length ? (
+          <div className="stw-result-tips">
+            <b>다음 판 팁</b>
+            <ul>{nextTips.map((text) => <li key={text}>{text}</li>)}</ul>
+          </div>
+        ) : null}
         {game.lab ? <p className="stw-result-record">실험 경기는 전적에 넣지 않습니다.</p> : <p className="stw-result-record">전적 {record.wins}승 {record.losses}패</p>}
         <div className={aiLost ? "stw-result-tools" : "stw-result-tools one"}>
           <button type="button" className="stw-secondary" onClick={() => setReport("bug")}>버그 리포트</button>

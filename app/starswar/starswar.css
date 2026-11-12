@@ -308,3 +308,14 @@
 .stw-lab-save { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
 .stw-lab-save input { min-height:46px; padding:0 12px; border:1px solid var(--stw-line); border-radius:12px; color:var(--stw-text); background:#0000002e; font:inherit; }
 .stw-lab-save button { min-height:46px; padding:0 14px; border-radius:12px; font-weight:900; }
+
+/* 게임 팁: 메뉴·일시정지 한 줄, 결과 화면 "다음 판 팁" */
+.stw-tip { display:flex; align-items:flex-start; gap:8px; width:100%; margin:0; padding:9px 12px; border:1px solid #e9c77a33; border-radius:12px; background:#e9c77a12; color:#dccdaa; font:inherit; font-size:13px; line-height:1.45; text-align:left; cursor:pointer; }
+.stw-tip b { flex:none; padding:1px 6px; border-radius:6px; background:var(--stw-gold); color:#1d150c; font-size:11px; font-weight:900; letter-spacing:.08em; }
+.stw-tip span { word-break:keep-all; text-wrap:pretty; animation:stw-tip-in .35s ease-out; }
+.stw-tip-menu { margin-top:14px; }
+@keyframes stw-tip-in { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce) { .stw-tip span { animation:none; } }
+.stw-result-tips { padding:10px 12px; border:1px solid #e9c77a33; border-radius:12px; background:#e9c77a12; text-align:left; }
+.stw-result-tips b { color:var(--stw-gold); font-size:12px; font-weight:900; letter-spacing:.06em; }
+.stw-result-tips ul { margin:6px 0 0; padding-left:18px; display:grid; gap:4px; color:#dccdaa; font-size:13px; line-height:1.45; word-break:keep-all; }

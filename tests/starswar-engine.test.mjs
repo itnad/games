@@ -34,6 +34,7 @@ import { stwFingerprint, stwReplay, stwReplayCode, stwReplayMatches } from "../a
 import { stwAiReport, stwBugReport, stwLosingAiSides } from "../app/starswar/starswar-report.js";
 import { stwIntelTag, stwLearnAdd, stwLearnEmpty, stwLearnFeatures, stwLearnPick, stwLearnSnapshot, stwLearnTags } from "../app/starswar/starswar-learn.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwScreenToMap, stwViewport } from "../app/starswar/starswar-camera.js";
+import { STW_TIPS, stwResultTips, stwTipQueue } from "../app/starswar/starswar-tips.js";
 
 const run = (state, seconds, ai = null) => {
   const steps = Math.round(seconds * 10);
@@ -3008,4 +3009,43 @@ test("starswar squad orders stop an infiltration: move back retreats, release re
   run(again, 5);
   assert.equal(stwCommand(again, "player", { type: "squadRelease", units: ["dark"] }).ok, true);
   assert.ok(darks.every((unit) => unit.raid === undefined && unit.group === "rally" && unit.squad === undefined), "본대로 돌아온다");
+});
+
+test("starswar tips: race filter, unseen first, and result tips follow the game's weak spots", () => {
+  const ids = STW_TIPS.map((tip) => tip.id);
+  assert.equal(new Set(ids).size, ids.length, "tip ids are unique");
+  assert.ok(STW_TIPS.length >= 25);
+  for (const tip of STW_TIPS) assert.ok(tip.text.length > 10 && !/이\(가\)|을\(를\)/.test(tip.text), tip.id);
+  assert.ok(STW_TIPS.some((tip) => tip.text.includes("연구 시 영구 은폐")));
+
+  const random = () => 0.5;
+  const terran = stwTipQueue("terran", [], random);
+  assert.ok(terran.some((tip) => tip.race === "terran"));
+  assert.ok(terran.every((tip) => !tip.race || tip.race === "terran"));
+  assert.ok(stwTipQueue("random", [], random).every((tip) => !tip.race), "random race shows common tips only");
+  const seen = terran.slice(0, 5).map((tip) => tip.id);
+  const next = stwTipQueue("terran", seen, random);
+  assert.equal(next.length, terran.length);
+  assert.ok(next.slice(0, next.length - seen.length).every((tip) => !seen.includes(tip.id)), "unseen tips come first");
+
+  const game = createStarswarGame({ seed: 3, aiSides: [], races: { player: "protoss", enemy: "zerg" } });
+  game.status = "over";
+  game.winner = "enemy";
+  game.time = 600;
+  game.history = [
+    { t: 200, player: { supply: 20, army: 400, workers: 18, minerals: 900, gas: 0, mix: { zealot: 6 } }, enemy: { supply: 30, army: 1200, workers: 20, minerals: 50, gas: 0, mix: { mutalisk: 6, lurker: 2 } } },
+    { t: 400, player: { supply: 20, army: 400, workers: 18, minerals: 800, gas: 0, mix: { zealot: 6 } }, enemy: { supply: 30, army: 1200, workers: 20, minerals: 50, gas: 0, mix: { mutalisk: 8 } } },
+  ];
+  const tips = stwResultTips(game);
+  assert.equal(tips.length, 2);
+  assert.match(tips[0], /공중/);
+  assert.match(tips[0], /드라군/);
+  assert.match(tips[1], /은폐/);
+
+  game.history = [];
+  game.sides.player.stats.workersLost = 12;
+  assert.match(stwResultTips(game)[0], /일꾼을 많이 잃었어요/);
+  game.sides.player.stats.workersLost = 0;
+  game.winner = "player";
+  assert.equal(stwResultTips(game).length, 1, "a quiet win still gets one general tip");
 });
