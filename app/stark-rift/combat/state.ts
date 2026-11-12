@@ -1,4 +1,4 @@
-import { VISION_RULES_VERSION } from "../vision/state";
+import { LEGACY_VISION_RULES_VERSION, VISION_RULES_VERSION } from "../vision/state";
 import { PROJECTILE_RULES, MAX_COMBAT_PROJECTILES } from "./mechanics";
 import {
   array,
@@ -9,11 +9,14 @@ import {
   nullable,
   object,
   optional,
+  refine,
   text,
   unique,
   type Infer,
 } from "../core/validation";
 import { checksum } from "../core/checksum";
+import special from "../data/special-original.json";
+import { SPECIAL_RULES_VERSION } from "../abilities/special-state";
 import original from "../data/combat-original.json";
 export const RANGED_COMBAT_RULES_VERSION =
   "ranged-1-" +
@@ -22,9 +25,10 @@ export const TERRAIN_COMBAT_RULES_VERSION =
   "terrain-1-" +
   checksum({
     ranged: RANGED_COMBAT_RULES_VERSION,
-    vision: VISION_RULES_VERSION,
+    vision: LEGACY_VISION_RULES_VERSION,
   });
-export const COMBAT_RULES_VERSION = "burrow-1-" + checksum(TERRAIN_COMBAT_RULES_VERSION);
+export const BURROW_COMBAT_RULES_VERSION = "burrow-1-" + checksum(TERRAIN_COMBAT_RULES_VERSION);
+export const COMBAT_RULES_VERSION = "special-combat-" + checksum({ base: BURROW_COMBAT_RULES_VERSION, vision: VISION_RULES_VERSION, special: SPECIAL_RULES_VERSION });
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(
@@ -43,17 +47,18 @@ export const combatRecordSchema = object({
     object({ health: integer(0, 255), shield: integer(0, 255) }),
   ),
 });
-export const combatEffectSchema = object({
-  id: integer(1),
-  tick: integer(),
+const effectFields = {
+  id: integer(1), tick: integer(),
+  weaponId: optional(enumeration([...original.weapons, ...special.weapons].map((w) => w.name))),
+  owner: integer(0, 1), x: integer(), y: integer(), toX: integer(), toY: integer(),
+};
+export const combatEffectSchema = object({ ...effectFields,
   kind: enumeration(["shot", "slash", "death", "launch", "impact", "miss"]),
-  weaponId: optional(enumeration(original.weapons.map((w) => w.name))),
-  owner: integer(0, 1),
-  x: integer(),
-  y: integer(),
-  toX: integer(),
-  toY: integer(),
+  sourceId: optional(integer(1)),
 });
+export const renderCombatEffectSchema = refine(object({ ...effectFields,
+  kind: enumeration(["shot", "slash", "death", "launch", "impact", "miss", "hiddenAttack"]),
+}), (e) => e.kind !== "hiddenAttack" || (e.weaponId === undefined && e.x === e.toX && e.y === e.toY), "Hidden attacks must stay anonymous");
 export const combatProjectileSchema = object({
   id: integer(1),
   sourceId: integer(1),
@@ -82,6 +87,7 @@ export const SCENARIOS = [
   "combat-practice",
   "ranged-practice",
   "siege-practice",
+  "special-practice",
 ] as const;
 export const combatStateSchema = object({
   rulesVersion: literal(COMBAT_RULES_VERSION),
