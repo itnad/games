@@ -1,3 +1,4 @@
+import {COMMAND_FEEDBACK_MS,type CommandFeedback} from '../input/command-feedback';
 import {updateEconomicMarker,drawResource} from './economy-art';
 import { Application, Container, Graphics, Sprite, Texture, Ticker, type WebGLRenderer } from "pixi.js";
 import type { BattleMap } from "../data/maps";
@@ -8,6 +9,7 @@ import { updateMinimapMarker, updateUnitMarker } from "./marker-visual";
 
 const TERRAIN_COLORS = [0x1d3035, 0x2f4443, 0x111c27, 0x536762, 0x090f1d];
 export class BattleRenderer {
+  private commandMarker=new Graphics();private commandFeedback:CommandFeedback|null=null;private feedbackAt=0;
   readonly camera: BattleCamera;
   minimapAction?: (point:{x:number;y:number})=>boolean;
   private app = new Application(); private minimap = new Application();
@@ -61,7 +63,7 @@ export class BattleRenderer {
       const miniTerrain = new Sprite(this.minimapTerrainTexture); miniTerrain.label = "terrain"; this.minimap.stage.addChild(miniTerrain, this.minimapUnits);
       this.fogCanvas.width = this.map.widthTiles; this.fogCanvas.height = this.map.heightTiles;
       this.fogTexture = Texture.from(this.fogCanvas); this.fogTexture.source.scaleMode = "nearest";
-      this.world.addChild(new Sprite(this.fogTexture)); this.minimap.stage.addChild(new Sprite(this.fogTexture), this.viewportOutline);
+      this.world.addChild(new Sprite(this.fogTexture),this.commandMarker); this.minimap.stage.addChild(new Sprite(this.fogTexture), this.viewportOutline);
       this.updateFog(new Uint8Array(this.fogMask.length));
       const lost = (event: Event) => { event.preventDefault(); this.ticker.stop(); this.contextLost(); };
       for (const canvas of [this.app.canvas, this.minimap.canvas]) { canvas.addEventListener("webglcontextlost", lost); this.cleanups.push(() => canvas.removeEventListener("webglcontextlost", lost)); }
@@ -111,6 +113,10 @@ export class BattleRenderer {
   setPlacement(value:{tileX:number;tileY:number;width:number;height:number;status:'valid'|'blocked'|'warning'}|null):void{
     this.placement.clear();if(value){const color=value.status==='valid'?0x73dfb7:value.status==='warning'?0xf0c26a:0xf07679;this.placement.rect(value.tileX,value.tileY,value.width,value.height).fill({color,alpha:.2}).stroke({color,width:.08});}this.draw();
   }
+  setCommandFeedback(value:CommandFeedback|null):void{
+    if(value?.id===this.commandFeedback?.id)return;this.commandFeedback=value;this.feedbackAt=performance.now();this.commandMarker.clear();this.commandMarker.visible=!!value;
+    if(value){const color={move:0x8cebd8,attack:0xff8585,patrol:0xe3c68b,rally:0x8cbbff,gather:0x9de290,build:0xf0bf72}[value.kind];this.commandMarker.circle(0,0,12).stroke({color,width:2}).circle(0,0,2).fill(color);for(const [dx,dy]of [[1,0],[-1,0],[0,1],[0,-1]])this.commandMarker.moveTo(dx*16,dy*16).lineTo(dx*8,dy*8).stroke({color,width:2});this.commandMarker.position.set(value.x/256,value.y/256);}this.draw();
+  }
   private resize(): void {
     if (this.disposed || !isPortraitViewport()) return;
     this.app.renderer.resize(Math.max(1, this.battlefield.clientWidth), Math.max(1, this.battlefield.clientHeight));
@@ -121,6 +127,9 @@ export class BattleRenderer {
     if (this.disposed || !this.initialized || !isPortraitViewport()) return;
     const w = this.app.screen.width, h = this.app.screen.height, scale = this.camera.scale(w, h), bounds = this.camera.bounds(w, h);
     this.world.scale.set(scale * 256); this.world.position.set(w / 2 - this.camera.centerX * scale, h / 2 - this.camera.centerY * scale);
+    const age=(performance.now()-this.feedbackAt)/COMMAND_FEEDBACK_MS;
+    this.commandMarker.visible=!!this.commandFeedback&&age<1;
+    if(this.commandMarker.visible){this.commandMarker.alpha=1-age;this.commandMarker.scale.set((1.25-.4*age)/(scale*256));}
     const alpha = Math.min(1, Math.max(0, (performance.now() - this.receivedAt) / 50));
     for (const entity of this.snapshot?.entities ?? []) {
       const previous = this.previousPositions.get(entity.id) ?? entity;
@@ -152,7 +161,7 @@ export class BattleRenderer {
     this.ticker.destroy(); this.resizeObserver?.disconnect(); this.cleanups.forEach(fn => fn());
     this.pendingTerrain?.destroy(); this.pendingTerrain = undefined;
     this.destroyApplications();
-    for (const display of [this.world, this.minimapUnits, this.viewportOutline]) if (!display.destroyed) display.destroy({children:true});
+    for (const display of [this.world, this.minimapUnits, this.viewportOutline,this.commandMarker]) if (!display.destroyed) display.destroy({children:true});
     this.pool.forEach(sprite => sprite.destroy()); this.miniPool.forEach(sprite=>sprite.destroy()); this.terrainTexture?.destroy(true); this.minimapTerrainTexture?.destroy(true); this.fogTexture?.destroy(true);
   }
 }
