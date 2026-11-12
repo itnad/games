@@ -1,9 +1,12 @@
+import { TransportControls } from "./transport-controls";
+import { permanentCloak } from "../abilities/special-state";
 import { hasBasicWeapon } from "../combat/catalog";
 import { BURROW_ABILITY, BURROW_RESEARCH, supportsBurrow } from "../abilities/burrow";
 import { useEffect, useRef } from "react";
 import type { GameCommand } from "../core/commands";
 import type { RenderSnapshot } from "../worker/render-snapshot";
 import {
+  countsAsDefinition, isLarvaProducer,
   ECONOMY_DEFINITIONS,
   ECONOMY_UPGRADES,
   economyDefinition,
@@ -20,7 +23,7 @@ export function EconomyControls({
   running,
   openBuildMenu,
   selectWorker,
-  scout,
+  scout, loadTransport, unloadTransport, selectEntities,
 }: {
   snapshot: RenderSnapshot;
   selected: number[];
@@ -31,6 +34,7 @@ export function EconomyControls({
   openBuildMenu: () => void;
   selectWorker: () => void;
   scout: () => void;
+  loadTransport?: (ids: number[]) => void; unloadTransport?: (ids: number[]) => void; selectEntities?: (ids: number[]) => void;
 }) {
   const economy = snapshot.economy!,
     entities = snapshot.entities.filter(
@@ -68,7 +72,7 @@ export function EconomyControls({
     economy.structures.some(
       (b) =>
         b.completed &&
-        snapshot.entities.find((e) => e.id === b.entityId)?.definitionId === id,
+        countsAsDefinition(snapshot.entities.find((e) => e.id === b.entityId)?.definitionId ?? "", id),
     );
   const canAfford = (minerals: number, gas: number) =>
     economy.minerals >= minerals && economy.gas >= gas;
@@ -90,6 +94,9 @@ export function EconomyControls({
     toBuild: "건설 지점으로 이동",
     constructing: "건설 중",
   };
+  const transport = <TransportControls snapshot={snapshot} selected={selected} running={running} issue={issue}
+    load={loadTransport ?? (() => {})} unload={unloadTransport ?? (() => {})} select={selectEntities ?? (() => {})} />;
+  if (!def && (economy.transports ?? []).some((t) => t.passengers.some((p) => selected.includes(p.id)))) return transport;
   if (!def)
     return (
       <div>
@@ -149,6 +156,8 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
+      {transport}
+      {permanentCloak(def.id) && <p className="sr-help">영구 은폐 · {def.id === "protoss-observer" ? "비무장 탐지기 · 탐지 범위 11타일" : "지상 근접 공격 · 적 탐지기에 노출되면 공격받습니다."}</p>}
       {burrowActors.length > 0 && (
         <div className="sr-burrow-controls">
           <div className="sr-action-row">
@@ -239,17 +248,20 @@ export function EconomyControls({
       {building?.completed && (
         <>
           <div className="sr-action-row">
-            {def.id === "zerg-hatchery" && (
+            {isLarvaProducer(def.id) && (
               <span>라바 {building.larva} / 3</span>
             )}
             {def.power && !building.powered && (
               <span className="sr-locked">동력 필요 · 생산 정지</span>
             )}
           </div>
+          {def.id === "zerg-hatchery" && <button data-morph="zerg-lair" disabled={!running || !!building.morph || !!building.research || !has("zerg-spawning-pool") || !canAfford(150, 100)}
+            onClick={() => issue({ kind: "morphStructure", entityIds: selected, payload: { buildingId: "zerg-lair" } })}>레어 변태 ◆ 150 ◉ 100 · 31.25초{!has("zerg-spawning-pool") ? " · 스포닝 풀 필요" : ""}</button>}
+          {building.morph && <div className="sr-research-status"><span>레어 변태 중 · {Math.ceil(building.morph.remainingTicks / 20)}초</span><progress max={building.morph.totalTicks} value={building.morph.totalTicks - building.morph.remainingTicks} /><button disabled={!running} onClick={() => issue({ kind: "cancelStructureMorph", entityIds: [building.entityId] })}>변태 취소 · 75% 환불</button></div>}
           <div className="sr-action-label">생산 · 길게 누르면 반복</div>
           <div className="sr-build-grid">
             {ECONOMY_DEFINITIONS.filter(
-              (d) => d.kind !== "building" && d.producer === def.id,
+              (d) => d.kind !== "building" && countsAsDefinition(def.id, d.producer),
             ).map((d) => {
               const why = reason(d),
                 repeat = building.repeatUnitId === d.id,
@@ -257,9 +269,9 @@ export function EconomyControls({
                   running &&
                   !why &&
                   building.powered &&
-                  (!building.research || def.id === "zerg-hatchery") &&
+                  (!building.research || isLarvaProducer(def.id)) &&
                   building.queue.length < 5 &&
-                  (def.id !== "zerg-hatchery" || building.larva > 0) &&
+                  (!isLarvaProducer(def.id) || building.larva > 0) &&
                   economy.supplyUsedHalf + d.supply * d.batch <=
                     economy.supplyCapHalf;
               return (
@@ -389,7 +401,7 @@ export function EconomyControls({
               </div>
             </>
           )}
-          {ECONOMY_UPGRADES.filter((t) => t.producer === def.id).map((t) => {
+          {ECONOMY_UPGRADES.filter((t) => countsAsDefinition(def.id, t.producer)).map((t) => {
             const done = economy.upgrades.some((u) => u.technologyId === t.id),
               busy = economy.structures.some(
                 (b) => b.research?.technologyId === t.id,
@@ -402,7 +414,8 @@ export function EconomyControls({
                   done ||
                   busy ||
                   !!building.research ||
-                  (building.queue.length > 0 && def.id !== "zerg-hatchery") ||
+                  !!building.morph ||
+                  (building.queue.length > 0 && !isLarvaProducer(def.id)) ||
                   !building.powered ||
                   !canAfford(t.minerals, t.gas)
                 }
@@ -414,8 +427,9 @@ export function EconomyControls({
                   })
                 }
               >
-                {t.name} {t.id === BURROW_RESEARCH ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.name} {[BURROW_RESEARCH, "ventral-sacs"].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
                 {t.id === BURROW_RESEARCH && !done && <small>25초 · 드론·저글링·히드라 잠복</small>}
+                {t.id === "ventral-sacs" && !done && <small>50초 · 오버로드 8칸 수송</small>}
               </button>
             );
           })}
