@@ -1,3 +1,4 @@
+import { isBurrowed } from "../abilities/burrow";
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import { segmentNearCircle, segmentNearTile } from "../pathfinding/geometry";
@@ -35,7 +36,7 @@ export function bodyContains(
   y: number,
   r: number,
 ): boolean {
-  if (isBlueprint(state, index)) return false;
+  if (isBlueprint(state, index) || isBurrowed(state, state.entities.id[index])) return false;
   const b = structureRect(state, index),
     s = state.entities;
   return b
@@ -50,7 +51,7 @@ export function segmentHitsBody(
   b: { x: number; y: number },
   r: number,
 ): boolean {
-  if (isBlueprint(state, index)) return false;
+  if (isBlueprint(state, index) || isBurrowed(state, state.entities.id[index])) return false;
   const rect = structureRect(state, index),
     s = state.entities;
   if (!rect)
