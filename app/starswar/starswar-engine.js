@@ -3564,16 +3564,21 @@ const SPELL_CASTERS = {
     return { x: best.x, y: best.y, targetId: best.id };
   },
   yamato(state, caster, spell) {
+    // 체력(보호막 포함) 200 이상인 목표만 노린다. 순서: 싸우는 유닛 → 공격하는 방어 건물 → 싸우지 않는 유닛(오버로드·수송선 등) → 그 밖의 건물.
+    // 예전에는 싸우지 않는 유닛과 일반 건물은 노리지 않아, 저글링·히드라·뮤탈만 상대하는 동안 배틀크루저가 8분 넘게 한 번도 쏘지 못했다.
     const sturdy = (item) => item.hp + item.shields >= 200 && !((item.yamatoAt ?? -99) > state.time - 2);
-    let target = spellFoes(state, caster, spell.range).filter((unit) => !isPassive(unit) && sturdy(unit)).sort((a, b) => b.hp + b.shields - (a.hp + a.shields))[0];
-    if (!target) {
-      target = state.buildings.filter((building) => building.side !== caster.side && building.hp > 0 && STW_BUILDINGS[building.type].damage && sturdy(building)
-        && distance(caster.x, caster.y, building.x, building.y) - building.radius <= spell.range).sort((a, b) => b.hp + b.shields - (a.hp + a.shields))[0];
-    }
+    const toughest = (list) => list.sort((a, b) => b.hp + b.shields - (a.hp + a.shields))[0];
+    const foes = spellFoes(state, caster, spell.range).filter(sturdy);
+    const buildings = state.buildings.filter((building) => building.side !== caster.side && building.hp > 0 && sturdy(building)
+      && distance(caster.x, caster.y, building.x, building.y) - building.radius <= spell.range);
+    const target = toughest(foes.filter((unit) => !isPassive(unit)))
+      ?? toughest(buildings.filter((building) => STW_BUILDINGS[building.type].damage))
+      ?? toughest(foes.filter((unit) => isPassive(unit)))
+      ?? toughest(buildings.filter((building) => !STW_BUILDINGS[building.type].damage));
     if (!target) return null;
     target.yamatoAt = state.time;
     state.pendingHits.push({ attacker: caster, target, hits: [spell.damage] });
-    state.effects.push({ kind: "yamato", side: caster.side, x1: caster.x, y1: caster.y, x2: target.x, y2: target.y, ttl: 0.6, max: 0.6, attackerId: caster.id, targetId: target.id });
+    state.effects.push({ kind: "yamato", side: caster.side, x1: caster.x, y1: caster.y, x2: target.x, y2: target.y, ttl: 0.9, max: 0.9, attackerId: caster.id, targetId: target.id });
     return { x: target.x, y: target.y, targetId: target.id };
   },
   ensnare(state, caster, spell) {
@@ -3639,7 +3644,13 @@ function castSpells(state, unit) {
     state.effects.push({ kind: "spell", spell: id, side: unit.side, x1: unit.x, y1: unit.y, x2: cast.x, y2: cast.y, ttl: 1, max: 1, radius: spell.radius ?? 1.4, attackerId: unit.id, targetId: cast.targetId });
     const stats = state.sides[unit.side].stats;
     stats.spells = (stats.spells ?? 0) + 1;
-    if (unit.side === "player") alertOnce(state, `spell:${id}`, 4, "player", `${spell.name}!`, "good");
+    if (id === "yamato") {
+      // 야마토 포는 쏠 때마다 무엇을 노렸는지 적는다(한 방이 커서 어디에 썼는지가 중요하다).
+      const target = state.units.find((item) => item.id === cast.targetId) ?? state.buildings.find((item) => item.id === cast.targetId);
+      const name = target ? (STW_UNITS[target.type] ?? STW_BUILDINGS[target.type]).name : "목표";
+      if (unit.side === "player") pushLog(state, "player", `야마토 포가 적 ${withKoreanObject(name)} 노립니다 (피해 ${spell.damage}).`, "good");
+      else pushLog(state, "player", `적 배틀크루저의 야마토 포가 우리 ${withKoreanObject(name)} 노립니다 (피해 ${spell.damage})!`, "danger");
+    } else if (unit.side === "player") alertOnce(state, `spell:${id}`, 4, "player", `${spell.name}!`, "good");
     else if (["stasis", "maelstrom", "lockdown", "plague", "irradiate", "emp", "broodling"].includes(id)) alertOnce(state, `foeSpell:${id}`, 8, "player", `적의 ${spell.name}!`, "danger");
     return true;
   }

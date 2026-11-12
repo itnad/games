@@ -789,6 +789,21 @@ export class StwPixiRenderer {
       g.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ width: 0.12, color: 0xffffff, alpha: 0.8 * pulse });
       g.circle(to.x, to.y, 0.9).fill({ color: 0xfff3b0, alpha: 0.25 * pulse });
     }
+    // 야마토 포: 쏘는 배틀크루저 앞에 충전 빛이 모였다가, 포탄 꼬리를 따라 굵은 빛줄기가 목표로 뻗는다.
+    for (const effect of state.effects) {
+      if (effect.kind !== "yamato") continue;
+      if (effect.side !== "player" && !this.visiblePoint(state, effect.x1, effect.y1) && !this.visiblePoint(state, effect.x2, effect.y2)) continue;
+      const t = 1 - effect.ttl / effect.max;
+      const head = Math.min(1, t / 0.7);
+      const x = effect.x1 + (effect.x2 - effect.x1) * head;
+      const y = effect.y1 + (effect.y2 - effect.y1) * head;
+      const fade = t < 0.7 ? 1 : Math.max(0, 1 - (t - 0.7) / 0.3);
+      const charge = Math.max(0, 1 - t / 0.35);
+      g.circle(effect.x1, effect.y1, 1.2 + charge * 2.2).fill({ color: 0xff8a3c, alpha: 0.35 * charge });
+      g.circle(effect.x1, effect.y1, 0.6 + charge * 1.1).fill({ color: 0xfff4d0, alpha: 0.6 * charge });
+      g.moveTo(effect.x1, effect.y1).lineTo(x, y).stroke({ width: 1.6, color: 0xff8a3c, alpha: 0.35 * fade });
+      g.moveTo(effect.x1, effect.y1).lineTo(x, y).stroke({ width: 0.55, color: 0xfff4d0, alpha: 0.85 * fade });
+    }
     for (const scan of state.scans ?? []) {
       if (scan.side !== "player" && !this.visiblePoint(state, scan.x, scan.y)) continue;
       const fade = Math.min(1, scan.ttl / 1.5);
@@ -1116,7 +1131,17 @@ export class StwPixiRenderer {
       used += 1;
       if (t > (effect.kind === "shell" ? 0.88 : 0.7) && !this.impacted.has(effect)) {
         this.impacted.add(effect);
-        if (effect.kind === "scarab" || effect.kind === "shell" || effect.kind === "yamato") {
+        if (effect.kind === "yamato") {
+          // 야마토 포 명중: 큰 섬광 두 겹, 충격파 고리 둘, 불꽃·연기, 큰 그을음, 강한 화면 흔들림.
+          this.shake = Math.max(this.shake, 0.8);
+          this.flash(effect.x2, effect.y2, 11, 0.32, 0xfff4d0);
+          this.flash(effect.x2, effect.y2, 6, 0.5, 0xff8a3c);
+          this.impactRing(effect.x2, effect.y2, 9, 0xffd28a);
+          this.impactRing(effect.x2, effect.y2, 5, 0xff6a2a);
+          for (let i = 0; i < 18; i += 1) this.spark(effect.x2, effect.y2, i % 3 ? 0xffb050 : 0xfff0a0, 9, 0.8);
+          for (let i = 0; i < 6; i += 1) this.smoke(effect.x2, effect.y2, 2.6, 1.6);
+          this.decal(this.tex.scorch, effect.x2, effect.y2, 6, 30, 0.6, 0);
+        } else if (effect.kind === "scarab" || effect.kind === "shell") {
           // 스캐럽·시즈 포탄 폭발: 큰 섬광, 불꽃, 연기, 그을음, 화면 흔들림.
           const radius = effect.radius ?? 2.4;
           this.shake = Math.max(this.shake, 0.45);

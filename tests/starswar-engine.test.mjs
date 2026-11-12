@@ -2950,3 +2950,34 @@ test("starswar infiltration walks a squad along the edge to the enemy mineral li
   run(recall, 40);
   assert.ok(zerglings.every((unit) => unit.group === "rally"), "회수한 병력은 집결지로 돌아온다");
 });
+
+test("starswar yamato picks fighters, then defences, then overlords, then any sturdy building, and says what it shot", () => {
+  const setup = (enemies) => {
+    const state = createStarswarGame({ seed: 5, aiSides: [], races: { player: "terran", enemy: "zerg" } });
+    research(state, "player", "yamato");
+    const bc = stwSpawnUnitAt(state, "player", "battlecruiser", 20, 62, "rally");
+    bc.energy = 150;
+    const placed = enemies(state);
+    run(state, 0.3);
+    return { state, bc, placed };
+  };
+  // 체력 200 미만(저글링·히드라·뮤탈)만 있으면 쏘지 않는다.
+  const small = setup((state) => ["zergling", "hydra", "mutalisk"].map((type, index) => stwSpawnUnitAt(state, "enemy", type, 18 + index * 2, 56, "rally")));
+  assert.equal(small.bc.energy >= 150, true, "작은 유닛에는 아낀다");
+  // 오버로드(싸우지 않는 유닛)도 노린다: 체력 200을 한 방에 잡는다.
+  const overlordGame = setup((state) => [stwSpawnUnitAt(state, "enemy", "overlord", 20, 55, "rally")]);
+  assert.ok(overlordGame.placed[0].hp <= 0, "오버로드를 잡는다");
+  assert.ok(overlordGame.state.log.some((entry) => /야마토 포가 적 오버로드를 노립니다 \(피해 260\)/.test(entry.text)), "무엇을 쐈는지 적는다");
+  // 싸우는 유닛이 오버로드보다 먼저다.
+  const ultraGame = setup((state) => [stwSpawnUnitAt(state, "enemy", "overlord", 20, 55, "rally"), stwSpawnUnitAt(state, "enemy", "ultra", 22, 56, "rally")]);
+  assert.equal(ultraGame.placed[0].hp, ultraGame.placed[0].maxHp, "오버로드는 그대로");
+  assert.ok(ultraGame.placed[1].hp < ultraGame.placed[1].maxHp - 200, "울트라리스크를 먼저 쏜다");
+  // 유닛도 방어 건물도 없으면 일반 건물(해처리 등)에 쏜다.
+  const building = setup((state) => {
+    const hatch = state.buildings.find((item) => item.side === "enemy" && item.type === "hatchery");
+    hatch.x = 20;
+    hatch.y = 54;
+    return [hatch];
+  });
+  assert.ok(building.placed[0].hp <= building.placed[0].maxHp - 250, `해처리에 쏜다 (${building.placed[0].hp})`);
+});
