@@ -506,7 +506,7 @@ test("folds the mudflat departure panel and keeps its guide out of the active HU
   const activeGame = source.slice(source.indexOf('return <main className={`ms-shell ms-game'));
   assert.doesNotMatch(activeGame, /GameObjectiveGuide/);
   assert.match(activeGame, /\{pauseLayer\}/);
-  assert.match(guide, /modal && inline \? createPortal\(modal, document.body\) : modal/);
+  assert.match(guide, /modal && createPortal\(modal, document.body\)/);
 });
 
 test("shows an in-game mudflat seafood guide with collapsible market-backed entries", async () => {
@@ -611,6 +611,13 @@ test("provides a complete objective and victory guide for every game", async () 
   assert.match(guideSource, /승리 조건/);
   assert.match(guideSource, /게임 종료 시점/);
   assert.match(guideSource, /game-objective-steps/);
+  assert.match(guideSource, /modal && createPortal\(modal, document\.body\)/);
+  assert.match(guideSource, /className="game-objective-scroll"/);
+  assert.match(guideSource, /classList\.add\("paperoid-guide-open"\)/);
+  assert.match(guideSource, /classList\.remove\("paperoid-guide-open"\)/);
+  const globalStyles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(globalStyles, /\.game-objective-scroll\s*\{[\s\S]*?align-items:\s*safe center;[\s\S]*?overflow-y:\s*auto;[\s\S]*?overscroll-behavior:\s*contain;[\s\S]*?touch-action:\s*pan-y;/);
+  assert.match(globalStyles, /html\.paperoid-guide-open,[\s\S]*?overflow:\s*hidden;/);
   assert.deepEqual(GAME_OBJECTIVES["mudflat-survivor"].steps.map((step) => step.title), ["이동", "채집과 위험", "베이스캠프 복귀"]);
   assert.match(GAME_OBJECTIVES["mudflat-survivor"].summary, /4분 동안 채집/);
   assert.match(GAME_OBJECTIVES["mudflat-survivor"].victory, /베이스캠프에 도착해야 성공/);
