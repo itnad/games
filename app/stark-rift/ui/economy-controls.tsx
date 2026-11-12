@@ -1,3 +1,4 @@
+import { CloakControls } from "./cloak-controls";
 import { TransportControls } from "./transport-controls";
 import { permanentCloak } from "../abilities/special-state";
 import { hasBasicWeapon } from "../combat/catalog";
@@ -72,6 +73,7 @@ export function EconomyControls({
     economy.structures.some(
       (b) =>
         b.completed &&
+        (!economyDefinition(snapshot.entities.find((e) => e.id === b.entityId)?.definitionId ?? "")?.addonParent || b.powered) &&
         countsAsDefinition(snapshot.entities.find((e) => e.id === b.entityId)?.definitionId ?? "", id),
     );
   const canAfford = (minerals: number, gas: number) =>
@@ -156,6 +158,7 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
+      <CloakControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       {transport}
       {permanentCloak(def.id) && <p className="sr-help">영구 은폐 · {def.id === "protoss-observer" ? "비무장 탐지기 · 탐지 범위 11타일" : "지상 근접 공격 · 적 탐지기에 노출되면 공격받습니다."}</p>}
       {burrowActors.length > 0 && (
@@ -254,6 +257,7 @@ export function EconomyControls({
             {def.power && !building.powered && (
               <span className="sr-locked">동력 필요 · 생산 정지</span>
             )}
+            {def.addonParent && !building.powered && <span className="sr-locked">부모 건물 연결 필요 · 연구 정지</span>}
           </div>
           {def.id === "zerg-hatchery" && <button data-morph="zerg-lair" disabled={!running || !!building.morph || !!building.research || !has("zerg-spawning-pool") || !canAfford(150, 100)}
             onClick={() => issue({ kind: "morphStructure", entityIds: selected, payload: { buildingId: "zerg-lair" } })}>레어 변태 ◆ 150 ◉ 100 · 31.25초{!has("zerg-spawning-pool") ? " · 스포닝 풀 필요" : ""}</button>}
@@ -427,9 +431,11 @@ export function EconomyControls({
                   })
                 }
               >
-                {t.name} {[BURROW_RESEARCH, "ventral-sacs"].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field"].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
                 {t.id === BURROW_RESEARCH && !done && <small>25초 · 드론·저글링·히드라 잠복</small>}
                 {t.id === "ventral-sacs" && !done && <small>50초 · 오버로드 8칸 수송</small>}
+                {t.id === "personnel-cloaking" && !done && <small>25초 · 고스트 수동 은폐</small>}
+                {t.id === "cloaking-field" && !done && <small>31.25초 · 레이스 수동 은폐</small>}
               </button>
             );
           })}
