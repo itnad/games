@@ -1,10 +1,13 @@
+import { projectileRule, MAX_COMBAT_PROJECTILES } from "./mechanics";
+import { integrate } from "../core/fixed-point";
+import { integerSqrt } from "../pathfinding/formation";
 import type { SimulationState } from "../core/state";
 import type { EngineRules } from "../core/simulation";
 import type { VisibilityCheck } from "../core/movement-rules";
 import { allocateId, removeEntity } from "../core/world";
 import { idleMovement } from "../core/orders";
 import { economyDefinition, economyId } from "../data/economy-catalog";
-import { combatProfile, weaponFor } from "./catalog";
+import { combatProfile, weaponFor, combatWeapon } from "./catalog";
 import { COMBAT_RULES_VERSION, type Scenario } from "./state";
 import {
   createEconomicEntity,
@@ -44,30 +47,36 @@ export function initializeCombat(
     rulesVersion: COMBAT_RULES_VERSION,
     scenario,
     records: [],
+    projectiles: [],
     effects: [],
     friendlyIds: [],
     targetIds: [],
   };
-  if (scenario === "combat-practice") {
+  if (scenario !== "economy") {
     const race = s.players[0].faction,
-      unit =
-        race === "terran"
-          ? "terran-marine"
-          : race === "zerg"
-            ? "zerg-zergling"
-            : "protoss-zealot",
-      count = race === "terran" ? 4 : race === "zerg" ? 6 : 2;
-    for (let n = 0; n < count; n++)
+      ranged = scenario === "ranged-practice";
+    const army = ranged
+      ? race === "terran"
+        ? ["terran-vulture", "terran-vulture", "terran-siege-tank-tank-mode"]
+        : race === "zerg"
+          ? Array(3).fill("zerg-hydralisk")
+          : Array(2).fill("protoss-dragoon")
+      : race === "terran"
+        ? Array(4).fill("terran-marine")
+        : race === "zerg"
+          ? Array(6).fill("zerg-zergling")
+          : Array(2).fill("protoss-zealot");
+    for (let n = 0; n < army.length; n++)
       s.combat.friendlyIds.push(
-        createEconomicEntity(s, 0, economyDefinition(unit)!, {
-          x: (16 - Math.floor(n / 3)) * 256,
-          y: (18 + (n % 3)) * 256,
+        createEconomicEntity(s, 0, economyDefinition(army[n])!, {
+          x: (ranged ? (n === 2 ? 13 : 14) : 16 - Math.floor(n / 3)) * 256,
+          y: (ranged ? 19 + n : 18 + (n % 3)) * 256,
         }),
       );
     for (const [x, y, id] of [
       [22, 18, "zerg-zergling"],
       [22, 20, "zerg-zergling"],
-      [23, 18, "zerg-drone"],
+      [23, 18, ranged && race !== "terran" ? "zerg-overlord" : "zerg-drone"],
     ] as const) {
       const eid = createEconomicEntity(s, 1, economyDefinition(id)!, {
         x: x * 256,
@@ -78,7 +87,15 @@ export function initializeCombat(
       const worker = workerOf(s, eid);
       if (worker) releaseWork(s, worker, false);
     }
-    s.players[0].controlGroups[0].entityIds = [...s.combat.friendlyIds];
+    const groups = new Map<string, number[]>();
+    for (const id of s.combat.friendlyIds) {
+      const d = s.entities.definitionId[s.entities.id.indexOf(id)];
+      if (!groups.has(d)) groups.set(d, []);
+      groups.get(d)!.push(id);
+    }
+    [...groups.values()].forEach(
+      (ids, slot) => (s.players[0].controlGroups[slot].entityIds = ids),
+    );
     recomputeSupply(s);
   }
   synchronizeCombat(s);
@@ -233,6 +250,7 @@ function acquireAttackMove(
   s.combat!.records[a].resumeTarget = m.target ? { ...m.target } : null;
   m.order = "focusAttack";
   m.targetEntityId = e.id[best];
+  m.trackedTarget={x:e.x[best],y:e.y[best]};
   m.target = { x: e.x[best], y: e.y[best] };
   m.path = [];
   m.pathIndex = 0;
@@ -245,15 +263,17 @@ function acquireAttackMove(
 
 function effect(
   s: SimulationState,
-  kind: "shot" | "slash" | "death",
+  kind: "shot" | "slash" | "death" | "launch" | "impact",
   a: number,
   b = a,
+  weaponId?: string,
 ) {
   const e = s.entities;
   s.combat!.effects.push({
     id: allocateId(s, "nextEventId"),
     tick: s.tick,
     kind,
+    ...(weaponId ? { weaponId } : {}),
     owner: e.owner[a],
     x: e.x[a],
     y: e.y[a],
@@ -335,7 +355,7 @@ export function createCombatRules(
             if (m.order !== "focusAttack") continue;
             const b = s.entities.id.indexOf(m.targetEntityId!);
             if (!validTarget(s, a, b, visible)) {
-              const target = m.target;
+              const target = m.trackedTarget??m.target;
               Object.assign(m, idleMovement(m.entityId));
               if (target) {
                 m.order = "move";
@@ -379,7 +399,54 @@ export function createCombatRules(
             damage: number;
             hits: number;
             type: string;
+            weaponId?: string;
           }[] = [];
+        const flying: typeof s.combat.projectiles = [];
+        for (const bullet of s.combat.projectiles) {
+          const b = e.id.indexOf(bullet.targetId),
+            rule = projectileRule(bullet.weaponId);
+          if (
+            b < 0 ||
+            e.health[b] === 0 ||
+            e.owner[b] === bullet.owner ||
+            e.layer[b] !== bullet.targetLayer ||
+            s.tick >= bullet.expiresTick
+          ) {
+            continue;
+          }
+          const dx = e.x[b] - bullet.x,
+            dy = e.y[b] - bullet.y,
+            distance = integerSqrt(dx * dx + dy * dy),
+            travel = integrate(rule.speed, bullet.remainder);
+          bullet.remainder = travel.remainder;
+          if (distance <= travel.delta) {
+            shots.push({
+              a: -1,
+              b,
+              damage: bullet.damage,
+              hits: bullet.hits,
+              type: combatWeapon(bullet.weaponId)!.damageType,
+              weaponId: bullet.weaponId,
+            });
+            s.combat.effects.push({
+              id: allocateId(s, "nextEventId"),
+              tick: s.tick,
+              kind: "impact",
+              weaponId: bullet.weaponId,
+              owner: bullet.owner,
+              x: e.x[b],
+              y: e.y[b],
+              toX: e.x[b],
+              toY: e.y[b],
+            });
+            s.combat.effects = s.combat.effects.slice(-128);
+          } else {
+            bullet.x += Math.trunc((dx * travel.delta) / distance);
+            bullet.y += Math.trunc((dy * travel.delta) / distance);
+            flying.push(bullet);
+          }
+        }
+        s.combat.projectiles = flying;
         for (let a = 0; a < e.id.length; a++) {
           const r = s.combat.records[a];
           if (
@@ -398,18 +465,42 @@ export function createCombatRules(
                 u.playerId === e.owner[a] &&
                 u.technologyId === economyId(w.upgrade),
             )?.level ?? 0;
+          const flight = projectileRule(w.name);
+          if (flight && s.combat.projectiles.length >= MAX_COMBAT_PROJECTILES)
+            continue;
           const frames = w.wpnDamageCooldowns * 5 + r.remainder;
           r.nextAttackTick = s.tick + Math.max(1, Math.floor(frames / 6));
           r.remainder = frames % 6;
-          shots.push({
-            a,
-            b,
-            damage:
-              (w.defaultWpnDamageAmt + w.defaultWpnDamageBonus * level) * 256,
-            hits: p.hits,
-            type: w.damageType,
-          });
-          effect(s, w.wpnMaxRange >= 128 ? "shot" : "slash", a, b);
+          const damage =
+            (w.defaultWpnDamageAmt + w.defaultWpnDamageBonus * level) * 256;
+          if (flight) {
+            s.combat.projectiles.push({
+              id: allocateId(s, "nextProjectileId"),
+              sourceId: e.id[a],
+              owner: e.owner[a],
+              targetId: e.id[b],
+              targetLayer: e.layer[b],
+              weaponId: w.name as "Fragmentation_Grenade" | "Phase_Disruptor",
+              x: e.x[a],
+              y: e.y[a],
+              spawnTick: s.tick,
+              expiresTick: s.tick + flight.lifetime,
+              remainder: 0,
+              damage,
+              hits: p.hits,
+            });
+            effect(s, "launch", a, a, w.name);
+          } else {
+            shots.push({
+              a,
+              b,
+              damage,
+              hits: p.hits,
+              type: w.damageType,
+              weaponId: w.name,
+            });
+            effect(s, w.wpnMaxRange >= 128 ? "shot" : "slash", a, b, w.name);
+          }
         }
         // Every shot is collected before damage: simultaneous lethal attacks both resolve.
         for (const shot of shots) {
@@ -456,12 +547,15 @@ export function combatFitsMap(
 ) {
   return (
     !s.combat ||
-    (s.combat.records.every(
-      (r) =>
-        !r.resumeTarget ||
-        (r.resumeTarget.x < map.widthTiles * 256 &&
-          r.resumeTarget.y < map.heightTiles * 256),
+    (s.combat.projectiles.every(
+      (p) => p.x < map.widthTiles * 256 && p.y < map.heightTiles * 256,
     ) &&
+      s.combat.records.every(
+        (r) =>
+          !r.resumeTarget ||
+          (r.resumeTarget.x < map.widthTiles * 256 &&
+            r.resumeTarget.y < map.heightTiles * 256),
+      ) &&
       s.combat.effects.every(
         (e) =>
           e.x < map.widthTiles * 256 &&
