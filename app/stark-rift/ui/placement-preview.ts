@@ -1,3 +1,4 @@
+import { countsAsDefinition } from "../data/economy-catalog";
 import type { BattleMap } from "../data/maps";
 import type { RenderSnapshot } from "../worker/render-snapshot";
 import { economyDefinition } from "../data/economy-catalog";
@@ -77,8 +78,7 @@ export function previewBuilding(
         !e.structures.some(
           (b) =>
             b.completed &&
-            snapshot.entities.find((ent) => ent.id === b.entityId)
-              ?.definitionId === id,
+            countsAsDefinition(snapshot.entities.find((ent) => ent.id === b.entityId)?.definitionId ?? "", id),
         ),
     )
   )
