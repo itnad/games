@@ -28,10 +28,10 @@ export function TransportControls({ snapshot, selected, running, issue, load, un
       {t.loading.length > 0 && <p className="sr-help">탑승 대기 {t.loading.length}기 · 병력이 수송선으로 이동합니다. 접근하지 못하면 수송선을 지상 가까이 옮겨 주세요.</p>}
       {t.unloadTarget && <p className="sr-help">하차 지점으로 이동·하차 대기 · 공간이 비면 차례대로 내립니다.</p>}
       <div className="sr-cargo-grid">{t.passengers.map((p) => <button key={p.id} data-passenger={p.id} disabled={!running}
-        onPointerDown={() => { clear(); long.current = false; timer.current = setTimeout(() => { long.current = true; setDetail(`${economyDefinition(p.definitionId)?.name} · 체력 ${p.health} · 보호막 ${p.shield} · 수송 공간 ${p.space}`); timer.current = null; }, 550); }}
+        onPointerDown={() => { clear(); long.current = false; timer.current = setTimeout(() => { long.current = true; setDetail(`${economyDefinition(p.definitionId)?.name} · 체력 ${p.health} · 보호막 ${p.shield}${p.energy !== undefined ? ` · 에너지 ${p.energy} / ${p.maxEnergy}` : ""} · 수송 공간 ${p.space}`); timer.current = null; }, 550); }}
         onPointerUp={clear} onPointerLeave={clear} onPointerCancel={() => { clear(); long.current = true; }} onContextMenu={(e) => e.preventDefault()}
         onClick={() => { clear(); if (long.current) { long.current = false; return; } const ship = snapshot.entities.find((e) => e.id === t.entityId); if (ship) issue({ kind: "unloadPassenger", entityIds: [t.entityId], target: { kind: "point", x: ship.x, y: ship.y }, payload: { passengerId: p.id } }); }}>
-        <strong>{economyDefinition(p.definitionId)?.name}</strong><small>체력 {p.health}{p.shield ? ` · 보호막 ${p.shield}` : ""}</small><small>{p.space}칸 · 터치해 하차</small>
+        <strong>{economyDefinition(p.definitionId)?.name}</strong><small>체력 {p.health}{p.shield ? ` · 보호막 ${p.shield}` : ""}</small>{p.energy !== undefined && <small>에너지 {p.energy} / {p.maxEnergy}</small>}<small>{p.space}칸 · 터치해 하차</small>
       </button>)}</div>
     </section>)}
     {detail && <p className="sr-help" role="status">{detail}</p>}
