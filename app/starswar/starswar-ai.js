@@ -325,7 +325,7 @@ export function stwAiThink(state, side) {
   // expand: 확장이 30초 넘게 자원 부족으로 막혀 있으면 첫 생산 건물만 남기고 모두 멈춰 확장부터 한다(경계가 길어지면 경제가 영영 멈추던 문제).
   // safe: 병력이 안전한 동안만 생산 건물을 멈춰 가며 자원을 모은다(armySafe). 생산 라인 규칙이 함께 본다.
   const safe = armySafe(state, side, memory, persona);
-  const reserve = { minerals: 0, gas: 0, hard: 0, expand: false, safe, macro: false };
+  const reserve = { minerals: 0, gas: 0, hard: 0, expand: false, safe, macro: false, macroPressured: false };
   const save = (minerals, gas, hard = false) => {
     if (record.minerals < minerals) {
       reserve.minerals = Math.max(reserve.minerals, minerals);
@@ -335,8 +335,22 @@ export function stwAiThink(state, side) {
   };
   // 저그 운영 전환: 저글링 공격이 방어 건물(캐논·벙커·성큰)을 낀 수비에 막히면 4분 동안 앞마당 확장과 드론을 서두른다(macroUntil).
   // 수비적인 상대(앞마당 캐논 빌드)에게 저글링을 거듭 던지는 대신 경제를 따라가 큰 병력으로 친다. 기지가 하나면 드론 상한이 22라 확장이 먼저다.
+  // 압박: 우리 진영에 적 전투 병력 3기 이상이 보이거나 건물이 맞은 지 90초 안.
+  if (incomingWave(state, side) || state.buildings.some((building) => building.side === side && state.time - building.lastHit < 10)) memory.pressuredAt = state.time;
+  const pressured = memory.pressuredAt !== undefined && state.time - memory.pressuredAt < 90;
   const macro = race.id === "zerg" && memory.macroUntil !== undefined && state.time < memory.macroUntil;
   reserve.macro = macro;
+  // 운영 전환 중 역공을 받으면(앞마당 캐논 빌드의 질럿이 저그 앞마당으로 밀고 오는 경우) 성큰을 셋까지 세우고 히드라로 받는다.
+  // 저글링은 질럿에게 손해라, 확장 자금을 모으다 질럿에 앞마당을 눌려 저글링 물량이 16판 모두 졌다.
+  reserve.macroPressured = macro && pressured;
+  if (reserve.macroPressured) {
+    const waiting = ensureDefense(state, side, race, 3);
+    if (waiting) save(waiting.minerals, waiting.gas, true);
+    if (!stwOwnBuildings(state, side, "den").length && stwHas(state, side, "pool")) {
+      const result = stwCommand(state, side, { type: "build", building: "den" });
+      if (!result.ok && /부족/.test(result.reason ?? "")) save(STW_BUILDINGS.den.minerals, STW_BUILDINGS.den.gas, true);
+    }
+  }
   if (macro && !stwNexus(state, side, "natural")) {
     const result = stwCommand(state, side, { type: "build", building: "expand" });
     if (!result.ok && /광물/.test(result.reason ?? "")) {
@@ -351,8 +365,6 @@ export function stwAiThink(state, side) {
   const ffe = race.id === "protoss" && buildOrder(state, side, persona).some((step) => step.natural);
   // 실제로 압박을 받으면(우리 진영에 적 전투 병력 3기 이상, 또는 건물이 맞음) 예전 경계 대응(본진 캐논 + 게이트웨이 셋)으로 돌아간다.
   // 2분 40초부터 질럿을 밀어 오는 상대에게 앞마당·캐논 셋을 고집하면 7분 전에 무너졌다.
-  if (incomingWave(state, side) || state.buildings.some((building) => building.side === side && state.time - building.lastHit < 10)) memory.pressuredAt = state.time;
-  const pressured = memory.pressuredAt !== undefined && state.time - memory.pressuredAt < 90;
   const ffeOpening = ffe && alert && !pressured && state.time < 420 && stwOwnBuildings(state, side, "cannon").length < 3;
   if (alert && !ffeOpening) {
     const producersNow = race.producers.reduce((sum, type) => sum + stwOwnBuildings(state, side, type).length, 0);
@@ -911,6 +923,8 @@ function zergLines(state, side, persona, units, reserve) {
   let lurkerEvery = 4;
   // 공중이 많으면 저글링을 줄이고 히드라(없으면 스커지)로 대공한다.
   if (airHeavy && den) lingShare = Math.min(lingShare, 0.3);
+  // 운영 전환 중 역공을 받으면 히드라로 받는다(저글링은 질럿에게 손해).
+  if (reserve.macroPressured && den) lingShare = Math.min(lingShare, 0.2);
   if (mix && !airHeavy) {
     // 상대 구성 대응: 질럿에는 히드라·럴커, 드라군에는 저글링, 차량에는 히드라, 보병에는 럴커.
     if (mix.zealot + mix.dark + mix.archon > 0.5) {
@@ -946,7 +960,7 @@ function zergLines(state, side, persona, units, reserve) {
     // (저글링은 50이라 해처리가 노는 때가 없어, 노는 해처리만 멈추는 규칙으로는 앞마당·연구 자금이 영영 안 모인다). 다른 성향은 노는 해처리만 멈춘다.
     // 뮤탈 저글링도 예전에는 저글링 물량처럼 멈췄는데, 레어·스파이어를 모으는 5분 30초부터 해처리를 세워 둔 채 병력이 0이 되어 졌다.
     // 운영 전환 중에는 본진 해처리도 확장 자금을 모으는 동안 멈춘다(전투 유닛 6기는 남긴다). 해처리가 하나면 저글링이 광물을 다 먹어 확장이 안 된다.
-    const macroSave = reserve.macro && reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && army >= 6;
+    const macroSave = reserve.macro && !reserve.macroPressured && reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && army >= 6;
     const desired = macroSave || (index > 0 && ((reserve.expand && reserve.safe) || (starving && (persona === "ling" || !hatchery.current)))) ? null : unit;
     if (hatchery.line !== desired) stwCommand(state, side, { type: "line", buildingId: hatchery.id, unit: desired });
   });
