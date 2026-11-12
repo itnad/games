@@ -1,0 +1,19 @@
+{
+  "source": {
+    "reference": "BWAPI v4.4.0 / Brood War 1.16.1",
+    "url": "https://github.com/bwapi/bwapi/blob/v4.4.0/bwapi/BWAPILIB/Source/TechType.cpp",
+    "sha256": "84c209953b49ca5142bf671bb638991a50325b21c86e0972e7c1137153c46fe7"
+  },
+  "name": "Burrowing",
+  "bwapiId": 11,
+  "minerals": 100,
+  "gas": 100,
+  "frames": 1200,
+  "energy": 0,
+  "producer": "zerg-hatchery",
+  "units": [
+    "zerg-drone",
+    "zerg-zergling",
+    "zerg-hydralisk"
+  ]
+}
