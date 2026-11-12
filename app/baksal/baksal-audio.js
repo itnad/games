@@ -113,6 +113,48 @@ export function createBaksalAudio(context) {
     purified(at) {
       [523, 659, 784, 1046].forEach((frequency, index) => tone({ at: at + index * 0.07, frequency, peak: 0.3, decay: 0.3 }));
     },
+    /** 저주 파동 예고: 으스스한 떨림. 도착 박까지 이어진다. */
+    curseCue(at, relativeAzimuth) {
+      const pan = panFor(relativeAzimuth);
+      tone({ at, frequency: 392, type: "sine", peak: 0.35 * behindFactor(relativeAzimuth), decay: 0.9, pan, slideTo: 415 });
+      tone({ at: at + 0.25, frequency: 466, type: "sine", peak: 0.25, decay: 0.7, pan });
+    },
+    cursed(at) {
+      tone({ at, frequency: 220, type: "sawtooth", peak: 0.4, decay: 0.6, slideTo: 110 });
+      tone({ at: at + 0.1, frequency: 233, type: "sine", peak: 0.3, decay: 0.8 });
+    },
+    roomStart(at, boss) {
+      if (boss) {
+        tone({ at, frequency: 98, type: "sawtooth", peak: 0.6, decay: 0.9, slideTo: 65 });
+        tone({ at: at + 0.15, frequency: 196, type: "square", peak: 0.25, decay: 0.5 });
+        noise({ at, peak: 0.4, decay: 0.4, highpass: 200 });
+      } else {
+        [523, 784].forEach((frequency, index) => tone({ at: at + index * 0.12, frequency, type: "triangle", peak: 0.3, decay: 0.25 }));
+      }
+    },
+    talisman(at) {
+      [659, 880, 1318].forEach((frequency, index) => tone({ at: at + index * 0.06, frequency, peak: 0.25, decay: 0.25 }));
+    },
+    shield(at) {
+      tone({ at, frequency: 1760, type: "triangle", peak: 0.35, decay: 0.35, slideTo: 880 });
+      noise({ at, peak: 0.25, decay: 0.2, highpass: 3000 });
+    },
+    blocked(at) {
+      tone({ at, frequency: 1046, type: "square", peak: 0.3, decay: 0.12 });
+      noise({ at, peak: 0.3, decay: 0.1, highpass: 2500 });
+    },
+    torch(at) {
+      noise({ at, peak: 0.45, decay: 0.5, highpass: 800 });
+      tone({ at, frequency: 330, type: "triangle", peak: 0.3, decay: 0.5, slideTo: 660 });
+    },
+    weak(at) {
+      tone({ at, frequency: 2093, peak: 0.3, decay: 0.08 });
+      tone({ at: at + 0.05, frequency: 2637, peak: 0.3, decay: 0.14 });
+    },
+    whisper(at, relativeAzimuth) {
+      const pan = panFor(relativeAzimuth);
+      noise({ at, peak: 0.18, decay: 0.45, pan, highpass: 4000 });
+    },
     now() {
       return context.currentTime;
     },

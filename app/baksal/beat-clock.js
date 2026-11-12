@@ -75,3 +75,62 @@ export function calibrationOffsetMs(offsets) {
   const median = trimmed.length % 2 === 0 ? (trimmed[middle - 1] + trimmed[middle]) / 2 : trimmed[middle];
   return Math.round(Math.max(-250, Math.min(250, median)));
 }
+
+/**
+ * 템포 맵: 방마다 BPM이 다를 수 있다. segments는 [{ beat, bpm }]이며 beat 오름차순이다.
+ * 첫 구간은 카운트인(-4박)부터 적용되도록 정규화한다. startTime은 카운트인 첫 박의 시각이다.
+ */
+export function createTempoMap(startTime, segments) {
+  const sorted = [...segments]
+    .map((segment) => ({ beat: Number(segment.beat) || 0, bpm: normalizeBpm(segment.bpm) }))
+    .sort((a, b) => a.beat - b.beat);
+  if (sorted.length === 0) sorted.push({ beat: -COUNT_IN_BEATS, bpm: DEFAULT_BPM });
+  if (sorted[0].beat > -COUNT_IN_BEATS) sorted.unshift({ beat: -COUNT_IN_BEATS, bpm: sorted[0].bpm });
+  return { startTime, segments: sorted };
+}
+
+export function tempoBpmAtBeat(map, beat) {
+  let bpm = map.segments[0].bpm;
+  for (const segment of map.segments) {
+    if (beat >= segment.beat) bpm = segment.bpm;
+    else break;
+  }
+  return bpm;
+}
+
+export function tempoTimeOfBeat(map, beat) {
+  let time = map.startTime;
+  for (let index = 0; index < map.segments.length; index += 1) {
+    const segment = map.segments[index];
+    const next = map.segments[index + 1];
+    const end = next ? next.beat : Infinity;
+    if (beat <= end || !next) return time + (beat - segment.beat) * secondsPerBeat(segment.bpm);
+    time += (end - segment.beat) * secondsPerBeat(segment.bpm);
+  }
+  return time;
+}
+
+export function tempoBeatAtTime(map, time) {
+  let segmentStart = map.startTime;
+  for (let index = 0; index < map.segments.length; index += 1) {
+    const segment = map.segments[index];
+    const next = map.segments[index + 1];
+    const duration = next ? (next.beat - segment.beat) * secondsPerBeat(segment.bpm) : Infinity;
+    if (time < segmentStart + duration || !next) return segment.beat + (time - segmentStart) / secondsPerBeat(segment.bpm);
+    segmentStart += duration;
+  }
+  return 0;
+}
+
+/** 단순 시계({bpm, startTime})와 템포 맵({segments, startTime})을 모두 받는다. */
+export function clockBeatAtTime(time, clock) {
+  return clock.segments ? tempoBeatAtTime(clock, time) : beatAtTime(time, clock);
+}
+
+export function clockTimeOfBeat(beat, clock) {
+  return clock.segments ? tempoTimeOfBeat(clock, beat) : timeOfBeat(beat, clock);
+}
+
+export function clockBpmAtBeat(clock, beat) {
+  return clock.segments ? tempoBpmAtBeat(clock, beat) : normalizeBpm(clock.bpm);
+}

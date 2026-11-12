@@ -46,7 +46,7 @@ export function createDodgeDetector({ threshold = DEFAULT_DODGE_THRESHOLD, refra
     },
     /** 중력이 제외된 가속도 샘플 {t(ms), x, y, z}. */
     push(sample) {
-      const gesture = classifyImpulse(sample, detector.threshold);
+      const gesture = classifyShake(sample) ?? classifyImpulse(sample, detector.threshold);
       if (!gesture) return null;
       if (sample.t - lastGestureAt < refractoryMs) return null;
       lastGestureAt = sample.t;
@@ -101,4 +101,12 @@ export function createWalkDetector({ windowMs = 2000, minSteps = 4, stepThreshol
       above = false;
     },
   };
+}
+
+/** 긴급 결계용 흔들기: 어느 축이든 큰 충격이면 흔들기로 본다. 회피보다 먼저 검사한다. */
+export const SHAKE_THRESHOLD = 16;
+
+export function classifyShake(sample, threshold = SHAKE_THRESHOLD) {
+  const magnitude = Math.hypot(Number(sample.x) || 0, Number(sample.y) || 0, Number(sample.z) || 0);
+  return magnitude >= threshold ? "shake" : null;
 }
