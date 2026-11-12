@@ -2951,7 +2951,7 @@ test("starswar infiltration walks a squad along the edge to the enemy mineral li
   assert.ok(zerglings.every((unit) => unit.group === "rally"), "회수한 병력은 집결지로 돌아온다");
 });
 
-test("starswar yamato picks fighters, then defences, then overlords, then any sturdy building, and says what it shot", () => {
+test("starswar yamato picks fighters (100+ health), then defences, then overlords, then any building, and says what it shot", () => {
   const setup = (enemies) => {
     const state = createStarswarGame({ seed: 5, aiSides: [], races: { player: "terran", enemy: "zerg" } });
     research(state, "player", "yamato");
@@ -2961,9 +2961,12 @@ test("starswar yamato picks fighters, then defences, then overlords, then any st
     run(state, 0.3);
     return { state, bc, placed };
   };
-  // 체력 200 미만(저글링·히드라·뮤탈)만 있으면 쏘지 않는다.
-  const small = setup((state) => ["zergling", "hydra", "mutalisk"].map((type, index) => stwSpawnUnitAt(state, "enemy", type, 18 + index * 2, 56, "rally")));
+  // 체력 100 미만(저글링 35·히드라 80)만 있으면 쏘지 않는다.
+  const small = setup((state) => ["zergling", "hydra", "hydra"].map((type, index) => stwSpawnUnitAt(state, "enemy", type, 18 + index * 2, 56, "rally")));
   assert.equal(small.bc.energy >= 150, true, "작은 유닛에는 아낀다");
+  // 뮤탈리스크(120)는 노린다.
+  const muta = setup((state) => [stwSpawnUnitAt(state, "enemy", "mutalisk", 20, 56, "rally")]);
+  assert.ok(muta.placed[0].hp <= 0, "뮤탈리스크를 한 방에 잡는다");
   // 오버로드(싸우지 않는 유닛)도 노린다: 체력 200을 한 방에 잡는다.
   const overlordGame = setup((state) => [stwSpawnUnitAt(state, "enemy", "overlord", 20, 55, "rally")]);
   assert.ok(overlordGame.placed[0].hp <= 0, "오버로드를 잡는다");

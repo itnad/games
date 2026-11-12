@@ -437,7 +437,7 @@ export const STW_RESEARCH = {
   ion: { id: "ion", race: "terran", name: "이온 추진기", at: "shop", minerals: 100, gas: 100, time: 35, note: "벌처 이동 속도 +40%" },
   irradiate: { id: "irradiate", race: "terran", name: "이레디에이트", at: "science", minerals: 200, gas: 200, time: 50, note: "사이언스 베슬이 생체 유닛에 25초 동안 초당 10 피해(주변 생체 유닛도)" },
   emp: { id: "emp", race: "terran", name: "EMP 충격파", at: "science", minerals: 200, gas: 200, time: 50, note: "사이언스 베슬이 반경 3의 보호막과 에너지를 없앰" },
-  yamato: { id: "yamato", race: "terran", name: "야마토 포", at: "science", minerals: 100, gas: 100, time: 50, note: "배틀크루저가 단단한 목표에 260 한 방" },
+  yamato: { id: "yamato", race: "terran", name: "야마토 포", at: "science", minerals: 100, gas: 100, time: 50, note: "배틀크루저가 체력 100 이상 목표에 260 한 방" },
   lockdown: { id: "lockdown", race: "terran", name: "락다운", at: "science", minerals: 200, gas: 200, time: 50, note: "고스트가 기계 유닛을 15초 정지" },
   personnelCloak: { id: "personnelCloak", race: "terran", name: "고스트 은폐", at: "science", minerals: 100, gas: 100, time: 45, note: "고스트가 늘 은폐" },
   wraithCloak: { id: "wraithCloak", race: "terran", name: "은폐 장치", at: "starport", minerals: 150, gas: 150, time: 45, note: "레이스가 늘 은폐 · 탐지기가 없으면 공격받지 않음" },

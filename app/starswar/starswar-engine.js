@@ -3564,9 +3564,9 @@ const SPELL_CASTERS = {
     return { x: best.x, y: best.y, targetId: best.id };
   },
   yamato(state, caster, spell) {
-    // 체력(보호막 포함) 200 이상인 목표만 노린다. 순서: 싸우는 유닛 → 공격하는 방어 건물 → 싸우지 않는 유닛(오버로드·수송선 등) → 그 밖의 건물.
+    // 체력(보호막 포함) 100 이상인 목표만 노린다(저글링·히드라 같은 작은 유닛에는 아낀다). 순서: 싸우는 유닛 → 공격하는 방어 건물 → 싸우지 않는 유닛(오버로드·수송선 등) → 그 밖의 건물.
     // 예전에는 싸우지 않는 유닛과 일반 건물은 노리지 않아, 저글링·히드라·뮤탈만 상대하는 동안 배틀크루저가 8분 넘게 한 번도 쏘지 못했다.
-    const sturdy = (item) => item.hp + item.shields >= 200 && !((item.yamatoAt ?? -99) > state.time - 2);
+    const sturdy = (item) => item.hp + item.shields >= YAMATO_MIN_HP && !((item.yamatoAt ?? -99) > state.time - 2);
     const toughest = (list) => list.sort((a, b) => b.hp + b.shields - (a.hp + a.shields))[0];
     const foes = spellFoes(state, caster, spell.range).filter(sturdy);
     const buildings = state.buildings.filter((building) => building.side !== caster.side && building.hp > 0 && sturdy(building)
@@ -3627,6 +3627,9 @@ const SPELL_CASTERS = {
     return spot;
   },
 };
+
+/** 야마토 포가 노리는 목표의 최소 체력(보호막 포함). 뮤탈리스크(120)·레이스(120)·드라군(180)까지 노리고, 히드라(80)·해병(45)·저글링(35)에는 아낀다. */
+const YAMATO_MIN_HP = 100;
 
 /** 쓸 수 있는 마법을 하나 쓴다(데이터의 spells 순서대로 확인). 썼으면 true. */
 function castSpells(state, unit) {
