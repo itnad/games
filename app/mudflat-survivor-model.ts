@@ -130,7 +130,8 @@ export function mudflatStageRouteSummary(profile: StageProfile) {
 }
 
 export function withoutMosquitoRepellent(equipment: CountMap) {
-  const { [MOSQUITO_REPELLENT_KEY]: _repellent, ...rest } = equipment;
+  const rest = { ...equipment };
+  delete rest[MOSQUITO_REPELLENT_KEY];
   return rest;
 }
 

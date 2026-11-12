@@ -480,6 +480,14 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "starswar",
 ]);
 
+const DEFAULT_QUICK_START_GAME_IDS: readonly GameId[] = [
+  "mudflat-survivor",
+  "incan-gold",
+  "gomoku",
+  "love-letter",
+  "qwixx",
+];
+
 const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
 const PENDING_GAME_AFTER_UPDATE_KEY = "paperoid-pending-game-after-update";
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -2089,7 +2097,9 @@ function HomeContent({
   const favoriteGames = favorites
     .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => Boolean(game));
-  const quickStartGames = recentGames.length ? recentGames : availableGames.slice(0, 6);
+  const defaultQuickStartGames = DEFAULT_QUICK_START_GAME_IDS
+    .map((id) => availableGames.find((game) => game.id === id))
+    .filter((game): game is GameDefinition => Boolean(game));
 
   if (activeGame === "gomoku") {
     return <GuidedGame gameId={activeGame}><GomokuGame onExit={exitGame} /></GuidedGame>;
@@ -2252,10 +2262,21 @@ function HomeContent({
 
       <section className="library">
         <div className="home-game-shelves">
+          {recentGames.length > 0 && (
+            <GameShelf
+              key="recent-games"
+              title="이어서 하기"
+              games={recentGames}
+              favorites={favorites}
+              onPlay={launchGame}
+              onToggleFavorite={toggleFavorite}
+            />
+          )}
+
           <GameShelf
-            key={recentGames.length ? "recent-games" : "quick-start-games"}
-            title={recentGames.length ? "이어서 하기" : "빠른 시작"}
-            games={quickStartGames}
+            key="quick-start-games"
+            title="빠른 시작"
+            games={defaultQuickStartGames}
             favorites={favorites}
             onPlay={launchGame}
             onToggleFavorite={toggleFavorite}
@@ -2403,6 +2424,7 @@ function HomeContent({
           </button>{" "}
           판 되세요.
         </p>
+        <a className="footer-stark-development-link" href="/stark-rift-dev">스타크 리프트 개발 테스트 →</a>
         <span>AI BOARD GAME CLUB</span>
       </footer>
     </main>

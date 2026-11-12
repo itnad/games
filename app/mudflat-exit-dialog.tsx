@@ -3,18 +3,16 @@
 import { useEffect, useRef } from "react";
 import "./mudflat-exit.css";
 
-type Props = { onMain: () => void; onHome: () => void; onCancel: () => void; error: string };
+type Props = { onMain: () => void; onHome: () => void; onCancel: () => void; error: string; dailyChallenge?: boolean };
 
-export function MudflatExitDialog({ onMain, onHome, onCancel, error }: Props) {
+export function MudflatExitDialog({ onMain, onHome, onCancel, error, dailyChallenge = false }: Props) {
   const panelRef = useRef<HTMLElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
-  const cancelAction = useRef(onCancel);
-  cancelAction.current = onCancel;
   useEffect(() => {
     const previous = document.activeElement;
     cancelRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.preventDefault(); cancelAction.current(); }
+      if (event.key === "Escape") { event.preventDefault(); onCancel(); }
       if (event.key !== "Tab") return;
       const buttons = panelRef.current?.querySelectorAll<HTMLButtonElement>("button");
       if (!buttons?.length) return;
@@ -27,14 +25,14 @@ export function MudflatExitDialog({ onMain, onHome, onCancel, error }: Props) {
       document.removeEventListener("keydown", onKey);
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
     };
-  }, []);
+  }, [onCancel]);
   return <div className="ms-exit-dialog">
     <section ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="ms-exit-title" aria-describedby="ms-exit-description">
       <span className="ms-exit-symbol" aria-hidden="true">Ⅱ</span>
-      <small className="ms-exit-kicker">원정 기록 보관 준비</small>
+      <small className="ms-exit-kicker">{dailyChallenge ? "오늘의 갯벌 도전 중" : "원정 기록 보관 준비"}</small>
       <h2 id="ms-exit-title">잠시 어디로 물러날까요?</h2>
-      <p id="ms-exit-description">나가도 현재 원정 상태는 이 기기에 저장돼요.<br />해루질럿 메인에서 바로 이어할 수 있습니다.</p>
-      <div className="ms-exit-note" aria-hidden="true"><span>일시정지 중</span><span>저장 후 이동</span></div>
+      <p id="ms-exit-description">{dailyChallenge ? <>지금 나가면 오늘의 도전이 종료돼요.<br />현재 채집량은 귀환 실패 기록으로 등록됩니다.</> : <>나가도 현재 원정 상태는 이 기기에 저장돼요.<br />해루질럿 메인에서 바로 이어할 수 있습니다.</>}</p>
+      <div className="ms-exit-note" aria-hidden="true"><span>일시정지 중</span><span>{dailyChallenge ? "도전 종료 후 이동" : "저장 후 이동"}</span></div>
       {error && <p className="ms-save-error" role="alert">{error}</p>}
       <div className="ms-exit-actions">
         <button type="button" className="ms-exit-main" onClick={onMain}><span><small>이어하기 위치</small><b>해루질럿 메인</b></span><i aria-hidden="true">갯벌</i></button>

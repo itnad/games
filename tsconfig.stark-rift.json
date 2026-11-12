@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "app/stark-rift/**/*.ts",
+    "app/stark-rift/**/*.tsx",
+    "tests/stark-rift/**/*.ts",
+    "vitest.config.ts",
+    "tools/stark-rift-lab/**/*.ts",
+    "tools/stark-rift-lab/**/*.tsx"
+  ],
+  "exclude": ["node_modules"]
+}

@@ -1,4 +1,4 @@
-export type Screen = "setup" | "running" | "upgrade" | "paused" | "camp" | "defeat";
+export type Screen = "setup" | "running" | "upgrade" | "paused" | "camp" | "defeat" | "daily-result";
 export type GameMode = "kids" | "normal";
 export type Point = { x: number; y: number };
 export type CountMap = Record<string, number>;

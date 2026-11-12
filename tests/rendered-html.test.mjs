@@ -289,19 +289,22 @@ async function readMudflatSourceBundle() {
     "../app/mudflat-survivor-game.tsx",
     "../app/mudflat-survivor-model.ts",
     "../app/mudflat-survivor-types.ts",
+    "../app/mudflat-terrain.ts",
     "../app/mudflat-canvas-utils.ts",
     "../app/mudflat-seafood-guide.tsx",
+    "../app/mudflat-daily-challenge-panel.tsx",
+    "../app/mudflat-daily-challenge.js",
   ];
   return (await Promise.all(files.map((file) => readFile(new URL(file, import.meta.url), "utf8")))).join("\n");
 }
 
-async function render() {
+async function render(path = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("http://localhost/", {
+    new Request(new URL(path, "http://localhost/"), {
       headers: { accept: "text/html" },
     }),
     {
@@ -330,9 +333,15 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(tools, /HAERUJILOT INTERNAL DEV/);
   assert.match(tools, /DEV_PRESETS[\s\S]*?4단계 어두운 갯벌 · 랜턴 Lv\.1/);
   assert.match(tools, /window\.sessionStorage\.setItem\(MUDFLAT_DEV_LAUNCH_KEY/);
+  assert.match(tools, /formatVersion: 1/);
+  assert.match(tools, /parseRestorePayload/);
+  assert.match(tools, /현재 해루질럿 저장값을 붙여 넣은 데이터로 교체할까요/);
+  assert.match(tools, /붙여 넣은 저장값 복원/);
+  assert.match(tools, /seed: 20261102 \+ preset\.stage \* 101/);
   assert.match(tools, /window\.location\.assign\("\/haeru"\)/);
   assert.match(game, /JSON\.parse\(window\.sessionStorage\.getItem\(MUDFLAT_DEV_LAUNCH_KEY\)/);
   assert.match(game, /setScreen\(launch\.run \? "running" : "setup"\)/);
+  assert.match(game, /makeRuntime\(nextCampaign, launch\.seed\)/);
   assert.match(styles, /\.mudflat-dev-shell/);
 });
 
@@ -449,7 +458,7 @@ test("folds the mudflat departure panel and keeps its guide out of the active HU
     readFile(new URL("../app/game-objective-guide.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(source, /\[departureCollapsed, setDepartureCollapsed\] = useState\(true\)/);
-  assert.match(source, /screen !== "camp"\) \{\s*setDepartureCollapsed\(true\)/);
+  assert.match(source, /screen !== "camp"\) \{[\s\S]*?requestAnimationFrame\(\(\) => setDepartureCollapsed\(true\)\)/);
   assert.match(source, /aria-expanded=\{!departureCollapsed\} aria-controls="ms-departure-details"/);
   assert.match(source, /setDepartureCollapsed\(\(collapsed\) => !collapsed\)/);
   assert.match(source, /departureCollapsed \? "▲" : "▼"/);
@@ -515,10 +524,15 @@ test("shows an in-game mudflat seafood guide with collapsible market-backed entr
   assert.match(styles, /\.ms-layer\.ms-seafood-guide\{z-index:80/);
   assert.match(styles, /\.ms-layer\.ms-seafood-guide>section\{[\s\S]*?grid-template-rows:auto auto auto auto minmax\(0,1fr\)/);
   assert.match(styles, /\.ms-seafood-list\{min-height:0;overflow:auto;[\s\S]*?grid-template-columns:1fr;[\s\S]*?gap:8px/);
+  assert.match(styles, /\.ms-layer\.ms-seafood-guide \.ms-seafood-list\{min-height:0;margin-top:0;[\s\S]*?display:block;[\s\S]*?overflow-y:auto/);
+  assert.match(styles, /\.ms-layer\.ms-seafood-guide \.ms-seafood-card\{display:block;min-height:64px;margin:0 0 8px/);
+  assert.match(styles, /\.ms-layer\.ms-seafood-guide \.ms-seafood-card>summary\{min-height:64px;box-sizing:border-box/);
   assert.match(styles, /\.ms-seafood-card summary\{[\s\S]*?grid-template-columns:minmax\(170px,1\.35fr\) minmax\(150px,1fr\) auto 72px/);
   assert.match(styles, /\.ms-seafood-detail\{[\s\S]*?grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.ms-seafood-thumb\{width:42px;height:42px/);
   assert.match(styles, /\.ms-seafood-thumb\.is-small-shrimp\{filter:sepia\(\.24\) saturate\(\.55\)/);
+  assert.match(styles, /\.ms-shell\{overflow-x:clip\}/);
+  assert.match(styles, /\.ms-setup \.ms-mode-picker\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)!important\}/);
 });
 
 test("provides a complete objective and victory guide for every game", async () => {
@@ -591,8 +605,9 @@ test("provides a complete objective and victory guide for every game", async () 
   assert.match(guideSource, /승리 조건/);
   assert.match(guideSource, /게임 종료 시점/);
   assert.match(guideSource, /game-objective-steps/);
-  assert.deepEqual(GAME_OBJECTIVES["mudflat-survivor"].steps.map((step) => step.title), ["이동", "채집과 위험", "정비와 다음 물때"]);
+  assert.deepEqual(GAME_OBJECTIVES["mudflat-survivor"].steps.map((step) => step.title), ["이동", "채집과 위험", "베이스캠프 복귀"]);
   assert.match(GAME_OBJECTIVES["mudflat-survivor"].summary, /4분 동안 채집/);
+  assert.match(GAME_OBJECTIVES["mudflat-survivor"].victory, /베이스캠프에 도착해야 성공/);
 
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   assert.equal(
@@ -655,12 +670,13 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /<html lang="ko">/i);
   assert.match(html, /<title>paperoid — AI 보드게임 아지트<\/title>/i);
   assert.match(html, /paperoid/);
-  assert.match(html, /오목/);
-  assert.match(html, /짝 맞추기/);
-  assert.match(html, /리버시/);
-  assert.match(html, /해전/);
-  assert.match(html, /주사위 대결 Yahtzee/);
-  assert.match(html, /체커/);
+  const quickStartTitles = ["해루질럿", "잉카의 다이아몬드", "오목", "러브레터", "큐윅스"];
+  let quickStartCursor = -1;
+  for (const title of quickStartTitles) {
+    const titleIndex = html.indexOf(`<h3>${title}</h3>`, quickStartCursor + 1);
+    assert.ok(titleIndex > quickStartCursor, `${title} 빠른 시작 순서`);
+    quickStartCursor = titleIndex;
+  }
   for (const title of [
     "체스",
     "장기",
@@ -707,6 +723,9 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /모든 게임 표시/);
   assert.match(html, /게임 찾기/);
   assert.match(html, /전체 게임 보기/);
+  assert.match(pageSource, /recentGames\.length > 0 && \(/);
+  assert.match(pageSource, /title="이어서 하기"/);
+  assert.match(pageSource, /title="빠른 시작"/);
   assert.match(html, /사용자 의견/);
   assert.match(html, /개선안 또는 추가되면 좋을 게임을 남겨주세요/);
   assert.match(html, /의견 남기기/);
@@ -811,6 +830,8 @@ test("detects published site updates and refreshes only through safe user action
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.match(viteConfig, /VITE_PAPEROID_BUILD_ID/);
+  assert.match(viteConfig, /execFileSync\("git", \["rev-parse", "--short=12", "HEAD"\]/);
+  assert.match(viteConfig, /catch \{ return "development"; \}/);
   assert.match(versionRoute, /Cache-Control[\s\S]*?no-store/);
   assert.match(pageSource, /UPDATE_CHECK_INTERVAL_MS = 5 \* 60 \* 1000/);
   assert.match(pageSource, /fetch\(`\/api\/version\?t=\$\{Date\.now\(\)\}`[\s\S]*?cache: "no-store"/);
@@ -1406,7 +1427,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const ACTION_PROGRESS_RING_RADIUS = 18/);
   assert.ok((source.match(/context\.arc\(0, 0, ACTION_PROGRESS_RING_RADIUS/g) ?? []).length >= 4);
   assert.match(source, /rockId: target\.id[\s\S]*?life: stats\.processingTime, maxLife: stats\.processingTime/);
-  assert.match(source, /runtime\.rockFlipEffect && runtime\.rockFlipEffect\.life <= 0[\s\S]*?mudflatRockCreatureForRoll\(Math\.random\(\), runtime\.levels\.rocker \?\? 1\)/);
+  assert.match(source, /runtime\.rockFlipEffect && runtime\.rockFlipEffect\.life <= 0[\s\S]*?mudflatRockCreatureForRoll\(runtimeRandom\(runtime\), runtime\.levels\.rocker \?\? 1\)/);
   assert.match(source, /const stillInRange = target &&[\s\S]*?runtime\.rockFlipEffect = null;[\s\S]*?runtime\.rockTurnClock = mudflatRockTurnerStats\(runtime\.levels\.rocker \?\? 1\)\.cooldown/);
   assert.match(source, /if \(runtime\.rockFlipEffect && runtime\.rockFlipEffect\.life <= 0\)[\s\S]*?runtime\.rockFlipEffect = null;\s*runtime\.rockTurnClock = mudflatRockTurnerStats\(runtime\.levels\.rocker \?\? 1\)\.cooldown;/);
   assert.doesNotMatch(source, /text: "빈 돌"/);
@@ -1987,7 +2008,8 @@ test("resets the home view and game shelves after a browser refresh", async () =
   assert.match(pageSource, /window\.addEventListener\("pageshow", resetHomeView\)/);
   assert.match(pageSource, /setShowAllGames\(false\)/);
   assert.match(pageSource, /window\.localStorage\.removeItem\(SHOW_ALL_GAMES_STORAGE_KEY\)/);
-  assert.match(pageSource, /key=\{recentGames\.length \? "recent-games" : "quick-start-games"\}/);
+  assert.match(pageSource, /key="recent-games"/);
+  assert.match(pageSource, /key="quick-start-games"/);
 });
 
 test("balances distinct AI personalities automatically in Seven Civilizations", async () => {
@@ -3308,7 +3330,7 @@ test("secret retry hold fires once after three seconds and cancels without falli
   assert.match(button, /onContextMenu=\{\(event\) => event.preventDefault\(\)\}/);
   assert.match(button, /window.removeEventListener\("blur", stop\)/);
   assert.match(button, /\[hold, disabled\]/);
-  assert.match(button, /if \(!callbacks.current.disabled\) callbacks.current.onLong\(\)/);
+  assert.match(button, /if \(!disabled\) onLong\(\)/);
   assert.match(button, /<MudflatHoldButton className="ms-primary ms-retry-button" onShort=\{onRetry\} onLong=\{onSecretRetry\}/);
 });
 
@@ -3624,4 +3646,49 @@ test("uses a throttled character speech bubble when the Mudflat haul container i
   assert.match(source, /const messageLines = wrapCanvasText\(context, message, width - 72\)/);
   assert.match(source, /messageLines\.forEach\(\(line, index\) => context\.fillText\(line, width \/ 2, bubbleTop \+ 24 \+ index \* lineHeight\)\)/);
   assert.doesNotMatch(source, /조과통이 가득 찼습니다/);
+});
+
+test("offers one shared daily Mudflat ranking without overwriting ordinary expeditions", async () => {
+  const source = await readMudflatSourceBundle();
+  const route = await readFile(new URL("../app/api/haeru-daily/route.ts", import.meta.url), "utf8");
+  const schema = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
+
+  assert.match(source, /<MudflatDailyChallengePanel onStart=\{beginDailyChallenge\} hasActiveRun=\{Boolean\(savedRun\)\}/);
+  assert.match(source, /className="ms-main-expedition-heading"/);
+  assert.match(source, /모드·채집꾼을 골라 출정하세요\./);
+  assert.match(source, /<strong className="ms-main-mode-badge">메인 원정<\/strong><i>◆<\/i>/);
+  assert.match(source, /<details className="ms-daily-card" aria-label="오늘의 갯벌 일일 이벤트">/);
+  assert.ok(source.indexOf("새 일반 원정 시작") < source.indexOf("<MudflatDailyChallengePanel"));
+  assert.match(source, /const runtime = makeRuntime\(dailyCampaign, challenge.seed\)/);
+  assert.match(source, /if \(dailyChallengeRef.current\) return true/);
+  assert.match(source, /finishDailyRun\(runtime, true\)/);
+  assert.match(source, /횟수 제한 없이 도전하고, 가장 좋은 귀환 기록을 통합 순위에 남깁니다/);
+  assert.match(source, /다시 도전 →/);
+  assert.doesNotMatch(source, /도전 횟수/);
+  assert.match(source, /navigator\.share/);
+  assert.match(route, /mudflatDailyRecordIsBetter\(existing, candidate\)/);
+  assert.match(route, /lt\(mudflatDailyResults.score, candidate.score\)/);
+  assert.match(route, /orderBy\(desc\(mudflatDailyResults.score\), desc\(mudflatDailyResults.caught\), asc\(mudflatDailyResults.elapsed\)/);
+  assert.match(schema, /uniqueIndex\("mudflat_daily_results_date_participant_unique"\)/);
+  assert.match(styles, /\.ms-daily-card/);
+  assert.match(styles, /folded event banner/);
+  assert.match(styles, /Mobile setup hierarchy/);
+  assert.match(styles, /\.ms-main-expedition-heading>p\{grid-column:1\/-1;grid-row:2\}/);
+  assert.match(styles, /\.ms-main-mode-badge\{display:none\}/);
+  assert.match(styles, /\.ms-setup \.ms-mode-picker small\{display:none\}/);
+  assert.match(styles, /\.ms-daily-result-card/);
+});
+
+
+test("serves the Stark Rift playtest as its own noindex page with a home entry", async () => {
+  const response = await render("/stark-rift-dev");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /스타크 리프트/);
+  assert.match(html, /새 테스트 시작/);
+  assert.match(html, /상대 AI는 준비 중/);
+  assert.match(html, /name="robots"[^>]*content="noindex[^"]*nofollow/);
+  const home = await (await render()).text();
+  assert.match(home, /href="\/stark-rift-dev"/);
 });

@@ -221,7 +221,7 @@ function placeCard(state: GameState, playerIndex: number, card: TowerCard, targe
   const players = [...state.players];
   let player = removeCard(players[playerIndex], card.id);
   let nextTowerId = state.nextTowerId;
-  let roofProgress = { ...state.roofProgress };
+  const roofProgress = { ...state.roofProgress };
 
   if (target === "new") {
     player = {

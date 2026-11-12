@@ -1,0 +1,526 @@
+{
+  "source": {
+    "reference": "BWAPI v4.4.0 / Brood War 1.16.1",
+    "url": "https://github.com/bwapi/bwapi/tree/v4.4.0/bwapi/BWAPILIB/Source",
+    "unitSourceSha256": "b5ffb3f41e053c8198ee4254b1f06d9eb664c348648935561586b9d523359710",
+    "weaponSourceSha256": "4636ebc2edbe5b5fa3887d6ee99d7a7d0ea6c8afe8f4f3208428e163bfbbdad2"
+  },
+  "weapons": [
+    {
+      "name": "Gauss_Rifle",
+      "bwapiId": 0,
+      "defaultWpnDamageAmt": 6,
+      "defaultWpnDamageBonus": 1,
+      "wpnDamageCooldowns": 15,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 128,
+      "damageType": "Normal",
+      "upgrade": "Terran_Infantry_Weapons"
+    },
+    {
+      "name": "Fusion_Cutter",
+      "bwapiId": 13,
+      "defaultWpnDamageAmt": 5,
+      "defaultWpnDamageBonus": 1,
+      "wpnDamageCooldowns": 15,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 10,
+      "damageType": "Normal",
+      "upgrade": "Upgrade_60"
+    },
+    {
+      "name": "Claws",
+      "bwapiId": 35,
+      "defaultWpnDamageAmt": 5,
+      "defaultWpnDamageBonus": 1,
+      "wpnDamageCooldowns": 8,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 15,
+      "damageType": "Normal",
+      "upgrade": "Zerg_Melee_Attacks"
+    },
+    {
+      "name": "Spines",
+      "bwapiId": 43,
+      "defaultWpnDamageAmt": 5,
+      "defaultWpnDamageBonus": 0,
+      "wpnDamageCooldowns": 22,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 32,
+      "damageType": "Normal",
+      "upgrade": "Upgrade_60"
+    },
+    {
+      "name": "Particle_Beam",
+      "bwapiId": 62,
+      "defaultWpnDamageAmt": 5,
+      "defaultWpnDamageBonus": 0,
+      "wpnDamageCooldowns": 22,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 32,
+      "damageType": "Normal",
+      "upgrade": "Upgrade_60"
+    },
+    {
+      "name": "Psi_Blades",
+      "bwapiId": 64,
+      "defaultWpnDamageAmt": 8,
+      "defaultWpnDamageBonus": 1,
+      "wpnDamageCooldowns": 22,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 15,
+      "damageType": "Normal",
+      "upgrade": "Protoss_Ground_Weapons"
+    },
+    {
+      "name": "Fragmentation_Grenade",
+      "bwapiId": 4,
+      "defaultWpnDamageAmt": 20,
+      "defaultWpnDamageBonus": 2,
+      "wpnDamageCooldowns": 30,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 160,
+      "damageType": "Concussive",
+      "upgrade": "Terran_Vehicle_Weapons",
+      "explosionType": "Normal"
+    },
+    {
+      "name": "Arclite_Cannon",
+      "bwapiId": 11,
+      "defaultWpnDamageAmt": 30,
+      "defaultWpnDamageBonus": 3,
+      "wpnDamageCooldowns": 37,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 224,
+      "damageType": "Explosive",
+      "upgrade": "Terran_Vehicle_Weapons",
+      "explosionType": "Normal"
+    },
+    {
+      "name": "Needle_Spines",
+      "bwapiId": 38,
+      "defaultWpnDamageAmt": 10,
+      "defaultWpnDamageBonus": 1,
+      "wpnDamageCooldowns": 15,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 128,
+      "damageType": "Explosive",
+      "upgrade": "Zerg_Missile_Attacks",
+      "explosionType": "Normal"
+    },
+    {
+      "name": "Phase_Disruptor",
+      "bwapiId": 66,
+      "defaultWpnDamageAmt": 20,
+      "defaultWpnDamageBonus": 2,
+      "wpnDamageCooldowns": 30,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 128,
+      "damageType": "Explosive",
+      "upgrade": "Protoss_Ground_Weapons",
+      "explosionType": "Normal"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "Terran_SCV",
+      "size": "small",
+      "bounds": [
+        11,
+        11,
+        11,
+        11
+      ],
+      "groundWeapon": "Fusion_Cutter",
+      "airWeapon": "None",
+      "hits": 1
+    },
+    {
+      "name": "Terran_Marine",
+      "size": "small",
+      "bounds": [
+        8,
+        9,
+        8,
+        10
+      ],
+      "groundWeapon": "Gauss_Rifle",
+      "airWeapon": "Gauss_Rifle",
+      "hits": 1
+    },
+    {
+      "name": "Terran_Vulture",
+      "size": "medium",
+      "bounds": [
+        16,
+        16,
+        15,
+        15
+      ],
+      "groundWeapon": "Fragmentation_Grenade",
+      "airWeapon": "None",
+      "hits": 1
+    },
+    {
+      "name": "Terran_Siege_Tank_Tank_Mode",
+      "size": "large",
+      "bounds": [
+        16,
+        16,
+        15,
+        15
+      ],
+      "groundWeapon": "Arclite_Cannon",
+      "airWeapon": "None",
+      "hits": 1
+    },
+    {
+      "name": "Terran_Command_Center",
+      "size": "large",
+      "bounds": [
+        58,
+        41,
+        58,
+        41
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Terran_Supply_Depot",
+      "size": "large",
+      "bounds": [
+        38,
+        22,
+        38,
+        26
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Terran_Barracks",
+      "size": "large",
+      "bounds": [
+        48,
+        40,
+        56,
+        32
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Terran_Refinery",
+      "size": "large",
+      "bounds": [
+        56,
+        32,
+        56,
+        31
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Terran_Engineering_Bay",
+      "size": "large",
+      "bounds": [
+        48,
+        32,
+        48,
+        28
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Terran_Factory",
+      "size": "large",
+      "bounds": [
+        56,
+        40,
+        56,
+        40
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Terran_Machine_Shop",
+      "size": "large",
+      "bounds": [
+        39,
+        24,
+        31,
+        24
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Zerg_Drone",
+      "size": "small",
+      "bounds": [
+        11,
+        11,
+        11,
+        11
+      ],
+      "groundWeapon": "Spines",
+      "airWeapon": "None",
+      "hits": 1
+    },
+    {
+      "name": "Zerg_Zergling",
+      "size": "small",
+      "bounds": [
+        8,
+        4,
+        7,
+        11
+      ],
+      "groundWeapon": "Claws",
+      "airWeapon": "None",
+      "hits": 1
+    },
+    {
+      "name": "Zerg_Hydralisk",
+      "size": "medium",
+      "bounds": [
+        10,
+        10,
+        10,
+        12
+      ],
+      "groundWeapon": "Needle_Spines",
+      "airWeapon": "Needle_Spines",
+      "hits": 1
+    },
+    {
+      "name": "Zerg_Overlord",
+      "size": "large",
+      "bounds": [
+        25,
+        25,
+        24,
+        24
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Zerg_Hatchery",
+      "size": "large",
+      "bounds": [
+        49,
+        32,
+        49,
+        32
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Zerg_Spawning_Pool",
+      "size": "large",
+      "bounds": [
+        36,
+        28,
+        40,
+        18
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Zerg_Extractor",
+      "size": "large",
+      "bounds": [
+        64,
+        32,
+        63,
+        31
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Zerg_Creep_Colony",
+      "size": "large",
+      "bounds": [
+        24,
+        24,
+        23,
+        23
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Zerg_Evolution_Chamber",
+      "size": "large",
+      "bounds": [
+        44,
+        32,
+        32,
+        20
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Zerg_Hydralisk_Den",
+      "size": "large",
+      "bounds": [
+        40,
+        32,
+        40,
+        24
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Probe",
+      "size": "small",
+      "bounds": [
+        11,
+        11,
+        11,
+        11
+      ],
+      "groundWeapon": "Particle_Beam",
+      "airWeapon": "None",
+      "hits": 1
+    },
+    {
+      "name": "Protoss_Zealot",
+      "size": "small",
+      "bounds": [
+        11,
+        5,
+        11,
+        13
+      ],
+      "groundWeapon": "Psi_Blades",
+      "airWeapon": "None",
+      "hits": 2
+    },
+    {
+      "name": "Protoss_Dragoon",
+      "size": "large",
+      "bounds": [
+        15,
+        15,
+        16,
+        16
+      ],
+      "groundWeapon": "Phase_Disruptor",
+      "airWeapon": "Phase_Disruptor",
+      "hits": 1
+    },
+    {
+      "name": "Protoss_Nexus",
+      "size": "large",
+      "bounds": [
+        56,
+        39,
+        56,
+        39
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Pylon",
+      "size": "large",
+      "bounds": [
+        16,
+        12,
+        16,
+        20
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Gateway",
+      "size": "large",
+      "bounds": [
+        48,
+        32,
+        48,
+        40
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Assimilator",
+      "size": "large",
+      "bounds": [
+        48,
+        32,
+        48,
+        24
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Forge",
+      "size": "large",
+      "bounds": [
+        36,
+        24,
+        36,
+        20
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Cybernetics_Core",
+      "size": "large",
+      "bounds": [
+        40,
+        24,
+        40,
+        24
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    }
+  ]
+}

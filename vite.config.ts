@@ -1,15 +1,20 @@
 import vinext from "vinext";
 import { defineConfig, type Plugin } from "vite";
+import { execFileSync } from "node:child_process";
 import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
+const LOCAL_GIT_SHA = (() => {
+  try { return execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim(); }
+  catch { return "development"; }
+})();
 const PAPEROID_BUILD_ID =
   process.env.OAI_SITE_VERSION ??
   process.env.CF_PAGES_COMMIT_SHA ??
   process.env.GITHUB_SHA ??
-  new Date().toISOString();
+  LOCAL_GIT_SHA;
 
 const { d1, r2 } = hostingConfig;
 
@@ -38,13 +43,14 @@ const localBindingConfig = {
     : [],
 };
 
-// PixiJS는 브라우저에서만 동적으로 불러온다. 서버(rsc·ssr) 번들에는 빈 모듈을 넣어 Worker 크기를 지킨다.
+// 스타드래프트는 PixiJS를 브라우저에서만 동적으로 불러온다. 서버(rsc·ssr) 번들에서는 스타드래프트가 부르는 pixi.js만 빈 모듈로 바꿔 Worker 크기를 지킨다.
+// (다른 게임이 pixi.js를 정적으로 가져오면 그대로 둔다. 빈 모듈에는 그 이름들이 없어 빌드가 깨진다.)
 const PIXI_SERVER_STUB = "\0paperoid-pixi-server-stub";
 const clientOnlyPixi: Plugin = {
   name: "paperoid-client-only-pixi",
   enforce: "pre",
-  resolveId(id) {
-    if (this.environment?.config.consumer === "server" && /^pixi\.js(?:\/|$)/.test(id)) return PIXI_SERVER_STUB;
+  resolveId(id, importer) {
+    if (this.environment?.config.consumer === "server" && /^pixi\.js(?:\/|$)/.test(id) && /[\\/]app[\\/]starswar[\\/]/.test(importer ?? "")) return PIXI_SERVER_STUB;
     return null;
   },
   load(id) {
