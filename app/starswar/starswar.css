@@ -202,6 +202,11 @@
 .stw-overlay h2 { margin:0; font-size:26px; }
 .stw-overlay p { margin:0 0 6px; color:#d3c4a2; }
 .stw-overlay button { min-height:50px; border-radius:14px; font-weight:900; }
+/* 지도 위 창(일시정지·나가기): 지도 영역 안에 맞추고 넘치면 창 안에서 스크롤한다. 화면 높이 기준(100dvh)이면 지도가 낮은 폰에서 위아래가 잘렸다. */
+.stw-overlay:not(.stw-overlay-full) { grid-template-rows:minmax(0,1fr); padding:8px; }
+.stw-overlay:not(.stw-overlay-full) section { max-height:100%; align-self:center; padding:14px; gap:8px; overscroll-behavior:contain; }
+.stw-overlay:not(.stw-overlay-full) h2 { font-size:20px; }
+.stw-overlay:not(.stw-overlay-full) button { min-height:42px; }
 .stw-overlay button.stw-link { min-height:32px; margin-top:-4px; border:0; background:transparent; color:var(--stw-muted); font-size:13px !important; font-weight:700; text-decoration:underline; text-underline-offset:3px; }
 .stw-primary { border:0; color:#2a1c05 !important; background:var(--stw-gold); }
 .stw-secondary { border:1px solid #e9c77a40; background:#ffffff0c; }
