@@ -182,7 +182,7 @@ export const LAB_PRESETS: LabPreset[] = [
   {
     id: "blank",
     name: "빈 설정",
-    note: "프로토스 대 저그, 건물·병력 없이 시작",
+    note: "프로토스 vs 저그, 건물·병력 없이 시작",
     config: { time: 600, placement: "clash", races: { player: "protoss", enemy: "zerg" }, sides: { player: emptySide("manual"), enemy: emptySide("fight") } },
   },
 ];

@@ -390,8 +390,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [record, setRecord] = useState<BattleRecord>(() => (typeof window === "undefined" ? { wins: 0, losses: 0, best: {} } : readRecord()));
   const [renderer, setRenderer] = useState<"loading" | "ready" | "failed">("loading");
   const [icons, setIcons] = useState<Record<string, string>>({});
-  const [follow, setFollow] = useState(true);
-  const [zoomed, setZoomed] = useState(false);
   const [labConfig, setLabConfig] = useState<LabConfig | null>(null);
   const [saved, setSaved] = useState<SavedBattle | null>(() => (typeof window === "undefined" ? null : readSave()));
 
@@ -405,7 +403,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [squadOpen, setSquadOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const selectedRef = useRef<string[]>([]);
-  const cameraRef = useRef({ zoom: 1, cx: 20, cy: 94, ready: false, follow: true, lastZoom: 2 });
+  // follow: 전선 따라가기(공격 병력 선두나 집결지를 화면 가운데로). 지도를 끌거나 벌리면 멈추고, 마지막으로 만진 뒤 8초가 지나면 다시 따라간다.
+  const cameraRef = useRef({ zoom: 1, cx: 20, cy: 94, ready: false, follow: true, touchedAt: 0 });
   const pausedRef = useRef(false);
   const recordedRef = useRef(false);
   const savedAtRef = useRef(0);
@@ -423,8 +422,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
 
   useEffect(() => {
     pausedRef.current = paused || confirmExit;
-    cameraRef.current.follow = follow;
-  }, [confirmExit, follow, paused]);
+  }, [confirmExit, paused]);
 
   const refresh = useCallback(() => setFrame((value) => value + 1), []);
   const showToast = useCallback((text: string, tone: Toast["tone"] = "warn") => setToast({ id: Date.now(), text, tone }), []);
@@ -448,7 +446,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     savedAtRef.current = next.time;
     recordedRef.current = false;
     cameraRef.current.ready = false;
-    setFollow(true);
+    cameraRef.current.follow = true;
     setTab("build");
     setSelected([]);
     setSquadOpen(false);
@@ -503,12 +501,12 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     const { width, height } = sizeRef.current;
     if (!camera.ready && width > 1) {
       camera.zoom = width < 700 ? stwFillZoom(width, height) : 1.2;
-      camera.lastZoom = Math.max(1.6, camera.zoom);
       camera.cx = 20;
       camera.cy = 94;
       camera.ready = true;
-      setZoomed(camera.zoom > 1.05);
     }
+    // 지도를 마지막으로 만진 뒤 8초가 지나면 다시 전선을 따라간다(따라가기 버튼을 없앴다).
+    if (!camera.follow && clock * 1000 - camera.touchedAt > 8000) camera.follow = true;
     if (camera.follow) {
       // 전선 따라가기: 공격 병력이 있으면 그 선두, 없으면 집결지를 화면 가운데로.
       const army = stwArmy(current, "player");
@@ -707,7 +705,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     const scale = stwFitScale(width, height) * camera.zoom;
     camera.cx = anchor.x - (point.x - width / 2) / scale;
     camera.cy = anchor.y - (point.y - height / 2) / scale;
-    setZoomed(camera.zoom > 1.05);
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -727,14 +724,16 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       const mid = { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 };
       const distance = Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y));
       zoomAround(mid, gesture.anchor, gesture.zoom * (distance / gesture.distance));
-      setFollow(false);
+      cameraRef.current.follow = false;
+      cameraRef.current.touchedAt = event.timeStamp;
       return;
     }
     const dx = points[0].x - gesture.x;
     const dy = points[0].y - gesture.y;
     if (!gesture.moved && Math.hypot(dx, dy) < 8) return;
     gesture.moved = true;
-    setFollow(false);
+    cameraRef.current.follow = false;
+    cameraRef.current.touchedAt = event.timeStamp;
     const scale = viewRef.current.scale;
     cameraRef.current.cx = gesture.cx - dx / scale;
     cameraRef.current.cy = gesture.cy - dy / scale;
@@ -761,18 +760,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     const point = localPoint(event);
     zoomAround(point, stwScreenToMap(viewRef.current, point.x, point.y), cameraRef.current.zoom * Math.exp(-event.deltaY * 0.0015));
-  };
-
-  const toggleZoom = () => {
-    const camera = cameraRef.current;
-    if (camera.zoom > 1.05) {
-      camera.lastZoom = camera.zoom;
-      camera.zoom = 1;
-      setZoomed(false);
-    } else {
-      camera.zoom = Math.max(camera.lastZoom, stwFillZoom(sizeRef.current.width, sizeRef.current.height));
-      setZoomed(true);
-    }
   };
 
   const pickRace = (next: Partial<{ player: EnemyRace; enemy: EnemyRace }>) => {
@@ -919,7 +906,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       <ThemeFonts theme={theme} />
       <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
-        <div><span className="stw-brand">{STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).id === "plain" ? "" : `${mapOf(game).name} · `}{raceOf(game).name} 대 {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
+        <div><span className="stw-brand">{STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).id === "plain" ? "" : `${mapOf(game).name} · `}{raceOf(game).name} vs {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
         <QueueStrip game={game} icons={icons} issue={issue} />
       </header>
       <section className="stw-hud" aria-label="자원 현황">
@@ -945,8 +932,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           />
           {renderer === "failed" ? <p className="stw-map-error">이 기기에서 그래픽을 초기화하지 못했습니다.</p> : null}
           <div className="stw-map-tools">
-            <button type="button" onClick={toggleZoom}>{zoomed ? "전체" : "확대"}</button>
-            <button type="button" className={follow ? "active" : ""} aria-pressed={follow} onClick={() => setFollow((value) => !value)}>전선 따라가기</button>
             <button type="button" className={squadOpen ? "active" : ""} aria-pressed={squadOpen} onClick={() => (squadOpen ? closeSquad() : setSquadOpen(true))}>
               부대{selected.length ? ` ${selected.length}` : ""}
             </button>
@@ -1549,7 +1534,7 @@ function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwS
   const theirs = game.sides.enemy.stats;
   const persona = game.sides.enemy.persona;
   const switched = game.sides.enemy.ai?.switched;
-  const matchup = `${raceOf(game, "player").name} 대 ${raceOf(game, "enemy").name}`;
+  const matchup = `${raceOf(game, "player").name} vs ${raceOf(game, "enemy").name}`;
   const best = record.best[game.difficulty];
   // 실험실 경기는 연습이라 다음 판 팁을 띄우지 않는다.
   const nextTips = useMemo(() => (game.lab ? [] : stwResultTips(game)), [game]);
@@ -1622,7 +1607,7 @@ function ResumeCard({ saved, onResume, onDiscard }: { saved: SavedBattle; onResu
     <section className="stw-resume" aria-label="멈춘 전투">
       <div>
         <small>멈춘 전투</small>
-        <b>{raceOf(game).name} 대 {enemy} · {STW_DIFFICULTIES[game.difficulty].name}{mapOf(game).id === "plain" ? "" : ` · ${mapOf(game).name}`}</b>
+        <b>{raceOf(game).name} vs {enemy} · {STW_DIFFICULTIES[game.difficulty].name}{mapOf(game).id === "plain" ? "" : ` · ${mapOf(game).name}`}</b>
         <span>{stwClock(game.time)} 진행{ago}</span>
       </div>
       <button type="button" className="stw-primary" onClick={onResume}>이어하기</button>
