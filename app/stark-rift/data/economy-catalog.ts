@@ -1,6 +1,7 @@
 import original from "./economy-original.json";
 import burrow from "./burrow-original.json";
 import special from "./special-original.json";
+import cloak from "./cloak-original.json";
 import { checksum } from "../core/checksum";
 export type Faction = "terran" | "zerg" | "protoss";
 export type EconomyDefinition = {
@@ -149,24 +150,31 @@ const specialRows: typeof rows = [
   ["Protoss_Observer", "옵저버", "detector", "protoss-robotics-facility", ["protoss-observatory"]],
   ["Protoss_Shuttle", "셔틀", "transport", "protoss-robotics-facility"],
 ];
+const cloakRows: typeof rows = [
+  ["Terran_Ghost", "고스트", "infantry", "terran-barracks", ["terran-academy", "terran-covert-ops"]],
+  ["Terran_Wraith", "레이스", "airCombat", "terran-starport"],
+  ["Terran_Academy", "아카데미", "research", "terran-scv", ["terran-barracks"]],
+  ["Terran_Science_Facility", "사이언스 퍼실리티", "research", "terran-scv", ["terran-starport"]],
+  ["Terran_Covert_Ops", "코버트 옵스", "addon", "terran-science-facility"],
+];
 /** A Lair retains Hatchery production, prerequisites, larvae and resource return. */
 export const countsAsDefinition = (actual: string, expected: string) =>
   actual === expected || (actual === "zerg-lair" && expected === "zerg-hatchery");
 export const isLarvaProducer = (id: string) => countsAsDefinition(id, "zerg-hatchery");
 export const economyLayer = (d: EconomyDefinition): "air" | "ground" =>
-  ["airSupply", "transport", "detector"].includes(d.icon) ? "air" : "ground";
+  ["airSupply", "transport", "detector", "airCombat"].includes(d.icon) ? "air" : "ground";
 export const economyId = (name: string) =>
   name.toLowerCase().replaceAll("_", "-");
-export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows].map(
+export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows, ...cloakRows].map(
   ([sourceName, name, icon, producer, requires = []]) => {
-    const raw = [...original.units, ...special.units].find((u) => u.name === sourceName);
+    const raw = [...original.units, ...special.units, ...cloak.units].find((u) => u.name === sourceName);
     if (!raw) throw new Error("Missing original definition " + sourceName);
     const id = economyId(sourceName),
       faction = id.split("-")[0] as Faction;
     const kind =
       icon === "worker"
         ? "worker"
-        : ["infantry", "vehicle", "airSupply", "transport", "detector"].includes(icon)
+        : ["infantry", "vehicle", "airSupply", "transport", "detector", "airCombat"].includes(icon)
           ? "combat"
           : "building";
     const headquarters = icon === "headquarters",
@@ -212,7 +220,7 @@ export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows
         !headquarters &&
         !gasBuilding &&
         id !== "protoss-pylon",
-      addonParent: icon === "addon" ? (sourceName === "Terran_Control_Tower" ? "terran-starport" : "terran-factory") : null,
+      addonParent: icon === "addon" ? producer : null,
     };
   },
 );
@@ -258,12 +266,16 @@ const burrowUpgrades = [
   },
 ];
 const sacs = special.upgrades[0];
-export const ECONOMY_UPGRADES = [...burrowUpgrades, {
+const specialUpgrades = [...burrowUpgrades, {
   id: "ventral-sacs", name: "오버로드 수송", faction: "zerg" as Faction,
   producer: "zerg-lair", minerals: sacs.defaultOreCostBase, gas: sacs.defaultOreCostBase,
   factor: 0, frames: sacs.defaultTimeCostBase, ticks: economicTicks(sacs.defaultTimeCostBase),
   timeFactor: 0, maxLevel: 1, availableLevels: 1,
 }];
+export const ECONOMY_UPGRADES = [...specialUpgrades, ...cloak.technologies.map((raw, i) => ({
+  id: economyId(raw.name), name: i === 0 ? "개인 은폐" : "클로킹 필드", faction: "terran" as Faction, producer: raw.producer,
+  minerals: raw.minerals, gas: raw.gas, factor: 0, frames: raw.frames, ticks: economicTicks(raw.frames), timeFactor: 0, maxLevel: 1, availableLevels: 1,
+}))];
 export const ECONOMY_SOURCE = original.source;
 export const ECONOMY_MECHANICS = {
   mineralHarvestTicks: economicTicks(75),
@@ -287,10 +299,11 @@ export const LEGACY_ECONOMY_DATA_VERSION =
   });
 export const BURROW_ECONOMY_DATA_VERSION =
   "burrow-economy-" + checksum({ base: LEGACY_ECONOMY_DATA_VERSION, burrow });
-export const ECONOMY_DATA_VERSION = "special-economy-" + checksum({
-  base: BURROW_ECONOMY_DATA_VERSION, special: JSON.stringify(special), definitions: ECONOMY_DEFINITIONS,
-  upgrades: ECONOMY_UPGRADES,
+export const SPECIAL_ECONOMY_DATA_VERSION = "special-economy-" + checksum({
+  base: BURROW_ECONOMY_DATA_VERSION, special: JSON.stringify(special), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length),
+  upgrades: specialUpgrades,
 });
+export const ECONOMY_DATA_VERSION = "cloak-economy-" + checksum({ base: SPECIAL_ECONOMY_DATA_VERSION, cloak: JSON.stringify(cloak), definitions: ECONOMY_DEFINITIONS, upgrades: ECONOMY_UPGRADES });
 for (const d of ECONOMY_DEFINITIONS) {
   if (
     !lookup.has(d.producer) ||
