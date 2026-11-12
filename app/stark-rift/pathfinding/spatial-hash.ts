@@ -1,3 +1,4 @@
+import { isEmbarked } from "../abilities/special-state";
 import { isBurrowed } from "../abilities/burrow";
 import {bodyContains,segmentHitsBody,isBlueprint} from '../economy/footprints';
 import type { SimulationState } from "../core/state";
@@ -5,7 +6,7 @@ import { segmentNearCircle } from "./geometry";
 import type { Point } from "./navigation";
 export class SpatialHash{
   private cells=new Map<string,Set<number>>();private memberships=new Map<number,string[]>();
-  constructor(private state:SimulationState,indices:Iterable<number>=state.entities.id.keys()){for(const i of indices)if(state.entities.health[i]>0&&!isBlueprint(state,i)&&!isBurrowed(state,state.entities.id[i]))this.update(i);}
+  constructor(private state:SimulationState,indices:Iterable<number>=state.entities.id.keys()){for(const i of indices)if(state.entities.health[i]>0&&!isBlueprint(state,i)&&!isBurrowed(state,state.entities.id[i])&&!isEmbarked(state,state.entities.id[i]))this.update(i);}
   private keys(x:number,y:number,r:number):string[]{const out:string[]=[];for(let cy=Math.floor((y-r)/512);cy<=Math.floor((y+r)/512);cy++)for(let cx=Math.floor((x-r)/512);cx<=Math.floor((x+r)/512);cx++)out.push(`${cx},${cy}`);return out;}
   update(index:number):void{for(const key of this.memberships.get(index)??[])this.cells.get(key)?.delete(index);const s=this.state.entities,keys=this.keys(s.x[index],s.y[index],s.radius[index]);for(const key of keys){if(!this.cells.has(key))this.cells.set(key,new Set());this.cells.get(key)!.add(index);}this.memberships.set(index,keys);}
   queryBounds(left:number,top:number,right:number,bottom:number,ordered=true):Iterable<number>{
