@@ -210,7 +210,12 @@ export function InteractiveBattle({
     return {
       hitTest: (point) => {
         const current = latest.current;
-        if (current.build || current.buildMenu || current.mode === "rally")
+        if (
+          current.build ||
+          current.buildMenu ||
+          current.mode === "rally" ||
+          current.mode === "attackMove"
+        )
           return null;
         const d = size(),
           scale = c.scale(d.width, d.height);
