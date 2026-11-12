@@ -1,6 +1,8 @@
+import { VISION_RULES_VERSION } from "../vision/state";
 import { PROJECTILE_RULES, MAX_COMBAT_PROJECTILES } from "./mechanics";
 import {
   array,
+  boolean,
   enumeration,
   integer,
   literal,
@@ -13,9 +15,15 @@ import {
 } from "../core/validation";
 import { checksum } from "../core/checksum";
 import original from "../data/combat-original.json";
-export const COMBAT_RULES_VERSION =
+export const RANGED_COMBAT_RULES_VERSION =
   "ranged-1-" +
   checksum({ original: JSON.stringify(original), flight: PROJECTILE_RULES });
+export const COMBAT_RULES_VERSION =
+  "terrain-1-" +
+  checksum({
+    ranged: RANGED_COMBAT_RULES_VERSION,
+    vision: VISION_RULES_VERSION,
+  });
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(
@@ -24,6 +32,7 @@ export const PREVIOUS_COMBAT_RULES_VERSION =
 export const combatRecordSchema = object({
   entityId: integer(1),
   definitionId: text,
+  lastSeenTarget: nullable(object({ x: integer(), y: integer() })),
   resumeTarget: nullable(object({ x: integer(), y: integer() })),
   nextAttackTick: integer(),
   remainder: integer(0, 5),
@@ -36,7 +45,7 @@ export const combatRecordSchema = object({
 export const combatEffectSchema = object({
   id: integer(1),
   tick: integer(),
-  kind: enumeration(["shot", "slash", "death", "launch", "impact"]),
+  kind: enumeration(["shot", "slash", "death", "launch", "impact", "miss"]),
   weaponId: optional(enumeration(original.weapons.map((w) => w.name))),
   owner: integer(0, 1),
   x: integer(),
@@ -56,6 +65,7 @@ export const combatProjectileSchema = object({
   spawnTick: integer(),
   expiresTick: integer(),
   remainder: integer(0, 19),
+  miss: boolean,
   damage: integer(1, 1000000),
   hits: integer(1, 2),
 });
@@ -66,9 +76,15 @@ export const renderProjectileSchema = object({
   x: integer(),
   y: integer(),
 });
+export const SCENARIOS = [
+  "economy",
+  "combat-practice",
+  "ranged-practice",
+  "siege-practice",
+] as const;
 export const combatStateSchema = object({
   rulesVersion: literal(COMBAT_RULES_VERSION),
-  scenario: enumeration(["economy", "combat-practice", "ranged-practice"]),
+  scenario: enumeration(SCENARIOS),
   records: array(combatRecordSchema, 0, 2048),
   projectiles: array(combatProjectileSchema, 0, MAX_COMBAT_PROJECTILES),
   effects: array(combatEffectSchema, 0, 128),
