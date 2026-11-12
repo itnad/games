@@ -13,16 +13,18 @@ export function EconomyControls({
   snapshot,
   selected,
   issue,
-  build,
   rally,
   running,
+  openBuildMenu,
+  selectWorker,
 }: {
   snapshot: RenderSnapshot;
   selected: number[];
   issue: (b: CommandBody) => void;
-  build: (id: string, repeat: boolean) => void;
   rally: () => void;
   running: boolean;
+  openBuildMenu: () => void;
+  selectWorker: () => void;
 }) {
   const economy = snapshot.economy!,
     entities = snapshot.entities.filter(
@@ -84,17 +86,36 @@ export function EconomyControls({
   };
   if (!def)
     return (
-      <p className="sr-selection-hint">
-        본부에서 일꾼을 생산하거나, 일꾼을 선택해 건설하세요.
-      </p>
+      <div>
+        <div className="sr-selection-toolbar">
+          <span>선택한 유닛 없음</span>
+          {economy.workers.length > 0 && (
+            <button onClick={selectWorker}>일꾼 선택</button>
+          )}
+        </div>
+        <p className="sr-selection-hint">
+          본부에서 일꾼을 생산하거나, 일꾼을 선택해 건설하세요.
+        </p>
+      </div>
     );
   return (
     <div className="sr-economy-controls">
-      <div className="sr-selection-title">
+      <div className="sr-selection-title sr-selection-toolbar">
         <strong>
           {def.name}
           {entities.length > 1 ? ` × ${entities.length}` : ""}
         </strong>
+        {worker ? (
+          <button className="sr-open-build" onClick={openBuildMenu}>
+            건설
+          </button>
+        ) : (
+          economy.workers.length > 0 && (
+            <button className="sr-select-worker" onClick={selectWorker}>
+              일꾼 선택
+            </button>
+          )
+        )}
         <span>
           체력 {first.health}
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
@@ -102,6 +123,9 @@ export function EconomyControls({
       </div>
       {worker && (
         <>
+          <p className="sr-help">
+            건설 버튼 → 건물 선택 → 전장 위치 터치 → 건설 확정
+          </p>
           <div className="sr-work-status">
             {tasks[worker.task] ?? worker.task} · 운반 ◆ {worker.cargoMinerals}{" "}
             ◉ {worker.cargoGas}
@@ -127,31 +151,6 @@ export function EconomyControls({
             >
               정지
             </button>
-          </div>
-          <div className="sr-action-label">건설 · 길게 누르면 연속 배치</div>
-          <div className="sr-build-grid">
-            {ECONOMY_DEFINITIONS.filter(
-              (d) => d.kind === "building" && d.producer === def.id,
-            ).map((d) => {
-              const why = reason(d);
-              return (
-                <button
-                  key={d.id}
-                  data-build={d.id}
-                  disabled={!running || !!why}
-                  onPointerDown={() => start(() => build(d.id, true))}
-                  onPointerUp={end}
-                  onPointerCancel={end}
-                  onPointerLeave={end}
-                  onContextMenu={(e) => e.preventDefault()}
-                  onClick={() => click(() => build(d.id, false))}
-                >
-                  <strong>{d.name}</strong>
-                  <small>{cost(d.minerals, d.gas)}</small>
-                  {why && <small>{why}</small>}
-                </button>
-              );
-            })}
           </div>
         </>
       )}
@@ -399,6 +398,12 @@ export function EconomyControls({
             </div>
           )}
         </>
+      )}
+      {def.kind === "combat" && (
+        <p className="sr-help">
+          건물은 SCV·드론·프로브 같은 일꾼으로 건설합니다. 일꾼 선택 버튼을 눌러
+          주세요.
+        </p>
       )}
       {def.kind === "combat" && (
         <div className="sr-action-row">
