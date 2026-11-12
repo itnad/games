@@ -35,3 +35,5 @@
 .sr-commands .sr-placement-controls{padding:0;border:0;gap:3px;background:transparent}.sr-placement-buttons{display:flex;width:100%;gap:5px}.sr-placement-buttons button{flex:1;min-height:52px}.sr-placement-hint{position:absolute;left:8px;right:8px;top:8px;z-index:2;margin:0;padding:8px;border-radius:6px;background:#0d202ce8;color:#d4e9de;font-size:11px;line-height:1.5;pointer-events:none}
 /* The site footer aligns children to the start on mobile. The game needs stretched grid rows. */
 .sr-bottom{align-items:stretch;justify-items:stretch;justify-content:stretch;align-content:stretch}.sr-bottom .sr-command-space{min-height:0;min-width:0}.sr-economy-controls{flex-shrink:0}
+
+.sr-selection-toolbar .sr-attack-move{flex:none;min-height:52px;padding:6px 10px;border-color:#dfb48a;background:#513c2a;color:#ffdfbf;font-size:11px}.sr-selection-toolbar>strong{min-width:0}
