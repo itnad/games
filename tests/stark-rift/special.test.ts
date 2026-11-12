@@ -196,7 +196,7 @@ describe("special persistence and practice", () => {
     expect(parse(simulationStateSchema,f.state).ok).toBe(false);
   });
   it.each(["terran","zerg","protoss"] as const)("%s special practice starts and its save remains separate from economy", race=>{
-    const f=fixture(race,"protoss");initializeCombat(f.state,"special-practice");initializeVision(f.state,f.map);f.tick(2);expect(f.view().economy!.transports!.filter(t=>t.capacity>0).length).toBeGreaterThanOrEqual(2);
+    const f=fixture(race,"protoss");initializeCombat(f.state,"special-practice");initializeVision(f.state,f.map);f.tick(2);expect(f.state.players[0].supplyCapHalf).toBeGreaterThanOrEqual(f.state.players[0].supplyUsedHalf);expect(f.view().economy!.transports!.filter(t=>t.capacity>0).length).toBeGreaterThanOrEqual(2);
     const records=new Map<string,string>();const store=new DevelopmentSaveStore({getItem:k=>records.get(k)??null,setItem:(k,v)=>{records.set(k,v);}});expect(store.write(f.saved())).toBe(true);expect(store.read(race,"special-practice").status).toBe("ready");expect(store.read(race).status).toBe("empty");
   });
   it("migrates checked 6A burrow and preserves raw backups while adopting the new data bundle",()=>{
