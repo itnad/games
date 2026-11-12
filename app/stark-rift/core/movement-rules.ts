@@ -1,3 +1,4 @@
+import { isEmbarked } from "../abilities/special-state";
 import { isBurrowed } from "../abilities/burrow";
 import type { BattleMap } from "../data/maps";
 import type { EngineRules, CommandHandler } from "./simulation";
@@ -83,7 +84,7 @@ export function createMovementRules(
           return null;
         }
         if (
-          (isBurrowed(state, id) && ["move", "attackMove", "focusAttack", "patrol"].includes(command.kind)) ||
+          ((isBurrowed(state, id) || isEmbarked(state, id)) && ["move", "attackMove", "focusAttack", "patrol"].includes(command.kind)) ||
           s.kind[index] === "building" ||
           (["move", "attackMove", "focusAttack", "patrol"].includes(
             command.kind,
