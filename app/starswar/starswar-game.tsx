@@ -772,10 +772,15 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const intel = side.intel;
   const mapScout = stwScoutCheck(game, "player") as StwCheck;
   // 부대 칩: 지금 가진 전투 유닛 종류와 수, 따로 둔 부대면 그 자리.
+  // 침투 중인 유닛도 칩에 넣는다(부대 명령으로 침투를 멈추고 옮기거나 물릴 수 있게). 칩에 "침투" 표시.
   const squadCounts = new Map<string, number>();
+  const walkOpIds = new Set((game.ops ?? []).filter((op) => op.side === "player" && op.kind === "walk").map((op) => op.id));
+  const walkingTypes = new Set<string>();
   for (const unit of game.units) {
     const def = STW_UNITS[unit.type as keyof typeof STW_UNITS] as { worker?: boolean; transport?: number };
-    if (unit.side !== "player" || unit.hp <= 0 || def.worker || def.transport || unit.type === "overlord" || (unit.group !== "rally" && unit.group !== "attack")) continue;
+    const walking = unit.raid !== undefined && walkOpIds.has(unit.raid);
+    if (unit.side !== "player" || unit.hp <= 0 || def.worker || def.transport || unit.type === "overlord" || (unit.group !== "rally" && unit.group !== "attack" && !walking)) continue;
+    if (walking) walkingTypes.add(unit.type);
     squadCounts.set(unit.type, (squadCounts.get(unit.type) ?? 0) + 1);
   }
   const squadTypes = [...squadCounts.entries()].sort((a, b) => b[1] - a[1]);
@@ -871,13 +876,13 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 {squadTypes.length ? squadTypes.map(([type, count]) => (
                   <button key={type} type="button" className={selected.includes(type) ? "active" : ""} aria-pressed={selected.includes(type)} onClick={() => toggleSquad(type)}>
                     {STW_UNITS[type as keyof typeof STW_UNITS].name} {count}
-                    {squadSpots[type] ? <small>{stwRallyName(squadSpots[type]!.y, game) as string}</small> : null}
+                    {walkingTypes.has(type) ? <small>침투</small> : squadSpots[type] ? <small>{stwRallyName(squadSpots[type]!.y, game) as string}</small> : null}
                   </button>
                 )) : <span>옮길 전투 유닛이 없습니다</span>}
               </div>
               <div className="stw-squad-actions">
                 <button type="button" disabled={!selected.length} onClick={() => issue({ type: "squadMove", units: selected, y: 20 })}>이 부대 출격</button>
-                <button type="button" disabled={!selected.some((type) => squadSpots[type])} onClick={() => issue({ type: "squadRelease", units: selected })}>본대로</button>
+                <button type="button" disabled={!selected.some((type) => squadSpots[type] || walkingTypes.has(type))} onClick={() => issue({ type: "squadRelease", units: selected })}>본대로</button>
                 <button type="button" disabled={!selected.length} onClick={() => setSelected([])}>선택 해제</button>
               </div>
               <div className="stw-squad-actions two">
@@ -894,7 +899,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                   ))}
                 </ul>
               ) : null}
-              <p className="stw-squad-hint">그 종류의 새 유닛도 그 부대로 갑니다. 병력 탭의 출격은 모든 부대를 합칩니다. 침투는 고른 부대가 싸우지 않고 가장자리를 따라 적 광물 줄까지 걸어가 일꾼을 치고, 적이 몰려오거나 25초가 지나면 걸어서 돌아옵니다. 따로 옮기는 부대는 길을 막는 아군을 비키게 하며 지나갑니다.</p>
+              <p className="stw-squad-hint">그 종류의 새 유닛도 그 부대로 갑니다. 병력 탭의 출격은 모든 부대를 합칩니다. 침투는 고른 부대가 싸우지 않고 가장자리를 따라 적 광물 줄까지 걸어가 일꾼을 치고, 적이 몰려오거나 25초가 지나면 걸어서 돌아옵니다. 침투 중에도 칩을 골라 지도를 누르면(뒤쪽은 후퇴) 침투를 멈추고 그 명령을 따릅니다. 따로 옮기는 부대는 길을 막는 아군을 비키게 하며 지나갑니다.</p>
             </div>
           ) : (
             <div className="stw-panel-body" key={tab}>

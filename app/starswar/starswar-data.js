@@ -439,8 +439,8 @@ export const STW_RESEARCH = {
   emp: { id: "emp", race: "terran", name: "EMP 충격파", at: "science", minerals: 200, gas: 200, time: 50, note: "사이언스 베슬이 반경 3의 보호막과 에너지를 없앰" },
   yamato: { id: "yamato", race: "terran", name: "야마토 포", at: "science", minerals: 100, gas: 100, time: 50, note: "배틀크루저가 체력 100 이상 목표에 260 한 방" },
   lockdown: { id: "lockdown", race: "terran", name: "락다운", at: "science", minerals: 200, gas: 200, time: 50, note: "고스트가 기계 유닛을 15초 정지" },
-  personnelCloak: { id: "personnelCloak", race: "terran", name: "고스트 은폐", at: "science", minerals: 100, gas: 100, time: 45, note: "고스트가 늘 은폐" },
-  wraithCloak: { id: "wraithCloak", race: "terran", name: "은폐 장치", at: "starport", minerals: 150, gas: 150, time: 45, note: "레이스가 늘 은폐 · 탐지기가 없으면 공격받지 않음" },
+  personnelCloak: { id: "personnelCloak", race: "terran", name: "고스트 은폐", at: "science", minerals: 100, gas: 100, time: 45, note: "고스트 은폐(연구 시 영구 은폐) · 에너지를 쓰지 않음 · 탐지기가 없으면 공격받지 않음" },
+  wraithCloak: { id: "wraithCloak", race: "terran", name: "은폐 장치", at: "starport", minerals: 150, gas: 150, time: 45, note: "레이스 은폐(연구 시 영구 은폐) · 에너지를 쓰지 않음 · 탐지기가 없으면 공격받지 않음" },
 
   // ───── 저그 ─────
   lair: { id: "lair", race: "zerg", name: "레어 변태", at: "hatchery", minerals: 150, gas: 100, time: 50, requires: ["pool"], note: "본진 해처리가 레어로 · 럴커·울트라리스크·2단계 업그레이드 해금" },

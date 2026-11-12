@@ -895,9 +895,12 @@ function runCommand(state, side, command) {
       if (!types.length) return fail("옮길 부대를 고르세요");
       if (typeof command.y !== "number" || Number.isNaN(command.y)) return fail("알 수 없는 위치입니다");
       record.squads ??= {};
-      const members = state.units.filter((unit) => unit.side === side && unit.hp > 0 && types.includes(unit.type) && (unit.group === "rally" || unit.group === "attack") && unit.raid === undefined);
+      // 침투 중인 유닛도 부대 명령을 따른다: 작전에서 빼고 이 명령대로 움직인다(뒤쪽이면 교전을 끊고 후퇴).
+      const members = state.units.filter((unit) => unit.side === side && unit.hp > 0 && types.includes(unit.type) && ((unit.group === "rally" || unit.group === "attack") && unit.raid === undefined || inWalkOp(state, unit)));
       if (!members.length) return fail("옮길 유닛이 없습니다");
       const names = types.map((type) => STW_UNITS[type].name).join("·");
+      const stopped = leaveWalkOps(state, members);
+      if (stopped && side === "player") pushLog(state, side, `${names} ${stopped}기가 침투를 멈춥니다.`, "order");
       if (command.y <= stwMap(state).attackZoneY) {
         for (const type of types) delete record.squads[type];
         for (const unit of members) {
@@ -923,8 +926,11 @@ function runCommand(state, side, command) {
     case "squadRelease": {
       // 따로 둔 부대를 본대로 되돌린다(새 유닛도 다시 본대 집결지로).
       record.squads ??= {};
-      const types = (command.units ?? Object.keys(record.squads)).filter((type) => record.squads[type]);
+      const walking = state.units.filter((unit) => unit.side === side && unit.hp > 0 && inWalkOp(state, unit) && (!command.units || command.units.includes(unit.type)));
+      const types = [...new Set([...(command.units ?? Object.keys(record.squads)).filter((type) => record.squads[type]), ...walking.map((unit) => unit.type)])];
       if (!types.length) return fail("따로 둔 부대가 없습니다");
+      // 침투 중이던 유닛은 작전을 멈추고 본대 집결지로 돌아온다(교전을 끊고).
+      if (leaveWalkOps(state, walking)) for (const unit of walking) unit.group = "rally";
       for (const type of types) delete record.squads[type];
       for (const unit of state.units) if (unit.side === side && types.includes(unit.squad)) delete unit.squad;
       if (side === "player") pushLog(state, side, `${types.map((type) => STW_UNITS[type].name).join("·")} 부대가 본대로 돌아갑니다.`, "order");
@@ -3231,6 +3237,25 @@ function raidRiderStep(state, unit, dt) {
   }
   if (unit.cooldown <= 0) hitWorkers(state, unit, foe, op.base, workers, center);
   return true;
+}
+
+/** 침투 작전(walk) 중인 유닛인지(걷는 중이든 광물 줄에서 싸우는 중이든). */
+function inWalkOp(state, unit) {
+  return unit.raid !== undefined && (state.ops ?? []).some((op) => op.id === unit.raid && op.kind === "walk");
+}
+
+/** 유닛들을 침투 작전에서 뺀다(부대 명령을 받았을 때). 남은 유닛이 없는 작전은 다음 틱에 끝난다. 뺀 수를 돌려준다. */
+function leaveWalkOps(state, units) {
+  let count = 0;
+  for (const unit of units) {
+    if (!inWalkOp(state, unit)) continue;
+    unit.raid = undefined;
+    unit.walkPath = undefined;
+    unit.targetId = null;
+    if (unit.group === "walk") unit.group = "rally";
+    count += 1;
+  }
+  return count;
 }
 
 /**

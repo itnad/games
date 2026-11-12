@@ -2984,3 +2984,28 @@ test("starswar yamato picks fighters (100+ health), then defences, then overlord
   });
   assert.ok(building.placed[0].hp <= building.placed[0].maxHp - 250, `해처리에 쏜다 (${building.placed[0].hp})`);
 });
+
+test("starswar squad orders stop an infiltration: move back retreats, release rejoins the main army", () => {
+  const state = quiet();
+  const wraiths = [18, 20, 22, 24].map((x) => stwSpawnUnitAt(state, "player", "wraith", x, 77, "rally"));
+  const sent = stwCommand(state, "player", { type: "infiltrate", units: ["wraith"], base: "main" });
+  run(state, 6);
+  assert.ok(wraiths.every((unit) => unit.group === "walk"), "침투 중");
+  // 칩을 골라 뒤쪽을 누르면 침투를 멈추고 그 자리로 물러난다.
+  const back = stwCommand(state, "player", { type: "squadMove", units: ["wraith"], y: 90 });
+  assert.equal(back.ok, true);
+  assert.ok(wraiths.every((unit) => unit.raid === undefined && unit.group === "rally" && unit.squad === "wraith"), "작전에서 빠져 부대가 된다");
+  assert.ok(state.log.some((entry) => /레이스 4기가 침투를 멈춥니다/.test(entry.text)));
+  run(state, 1);
+  assert.ok(!state.ops.some((op) => op.id === sent.opId), "남은 유닛이 없는 작전은 끝난다");
+  run(state, 15);
+  assert.ok(wraiths.every((unit) => unit.y > 84), `뒤쪽으로 물러났다 (${wraiths.map((unit) => unit.y.toFixed(0))})`);
+
+  // 본대로: 침투 중인 유닛이 작전을 멈추고 본대 집결지로 돌아온다.
+  const again = quiet();
+  const darks = [18, 20].map((x) => stwSpawnUnitAt(again, "player", "dark", x, 77, "rally"));
+  stwCommand(again, "player", { type: "infiltrate", units: ["dark"], base: "natural" });
+  run(again, 5);
+  assert.equal(stwCommand(again, "player", { type: "squadRelease", units: ["dark"] }).ok, true);
+  assert.ok(darks.every((unit) => unit.raid === undefined && unit.group === "rally" && unit.squad === undefined), "본대로 돌아온다");
+});
