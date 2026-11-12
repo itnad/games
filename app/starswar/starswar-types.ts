@@ -61,6 +61,8 @@ export type StwUnit = {
   raid?: number;
   bomb?: StwDropTarget;
   scoutPhase?: "out" | "back" | null;
+  /** 되돌리기로 돌아오는 정찰(자원 정찰 보고를 하지 않는다). */
+  scoutRecalled?: boolean;
   scoutMode?: "resources";
   scoutPath?: { x: number; y: number }[];
   hitBy?: number;
@@ -229,6 +231,7 @@ export type StwCommand =
   | { type: "autoWave"; size: number }
   | { type: "escort"; on: boolean }
   | { type: "scout"; target?: "main" | "resources" }
+  | { type: "scoutRecall"; target?: "main" | "resources"; all?: boolean }
   | { type: "cancelBuild"; buildingId: number }
   | { type: "cancelProbe" }
   | { type: "cancelResearch"; research: StwResearchId }

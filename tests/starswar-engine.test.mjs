@@ -182,6 +182,27 @@ test("starswar scouting reveals the enemy tech and returns the probe", () => {
   assert.ok(state.log.some((entry) => /정찰 성공/.test(entry.text)));
 });
 
+test("starswar scout recall turns back the latest outgoing scout, or all of them", () => {
+  const state = quiet();
+  state.sides.player.probes = 12;
+  assert.match(stwCommand(state, "player", { type: "scoutRecall" }).reason, /되돌릴 정찰/);
+  for (const target of ["main", "main", "resources", "resources"]) assert.equal(stwCommand(state, "player", { type: "scout", target }).ok, true);
+  run(state, 3);
+  const scouts = state.units.filter((unit) => unit.group === "scout");
+  const latestMain = scouts.filter((unit) => unit.scoutMode !== "resources").at(-1);
+  assert.equal(stwIssue(state, "player", { type: "scoutRecall", target: "main" }).ok, true);
+  assert.equal(latestMain.scoutPhase, "back", "가장 최근 본진 정찰이 돌아옴");
+  assert.equal(scouts.filter((unit) => unit.scoutPhase === "out").length, 3, "나머지는 계속 감");
+  assert.ok(state.log.some((entry) => /정찰 프로브 1기를 되돌립니다/.test(entry.text)));
+  assert.equal(stwIssue(state, "player", { type: "scoutRecall", target: "resources", all: true }).ok, true);
+  assert.equal(scouts.filter((unit) => unit.scoutPhase === "out").length, 1, "자원 정찰 둘이 모두 돌아옴");
+  run(state, 8);
+  assert.equal(state.units.filter((unit) => unit.group === "scout").length, 1, "되돌린 셋은 일찍 복귀");
+  assert.equal(state.sides.player.probes, 11);
+  assert.equal(state.log.some((entry) => /자원 정찰 보고/.test(entry.text)), false, "되돌린 자원 정찰은 보고하지 않음");
+  assert.ok(state.replay.commands.some(([, , command]) => command.type === "scoutRecall"), "재현 코드에 남음");
+});
+
 test("starswar workers fill gas first, then the main, then the natural", () => {
   const state = quiet();
   state.sides.player.minerals = 2000;

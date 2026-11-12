@@ -99,6 +99,7 @@ export function stwDescribeCommand(state, command) {
     case "autoWave": return command.size ? `자동 출격: ${command.size}기마다` : "자동 출격 끔";
     case "escort": return `호위 ${command.on ? "켬" : "끔"}`;
     case "scout": return command.target === "resources" ? "자원 정찰" : "본진 정찰";
+    case "scoutRecall": return `${command.target === "resources" ? "자원 정찰" : command.target === "main" ? "본진 정찰" : "정찰"} 되돌리기${command.all ? "(전부)" : ""}`;
     case "cancelBuild": return `건설 취소 #${command.buildingId}`;
     case "cancelProbe": return "일꾼 생산 취소";
     case "cancelResearch": return `연구 취소: ${researchName(command.research)}`;

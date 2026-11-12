@@ -622,6 +622,25 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     refresh();
   };
 
+  // 정찰 버튼 오터치 막기: 지도를 누른 직후(0.7초)나 같은 정찰 버튼을 연달아 누른 경우(0.6초)는 보내지 않는다.
+  const lastMapTapRef = useRef(0);
+  const lastScoutTapRef = useRef<{ target: string; at: number }>({ target: "", at: 0 });
+  // 시각은 이벤트의 timeStamp(같은 기준의 밀리초)로 잰다.
+  const sendMapScout = (target: "main" | "resources", now: number) => {
+    const last = lastScoutTapRef.current;
+    lastScoutTapRef.current = { target, at: now };
+    if (now - lastMapTapRef.current < 700) {
+      showToast("지도를 누른 직후라 정찰을 보내지 않았어요. 보내려면 한 번 더 누르세요.");
+      return;
+    }
+    if (last.target === target && now - last.at < 600) {
+      showToast("연달아 눌려 한 번만 보냈어요. 더 보내려면 천천히 누르세요.");
+      return;
+    }
+    issue({ type: "scout", target });
+  };
+  const recallMapScout = (target: "main" | "resources") => issue({ type: "scoutRecall", target }, "정찰 일꾼 1기를 되돌립니다.");
+
   /* ───────── 지도 조작 ───────── */
 
   const localPoint = (event: { clientX: number; clientY: number; currentTarget: Element }) => {
@@ -699,6 +718,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     if (!gesture || gesture.moved || gesture.pinch || event.type === "pointercancel" || finished) return;
     if (Math.hypot(point.x - gesture.x, point.y - gesture.y) > 10) return;
     const target = stwScreenToMap(viewRef.current, point.x, point.y);
+    lastMapTapRef.current = event.timeStamp;
     if (selected.length) issue({ type: "squadMove", units: selected, y: target.y });
     else issue({ type: "move", y: target.y });
   };
@@ -884,15 +904,22 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
               부대{selected.length ? ` ${selected.length}` : ""}
             </button>
           </div>
-          {/* 지도 위 정찰 버튼은 종류마다 한 번에 1기만 보낸다(후퇴하려고 지도 아래쪽을 누르다 잘못 눌러 일꾼이 떼로 나가는 일을 막는다).
-              더 보내려면 병력 탭의 정찰 카드를 쓴다. 부대 지휘 중에는 지도를 자주 누르므로 숨긴다. */}
+          {/* 지도 위 정찰 버튼: 아군 기지 쪽(지도 아래)에 붙어 있어 후퇴하려고 지도를 누르다 잘못 눌리기 쉽다.
+              지도를 누른 직후·같은 버튼을 연달아 누른 경우는 무시하고, 가는 중인 정찰은 옆의 ↩로 되돌린다. 부대 지휘 중에는 숨긴다. */}
           <div ref={scoutTagRef} className="stw-map-scout" data-squad={squadOpen ? "open" : undefined} role="group" aria-label="정찰">
-            <button type="button" disabled={!mapScout.ok || mapScoutsMain > 0} title={mapScoutsMain ? "본진 정찰 중 · 더 보내려면 병력 탭의 정찰 카드" : mapScout.ok ? "적 본진의 건물·병력·연구 확인" : mapScout.reason} onClick={() => issue({ type: "scout", target: "main" })}>
-              {mapScoutsMain ? <>본진 정찰 중<em>{mapScoutsMain}</em></> : "본진 정찰"}
-            </button>
-            <button type="button" disabled={!mapScout.ok || mapScouts.length - mapScoutsMain > 0} title={mapScouts.length - mapScoutsMain ? "자원 정찰 중 · 더 보내려면 병력 탭의 정찰 카드" : mapScout.ok ? "적 앞마당과 광물 줄을 돌며 일꾼·가스·확장 확인" : mapScout.reason} onClick={() => issue({ type: "scout", target: "resources" })}>
-              {mapScouts.length - mapScoutsMain ? <>자원 정찰 중<em>{mapScouts.length - mapScoutsMain}</em></> : "자원 정찰"}
-            </button>
+            {(["main", "resources"] as const).map((target) => {
+              const count = target === "main" ? mapScoutsMain : mapScouts.length - mapScoutsMain;
+              const outgoing = mapScouts.filter((unit) => unit.scoutPhase === "out" && (unit.scoutMode === "resources") === (target === "resources")).length;
+              const label = target === "main" ? "본진 정찰" : "자원 정찰";
+              return (
+                <div key={target} className="stw-map-scout-row">
+                  <button type="button" disabled={!mapScout.ok} title={mapScout.ok ? (target === "main" ? "적 본진의 건물·병력·연구 확인" : "적 앞마당과 광물 줄을 돌며 일꾼·가스·확장 확인") : mapScout.reason} onClick={(event) => sendMapScout(target, event.timeStamp)}>
+                    {label}{count ? <em>{count}</em> : null}
+                  </button>
+                  {outgoing ? <button type="button" className="stw-map-scout-undo" aria-label={`${label} 되돌리기 (가장 최근 1기)`} title="가장 최근에 보낸 정찰 1기를 되돌립니다" onClick={() => recallMapScout(target)}>↩</button> : null}
+                </div>
+              );
+            })}
           </div>
           <p className="stw-intel-chip">{intel ? `적 ${stwClock(intel.time)} · ${intelSummary(intel)}` : "적 정보 없음 · 정찰 필요"}</p>
           <ul className="stw-log" aria-live="polite">
@@ -1204,6 +1231,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
   const scouts = game.units.filter((unit) => unit.side === "player" && unit.group === "scout");
   const scoutingMain = scouts.filter((unit) => unit.scoutMode !== "resources").length;
   const scoutingResources = scouts.length - scoutingMain;
+  const scoutsOut = scouts.filter((unit) => unit.scoutPhase === "out").length;
   const intel = side.intel;
   const plan = side.dropPlan ?? { mission: "raid", target: "main", repeat: false, sync: false };
   const drop = stwDropCheck(game, "player", plan.mission) as StwCheck;
@@ -1308,6 +1336,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
           <Card title="본진 정찰" sub={`${workerName} 1기 잠시 이탈`} badge={scoutingMain ? `정찰 중 ${scoutingMain}` : undefined} note={scout.ok ? "적 본진의 건물·병력·연구 확인" : scout.reason} disabled={!scout.ok} onClick={() => issue({ type: "scout", target: "main" })} />
           <Card title="자원 정찰" sub={`${workerName} 1기 잠시 이탈`} badge={scoutingResources ? `정찰 중 ${scoutingResources}` : undefined} note={scout.ok ? "적 앞마당과 광물 줄을 돌며 일꾼·가스·확장 확인" : scout.reason} disabled={!scout.ok} onClick={() => issue({ type: "scout", target: "resources" })} />
         </div>
+        {scoutsOut ? <Card title="정찰 되돌리기" sub={`가는 중 ${scoutsOut}기`} note="가는 중인 정찰 일꾼을 모두 불러들입니다 · 지도 정찰 버튼 옆 ↩는 가장 최근 1기" onClick={() => issue({ type: "scoutRecall", all: true }, `정찰 일꾼 ${scoutsOut}기를 되돌립니다.`)} /> : null}
         <div className="stw-intel">
           {intel ? (
             <>

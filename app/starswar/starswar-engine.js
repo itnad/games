@@ -1162,6 +1162,20 @@ function runCommand(state, side, command) {
       if (side === "player") pushLog(state, side, `${STW_UNITS[workerType].name} 1기를 ${withKoreanDirection(unit.scoutMode === "resources" ? "적 자원 지대" : "적 본진")} 정찰 보냅니다.`, "order");
       return { ok: true };
     }
+    case "scoutRecall": {
+      // 정찰 되돌리기: 가는 중인 정찰 일꾼을 불러들인다. 기본은 가장 최근에 보낸 1기(잘못 보낸 정찰 취소), all이면 그 종류 전부.
+      const outgoing = state.units.filter((unit) => unit.side === side && unit.hp > 0 && unit.group === "scout" && unit.scoutPhase === "out"
+        && (!command.target || (command.target === "resources") === (unit.scoutMode === "resources")));
+      if (!outgoing.length) return fail("되돌릴 정찰 일꾼이 없습니다");
+      const picked = command.all ? outgoing : [outgoing.reduce((latest, unit) => (unit.id > latest.id ? unit : latest))];
+      for (const unit of picked) {
+        unit.scoutPhase = "back";
+        unit.scoutPath = undefined;
+        unit.scoutRecalled = true;
+      }
+      if (side === "player") pushLog(state, side, `정찰 ${STW_UNITS[picked[0].type].name} ${picked.length}기를 되돌립니다.`, "order");
+      return { ok: true, count: picked.length };
+    }
     case "cancelBuild": {
       const building = state.buildings.find((item) => item.id === command.buildingId && item.side === side);
       if (!building) return fail("건물을 찾을 수 없습니다");
@@ -3782,11 +3796,14 @@ function scoutStep(state, unit, dt) {
     return;
   }
   const home = stwPoint(unit.side, { x: 20, y: 90 });
-  if (moveToward(unit, home.x, home.y, def.speed, dt)) {
+  // 함께 돌아온 정찰 일꾼끼리 서로 밀어내 복귀 지점에 닿지 못하고 맴돌던 일이 있어, 곁에 다른 정찰 일꾼이 있으면 1.5칸 안을 복귀로 친다.
+  const jammed = Math.hypot(home.x - unit.x, home.y - unit.y) < 1.5
+    && state.units.some((other) => other !== unit && other.side === unit.side && other.hp > 0 && other.group === "scout" && Math.hypot(other.x - unit.x, other.y - unit.y) < 2);
+  if (moveToward(unit, home.x, home.y, def.speed, dt) || jammed) {
     unit.hp = 0;
     unit.returned = true;
     state.sides[unit.side].probes += 1;
-    if (unit.scoutMode === "resources" && unit.side === "player") reportResources(state, unit.side);
+    if (unit.scoutMode === "resources" && unit.side === "player" && !unit.scoutRecalled) reportResources(state, unit.side);
   }
 }
 
