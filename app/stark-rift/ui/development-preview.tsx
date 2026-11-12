@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import type { Scenario } from "../combat/state";
 import type { Faction } from "../data/economy-catalog";
 import type { PersistenceEnvelope } from "../core/state";
 import { SimulationSession } from "./simulation-session";
@@ -32,13 +33,15 @@ const FACTIONS: { id: Faction; name: string; summary: string; mark: string }[] =
     },
   ];
 type Run = {
+  scenario: Scenario;
   seed: number;
   faction: Faction;
   restored: PersistenceEnvelope | null;
 };
 export function DevelopmentPreview() {
+  const [scenario, setScenario] = useState<Scenario>("economy");
   const [faction, setFaction] = useState<Faction>("terran");
-  const [saved, setSaved] = useState<Partial<Record<Faction, DevelopmentSave>>>(
+  const [saved, setSaved] = useState<Partial<Record<string, DevelopmentSave>>>(
     {},
   );
   const [run, setRun] = useState<Run | null>(null);
@@ -48,12 +51,24 @@ export function DevelopmentPreview() {
       const instance = new DevelopmentSaveStore(window.localStorage);
       store.current = instance;
       setSaved(
-        Object.fromEntries(FACTIONS.map((f) => [f.id, instance.read(f.id)])),
+        Object.fromEntries(
+          FACTIONS.flatMap((f) =>
+            (["economy", "combat-practice"] as const).map((mode) => [
+              mode + ":" + f.id,
+              instance.read(f.id, mode),
+            ]),
+          ),
+        ),
       );
     } catch {
       setSaved(
         Object.fromEntries(
-          FACTIONS.map((f) => [f.id, { status: "unavailable" }]),
+          FACTIONS.flatMap((f) =>
+            ["economy", "combat-practice"].map((mode) => [
+              mode + ":" + f.id,
+              { status: "unavailable" },
+            ]),
+          ),
         ),
       );
     }
@@ -63,33 +78,38 @@ export function DevelopmentPreview() {
       throw new Error("Browser save unavailable");
     setSaved((current) => ({
       ...current,
-      [snapshot.simulation.players[0].faction]: { status: "ready", snapshot },
+      [(snapshot.simulation.combat?.scenario ?? "economy") +
+      ":" +
+      snapshot.simulation.players[0].faction]: { status: "ready", snapshot },
     }));
   };
-  const savedMatch = saved[faction];
+  const savedMatch = saved[scenario + ":" + faction];
   const start = () => {
     if (
       savedMatch?.status === "ready" &&
       !window.confirm("이 종족의 저장 기록을 새 테스트로 교체할까요?")
     )
       return;
-    setRun({ seed: 42, faction, restored: null });
+    setRun({ seed: 42, faction, scenario, restored: null });
   };
   const resume = () => {
-    const current = store.current?.read(faction);
+    const current = store.current?.read(faction, scenario);
     if (current?.status === "ready")
       setRun({
         seed: current.snapshot.simulation.seed,
         faction,
+        scenario,
         restored: current.snapshot,
       });
-    else if (current) setSaved((value) => ({ ...value, [faction]: current }));
+    else if (current)
+      setSaved((value) => ({ ...value, [scenario + ":" + faction]: current }));
   };
   if (run)
     return (
       <main className="sr-dev-route sr-dev-playing">
         <SimulationSession
           key={`${run.faction}:${run.seed}:${run.restored?.savedAt ?? "new"}`}
+          scenario={run.scenario}
           seed={run.seed}
           faction={run.faction}
           initialSnapshot={run.restored}
@@ -105,14 +125,36 @@ export function DevelopmentPreview() {
           <a className="sr-dev-back" href="/">
             ← paperoid로 돌아가기
           </a>
-          <div className="sr-dev-kicker">DEVELOPMENT PLAYTEST · 04</div>
+          <div className="sr-dev-kicker">DEVELOPMENT PLAYTEST · 05A</div>
           <h1>스타크 리프트</h1>
           <p className="sr-dev-intro">나만의 기지를 세워 보세요.</p>
           <p className="sr-dev-scope">
             채취 · 건설 · 병력 생산을 확인하는 개발 테스트입니다.
             <br />
-            전투와 승패 판정은 준비 중입니다.
+            마린·저글링·질럿과 일꾼의 기본 공격을 사용할 수 있습니다. 승패
+            판정과 상대 AI는 준비 중입니다.
           </p>
+          <div className="sr-dev-modes" role="group" aria-label="테스트 모드">
+            <button
+              aria-pressed={scenario === "economy"}
+              onClick={() => setScenario("economy")}
+            >
+              기지 운영
+            </button>
+            <button
+              aria-pressed={scenario === "combat-practice"}
+              onClick={() => setScenario("combat-practice")}
+            >
+              전투 연습
+            </button>
+          </div>
+          {scenario === "combat-practice" && (
+            <p className="sr-dev-scope">
+              기본 병력이 준비됩니다. 부대 1번 선택 → 붉은 적 터치로 공격하세요.
+              적은 제자리에서 반격합니다. 연습 기록은 기지 운영과 별도로
+              저장됩니다.
+            </p>
+          )}
           <div className="sr-dev-factions" role="group" aria-label="종족 선택">
             {FACTIONS.map((f) => (
               <button
@@ -166,7 +208,7 @@ export function DevelopmentPreview() {
           <p className="sr-dev-footnote">
             세로 화면 전용 · 최대 10초 간격 자동 저장
             <br />
-            종족별로 이 브라우저에 저장됩니다. 기기 간 동기화는 지원하지
+            종족·모드별로 이 브라우저에 저장됩니다. 기기 간 동기화는 지원하지
             않습니다.
           </p>
         </main>
