@@ -1,3 +1,4 @@
+import { SCENARIOS } from "../combat/state";
 import { controlGroupSchema } from "../core/orders";
 import {
   COMMAND_FAILURE_CODES,
@@ -10,6 +11,7 @@ import {
   persistenceEnvelopeSchema,
   phaseSchema,
   sessionStateSchema,
+  matchOutcomeSchema,
 } from "../core/state";
 import {
   STARK_RIFT_ENGINE_VERSION,
@@ -56,9 +58,7 @@ const initPayload = refine(
     dataVersion: text,
     mapId: text,
     seed: integer(0, 0xffffffff),
-    scenario: optional(
-      enumeration(["economy", "combat-practice", "ranged-practice"]),
-    ),
+    scenario: optional(enumeration(SCENARIOS)),
     players: array(playerSetupSchema, 2, 2),
   }),
   (payload) =>
@@ -142,12 +142,17 @@ function literalBoolean<T extends boolean>(expected: T): Schema<T> {
 export const workerToMainSchemas = {
   uiState: message(
     "uiState",
-    object({
-      tick: integer(),
-      phase: phaseSchema,
-      lastAcceptedSequence: integer(),
-      controlGroups: array(controlGroupSchema, 5, 5),
-    }),
+    refine(
+      object({
+        tick: integer(),
+        phase: phaseSchema,
+        outcome: optional(nullable(matchOutcomeSchema)),
+        lastAcceptedSequence: integer(),
+        controlGroups: array(controlGroupSchema, 5, 5),
+      }),
+      (p) => (p.phase === "finished") === !!p.outcome,
+      "Outcome must accompany a finished phase",
+    ),
   ),
   renderSnapshot: message("renderSnapshot", renderSnapshotSchema),
   ready: message(
