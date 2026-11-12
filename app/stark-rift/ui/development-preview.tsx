@@ -192,7 +192,7 @@ export function DevelopmentPreview() {
                 : "이어서 하기"}
             </button>
           </div>
-          {scenario === "special-practice" && <p className="sr-dev-scope">수송선과 병력이 제공됩니다. 탑승 → 부대 슬롯 터치 → 전체 하차 → 지점 선택. 프로토스는 영구 은폐 유닛·옵저버가, 저그는 수송·버로우 연구가 제공됩니다. 연습 기록은 별도로 저장됩니다.</p>}
+          {scenario === "special-practice" && <p className="sr-dev-scope">수송선과 병력이 제공됩니다. 탑승 → 부대 슬롯 터치 → 전체 하차 → 지점 선택. 테란은 고스트·레이스와 은폐 연구가, 프로토스는 영구 은폐 유닛·옵저버가, 저그는 수송·버로우 연구가 제공됩니다. 연습 기록은 별도로 저장됩니다.</p>}
           {scenario === "combat-practice" && (
             <p className="sr-dev-scope">
               기본 병력이 준비됩니다. 부대 1번 선택 → 붉은 적 터치로 공격하세요.
