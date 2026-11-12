@@ -2452,8 +2452,11 @@ test("starswar drops carry ground units to the enemy main and transports take ri
   const result = stwCommand(state, "player", { type: "drop" });
   assert.equal(result.ok, true);
   assert.equal(result.loaded, 4, "8칸까지(질럿은 2칸씩, 4기)");
-  assert.equal(riders.filter((unit) => unit.group === "cargo").length, 4);
-  assert.equal(stwArmy(state, "player").fighters.length, 1, "탄 병력은 대기 병력에서 빠진다");
+  assert.equal(state.ops[0].phase, "load", "바로 싣지 않는다: 병력이 수송선으로 걸어가고 수송선이 다가가 태운다");
+  assert.equal(riders.filter((unit) => unit.group === "board").length, 4);
+  assert.equal(stwArmy(state, "player").fighters.length, 1, "탈 병력은 대기 병력에서 빠진다");
+  for (let index = 0; index < 200 && state.ops[0].phase === "load"; index += 1) stepStarswar(state);
+  assert.equal(riders.filter((unit) => unit.group === "cargo").length, 4, "다가가서 태운 뒤 출발");
   for (let index = 0; index < 400 && shuttle.cargo?.length; index += 1) stepStarswar(state);
   const enemyMain = stwNexus(state, "enemy", "main");
   const landed = riders.filter((unit) => unit.group === "attack");
@@ -2467,6 +2470,7 @@ test("starswar drops carry ground units to the enemy main and transports take ri
   const dropship = stwSpawnUnitAt(shot, "player", "dropship", 20, 80, "rally");
   const marines = [0, 1].map((index) => stwSpawnUnitAt(shot, "player", "marine", 18 + index * 2, 78, "rally"));
   stwCommand(shot, "player", { type: "drop" });
+  for (let index = 0; index < 200 && shot.ops[0].phase === "load"; index += 1) stepStarswar(shot);
   dropship.hp = 0;
   stepStarswar(shot);
   assert.ok(marines.every((unit) => !shot.units.includes(unit)), "격추되면 탄 병력도 잃는다");
@@ -2503,7 +2507,7 @@ test("starswar transports load by slots: zealots take two, dragoons four, raids 
   stwSpawnUnitAt(bio, "player", "medic", 22, 76, "rally");
   stwSpawnUnitAt(bio, "player", "tank", 26, 76, "rally");
   stwCommand(bio, "player", { type: "drop", mission: "raid" });
-  const aboard = dropship.cargo.map((id) => bio.units.find((unit) => unit.id === id).type);
+  const aboard = [...dropship.cargo, ...dropship.boarding].map((id) => bio.units.find((unit) => unit.id === id).type);
   assert.deepEqual([aboard.filter((type) => type === "marine").length, aboard.filter((type) => type === "medic").length, aboard.includes("tank")], [6, 2, false], "게릴라는 해병 6 + 메딕 2, 탱크는 태우지 않음");
 });
 
@@ -2659,7 +2663,7 @@ test("starswar overlords that come back from a drop can drop again or take up es
   // 돌아온 오버로드는 다음 침투에 먼저 쓰이고, 기지에 앉은 오버로드는 2기가 그대로 남는다.
   stwSpawnUnitAt(state, "player", "hydra", 20, 78, "rally");
   assert.equal(stwCommand(state, "player", { type: "drop" }).ok, true);
-  assert.ok(flier.dropPath?.length, "돌아온 오버로드가 다시 출발");
+  assert.equal(flier.op !== undefined && state.ops.some((op) => op.id === flier.op), true, "돌아온 오버로드가 다시 출발(먼저 병력 쪽으로 가서 태운다)");
   assert.equal(stwOwnBuildings(state, "player", "overlord").length, 2);
   for (let index = 0; index < 2500 && flier.op !== undefined; index += 1) stepStarswar(state);
   // 동행을 켜면 떠 있는 오버로드가 동행을 맡고, 기지의 오버로드는 앉아 있는다.

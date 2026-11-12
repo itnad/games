@@ -104,14 +104,14 @@ const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
 const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", stargate: "스타게이트", barracks: "배럭", factory: "팩토리", starport: "스타포트", hatchery: "해처리", hatch: "해처리" };
 /** 진행 중인 작전 한 줄 요약. */
 function opStatus(game: StwState, op: StwOp) {
-  const phase: Record<StwOp["phase"], string> = { out: "이동 중", fight: `견제 중 ${Math.max(0, Math.round(game.time - op.since))}초`, pickup: "회수 중", home: "귀환 중", gather: op.sync ? "집결 · 정면 대기" : "집결 중", in: "진입 중" };
+  const phase: Record<StwOp["phase"], string> = { load: "탑승 중", out: "이동 중", fight: `견제 중 ${Math.max(0, Math.round(game.time - op.since))}초`, pickup: "회수 중", home: "귀환 중", gather: op.sync ? "집결 · 정면 대기" : "집결 중", in: "진입 중" };
   const name = op.kind === "walk" ? `침투(${op.base === "natural" ? "앞마당" : "본진"})` : op.kind === "raid" ? "게릴라" : "폭탄";
   return `${name} ${phase[op.phase]}`;
 }
 
 /** 지금 거둘 수 있는 작전인지(침투·게릴라는 가는 중·견제 중, 폭탄은 내리기 전). */
 function opRecallable(op: StwOp) {
-  return op.kind === "bomb" ? op.phase === "gather" || op.phase === "in" : op.phase === "out" || op.phase === "fight";
+  return op.phase === "load" || (op.kind === "bomb" ? op.phase === "gather" || op.phase === "in" : op.phase === "out" || op.phase === "fight");
 }
 
 /**

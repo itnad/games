@@ -455,7 +455,7 @@ export const STW_RESEARCH = {
   ensnare: { id: "ensnare", race: "zerg", name: "인스네어", at: "nest", minerals: 100, gas: 100, time: 40, note: "퀸이 뭉친 적을 12초 동안 느리게(은폐도 드러남)" },
   broodling: { id: "broodling", race: "zerg", name: "브루들링", at: "nest", minerals: 100, gas: 100, time: 40, note: "퀸이 지상 생체 유닛을 즉사시키고 브루들링 2기를 낳음" },
   plague: { id: "plague", race: "zerg", name: "플레이그", at: "mound", minerals: 200, gas: 200, time: 50, note: "디파일러가 뭉친 적에게 20초 동안 초당 15 피해(체력 1까지)" },
-  pneumatized: { id: "pneumatized", race: "zerg", name: "기낭 갑피", at: "hatchery", minerals: 150, gas: 150, time: 40, requires: ["lair"], note: "동행 오버로드 이동 속도 +50%" },
+  pneumatized: { id: "pneumatized", race: "zerg", name: "기낭 갑피", at: "hatchery", minerals: 150, gas: 150, time: 40, requires: ["lair"], note: "오버로드 이동 속도 +50%(드랍·동행 모두)" },
   chitin: { id: "chitin", race: "zerg", name: "키틴질 강화", at: "cavern", minerals: 150, gas: 150, time: 45, note: "울트라리스크 방어력 +2" },
   zMelee1: { id: "zMelee1", race: "zerg", name: "근접 공격 1단계", at: "evo", minerals: 100, gas: 100, time: 40, note: "저글링 +1, 울트라리스크 +3" },
   zMissile1: { id: "zMissile1", race: "zerg", name: "원거리 공격 1단계", at: "evo", minerals: 100, gas: 100, time: 40, note: "히드라리스크 +1, 럴커 +2" },
@@ -661,7 +661,7 @@ export const STW_WORKER_HP = { probe: 40, scv: 60, drone: 40 };
  * - syncTimeout: "정면 출격과 동시에"일 때 정면이 맞붙기를 기다리는 최대 시간(출발부터)
  * - relaunchDelay: 계속 견제일 때 돌아와서 다시 나가기까지
  */
-export const STW_TRANSPORT = { capacity: 8, raidDwell: 25, retreatRatio: 0.7, hpRatio: 0.5, pickupTimeout: 8, gatherTimeout: 25, syncTimeout: 45, relaunchDelay: 6 };
+export const STW_TRANSPORT = { capacity: 8, raidDwell: 25, retreatRatio: 0.7, hpRatio: 0.5, pickupTimeout: 8, gatherTimeout: 60, syncTimeout: 45, relaunchDelay: 6 };
 /** 크기 규칙에서 벗어나는 탑승 칸(질럿·다크템플러 2, 울트라리스크 8). 나머지는 소형 1, 중형 2, 대형 4. */
 export const STW_SLOTS = { zealot: 2, dark: 2, templar: 2, goliath: 2, vulture: 2, hydra: 2, ultra: 8 };
 /** 게릴라 드랍에 태우는 빠르고 싼 유닛(앞이 먼저). */

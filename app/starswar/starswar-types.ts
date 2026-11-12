@@ -61,6 +61,12 @@ export type StwUnit = {
   raid?: number;
   bomb?: StwDropTarget;
   scoutPhase?: "out" | "back" | null;
+  /** 출발 전 탑승: 타러 가는 수송선 id. */
+  boardTo?: number;
+  /** 수송선: 태우기로 정했지만 아직 타지 않은 병력 id. */
+  boarding?: number[];
+  /** 폭탄 드랍으로 함께 날아가는 동안 맞추는 속도(가장 느린 수송선). */
+  groupSpeed?: number;
   /** 되돌리기로 돌아오는 정찰(자원 정찰 보고를 하지 않는다). */
   scoutRecalled?: boolean;
   scoutMode?: "resources";
@@ -112,7 +118,7 @@ export type StwDropTarget = "main" | "natural" | "tech" | "alternate" | "product
 export type StwDropPlan = { mission: StwDropMission; target: StwDropTarget; repeat: boolean; sync: boolean };
 /** 진행 중인 수송 작전. */
 /** 작전: 게릴라 드랍(raid)·폭탄 드랍(bomb)·걸어서 침투(walk). */
-export type StwOp = { id: number; side: StwSide; kind: StwDropMission | "walk"; target: StwDropTarget; base: "main" | "natural"; transports: number[]; riders: number[]; phase: "out" | "fight" | "pickup" | "home" | "gather" | "in"; since: number; sync: boolean; repeat: boolean; value: number };
+export type StwOp = { id: number; side: StwSide; kind: StwDropMission | "walk"; target: StwDropTarget; base: "main" | "natural"; transports: number[]; riders: number[]; phase: "load" | "out" | "fight" | "pickup" | "home" | "gather" | "in"; since: number; sync: boolean; repeat: boolean; value: number };
 
 export type StwSideState = {
   id: StwSide;
