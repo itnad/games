@@ -884,12 +884,14 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
               부대{selected.length ? ` ${selected.length}` : ""}
             </button>
           </div>
-          <div ref={scoutTagRef} className="stw-map-scout" role="group" aria-label="정찰">
-            <button type="button" disabled={!mapScout.ok} title={mapScout.ok ? "적 본진의 건물·병력·연구 확인" : mapScout.reason} onClick={() => issue({ type: "scout", target: "main" })}>
-              본진 정찰{mapScoutsMain ? <em>{mapScoutsMain}</em> : null}
+          {/* 지도 위 정찰 버튼은 종류마다 한 번에 1기만 보낸다(후퇴하려고 지도 아래쪽을 누르다 잘못 눌러 일꾼이 떼로 나가는 일을 막는다).
+              더 보내려면 병력 탭의 정찰 카드를 쓴다. 부대 지휘 중에는 지도를 자주 누르므로 숨긴다. */}
+          <div ref={scoutTagRef} className="stw-map-scout" data-squad={squadOpen ? "open" : undefined} role="group" aria-label="정찰">
+            <button type="button" disabled={!mapScout.ok || mapScoutsMain > 0} title={mapScoutsMain ? "본진 정찰 중 · 더 보내려면 병력 탭의 정찰 카드" : mapScout.ok ? "적 본진의 건물·병력·연구 확인" : mapScout.reason} onClick={() => issue({ type: "scout", target: "main" })}>
+              {mapScoutsMain ? <>본진 정찰 중<em>{mapScoutsMain}</em></> : "본진 정찰"}
             </button>
-            <button type="button" disabled={!mapScout.ok} title={mapScout.ok ? "적 앞마당과 광물 줄을 돌며 일꾼·가스·확장 확인" : mapScout.reason} onClick={() => issue({ type: "scout", target: "resources" })}>
-              자원 정찰{mapScouts.length - mapScoutsMain ? <em>{mapScouts.length - mapScoutsMain}</em> : null}
+            <button type="button" disabled={!mapScout.ok || mapScouts.length - mapScoutsMain > 0} title={mapScouts.length - mapScoutsMain ? "자원 정찰 중 · 더 보내려면 병력 탭의 정찰 카드" : mapScout.ok ? "적 앞마당과 광물 줄을 돌며 일꾼·가스·확장 확인" : mapScout.reason} onClick={() => issue({ type: "scout", target: "resources" })}>
+              {mapScouts.length - mapScoutsMain ? <>자원 정찰 중<em>{mapScouts.length - mapScoutsMain}</em></> : "자원 정찰"}
             </button>
           </div>
           <p className="stw-intel-chip">{intel ? `적 ${stwClock(intel.time)} · ${intelSummary(intel)}` : "적 정보 없음 · 정찰 필요"}</p>

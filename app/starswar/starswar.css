@@ -63,6 +63,7 @@
 .stw-map-scout.pinned { top:auto; bottom:8px; }
 .stw-map-scout button { pointer-events:auto; min-height:26px; padding:0 8px; display:flex; align-items:center; justify-content:center; gap:4px; border:1px solid #8fd3ff77; border-radius:999px; color:#dff3ff; background:#0b1a26d9; font-size:11px !important; font-weight:800; line-height:1 !important; white-space:nowrap; box-shadow:0 2px 6px #0007; }
 .stw-map-scout button:disabled { opacity:.55; }
+.stw-map-scout[data-squad="open"] { visibility:hidden; }
 .stw-map-scout em { min-width:15px; padding:0 4px; border-radius:8px; color:#062033; background:#8fd3ff; font-size:10px; font-style:normal; line-height:15px; }
 .stw-map-tools button.active { color:#2a1c05; border-color:var(--stw-gold); background:var(--stw-gold); }
 /* 지도 위 부대 고르기: 도구줄 아래에 유닛 종류 칩, 고르면 동작 버튼. */
