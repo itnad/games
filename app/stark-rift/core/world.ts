@@ -114,6 +114,10 @@ export function removeEntity(state: SimulationState, id: number): boolean {
   const index = state.entities.id.indexOf(id);
   if (index < 0) return false;
   detachEconomyEntity(state, id);
+  if (state.vision)
+    state.vision.concealed = state.vision.concealed.filter(
+      (c) => c.entityId !== id,
+    );
   if (state.combat)
     state.combat.records = state.combat.records.filter(
       (r) => r.entityId !== id,
