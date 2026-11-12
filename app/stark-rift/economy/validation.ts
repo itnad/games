@@ -1,6 +1,6 @@
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
-import { economyDefinition, ECONOMY_UPGRADES } from "../data/economy-catalog";
+import { economyDefinition, ECONOMY_UPGRADES, countsAsDefinition, isLarvaProducer } from "../data/economy-catalog";
 /** Cross references and paid reservations are validated both after a tick and before restoring a save. */
 export function validEconomy(s: SimulationState): boolean {
   const e = s.economy,
@@ -146,7 +146,7 @@ export function validEconomy(s: SimulationState): boolean {
       return false;
     if (b.repeatUnitId !== null) {
       const repeat = economyDefinition(b.repeatUnitId);
-      if (!repeat || repeat.kind === "building" || repeat.producer !== d.id)
+      if (!repeat || repeat.kind === "building" || !countsAsDefinition(d.id, repeat.producer))
         return false;
     }
     if (
@@ -159,7 +159,7 @@ export function validEconomy(s: SimulationState): boolean {
       if (
         !unit ||
         unit.kind === "building" ||
-        unit.producer !== d.id ||
+        !countsAsDefinition(d.id, unit.producer) ||
         q.count !== unit.batch ||
         q.supplyHalf !== unit.supply * unit.batch ||
         q.totalTicks !== unit.ticks ||
@@ -174,7 +174,7 @@ export function validEconomy(s: SimulationState): boolean {
         t = ECONOMY_UPGRADES.find((t) => t.id === r.technologyId);
       if (
         !t ||
-        t.producer !== d.id ||
+        !countsAsDefinition(d.id, t.producer) ||
         r.level !== 1 ||
         r.totalTicks !== t.ticks ||
         r.minerals !== t.minerals ||
@@ -184,7 +184,7 @@ export function validEconomy(s: SimulationState): boolean {
       researchKeys.push(owner(b.entityId) + ":" + t.id);
       jobs.push(r.id);
     }
-    if (d.id !== "zerg-hatchery" && b.larva !== 0) return false;
+    if (!isLarvaProducer(d.id) && b.larva !== 0) return false;
   }
   for (const u of e.upgrades) {
     const t = ECONOMY_UPGRADES.find((t) => t.id === u.technologyId);
