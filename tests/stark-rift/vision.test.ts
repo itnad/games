@@ -534,9 +534,9 @@ describe("terminal outcomes and observation boundaries", () => {
     });
   });
   it("retains the most recent visible target position when concealment ends focus pursuit", () => {
-    const f = fixture(),
+    const f = fixture("terran", "terran"),
       a = f.add(0, "terran-marine", 40, 40),
-      b = f.add(1, "zerg-drone", 42, 40);
+      b = f.add(1, "terran-ghost", 42, 40);
     f.issue({
       kind: "focusAttack",
       entityIds: [a],
@@ -551,6 +551,7 @@ describe("terminal outcomes and observation boundaries", () => {
     expect(
       f.state.combat!.records.find((r) => r.entityId === a)!.lastSeenTarget,
     ).toEqual(last);
+    f.state.economy.upgrades.push({ playerId: 1, technologyId: "personnel-cloaking", level: 1 });
     f.state.vision!.concealed.push({ entityId: b, kind: "cloak" });
     f.state.entities.x[indexOf(f.state, b)] += 100;
     f.tick();
