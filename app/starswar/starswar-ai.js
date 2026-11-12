@@ -325,7 +325,7 @@ export function stwAiThink(state, side) {
   // expand: 확장이 30초 넘게 자원 부족으로 막혀 있으면 첫 생산 건물만 남기고 모두 멈춰 확장부터 한다(경계가 길어지면 경제가 영영 멈추던 문제).
   // safe: 병력이 안전한 동안만 생산 건물을 멈춰 가며 자원을 모은다(armySafe). 생산 라인 규칙이 함께 본다.
   const safe = armySafe(state, side, memory, persona);
-  const reserve = { minerals: 0, gas: 0, hard: 0, expand: false, safe };
+  const reserve = { minerals: 0, gas: 0, hard: 0, expand: false, safe, macro: false };
   const save = (minerals, gas, hard = false) => {
     if (record.minerals < minerals) {
       reserve.minerals = Math.max(reserve.minerals, minerals);
@@ -333,6 +333,17 @@ export function stwAiThink(state, side) {
     }
     if (record.gas < gas) reserve.gas = Math.max(reserve.gas, gas);
   };
+  // 저그 운영 전환: 저글링 공격이 방어 건물(캐논·벙커·성큰)을 낀 수비에 막히면 4분 동안 앞마당 확장과 드론을 서두른다(macroUntil).
+  // 수비적인 상대(앞마당 캐논 빌드)에게 저글링을 거듭 던지는 대신 경제를 따라가 큰 병력으로 친다. 기지가 하나면 드론 상한이 22라 확장이 먼저다.
+  const macro = race.id === "zerg" && memory.macroUntil !== undefined && state.time < memory.macroUntil;
+  reserve.macro = macro;
+  if (macro && !stwNexus(state, side, "natural")) {
+    const result = stwCommand(state, side, { type: "build", building: "expand" });
+    if (!result.ok && /광물/.test(result.reason ?? "")) {
+      save(STW_BUILDINGS[race.base].minerals, 0, true);
+      reserve.expand = true;
+    }
+  }
   // 경계 중에는 방어 건물이 가장 먼저다: 못 지으면 그 비용을 아껴 둔다(병력이 3기 미만일 때만 생산이 이를 무시한다).
   // 순서: 방어 건물 하나(프로토스는 포지부터) → 생산 건물 셋 → 방어 건물 둘(저그는 셋).
   // 앞마당 캐논 빌드(빌드 순서에 앞마당 캐논 단계가 있는 프로토스 성향): 경계 중에도 포지 → 앞마당 → 캐논 셋으로 받는다.
@@ -934,7 +945,9 @@ function zergLines(state, side, persona, units, reserve) {
     // 본진 해처리는 아끼는 중에도 계속 변태시킨다. 저글링 물량은 나머지를 지금 만드는 것까지만 끝내고 멈춘다
     // (저글링은 50이라 해처리가 노는 때가 없어, 노는 해처리만 멈추는 규칙으로는 앞마당·연구 자금이 영영 안 모인다). 다른 성향은 노는 해처리만 멈춘다.
     // 뮤탈 저글링도 예전에는 저글링 물량처럼 멈췄는데, 레어·스파이어를 모으는 5분 30초부터 해처리를 세워 둔 채 병력이 0이 되어 졌다.
-    const desired = index > 0 && ((reserve.expand && reserve.safe) || (starving && (persona === "ling" || !hatchery.current))) ? null : unit;
+    // 운영 전환 중에는 본진 해처리도 확장 자금을 모으는 동안 멈춘다(전투 유닛 6기는 남긴다). 해처리가 하나면 저글링이 광물을 다 먹어 확장이 안 된다.
+    const macroSave = reserve.macro && reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && army >= 6;
+    const desired = macroSave || (index > 0 && ((reserve.expand && reserve.safe) || (starving && (persona === "ling" || !hatchery.current)))) ? null : unit;
     if (hatchery.line !== desired) stwCommand(state, side, { type: "line", buildingId: hatchery.id, unit: desired });
   });
 }
@@ -1184,6 +1197,12 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
       if (army.attack.length) stwCommand(state, side, { type: "retreat" });
       memory.attacking = false;
       memory.wave += 1;
+      // 저글링 위주 공격이 방어 건물을 낀 수비에 막혔으면 운영으로 돌아선다(9분 전, 한 경기에 한 번).
+      const defensesSeen = Object.values(record.seen).some((item) => STW_BUILDINGS[item.type]?.damage);
+      if (record.race === "zerg" && state.time < 540 && memory.macroUntil === undefined && (memory.waveLings ?? 0) >= 0.5 && defensesSeen) {
+        memory.macroUntil = state.time + 240;
+        memory.macroFrom = state.time;
+      }
       // 제대로 모은 물량(성향별 기준 이상)이 막힌 횟수. 전략 전환은 이것으로 판단한다.
       if (memory.waveStart >= (BIG_WAVE[persona] ?? 16)) memory.bigFails = (memory.bigFails ?? 0) + 1;
     }
@@ -1230,7 +1249,12 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 히드라·하이브·울트라·뮤탈 운영은 저글링을 반 기로 센다(인구 0.5). 그대로 세면 "14기"가 저글링 14기라 4분에 저글링만으로 나갔다.
   const fighterCount = HALF_LING.has(persona) ? army.fighters.reduce((sum, unit) => sum + (unit.type === "zergling" ? 0.5 : 1), 0) : army.fighters.length;
   const lingsIntoBio = !allIn && lingsVersusBio(state, side, memory, army.fighters);
-  if (fighterCount >= size && !outgunned && !fortified && !lingsIntoBio && threat < 3) {
+  // 운영 전환 중에는 드론 30기와 앞마당이 갖춰질 때까지 나가지 않는다(그 사이 막힌 수비에 다시 던지지 않는다).
+  const macroHold = !allIn && memory.macroUntil !== undefined && state.time < memory.macroUntil && (record.probes < 30 || !stwNexus(state, side, "natural"));
+  if (fighterCount >= size && !outgunned && !fortified && !lingsIntoBio && !macroHold && threat < 3) {
+    const value = (type) => STW_UNITS[type].minerals + STW_UNITS[type].gas;
+    const total = army.fighters.reduce((sum, unit) => sum + value(unit.type), 0);
+    memory.waveLings = total ? army.fighters.reduce((sum, unit) => sum + (unit.type === "zergling" ? value(unit.type) : 0), 0) / total : 0;
     // 폭탄 드랍 성향은 쉬는 수송선이 둘 이상이면 출격과 동시에 폭탄 드랍(남은 병력은 정면으로).
     if (dropPlan?.mission === "bomb" && stwDropCheck(state, side, "bomb").ok) stwCommand(state, side, { type: "drop", ...dropPlan });
     else stwCommand(state, side, { type: "attack" });

@@ -512,9 +512,10 @@ test("starswar medics heal bio and stim speeds up researched infantry", () => {
   const medic = stwSpawnUnitAt(state, "player", "medic", 21, 81);
   marine.hp = 15;
   run(state, 1);
-  assert.ok(marine.hp >= 24, `메딕 치료 ${marine.hp}`);
+  // 초당 6 치료(10이던 때 바이오닉이 다른 종족 상대 100%였다).
+  assert.ok(marine.hp >= 20 && marine.hp <= 22, `메딕 치료 ${marine.hp}`);
   assert.equal(medic.healTargetId, marine.id);
-  run(state, 3);
+  run(state, 5);
   assert.equal(marine.hp, marine.maxHp);
   assert.equal(medic.healTargetId, null);
 
