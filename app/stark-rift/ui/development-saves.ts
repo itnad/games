@@ -1,5 +1,8 @@
+import { combatFitsMap } from "../combat/rules";
+import type { Scenario } from "../combat/state";
 import {
   validatePersistenceEnvelope,
+  migrateStage4Envelope,
   type PersistenceEnvelope,
 } from "../core/state";
 import { getRuntimeMap } from "../data/maps";
@@ -37,6 +40,7 @@ export class DevelopmentSaveStore {
       s.players[0]?.faction === faction &&
       (s.phase === "running" || s.phase === "paused") &&
       economyFitsMap(s, map) &&
+      combatFitsMap(s, map) &&
       navigationFitsMap(s, map) &&
       s.entities.x.every((x, i) => inside({ x, y: s.entities.y[i] })) &&
       s.movement.every(
@@ -44,18 +48,23 @@ export class DevelopmentSaveStore {
       )
     );
   }
-  read(faction: Faction): DevelopmentSave {
+  read(faction: Faction, scenario: Scenario = "economy"): DevelopmentSave {
     let serialized: string | null;
     try {
-      serialized = this.storage.getItem(DEVELOPMENT_SAVE_PREFIX + faction);
+      serialized = this.storage.getItem(
+        DEVELOPMENT_SAVE_PREFIX +
+          (scenario === "combat-practice" ? "combat." : "") +
+          faction,
+      );
     } catch {
       return { status: "unavailable" };
     }
     if (serialized === null) return { status: "empty" };
     if (serialized.length > 16 * 1024 * 1024) return { status: "invalid" };
     try {
-      const saved: unknown = JSON.parse(serialized);
-      return this.valid(saved, faction)
+      const saved: unknown = migrateStage4Envelope(JSON.parse(serialized));
+      return this.valid(saved, faction) &&
+        (saved.simulation.combat?.scenario ?? "economy") === scenario
         ? { status: "ready", snapshot: saved }
         : { status: "invalid" };
     } catch {
@@ -66,10 +75,21 @@ export class DevelopmentSaveStore {
     const faction = snapshot.simulation.players[0]?.faction;
     if (!faction || !this.valid(snapshot, faction)) return false;
     try {
-      this.storage.setItem(
-        DEVELOPMENT_SAVE_PREFIX + faction,
-        JSON.stringify(snapshot),
-      );
+      const key =
+        DEVELOPMENT_SAVE_PREFIX +
+        (snapshot.simulation.combat?.scenario === "combat-practice"
+          ? "combat."
+          : "") +
+        faction;
+      const old = this.storage.getItem(key);
+      if (old && !this.storage.getItem(key + ".stage4-backup")) {
+        let legacy = true;
+        try {
+          legacy = JSON.parse(old).formatVersion === 6;
+        } catch {}
+        if (legacy) this.storage.setItem(key + ".stage4-backup", old);
+      }
+      this.storage.setItem(key, JSON.stringify(snapshot));
       return true;
     } catch {
       return false;
