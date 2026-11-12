@@ -830,13 +830,20 @@ test("keeps StarDraft in its own app/starswar folder as a mobile game at /stardr
   assert.match(pageSource, /if \(gameId === "starswar"\) return "\/stardraft"/);
 
   const pixiSource = await readFile(new URL("../app/starswar/starswar-pixi.ts", import.meta.url), "utf8");
-  assert.match(pixiSource, /await import\("pixi\.js"\)/, "PixiJS는 브라우저에서만 동적으로 불러온다");
+  assert.match(pixiSource, /import\("pixi\.js"\)/, "PixiJS는 브라우저에서만 동적으로 불러온다");
   assert.match(pixiSource, /pixi\.js\/unsafe-eval/);
   assert.match(viteConfig, /consumer === "server"/, "서버 번들에서는 PixiJS를 뺀다");
 
   const gameSource = await readFile(new URL("../app/starswar/starswar-game.tsx", import.meta.url), "utf8");
   for (const label of ["경제·건설", "생산", "연구", "병력", "출격", "후퇴", "집결지", "자동 출격", "정찰", "모든 \\{mainName\\}", "내 종족", "상대 종족", "무작위", "전투 시작"]) assert.match(gameSource, new RegExp(label));
   assert.match(gameSource, /data-game-menu="true"/);
+  assert.match(gameSource, /preloadStwPixiRenderer\(\)\.catch/);
+  assert.match(gameSource, /current && pixiRef\.current && !pausedRef\.current/);
+  assert.match(gameSource, /iconTimer = window\.setTimeout[\s\S]*?pixi\.exportIcons\(\)[\s\S]*?, 50\)/);
+  assert.match(gameSource, /지도가 표시될 때까지 전투 시간은 흐르지 않습니다\./);
+  assert.match(gameSource, /지도 다시 불러오기/);
+  assert.match(pixiSource, /let stwPixiModulePromise: Promise<PixiModule> \| null = null/);
+  assert.match(pixiSource, /return loadStwPixiModule\(\)/);
   const brief = await readFile(new URL("../docs/starswar-design.md", import.meta.url), "utf8");
   assert.match(brief, /app\/starswar\//);
 });
