@@ -1,3 +1,4 @@
+import { detachSpecialEntity } from "../abilities/special-cleanup";
 import { detachEconomyEntity } from "../economy/cleanup";
 import { recomputeSupply } from "../economy/helpers";
 import { idleMovement } from "./orders";
@@ -111,8 +112,9 @@ export function createEntity(
   return id;
 }
 export function removeEntity(state: SimulationState, id: number): boolean {
+  if (!state.entities.id.includes(id)) return false;
+  for (const passenger of detachSpecialEntity(state, id)) removeEntity(state, passenger);
   const index = state.entities.id.indexOf(id);
-  if (index < 0) return false;
   detachEconomyEntity(state, id);
   if (state.vision)
     state.vision.concealed = state.vision.concealed.filter(
