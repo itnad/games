@@ -308,6 +308,7 @@ describe("stage 5a save compatibility and mode isolation", () => {
     legacy.simulation.combat.rulesVersion = PREVIOUS_COMBAT_RULES_VERSION;
     delete legacy.simulation.combat.projectiles;
     legacy.dataVersion = legacy.simulation.dataVersion = legacy.dataVersion.replace(ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION);
+    if (legacy.simulation.vision) legacy.simulation.vision.rulesVersion = "fog-1-los-edge-detector11-memory600";
     legacy.checksum = checksum(legacy.simulation);
     const key = DEVELOPMENT_SAVE_PREFIX + "combat.terran",
       raw = JSON.stringify(legacy),
@@ -360,6 +361,7 @@ describe("stage 5a save compatibility and mode isolation", () => {
     old.simulation.combat.rulesVersion = PREVIOUS_COMBAT_RULES_VERSION;
     delete old.simulation.combat.projectiles;
     old.dataVersion = old.simulation.dataVersion = old.dataVersion.replace(ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION);
+    if (old.simulation.vision) old.simulation.vision.rulesVersion = "fog-1-los-edge-detector11-memory600";
     old.checksum = checksum(old.simulation);
     const raw = JSON.stringify(old);
     let value = raw;
