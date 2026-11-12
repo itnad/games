@@ -1,4 +1,5 @@
 "use client";
+import { hasBasicWeapon } from "../combat/catalog";
 import type { Scenario } from "../combat/state";
 import type { WorkerToMainMessage } from "../worker/messages";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -38,12 +39,12 @@ export function SimulationSession({
   const initialSession = (): SessionState => ({
     camera: {
       centerX:
-        (scenario === "combat-practice"
-          ? 18
-          : registered.map.spawnPoints[0].x) * 256,
+        (scenario !== "economy" ? 18 : registered.map.spawnPoints[0].x) * 256,
       centerY:
-        (scenario === "combat-practice"
-          ? 18
+        (scenario !== "economy"
+          ? scenario === "ranged-practice"
+            ? 20
+            : 18
           : registered.map.spawnPoints[0].y) * 256,
       zoomLevel: 1,
     },
@@ -134,20 +135,20 @@ export function SimulationSession({
           }
         }
         if (message.kind === "renderSnapshot" && !restoring && !failed) {
-          if (firstRender && !restoration && scenario === "combat-practice") {
+          if (firstRender && !restoration && scenario !== "economy") {
             session.current.selection = {
               entityIds: message.payload.entities
                 .filter(
                   (e) =>
                     e.owner === 0 &&
-                    [
-                      "terran-marine",
-                      "zerg-zergling",
-                      "protoss-zealot",
-                    ].includes(e.definitionId),
+                    e.kind === "combat" &&
+                    hasBasicWeapon(e.definitionId),
                 )
                 .map((e) => e.id),
-              controlGroupIds: [0],
+              controlGroupIds:
+                scenario === "ranged-practice" && faction === "terran"
+                  ? [0, 1]
+                  : [0],
             };
           }
           firstRender = false;
@@ -298,9 +299,12 @@ export function SimulationSession({
             </span>
           )}
         </header>
-        {snapshot?.combat?.scenario === "combat-practice" && (
+        {snapshot?.combat && snapshot.combat.scenario !== "economy" && (
           <div className="sr-practice-status" role="status">
-            전투 연습 · 남은 적 {snapshot.combat.targetsRemaining}/
+            {snapshot.combat.scenario === "ranged-practice"
+              ? "원거리 연습"
+              : "전투 연습"}{" "}
+            · 남은 적 {snapshot.combat.targetsRemaining}/
             {snapshot.combat.totalTargets} · 아군{" "}
             {snapshot.combat.friendlyRemaining}
             {snapshot.combat.targetsRemaining === 0
