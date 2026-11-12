@@ -903,6 +903,7 @@ function runCommand(state, side, command) {
         for (const unit of members) {
           delete unit.squad;
           if (!STW_UNITS[unit.type].transport) unit.group = "attack";
+          unit.passing = true;
         }
         if (side === "player") pushLog(state, side, `${names} 부대 ${members.length}기가 출격합니다!`, "order");
         return { ok: true, mode: "attack" };
@@ -913,6 +914,8 @@ function runCommand(state, side, command) {
         unit.group = "rally";
         unit.squad = unit.type;
         delete unit.fresh;
+        // 따로 옮기는 부대는 길을 막는 아군을 비키게 하며 지나간다.
+        unit.passing = true;
       }
       if (side === "player") pushLog(state, side, `${names} 부대 ${members.length}기가 ${withKoreanDirection(stwRallyName(y, state))} 갑니다.`, "order");
       return { ok: true, mode: "squad", y };
@@ -927,6 +930,35 @@ function runCommand(state, side, command) {
       if (side === "player") pushLog(state, side, `${types.map((type) => STW_UNITS[type].name).join("·")} 부대가 본대로 돌아갑니다.`, "order");
       return { ok: true };
     }
+    case "infiltrate": {
+      // 침투: 고른 종류의 부대가 교전 없이 전장 가장자리를 따라 적 본진·앞마당 광물 줄까지 걸어가, 게릴라 드랍 병력처럼 일꾼을 친다.
+      // 적 병력이 몰려오거나 25초가 지나거나 회수하면 다시 가장자리를 따라 걸어서 돌아온다.
+      const types = (command.units ?? []).filter((type) => STW_UNITS[type] && !STW_UNITS[type].worker && !STW_UNITS[type].transport && type !== "overlord");
+      if (!types.length) return fail("침투할 부대를 고르세요");
+      const members = state.units.filter((unit) => unit.side === side && unit.hp > 0 && types.includes(unit.type) && (unit.group === "rally" || unit.group === "attack") && unit.raid === undefined);
+      if (!members.some((unit) => STW_UNITS[unit.type].damage)) return fail("침투할 전투 유닛이 없습니다");
+      const base = command.base === "natural" ? "natural" : "main";
+      const foe = stwOpponent(side);
+      const op = { id: state.nextId++, side, kind: "walk", target: base, base, transports: [], riders: members.map((unit) => unit.id), phase: "out", since: state.time, sync: false, repeat: false, value: members.reduce((sum, unit) => sum + unitValue(unit), 0) };
+      state.ops ??= [];
+      state.ops.push(op);
+      record.squads ??= {};
+      for (const type of types) delete record.squads[type];
+      const goal = mineralCenter(state, foe, base);
+      for (const unit of members) {
+        unit.group = "walk";
+        unit.raid = op.id;
+        unit.targetId = null;
+        delete unit.squad;
+        delete unit.fresh;
+        unit.walkPath = walkPath(unit, { x: goal.x + ((unit.id % 5) - 2) * 1.2, y: goal.y });
+      }
+      if (side === "player") {
+        const names = types.filter((type) => members.some((unit) => unit.type === type)).map((type) => STW_UNITS[type].name).join("·");
+        pushLog(state, side, `${names} ${members.length}기가 적 ${base === "natural" ? "앞마당" : "본진"} 광물 줄로 침투합니다.`, "order");
+      }
+      return { ok: true, opId: op.id };
+    }
     case "dropRecall": {
       // 진행 중인 수송 작전을 지금 거둔다. 게릴라는 내렸으면 태워서, 가는 중이면 그대로 돌아온다.
       // 폭탄은 내리기 전(집결·진입 중)에만 거둘 수 있다(내린 병력은 끝까지 싸운다).
@@ -934,7 +966,12 @@ function runCommand(state, side, command) {
       let recalled = 0;
       for (const op of ops) {
         const transports = op.transports.map((id) => state.units.find((item) => item.id === id && item.hp > 0)).filter(Boolean);
-        if (op.kind === "raid") {
+        if (op.kind === "walk") {
+          if (op.phase === "out" || op.phase === "fight") {
+            walkHome(state, op);
+            recalled += 1;
+          }
+        } else if (op.kind === "raid") {
           if (op.phase === "out") {
             for (const transport of transports) transport.dropPath = homePath(side, transport);
             op.phase = "home";
@@ -2380,6 +2417,11 @@ function stepUnits(state, dt) {
       unit.group = "attack";
       unit.raid = undefined;
     }
+    // 침투 중: 교전 없이 경로를 따라 걷는다(마엘스트롬 등에 묶이면 아래에서 멈춘다).
+    if (unit.group === "walk" && !stunned(state, unit) && !inStasis(state, unit)) {
+      walkStep(state, unit, dt);
+      continue;
+    }
     // 마엘스트롬·락다운·스테이시스: 꼼짝 못 한다.
     if (stunned(state, unit) || inStasis(state, unit)) {
       unit.targetId = null;
@@ -2469,6 +2511,8 @@ function stepUnits(state, dt) {
     // 집결지에 와 있는 대기 병력은 멀리 있는 적을 쫓지 않는다. 집결지로 이동 중(싸우며 전진)일 때는 만나는 적과 모두 싸운다.
     const settled = slot && distance(unit.x, unit.y, slot.x, slot.y) < RALLY_LEASH;
     if (settled && unit.fresh) delete unit.fresh;
+    // 따로 옮긴 부대가 제자리에 닿으면 비키게 하기를 끝낸다(공격하는 부대는 싸우기 시작하면 끝낸다).
+    if (unit.passing && ((slot && !isAttack && distance(unit.x, unit.y, slot.x, slot.y) < 2.5) || (isAttack && unit.targetId !== null))) delete unit.passing;
     // 갓 나와 이동 공격 중인 유닛은 가는 길의 적만 친다: 제자리에서 자기보다(4칸 넘게) 더 먼 적은 쫓지 않는다
     // (방어 건물 뒤 집결지로 가던 질럿이 저글링을 쫓아 열린 곳으로 나가 녹았다).
     const leashed = (item) => !isAttack && slot && (settled
@@ -3026,6 +3070,10 @@ function stepOps(state) {
   for (const op of state.ops ?? []) {
     const transports = op.transports.map(find).filter(Boolean);
     const record = state.sides[op.side];
+    if (op.kind === "walk") {
+      stepWalkOp(state, op);
+      continue;
+    }
     if (op.kind === "raid") {
       const transport = transports[0];
       const riders = op.riders.map(find).filter(Boolean);
@@ -3183,6 +3231,82 @@ function raidRiderStep(state, unit, dt) {
   }
   if (unit.cooldown <= 0) hitWorkers(state, unit, foe, op.base, workers, center);
   return true;
+}
+
+/**
+ * 침투 경로: 가까운 가장자리로 비켜서 그 가장자리를 따라 목표 높이까지 간 뒤 목표로(게릴라 드랍 수송선의 길과 같다).
+ * 협곡에서는 지상 유닛이 절벽 안쪽 길로 밀려 길 가장자리를 타고 간다.
+ */
+function walkPath(unit, goal) {
+  const x = edgeX(unit.x);
+  return [{ x, y: unit.y }, { x, y: goal.y }, goal];
+}
+
+/** 침투 병력의 이동: 교전하지 않고 경로를 따라 걷는다. 다 걸으면 도착(가는 길이면 광물 줄 견제, 돌아오는 길이면 대기 병력). */
+function walkStep(state, unit, dt) {
+  unit.targetId = null;
+  const next = unit.walkPath?.[0];
+  if (next) {
+    // 서로 밀려 정확한 점에 못 서도 1.2칸 안이면 닿은 것으로 친다.
+    if (moveToward(unit, next.x, next.y, unitSpeed(state, unit), dt) || distance(unit.x, unit.y, next.x, next.y) < 1.2) unit.walkPath.shift();
+    if (unit.walkPath.length) return;
+  }
+  unit.walkPath = undefined;
+  const op = (state.ops ?? []).find((item) => item.id === unit.raid);
+  if (op && op.phase !== "home") {
+    // 광물 줄에 닿았다: 게릴라 드랍 병력처럼 싸운다(raidRiderStep).
+    unit.group = "attack";
+    return;
+  }
+  unit.group = "rally";
+  unit.raid = undefined;
+}
+
+/** 침투 병력을 모두 돌려보낸다(가장자리를 따라 집결지로, 교전하지 않고). */
+function walkHome(state, op) {
+  const home = { x: STW_LANE_WIDTH / 2, y: stwRallyY(op.side, state.sides[op.side].rally, state) };
+  for (const id of op.riders) {
+    const unit = state.units.find((item) => item.id === id && item.hp > 0);
+    if (!unit || unit.raid !== op.id) continue;
+    unit.group = "walk";
+    unit.targetId = null;
+    unit.walkPath = walkPath(unit, { x: home.x + ((unit.id % 5) - 2) * 1.6, y: home.y });
+  }
+  op.phase = "home";
+  op.since = state.time;
+}
+
+/** 침투 작전: 걷는 중 → 광물 줄 견제(게릴라 드랍과 같은 철수 규칙) → 걸어서 귀환. */
+function stepWalkOp(state, op) {
+  const riders = op.riders.map((id) => state.units.find((item) => item.id === id && item.hp > 0)).filter((unit) => unit && unit.raid === op.id);
+  if (!riders.length) {
+    op.done = true;
+    return;
+  }
+  if (op.phase === "out") {
+    if (riders.some((unit) => unit.group !== "walk")) {
+      op.phase = "fight";
+      op.since = state.time;
+      if (op.side === "player") pushLog(state, "player", `침투 병력이 적 ${op.base === "natural" ? "앞마당" : "본진"} 광물 줄에 닿았습니다.`, "good");
+    }
+    return;
+  }
+  if (op.phase === "fight") {
+    const alive = riders.filter((unit) => unit.group !== "walk");
+    if (!alive.length) return;
+    const cx = alive.reduce((sum, unit) => sum + unit.x, 0) / alive.length;
+    const cy = alive.reduce((sum, unit) => sum + unit.y, 0) / alive.length;
+    const aliveValue = alive.reduce((sum, unit) => sum + unitValue(unit) * (unit.hp + unit.shields) / (unit.maxHp + unit.maxShields), 0);
+    const health = alive.reduce((sum, unit) => sum + unit.hp + unit.shields, 0) / alive.reduce((sum, unit) => sum + unit.maxHp + unit.maxShields, 0);
+    const timeUp = state.time - op.since > STW_TRANSPORT.raidDwell || Boolean(op.recallNow);
+    const outnumbered = threatValue(state, op.side, cx, cy, 10) > aliveValue * STW_TRANSPORT.retreatRatio;
+    if (timeUp || outnumbered || health < STW_TRANSPORT.hpRatio) {
+      walkHome(state, op);
+      if (op.side === "player") pushLog(state, "player", timeUp ? "침투를 마치고 걸어서 돌아옵니다." : "적 병력이 몰려와 침투 병력이 돌아옵니다.", "order");
+    }
+    return;
+  }
+  if (riders.every((unit) => unit.group !== "walk")) op.done = true;
 }
 
 /** 폭탄 드랍으로 내린 병력: 가까운 적 유닛과 싸우고, 아니면 목표 종류의 건물(생산·기술·본진)을 먼저 친다. */
@@ -3714,7 +3838,15 @@ function separate(state) {
         const sideways = Math.sign(dx) || (a.id % 2 ? 1 : -1);
         [ax, ay, bx, by] = [-sideways * overlap * 0.5, 0, sideways * overlap * 0.5, 0];
       }
-      if (a.side === b.side && (holdA || holdB)) {
+      // 따로 옮기는 부대·침투 병력이 지나가면 막고 선 아군이 옆으로 비켜 준다(지나가는 쪽은 밀리지 않는다).
+      // 예전에는 앞에 몰려 선 질럿이 자리를 지켜, 뒤의 다크템플러만 따로 보내도 길이 막혀 나가지 못했다.
+      const passA = Boolean(a.passing) || a.group === "walk";
+      const passB = Boolean(b.passing) || b.group === "walk";
+      if (a.side === b.side && passA !== passB && !(passA ? b : a).sieged && !(passA ? b : a).burrowed) {
+        const away = (Math.sign(dx) || (a.id % 2 ? 1 : -1)) * (passA ? 1 : -1);
+        if (passA) [ax, ay, bx, by] = [0, 0, away * overlap, ny * overlap * 0.3];
+        else [ax, ay, bx, by] = [away * overlap, -ny * overlap * 0.3, 0, 0];
+      } else if (a.side === b.side && (holdA || holdB)) {
         // 자리 잡은 유닛은 아군에게 밀릴 때 레인 세로(교전선 앞뒤)로는 움직이지 않고 가로로만 비켜 준다.
         // 그 몫은 움직이는 아군이 떠안고, 둘 다 자리를 잡았으면 버린다(앞뒤로 조금 겹친 채 둔다).
         if (holdA) {

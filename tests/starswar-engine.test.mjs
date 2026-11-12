@@ -2896,3 +2896,57 @@ test("starswar the army can be sent all the way back to the main mineral line", 
   run(ai, 200, stwAiThink);
   if ((ai.sides.enemy.ai.alertUntil ?? 0) > ai.time && !stwNexus(ai, "enemy", "natural")) assert.equal(ai.sides.enemy.rally, 84);
 });
+
+test("starswar a squad moved on its own gets through allies that step aside", () => {
+  const state = quiet();
+  stwCommand(state, "player", { type: "move", y: 60 });
+  const zealots = Array.from({ length: 18 }, (_, i) => stwSpawnUnitAt(state, "player", "zealot", 8 + (i % 9) * 3, 58 + Math.floor(i / 9) * 2, "rally"));
+  const darks = [17, 20, 23].map((x) => stwSpawnUnitAt(state, "player", "dark", x, 66, "rally"));
+  run(state, 10);
+  const lines = zealots.map((unit) => unit.y);
+  assert.equal(stwCommand(state, "player", { type: "squadMove", units: ["dark"], y: 38 }).ok, true);
+  assert.ok(darks.every((unit) => unit.passing), "따로 옮기는 부대는 아군을 비키게 한다");
+  run(state, 12);
+  // 예전에는 셋 중 하나가 질럿 줄 뒤(y 59)에 막혀 끝내 나가지 못했다.
+  assert.ok(darks.every((unit) => unit.y < 41), `다크템플러가 모두 질럿 줄을 지나 도착한다 (${darks.map((unit) => unit.y.toFixed(1))})`);
+  assert.ok(darks.every((unit) => !unit.passing), "자리에 닿으면 비키게 하기가 끝난다");
+  assert.ok(zealots.every((unit, index) => Math.abs(unit.y - lines[index]) < 3), "질럿은 옆으로만 비켜 섰다가 제 줄에 남는다");
+});
+
+test("starswar infiltration walks a squad along the edge to the enemy mineral line, hits workers, and walks back", () => {
+  const state = quiet();
+  state.sides.enemy.probes = 16;
+  const guards = Array.from({ length: 6 }, (_, i) => stwSpawnUnitAt(state, "enemy", "zealot", 14 + i * 2.4, 24, "rally"));
+  const darks = [18, 20, 22].map((x) => stwSpawnUnitAt(state, "player", "dark", x, 77, "rally"));
+  const stay = stwSpawnUnitAt(state, "player", "zealot", 16, 77, "rally");
+  assert.match(stwCommand(state, "player", { type: "infiltrate", units: [], base: "main" }).reason, /침투할 부대/);
+  const result = stwCommand(state, "player", { type: "infiltrate", units: ["dark"], base: "main" });
+  assert.equal(result.ok, true);
+  const op = state.ops.find((item) => item.id === result.opId);
+  assert.equal(op.kind, "walk");
+  assert.ok(darks.every((unit) => unit.group === "walk"), "고른 부대만 침투한다");
+  assert.equal(stay.group, "rally");
+  assert.equal(stwArmy(state, "player").rally.length, 1, "침투 병력은 대기·공격 병력에서 빠진다");
+  // 가는 길에는 싸우지 않는다(가장자리를 따라 간다).
+  run(state, 10);
+  assert.ok(darks.every((unit) => unit.targetId === null && (unit.x < 3 || unit.x > 37)), "가장자리를 따라 걷는다");
+  run(state, 30);
+  assert.equal(op.phase, "fight", "적 본진 광물 줄에 닿았다");
+  run(state, 30);
+  assert.ok(state.sides.enemy.probes < 16, `일꾼을 잡는다 (${state.sides.enemy.probes})`);
+  assert.equal(op.phase, "home", "25초 뒤 걸어서 돌아온다");
+  assert.ok(guards.every((unit) => unit.hp === unit.maxHp), "적 대기 병력과 싸우지 않았다(탐지되지 않은 다크템플러)");
+  run(state, 60);
+  assert.ok(!state.ops.some((item) => item.id === op.id), "작전이 끝났다");
+  assert.ok(darks.filter((unit) => unit.hp > 0).every((unit) => unit.group === "rally" && unit.raid === undefined && unit.y > 60), "집결지로 돌아와 대기 병력이 된다");
+
+  // 가는 중에 회수하면 바로 걸어서 돌아온다.
+  const recall = quiet();
+  const zerglings = Array.from({ length: 4 }, (_, i) => stwSpawnUnitAt(recall, "player", "zealot", 18 + i, 77, "rally"));
+  const sent = stwCommand(recall, "player", { type: "infiltrate", units: ["zealot"], base: "natural" });
+  run(recall, 8);
+  assert.equal(stwCommand(recall, "player", { type: "dropRecall", opId: sent.opId }).ok, true);
+  assert.equal(recall.ops.find((item) => item.id === sent.opId).phase, "home");
+  run(recall, 40);
+  assert.ok(zerglings.every((unit) => unit.group === "rally"), "회수한 병력은 집결지로 돌아온다");
+});

@@ -79,6 +79,8 @@
 .stw-squad-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
 .stw-squad-actions button { min-height:40px; padding:0 6px; border:1px solid #e9c77a55; border-radius:10px; background:#ffffff08; font-size:14px !important; font-weight:900; white-space:nowrap; }
 .stw-squad-actions button:disabled { opacity:.45; }
+.stw-squad-actions.two { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.stw-squad-panel .stw-ops { margin:0; }
 .stw-squad-hint { margin:0; color:var(--stw-muted); font-size:12px !important; line-height:1.4 !important; }
 .stw-intel-chip { position:absolute; right:12px; top:52px; left:8px; margin:0; width:max-content; max-width:calc(100% - 20px); overflow:hidden; padding:5px 10px; border-radius:9px; color:#ffd8cc; background:#2a120bd9; font-size:13px !important; font-weight:800; line-height:1.35 !important; text-overflow:ellipsis; white-space:nowrap; pointer-events:none; }
 /* 정찰 버튼이 오른쪽 가장자리에 서므로 기록은 오른쪽을 비워 둔다. */

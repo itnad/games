@@ -36,7 +36,10 @@ export type StwUnit = {
   radius: number;
   heading: number;
   energy: number;
-  group: "rally" | "attack" | "scout" | "drop" | "cargo" | "board";
+  /** walk: 침투 중(교전 없이 가장자리를 따라 걷는다). */
+  group: "rally" | "attack" | "scout" | "drop" | "cargo" | "board" | "walk";
+  /** 따로 옮기는 부대: 길을 막는 아군이 비켜 준다. */
+  passing?: boolean;
   targetId: number | null;
   sieged?: boolean;
   siegeUntil?: number;
@@ -106,7 +109,8 @@ export type StwDropMission = "raid" | "bomb";
 export type StwDropTarget = "main" | "natural" | "tech" | "alternate" | "production";
 export type StwDropPlan = { mission: StwDropMission; target: StwDropTarget; repeat: boolean; sync: boolean };
 /** 진행 중인 수송 작전. */
-export type StwOp = { id: number; side: StwSide; kind: StwDropMission; target: StwDropTarget; base: "main" | "natural"; transports: number[]; riders: number[]; phase: "out" | "fight" | "pickup" | "home" | "gather" | "in"; since: number; sync: boolean; repeat: boolean; value: number };
+/** 작전: 게릴라 드랍(raid)·폭탄 드랍(bomb)·걸어서 침투(walk). */
+export type StwOp = { id: number; side: StwSide; kind: StwDropMission | "walk"; target: StwDropTarget; base: "main" | "natural"; transports: number[]; riders: number[]; phase: "out" | "fight" | "pickup" | "home" | "gather" | "in"; since: number; sync: boolean; repeat: boolean; value: number };
 
 export type StwSideState = {
   id: StwSide;
@@ -230,6 +234,7 @@ export type StwCommand =
   | { type: "cancelResearch"; research: StwResearchId }
   | { type: "cancelUnit"; buildingId: number }
   | { type: "dropRecall"; opId?: number }
+  | { type: "infiltrate"; units: string[]; base: "main" | "natural" }
   | { type: "squadMove"; units: string[]; y: number }
   | { type: "squadRelease"; units?: string[] };
 

@@ -99,10 +99,16 @@ function writeLearning(data: unknown) {
 }
 const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
 const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", stargate: "스타게이트", barracks: "배럭", factory: "팩토리", starport: "스타포트", hatchery: "해처리", hatch: "해처리" };
-/** 진행 중인 수송 작전 한 줄 요약. */
+/** 진행 중인 작전 한 줄 요약. */
 function opStatus(game: StwState, op: StwOp) {
   const phase: Record<StwOp["phase"], string> = { out: "이동 중", fight: `견제 중 ${Math.max(0, Math.round(game.time - op.since))}초`, pickup: "회수 중", home: "귀환 중", gather: op.sync ? "집결 · 정면 대기" : "집결 중", in: "진입 중" };
-  return `${op.kind === "raid" ? "게릴라" : "폭탄"} ${phase[op.phase]}`;
+  const name = op.kind === "walk" ? `침투(${op.base === "natural" ? "앞마당" : "본진"})` : op.kind === "raid" ? "게릴라" : "폭탄";
+  return `${name} ${phase[op.phase]}`;
+}
+
+/** 지금 거둘 수 있는 작전인지(침투·게릴라는 가는 중·견제 중, 폭탄은 내리기 전). */
+function opRecallable(op: StwOp) {
+  return op.kind === "bomb" ? op.phase === "gather" || op.phase === "in" : op.phase === "out" || op.phase === "fight";
 }
 
 /**
@@ -780,6 +786,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   };
   const toggleSquad = (type: string) => setSelected((current) => (current.includes(type) ? current.filter((item) => item !== type) : [...current, type]));
   const mapScouts = game.units.filter((unit) => unit.side === "player" && unit.group === "scout");
+  const walkOps = (game.ops ?? []).filter((op) => op.side === "player" && op.kind === "walk");
   const mapScoutsMain = mapScouts.filter((unit) => unit.scoutMode !== "resources").length;
 
   return (
@@ -873,7 +880,21 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 <button type="button" disabled={!selected.some((type) => squadSpots[type])} onClick={() => issue({ type: "squadRelease", units: selected })}>본대로</button>
                 <button type="button" disabled={!selected.length} onClick={() => setSelected([])}>선택 해제</button>
               </div>
-              <p className="stw-squad-hint">그 종류의 새 유닛도 그 부대로 갑니다. 병력 탭의 출격은 모든 부대를 합칩니다.</p>
+              <div className="stw-squad-actions two">
+                <button type="button" disabled={!selected.length} onClick={() => { issue({ type: "infiltrate", units: selected, base: "main" }); setSelected([]); }}>본진 침투</button>
+                <button type="button" disabled={!selected.length} onClick={() => { issue({ type: "infiltrate", units: selected, base: "natural" }); setSelected([]); }}>앞마당 침투</button>
+              </div>
+              {walkOps.length ? (
+                <ul className="stw-ops">
+                  {walkOps.map((op) => (
+                    <li key={op.id}>
+                      <span>{opStatus(game, op)}</span>
+                      <button type="button" disabled={!opRecallable(op)} onClick={() => issue({ type: "dropRecall", opId: op.id }, "침투 병력을 돌려보냅니다.")}>{opRecallable(op) ? "지금 회수" : "귀환 중"}</button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <p className="stw-squad-hint">그 종류의 새 유닛도 그 부대로 갑니다. 병력 탭의 출격은 모든 부대를 합칩니다. 침투는 고른 부대가 싸우지 않고 가장자리를 따라 적 광물 줄까지 걸어가 일꾼을 치고, 적이 몰려오거나 25초가 지나면 걸어서 돌아옵니다. 따로 옮기는 부대는 길을 막는 아군을 비키게 하며 지나갑니다.</p>
             </div>
           ) : (
             <div className="stw-panel-body" key={tab}>
@@ -1188,11 +1209,11 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
       {ops.length ? (
         <ul className="stw-ops">
           {ops.map((op) => {
-            const recallable = op.kind === "raid" ? op.phase === "out" || op.phase === "fight" : op.phase === "gather" || op.phase === "in";
+            const recallable = opRecallable(op);
             return (
               <li key={op.id}>
                 <span>{opStatus(game, op)}</span>
-                <button type="button" disabled={!recallable} onClick={() => issue({ type: "dropRecall", opId: op.id }, "수송 작전 병력을 거둬들입니다.")}>
+                <button type="button" disabled={!recallable} onClick={() => issue({ type: "dropRecall", opId: op.id }, op.kind === "walk" ? "침투 병력을 돌려보냅니다." : "수송 작전 병력을 거둬들입니다.")}>
                   {recallable ? "지금 회수" : op.phase === "pickup" ? "회수 중" : op.kind === "bomb" && op.phase === "home" ? "내린 병력은 끝까지" : "귀환 중"}
                 </button>
               </li>
