@@ -1084,7 +1084,7 @@ function runCommand(state, side, command) {
       }
       // 기낭 갑피 없이 오버로드로 나가면 알려 준다(오버로드 2.4는 셔틀 4.4·드랍십 3.8보다 훨씬 느려 대공에 오래 노출된다).
       if (side === "player" && transports.some((item) => item.type === "overlord") && !stwResearchDone(state, side, "pneumatized")) {
-        pushLog(state, side, "오버로드가 느립니다. 기낭 갑피를 연구하면 1.5배 빨라집니다.", "warn");
+        pushLog(state, side, "오버로드가 느립니다. 기낭 갑피를 연구하면 이동 속도가 1.5배(2.4 → 3.6)가 됩니다.", "warn");
       }
       return { ok: true, transports: transports.length, loaded, mission: plan.mission };
     }
