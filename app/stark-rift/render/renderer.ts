@@ -1,3 +1,5 @@
+import {MEMORY_TICKS} from "../vision/state";
+import {economyDefinition} from "../data/economy-catalog";
 import {
   COMMAND_FEEDBACK_MS,
   type CommandFeedback,
@@ -40,6 +42,7 @@ export class BattleRenderer {
   private placement = new Graphics();
   private world = new Container();
   private units = new Container();
+  private memories=new Container();private miniMemories=new Container();private memorySprites=new Map<number,Graphics>();private miniMemorySprites=new Map<number,Graphics>();
   private minimapUnits = new Container();
   private viewportOutline = new Graphics();
   private terrainTexture?: Texture;
@@ -170,14 +173,14 @@ export class BattleRenderer {
         new Sprite(this.terrainTexture),
         this.creep,
         this.resources,
-        this.units,
+        this.memories,this.units,
         this.flying,
         this.combatEffects,
         this.placement,
       );
       const miniTerrain = new Sprite(this.minimapTerrainTexture);
       miniTerrain.label = "terrain";
-      this.minimap.stage.addChild(miniTerrain, this.minimapUnits);
+      this.minimap.stage.addChild(miniTerrain,this.miniMemories, this.minimapUnits);
       this.fogCanvas.width = this.map.widthTiles;
       this.fogCanvas.height = this.map.heightTiles;
       this.fogTexture = Texture.from(this.fogCanvas);
@@ -332,6 +335,15 @@ export class BattleRenderer {
             .fill({ color: 0x673b60, alpha: 0.5 });
       }
     }
+    const remembered=snapshot.scouting?.contacts??[],knownIds=new Set(remembered.map(c=>c.entityId));
+    for(const [id,g]of this.memorySprites)if(!knownIds.has(id)){g.destroy();this.memorySprites.delete(id);this.miniMemorySprites.get(id)?.destroy();this.miniMemorySprites.delete(id);}
+    for(const c of remembered){
+      let g=this.memorySprites.get(c.entityId),mini=this.miniMemorySprites.get(c.entityId);
+      if(!g){g=new Graphics();mini=new Graphics();this.memories.addChild(g);this.miniMemories.addChild(mini);this.memorySprites.set(c.entityId,g);this.miniMemorySprites.set(c.entityId,mini!);}
+      const d=economyDefinition(c.definitionId),alpha=c.kind==='building'?.55:.55*Math.max(0,1-(snapshot.tick-c.seenTick)/MEMORY_TICKS);
+      if(!updateEconomicMarker(g,{id:c.entityId,owner:c.owner,definitionId:c.definitionId,x:c.x,y:c.y,kind:c.kind,layer:c.layer,radius:c.radius,health:d?.health??1,shield:d?.shield??0},0x7792a1,null,c.progress===null?null:c.progress/1000))updateUnitMarker(g,0x7792a1,false,null,c.radius);
+      g.alpha=alpha;g.position.set(c.x/256,c.y/256);updateMinimapMarker(mini!,0x9ba7ae);mini!.alpha=alpha;mini!.position.set(c.x/256,c.y/256);
+    }
     this.combatEffects.clear();
     for (const e of snapshot.combat?.effects ?? []) {
       const color =
@@ -343,7 +355,8 @@ export class BattleRenderer {
                 ? 0xffda8b
                 : 0xff7c80,
         age = (snapshot.tick - e.tick) / 9;
-      if (e.kind === "death")
+      if(e.kind==='miss'){const x=e.toX/256,y=e.toY/256;this.combatEffects.moveTo(x-.18,y-.18).lineTo(x+.18,y+.18).moveTo(x+.18,y-.18).lineTo(x-.18,y+.18).stroke({color:0xc1c6cd,width:.06,alpha:1-age});}
+      else if (e.kind === "death")
         this.combatEffects
           .circle(e.x / 256, e.y / 256, 0.3 + age * 0.5)
           .stroke({ color: 0xff9d65, width: 0.08, alpha: 1 - age });
@@ -604,7 +617,7 @@ export class BattleRenderer {
     this.destroyApplications();
     for (const display of [
       this.world,
-      this.minimapUnits,
+      this.minimapUnits,this.memories,this.miniMemories,
       this.viewportOutline,
       this.commandMarker,
       this.combatEffects,
