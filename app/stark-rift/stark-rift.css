@@ -40,3 +40,5 @@
 
 /* Keep one full 52px action below the sticky selection bar on short portrait screens. */
 .sr-commands {scroll-padding-top:64px}.sr-economy-controls button {scroll-margin-top:64px}
+
+.sr-transport-controls{display:flex;flex-direction:column;gap:5px}.sr-cargo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.sr-cargo-grid button{display:flex;flex-direction:column;gap:3px;padding:6px!important;font-size:11px!important}.sr-cargo-grid small{font-size:10px;color:#b4cccf}
