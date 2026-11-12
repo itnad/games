@@ -1,3 +1,4 @@
+import { isBurrowed } from "../abilities/burrow";
 import type { BattleMap } from "../data/maps";
 import type { EngineRules, CommandHandler } from "./simulation";
 import type { SimulationState } from "./state";
@@ -82,6 +83,7 @@ export function createMovementRules(
           return null;
         }
         if (
+          (isBurrowed(state, id) && ["move", "attackMove", "focusAttack", "patrol"].includes(command.kind)) ||
           s.kind[index] === "building" ||
           (["move", "attackMove", "focusAttack", "patrol"].includes(
             command.kind,
