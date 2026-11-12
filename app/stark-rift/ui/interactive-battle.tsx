@@ -57,8 +57,9 @@ export function InteractiveBattle({
   const [preview, setPreview] = useState<number[]>([]),
     [pending, setPending] = useState<number[] | null>(null),
     [mode, setMode] = useState<
-      "move" | "attackMove" | "patrol" | "rally" | null
+      "move" | "attackMove" | "patrol" | "rally" | "load" | "unload" | null
     >(null);
+  const transportActors = useRef<number[]>([]);
   const [build, setBuild] = useState<{ id: string; repeat: boolean } | null>(
       null,
     ),
@@ -112,7 +113,7 @@ export function InteractiveBattle({
     const alive = [...new Set(ids)].filter((id) =>
       snapshot.entities.some(
         (e) => e.id === id && e.owner === snapshot.viewerPlayerId,
-      ),
+      ) || (snapshot.economy?.transports ?? []).some((t) => t.passengers.some((p) => p.id === id)),
     );
     if (alive.join(",") !== selected.join(",")) select(alive, slots);
   }, [snapshot, ui]);
@@ -174,7 +175,7 @@ export function InteractiveBattle({
   };
   const focus = (ids: number[]) => {
     const entities = latest.current.snapshot.entities.filter((e) =>
-      ids.includes(e.id),
+      ids.includes(e.id) || (latest.current.snapshot.economy?.transports ?? []).some((t) => t.entityId === e.id && t.passengers.some((p) => ids.includes(p.id))),
     );
     const c = camera.current;
     if (!entities.length || !c) return;
@@ -214,7 +215,7 @@ export function InteractiveBattle({
           current.build ||
           current.buildMenu ||
           current.mode === "rally" ||
-          current.mode === "attackMove"
+          current.mode === "attackMove" || current.mode === "unload"
         )
           return null;
         const d = size(),
@@ -230,6 +231,12 @@ export function InteractiveBattle({
       },
       tap: (hit) => {
         const current = latest.current;
+        if (current.mode === "load") {
+          const passenger = current.snapshot.entities.find((e) => e.id === hit.entityId);
+          if (passenger?.owner === current.snapshot.viewerPlayerId && passenger.layer === "ground" && passenger.kind !== "building")
+            issue({ kind: "loadTransport", entityIds: transportActors.current, target: { kind: "entity", entityId: passenger.id } });
+          return;
+        }
         if (hit.entityId < 0) {
           const n = map.resourceNodes[-hit.entityId - 1];
           if (n)
@@ -281,6 +288,11 @@ export function InteractiveBattle({
           hit ? selectNearby(latest.current.snapshot, hit.entityId) : [],
         ),
       group: (hit) => {
+        if (latest.current.mode === "load") {
+          const e = latest.current.snapshot.entities.find((e) => e.id === hit.entityId);
+          if (e?.owner === latest.current.snapshot.viewerPlayerId && e.layer === "ground" && e.kind !== "building") issue({ kind: "loadTransport", entityIds: transportActors.current, target: { kind: "entity", entityId: e.id } });
+          return;
+        }
         const current = latest.current,
           e = current.snapshot.entities.find((e) => e.id === hit.entityId);
         if (!e || e.owner !== current.snapshot.viewerPlayerId) return;
@@ -315,6 +327,7 @@ export function InteractiveBattle({
         else setPending(ids);
       },
       swipe: (hit, point, attack) => {
+        if (["load", "unload"].includes(latest.current.mode ?? "")) return;
         if (hit.kind === "building") {
           if (
             latest.current.snapshot.economy &&
@@ -359,6 +372,10 @@ export function InteractiveBattle({
           setBuildMenu(false);
           return;
         }
+        if (current.mode === "unload") {
+          issue({ kind: "unloadTransport", entityIds: transportActors.current, target: target(point) }); setMode(null); return;
+        }
+        if (current.mode === "load") return;
         if (!current.selected.length) return;
         if (current.build) {
           setBuildPoint(world(point));
@@ -407,6 +424,13 @@ export function InteractiveBattle({
     [],
   );
   const chooseSlot = (slot: number, add = false) => {
+    if (latest.current.mode === "load") {
+      const s = latest.current.snapshot, ships = s.entities.filter((e) => transportActors.current.includes(e.id));
+      const distance = (id: number) => { const p = s.entities.find((e) => e.id === id); return p ? Math.min(...ships.map((t) => (t.x - p.x) ** 2 + (t.y - p.y) ** 2)) : Infinity; };
+      for (const id of [...latest.current.ui.controlGroups[slot].entityIds].sort((a, b) => distance(a) - distance(b) || a - b))
+        if (s.entities.some((e) => e.id === id && e.layer === "ground")) issue({ kind: "loadTransport", entityIds: transportActors.current, target: { kind: "entity", entityId: id } });
+      return;
+    }
     const groups = add ? [...new Set([...latest.current.slots, slot])] : [slot];
     select(
       groups.flatMap((i) => latest.current.ui.controlGroups[i].entityIds),
@@ -455,7 +479,7 @@ export function InteractiveBattle({
         className="sr-groups"
         onPointerMove={(event) => {
           const d = drag.current;
-          if (!d || d.id !== event.pointerId) return;
+          if (latest.current.mode === "load" || !d || d.id !== event.pointerId) return;
           const dx = event.clientX - d.x,
             dy = event.clientY - d.y;
           const button = document
@@ -555,7 +579,7 @@ export function InteractiveBattle({
       </div>
       <div ref={commandPanel} className="sr-command-space sr-commands">
         {pending && <span>등록할 부대 슬롯을 선택해 주세요.</span>}
-        {mode && <span>전장에서 목적지를 선택해 주세요.</span>}
+        {mode && <span>{mode === "load" ? "탑승시킬 아군 또는 부대 슬롯을 터치하세요." : "전장 또는 미니맵에서 목적지를 선택하세요."}<button onClick={() => setMode(null)}>지시 취소</button></span>}
         {notice && <span role="status">{notice}</span>}
         {snapshot.economy ? (
           <>
@@ -607,6 +631,9 @@ export function InteractiveBattle({
                 issue={issue}
                 openBuildMenu={() => setBuildMenu(true)}
                 selectWorker={selectWorker}
+                selectEntities={(ids) => { select(ids); setMode(null); }}
+                loadTransport={(ids) => { transportActors.current = ids; setMode("load"); setBuild(null); }}
+                unloadTransport={(ids) => { transportActors.current = ids; setMode("unload"); setBuild(null); }}
                 scout={() => {
                   const ids = snapshot.entities
                     .filter(
@@ -741,6 +768,7 @@ export function InteractiveBattle({
       }
       placement={placement}
       onMinimapPoint={(point) => {
+        if (latest.current.mode === "unload") { issue({ kind: "unloadTransport", entityIds: transportActors.current, target: { kind: "point", x: Math.round(point.x), y: Math.round(point.y) } }); setMode(null); return true; }
         if (latest.current.mode !== "rally") return false;
         issue({
           kind: "setRallyPoint",
@@ -759,7 +787,7 @@ export function InteractiveBattle({
       initialCamera={initialSession.camera}
       inputFactory={bind}
       controls={controls}
-      selectedIds={selected}
+      selectedIds={[...selected, ...(snapshot.economy?.transports ?? []).filter((t) => t.passengers.some((p) => selected.includes(p.id))).map((t) => t.entityId)]}
       previewIds={preview}
       onPause={onPause}
       onRenderFailure={onRenderFailure}
