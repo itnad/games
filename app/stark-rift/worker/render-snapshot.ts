@@ -1,3 +1,10 @@
+import { SCENARIOS } from "../combat/state";
+import { contactSchema, MEMORY_TICKS, type Contact } from "../vision/state";
+import {
+  canSeeEntity,
+  rememberedContacts,
+  revealedBody,
+} from "../vision/rules";
 import {
   combatEffectSchema,
   renderProjectileSchema,
@@ -43,6 +50,11 @@ export type RenderSnapshot = {
   heightTiles: number;
   entities: RenderEntity[];
   economy?: EconomyView;
+  scouting?: {
+    contacts: Contact[];
+    exploredCells: number;
+    visibleCells: number;
+  };
   combat?: {
     scenario: CombatState["scenario"];
     friendlyRemaining: number;
@@ -92,11 +104,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
     ),
     combat: optional(
       object({
-        scenario: enumeration([
-          "economy",
-          "combat-practice",
-          "ranged-practice",
-        ]),
+        scenario: enumeration(SCENARIOS),
         friendlyRemaining: integer(0, 10),
         targetsRemaining: integer(0, 10),
         totalTargets: integer(0, 10),
@@ -106,10 +114,31 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
     ),
     visibility: visibilitySchema,
     economy: optional(economyViewSchema),
+    scouting: optional(
+      object({
+        contacts: array(contactSchema, 0, 2048),
+        exploredCells: integer(0, 16384),
+        visibleCells: integer(0, 16384),
+      }),
+    ),
   }),
   (snapshot) =>
     snapshot.previousTick <= snapshot.tick &&
     snapshot.visibility.length === snapshot.widthTiles * snapshot.heightTiles &&
+    (!snapshot.scouting ||
+      (new Set(snapshot.scouting.contacts.map((c) => c.entityId)).size ===
+        snapshot.scouting.contacts.length &&
+        snapshot.scouting.contacts.every(
+          (c) =>
+            c.x < snapshot.widthTiles * 256 &&
+            c.y < snapshot.heightTiles * 256 &&
+            c.owner !== snapshot.viewerPlayerId &&
+            c.seenTick <= snapshot.tick &&
+            (c.kind === "building" ||
+              snapshot.tick - c.seenTick < MEMORY_TICKS) &&
+            !snapshot.entities.some((e) => e.id === c.entityId) &&
+            revealedBody(snapshot, snapshot.visibility, c, false, 1),
+        ))) &&
     (!snapshot.combat ||
       (snapshot.combat.targetsRemaining <= snapshot.combat.totalTargets &&
         new Set(snapshot.combat.projectiles.map((p) => p.id)).size ===
@@ -168,7 +197,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         x < snapshot.widthTiles &&
         y < snapshot.heightTiles &&
         (e.owner === snapshot.viewerPlayerId ||
-          snapshot.visibility[y * snapshot.widthTiles + x] === 2)
+          revealedBody(snapshot, snapshot.visibility, e))
       );
     }),
   "Invalid snapshot dimensions, IDs or visibility.",
@@ -203,7 +232,14 @@ export function createRenderSnapshot(
       continue;
     if (
       s.owner[i] !== viewer &&
-      visibility[tileY * map.widthTiles + tileX] !== 2
+      (state.vision
+        ? !canSeeEntity(state, map, viewer, i, visibility)
+        : !revealedBody(map, visibility, {
+            x: s.x[i],
+            y: s.y[i],
+            kind: s.kind[i],
+            definitionId: s.definitionId[i],
+          }))
     )
       continue;
     if (
@@ -258,6 +294,15 @@ export function createRenderSnapshot(
       }
     : undefined;
   return {
+    ...(state.vision
+      ? {
+          scouting: {
+            contacts: rememberedContacts(state, map, viewer, visibility),
+            exploredCells: [...visibility].filter((v) => v > 0).length,
+            visibleCells: [...visibility].filter((v) => v === 2).length,
+          },
+        }
+      : {}),
     ...(combat ? { combat } : {}),
     ...(state.economy.enabled
       ? { economy: createEconomyView(state, map, viewer, visibility) }
