@@ -244,7 +244,7 @@ npm test
 - [해루질럿 게임 기획 기준](docs/haeru-game-design.md)
 - [해루질럿 시스템·코드 구조](docs/haeru-architecture.md)
 - [해루질럿 QA 매트릭스](docs/haeru-qa-matrix.md)
-- [야경단 AR 게임 기획서](docs/yagyeong-ar-game-design.md)
+- [박살: 리듬 AR 퇴마 댄싱 기획서](docs/baksal-game-design.md)
 - [배포 이력](docs/releases.md)
 
 - [Vinext 문서](https://vinext.dev/docs)
