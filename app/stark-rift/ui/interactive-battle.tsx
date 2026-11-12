@@ -607,6 +607,35 @@ export function InteractiveBattle({
                 issue={issue}
                 openBuildMenu={() => setBuildMenu(true)}
                 selectWorker={selectWorker}
+                scout={() => {
+                  const ids = snapshot.entities
+                    .filter(
+                      (e) =>
+                        e.owner === snapshot.viewerPlayerId &&
+                        e.kind === "combat" &&
+                        e.definitionId !== "zerg-overlord",
+                    )
+                    .map((e) => e.id);
+                  select(ids, [0]);
+                  issue({
+                    kind: "attackMove",
+                    entityIds: ids,
+                    target: { kind: "point", x: 22 * 256, y: 29 * 256 },
+                  });
+                  const c = camera.current,
+                    size = dimensions.current();
+                  if (c) {
+                    c.setCenter(22 * 256, 29 * 256, size.width, size.height);
+                    session.current.camera = {
+                      centerX: Math.round(c.centerX),
+                      centerY: Math.round(c.centerY),
+                      zoomLevel: Math.round(c.zoom) as 0 | 1 | 2,
+                    };
+                    callbacks.current.onSessionChange(
+                      structuredClone(session.current),
+                    );
+                  }
+                }}
                 attackMove={() => setMode("attackMove")}
                 rally={() => {
                   setMode("rally");
