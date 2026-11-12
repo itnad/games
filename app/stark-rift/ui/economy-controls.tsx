@@ -1,3 +1,4 @@
+import { hasBasicWeapon } from "../combat/catalog";
 import { useEffect, useRef } from "react";
 import type { GameCommand } from "../core/commands";
 import type { RenderSnapshot } from "../worker/render-snapshot";
@@ -14,6 +15,7 @@ export function EconomyControls({
   selected,
   issue,
   rally,
+  attackMove,
   running,
   openBuildMenu,
   selectWorker,
@@ -22,6 +24,7 @@ export function EconomyControls({
   selected: number[];
   issue: (b: CommandBody) => void;
   rally: () => void;
+  attackMove: () => void;
   running: boolean;
   openBuildMenu: () => void;
   selectWorker: () => void;
@@ -105,6 +108,15 @@ export function EconomyControls({
           {def.name}
           {entities.length > 1 ? ` × ${entities.length}` : ""}
         </strong>
+        {def.kind === "combat" && hasBasicWeapon(def.id) && (
+          <button
+            className="sr-attack-move"
+            disabled={!running}
+            onClick={attackMove}
+          >
+            공격 이동
+          </button>
+        )}
         {worker ? (
           <button className="sr-open-build" onClick={openBuildMenu}>
             건설
@@ -403,6 +415,12 @@ export function EconomyControls({
         <p className="sr-help">
           건물은 SCV·드론·프로브 같은 일꾼으로 건설합니다. 일꾼 선택 버튼을 눌러
           주세요.
+        </p>
+      )}
+      {def.kind === "combat" && !hasBasicWeapon(def.id) && (
+        <p className="sr-help">
+          이 유닛의 무기는 다음 전투 작업에서 연결됩니다. 현재 이동만
+          가능합니다.
         </p>
       )}
       {def.kind === "combat" && (
