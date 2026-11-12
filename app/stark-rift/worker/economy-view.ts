@@ -90,7 +90,15 @@ export function createEconomyView(
         const n = map.resourceNodes.find((n) => n.id === r.nodeId);
         return n && visibility[n.y * map.widthTiles + n.x] === 2;
       })
-      .map((r) => ({ nodeId: r.nodeId, amount: r.amount })),
+      .map((r) => ({ nodeId: r.nodeId, amount: r.amount }))
+      .concat(
+        (s.vision?.players[viewer].resources ?? [])
+          .filter((r) => {
+            const n = map.resourceNodes.find((n) => n.id === r.nodeId);
+            return !!n && visibility[n.y * map.widthTiles + n.x] === 1;
+          })
+          .map((r) => ({ ...r })),
+      ),
     creepCells: s.economy.creepCells.filter((c) => visibility[c] === 2),
     workers: s.economy.workers
       .filter((w) => own(w.entityId))
