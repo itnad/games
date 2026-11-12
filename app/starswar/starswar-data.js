@@ -51,13 +51,15 @@ export const STW_LAYOUT = {
  * 집결 위치. y는 아군 기준(100이 아군 끝). AI는 이 이름표를 쓰고, 플레이어는 지도를 눌러 STW_RALLY_RANGE 안의 아무 세로 위치나 고른다.
  * 아군 기준 y가 STW_ATTACK_ZONE_Y 이하(적 앞마당 안쪽)를 누르면 집결이 아니라 출격 명령이다.
  */
-export const STW_RALLY_RANGE = { min: 34, max: 84 };
+// 뒤쪽 끝은 본진 광물 줄(97)까지: 게릴라 드랍을 막으러 광물 줄로 보내거나, 무기 없는 마법 유닛을 본진 안쪽까지 물릴 수 있다.
+export const STW_RALLY_RANGE = { min: 34, max: 97 };
 export const STW_ATTACK_ZONE_Y = 30;
 export const STW_RALLY_POINTS = [
   { id: "main", name: "본진 앞", short: "본진", y: 77 },
   { id: "natural", name: "앞마당", short: "앞마당", y: 64 },
   { id: "center", name: "중앙", short: "중앙", y: 50 },
   { id: "forward", name: "적 앞마당 앞", short: "전진", y: 36 },
+  { id: "back", name: "본진 안쪽", short: "안쪽", y: 95 },
 ];
 
 export const STW_UNITS = {
@@ -610,13 +612,14 @@ export const STW_MAPS = {
       geysers: GEYSERS.map((point) => (point.base === "natural" ? { ...point, y: point.y - GOLD_SHIFT } : point)),
       naturalSlots: GOLD_SLOTS,
     },
-    rallyRange: { min: 38, max: 84 },
+    rallyRange: { min: 38, max: 97 },
     attackZoneY: 35,
     rallyPoints: [
       { id: "main", name: "본진 앞", short: "본진", y: 77 },
       { id: "natural", name: "앞마당", short: "앞마당", y: 60 },
       { id: "center", name: "중앙", short: "중앙", y: 50 },
       { id: "forward", name: "적 앞마당 앞", short: "전진", y: 40 },
+      { id: "back", name: "본진 안쪽", short: "안쪽", y: 95 },
     ],
     landNatural: [{ x: 8, y: 75 }, { x: 32, y: 75 }],
     scoutPath: [{ x: 2, y: 54 }, { x: 2, y: 88 }, { x: 9, y: 97.5 }, { x: 31, y: 97.5 }, { x: 38, y: 88 }, { x: 38, y: 54 }],

@@ -11,7 +11,6 @@ import {
   stwFreeSlots,
   stwHas,
   stwIncome,
-  stwMap,
   stwNexus,
   stwOpponent,
   stwOwnBuildings,
@@ -960,6 +959,8 @@ const SWITCH_TO = {
   wraith: (mix) => ((mix.dragoon ?? 0) + (mix.hydra ?? 0) + (mix.goliath ?? 0) > 0.4 ? "mech" : "tankbio"),
 };
 /** 전략 전환 판단에 세는 "제대로 모은 물량"의 크기와, 전환을 생각하기 시작하는 시각(초). */
+/** 경계 중 앞마당이 없을 때 병력이 모이는 자리(아군 기준). */
+const HOLD_BACK_Y = 84;
 /** 출격 규모를 셀 때 저글링을 반 기로 치는 성향(저글링이 주력이 아닌 저그 운영). */
 const HALF_LING = new Set(["hydra", "hive", "ultra", "muta"]);
 const BIG_WAVE = { pool: 6, ling: 24, muta: 14, corsair: 12, wraith: 12 };
@@ -1123,7 +1124,8 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 들어온 근접 유닛은 가장 가까운 위협인 방어 건물부터 치고, 병력은 그 뒤에서 쏜다. 앞에 나가 서 있으면 해병·드라군이 질럿에게 먼저 잡힌다.
   const natural = stwNexus(state, side, "natural");
   if (alert && !natural) {
-    const back = stwMap(state).rallyRange.max;
+    // 본진 안쪽(방어 건물 뒤, 아군 기준 84). 이동 범위의 뒤쪽 끝(광물 줄 97)까지 물러나면 방어 건물이 놀고 일꾼 곁에서 싸운다.
+    const back = HOLD_BACK_Y;
     if (record.rally !== back) stwCommand(state, side, { type: "move", y: back });
   } else {
     const desiredRally = natural || (memory.clearNatural && stwArmy(state, side).fighters.length >= 4) ? "natural" : "main";

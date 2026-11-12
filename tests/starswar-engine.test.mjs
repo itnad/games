@@ -825,11 +825,12 @@ test("starswar Protoss AI opens gateway, forge and natural against Zerg even und
   for (const zerg of ["ling", "pool"]) {
     const state = createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "robo", enemy: zerg } });
     let natural = null;
-    while (state.status === "playing" && state.time < 400) {
+    while (state.status === "playing" && state.time < 420) {
       stepStarswar(state, stwAiThink);
       if (natural === null && stwNexus(state, "player", "natural")) natural = state.time;
     }
-    assert.ok(natural !== null && natural < 380, `${zerg} 상대로 6분 20초 전에 앞마당 ${natural}`);
+    // 갓 나온 유닛이 이동 공격을 하게 된 뒤 이 판(시드 1, 저글링 물량)은 5분 질럿 공격이 조금 다르게 흘러 앞마당이 6분 51초다(시드 2·3은 5분 24초).
+    assert.ok(natural !== null && natural < 420, `${zerg} 상대로 7분 전에 앞마당 ${natural}`);
     assert.ok(stwOwnBuildings(state, "player", "forge").length, "포지");
     assert.ok(stwOwnBuildings(state, "player", "gateway").length, "게이트웨이");
   }
@@ -1881,10 +1882,10 @@ test("starswar map taps move the army: forward fights, backward retreats, enemy 
   assert.ok(stwArmy(state, "player").rally.every((unit) => unit.targetId === null) || true);
 
   // 범위 밖은 잘라 낸다. 적 앞마당 안쪽은 출격이다.
-  assert.equal(stwCommand(state, "player", { type: "move", y: 99 }).y, 84);
+  assert.equal(stwCommand(state, "player", { type: "move", y: 99.5 }).y, 97);
   assert.equal(stwCommand(state, "player", { type: "move", y: 10 }).ok, true);
   assert.ok(stwArmy(state, "player").attack.length > 0, "적 본진을 누르면 출격");
-  assert.equal(state.sides.player.rally, 84, "출격은 집결지를 바꾸지 않음");
+  assert.equal(state.sides.player.rally, 97, "출격은 집결지를 바꾸지 않음");
   assert.equal(stwRallyName(55), "중앙");
   assert.equal(stwRallyName("natural"), "앞마당");
 });
@@ -2830,4 +2831,68 @@ test("starswar report copied while paused replays exactly up to that moment", ()
   assert.equal(replayed.sides.player.probes + replayed.buildings.length, state.sides.player.probes + state.buildings.length);
   // 더 앞의 시각까지만 돌릴 수도 있다.
   assert.equal(Math.round(stwReplay(code, { until: 120 }).time), 120);
+});
+
+test("starswar freshly trained units attack-move to the rally point; a commander's order turns it back into a retreat", () => {
+  const setup = () => {
+    const state = quiet();
+    state.sides.player.minerals = 2000;
+    stwCommand(state, "player", { type: "build", building: "pylon" });
+    finishAll(state);
+    stwCommand(state, "player", { type: "build", building: "gateway" });
+    finishAll(state);
+    // 집결지(본진 앞)보다 한참 앞에 선 게이트웨이. 그 사이에 자리를 지키는 적 해병 다섯.
+    const gateway = stwOwnBuildings(state, "player", "gateway")[0];
+    gateway.x = 20;
+    gateway.y = 44;
+    state.sides.enemy.rally = 40;
+    const marines = [15, 18, 21, 23, 26].map((x) => stwSpawnUnitAt(state, "enemy", "marine", x, 60, "rally"));
+    return { state, marines };
+  };
+  const { state, marines } = setup();
+  let zealot = null;
+  let fought = false;
+  for (let step = 0; step < 600; step += 1) {
+    stepStarswar(state, null);
+    zealot ??= state.units.find((unit) => unit.side === "player" && unit.type === "zealot");
+    if (zealot?.targetId !== null && zealot?.targetId !== undefined && marines.some((marine) => marine.id === zealot.targetId)) fought = true;
+  }
+  assert.ok(zealot, "질럿이 나왔다");
+  assert.ok(fought, "가는 길의 적과 싸운다(예전에는 후퇴로 보고 지나가다 맞아 죽었다)");
+  assert.ok(marines.some((marine) => marine.hp < marine.maxHp), "해병이 피해를 입었다");
+
+  // 지휘관이 위치를 정하면(지도 탭) 갓 나온 유닛도 그 지시를 따른다: 뒤쪽이면 교전을 끊고 물러난다.
+  const order = setup().state;
+  let fresh = null;
+  for (let step = 0; step < 300 && !fresh; step += 1) {
+    stepStarswar(order, null);
+    fresh = order.units.find((unit) => unit.side === "player" && unit.type === "zealot") ?? null;
+  }
+  assert.equal(fresh.fresh, true, "갓 나온 유닛은 이동 공격 중");
+  stwCommand(order, "player", { type: "move", y: 90 });
+  assert.equal(fresh.fresh, undefined, "지시를 받으면 이동 공격이 풀린다");
+});
+
+test("starswar the army can be sent all the way back to the main mineral line", () => {
+  const state = quiet();
+  assert.equal(stwCommand(state, "player", { type: "move", y: 99.5 }).ok, true);
+  assert.equal(state.sides.player.rally, 97, "뒤쪽 끝은 광물 줄(97)");
+  assert.equal(stwRallyName(97, state), "본진 안쪽");
+  const templars = [18, 20, 22].map((x) => stwSpawnUnitAt(state, "player", "templar", x, 70, "rally"));
+  const zealots = [17, 19, 21, 23].map((x) => stwSpawnUnitAt(state, "player", "zealot", x, 70, "rally"));
+  run(state, 20);
+  for (const unit of [...templars, ...zealots]) assert.ok(unit.y > 90 && unit.y < STW_LANE_LENGTH, `본진 안쪽까지 물러난다 (${unit.type} ${unit.y.toFixed(1)})`);
+  // 부대 이동도 같은 범위다(게릴라 드랍을 막으러 광물 줄로).
+  assert.equal(stwCommand(state, "player", { type: "squadMove", units: ["zealot"], y: 98 }).ok, true);
+  assert.equal(state.sides.player.squads.zealot.y, 97);
+  // AI의 경계 집결(방어 건물 뒤)은 예전처럼 84다.
+  const ai = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "protoss" }, personas: { enemy: "dragoon" } });
+  ai.sides.player.minerals = 9000;
+  for (const building of ["pylon", "gateway", "gateway", "gateway"]) {
+    stwCommand(ai, "player", { type: "build", building });
+    finishAll(ai);
+  }
+  stwCommand(ai, "player", { type: "lineAll", unit: null, producer: "gateway" });
+  run(ai, 200, stwAiThink);
+  if ((ai.sides.enemy.ai.alertUntil ?? 0) > ai.time && !stwNexus(ai, "enemy", "natural")) assert.equal(ai.sides.enemy.rally, 84);
 });

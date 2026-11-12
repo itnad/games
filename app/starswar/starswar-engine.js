@@ -912,6 +912,7 @@ function runCommand(state, side, command) {
       for (const unit of members) {
         unit.group = "rally";
         unit.squad = unit.type;
+        delete unit.fresh;
       }
       if (side === "player") pushLog(state, side, `${names} 부대 ${members.length}기가 ${withKoreanDirection(stwRallyName(y, state))} 갑니다.`, "order");
       return { ok: true, mode: "squad", y };
@@ -1005,6 +1006,7 @@ function runCommand(state, side, command) {
     case "rally": {
       if (!stwMap(state).rallyPoints.some((point) => point.id === command.point)) return fail("알 수 없는 위치입니다");
       record.rally = command.point;
+      for (const unit of state.units) if (unit.side === side && unit.squad === undefined) delete unit.fresh;
       if (side === "player") {
         const name = stwMap(state).rallyPoints.find((point) => point.id === command.point).name;
         pushLog(state, side, `집결지를 ${withKoreanDirection(name)} 옮깁니다.`, "order");
@@ -1022,6 +1024,8 @@ function runCommand(state, side, command) {
       const front = units.length ? Math.min(...units.map((unit) => (side === "player" ? unit.y : STW_LANE_LENGTH - unit.y))) : null;
       const name = stwRallyName(y, state);
       record.rally = y;
+      // 지휘관이 위치를 정하면 갓 나와 이동 공격 중이던 유닛도 그 지시(후퇴 포함)를 따른다.
+      for (const unit of state.units) if (unit.side === side && unit.squad === undefined) delete unit.fresh;
       if (front !== null && y > front + 2 && (army.attack.length || units.some((unit) => (side === "player" ? unit.y : STW_LANE_LENGTH - unit.y) < y - 2))) {
         // 뒤쪽: 전군 후퇴.
         for (const unit of army.attack) unit.group = "rally";
@@ -1541,6 +1545,8 @@ function stepProducer(state, building, record, dt) {
     const reinforce = !squad && joinsAttack(state, building.side, unitType);
     for (let index = 0; index < (STW_UNITS[unitType].pair ? 2 : 1); index += 1) {
       const unit = spawnUnit(state, building.side, unitType, building.x + (nextRandom(state) - 0.5) * 2 + index * 1.4, building.y + forward * (building.radius + 1.5));
+      // 갓 나온 유닛은 제자리에 닿을 때까지 이동 공격: 가는 길에 만난 적과 싸운다(후퇴로 보지 않는다).
+      unit.fresh = true;
       if (squad) unit.squad = unitType;
       if (reinforce) {
         unit.group = "attack";
@@ -2273,9 +2279,10 @@ function rallySlots(state, side, units, anchorY) {
       const row = Math.floor(index / perRow);
       const inRow = Math.min(perRow, list.length - row * perRow);
       const column = index % perRow;
+      // 본진 맨 뒤(광물 줄)에 모일 때 뒷줄이 전장 밖으로 나가지 않게 가장자리 안에 둔다.
       slots.set(unit.id, {
         x: STW_LANE_WIDTH / 2 + (column - (inRow - 1) / 2) * 2.7,
-        y: anchorY + forward * (perRow < 12 ? 2 - (stacked + row) * 2.6 : ROLE_DEPTH[role] - row * 2.6),
+        y: Math.min(STW_LANE_LENGTH - 1.5, Math.max(1.5, anchorY + forward * (perRow < 12 ? 2 - (stacked + row) * 2.6 : ROLE_DEPTH[role] - row * 2.6))),
       });
     });
     stacked += Math.ceil(list.length / perRow);
@@ -2461,7 +2468,12 @@ function stepUnits(state, dt) {
     const intruders = isAttack ? [] : plan.intruders.filter((enemy) => targetable(state, unit, enemy) && (unit.squad === undefined || !slot || distance(enemy.x, enemy.y, slot.x, slot.y) < 14));
     // 집결지에 와 있는 대기 병력은 멀리 있는 적을 쫓지 않는다. 집결지로 이동 중(싸우며 전진)일 때는 만나는 적과 모두 싸운다.
     const settled = slot && distance(unit.x, unit.y, slot.x, slot.y) < RALLY_LEASH;
-    const leashed = (item) => !isAttack && settled && distance(item.x, item.y, slot.x, slot.y) - item.radius > RALLY_LEASH;
+    if (settled && unit.fresh) delete unit.fresh;
+    // 갓 나와 이동 공격 중인 유닛은 가는 길의 적만 친다: 제자리에서 자기보다(4칸 넘게) 더 먼 적은 쫓지 않는다
+    // (방어 건물 뒤 집결지로 가던 질럿이 저글링을 쫓아 열린 곳으로 나가 녹았다).
+    const leashed = (item) => !isAttack && slot && (settled
+      ? distance(item.x, item.y, slot.x, slot.y) - item.radius > RALLY_LEASH
+      : unit.fresh && distance(item.x, item.y, slot.x, slot.y) - item.radius > distance(unit.x, unit.y, slot.x, slot.y) + 4);
     if (intruders.length) {
       // 자동 수비: 기지에 들어온 적을 거리와 상관없이 쫓아가 잡는다.
       if (!target || !intruders.includes(target)) target = nearestOf(unit, intruders);
@@ -2799,6 +2811,12 @@ const KITE_DISTANCE = 2.2;
  * 한 번 후퇴를 시작하면 집결지 가까이 올 때까지 교전하지 않는다(경계에서 들락거리지 않도록 차이를 둔다).
  */
 function isRetreating(unit, slot) {
+  // 생산 건물에서 갓 나와 제자리로 가는 유닛은 후퇴가 아니라 이동 공격이다. 앞마당 생산 건물처럼 집결지보다 앞에서 나오면
+  // 예전에는 후퇴로 보고 교전을 끊은 채 달려가다 그대로 맞아 죽었다.
+  if (unit.fresh) {
+    unit.retreating = false;
+    return false;
+  }
   const ahead = (unit.y - slot.y) * stwForward(unit.side);
   unit.retreating = unit.retreating ? ahead > 4 : ahead > RALLY_LEASH + 2;
   return unit.retreating;
