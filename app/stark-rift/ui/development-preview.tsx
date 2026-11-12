@@ -59,6 +59,7 @@ export function DevelopmentPreview() {
                 "combat-practice",
                 "ranged-practice",
                 "siege-practice",
+                "special-practice",
               ] as const
             ).map((mode) => [mode + ":" + f.id, instance.read(f.id, mode)]),
           ),
@@ -129,14 +130,14 @@ export function DevelopmentPreview() {
           <a className="sr-dev-back" href="/">
             ← paperoid로 돌아가기
           </a>
-          <div className="sr-dev-kicker">DEVELOPMENT PLAYTEST · 06A</div>
+          <div className="sr-dev-kicker">DEVELOPMENT PLAYTEST · 06B</div>
           <h1>스타크 리프트</h1>
           <p className="sr-dev-intro">나만의 기지를 세워 보세요.</p>
           <p className="sr-dev-scope">
             채취 · 건설 · 병력 생산을 확인하는 개발 테스트입니다.
             <br />
             기본 병력과 벌처·탱크·히드라·드라군의 공격을 사용할 수 있습니다.
-            저그는 해처리에서 버로우를 연구할 수 있습니다. 상대 AI는 준비 중입니다.
+            버로우·영구 은폐·탐지·수송을 지원합니다. 상대 AI는 준비 중입니다.
           </p>
           <div className="sr-dev-modes" role="group" aria-label="테스트 모드">
             <button
@@ -163,29 +164,8 @@ export function DevelopmentPreview() {
             >
               본부 공략
             </button>
+            <button aria-pressed={scenario === "special-practice"} onClick={() => setScenario("special-practice")}>특수 연습</button>
           </div>
-          {scenario === "combat-practice" && (
-            <p className="sr-dev-scope">
-              기본 병력이 준비됩니다. 부대 1번 선택 → 붉은 적 터치로 공격하세요.
-              적은 제자리에서 반격합니다. 연습 기록은 기지 운영과 별도로
-              저장됩니다.
-            </p>
-          )}
-          {scenario === "ranged-practice" && (
-            <p className="sr-dev-scope">
-              테란: 벌처·탱크 · 저그: 히드라리스크 · 프로토스: 드라군. 부대 1번
-              선택 → 공격 이동 → 적 근처를 터치하세요. 테란 탱크는 2번
-              부대입니다. 저그·프로토스는 공중 표적도 공격합니다. 연습 기록은
-              별도로 저장됩니다.
-            </p>
-          )}
-          {scenario === "siege-practice" && (
-            <p className="sr-dev-scope">
-              정찰 출발 버튼으로 경사로 아래를 탐색하세요. 건설이 멈춘 적 본부를
-              찾아 파괴하면 승리합니다. 적 본부도 건설 중에는 생존 거점으로
-              인정됩니다. 연습 기록은 별도로 저장됩니다.
-            </p>
-          )}
           <div className="sr-dev-factions" role="group" aria-label="종족 선택">
             {FACTIONS.map((f) => (
               <button
@@ -212,6 +192,29 @@ export function DevelopmentPreview() {
                 : "이어서 하기"}
             </button>
           </div>
+          {scenario === "special-practice" && <p className="sr-dev-scope">수송선과 병력이 제공됩니다. 탑승 → 부대 슬롯 터치 → 전체 하차 → 지점 선택. 프로토스는 영구 은폐 유닛·옵저버가, 저그는 수송·버로우 연구가 제공됩니다. 연습 기록은 별도로 저장됩니다.</p>}
+          {scenario === "combat-practice" && (
+            <p className="sr-dev-scope">
+              기본 병력이 준비됩니다. 부대 1번 선택 → 붉은 적 터치로 공격하세요.
+              적은 제자리에서 반격합니다. 연습 기록은 기지 운영과 별도로
+              저장됩니다.
+            </p>
+          )}
+          {scenario === "ranged-practice" && (
+            <p className="sr-dev-scope">
+              테란: 벌처·탱크 · 저그: 히드라리스크 · 프로토스: 드라군. 부대 1번
+              선택 → 공격 이동 → 적 근처를 터치하세요. 테란 탱크는 2번
+              부대입니다. 저그·프로토스는 공중 표적도 공격합니다. 연습 기록은
+              별도로 저장됩니다.
+            </p>
+          )}
+          {scenario === "siege-practice" && (
+            <p className="sr-dev-scope">
+              정찰 출발 버튼으로 경사로 아래를 탐색하세요. 건설이 멈춘 적 본부를
+              찾아 파괴하면 승리합니다. 적 본부도 건설 중에는 생존 거점으로
+              인정됩니다. 연습 기록은 별도로 저장됩니다.
+            </p>
+          )}
           {savedMatch?.status === "ready" && (
             <p className="sr-dev-save-note">
               저장 기록:{" "}
