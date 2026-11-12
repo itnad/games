@@ -1,3 +1,4 @@
+import { visibilityMask } from "../vision/rules";
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import type { EconomyDefinition } from "../data/economy-catalog";
@@ -120,6 +121,7 @@ export function localVisibility(
   map: BattleMap,
   owner: number,
 ): Uint8Array {
+  if (s.vision) return visibilityMask(s, map, owner);
   const out = new Uint8Array(map.widthTiles * map.heightTiles),
     es = s.entities;
   for (let i = 0; i < es.id.length; i++)
