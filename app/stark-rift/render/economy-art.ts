@@ -16,7 +16,7 @@ export function updateEconomicMarker(
   const hp = Math.floor((e.health / d.health) * 10),
     sp = Math.floor(((e.shield ?? 0) / Math.max(1, d.shield)) * 10),
     p = progress === null ? -1 : Math.floor(progress * 20),
-    key = [d.id, color, ring, hp, sp, p, started].join(":");
+    key = [d.id, color, ring, hp, sp, p, started, e.burrowed].join(":");
   if (keys.get(g) === key) return true;
   keys.set(g, key);
   g.clear();
@@ -25,6 +25,13 @@ export function updateEconomicMarker(
     h = d.height,
     terr = d.faction === "terran",
     zerg = d.faction === "zerg";
+  if (e.burrowed) {
+    const r = Math.max(0.3, e.radius / 256);
+    g.ellipse(0, 0.08, r * 1.2, r * 0.55).fill(0x362a38).stroke({ color: 0xae876e, width: 0.05 });
+    g.ellipse(0, 0, r * 0.85, r * 0.3).fill(0x604553).stroke({ color, width: 0.045 });
+    if (ring !== null) g.ellipse(0, 0.08, r * 1.5, r * 0.8).stroke({ color: ring, width: 0.055 });
+    return true;
+  }
   if (d.kind === "building") {
     g.ellipse(0.12, 0.22, w * 0.55, h * 0.48).fill({
       color: 0x030911,
