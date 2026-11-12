@@ -1,3 +1,4 @@
+import { isBurrowed } from "../abilities/burrow";
 import { uphillAttack } from "../vision/rules";
 import { nextUint32 } from "../core/rng";
 import type { BattleMap } from "../data/maps";
@@ -204,6 +205,7 @@ function validTarget(
   const e = s.entities;
   return (
     b >= 0 &&
+    !isBurrowed(s, e.id[a]) &&
     a !== b &&
     e.owner[a] !== e.owner[b] &&
     e.health[b] > 0 &&
