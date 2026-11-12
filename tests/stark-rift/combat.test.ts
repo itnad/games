@@ -310,6 +310,7 @@ describe("stage 5a deterministic basic combat", () => {
     old.engineVersion = old.simulation.engineVersion = "0.7.0-stage4";
     old.simulation.schemaVersion = 6;
     old.dataVersion = old.simulation.dataVersion = old.dataVersion.replace(ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION);
+    if (old.simulation.vision) (old.simulation.vision as { rulesVersion: string }).rulesVersion = "fog-1-los-edge-detector11-memory600";
     old.checksum = checksum(old.simulation);
     const records = new Map<string, string>([
         [DEVELOPMENT_SAVE_PREFIX + "terran", JSON.stringify(old)],
@@ -325,7 +326,7 @@ describe("stage 5a deterministic basic combat", () => {
     expect(read.status).toBe("ready");
     if (read.status !== "ready") throw Error();
     expect(read.snapshot.simulation.players).toEqual(old.simulation.players);
-    expect(read.snapshot.simulation.engineVersion).toBe("0.11.0-stage6a");
+    expect(read.snapshot.simulation.engineVersion).toBe("0.12.0-stage6b");
     expect(records.get(DEVELOPMENT_SAVE_PREFIX + "terran")).toBe(
       JSON.stringify(old),
     );
@@ -402,6 +403,7 @@ describe("combat persistence and destruction boundaries", () => {
     old.engineVersion = old.simulation.engineVersion = "0.7.0-stage4";
     old.simulation.schemaVersion = 6;
     old.dataVersion = old.simulation.dataVersion = old.dataVersion.replace(ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION);
+    if (old.simulation.vision) (old.simulation.vision as { rulesVersion: string }).rulesVersion = "fog-1-los-edge-detector11-memory600";
     old.checksum = checksum(old.simulation);
     const serialized = JSON.stringify(old);
     let current = serialized;
