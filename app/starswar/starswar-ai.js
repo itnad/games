@@ -27,10 +27,14 @@ const BUILD_ORDERS = {
     { build: "assimilator", at: 170 }, { build: "core" }, { build: "forge", at: 240 }, { research: "weapons1" },
     { build: "expand", at: 330 }, { build: "gateway" }, { research: "range" }, { build: "citadel" }, { research: "charge" },
   ],
+  // 앞마당을 일찍 먹는 빌드는 포지를 먼저 올리고 앞마당에 캐논 셋을 세워 첫 공격을 받는다(질럿 몇 기와 함께).
+  // 예전에는 확장 비용을 모으며 게이트웨이를 멈춰, 5:00 바이오(해병 9·메딕 5)를 질럿 3기로 맞아 무너졌다.
+  // 실험실: 캐논 3 + 질럿 3은 그 공격을 바이오 전멸로 막는다(질럿 6기만으로는 진다).
   dragoon: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "pylon" },
-    { build: "gateway" }, { research: "range" }, { build: "expand", at: 220 }, { build: "assimilator" }, { build: "gateway" },
-    { build: "forge" }, { build: "cannon" }, { research: "weapons1" }, { build: "gateway" }, { build: "citadel" }, { research: "charge" }, { research: "armor1" },
+    { build: "forge" }, { build: "expand" }, { build: "cannon", natural: true }, { build: "cannon", natural: true }, { build: "cannon", natural: true },
+    { build: "gateway" }, { research: "range" }, { build: "assimilator" }, { build: "gateway" },
+    { research: "weapons1" }, { build: "gateway" }, { build: "citadel" }, { research: "charge" }, { research: "armor1" },
   ],
   templar: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "pylon" },
@@ -53,15 +57,17 @@ const BUILD_ORDERS = {
   // 커세어 질럿: 드라군 운영에 스타게이트 하나를 얹어 커세어로 하늘을 잡는다(공중만으로는 어떤 상대도 못 이긴다).
   corsair: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "pylon" },
-    { build: "gateway" }, { build: "stargate" }, { research: "range" }, { build: "expand", at: 220 }, { build: "assimilator" },
-    { build: "gateway" }, { build: "forge" }, { build: "cannon" }, { research: "weapons1" }, { build: "gateway" }, { build: "citadel" }, { research: "charge" },
+    { build: "forge" }, { build: "expand" }, { build: "cannon", natural: true }, { build: "cannon", natural: true }, { build: "cannon", natural: true },
+    { build: "gateway" }, { build: "stargate" }, { research: "range" }, { build: "assimilator" },
+    { build: "gateway" }, { research: "weapons1" }, { build: "gateway" }, { build: "citadel" }, { research: "charge" },
   ],
   // 캐리어 함대: 드라군 운영으로 버티며 스타게이트 둘과 플릿 비컨을 올려 캐리어를 모은다.
   // (앞마당을 스타게이트보다 먼저 먹게 해 봤는데 오히려 승률이 42% → 29%로 떨어져 되돌렸다.)
   carrier: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "assimilator" },
-    { build: "pylon" }, { build: "stargate" }, { build: "gateway" }, { build: "beacon" }, { build: "expand", at: 270 },
-    { build: "forge" }, { build: "cannon" }, { build: "stargate" }, { research: "carrierCapacity" }, { research: "range" }, { build: "cannon" }, { research: "weapons1" },
+    { build: "pylon" }, { build: "forge" }, { build: "expand" }, { build: "cannon", natural: true }, { build: "cannon", natural: true }, { build: "cannon", natural: true },
+    { build: "stargate" }, { build: "gateway" }, { build: "beacon" },
+    { build: "stargate" }, { research: "carrierCapacity" }, { research: "range" }, { research: "weapons1" },
   ],
   bio: [
     { build: "depot" }, { build: "barracks" }, { build: "barracks" }, { build: "refinery" }, { build: "depot" },
@@ -184,6 +190,7 @@ function lostStep(state, side, order, index, memory) {
 const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22], bio: [8, 12, 16, 22], mech: [8, 12, 16, 20],
   tankbio: [10, 14, 20, 26], vulture: [8, 12, 16, 20], ling: [12, 20, 30, 42, 56], hydra: [14, 18, 24, 30], pool: [6, 10, 14, 20, 26], ultra: [12, 18, 24, 30],
   corsair: [8, 12, 16, 20], wraith: [8, 12, 16, 20], muta: [12, 18, 26, 36], carrier: [8, 12, 16, 20], bc: [8, 12, 16, 20], hive: [14, 18, 24, 30] };
+const RUSH_WAVES_VS_TERRAN = [8, 10, 12, 14];
 const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, tankbio: 5, vulture: 4, ling: 9, hydra: 3, pool: 3, ultra: 3, corsair: 6, wraith: 4, muta: 7, carrier: 4, bc: 3, hive: 4 };
 /** 출격 규모 상한. 저글링 물량만 더 크게 모은다(저글링은 인구 0.5). */
 const WAVE_CAP = { ling: 80 };
@@ -328,7 +335,15 @@ export function stwAiThink(state, side) {
   };
   // 경계 중에는 방어 건물이 가장 먼저다: 못 지으면 그 비용을 아껴 둔다(병력이 3기 미만일 때만 생산이 이를 무시한다).
   // 순서: 방어 건물 하나(프로토스는 포지부터) → 생산 건물 셋 → 방어 건물 둘(저그는 셋).
-  if (alert) {
+  // 앞마당 캐논 빌드(빌드 순서에 앞마당 캐논 단계가 있는 프로토스 성향): 경계 중에도 포지 → 앞마당 → 캐논 셋으로 받는다.
+  // 경계의 기본 대응(본진 캐논 하나 + 게이트웨이 셋, 확장은 6분 뒤)을 그대로 쓰면 바이오(배럭 셋)를 볼 때마다 확장이 7분으로 밀렸다.
+  const ffe = race.id === "protoss" && buildOrder(state, side, persona).some((step) => step.natural);
+  // 실제로 압박을 받으면(우리 진영에 적 전투 병력 3기 이상, 또는 건물이 맞음) 예전 경계 대응(본진 캐논 + 게이트웨이 셋)으로 돌아간다.
+  // 2분 40초부터 질럿을 밀어 오는 상대에게 앞마당·캐논 셋을 고집하면 7분 전에 무너졌다.
+  if (incomingWave(state, side) || state.buildings.some((building) => building.side === side && state.time - building.lastHit < 10)) memory.pressuredAt = state.time;
+  const pressured = memory.pressuredAt !== undefined && state.time - memory.pressuredAt < 90;
+  const ffeOpening = ffe && alert && !pressured && state.time < 420 && stwOwnBuildings(state, side, "cannon").length < 3;
+  if (alert && !ffeOpening) {
     const producersNow = race.producers.reduce((sum, type) => sum + stwOwnBuildings(state, side, type).length, 0);
     const alertProducer = alertProducerFor(state, side, race, persona);
     let waiting = ensureDefense(state, side, race, 1);
@@ -389,6 +404,11 @@ export function stwAiThink(state, side) {
       blocked += 1;
       continue;
     }
+    // 앞마당 캐논 단계는 앞마당 넥서스를 놓은 뒤에 짓는다(먼저 지으면 본진 앞에 서서 앞마당을 지키지 못한다).
+    if (step.natural && !stwNexus(state, side, "natural")) {
+      blocked += 1;
+      continue;
+    }
     // 경계 중에는 확장·상위 테크를 미루고 인구·생산 건물·방어 건물과 그에 필요한 가스만 짓는다.
     // 5분이 지나면 1단계 유닛 해금 건물(코어·아카데미·덴·에볼루션 챔버)을, 방어 건물 비용을 기다리는 중이 아니면 연구도 허용한다
     // (경계가 길어지면 업그레이드까지 10분씩 밀린다).
@@ -397,7 +417,7 @@ export function stwAiThink(state, side) {
     const gasIdle = record.gas >= 150;
     const techStep = Boolean(TECH_STEPS[persona]?.includes(step.build ?? step.research));
     // 테크 성향의 핵심 테크는 병력이 안전하면 경계 중에도 올린다(경계가 길면 대표 유닛이 영영 늦었다).
-    const allowedInAlert = step.opener || (techStep && safe) || (step.research ? state.time >= 300 && !reserve.hard : step.build === "expand" ? state.time >= 360 : step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && (state.time >= 300 || gasIdle)) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length));
+    const allowedInAlert = step.opener || (techStep && safe) || (ffeOpening && (step.build === "forge" || step.build === "expand")) || (step.research ? state.time >= 300 && !reserve.hard : step.build === "expand" ? state.time >= 360 : step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && (state.time >= 300 || gasIdle)) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length));
     if (alert && !allowedInAlert) {
       blocked += 1;
       continue;
@@ -458,7 +478,7 @@ export function stwAiThink(state, side) {
       const strict = step.build === "expand" || race.id !== "zerg" || (persona === "ling" && state.time - memory.headSince > 15) || (techStep && safe);
       // 가스가 놀고 있으면 그 가스를 쓰게 하는 해금 건물(코어 등)도 반드시 산다(경계 중 질럿에 광물을 다 써 코어가 11분에야 섰다).
       const unlocksGas = gasIdle && ALERT_TECH.has(step.build);
-      save(cost.minerals, cost.gas, (strict && (!alert || step.build === race.supply || Boolean(STW_BUILDINGS[step.build]?.defense) || (techStep && safe))) || unlocksGas);
+      save(cost.minerals, cost.gas, (strict && (!alert || step.build === race.supply || Boolean(STW_BUILDINGS[step.build]?.defense) || (techStep && safe) || (ffeOpening && step.build === "expand"))) || unlocksGas);
       if (step.build === "expand" && state.time - memory.headSince > 30) reserve.expand = true;
     }
     blocked += 1;
@@ -615,6 +635,11 @@ export function stwAiThink(state, side) {
   const counter = protossCounter(state, side);
   const armyNow = stwArmy(state, side);
   const thin = armyNow.fighters.length + armyNow.attackers.length < 3;
+  // 이른 수비 병력: 3:30~7:00에는 시각에 맞는 최소 병력(3:30 3기 → 7:00 8기)이 모이기 전까지 확장·건물 자금 때문에 게이트웨이를 멈추지 않는다.
+  // 적 병력을 못 봤으면 armySafe가 "안전"으로 보아, 앞마당 자금을 모으며 질럿 3기로 5:00 바이오를 맞아 무너졌다.
+  // 완성된 캐논은 하나에 2기로 친다(캐논 셋 + 질럿 몇 기로 앞마당을 지키고 확장 자금을 모은다).
+  const cannonsReady = stwOwnBuildings(state, side, "cannon", { doneOnly: true }).length;
+  const earlyGuard = state.time >= 210 && state.time < 420 && armyNow.fighters.length + armyNow.attackers.length + cannonsReady * 2 < 3 + Math.floor((state.time - 210) / 40);
   gatewayList.forEach((gateway, index) => {
     let unit = "zealot";
     // 저그 상대로는 저글링에 강한 질럿을 더 섞는다.
@@ -650,7 +675,7 @@ export function stwAiThink(state, side) {
     // 확장을 기다릴 때 커세어 질럿은 스타게이트만 남기고 게이트웨이를 모두 멈춘다. 스타게이트가 광물을 기다리면 첫 게이트웨이만 돌린다.
     const stargateWaiting = persona === "corsair" && stwOwnBuildings(state, side, "stargate", { doneOnly: true }).some((stargate) => stargate.line && !stargate.current);
     // 병력이 안전하지 않으면 멈추지 않는다(생산을 멈춘 채 첫 웨이브를 맞으면 무너진다).
-    const desired = (starving && !thin && safe && !keepRunning && !gateway.current) || (reserve.expand && safe && index > 0) || (stargateWaiting && safe && index > 1) ? null : unit;
+    const desired = !earlyGuard && ((starving && !thin && safe && !keepRunning && !gateway.current) || (reserve.expand && safe && index > 0) || (stargateWaiting && safe && index > 1)) ? null : unit;
     if (gateway.line !== desired) stwCommand(state, side, { type: "line", gatewayId: gateway.id, unit: desired });
   });
 
@@ -1172,7 +1197,10 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
     memory.attacking = false;
     return;
   }
-  const waves = record.plan?.waves ?? WAVES[persona];
+  // 질럿 러시는 테란 상대로 첫 공격을 8기가 모였을 때 한꺼번에 보낸다. 4기씩 나눠 3분에 벙커로 들어가 셋을 잃고,
+  // 그 뒤 벙커 둘과 해병이 쌓여 7분 공격도 막혔다(실험실: 질럿 8기는 해병 12 + 벙커 2, 5:00 바이오 해병 9 + 메딕 5를 이긴다).
+  const versusTerran = state.sides[stwOpponent(side)].race === "terran";
+  const waves = record.plan?.waves ?? (persona === "rush" && versusTerran ? RUSH_WAVES_VS_TERRAN : WAVES[persona]);
   // 목록이 끝난 뒤에는 실패할 때마다 출격 규모를 4기씩 키운다(최대 40기).
   const listed = waves[Math.min(memory.wave, waves.length - 1)] + Math.max(0, memory.wave - waves.length + 1) * 4;
   // 적 방어 건물(캐논·벙커·성큰)을 본 만큼 더 모아서 간다(하나당 4기, 최대 12기). 방어 건물은 기지 전체를 지키므로 소수로 찔러 봐야 손해다.
@@ -1201,7 +1229,8 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 2초마다 공격·후퇴를 오가며 병력이 길에서 녹던 문제.
   // 히드라·하이브·울트라·뮤탈 운영은 저글링을 반 기로 센다(인구 0.5). 그대로 세면 "14기"가 저글링 14기라 4분에 저글링만으로 나갔다.
   const fighterCount = HALF_LING.has(persona) ? army.fighters.reduce((sum, unit) => sum + (unit.type === "zergling" ? 0.5 : 1), 0) : army.fighters.length;
-  if (fighterCount >= size && !outgunned && !fortified && threat < 3) {
+  const lingsIntoBio = !allIn && lingsVersusBio(state, side, memory, army.fighters);
+  if (fighterCount >= size && !outgunned && !fortified && !lingsIntoBio && threat < 3) {
     // 폭탄 드랍 성향은 쉬는 수송선이 둘 이상이면 출격과 동시에 폭탄 드랍(남은 병력은 정면으로).
     if (dropPlan?.mission === "bomb" && stwDropCheck(state, side, "bomb").ok) stwCommand(state, side, { type: "drop", ...dropPlan });
     else stwCommand(state, side, { type: "attack" });
@@ -1209,6 +1238,26 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
     memory.attacking = true;
     memory.waveStart = stwArmy(state, side).attackers.length;
   }
+}
+
+/**
+ * 저그가 저글링 위주로 해병·메딕(바이오)에 들이받는지: 우리 병력 값이 짐작한 적 병력 값의 2배(파이어뱃이 있으면 2.5배)에 못 미치면 나가지 않는다.
+ * 실험실(시드 3판): 해병 9·메딕 5(825)는 저글링 30기(1.8배)부터 이기고 24기(1.5배)까지는 전패. 파이어뱃 1기가 섞이면 발업 저글링 36기(2.1배)가 필요하다.
+ * 5:00에 저글링 22·히드라 3(1.7배)으로 스팀팩 바이오에 들어가 30초 만에 저글링 5기만 남던 문제. 적 병력을 못 봤으면 정찰 + 그 뒤 생산량으로 짐작한다.
+ */
+function lingsVersusBio(state, side, memory, fighters) {
+  if (state.sides[side].race !== "zerg" || !fighters.length) return false;
+  const value = (type) => STW_UNITS[type].minerals + STW_UNITS[type].gas;
+  const ownValue = fighters.reduce((sum, unit) => sum + value(unit.type), 0);
+  const lingValue = fighters.reduce((sum, unit) => sum + (unit.type === "zergling" ? value(unit.type) : 0), 0);
+  if (lingValue < ownValue * 0.5) return false;
+  const estimate = foeArmyEstimate(state, side, memory);
+  const types = memory.foeTypes ?? [];
+  if (!types.length) return false;
+  const bio = types.filter((type) => type === "marine" || type === "medic" || type === "firebat").length;
+  if (bio < types.length * 0.5) return false;
+  const foeValue = estimate.count * (types.reduce((sum, type) => sum + value(type), 0) / types.length);
+  return ownValue < foeValue * (types.includes("firebat") ? 2.5 : 2);
 }
 
 /** 상대에게 수송선이 있으면(최근 5분 안에 봤거나 드랍을 맞았으면) 출격할 때 대기 병력 4기를 집에 남긴다. AI만 쓴다. */

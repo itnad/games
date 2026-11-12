@@ -2657,7 +2657,10 @@ test("starswar AI scouts early and goes on alert against a rush: defense first, 
   assert.ok(state.sides.enemy.ai.alertUntil >= 480, `게이트웨이 3개를 보고 경계 (${state.sides.enemy.ai.alertUntil})`);
   run(state, 90, stwAiThink);
   assert.ok(stwOwnBuildings(state, "enemy", "forge").length >= 1 && stwOwnBuildings(state, "enemy", "cannon").length >= 1, "포지와 캐논을 먼저 세움");
-  assert.ok(stwOwnBuildings(state, "enemy", "gateway").length >= 2, "생산 건물을 늘림");
+  // 드라군 기본 빌드는 앞마당 캐논 빌드라, 압박이 없는 경계에서는 게이트웨이 대신 앞마당과 캐논으로 받는다.
+  const natural = stwNexus(state, "enemy", "natural");
+  const naturalCannons = stwOwnBuildings(state, "enemy", "cannon").filter((cannon) => cannon.base === "natural").length;
+  assert.ok(stwOwnBuildings(state, "enemy", "gateway").length >= 2 || (natural && naturalCannons >= 1), `생산 건물을 늘리거나 앞마당을 캐논으로 지킴 (게이트웨이 ${stwOwnBuildings(state, "enemy", "gateway").length}, 앞마당 캐논 ${naturalCannons})`);
   assert.equal(state.sides.enemy.ai.attacking, false, "경계 중에는 출격하지 않음");
 });
 
