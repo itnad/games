@@ -3638,7 +3638,7 @@ test("serves the Stark Rift playtest as its own noindex page with a home entry",
   const html = await response.text();
   assert.match(html, /스타크 리프트/);
   assert.match(html, /새 테스트 시작/);
-  assert.match(html, /승패 판정과 상대 AI는 준비 중/);
+  assert.match(html, /상대 AI는 준비 중/);
   assert.match(html, /name="robots"[^>]*content="noindex[^"]*nofollow/);
   const home = await (await render()).text();
   assert.match(home, /href="\/stark-rift-dev"/);
