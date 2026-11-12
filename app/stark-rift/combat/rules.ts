@@ -1,3 +1,5 @@
+import { initializeSpecialPractice } from "../abilities/special-practice";
+import { isEmbarked } from "../abilities/special-state";
 import { isBurrowed } from "../abilities/burrow";
 import { uphillAttack } from "../vision/rules";
 import { nextUint32 } from "../core/rng";
@@ -27,7 +29,7 @@ export function synchronizeCombat(s: SimulationState) {
     const definitionId = s.entities.definitionId[i],
       old = previous.get(id);
     if (old?.definitionId === definitionId) return old;
-    const restored = definitionId === "zerg-drone" ? old?.workerFraction : null;
+    const restored = definitionId === "zerg-drone" ? old?.workerFraction : definitionId === "zerg-lair" && old?.definitionId === "zerg-hatchery" ? { health: old.healthFraction, shield: old.shieldFraction } : null;
     return {
       entityId: id,
       definitionId,
@@ -57,6 +59,7 @@ export function initializeCombat(
     friendlyIds: [],
     targetIds: [],
   };
+  if (scenario === "special-practice") { initializeSpecialPractice(s); synchronizeCombat(s); return; }
   if (scenario !== "economy") {
     const race = s.players[0].faction,
       ranged = scenario === "ranged-practice";
@@ -205,7 +208,7 @@ function validTarget(
   const e = s.entities;
   return (
     b >= 0 &&
-    !isBurrowed(s, e.id[a]) &&
+    !isBurrowed(s, e.id[a]) && !isEmbarked(s, e.id[a]) && !isEmbarked(s, e.id[b]) &&
     a !== b &&
     e.owner[a] !== e.owner[b] &&
     e.health[b] > 0 &&
@@ -309,6 +312,7 @@ function effect(
   s.combat!.effects.push({
     id: allocateId(s, "nextEventId"),
     tick: s.tick,
+    sourceId: e.id[a],
     kind,
     ...(weaponId ? { weaponId } : {}),
     owner: e.owner[a],
@@ -462,6 +466,7 @@ export function createCombatRules(
           if (
             b < 0 ||
             e.health[b] === 0 ||
+            isEmbarked(s, e.id[b]) ||
             e.owner[b] === bullet.owner ||
             e.layer[b] !== bullet.targetLayer ||
             s.tick >= bullet.expiresTick
