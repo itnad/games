@@ -1,4 +1,9 @@
-import { combatStateSchema, type CombatState } from "../combat/state";
+import {
+  combatStateSchema,
+  PREVIOUS_COMBAT_RULES_VERSION,
+  COMBAT_RULES_VERSION,
+  type CombatState,
+} from "../combat/state";
 import { validEconomy } from "../economy/validation";
 import {
   economyStateSchema,
@@ -303,6 +308,22 @@ export const simulationStateSchema: Schema<SimulationState> = refine(
       )
         return false;
     }
+    if (state.combat) {
+      const shots = state.combat.projectiles;
+      if (
+        new Set(shots.map((p) => p.id)).size !== shots.length ||
+        shots.some(
+          (p) =>
+            p.id >= state.counters.nextProjectileId ||
+            p.sourceId >= state.counters.nextEntityId ||
+            p.targetId >= state.counters.nextEntityId ||
+            p.spawnTick > state.tick ||
+            p.expiresTick <= state.tick ||
+            p.expiresTick - p.spawnTick !== 200,
+        )
+      )
+        return false;
+    }
     const ids = state.players.map((p) => p.id);
     if (!ids.every((id, i) => id === i)) return false;
     if (
@@ -456,31 +477,56 @@ export const persistenceEnvelopeSchema: Schema<PersistenceEnvelope> = refine(
 export const validatePersistenceEnvelope = (input: unknown) =>
   parse(persistenceEnvelopeSchema, input);
 
-/** Verify the original checksum before upgrading the one supported legacy save format. */
-export function migrateStage4Envelope(input: unknown): unknown {
+/** Verify the untouched source checksum and supported version before migration. */
+export function migrateLegacyEnvelope(input: unknown): unknown {
   if (!input || typeof input !== "object") return input;
   const old = input as PersistenceEnvelope;
-  if (old.formatVersion !== 6) return input;
-  const s = old.simulation;
+  if (old.formatVersion !== 6 && old.formatVersion !== 7) return input;
+  const s = old.simulation,
+    stage4 = old.formatVersion === 6,
+    engine = stage4 ? "0.7.0-stage4" : "0.8.0-stage5a";
   if (
-    old.engineVersion !== "0.7.0-stage4" ||
     !s ||
-    s.engineVersion !== old.engineVersion ||
-    s.schemaVersion !== 6 ||
-    s.combat !== undefined ||
+    old.engineVersion !== engine ||
+    s.engineVersion !== engine ||
+    s.schemaVersion !== old.formatVersion ||
     old.checksum !== checksum(s)
   )
-    throw new TypeError("Invalid stage-4 save");
+    throw new TypeError("Invalid legacy save");
+  if (stage4 && s.combat !== undefined)
+    throw new TypeError("Unexpected legacy combat");
+  if (
+    !stage4 &&
+    s.combat &&
+    (s.combat.rulesVersion !== PREVIOUS_COMBAT_RULES_VERSION ||
+      Object.hasOwn(s.combat, "projectiles") ||
+      !["economy", "combat-practice"].includes(s.combat.scenario) ||
+      s.combat.effects.some(
+        (e) =>
+          !["shot", "slash", "death"].includes(e.kind) ||
+          e.weaponId !== undefined,
+      ))
+  )
+    throw new TypeError("Unknown legacy combat rules");
   const saved = structuredClone(old);
   saved.formatVersion = STARK_RIFT_FORMAT_VERSION;
   saved.engineVersion = STARK_RIFT_ENGINE_VERSION;
   saved.simulation.schemaVersion = STARK_RIFT_SCHEMA_VERSION;
   saved.simulation.engineVersion = STARK_RIFT_ENGINE_VERSION;
+  if (saved.simulation.combat) {
+    saved.simulation.combat.rulesVersion = COMBAT_RULES_VERSION;
+    saved.simulation.combat.projectiles = [];
+  }
+  for (const m of saved.simulation.movement)
+    if (!Object.hasOwn(m, "trackedTarget"))
+      m.trackedTarget =
+        m.order === "focusAttack" && m.target ? { ...m.target } : null;
   saved.checksum = checksum(saved.simulation);
-  const validated = validatePersistenceEnvelope(saved);
-  if (!validated.ok) throw new TypeError("Invalid migrated save");
-  return validated.value;
+  const parsed = validatePersistenceEnvelope(saved);
+  if (!parsed.ok) throw new TypeError("Invalid migrated save");
+  return parsed.value;
 }
+export const migrateStage4Envelope = migrateLegacyEnvelope;
 
 export function serializeSnapshot(saved: PersistenceEnvelope): string {
   const result = validatePersistenceEnvelope(saved);
@@ -491,7 +537,7 @@ export function restoreSnapshot(serialized: string): PersistenceEnvelope {
   if (serialized.length > 16 * 1024 * 1024)
     throw new RangeError("Snapshot exceeds 16 MiB.");
   const result = validatePersistenceEnvelope(
-    migrateStage4Envelope(JSON.parse(serialized)),
+    migrateLegacyEnvelope(JSON.parse(serialized)),
   );
   if (!result.ok) throw new TypeError(JSON.stringify(result.issues));
   return structuredClone(result.value);
