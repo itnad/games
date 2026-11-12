@@ -1,3 +1,4 @@
+import { isBurrowed } from "../abilities/burrow";
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import type { EngineRules, CommandHandler } from "../core/simulation";
@@ -57,7 +58,7 @@ export function productionFailure(
     d.producer !== producer.id
   )
     return "invalid_target";
-  if (!activeBuilding(s, b) || b.queue.length >= 5 || b.research)
+  if (!activeBuilding(s, b) || b.queue.length >= 5 || (b.research && producer.id !== "zerg-hatchery"))
     return "invalid_state";
   if (!meetsRequirements(s, owner, d)) return "missing_prerequisite";
   if (
@@ -183,7 +184,7 @@ export function createEconomyRules(
   ): CommandHandler => ({
     policy: "partial",
     validate: (s, c, id) =>
-      s.economy.enabled ? validate(s, c, id) : "invalid_state",
+      s.economy.enabled && !isBurrowed(s, id) ? validate(s, c, id) : "invalid_state",
     apply,
   });
   const workerValid = (s: SimulationState, id: number) =>
@@ -278,6 +279,7 @@ export function createEconomyRules(
         .filter(
           (n) =>
             definitionOf(s, n)?.id === d.producer &&
+            !isBurrowed(s, n) &&
             s.entities.owner[indexOf(s, n)] === c.playerId &&
             s.entities.health[indexOf(s, n)] > 0 &&
             (!c.payload.queued ||
@@ -445,7 +447,7 @@ export function createEconomyRules(
         b = structureOf(s, id);
       if (!t || !b || definitionOf(s, id)?.id !== t.producer)
         return "invalid_target";
-      if (!activeBuilding(s, b) || b.research || b.queue.length)
+      if (!activeBuilding(s, b) || b.research || (b.queue.length > 0 && t.producer !== "zerg-hatchery"))
         return "invalid_state";
       if (
         s.economy.upgrades.some(
