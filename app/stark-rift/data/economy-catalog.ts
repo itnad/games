@@ -1,4 +1,5 @@
 import original from "./economy-original.json";
+import burrow from "./burrow-original.json";
 import { checksum } from "../core/checksum";
 export type Faction = "terran" | "zerg" | "protoss";
 export type EconomyDefinition = {
@@ -201,7 +202,7 @@ export const factionHeadquarters = (f: Faction) =>
   ECONOMY_DEFINITIONS.find((d) => d.faction === f && d.headquarters)!;
 export const factionWorker = (f: Faction) =>
   ECONOMY_DEFINITIONS.find((d) => d.faction === f && d.kind === "worker")!;
-export const ECONOMY_UPGRADES = original.upgrades.map((raw, i) => ({
+const weaponUpgrades = original.upgrades.map((raw, i) => ({
   id: economyId(raw.name),
   name: ["보병 무기", "근접 공격", "지상 무기"][i],
   faction: ["terran", "zerg", "protoss"][i] as Faction,
@@ -219,6 +220,23 @@ export const ECONOMY_UPGRADES = original.upgrades.map((raw, i) => ({
   maxLevel: raw.defaultMaxRepeats,
   availableLevels: 1,
 }));
+export const ECONOMY_UPGRADES = [
+  ...weaponUpgrades,
+  {
+    id: "burrowing",
+    name: "버로우",
+    faction: "zerg" as Faction,
+    producer: burrow.producer,
+    minerals: burrow.minerals,
+    gas: burrow.gas,
+    factor: 0,
+    frames: burrow.frames,
+    ticks: economicTicks(burrow.frames),
+    timeFactor: 0,
+    maxLevel: 1,
+    availableLevels: 1,
+  },
+];
 export const ECONOMY_SOURCE = original.source;
 export const ECONOMY_MECHANICS = {
   mineralHarvestTicks: economicTicks(75),
@@ -232,14 +250,16 @@ export const ECONOMY_MECHANICS = {
   buildingRefundNumerator: 3,
   buildingRefundDenominator: 4,
 };
-export const ECONOMY_DATA_VERSION =
+export const LEGACY_ECONOMY_DATA_VERSION =
   "bw1161-economy-" +
   checksum({
     original: JSON.stringify(original),
     definitions: ECONOMY_DEFINITIONS,
-    upgrades: ECONOMY_UPGRADES,
+    upgrades: weaponUpgrades,
     mechanics: ECONOMY_MECHANICS,
   });
+export const ECONOMY_DATA_VERSION =
+  "burrow-economy-" + checksum({ base: LEGACY_ECONOMY_DATA_VERSION, burrow });
 for (const d of ECONOMY_DEFINITIONS) {
   if (
     !lookup.has(d.producer) ||
