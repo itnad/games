@@ -26,10 +26,12 @@ const globalsPlugin = {
   name: "react-umd-globals",
   setup(context) {
     context.onResolve({ filter: /^react\/jsx-runtime$/ }, () => ({ path: `${here}jsx-runtime-shim.js` }));
-    context.onResolve({ filter: /^(react|react-dom\/client|pixi\.js|pixi\.js\/unsafe-eval)$/ }, (args) => ({ path: args.path, namespace: "umd-global" }));
+    context.onResolve({ filter: /^(react|react-dom|react-dom\/client|pixi\.js|pixi\.js\/unsafe-eval)$/ }, (args) => ({ path: args.path, namespace: "umd-global" }));
     const globals = {
       react: "module.exports = window.React;",
       "react-dom/client": "module.exports = window.ReactDOM;",
+      // 게임 설명 창의 createPortal.
+      "react-dom": "module.exports = window.ReactDOM;",
       "pixi.js": "module.exports = window.PIXI;",
       // jsDelivr의 unsafe-eval 패키지가 PIXI 전역에 직접 설치되므로 번들 쪽은 비워 둔다.
       "pixi.js/unsafe-eval": "module.exports = {};",
@@ -54,7 +56,12 @@ const result = await build({
 });
 
 const js = result.outputFiles.find((file) => file.path.endsWith(".js")).text.replace(/<\/script/gi, "<\\/script");
-const css = result.outputFiles.find((file) => file.path.endsWith(".css")).text.replace(/<\/style/gi, "<\\/style");
+// 게임 설명(GameObjectiveGuide) 버튼·창의 스타일은 사이트 공통 CSS(globals.css, 200KB)에 있다. 통째로 넣지 않고 그 구간만 잘라 붙인다.
+const globalsCss = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+const guideStart = globalsCss.indexOf(".game-objective-trigger {");
+const guideEnd = globalsCss.indexOf(".game-topbar {", guideStart);
+const guideCss = guideStart >= 0 && guideEnd > guideStart ? globalsCss.slice(guideStart, guideEnd) : "";
+const css = (result.outputFiles.find((file) => file.path.endsWith(".css")).text + guideCss).replace(/<\/style/gi, "<\\/style");
 const title = "<title>스타드래프트</title>";
 const body = `<div id="game-root"></div>`;
 const react = artifact

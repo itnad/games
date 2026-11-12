@@ -2,13 +2,16 @@
 .stw-shell { --stw-bg:#120d07; --stw-on-gold:#2a1c05; --stw-soft:#dccdaa; --stw-veil:#ffffff; --stw-glow:#4b3a1c; --stw-font-display:inherit; --stw-panel:#1c150c; --stw-card:#261d11; --stw-line:#e9c77a26; --stw-text:#f5ecd8; --stw-muted:#bfae8c; --stw-gold:#e6bd62; --stw-blue:#57c6ff; --stw-red:#ff7158; --stw-green:#7fe08f; min-height:100dvh; color:var(--stw-text); background:radial-gradient(circle at 70% 0%,color-mix(in srgb,var(--stw-glow) 33%,transparent),transparent 45%),linear-gradient(175deg,var(--stw-panel),var(--stw-bg) 70%); font-family:var(--font-geist-sans),system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif; }
 .stw-shell button { font:inherit; color:inherit; cursor:pointer; touch-action:manipulation; }
 .stw-shell button:disabled { cursor:not-allowed; opacity:.45; }
-.game-readability-scope[data-game-id="starswar"] .game-objective-trigger { top:10px; right:14px; color:var(--stw-soft); border-color:color-mix(in srgb,var(--stw-gold) 33%,transparent); background:color-mix(in srgb,var(--stw-card) 90%,transparent); }
+/* 게임 설명: 떠 있는 버튼 대신 메뉴 위쪽 줄과 일시정지 창 안에 둔다(떠 있는 버튼이 생산 현황 칩을 밀어냈다). */
+.stw-shell .game-objective-trigger { color:var(--stw-soft); border-color:color-mix(in srgb,var(--stw-gold) 33%,transparent); background:color-mix(in srgb,var(--stw-card) 90%,transparent); }
+.stw-topbar .game-objective-trigger { justify-self:end; }
+.stw-overlay .game-objective-trigger { width:100%; justify-content:center; min-height:42px; border-radius:14px; }
 
-.stw-topbar { position:relative; min-height:58px; padding:8px 150px 8px 14px; display:grid; grid-template-columns:44px minmax(0,1fr); align-items:center; gap:10px; border-bottom:1px solid var(--stw-line); background:color-mix(in srgb,var(--stw-bg) 93%,transparent); }
+.stw-topbar { position:relative; min-height:58px; padding:8px 14px; display:grid; grid-template-columns:44px minmax(0,1fr) auto; align-items:center; gap:10px; border-bottom:1px solid var(--stw-line); background:color-mix(in srgb,var(--stw-bg) 93%,transparent); }
 .stw-play-shell .stw-topbar { grid-template-columns:44px auto minmax(0,1fr); gap:8px; }
 .stw-play-shell .stw-topbar .stw-brand { font-size:12px; }
 .stw-play-shell .stw-topbar strong { font-size:19px; }
-.stw-topbar > button { width:42px; height:42px; border:1px solid color-mix(in srgb,var(--stw-gold) 27%,transparent); border-radius:50%; background:color-mix(in srgb,var(--stw-veil) 5%,transparent); font-size:21px; }
+.stw-topbar > button:first-child { width:42px; height:42px; border:1px solid color-mix(in srgb,var(--stw-gold) 27%,transparent); border-radius:50%; background:color-mix(in srgb,var(--stw-veil) 5%,transparent); font-size:21px; }
 .stw-topbar > div { min-width:0; display:grid; }
 .stw-topbar .stw-brand { overflow:hidden; color:var(--stw-muted); font-weight:800; text-overflow:ellipsis; white-space:nowrap; }
 .stw-topbar strong { font-size:20px; font-weight:900; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
@@ -266,7 +269,7 @@
   .stw-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
 }
 @media (max-width:420px) {
-  .stw-topbar { padding-right:128px; }
+  .stw-topbar { padding-right:10px; }
   .stw-hud { gap:4px; padding:6px 8px; }
   .stw-res { padding:4px 6px; gap:4px; }
   .stw-res b { font-size:15px; }

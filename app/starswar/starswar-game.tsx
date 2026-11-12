@@ -54,6 +54,7 @@ import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
 import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./starswar-lab";
 import { THEMES, ThemeFonts, themeProps, type ThemeId } from "./starswar-theme";
 import { PAPEROID_BUILD_ID, PAPEROID_GIT_SHA } from "../app-version";
+import { GameObjectiveGuide } from "../game-objective-guide";
 import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwMapData, StwMapId, StwOp, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
 
 type Screen = "menu" | "play" | "lab";
@@ -383,7 +384,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [game, setGame] = useState<StwState | null>(null);
   const [, setFrame] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [speed, setSpeed] = useState<1 | 2>(1);
   const [tab, setTab] = useState<Tab>("build");
   const [toast, setToast] = useState<Toast | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
@@ -407,7 +407,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const selectedRef = useRef<string[]>([]);
   const cameraRef = useRef({ zoom: 1, cx: 20, cy: 94, ready: false, follow: true, lastZoom: 2 });
   const pausedRef = useRef(false);
-  const speedRef = useRef(1);
   const recordedRef = useRef(false);
   const savedAtRef = useRef(0);
 
@@ -424,9 +423,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
 
   useEffect(() => {
     pausedRef.current = paused || confirmExit;
-    speedRef.current = speed;
     cameraRef.current.follow = follow;
-  }, [confirmExit, follow, paused, speed]);
+  }, [confirmExit, follow, paused]);
 
   const refresh = useCallback(() => setFrame((value) => value + 1), []);
   const showToast = useCallback((text: string, tone: Toast["tone"] = "warn") => setToast({ id: Date.now(), text, tone }), []);
@@ -456,7 +454,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     setSquadOpen(false);
     // 이어할 때는 상황을 살필 수 있게 일시정지로 시작한다.
     setPaused(resumed);
-    setSpeed(1);
     setConfirmExit(false);
     setScreen("play");
   };
@@ -525,7 +522,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     camera.cx = view.cx;
     camera.cy = view.cy;
     viewRef.current = view;
-    pixi.render(current, view, { clock, timeScale: pausedRef.current ? 0 : speedRef.current, rally: current.sides.player.rally, selected: selectedRef.current });
+    pixi.render(current, view, { clock, timeScale: pausedRef.current ? 0 : 1, rally: current.sides.player.rally, selected: selectedRef.current });
     // 지도 위 정찰 버튼: 아군 본진 광물 줄 높이의 오른쪽 가장자리에 붙이고, 본진이 화면 밖이면 완성된 앞마당 광물 줄 높이에 붙인다.
     // 둘 다 화면 밖이면(전선을 따라가는 중) 지도 오른쪽 아래(아군 기지 쪽)에 붙여 둔다.
     // 카메라가 매 프레임 움직이므로 React 갱신(0.25초)이 아니라 여기서 바로 옮긴다.
@@ -598,7 +595,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       last = now;
       const current = gameRef.current;
       if (current && !pausedRef.current && current.status === "playing") {
-        advanceStarswar(current, dt * speedRef.current, stwAiThink);
+        advanceStarswar(current, dt, stwAiThink);
         if (current.time - savedAtRef.current >= SAVE_EVERY) {
           savedAtRef.current = current.time;
           writeSave(current);
@@ -829,6 +826,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         <header className="stw-topbar">
           <button type="button" onClick={onExit} aria-label="게임 목록으로">←</button>
           <div><span className="stw-brand">paperoid</span><strong>스타드래프트</strong></div>
+          <GameObjectiveGuide gameId="starswar" inline />
         </header>
         <section className="stw-menu">
           <div className="stw-menu-hero">
@@ -930,7 +928,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         <span className={supply.used >= supply.cap ? "stw-res supply full" : "stw-res supply"}><i aria-hidden="true" /><b>{supply.used}/{supply.cap}</b></span>
         <div className="stw-speed">
           <button type="button" onClick={() => setPaused((value) => !value)} aria-label={paused ? "계속하기" : "일시정지"}>{paused ? "▶" : "Ⅱ"}</button>
-          <button type="button" onClick={() => setSpeed((value) => (value === 1 ? 2 : 1))} aria-label="게임 속도 전환">{speed}×</button>
         </div>
       </section>
       <div className="stw-body">
@@ -984,6 +981,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 <button type="button" className="stw-primary" onClick={() => setPaused(false)}>계속하기</button>
                 <PauseReportButton game={game} />
                 <button type="button" className="stw-secondary" onClick={() => setConfirmExit(true)}>나가기</button>
+                <GameObjectiveGuide gameId="starswar" inline />
                 <ThemePicker theme={theme} onPick={pickTheme} compact />
                 <TipLine race={game.sides.player.race} className="stw-tip-pause" />
               </section>

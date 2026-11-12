@@ -477,7 +477,8 @@ test("folds the mudflat departure panel and keeps its guide out of the active HU
   assert.match(styles, /@media\(max-width:720px\)\{\.ms-departure:not\(\.is-collapsed\)\{padding:20px 12px 10px\}/);
   assert.match(styles, /\.ms-departure:not\(\.is-collapsed\) \.ms-departure-toggle\{right:12px;top:12px;width:40px;min-height:34px\}/);
   assert.match(styles, /\.ms-departure:not\(\.is-collapsed\) \.ms-departure-copy\{padding-right:52px!important\}/);
-  assert.match(page, /gameId !== "mudflat-survivor" && <GameObjectiveGuide gameId=\{gameId\}/);
+  assert.match(page, /const INLINE_GUIDE_GAMES = new Set<GameId>\(\["mudflat-survivor", "starswar"\]\)/);
+  assert.match(page, /!INLINE_GUIDE_GAMES\.has\(gameId\) && <GameObjectiveGuide gameId=\{gameId\}/);
   assert.match(source, /const pauseLayer = screen === "paused" \?[\s\S]*?<GameObjectiveGuide gameId="mudflat-survivor" inline \/>/);
   assert.match(source, /className="ms-pause-dashboard" aria-label="현재 원정 정보"/);
   assert.match(source, /STAGE INFO/);
@@ -804,6 +805,10 @@ test("keeps StarDraft in its own app/starswar folder as a mobile game at /stardr
   assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^(starswar|frontline)/.test(file) && file !== "starswar"), false);
   assert.match(pageSource, /import \{ StarswarGame \} from "\.\/starswar\/starswar-game";/);
   assert.match(layoutSource, /import "\.\/starswar\/starswar\.css";/);
+  // 게임 설명은 떠 있는 버튼 대신 메뉴 위쪽 줄과 일시정지 창 안에 둔다. 배속 버튼은 없앴다.
+  const starswarSource = await readFile(new URL("../app/starswar/starswar-game.tsx", import.meta.url), "utf8");
+  assert.equal(starswarSource.match(/<GameObjectiveGuide gameId="starswar" inline \/>/g)?.length, 2);
+  assert.doesNotMatch(starswarSource, /게임 속도 전환/);
   assert.match(pageSource, /id: "starswar",[\s\S]*?title: "스타드래프트",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
   // 유닛·건물은 원작 이름 그대로라 공개 시점을 정할 때까지 홈 목록에서 숨긴다.

@@ -524,10 +524,13 @@ function BrandMark() {
   );
 }
 
+/** 게임 설명 버튼을 화면에 띄우지 않고 게임 안(일시정지 창 등)에 직접 넣는 게임. 떠 있는 버튼이 게임 상단 표시를 가렸다. */
+const INLINE_GUIDE_GAMES = new Set<GameId>(["mudflat-survivor", "starswar"]);
+
 function GuidedGame({ gameId, children }: { gameId: GameId; children: ReactNode }) {
   return (
     <div className="game-readability-scope" data-game-id={gameId}>
-      {gameId !== "mudflat-survivor" && <GameObjectiveGuide gameId={gameId} />}
+      {!INLINE_GUIDE_GAMES.has(gameId) && <GameObjectiveGuide gameId={gameId} />}
       {children}
     </div>
   );
