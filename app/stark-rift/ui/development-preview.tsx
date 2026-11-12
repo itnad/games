@@ -22,7 +22,7 @@ const FACTIONS: { id: Faction; name: string; summary: string; mark: string }[] =
     {
       id: "zerg",
       name: "저그",
-      summary: "드론 변태 · 크립 · 라바 생산",
+      summary: "드론 변태 · 버로우 연구",
       mark: "Z",
     },
     {
@@ -129,14 +129,14 @@ export function DevelopmentPreview() {
           <a className="sr-dev-back" href="/">
             ← paperoid로 돌아가기
           </a>
-          <div className="sr-dev-kicker">DEVELOPMENT PLAYTEST · 05C</div>
+          <div className="sr-dev-kicker">DEVELOPMENT PLAYTEST · 06A</div>
           <h1>스타크 리프트</h1>
           <p className="sr-dev-intro">나만의 기지를 세워 보세요.</p>
           <p className="sr-dev-scope">
             채취 · 건설 · 병력 생산을 확인하는 개발 테스트입니다.
             <br />
             기본 병력과 벌처·탱크·히드라·드라군의 공격을 사용할 수 있습니다.
-            전장의 안개와 본부 파괴 승패를 적용합니다. 상대 AI는 준비 중입니다.
+            저그는 해처리에서 버로우를 연구할 수 있습니다. 상대 AI는 준비 중입니다.
           </p>
           <div className="sr-dev-modes" role="group" aria-label="테스트 모드">
             <button
