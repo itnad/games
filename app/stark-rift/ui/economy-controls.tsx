@@ -1,4 +1,5 @@
 import { hasBasicWeapon } from "../combat/catalog";
+import { BURROW_ABILITY, BURROW_RESEARCH, supportsBurrow } from "../abilities/burrow";
 import { useEffect, useRef } from "react";
 import type { GameCommand } from "../core/commands";
 import type { RenderSnapshot } from "../worker/render-snapshot";
@@ -104,6 +105,10 @@ export function EconomyControls({
       </div>
     );
   const mixed = entities.some((e) => e.definitionId !== first.definitionId);
+  const burrowActors = entities.filter((e) => supportsBurrow(e.definitionId)),
+    surfaceIds = burrowActors.filter((e) => !e.burrowed).map((e) => e.id),
+    burrowIds = burrowActors.filter((e) => e.burrowed).map((e) => e.id),
+    burrowReady = economy.upgrades.some((u) => u.technologyId === BURROW_RESEARCH);
   return (
     <div className="sr-economy-controls">
       <div className="sr-selection-title sr-selection-toolbar">
@@ -122,14 +127,14 @@ export function EconomyControls({
           hasBasicWeapon(def.id) && (
             <button
               className="sr-attack-move"
-              disabled={!running}
+              disabled={!running || entities.every((e) => e.burrowed)}
               onClick={attackMove}
             >
               공격 이동
             </button>
           )}
         {worker ? (
-          <button className="sr-open-build" onClick={openBuildMenu}>
+          <button className="sr-open-build" disabled={!running || first.burrowed} onClick={openBuildMenu}>
             건설
           </button>
         ) : (
@@ -144,24 +149,44 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
+      {burrowActors.length > 0 && (
+        <div className="sr-burrow-controls">
+          <div className="sr-action-row">
+            <button data-state-ability="burrow" data-enabled="true"
+              disabled={!running || !burrowReady || surfaceIds.length === 0 || !!(worker && ["toBuild", "constructing"].includes(worker.task))}
+              onClick={() => issue({ kind: "toggleStateAbility", entityIds: surfaceIds,
+                payload: { abilityId: BURROW_ABILITY, enabled: true } })}>버로우</button>
+            <button data-state-ability="burrow" data-enabled="false"
+              disabled={!running || burrowIds.length === 0}
+              onClick={() => issue({ kind: "toggleStateAbility", entityIds: burrowIds,
+                payload: { abilityId: BURROW_ABILITY, enabled: false } })}>잠복 해제</button>
+          </div>
+          <p className="sr-help" role="status">
+            {worker && ["toBuild", "constructing"].includes(worker.task) ? "건설 예약을 먼저 취소해야 잠복할 수 있습니다." :
+              !burrowReady ? "해처리에서 버로우 연구 필요 · ◆ 100 ◉ 100 · 25초" :
+              burrowIds.length > 0 ? `잠복 ${burrowIds.length}기 · 직접 해제 전까지 이동·공격·작업 불가. 위에 유닛이 있으면 먼저 비워 주세요.` :
+              "잠복하면 적 탐지기 없이 보이지 않습니다. 이동·공격·작업을 하려면 직접 잠복을 해제하세요."}
+          </p>
+        </div>
+      )}
       {worker && (
         <>
           <p className="sr-help">
             건설 버튼 → 건물 선택 → 전장 위치 터치 → 건설 확정
           </p>
           <div className="sr-work-status">
-            {tasks[worker.task] ?? worker.task} · 운반 ◆ {worker.cargoMinerals}{" "}
+            {first.burrowed ? "잠복 중" : tasks[worker.task] ?? worker.task} · 운반 ◆ {worker.cargoMinerals}{" "}
             ◉ {worker.cargoGas}
           </div>
           <div className="sr-action-row">
             <button
-              disabled={!running}
+              disabled={!running || first.burrowed}
               onClick={() => issue({ kind: "autoGather", entityIds: selected })}
             >
               자동 채취
             </button>
             <button
-              disabled={!running}
+              disabled={!running || first.burrowed}
               onClick={() =>
                 issue({ kind: "returnCargo", entityIds: selected })
               }
@@ -232,6 +257,7 @@ export function EconomyControls({
                   running &&
                   !why &&
                   building.powered &&
+                  (!building.research || def.id === "zerg-hatchery") &&
                   building.queue.length < 5 &&
                   (def.id !== "zerg-hatchery" || building.larva > 0) &&
                   economy.supplyUsedHalf + d.supply * d.batch <=
@@ -375,6 +401,8 @@ export function EconomyControls({
                   !running ||
                   done ||
                   busy ||
+                  !!building.research ||
+                  (building.queue.length > 0 && def.id !== "zerg-hatchery") ||
                   !building.powered ||
                   !canAfford(t.minerals, t.gas)
                 }
@@ -386,7 +414,8 @@ export function EconomyControls({
                   })
                 }
               >
-                {t.name} 1단계 {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.name} {t.id === BURROW_RESEARCH ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.id === BURROW_RESEARCH && !done && <small>25초 · 드론·저글링·히드라 잠복</small>}
               </button>
             );
           })}
