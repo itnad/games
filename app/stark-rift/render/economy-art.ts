@@ -16,11 +16,11 @@ export function updateEconomicMarker(
   const hp = Math.floor((e.health / d.health) * 10),
     sp = Math.floor(((e.shield ?? 0) / Math.max(1, d.shield)) * 10),
     p = progress === null ? -1 : Math.floor(progress * 20),
-    key = [d.id, color, ring, hp, sp, p, started, e.burrowed].join(":");
+    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked].join(":");
   if (keys.get(g) === key) return true;
   keys.set(g, key);
   g.clear();
-  g.alpha = started ? 1 : 0.42;
+  g.alpha = e.cloaked ? 0.48 : started ? 1 : 0.42;
   const w = d.width,
     h = d.height,
     terr = d.faction === "terran",
@@ -219,7 +219,19 @@ export function updateEconomicMarker(
     }
   } else {
     g.ellipse(0.06, 0.15, 0.36, 0.2).fill({ color: 0x030810, alpha: 0.7 });
-    if (terr && d.kind === "worker") {
+    if (d.icon === "transport") {
+      g.ellipse(0, 0.12, .8, .38).fill({ color: 0x030810, alpha: .6 });
+      g.poly([-.35,-.72,.35,-.72,.48,.55,0,.8,-.48,.55]).fill(terr ? 0x6b858d : 0xd4ba78).stroke({color:terr?0xa8c3c9:0xffe4a8,width:.06});
+      for (const sign of [-1,1]) g.poly([sign*.32,-.3,sign*.9,-.1,sign*.85,.45,sign*.32,.3]).fill(terr?0x405965:0xa58b60).stroke({color,width:.07});
+      g.ellipse(0,-.38,.2,.24).fill(color);g.rect(-.2,.1,.4,.4).fill(0x253542);
+    } else if (d.icon === "detector") {
+      g.ellipse(0,0,.55,.3).fill(0xcbb778).stroke({color:0xffe3a2,width:.06});
+      g.circle(0,0,.22).fill(color).stroke({color:0xd4faff,width:.05});
+      for (const sign of [-1,1]) g.moveTo(sign*.4,0).lineTo(sign*.7,-.35).stroke({color:0xdcc99c,width:.08});
+    } else if (d.id === "protoss-dark-templar") {
+      g.poly([-.36,.35,-.2,-.4,0,-.6,.2,-.4,.36,.35,0,.55]).fill(0x584d7d).stroke({color:0xb49de0,width:.05});
+      g.circle(0,-.28,.12).fill(color);g.moveTo(.15,.1).lineTo(.6,-.55).stroke({color:0x9df6bc,width:.1});
+    } else if (terr && d.kind === "worker") {
       g.rect(-0.3, -0.21, 0.6, 0.43)
         .fill(0x889d9f)
         .stroke({ color: 0xd9c38b, width: 0.06 });
