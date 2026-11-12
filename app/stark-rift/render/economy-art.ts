@@ -272,7 +272,7 @@ export function updateEconomicMarker(
         Math.max(0.32, e.radius / 256),
       ).stroke({ color: ring, width: 0.06 });
   }
-  if (hp < 10) {
+  if (hp < 10 || ring !== null) {
     const width = d.kind === "building" ? w : 1;
     g.rect(-width / 2, -h / 2 - 0.26, width, 0.08).fill(0x172327);
     g.rect(
@@ -281,6 +281,16 @@ export function updateEconomicMarker(
       (width * Math.max(0, hp)) / 10,
       0.08,
     ).fill(0x8bd88b);
+  }
+  if (d.shield > 0 && (sp < 10 || ring !== null)) {
+    const width = d.kind === "building" ? w : 1;
+    g.rect(-width / 2, -h / 2 - 0.39, width, 0.08).fill(0x172327);
+    g.rect(
+      -width / 2,
+      -h / 2 - 0.39,
+      (width * Math.max(0, sp)) / 10,
+      0.08,
+    ).fill(0x7ebdff);
   }
   return true;
 }
