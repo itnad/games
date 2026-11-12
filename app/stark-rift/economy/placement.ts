@@ -1,3 +1,4 @@
+import { isEmbarked } from "../abilities/special-state";
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import type { CommandFailureCode } from "../core/commands";
@@ -140,6 +141,7 @@ export function placementFailure(
         s.entities.id[i] !== actor &&
         s.entities.id[i] !== ignore &&
         s.entities.health[i] > 0 &&
+        !isEmbarked(s, s.entities.id[i]) &&
         s.entities.layer[i] === "ground" &&
         s.entities.kind[i] !== "building" &&
         circleRect(s.entities.x[i], s.entities.y[i], s.entities.radius[i], rect)
