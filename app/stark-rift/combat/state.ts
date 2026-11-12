@@ -15,6 +15,8 @@ import {
   type Infer,
 } from "../core/validation";
 import { checksum } from "../core/checksum";
+import cloak from "../data/cloak-original.json";
+import { CLOAK_RULES_VERSION } from "../abilities/cloak-state";
 import special from "../data/special-original.json";
 import { SPECIAL_RULES_VERSION } from "../abilities/special-state";
 import original from "../data/combat-original.json";
@@ -28,7 +30,8 @@ export const TERRAIN_COMBAT_RULES_VERSION =
     vision: LEGACY_VISION_RULES_VERSION,
   });
 export const BURROW_COMBAT_RULES_VERSION = "burrow-1-" + checksum(TERRAIN_COMBAT_RULES_VERSION);
-export const COMBAT_RULES_VERSION = "special-combat-" + checksum({ base: BURROW_COMBAT_RULES_VERSION, vision: VISION_RULES_VERSION, special: SPECIAL_RULES_VERSION });
+export const SPECIAL_COMBAT_RULES_VERSION = "special-combat-" + checksum({ base: BURROW_COMBAT_RULES_VERSION, vision: VISION_RULES_VERSION, special: SPECIAL_RULES_VERSION });
+export const COMBAT_RULES_VERSION = "cloak-combat-" + checksum({ base: SPECIAL_COMBAT_RULES_VERSION, cloak: CLOAK_RULES_VERSION });
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(
@@ -49,7 +52,7 @@ export const combatRecordSchema = object({
 });
 const effectFields = {
   id: integer(1), tick: integer(),
-  weaponId: optional(enumeration([...original.weapons, ...special.weapons].map((w) => w.name))),
+  weaponId: optional(enumeration([...original.weapons, ...special.weapons, ...cloak.weapons].map((w) => w.name))),
   owner: integer(0, 1), x: integer(), y: integer(), toX: integer(), toY: integer(),
 };
 export const combatEffectSchema = object({ ...effectFields,
