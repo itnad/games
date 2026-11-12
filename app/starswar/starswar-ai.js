@@ -191,6 +191,8 @@ const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10,
   tankbio: [10, 14, 20, 26], vulture: [8, 12, 16, 20], ling: [12, 20, 30, 42, 56], hydra: [14, 18, 24, 30], pool: [6, 10, 14, 20, 26], ultra: [12, 18, 24, 30],
   corsair: [8, 12, 16, 20], wraith: [8, 12, 16, 20], muta: [12, 18, 26, 36], carrier: [8, 12, 16, 20], bc: [8, 12, 16, 20], hive: [14, 18, 24, 30] };
 const RUSH_WAVES_VS_TERRAN = [8, 10, 12, 14];
+/** 시야 판단: 공격 병력 곁에 보이는 적의 힘에 대해 우리 힘이 이 비율 아래면 맞붙기 전에 물러난다. */
+const SIGHT_RETREAT = 0.6;
 const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, tankbio: 5, vulture: 4, ling: 9, hydra: 3, pool: 3, ultra: 3, corsair: 6, wraith: 4, muta: 7, carrier: 4, bc: 3, hive: 4 };
 /** 출격 규모 상한. 저글링 물량만 더 크게 모은다(저글링은 인구 0.5). */
 const WAVE_CAP = { ling: 80 };
@@ -1141,6 +1143,28 @@ function defensePower(state, side) {
   }, 0);
 }
 
+/**
+ * 출격한 병력 곁(12칸)에서 지금 보이는 양쪽 힘: 우리 공격 병력과 적 전투 유닛·완성된 방어 건물.
+ * 남은 체력·보호막 비율의 제곱근을 곱한다(힘은 √(화력×체력)). 방어 건물은 기지 전체를 지키므로 1.5배로 친다(defensePower와 같다).
+ */
+function sightBalance(state, side, attackers) {
+  const foe = stwOpponent(side);
+  const near = (x, y) => attackers.some((unit) => Math.hypot(unit.x - x, unit.y - y) < 12);
+  const health = (item) => Math.sqrt(Math.max(0.05, (item.hp + (item.shields ?? 0)) / Math.max(1, (item.maxHp ?? item.hp) + (item.maxShields ?? 0))));
+  const foes = state.units.filter((unit) => unit.side === foe && unit.hp > 0 && !STW_UNITS[unit.type].worker && STW_UNITS[unit.type].role !== "support" && near(unit.x, unit.y) && stwVisible(state, side, unit.x, unit.y));
+  const towers = state.buildings.filter((building) => building.side === foe && STW_BUILDINGS[building.type].damage && STW_BUILDINGS[building.type].defense && stwDone(building) && near(building.x, building.y) && stwVisible(state, side, building.x, building.y));
+  const ownArmor = attackers.reduce((sum, unit) => sum + STW_UNITS[unit.type].armor, 0) / attackers.length;
+  const foeArmor = foes.length ? foes.reduce((sum, unit) => sum + STW_UNITS[unit.type].armor, 0) / foes.length : 0;
+  // 저글링 보정(쳐들어갈 때 0.55배)은 쓰지 않는다: 맞붙기 직전이라 다가가며 녹는 거리가 짧다. 넣으면 저그가 이길 싸움에서도 물러났다.
+  const own = attackers.reduce((sum, unit) => sum + unitPower(unit.type, foeArmor) * health(unit), 0);
+  const foePower = foes.reduce((sum, unit) => sum + unitPower(unit.type, ownArmor) * health(unit), 0)
+    + towers.reduce((sum, building) => {
+      const def = STW_BUILDINGS[building.type];
+      return sum + Math.sqrt(((def.damage * (def.hits ?? 1)) / (def.cooldown ?? 1)) * (def.hp + def.shields)) * 1.5 * health(building);
+    }, 0);
+  return { own, foe: foePower };
+}
+
 /** 최근 90초 안에 한 번에 본 가장 많은 적 전투 병력의 힘(정찰로 짐작한 생산량은 더하지 않는다). */
 function seenFoePower(state, side, memory) {
   const types = memory.peakTypes ?? memory.foeTypes ?? [];
@@ -1208,6 +1232,18 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   const allIn = (stwIncome(state, side).minerals < 60 && record.minerals < 100) || supply.used >= 92;
 
   if (memory.attacking) {
+    // 시야 판단: 공격 병력 곁(12칸)에 보이는 적 전투 병력과 방어 건물의 힘이 우리 공격 병력보다 크게 앞서면(우리 < 적 × 0.6)
+    // 맞붙기 전이라도 물러난다. 짐작이 아니라 눈앞의 실제 적으로 따진다. 예전에는 싸워서 병력의 65%를 잃은 뒤에야 물러났다
+    // (4:04에 저글링 11기가 질럿 8기에 들어가 전멸). 물러난 뒤 45초 동안은 그때 본 적보다 1.25배 넘게 강해져야 다시 나간다.
+    const sight = !allIn && army.attackers.length ? sightBalance(state, side, army.attackers) : null;
+    if (sight && sight.foe > 0 && sight.own < sight.foe * SIGHT_RETREAT) {
+      stwCommand(state, side, { type: "retreat" });
+      memory.attacking = false;
+      memory.abortedAt = state.time;
+      memory.abortFoe = sight.foe;
+      memory.aborts = (memory.aborts ?? 0) + 1;
+      return;
+    }
     // 지원 유닛은 세지 않는다. 싸우는 유닛이 출격 때의 35% 아래로 줄면 후퇴.
     if (!army.attackers.length || (!allIn && army.attackers.length < Math.max(1, memory.waveStart * 0.35))) {
       if (army.attack.length) stwCommand(state, side, { type: "retreat" });
@@ -1266,8 +1302,10 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   const fighterCount = HALF_LING.has(persona) ? army.fighters.reduce((sum, unit) => sum + (unit.type === "zergling" ? 0.5 : 1), 0) : army.fighters.length;
   const lingsIntoBio = !allIn && lingsVersusBio(state, side, memory, army.fighters);
   // 운영 전환 중에는 드론 30기와 앞마당이 갖춰질 때까지 나가지 않는다(그 사이 막힌 수비에 다시 던지지 않는다).
+  // 시야 판단으로 물러난 뒤 45초 동안은 그때 본 적보다 1.25배 넘게 강해져야 다시 나간다(물러났다 바로 다시 들어가는 왕복을 막는다).
+  const abortHold = !allIn && memory.abortedAt !== undefined && state.time - memory.abortedAt < 45 && armyPower(army.fighters) < (memory.abortFoe ?? 0) * 1.25;
   const macroHold = !allIn && memory.macroUntil !== undefined && state.time < memory.macroUntil && (record.probes < 30 || !stwNexus(state, side, "natural"));
-  if (fighterCount >= size && !outgunned && !fortified && !lingsIntoBio && !macroHold && threat < 3) {
+  if (fighterCount >= size && !outgunned && !fortified && !lingsIntoBio && !macroHold && !abortHold && threat < 3) {
     const value = (type) => STW_UNITS[type].minerals + STW_UNITS[type].gas;
     const total = army.fighters.reduce((sum, unit) => sum + value(unit.type), 0);
     memory.waveLings = total ? army.fighters.reduce((sum, unit) => sum + (unit.type === "zergling" ? value(unit.type) : 0), 0) / total : 0;

@@ -170,8 +170,8 @@ export const STW_UNITS = {
   medic: {
     id: "medic", race: "terran", name: "메딕", short: "+", minerals: 50, gas: 25, time: 18, supply: 1, from: "barracks", requires: "academy",
     hp: 60, shields: 0, armor: 1, size: "small", speed: 2.6, radius: 0.95, sight: 9, role: "caster", bio: true,
-    heal: 6, healRange: 4.5,
-    note: "무기 없음 · 근처 보병의 체력을 초당 6 치료",
+    heal: 4.5, healRange: 4.5,
+    note: "무기 없음 · 근처 보병의 체력을 초당 4.5 치료",
   },
   ghost: {
     id: "ghost", race: "terran", name: "고스트", short: "H", minerals: 25, gas: 75, time: 25, supply: 1, from: "barracks", requires: "science",
