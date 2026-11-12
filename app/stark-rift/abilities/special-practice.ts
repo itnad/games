@@ -1,11 +1,16 @@
 import type { SimulationState } from "../core/state";
-import { createEconomicEntity, recomputeSupply, workerOf, releaseWork } from "../economy/helpers";
+import { createEconomicEntity, newStructure, recomputeSupply, workerOf, releaseWork } from "../economy/helpers";
 import { economyDefinition } from "../data/economy-catalog";
 /** A labelled practice setup supplies units and completed Zerg cargo research; normal economy still pays full costs. */
 export function initializeSpecialPractice(s: SimulationState) {
   const race = s.players[0].faction;
   if (race === "zerg") for (const technologyId of ["ventral-sacs", "burrowing"])
     s.economy.upgrades.push({ playerId: 0, technologyId, level: 1 });
+  if (race !== "zerg") {
+    const supply = economyDefinition(race === "terran" ? "terran-supply-depot" : "protoss-pylon")!, tx = 10, ty = 19;
+    const eid = createEconomicEntity(s, 0, supply, { x: (tx + supply.width / 2) * 256, y: (ty + supply.height / 2) * 256 });
+    s.economy.structures.push(newStructure(eid, supply, tx, ty, true, s.tick));
+  }
   const ship = race === "terran" ? "terran-dropship" : race === "zerg" ? "zerg-overlord" : "protoss-shuttle";
   const light = race === "terran" ? "terran-marine" : race === "zerg" ? "zerg-zergling" : "protoss-zealot";
   const heavy = race === "terran" ? "terran-siege-tank-tank-mode" : race === "zerg" ? "zerg-hydralisk" : "protoss-dark-templar";
