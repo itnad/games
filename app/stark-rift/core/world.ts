@@ -1,3 +1,4 @@
+import { supportsCloak, ENERGY } from "../abilities/cloak-state";
 import { detachSpecialEntity } from "../abilities/special-cleanup";
 import { detachEconomyEntity } from "../economy/cleanup";
 import { recomputeSupply } from "../economy/helpers";
@@ -109,6 +110,9 @@ export function createEntity(
   state.entities.health.push(input.health);
   state.entities.shield.push(input.shield ?? 0);
   state.movement.push(idleMovement(id));
+  if (state.economy.enabled && supportsCloak(input.definitionId)) {
+    state.energy ??= []; state.energy.push({ entityId: id, amount: ENERGY.initial * ENERGY.scale, frameRemainder: 0 });
+  }
   return id;
 }
 export function removeEntity(state: SimulationState, id: number): boolean {
@@ -116,6 +120,7 @@ export function removeEntity(state: SimulationState, id: number): boolean {
   for (const passenger of detachSpecialEntity(state, id)) removeEntity(state, passenger);
   const index = state.entities.id.indexOf(id);
   detachEconomyEntity(state, id);
+  if (state.energy) state.energy = state.energy.filter((r) => r.entityId !== id);
   if (state.vision)
     state.vision.concealed = state.vision.concealed.filter(
       (c) => c.entityId !== id,
