@@ -1,7 +1,9 @@
+import { visionStateSchema, type VisionState } from "../vision/state";
 import {
   combatStateSchema,
   PREVIOUS_COMBAT_RULES_VERSION,
   COMBAT_RULES_VERSION,
+  RANGED_COMBAT_RULES_VERSION,
   type CombatState,
 } from "../combat/state";
 import { validEconomy } from "../economy/validation";
@@ -116,6 +118,7 @@ export type SimulationState = {
   navigation: NavigationState;
   economy: EconomyState;
   combat?: CombatState;
+  vision?: VisionState;
   projectiles: ProjectileStore;
   gameplayEffects: GameplayEffectStore;
   scheduledEvents: ScheduledEventQueue;
@@ -225,6 +228,15 @@ const rngSchema = refine(
 const emptyStore = object({});
 
 /** Live entity storage is defined; projectile/effect/AI layouts remain reserved for their stages. */
+export const matchOutcomeSchema: Schema<MatchOutcome> = refine(
+  object({
+    kind: enumeration(["victory", "defeat", "draw", "surrender"]),
+    winnerPlayerId: nullable(integer(0, 1)),
+    decidedTick: integer(),
+  }),
+  (o) => (o.kind === "draw") === (o.winnerPlayerId === null),
+  "Outcome winner must match its kind",
+);
 export const simulationStateSchema: Schema<SimulationState> = refine(
   object({
     schemaVersion: literal(STARK_RIFT_SCHEMA_VERSION),
@@ -260,22 +272,44 @@ export const simulationStateSchema: Schema<SimulationState> = refine(
     navigation: navigationSchema,
     economy: economyStateSchema,
     combat: optional(combatStateSchema),
+    vision: optional(visionStateSchema),
     movement: array(movementStateSchema, 0, 2048),
     entities: entityStoreSchema,
     projectiles: emptyStore,
     gameplayEffects: emptyStore,
     scheduledEvents: array(emptyStore, 0, 0),
     ai: array(emptyStore, 0, 0),
-    outcome: nullable(
-      object({
-        kind: enumeration(["victory", "defeat", "draw", "surrender"]),
-        winnerPlayerId: nullable(integer()),
-        decidedTick: integer(),
-      }),
-    ),
+    outcome: nullable(matchOutcomeSchema),
   }),
   (state) => {
     if (!validEconomy(state)) return false;
+    if (state.vision) {
+      const v = state.vision;
+      if (
+        !state.economy.enabled ||
+        v.players.some((p, i) => p.playerId !== i) ||
+        new Set(v.concealed.map((c) => c.entityId)).size !==
+          v.concealed.length ||
+        v.concealed.some((c) => !state.entities.id.includes(c.entityId))
+      )
+        return false;
+      for (const p of v.players) {
+        if (
+          new Set(p.contacts.map((c) => c.entityId)).size !==
+            p.contacts.length ||
+          new Set(p.resources.map((r) => r.nodeId)).size !==
+            p.resources.length ||
+          p.contacts.some(
+            (c) =>
+              c.entityId >= state.counters.nextEntityId ||
+              c.seenTick > state.tick ||
+              c.owner === p.playerId,
+          ) ||
+          p.explored.some((c) => c >= v.width * v.height)
+        )
+          return false;
+      }
+    }
     if (state.combat) {
       const c = state.combat,
         e = state.entities;
@@ -481,33 +515,56 @@ export const validatePersistenceEnvelope = (input: unknown) =>
 export function migrateLegacyEnvelope(input: unknown): unknown {
   if (!input || typeof input !== "object") return input;
   const old = input as PersistenceEnvelope;
-  if (old.formatVersion !== 6 && old.formatVersion !== 7) return input;
-  const s = old.simulation,
-    stage4 = old.formatVersion === 6,
-    engine = stage4 ? "0.7.0-stage4" : "0.8.0-stage5a";
+  if (![6, 7, 8].includes(old.formatVersion)) return input;
+  const source = old.simulation,
+    engine = (
+      { 6: "0.7.0-stage4", 7: "0.8.0-stage5a", 8: "0.9.0-stage5b" } as Record<
+        number,
+        string
+      >
+    )[old.formatVersion];
   if (
-    !s ||
+    !source ||
     old.engineVersion !== engine ||
-    s.engineVersion !== engine ||
-    s.schemaVersion !== old.formatVersion ||
-    old.checksum !== checksum(s)
+    source.engineVersion !== engine ||
+    source.schemaVersion !== old.formatVersion ||
+    old.checksum !== checksum(source) ||
+    source.vision !== undefined
   )
     throw new TypeError("Invalid legacy save");
-  if (stage4 && s.combat !== undefined)
+  if (old.formatVersion === 6 && source.combat !== undefined)
     throw new TypeError("Unexpected legacy combat");
-  if (
-    !stage4 &&
-    s.combat &&
-    (s.combat.rulesVersion !== PREVIOUS_COMBAT_RULES_VERSION ||
-      Object.hasOwn(s.combat, "projectiles") ||
-      !["economy", "combat-practice"].includes(s.combat.scenario) ||
-      s.combat.effects.some(
-        (e) =>
-          !["shot", "slash", "death"].includes(e.kind) ||
-          e.weaponId !== undefined,
-      ))
-  )
-    throw new TypeError("Unknown legacy combat rules");
+  if (source.combat) {
+    const expected =
+      old.formatVersion === 7
+        ? PREVIOUS_COMBAT_RULES_VERSION
+        : RANGED_COMBAT_RULES_VERSION;
+    if (
+      source.combat.rulesVersion !== expected ||
+      !["economy", "combat-practice", "ranged-practice"].includes(
+        source.combat.scenario,
+      )
+    )
+      throw new TypeError("Unknown legacy combat rules");
+    if (
+      old.formatVersion === 7 &&
+      (Object.hasOwn(source.combat, "projectiles") ||
+        source.combat.scenario === "ranged-practice" ||
+        source.combat.effects.some(
+          (e) =>
+            !["shot", "slash", "death"].includes(e.kind) ||
+            e.weaponId !== undefined,
+        ))
+    )
+      throw new TypeError("Invalid legacy combat");
+    if (
+      old.formatVersion === 8 &&
+      (!Array.isArray(source.combat.projectiles) ||
+        source.combat.projectiles.some((p) => Object.hasOwn(p, "miss")) ||
+        source.combat.effects.some((e) => e.kind === "miss"))
+    )
+      throw new TypeError("Invalid legacy flight");
+  }
   const saved = structuredClone(old);
   saved.formatVersion = STARK_RIFT_FORMAT_VERSION;
   saved.engineVersion = STARK_RIFT_ENGINE_VERSION;
@@ -515,7 +572,9 @@ export function migrateLegacyEnvelope(input: unknown): unknown {
   saved.simulation.engineVersion = STARK_RIFT_ENGINE_VERSION;
   if (saved.simulation.combat) {
     saved.simulation.combat.rulesVersion = COMBAT_RULES_VERSION;
-    saved.simulation.combat.projectiles = [];
+    saved.simulation.combat.projectiles ??= [];
+    for (const p of saved.simulation.combat.projectiles) p.miss = false;
+    for (const r of saved.simulation.combat.records) r.lastSeenTarget ??= null;
   }
   for (const m of saved.simulation.movement)
     if (!Object.hasOwn(m, "trackedTarget"))
