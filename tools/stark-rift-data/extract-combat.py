@@ -9,8 +9,8 @@ def words(s,name):return re.findall(r'\b[A-Za-z_][A-Za-z_0-9]*\b',body(s,name))
 unames=re.findall(r'"([^"]*)"',body(u,'typeNames'));wnames=re.findall(r'"([^"]*)"',body(w,'typeNames'))
 raw=json.loads(Path('app/stark-rift/data/economy-original.json').read_text());size=words(u,'unitSize');gw=words(u,'groundWeapon');aw=words(u,'airWeapon');hits=nums(u,'groundWeaponHits');assert len(size)==len(unames)==len(gw)==len(aw)==len(hits)
 weapons=[]
-for name in ['Gauss_Rifle','Fusion_Cutter','Claws','Spines','Particle_Beam','Psi_Blades']:
- i=wnames.index(name);v={'name':name,'bwapiId':i,**{n:nums(w,n)[i] for n in ['defaultWpnDamageAmt','defaultWpnDamageBonus','wpnDamageCooldowns','wpnDamageFactor','wpnMinRange','wpnMaxRange']},'damageType':words(w,'damageType')[i],'upgrade':words(w,'upgrade')[i]};weapons.append(v)
+for name in ['Gauss_Rifle','Fusion_Cutter','Claws','Spines','Particle_Beam','Psi_Blades','Fragmentation_Grenade','Arclite_Cannon','Needle_Spines','Phase_Disruptor']:
+ i=wnames.index(name);v={'name':name,'bwapiId':i,**{n:nums(w,n)[i] for n in ['defaultWpnDamageAmt','defaultWpnDamageBonus','wpnDamageCooldowns','wpnDamageFactor','wpnMinRange','wpnMaxRange']},'damageType':words(w,'damageType')[i],'upgrade':words(w,'upgrade')[i]};v.update({"explosionType":words(w,"explosionType")[i]}) if name in ["Fragmentation_Grenade","Arclite_Cannon","Needle_Spines","Phase_Disruptor"] else None;weapons.append(v)
 profiles=[]
 for item in raw['units']:
  i=item['bwapiId'];profiles.append({'name':item['name'],'size':size[i].lower(),'bounds':item['dimensions'][2:],'groundWeapon':gw[i],'airWeapon':aw[i],'hits':hits[i]})
