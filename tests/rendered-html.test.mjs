@@ -796,6 +796,7 @@ test("keeps StarDraft in its own app/starswar folder as a mobile game at /stardr
     "starswar-replay.js",
     "starswar-report.js",
     "starswar-sprites.ts",
+    "starswar-theme.tsx",
     "starswar-tips.js",
     "starswar-types.ts",
     "starswar.css",

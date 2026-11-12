@@ -52,6 +52,7 @@ import { stwLearnAdd, stwLearnEmpty, stwLearnNormalize, stwLearnSnapshot } from 
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
 import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
 import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./starswar-lab";
+import { THEMES, ThemeFonts, themeProps, type ThemeId } from "./starswar-theme";
 import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwMapData, StwMapId, StwOp, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
 
 type Screen = "menu" | "play" | "lab";
@@ -152,6 +153,41 @@ function readMap(): MapChoice {
     // 저장소를 쓸 수 없으면 기본값을 쓴다.
   }
   return "plain";
+}
+
+const THEME_KEY = "paperoid-starswar-theme";
+function readTheme(): ThemeId {
+  try {
+    const stored = window.localStorage.getItem(THEME_KEY) as ThemeId | null;
+    if (stored && THEMES.some((theme) => theme.id === stored)) return stored;
+  } catch {
+    // 저장소를 쓸 수 없으면 기본 테마.
+  }
+  return "gold";
+}
+
+function ThemePicker({ theme, onPick, compact = false }: { theme: ThemeId; onPick: (theme: ThemeId) => void; compact?: boolean }) {
+  if (compact) {
+    return (
+      <div className="stw-theme-row" role="radiogroup" aria-label="화면 테마">
+        {THEMES.map((item) => (
+          <button key={item.id} type="button" role="radio" aria-checked={theme === item.id} className={theme === item.id ? "active" : ""} onClick={() => onPick(item.id)}>{item.name}</button>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="stw-theme-pick">
+      <h3 className="stw-section">화면 테마 (시안)</h3>
+      <div className="stw-segment" role="radiogroup" aria-label="화면 테마">
+        {THEMES.map((item) => (
+          <button key={item.id} type="button" role="radio" aria-checked={theme === item.id} className={theme === item.id ? "active" : ""} onClick={() => onPick(item.id)}>
+            {item.name}<small>{item.note}</small>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 type RaceInfo = {
@@ -342,6 +378,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [difficulty, setDifficulty] = useState<StwDifficulty>("normal");
   const [races, setRaces] = useState<{ player: EnemyRace; enemy: EnemyRace }>(() => (typeof window === "undefined" ? { player: "protoss", enemy: "random" } : readRace()));
   const [mapChoice, setMapChoice] = useState<MapChoice>(() => (typeof window === "undefined" ? "plain" : readMap()));
+  const [theme, setTheme] = useState<ThemeId>(() => (typeof window === "undefined" ? "gold" : readTheme()));
   const [game, setGame] = useState<StwState | null>(null);
   const [, setFrame] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -752,6 +789,15 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     });
   };
 
+  const pickTheme = (next: ThemeId) => {
+    setTheme(next);
+    try {
+      window.localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // 선택 저장 실패는 무시한다.
+    }
+  };
+
   const pickMap = (next: MapChoice) => {
     setMapChoice(next);
     try {
@@ -772,12 +818,13 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   /* ───────── 메뉴 ───────── */
 
   if (screen === "lab") {
-    return <LabScreen initial={labConfig ?? readLab()} onStart={startLab} onBack={() => setScreen("menu")} />;
+    return <LabScreen initial={labConfig ?? readLab()} onStart={startLab} onBack={() => setScreen("menu")} theme={theme} />;
   }
 
   if (screen === "menu" || !game) {
     return (
-      <main className="stw-shell stw-menu-shell" data-game-menu="true">
+      <main className="stw-shell stw-menu-shell" data-game-menu="true" {...themeProps(theme, races.player === "random" ? undefined : races.player)}>
+        <ThemeFonts theme={theme} />
         <header className="stw-topbar">
           <button type="button" onClick={onExit} aria-label="게임 목록으로">←</button>
           <div><span className="stw-brand">paperoid</span><strong>스타드래프트</strong></div>
@@ -789,6 +836,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             <p>무엇을 짓고 연구할지, 언제 진격할지 정하세요.</p>
             <TipLine race={races.player} rotate={9} className="stw-tip-menu" />
           </div>
+          <ThemePicker theme={theme} onPick={pickTheme} />
           {saved ? <ResumeCard saved={saved} onResume={resumeBattle} onDiscard={discardSave} /> : null}
           <div className="stw-race-pick">
             <h3 className="stw-section">내 종족</h3>
@@ -868,7 +916,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const mapScoutsMain = mapScouts.filter((unit) => unit.scoutMode !== "resources").length;
 
   return (
-    <main className="stw-shell stw-play-shell" data-game-menu={finished ? "true" : undefined}>
+    <main className="stw-shell stw-play-shell" data-game-menu={finished ? "true" : undefined} {...themeProps(theme, game.sides.player.race)}>
+      <ThemeFonts theme={theme} />
       <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
         <div><span className="stw-brand">{STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).id === "plain" ? "" : `${mapOf(game).name} · `}{raceOf(game).name} 대 {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
@@ -933,6 +982,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 <button type="button" className="stw-primary" onClick={() => setPaused(false)}>계속하기</button>
                 <PauseReportButton game={game} />
                 <button type="button" className="stw-secondary" onClick={() => setConfirmExit(true)}>나가기</button>
+                <ThemePicker theme={theme} onPick={pickTheme} compact />
                 <TipLine race={game.sides.player.race} className="stw-tip-pause" />
               </section>
             </div>

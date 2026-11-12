@@ -5,6 +5,7 @@ import { useState } from "react";
 import { withKoreanDirection, withKoreanObject } from "../korean-particles.js";
 import { STW_AI_PERSONAS, STW_BUILDINGS, STW_ECONOMY, STW_MAPS, STW_MAP_IDS, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./starswar-data.js";
 import type { StwMapId, StwRaceId } from "./starswar-types";
+import { ThemeFonts, themeProps, type ThemeId } from "./starswar-theme";
 
 /** 아군은 직접 지휘 또는 AI 운영, 적은 교전만(운영하지 않음) 또는 AI 운영. */
 export type LabControl = "manual" | "fight" | "ai";
@@ -331,7 +332,7 @@ function SideEditor({ title, which, race, side, onRace, onChange }: { title: str
   );
 }
 
-export function LabScreen({ initial, onStart, onBack }: { initial: LabConfig; onStart: (config: LabConfig) => void; onBack: () => void }) {
+export function LabScreen({ initial, onStart, onBack, theme = "gold" }: { initial: LabConfig; onStart: (config: LabConfig) => void; onBack: () => void; theme?: ThemeId }) {
   const [config, setConfig] = useState<LabConfig>(() => normalizeLab(initial) ?? structuredClone(LAB_PRESETS[0].config));
   const [custom, setCustom] = useState<LabPreset[]>(() => (typeof window === "undefined" ? [] : readCustom()));
   const [name, setName] = useState("");
@@ -353,7 +354,8 @@ export function LabScreen({ initial, onStart, onBack }: { initial: LabConfig; on
     writeCustom(next);
   };
   return (
-    <main className="stw-shell stw-menu-shell" data-game-menu="true">
+    <main className="stw-shell stw-menu-shell" data-game-menu="true" {...themeProps(theme)}>
+      <ThemeFonts theme={theme} />
       <header className="stw-topbar">
         <button type="button" onClick={onBack} aria-label="전투 설정으로">←</button>
         <div><span className="stw-brand">스타드래프트</span><strong>실험실</strong></div>
