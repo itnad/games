@@ -340,16 +340,18 @@ export function stwAiThink(state, side) {
   const pressured = memory.pressuredAt !== undefined && state.time - memory.pressuredAt < 90;
   const macro = race.id === "zerg" && memory.macroUntil !== undefined && state.time < memory.macroUntil;
   reserve.macro = macro;
-  // 운영 전환 중 역공을 받으면(앞마당 캐논 빌드의 질럿이 저그 앞마당으로 밀고 오는 경우) 성큰을 셋까지 세우고 히드라로 받는다.
+  // 운영 전환 중 역공을 받으면(앞마당 캐논 빌드의 질럿이 저그 앞마당으로 밀고 오는 경우) 성큰으로 버티며 히드라로 받는다.
   // 저글링은 질럿에게 손해라, 확장 자금을 모으다 질럿에 앞마당을 눌려 저글링 물량이 16판 모두 졌다.
   reserve.macroPressured = macro && pressured;
+  // 순서: 성큰 셋이 먼저(질럿은 체력이 많아 저글링으로는 손해) → 덴 → 덴을 짓는 동안·뒤로 성큰을 여섯까지.
   if (reserve.macroPressured) {
-    const waiting = ensureDefense(state, side, race, 3);
-    if (waiting) save(waiting.minerals, waiting.gas, true);
-    if (!stwOwnBuildings(state, side, "den").length && stwHas(state, side, "pool")) {
+    let waiting = ensureDefense(state, side, race, 3);
+    if (!waiting && !stwOwnBuildings(state, side, "den").length && stwHas(state, side, "pool")) {
       const result = stwCommand(state, side, { type: "build", building: "den" });
-      if (!result.ok && /부족/.test(result.reason ?? "")) save(STW_BUILDINGS.den.minerals, STW_BUILDINGS.den.gas, true);
+      if (!result.ok && /부족/.test(result.reason ?? "")) waiting = STW_BUILDINGS.den;
     }
+    if (!waiting) waiting = ensureDefense(state, side, race, 6);
+    if (waiting) save(waiting.minerals, waiting.gas, true);
   }
   if (macro && !stwNexus(state, side, "natural")) {
     const result = stwCommand(state, side, { type: "build", building: "expand" });
