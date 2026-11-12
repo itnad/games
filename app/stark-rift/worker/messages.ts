@@ -56,7 +56,9 @@ const initPayload = refine(
     dataVersion: text,
     mapId: text,
     seed: integer(0, 0xffffffff),
-    scenario: optional(enumeration(["economy", "combat-practice"])),
+    scenario: optional(
+      enumeration(["economy", "combat-practice", "ranged-practice"]),
+    ),
     players: array(playerSetupSchema, 2, 2),
   }),
   (payload) =>
