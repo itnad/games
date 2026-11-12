@@ -2,7 +2,7 @@ import { nextUint32 } from "../core/rng";
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import { removeEntity } from "../core/world";
-import { ECONOMY_MECHANICS, economyDefinition } from "../data/economy-catalog";
+import { ECONOMY_MECHANICS, economyDefinition, economyLayer, isLarvaProducer } from "../data/economy-catalog";
 import { NavigationGrid, type Point } from "../pathfinding/navigation";
 import { SpatialHash } from "../pathfinding/spatial-hash";
 import { idleMovement } from "../core/orders";
@@ -109,7 +109,7 @@ function spawnPositions(
 ): Point[] | null {
   const d = economyDefinition(id)!,
     rect = buildingRect(b),
-    layer = d.icon === "airSupply" ? "air" : "ground",
+    layer = economyLayer(d),
     grid = new NavigationGrid(map, s, new SpatialHash(s)),
     hash = new SpatialHash(s),
     positions: Point[] = [],
@@ -300,7 +300,7 @@ export function tickConstructionAndProduction(
       );
       if (b.remainingTicks === 0) {
         b.completedTick = s.tick;
-        if (d.id === "zerg-hatchery") b.larva = 1;
+        if (isLarvaProducer(d.id)) b.larva = 1;
         const w = b.builderId === null ? undefined : workerOf(s, b.builderId);
         if (w) {
           advanceConstruction(s, w, b.entityId);
@@ -311,7 +311,7 @@ export function tickConstructionAndProduction(
       }
       continue;
     }
-    if (d.id === "zerg-hatchery" && b.larva < 3) {
+    if (isLarvaProducer(d.id) && b.larva < 3) {
       if (b.larvaTicks > 0) b.larvaTicks--;
       if (b.larvaTicks === 0) {
         b.larva++;
@@ -319,7 +319,7 @@ export function tickConstructionAndProduction(
       }
     }
     if (!activeBuilding(s, b)) continue;
-    const jobs = d.id === "zerg-hatchery" ? [...b.queue] : b.queue.slice(0, 1);
+    const jobs = isLarvaProducer(d.id) ? [...b.queue] : b.queue.slice(0, 1);
     for (const q of jobs) {
       if (q.remainingTicks > 0) q.remainingTicks--;
       if (q.remainingTicks > 0) continue;
@@ -351,7 +351,7 @@ export function tickConstructionAndProduction(
         b.research = null;
       }
     }
-    if (b.repeatUnitId && b.queue.length === 0 && (!b.research || d.id === "zerg-hatchery")) {
+    if (b.repeatUnitId && b.queue.length === 0 && (!b.research || isLarvaProducer(d.id))) {
       const repeat = economyDefinition(b.repeatUnitId),
         owner = s.entities.owner[indexOf(s, b.entityId)];
       if (repeat && !productionFailure(s, owner, b.entityId, repeat))
