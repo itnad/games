@@ -1,4 +1,10 @@
 import {
+  initializeVision,
+  canSeeEntity,
+  createVisionRules,
+  visionFitsMap,
+} from "../vision/rules";
+import {
   initializeCombat,
   createCombatRules,
   combatReach,
@@ -109,6 +115,8 @@ export class SimulationRuntime {
               : undefined),
         );
       const mask = masks.get(viewer);
+      if (mask && state.vision)
+        return canSeeEntity(state, map, viewer, index, mask);
       const x = Math.floor(state.entities.x[index] / 256),
         y = Math.floor(state.entities.y[index] / 256);
       return (
@@ -121,9 +129,9 @@ export class SimulationRuntime {
       );
     };
     const defaults = createMovementRules(map, visible, combatReach);
-    const combined = createCombatRules(
-      createEconomyRules(map, defaults),
-      visible,
+    const combined = createVisionRules(
+      map,
+      createCombatRules(createEconomyRules(map, defaults), visible, map),
     );
     this.rules = {
       commands: { ...combined.commands, ...this.options.rules?.commands },
@@ -147,6 +155,7 @@ export class SimulationRuntime {
     const payload = {
       tick: this.state.tick,
       phase: this.state.phase,
+      outcome: this.state.outcome ? { ...this.state.outcome } : null,
       lastAcceptedSequence:
         this.state.commandState.lastAcceptedSequenceByPlayer[this.viewer],
       controlGroups: structuredClone(
@@ -155,6 +164,7 @@ export class SimulationRuntime {
     };
     const signature = checksum({
       phase: payload.phase,
+      outcome: payload.outcome,
       sequence: payload.lastAcceptedSequence,
       groups: payload.controlGroups,
     });
@@ -176,7 +186,7 @@ export class SimulationRuntime {
       this.lastPublishedTick === this.state.tick
     )
       return;
-    // No visibility rules are invented here. Stage 5 will supply the gameplay visibility provider.
+    // The vision provider retains explored terrain; entity visibility separately checks detection.
     const visibility =
       this.options.visibility?.(this.state, this.map, this.viewer) ??
       (this.state.economy.enabled
@@ -248,6 +258,7 @@ export class SimulationRuntime {
         if (map.id === "rift-basin") {
           initializeEconomy(this.state, map);
           initializeCombat(this.state, message.payload.scenario ?? "economy");
+          initializeVision(this.state, map);
         }
         this.map = map;
         this.installRules(map);
@@ -359,6 +370,7 @@ export class SimulationRuntime {
           const inside = (point: { x: number; y: number }) =>
             point.x >= 0 && point.x < maxX && point.y >= 0 && point.y < maxY;
           if (
+            !visionFitsMap(saved.simulation, registered.map) ||
             !combatFitsMap(saved.simulation, registered.map) ||
             !economyFitsMap(saved.simulation, registered.map) ||
             !navigationFitsMap(saved.simulation, registered.map) ||
@@ -382,6 +394,8 @@ export class SimulationRuntime {
           this.state = saved.simulation;
           if (this.state.economy.enabled && !this.state.combat)
             initializeCombat(this.state);
+          if (this.state.economy.enabled && !this.state.vision)
+            initializeVision(this.state, registered.map);
           this.map = registered.map;
           this.installRules(registered.map);
           if (this.state.phase === "running") this.state.phase = "paused";
