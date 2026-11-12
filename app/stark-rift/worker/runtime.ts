@@ -1,3 +1,4 @@
+import { createBurrowRules } from "../abilities/burrow-rules";
 import {
   initializeVision,
   canSeeEntity,
@@ -129,10 +130,10 @@ export class SimulationRuntime {
       );
     };
     const defaults = createMovementRules(map, visible, combatReach);
-    const combined = createVisionRules(
+    const combined = createBurrowRules(map, createVisionRules(
       map,
       createCombatRules(createEconomyRules(map, defaults), visible, map),
-    );
+    ));
     this.rules = {
       commands: { ...combined.commands, ...this.options.rules?.commands },
       systems: {
