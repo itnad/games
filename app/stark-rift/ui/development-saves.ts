@@ -1,3 +1,4 @@
+import { visionFitsMap } from "../vision/rules";
 import { STARK_RIFT_FORMAT_VERSION } from "../core/versions";
 import { combatFitsMap } from "../combat/rules";
 import type { Scenario } from "../combat/state";
@@ -39,9 +40,12 @@ export class DevelopmentSaveStore {
       s.map.definitionId === map.id &&
       s.economy.enabled &&
       s.players[0]?.faction === faction &&
-      (s.phase === "running" || s.phase === "paused") &&
+      (s.phase === "running" ||
+        s.phase === "paused" ||
+        s.phase === "finished") &&
       economyFitsMap(s, map) &&
       combatFitsMap(s, map) &&
+      visionFitsMap(s, map) &&
       navigationFitsMap(s, map) &&
       s.entities.x.every((x, i) => inside({ x, y: s.entities.y[i] })) &&
       s.movement.every(
@@ -61,7 +65,9 @@ export class DevelopmentSaveStore {
             ? "combat."
             : scenario === "ranged-practice"
               ? "ranged."
-              : "") +
+              : scenario === "siege-practice"
+                ? "siege."
+                : "") +
           faction,
       );
     } catch {
@@ -89,7 +95,9 @@ export class DevelopmentSaveStore {
           ? "combat."
           : snapshot.simulation.combat?.scenario === "ranged-practice"
             ? "ranged."
-            : "") +
+            : snapshot.simulation.combat?.scenario === "siege-practice"
+              ? "siege."
+              : "") +
         faction;
       const old = this.storage.getItem(key);
       if (old) {
@@ -101,9 +109,11 @@ export class DevelopmentSaveStore {
               ? "stage4-backup"
               : version === 7
                 ? "stage5a-backup"
-                : version === STARK_RIFT_FORMAT_VERSION
-                  ? ""
-                  : "invalid-backup";
+                : version === 8
+                  ? "stage5b-backup"
+                  : version === STARK_RIFT_FORMAT_VERSION
+                    ? ""
+                    : "invalid-backup";
         } catch {}
         if (suffix && !this.storage.getItem(key + "." + suffix))
           this.storage.setItem(key + "." + suffix, old);
