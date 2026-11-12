@@ -176,17 +176,19 @@ describe("burrow persistence and migration", () => {
     const saved = f.saved(), old = JSON.parse(JSON.stringify(saved));
     old.formatVersion = old.simulation.schemaVersion = 9; old.engineVersion = old.simulation.engineVersion = "0.10.0-stage5c";
     old.dataVersion = old.simulation.dataVersion = old.dataVersion.replace(ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION);
-    old.simulation.combat.rulesVersion = TERRAIN_COMBAT_RULES_VERSION; old.checksum = checksum(old.simulation);
+    old.simulation.combat.rulesVersion = TERRAIN_COMBAT_RULES_VERSION; if (old.simulation.vision) old.simulation.vision.rulesVersion = "fog-1-los-edge-detector11-memory600";
+    old.checksum = checksum(old.simulation);
     const key = DEVELOPMENT_SAVE_PREFIX + "zerg", raw = JSON.stringify(old), records = new Map([[key, raw]]), store = new DevelopmentSaveStore({ getItem: k => records.get(k) ?? null, setItem: (k, v) => { records.set(k, v); } });
     const read = store.read("zerg"); expect(read.status).toBe("ready"); if (read.status !== "ready") throw Error();
     expect(read.snapshot.simulation.combat!.projectiles).toEqual(old.simulation.combat.projectiles); expect(read.snapshot.simulation.combat!.projectiles[0].miss).toBe(true);
-    expect(read.snapshot.simulation.vision).toEqual(old.simulation.vision); expect(read.snapshot.simulation.rngStreams).toEqual(old.simulation.rngStreams); expect(records.get(key)).toBe(raw);
+    expect(read.snapshot.simulation.vision).toEqual({ ...old.simulation.vision, rulesVersion: f.state.vision!.rulesVersion }); expect(read.snapshot.simulation.rngStreams).toEqual(old.simulation.rngStreams); expect(records.get(key)).toBe(raw);
     expect(store.write(read.snapshot)).toBe(true); expect(records.get(key + ".stage5c-backup")).toBe(raw);
     old.simulation.players[0].minerals++; expect(() => migrateLegacyEnvelope(old)).toThrow("Invalid legacy save");
   });
   it("rejects a checksummed old save with a mismatched header or unknown data bundle", () => {
     const f = fixture(), old = JSON.parse(JSON.stringify(f.saved())); old.formatVersion = old.simulation.schemaVersion = 9; old.engineVersion = old.simulation.engineVersion = "0.10.0-stage5c"; old.simulation.combat.rulesVersion = TERRAIN_COMBAT_RULES_VERSION;
-    old.dataVersion = old.simulation.dataVersion = "unknown"; old.checksum = checksum(old.simulation); expect(() => migrateLegacyEnvelope(old)).toThrow("Unknown legacy data version");
+    old.dataVersion = old.simulation.dataVersion = "unknown"; if (old.simulation.vision) old.simulation.vision.rulesVersion = "fog-1-los-edge-detector11-memory600";
+    old.checksum = checksum(old.simulation); expect(() => migrateLegacyEnvelope(old)).toThrow("Unknown legacy data version");
   });
   it("does not replace the original when the 5C backup fails", () => {
     const f = fixture(), saved = f.saved(), old = { ...saved, formatVersion: 9 }; let raw = JSON.stringify(old), value = raw;
