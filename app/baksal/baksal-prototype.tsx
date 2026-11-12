@@ -72,7 +72,7 @@ function eventAudioTime(audio: Audio, timeStamp: number) {
   return audio.now() - Math.min(lag, 0.5);
 }
 
-export function BaksalPrototype() {
+export function BaksalPrototype({ onExit }: { onExit?: () => void } = {}) {
   const [screen, setScreen] = useState<Screen>("start");
   const [settings, setSettings] = useState<Settings>(() => normalizeBaksalSettings(DEFAULT_BAKSAL_SETTINGS));
   const [sensors, setSensors] = useState<SensorState>({ gyro: null, motion: null, camera: "pending" });
@@ -204,7 +204,7 @@ export function BaksalPrototype() {
   const fixedStance = settings.fixedStance || sensors.gyro === false;
 
   return (
-    <div className="bk-root">
+    <div className="bk-root" data-screen={screen}>
       <div className="bk-portrait">
         {screen === "start" && (
           <StartScreen
@@ -214,6 +214,7 @@ export function BaksalPrototype() {
             onChange={updateSettings}
             onStart={beginSession}
             onRecalibrate={() => updateSettings({ offsetMs: null })}
+            onExit={onExit}
           />
         )}
         {screen === "calibrate" && audio && (
@@ -263,13 +264,14 @@ export function BaksalPrototype() {
   );
 }
 
-function StartScreen({ settings, sensors, starting, onChange, onStart, onRecalibrate }: {
+function StartScreen({ settings, sensors, starting, onChange, onStart, onRecalibrate, onExit }: {
   settings: Settings;
   sensors: SensorState;
   starting: boolean;
   onChange: (patch: Partial<Settings>) => void;
   onStart: () => void;
   onRecalibrate: () => void;
+  onExit?: () => void;
 }) {
   return (
     <main className="bk-panel">
@@ -337,6 +339,7 @@ function StartScreen({ settings, sensors, starting, onChange, onStart, onRecalib
             지연 보정 다시 하기 (현재 {settings.offsetMs > 0 ? "+" : ""}{settings.offsetMs}ms)
           </button>
         )}
+        {onExit && <button type="button" className="bk-secondary" onClick={onExit}>게임 목록으로</button>}
       </div>
       {sensors.camera === "denied" && <p className="bk-note warn">카메라를 쓸 수 없어 어두운 배경으로 진행합니다. 게임 규칙은 같습니다.</p>}
       {sensors.gyro === false && <p className="bk-note warn">방향 센서를 읽을 수 없어 고정 자세 모드로 진행합니다.</p>}

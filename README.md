@@ -33,7 +33,7 @@ npm run dev
 - 메인: `http://localhost:3000/`
 - 해루질럿: `http://localhost:3000/haeru`
 - 내부 QA 도구: `http://localhost:3000/haeru-dev`
-- 박살 0단계 검증 화면: `http://localhost:3000/baksal` (카메라·방향 센서가 있는 폰에서 확인)
+- 박살 0단계 검증: 메인 하단의 전체 게임 표시 토글을 켠 뒤 `모바일` 카테고리의 `박살` 카드 (카메라·방향 센서가 있는 폰에서 확인)
 
 작업 전에는 반드시 [AGENTS.md](AGENTS.md)를 읽습니다. 특히 런타임 값 뒤에 한국어 조사를 붙일 때는 `app/korean-particles.js`의 헬퍼를 사용해야 합니다.
 

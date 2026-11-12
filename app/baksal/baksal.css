@@ -87,3 +87,10 @@
 .bk-score span{color:var(--bk-dim);font-size:14px}
 .bk-question{padding:14px 16px;border:1px solid #ff7a3d55;border-radius:16px;background:#1f1510;color:#ffe7c9;font-size:15px;line-height:1.5}
 .bk-question b{color:var(--bk-accent2)}
+
+/* 메인 목록 카드와 목표 안내 버튼 */
+.casual-card-art.baksal{background:radial-gradient(circle at 50% 42%,#ff7a3d55,transparent 36%),linear-gradient(160deg,#2a1510,#0b0a10 70%)}
+.casual-card-art.baksal>span:first-child{color:#ffd36c;font-size:clamp(22px,4vw,34px);letter-spacing:.04em;line-height:1.15}
+.game-readability-scope[data-game-id="baksal"] .game-objective-trigger{top:max(10px,env(safe-area-inset-top));right:66px;color:#ffe7c9;border-color:#ffffff33;background:#0b0a10c0}
+/* 런 중에는 목표 안내 버튼이 HUD와 겹치므로 숨긴다. 시작·보정·결과 화면에서 열 수 있다. */
+.game-readability-scope:has(.bk-root[data-screen="run"]) .game-objective-trigger{display:none}

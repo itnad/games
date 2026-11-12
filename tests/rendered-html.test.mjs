@@ -428,6 +428,7 @@ test("hides unverified games by default and reveals them from the footer phrase"
     "paper-dungeon",
     "tetris",
     "starswar",
+    "baksal",
   ];
 
   for (const id of hiddenIds) {
@@ -584,6 +585,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "mudflat-survivor",
     "tetris",
     "starswar",
+    "baksal",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());

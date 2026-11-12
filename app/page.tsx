@@ -41,6 +41,7 @@ const TenSecondsGame = lazy(() => import("./ten-seconds-game").then((module) => 
 const MudflatSurvivorGame = lazy(() => import("./mudflat-survivor-game").then((module) => ({ default: module.MudflatSurvivorGame })));
 const TetrisGame = lazy(() => import("./tetris-game").then((module) => ({ default: module.TetrisGame })));
 const StarswarGame = lazy(() => import("./starswar/starswar-game").then((module) => ({ default: module.StarswarGame })));
+const BaksalPrototype = lazy(() => import("./baksal/baksal-prototype").then((module) => ({ default: module.BaksalPrototype })));
 const ChessGame = lazy(() => import("./chess-game").then((module) => ({ default: module.ChessGame })));
 const NineMensMorrisGame = lazy(() => import("./classic-games").then((module) => ({ default: module.NineMensMorrisGame })));
 const GonuGame = lazy(() => import("./classic-games").then((module) => ({ default: module.GonuGame })));
@@ -92,7 +93,8 @@ type GameId =
   | "ten-seconds"
   | "mudflat-survivor"
   | "tetris"
-  | "starswar";
+  | "starswar"
+  | "baksal";
 type Category = "전체" | "전략" | "모바일" | "카드" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
 
 const CATEGORIES: Category[] = ["전체", "전략", "모바일", "고전게임", "주사위", "터치류", "카드", "기억력", "추리", "퍼즐", "경주", "RPG"];
@@ -451,6 +453,14 @@ const GAMES: GameDefinition[] = [
     players: "AI 1:1 웨이브 전략",
     tone: "gold",
   },
+  {
+    id: "baksal",
+    title: "박살",
+    subtitle: "박자에 맞춰 몸을 돌려 조준하고 피하며 악귀를 정화하세요",
+    category: "모바일",
+    players: "1인 리듬 AR 퇴마",
+    tone: "orange",
+  },
 ];
 
 const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
@@ -475,6 +485,8 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "tetris",
   // 스타드래프트: 유닛·건물은 원작 이름 그대로라 공개 시점을 정할 때까지 홈 목록에서 숨긴다.
   "starswar",
+  // 박살: 0단계 재미 검증 중. 전체 게임 표시에서만 보인다.
+  "baksal",
 ]);
 
 const DEFAULT_QUICK_START_GAME_IDS: readonly GameId[] = [
@@ -912,6 +924,10 @@ function GameArtwork({ game }: { game: GameDefinition }) {
 
   if (game.id === "starswar") {
     return <div className="card-art casual-card-art starswar" aria-hidden="true"><span>{"◆\nZ  D  H"}</span><i /><span className="float-chip">WARP · WAVE</span></div>;
+  }
+
+  if (game.id === "baksal") {
+    return <div className="card-art casual-card-art baksal" aria-hidden="true"><span>{"╋\n박살"}</span><i /><span className="float-chip">80 BPM · AR</span></div>;
   }
 
   if (game.id === "tetris") {
@@ -1636,6 +1652,9 @@ function HomeContent({
   }
   if (activeGame === "tetris") {
     return <GuidedGame gameId={activeGame}><TetrisGame onExit={exitGame} /></GuidedGame>;
+  }
+  if (activeGame === "baksal") {
+    return <GuidedGame gameId={activeGame}><BaksalPrototype onExit={exitGame} /></GuidedGame>;
   }
   if (activeGame === "starswar") {
     return <GuidedGame gameId={activeGame}><StarswarGame onExit={exitGame} /></GuidedGame>;
