@@ -1,8 +1,9 @@
+import { STARK_RIFT_FORMAT_VERSION } from "../core/versions";
 import { combatFitsMap } from "../combat/rules";
 import type { Scenario } from "../combat/state";
 import {
   validatePersistenceEnvelope,
-  migrateStage4Envelope,
+  migrateLegacyEnvelope,
   type PersistenceEnvelope,
 } from "../core/state";
 import { getRuntimeMap } from "../data/maps";
@@ -44,7 +45,10 @@ export class DevelopmentSaveStore {
       navigationFitsMap(s, map) &&
       s.entities.x.every((x, i) => inside({ x, y: s.entities.y[i] })) &&
       s.movement.every(
-        (m) => (m.target === null || inside(m.target)) && m.path.every(inside),
+        (m) =>
+          (m.target === null || inside(m.target)) &&
+          (m.trackedTarget === null || inside(m.trackedTarget)) &&
+          m.path.every(inside),
       )
     );
   }
@@ -53,7 +57,11 @@ export class DevelopmentSaveStore {
     try {
       serialized = this.storage.getItem(
         DEVELOPMENT_SAVE_PREFIX +
-          (scenario === "combat-practice" ? "combat." : "") +
+          (scenario === "combat-practice"
+            ? "combat."
+            : scenario === "ranged-practice"
+              ? "ranged."
+              : "") +
           faction,
       );
     } catch {
@@ -62,7 +70,7 @@ export class DevelopmentSaveStore {
     if (serialized === null) return { status: "empty" };
     if (serialized.length > 16 * 1024 * 1024) return { status: "invalid" };
     try {
-      const saved: unknown = migrateStage4Envelope(JSON.parse(serialized));
+      const saved: unknown = migrateLegacyEnvelope(JSON.parse(serialized));
       return this.valid(saved, faction) &&
         (saved.simulation.combat?.scenario ?? "economy") === scenario
         ? { status: "ready", snapshot: saved }
@@ -79,15 +87,26 @@ export class DevelopmentSaveStore {
         DEVELOPMENT_SAVE_PREFIX +
         (snapshot.simulation.combat?.scenario === "combat-practice"
           ? "combat."
-          : "") +
+          : snapshot.simulation.combat?.scenario === "ranged-practice"
+            ? "ranged."
+            : "") +
         faction;
       const old = this.storage.getItem(key);
-      if (old && !this.storage.getItem(key + ".stage4-backup")) {
-        let legacy = true;
+      if (old) {
+        let suffix = "invalid-backup";
         try {
-          legacy = JSON.parse(old).formatVersion === 6;
+          const version = JSON.parse(old).formatVersion;
+          suffix =
+            version === 6
+              ? "stage4-backup"
+              : version === 7
+                ? "stage5a-backup"
+                : version === STARK_RIFT_FORMAT_VERSION
+                  ? ""
+                  : "invalid-backup";
         } catch {}
-        if (legacy) this.storage.setItem(key + ".stage4-backup", old);
+        if (suffix && !this.storage.getItem(key + "." + suffix))
+          this.storage.setItem(key + "." + suffix, old);
       }
       this.storage.setItem(key, JSON.stringify(snapshot));
       return true;
