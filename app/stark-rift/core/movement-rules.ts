@@ -282,6 +282,8 @@ export function createMovementRules(
             m.target = destination ?? { x: s.x[i], y: s.y[i] };
             m.targetEntityId =
               command.kind === "focusAttack" ? command.target.entityId : null;
+            m.trackedTarget =
+              command.kind === "focusAttack" ? { ...target } : null;
             m.status = destination ? "waiting" : "blocked";
             m.obstacleVersion = state.map.obstacleVersion;
           }
@@ -351,6 +353,7 @@ function move(
             !hash.overlaps(i, approach.x, approach.y)
           ) {
             m.target = { x: s.x[t], y: s.y[t] };
+            m.trackedTarget = { x: s.x[t], y: s.y[t] };
             m.path = [approach];
             m.pathIndex = 0;
             m.status = "moving";
@@ -358,10 +361,13 @@ function move(
         }
         if (
           m.status === "arrived" ||
-          !m.target ||
-          Math.abs(m.target.x - s.x[t]) + Math.abs(m.target.y - s.y[t]) > 256
+          !m.trackedTarget ||
+          Math.abs(m.trackedTarget.x - s.x[t]) +
+            Math.abs(m.trackedTarget.y - s.y[t]) >
+            256
         ) {
           m.target = { x: s.x[t], y: s.y[t] };
+          m.trackedTarget = { x: s.x[t], y: s.y[t] };
           m.path = [];
           m.pathIndex = 0;
           m.status = "waiting";
