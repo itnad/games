@@ -1,4 +1,8 @@
-import { combatEffectSchema, type CombatState } from "../combat/state";
+import {
+  combatEffectSchema,
+  renderProjectileSchema,
+  type CombatState,
+} from "../combat/state";
 import {
   createEconomyView,
   economyViewSchema,
@@ -45,6 +49,13 @@ export type RenderSnapshot = {
     targetsRemaining: number;
     totalTargets: number;
     effects: CombatState["effects"];
+    projectiles: {
+      id: number;
+      owner: number;
+      weaponId: "Fragmentation_Grenade" | "Phase_Disruptor";
+      x: number;
+      y: number;
+    }[];
   };
   visibility: Uint8Array;
 };
@@ -81,11 +92,16 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
     ),
     combat: optional(
       object({
-        scenario: enumeration(["economy", "combat-practice"]),
+        scenario: enumeration([
+          "economy",
+          "combat-practice",
+          "ranged-practice",
+        ]),
         friendlyRemaining: integer(0, 10),
         targetsRemaining: integer(0, 10),
         totalTargets: integer(0, 10),
         effects: array(combatEffectSchema, 0, 128),
+        projectiles: array(renderProjectileSchema, 0, 4096),
       }),
     ),
     visibility: visibilitySchema,
@@ -96,6 +112,17 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
     snapshot.visibility.length === snapshot.widthTiles * snapshot.heightTiles &&
     (!snapshot.combat ||
       (snapshot.combat.targetsRemaining <= snapshot.combat.totalTargets &&
+        new Set(snapshot.combat.projectiles.map((p) => p.id)).size ===
+          snapshot.combat.projectiles.length &&
+        snapshot.combat.projectiles.every(
+          (p) =>
+            p.x < snapshot.widthTiles * 256 &&
+            p.y < snapshot.heightTiles * 256 &&
+            snapshot.visibility[
+              Math.floor(p.y / 256) * snapshot.widthTiles +
+                Math.floor(p.x / 256)
+            ] === 2,
+        ) &&
         snapshot.combat.effects.every(
           (e) =>
             e.tick <= snapshot.tick &&
@@ -216,6 +243,15 @@ export function createRenderSnapshot(
           s.id.includes(id),
         ).length,
         totalTargets: state.combat.targetIds.length,
+        projectiles: state.combat.projectiles
+          .filter((p) => seen(p.x, p.y))
+          .map((p) => ({
+            id: p.id,
+            owner: p.owner,
+            weaponId: p.weaponId,
+            x: p.x,
+            y: p.y,
+          })),
         effects: state.combat.effects
           .filter((e) => seen(e.x, e.y) && seen(e.toX, e.toY))
           .map((e) => ({ ...e })),
