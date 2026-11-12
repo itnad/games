@@ -1,3 +1,4 @@
+import { activeCloak, energyView } from "../abilities/cloak-state";
 import { isEmbarked, permanentCloak } from "../abilities/special-state";
 import { isBurrowed } from "../abilities/burrow";
 import { SCENARIOS } from "../combat/state";
@@ -43,6 +44,8 @@ export type RenderEntity = {
   shield?: number;
   burrowed?: boolean;
   cloaked?: boolean;
+  energy?: number;
+  maxEnergy?: number;
   kind: "combat" | "worker" | "building";
   layer: "ground" | "air";
   radius: number;
@@ -103,6 +106,8 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         shield: optional(integer()),
         burrowed: optional(boolean),
         cloaked: optional(boolean),
+        energy: optional(integer(0, 200)),
+        maxEnergy: optional(integer(200, 200)),
         kind: enumeration(["combat", "worker", "building"]),
         layer: enumeration(["ground", "air"]),
         radius: integer(1, 512),
@@ -262,7 +267,8 @@ export function createRenderSnapshot(
     entities.push({
       ...(state.economy.enabled ? { shield: s.shield[i] } : {}),
       ...(isBurrowed(state, s.id[i]) ? { burrowed: true } : {}),
-      ...(permanentCloak(s.definitionId[i]) ? { cloaked: true } : {}),
+      ...(state.economy.enabled ? energyView(state, s.id[i]) : {}),
+      ...(permanentCloak(s.definitionId[i]) || activeCloak(state, s.id[i]) ? { cloaked: true } : {}),
       id: s.id[i],
       owner: s.owner[i],
       definitionId: s.definitionId[i],
