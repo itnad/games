@@ -975,6 +975,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           <ul className="stw-log" aria-live="polite">
             {recentLog.map((entry) => <li key={entry.id} className={`tone-${entry.tone}`}>{entry.text}</li>)}
           </ul>
+          {game.finalBattle && !finished ? <p className="stw-final-banner" role="status">최종 결전 · 전원 출격 · 지휘 불가</p> : null}
           {toast ? <p key={toast.id} className={`stw-toast tone-${toast.tone}`} role="status">{toast.text}</p> : null}
           {paused && !finished && !confirmExit ? (
             <div className="stw-overlay">

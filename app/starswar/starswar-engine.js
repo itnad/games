@@ -745,6 +745,8 @@ const CHRONICLE_LIMIT = 900;
  * 같은 진영이 30초 안에 똑같은 명령을 되풀이하면 한 번만 남긴다(AI가 생각할 때마다 같은 공격 명령을 내린다).
  */
 export function stwCommand(state, side, command) {
+  // 최종 결전 중에는 사람도 AI도 지휘하지 않는다(남은 병력이 끝까지 적진으로 간다).
+  if (state.finalBattle && state.status === "playing") return fail("최종 결전 중에는 지휘할 수 없습니다");
   const result = runCommand(state, side, command);
   if (result.ok && command.type !== "probe" && command.type !== "worker") chronicle(state, side, command);
   return result;
@@ -1294,7 +1296,7 @@ export function stepStarswar(state, aiThink = null) {
   if (state.status !== "playing") return;
   const dt = STW_TICK;
   state.time = Math.round((state.time + dt) * 1000) / 1000;
-  if (aiThink) for (const side of state.aiSides) aiThink(state, side);
+  if (aiThink && !state.finalBattle) for (const side of state.aiSides) aiThink(state, side);
   for (const side of STW_SIDES) {
     stepEconomy(state, side, dt);
     if (state.sides[side].escort) escortStep(state, side);
@@ -4112,18 +4114,54 @@ function checkVictory(state) {
   if (playerMain && enemyMain) {
     // 양쪽 다 자원이 바닥나고 병력도 없으면 30초 뒤 무승부로 끝낸다.
     state.stalemate = exhausted(state, "player") && exhausted(state, "enemy") ? (state.stalemate ?? 0) + STW_TICK : 0;
-    // 양쪽 다 더 만들 수 없는데 90초 동안 아무것도 맞지 않았으면 무승부(병력이 남아도 서로 닿지 않으면 끝나지 않던 문제).
+    // 양쪽 다 더 만들 수 없는데 90초 동안 아무것도 맞지 않았으면: 공격할 수 있는 병력이 남아 있으면 최종 결전,
+    // 결전 중에 또 90초 동안 아무것도 맞지 않으면 무승부(병력이 남아도 서로 닿지 않으면 끝나지 않던 문제).
     const stuck = cannotProduce(state, "player") && cannotProduce(state, "enemy") && state.time - (state.lastDamageAt ?? 0) >= 90;
+    if (stuck && !state.finalBattle && STW_SIDES.some((side) => hasAttackers(state, side))) {
+      startFinalBattle(state);
+      return;
+    }
+    if (state.finalBattle) keepFinalBattle(state);
     if (state.stalemate < 30 && !stuck) return;
     state.status = "over";
     state.winner = "draw";
-    pushLog(state, "player", stuck ? "양쪽 모두 자원이 바닥나고 90초 동안 싸움이 없어 무승부입니다." : "양쪽 모두 자원과 병력이 바닥나 무승부입니다.", "info");
+    pushLog(state, "player", state.finalBattle ? "최종 결전에서도 승부가 나지 않아 무승부입니다." : stuck ? "양쪽 모두 자원이 바닥나고 90초 동안 싸움이 없어 무승부입니다." : "양쪽 모두 자원과 병력이 바닥나 무승부입니다.", "info");
     return;
   }
   state.status = "over";
   state.winner = playerMain ? "player" : enemyMain ? "enemy" : "draw";
   const lostBase = STW_BUILDINGS[stwRace(state, state.winner === "player" ? "enemy" : "player").base].name;
   pushLog(state, "player", state.winner === "player" ? `적 본진 ${withKoreanObject(lostBase)} 파괴했습니다. 승리!` : `본진 ${withKoreanSubject(lostBase)} 파괴되었습니다.`, state.winner === "player" ? "good" : "danger");
+}
+
+/** 공격할 수 있는 유닛(무기가 있는 유닛)이 하나라도 있는지. */
+function hasAttackers(state, side) {
+  return state.units.some((unit) => unit.side === side && unit.hp > 0 && !isWorker(unit) && STW_UNITS[unit.type].damage);
+}
+
+/**
+ * 최종 결전: 양쪽 다 자원이 바닥나 더 만들 수 없고 90초 동안 싸움이 없으면, 남은 병력이 모두 적진으로 나가 끝까지 싸운다.
+ * 이때부터 사람도 AI도 지휘하지 않는다. 본진이 무너지면 승패가 나고, 다시 90초 동안 아무것도 맞지 않으면 무승부다.
+ */
+function startFinalBattle(state) {
+  state.finalBattle = { at: state.time };
+  state.lastDamageAt = state.time;
+  for (const side of STW_SIDES) state.sides[side].squads = {};
+  keepFinalBattle(state);
+  pushLog(state, "player", "자원이 모두 바닥났습니다. 최종 결전! 남은 병력이 모두 적진으로 나갑니다(지휘할 수 없습니다).", "danger");
+}
+
+/** 최종 결전 중: 대기·부대·침투 중인 병력(일꾼·수송선 제외)을 모두 공격 병력으로 둔다. 수송선에 탄 병력은 내리면 합류한다. */
+function keepFinalBattle(state) {
+  for (const unit of state.units) {
+    if (unit.hp <= 0 || isWorker(unit) || STW_UNITS[unit.type].transport) continue;
+    if (unit.group === "attack" || unit.group === "cargo" || unit.group === "board" || unit.group === "scout" || unit.group === "drop") continue;
+    unit.group = "attack";
+    delete unit.squad;
+    unit.raid = undefined;
+    unit.walkPath = undefined;
+    unit.fresh = false;
+  }
 }
 
 export function stwClock(seconds) {

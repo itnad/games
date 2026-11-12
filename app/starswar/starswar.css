@@ -449,3 +449,6 @@
 .stw-shell[data-theme="riso"] :is(.stw-segment button, .stw-difficulty button, .stw-start, .stw-primary, .stw-secondary, .stw-tip, .stw-overlay section, .stw-resume) { border-radius:6px !important; box-shadow:3px 3px 0 #0f8b8d66; }
 .stw-shell[data-theme="riso"] .stw-segment button.active { box-shadow:3px 3px 0 #0f8b8d; }
 .stw-shell[data-theme="riso"] .stw-menu-hero small { color:#0f8b8d; }
+
+/* 최종 결전: 자원이 바닥나 남은 병력이 모두 적진으로 가는 동안 지도 위에 띄운다. */
+.stw-final-banner { position:absolute; left:50%; top:52px; z-index:4; width:max-content; max-width:calc(100% - 24px); margin:0; padding:7px 14px; transform:translateX(-50%); border:1px solid color-mix(in srgb,var(--stw-red) 70%,transparent); border-radius:999px; color:#fff; background:color-mix(in srgb,var(--stw-red) 85%,#000); font-size:13px !important; font-weight:900; text-align:center; pointer-events:none; box-shadow:0 4px 14px #0008; }

@@ -1699,11 +1699,33 @@ test("starswar warns about depleting minerals and ends an exhausted game as a dr
   stwSpawnUnitAt(alive, "player", "zealot", 20, 80);
   run(alive, 31);
   assert.equal(alive.status, "playing");
-  // 그래도 양쪽 다 더 만들 수 없고 90초 동안 아무것도 맞지 않으면 무승부(후반 리포트: 남은 병력이 서로 닿지 않아 30분 가까이 끝나지 않았다).
+  // 양쪽 다 더 만들 수 없고 90초 동안 아무것도 맞지 않으면 최종 결전: 남은 병력이 모두 적진으로 가고 지휘할 수 없다.
+  // (후반 리포트: 남은 병력이 서로 닿지 않아 30분 가까이 끝나지 않았다.)
   run(alive, 60);
+  assert.ok(alive.finalBattle, "최종 결전 시작");
+  assert.ok(alive.log.some((entry) => /최종 결전/.test(entry.text)));
+  assert.ok(alive.units.filter((unit) => unit.type === "zealot").every((unit) => unit.group === "attack"), "남은 병력이 모두 출격");
+  assert.match(stwIssue(alive, "player", { type: "move", y: 80 }).reason, /최종 결전 중에는 지휘할 수 없습니다/);
+  // 질럿 하나로 적 본진(넥서스)까지 부수면 승리.
+  for (const building of alive.buildings) if (building.side === "enemy" && building.type !== "nexus") building.hp = 0;
+  run(alive, 240);
   assert.equal(alive.status, "over");
-  assert.equal(alive.winner, "draw");
-  assert.ok(alive.log.some((entry) => /90초 동안 싸움이 없어 무승부/.test(entry.text)));
+  assert.equal(alive.winner, "player", "최종 결전으로 적 본진을 부숴 승리");
+
+  // 결전에서도 아무것도 맞지 않으면(서로 칠 수 없는 병력만) 다시 90초 뒤 무승부.
+  const air = quiet();
+  for (const side of ["player", "enemy"]) {
+    air.sides[side].bases.main.minerals = 0;
+    air.sides[side].bases.natural.minerals = 0;
+    air.sides[side].minerals = 10;
+  }
+  stwSpawnUnitAt(air, "player", "corsair", 20, 80);
+  run(air, 95);
+  assert.ok(air.finalBattle, "커세어(공중만 공격)도 공격 유닛이라 결전은 시작");
+  run(air, 95);
+  assert.equal(air.status, "over");
+  assert.equal(air.winner, "draw");
+  assert.ok(air.log.some((entry) => /최종 결전에서도 승부가 나지 않아 무승부/.test(entry.text)));
 
   // 공격하지 못하는 유닛(옵저버·오버로드·수송선 등)만 남았으면 병력으로 치지 않는다.
   const support = quiet();
