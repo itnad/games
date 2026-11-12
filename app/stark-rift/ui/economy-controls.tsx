@@ -19,6 +19,7 @@ export function EconomyControls({
   running,
   openBuildMenu,
   selectWorker,
+  scout,
 }: {
   snapshot: RenderSnapshot;
   selected: number[];
@@ -28,6 +29,7 @@ export function EconomyControls({
   running: boolean;
   openBuildMenu: () => void;
   selectWorker: () => void;
+  scout: () => void;
 }) {
   const economy = snapshot.economy!,
     entities = snapshot.entities.filter(
@@ -109,15 +111,23 @@ export function EconomyControls({
           {mixed ? "혼합 병력" : def.name}
           {entities.length > 1 ? ` × ${entities.length}` : ""}
         </strong>
-        {def.kind === "combat" && hasBasicWeapon(def.id) && (
-          <button
-            className="sr-attack-move"
-            disabled={!running}
-            onClick={attackMove}
-          >
-            공격 이동
-          </button>
-        )}
+        {snapshot.combat?.scenario === "siege-practice" &&
+          def.kind === "combat" && (
+            <button disabled={!running} className="sr-scout" onClick={scout}>
+              정찰 출발
+            </button>
+          )}
+        {def.kind === "combat" &&
+          snapshot.combat?.scenario !== "siege-practice" &&
+          hasBasicWeapon(def.id) && (
+            <button
+              className="sr-attack-move"
+              disabled={!running}
+              onClick={attackMove}
+            >
+              공격 이동
+            </button>
+          )}
         {worker ? (
           <button className="sr-open-build" onClick={openBuildMenu}>
             건설
