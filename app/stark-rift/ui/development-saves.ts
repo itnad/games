@@ -111,7 +111,9 @@ export class DevelopmentSaveStore {
                 ? "stage5a-backup"
                 : version === 8
                   ? "stage5b-backup"
-                  : version === STARK_RIFT_FORMAT_VERSION
+                  : version === 9
+                    ? "stage5c-backup"
+                    : version === STARK_RIFT_FORMAT_VERSION
                     ? ""
                     : "invalid-backup";
         } catch {}
