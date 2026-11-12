@@ -32,6 +32,7 @@ export function hasCompleted(
   return s.economy.structures.some(
     (b) =>
       complete(b) &&
+      (!definitionOf(s, b.entityId)?.addonParent || activeBuilding(s, b)) &&
       s.entities.owner[indexOf(s, b.entityId)] === owner &&
       countsAsDefinition(definitionOf(s, b.entityId)?.id ?? "", id),
   );
@@ -357,6 +358,12 @@ export function activeBuilding(s: SimulationState, b: StructureState): boolean {
   return (
     complete(b) &&
     !!d &&
+    s.entities.health[i] > 0 &&
+    (!d.addonParent || s.economy.structures.some((p) =>
+      p.entityId === b.addonParentId && complete(p) &&
+      definitionOf(s, p.entityId)?.id === d.addonParent &&
+      s.entities.owner[indexOf(s, p.entityId)] === s.entities.owner[i] &&
+      s.entities.health[indexOf(s, p.entityId)] > 0)) &&
     (!d.power ||
       psiPower(s, s.entities.owner[i], s.entities.x[i], s.entities.y[i]))
   );
