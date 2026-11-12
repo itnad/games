@@ -351,7 +351,7 @@ export function tickConstructionAndProduction(
         b.research = null;
       }
     }
-    if (b.repeatUnitId && b.queue.length === 0 && !b.research) {
+    if (b.repeatUnitId && b.queue.length === 0 && (!b.research || d.id === "zerg-hatchery")) {
       const repeat = economyDefinition(b.repeatUnitId),
         owner = s.entities.owner[indexOf(s, b.entityId)];
       if (repeat && !productionFailure(s, owner, b.entityId, repeat))
