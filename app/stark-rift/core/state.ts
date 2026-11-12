@@ -1,8 +1,9 @@
+import { energyStateSchema, validEnergy, type EnergyRecord } from "../abilities/cloak-state";
 import { specialStateSchema, type SpecialState } from "../abilities/special-state";
 import { validSpecial } from "../abilities/special-validation";
 import { validBurrowState } from "../abilities/burrow";
 import { getRuntimeMap } from "../data/maps";
-import { ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION, BURROW_ECONOMY_DATA_VERSION } from "../data/economy-catalog";
+import { ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION, BURROW_ECONOMY_DATA_VERSION, SPECIAL_ECONOMY_DATA_VERSION } from "../data/economy-catalog";
 import { LEGACY_VISION_RULES_VERSION, VISION_RULES_VERSION, visionStateSchema, type VisionState } from "../vision/state";
 import {
   combatStateSchema,
@@ -11,6 +12,7 @@ import {
   RANGED_COMBAT_RULES_VERSION,
   TERRAIN_COMBAT_RULES_VERSION,
   BURROW_COMBAT_RULES_VERSION,
+  SPECIAL_COMBAT_RULES_VERSION,
   type CombatState,
 } from "../combat/state";
 import { validEconomy } from "../economy/validation";
@@ -127,6 +129,7 @@ export type SimulationState = {
   combat?: CombatState;
   vision?: VisionState;
   special?: SpecialState;
+  energy?: EnergyRecord[];
   projectiles: ProjectileStore;
   gameplayEffects: GameplayEffectStore;
   scheduledEvents: ScheduledEventQueue;
@@ -282,6 +285,7 @@ export const simulationStateSchema: Schema<SimulationState> = refine(
     combat: optional(combatStateSchema),
     vision: optional(visionStateSchema),
     special: optional(specialStateSchema),
+    energy: optional(energyStateSchema),
     movement: array(movementStateSchema, 0, 2048),
     entities: entityStoreSchema,
     projectiles: emptyStore,
@@ -291,7 +295,7 @@ export const simulationStateSchema: Schema<SimulationState> = refine(
     outcome: nullable(matchOutcomeSchema),
   }),
   (state) => {
-    if (!validEconomy(state) || !validBurrowState(state) || !validSpecial(state)) return false;
+    if (!validEconomy(state) || !validBurrowState(state) || !validSpecial(state) || !validEnergy(state)) return false;
     if (state.vision) {
       const v = state.vision;
       if (
@@ -524,10 +528,10 @@ export const validatePersistenceEnvelope = (input: unknown) =>
 export function migrateLegacyEnvelope(input: unknown): unknown {
   if (!input || typeof input !== "object") return input;
   const old = input as PersistenceEnvelope;
-  if (![6, 7, 8, 9, 10].includes(old.formatVersion)) return input;
+  if (![6, 7, 8, 9, 10, 11].includes(old.formatVersion)) return input;
   const source = old.simulation,
     engine = (
-      { 6: "0.7.0-stage4", 7: "0.8.0-stage5a", 8: "0.9.0-stage5b", 9: "0.10.0-stage5c", 10: "0.11.0-stage6a" } as Record<
+      { 6: "0.7.0-stage4", 7: "0.8.0-stage5a", 8: "0.9.0-stage5b", 9: "0.10.0-stage5c", 10: "0.11.0-stage6a", 11: "0.12.0-stage6b" } as Record<
         number,
         string
       >
@@ -539,12 +543,13 @@ export function migrateLegacyEnvelope(input: unknown): unknown {
     source.schemaVersion !== old.formatVersion ||
     old.checksum !== checksum(source) ||
     (old.formatVersion < 9 && source.vision !== undefined) ||
-    source.special !== undefined ||
-    (source.vision !== undefined && (source.vision.rulesVersion as string) !== LEGACY_VISION_RULES_VERSION)
+    (old.formatVersion < 11 && source.special !== undefined) ||
+    source.energy !== undefined ||
+    (source.vision !== undefined && (source.vision.rulesVersion as string) !== (old.formatVersion === 11 ? VISION_RULES_VERSION : LEGACY_VISION_RULES_VERSION))
   )
     throw new TypeError("Invalid legacy save");
   const currentDataVersion = getRuntimeMap("rift-basin").dataVersion,
-    previousDataVersion = currentDataVersion.replace(ECONOMY_DATA_VERSION, old.formatVersion === 10 ? BURROW_ECONOMY_DATA_VERSION : LEGACY_ECONOMY_DATA_VERSION);
+    previousDataVersion = currentDataVersion.replace(ECONOMY_DATA_VERSION, old.formatVersion === 11 ? SPECIAL_ECONOMY_DATA_VERSION : old.formatVersion === 10 ? BURROW_ECONOMY_DATA_VERSION : LEGACY_ECONOMY_DATA_VERSION);
   if (old.dataVersion !== source.dataVersion || source.map?.definitionId !== "rift-basin" || old.dataVersion !== previousDataVersion)
     throw new TypeError("Unknown legacy data version");
   if (old.formatVersion === 6 && source.combat !== undefined)
@@ -553,10 +558,10 @@ export function migrateLegacyEnvelope(input: unknown): unknown {
     const expected =
       old.formatVersion === 7
         ? PREVIOUS_COMBAT_RULES_VERSION
-        : old.formatVersion === 8 ? RANGED_COMBAT_RULES_VERSION : old.formatVersion === 9 ? TERRAIN_COMBAT_RULES_VERSION : BURROW_COMBAT_RULES_VERSION;
+        : old.formatVersion === 8 ? RANGED_COMBAT_RULES_VERSION : old.formatVersion === 9 ? TERRAIN_COMBAT_RULES_VERSION : old.formatVersion === 10 ? BURROW_COMBAT_RULES_VERSION : SPECIAL_COMBAT_RULES_VERSION;
     if (
       source.combat.rulesVersion !== expected ||
-      !(old.formatVersion >= 9 ? ["economy", "combat-practice", "ranged-practice", "siege-practice"] : ["economy", "combat-practice", "ranged-practice"]).includes(
+      !(old.formatVersion === 11 ? ["economy", "combat-practice", "ranged-practice", "siege-practice", "special-practice"] : old.formatVersion >= 9 ? ["economy", "combat-practice", "ranged-practice", "siege-practice"] : ["economy", "combat-practice", "ranged-practice"]).includes(
         source.combat.scenario,
       )
     )
