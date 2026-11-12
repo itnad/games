@@ -161,7 +161,10 @@ export function SimulationSession({
               ? null
               : "명령을 실행하지 못했습니다. 선택한 대상과 목적지를 확인해 주세요.",
           );
-        if (message.kind === "phaseChanged") setPhase(message.payload.phase);
+        if (message.kind === "phaseChanged") {
+          setPhase(message.payload.phase);
+          if (message.payload.phase === "finished") save();
+        }
         if (message.kind === "snapshotLoaded") {
           restoring = false;
           failed = false;
@@ -211,7 +214,11 @@ export function SimulationSession({
         dataVersion: registered.dataVersion,
         players: [
           { id: 0, faction, controller: "human" },
-          { id: 1, faction: "zerg", controller: "ai" },
+          {
+            id: 1,
+            faction: scenario === "siege-practice" ? "terran" : "zerg",
+            controller: "ai",
+          },
         ],
       });
     } catch (reason) {
@@ -251,6 +258,32 @@ export function SimulationSession({
     client.current?.dispose();
     client.current = null;
     setRestart((value) => value + 1);
+  };
+  const result = ui?.phase === "finished" ? ui.outcome : null;
+  const surrender = () => {
+    if (
+      !ui ||
+      !snapshot ||
+      !client.current ||
+      !window.confirm("항복하면 이번 경기가 종료됩니다. 항복할까요?")
+    )
+      return;
+    const tick = Math.max(ui.tick, snapshot.tick);
+    client.current.send("resume", { reason: "surrender" });
+    client.current.send("commandBatch", {
+      commands: [
+        {
+          kind: "surrender",
+          entityIds: [],
+          sequence: ui.lastAcceptedSequence + 1,
+          issuedTick: tick,
+          executeTick: tick + 1,
+          playerId: snapshot.viewerPlayerId,
+          source: "player",
+        },
+      ],
+      lastSeenTick: tick,
+    });
   };
   return (
     <PortraitOnly
@@ -303,7 +336,9 @@ export function SimulationSession({
           <div className="sr-practice-status" role="status">
             {snapshot.combat.scenario === "ranged-practice"
               ? "원거리 연습"
-              : "전투 연습"}{" "}
+              : snapshot.combat.scenario === "siege-practice"
+                ? "본부 공략"
+                : "전투 연습"}{" "}
             · 남은 적 {snapshot.combat.targetsRemaining}/
             {snapshot.combat.totalTargets} · 아군{" "}
             {snapshot.combat.friendlyRemaining}
@@ -357,12 +392,52 @@ export function SimulationSession({
             </div>
           )}
           {phase === "paused" && !error && (
-            <button
-              className="sr-session-resume"
-              onClick={() => client.current?.send("resume", { reason: "user" })}
+            <div className="sr-session-resume sr-pause-actions">
+              <button
+                onClick={() =>
+                  client.current?.send("resume", { reason: "user" })
+                }
+              >
+                이어서 진행
+              </button>
+              <button onClick={surrender}>항복</button>
+            </div>
+          )}
+          {result && !error && (
+            <section
+              className="sr-match-result"
+              role="dialog"
+              aria-label="경기 결과"
             >
-              이어서 진행
-            </button>
+              <strong>
+                {result.kind === "draw"
+                  ? "무승부"
+                  : result.winnerPlayerId === snapshot?.viewerPlayerId
+                    ? "승리"
+                    : "패배"}
+              </strong>
+              <p>
+                {result.kind === "surrender"
+                  ? "항복으로 경기가 종료됐습니다."
+                  : result.kind === "draw"
+                    ? "양쪽의 마지막 본부 건물이 동시에 파괴됐습니다."
+                    : result.winnerPlayerId === snapshot?.viewerPlayerId
+                      ? "상대의 모든 본부 건물을 파괴했습니다."
+                      : "모든 아군 본부 건물을 잃었습니다."}
+              </p>
+              <p>
+                진행 시간 · {Math.floor(result.decidedTick / 1200)}분{" "}
+                {Math.floor(result.decidedTick / 20) % 60}초
+              </p>
+              {onExit && (
+                <button
+                  onClick={() => actions.current.exit()}
+                  disabled={exiting}
+                >
+                  결과 저장하고 나가기
+                </button>
+              )}
+            </section>
           )}
         </div>
       </div>
