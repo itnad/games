@@ -1,3 +1,4 @@
+import { isEmbarked } from "../abilities/special-state";
 import { isBurrowed } from "../abilities/burrow";
 import {isBlueprint,tileWalkable,bodyContains,segmentHitsBody} from '../economy/footprints';
 import type { BattleMap } from "../data/maps";
@@ -32,11 +33,11 @@ export class NavigationGrid {
   }
   trackStaticObstacles():void{
     this.staticIndices=[];this.staticIds.clear();const s=this.state.entities;
-    s.id.forEach((id,i)=>{if(s.health[i]>0&&!isBlueprint(this.state,i)&&!isBurrowed(this.state,id)&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")){this.staticIndices!.push(i);this.staticIds.add(id);}});
+    s.id.forEach((id,i)=>{if(s.health[i]>0&&!isBlueprint(this.state,i)&&!isBurrowed(this.state,id)&&!isEmbarked(this.state,id)&&(s.kind[i]==="building"||this.state.movement[i].order==="idle"||this.state.movement[i].order==="hold")){this.staticIndices!.push(i);this.staticIds.add(id);}});
     this.staticSpatial=this.staticIndices.length>16?new SpatialHash(this.state,this.staticIndices):undefined;
   }
   addStaticObstacle(index:number):void{
-    if(!this.staticIndices||this.staticIds.has(this.state.entities.id[index])||isBurrowed(this.state,this.state.entities.id[index]))return;
+    if(!this.staticIndices||this.staticIds.has(this.state.entities.id[index])||(isBurrowed(this.state,this.state.entities.id[index])||isEmbarked(this.state,this.state.entities.id[index])))return;
     this.staticIds.add(this.state.entities.id[index]);this.staticIndices.push(index);this.staticIndices.sort((a,b)=>this.state.entities.id[a]-this.state.entities.id[b]);
     if(this.staticSpatial)this.staticSpatial.update(index);
     else if(this.staticIndices.length>16)this.staticSpatial=new SpatialHash(this.state,this.staticIndices);
@@ -129,7 +130,7 @@ function jobKey(goal:number,radius:number,layer:string,version:number){return `$
 /** Search queues and caches are state, so save/restore preserves scheduling and path completion ticks. */
 export function navigate(state:SimulationState,map:BattleMap):void{
   const s=state.entities,n=state.navigation,grid=new NavigationGrid(map,state,new SpatialHash(state),true,true);
-  const obstacles=s.id.flatMap((id,i)=>s.health[i]>0&&!isBlueprint(state,i)&&!isBurrowed(state,id)&&(s.kind[i]==="building"||state.movement[i].order==="idle"||state.movement[i].order==="hold")?[[id,s.x[i],s.y[i],s.radius[i],s.layer[i]]]:[]);
+  const obstacles=s.id.flatMap((id,i)=>s.health[i]>0&&!isBlueprint(state,i)&&!isBurrowed(state,id)&&!isEmbarked(state,id)&&(s.kind[i]==="building"||state.movement[i].order==="idle"||state.movement[i].order==="hold")?[[id,s.x[i],s.y[i],s.radius[i],s.layer[i]]]:[]);
   const signature=obstacles.length?checksum(obstacles):"none";
   if(n.obstacleSignature!==signature){n.obstacleSignature=signature;state.map.obstacleVersion++;}
   n.lastStarted=0;n.lastExpanded=0;n.lastReused=0;
