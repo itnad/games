@@ -1,3 +1,4 @@
+import { isEmbarked } from "../abilities/special-state";
 import { isBurrowed } from "../abilities/burrow";
 import {bodyContains,isBlueprint} from '../economy/footprints';
 import type { SimulationState } from "../core/state";
@@ -8,7 +9,7 @@ export function destinationAvailable(state:SimulationState,actorId:number,point:
   const s=state.entities;
   for(let i=0;i<s.id.length;i++){
     const motion=state.movement[i];
-    if(isBurrowed(state,s.id[i])||isBlueprint(state,i)||s.id[i]===actorId||s.health[i]===0||s.layer[i]!==layer||motion.order==="focusAttack")continue;
+    if((isBurrowed(state,s.id[i])||isEmbarked(state,s.id[i]))||isBlueprint(state,i)||s.id[i]===actorId||s.health[i]===0||s.layer[i]!==layer||motion.order==="focusAttack")continue;
     const x=motion.target?.x??s.x[i],y=motion.target?.y??s.y[i];
     if(s.kind[i]==="building"?bodyContains(state,i,point.x,point.y,radius):(point.x-x)**2+(point.y-y)**2<(radius+s.radius[i])**2)return false;
   }
@@ -20,7 +21,7 @@ export class DestinationReservations {
   constructor(state:SimulationState,excluded:readonly number[],private clearance=0){
     const ignored=new Set(excluded),s=state.entities;
     for(let i=0;i<s.id.length;i++){
-      if(isBurrowed(state,s.id[i])||s.kind[i]==="building"||isBlueprint(state,i)||ignored.has(s.id[i])||s.health[i]===0)continue;
+      if((isBurrowed(state,s.id[i])||isEmbarked(state,s.id[i]))||s.kind[i]==="building"||isBlueprint(state,i)||ignored.has(s.id[i])||s.health[i]===0)continue;
       const m=state.movement[i];
       if(m.order==="focusAttack")continue;
       const point=m.target??{x:s.x[i],y:s.y[i]};
