@@ -368,6 +368,7 @@ export class SimulationRuntime {
             saved.simulation.movement.some(
               (m) =>
                 (m.target !== null && !inside(m.target)) ||
+                (m.trackedTarget !== null && !inside(m.trackedTarget)) ||
                 m.path.some((p) => !inside(p)),
             )
           ) {
