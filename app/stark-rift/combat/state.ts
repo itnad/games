@@ -18,12 +18,13 @@ import original from "../data/combat-original.json";
 export const RANGED_COMBAT_RULES_VERSION =
   "ranged-1-" +
   checksum({ original: JSON.stringify(original), flight: PROJECTILE_RULES });
-export const COMBAT_RULES_VERSION =
+export const TERRAIN_COMBAT_RULES_VERSION =
   "terrain-1-" +
   checksum({
     ranged: RANGED_COMBAT_RULES_VERSION,
     vision: VISION_RULES_VERSION,
   });
+export const COMBAT_RULES_VERSION = "burrow-1-" + checksum(TERRAIN_COMBAT_RULES_VERSION);
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(
