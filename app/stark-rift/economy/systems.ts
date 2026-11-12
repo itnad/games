@@ -282,18 +282,24 @@ export function tickConstructionAndProduction(
         !startBuilding(s, map, b, move)
       )
         continue;
+      const before = b.totalTicks - b.remainingTicks;
       if (b.remainingTicks > 0) b.remainingTicks--;
       const i = indexOf(s, b.entityId),
         done = b.totalTicks - b.remainingTicks;
-      s.entities.health[i] = Math.max(
-        1,
-        Math.floor((d.health * done) / b.totalTicks),
+      s.entities.health[i] = Math.min(
+        d.health,
+        s.entities.health[i] +
+          Math.max(1, Math.floor((d.health * done) / b.totalTicks)) -
+          Math.max(1, Math.floor((d.health * before) / b.totalTicks)),
       );
-      s.entities.shield[i] = Math.floor((d.shield * done) / b.totalTicks);
+      s.entities.shield[i] = Math.min(
+        d.shield,
+        s.entities.shield[i] +
+          Math.floor((d.shield * done) / b.totalTicks) -
+          Math.floor((d.shield * before) / b.totalTicks),
+      );
       if (b.remainingTicks === 0) {
         b.completedTick = s.tick;
-        s.entities.health[i] = d.health;
-        s.entities.shield[i] = d.shield;
         if (d.id === "zerg-hatchery") b.larva = 1;
         const w = b.builderId === null ? undefined : workerOf(s, b.builderId);
         if (w) {
