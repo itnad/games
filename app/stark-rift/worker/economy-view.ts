@@ -1,3 +1,4 @@
+import { energyView } from "../abilities/cloak-state";
 import { carrierOf, isEmbarked, transportCapacity, unitTraits, occupiedSpace, morphOf } from "../abilities/special-state";
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
@@ -24,7 +25,7 @@ export const economyViewSchema = object({
   creepCells: array(integer(0, 16383), 0, 16384),
   transports: optional(array(object({
     entityId: integer(1), capacity: integer(0, 8), usedSpace: integer(0, 8),
-    passengers: array(object({ id: integer(1), definitionId: text, health: integer(), shield: integer(), space: integer(1, 8) }), 0, 8),
+    passengers: array(object({ id: integer(1), definitionId: text, health: integer(), shield: integer(), energy: optional(integer(0, 200)), maxEnergy: optional(integer(200, 200)), space: integer(1, 8) }), 0, 8),
     loading: array(object({ id: integer(1), definitionId: text }), 0, 8),
     unloadTarget: nullable(point),
   }), 0, 2048)),
@@ -112,7 +113,7 @@ export function createEconomyView(
     transports: s.entities.id.filter((id, i) => own(id) && !!unitTraits(s.entities.definitionId[i])?.spaceProvided && s.entities.health[i] > 0).map((id) => {
       const t = carrierOf(s, id);
       return { entityId: id, capacity: transportCapacity(s, id), usedSpace: t ? occupiedSpace(s, t) : 0,
-        passengers: (t?.passengers ?? []).map((pid) => { const i = indexOf(s, pid); return { id: pid, definitionId: s.entities.definitionId[i], health: s.entities.health[i], shield: s.entities.shield[i], space: unitTraits(s.entities.definitionId[i])!.spaceRequired }; }),
+        passengers: (t?.passengers ?? []).map((pid) => { const i = indexOf(s, pid); return { ...energyView(s, pid), id: pid, definitionId: s.entities.definitionId[i], health: s.entities.health[i], shield: s.entities.shield[i], space: unitTraits(s.entities.definitionId[i])!.spaceRequired }; }),
         loading: (t?.loadQueue ?? []).map((pid) => ({ id: pid, definitionId: s.entities.definitionId[indexOf(s, pid)] })),
         unloadTarget: t?.unloads[0] ? { x: t.unloads[0].x, y: t.unloads[0].y } : null,
       };
