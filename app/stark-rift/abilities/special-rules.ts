@@ -154,7 +154,8 @@ export function createSpecialRules(map: BattleMap, base: EngineRules): EngineRul
       validate: (s, c, id) => isEmbarked(s, id) && !["assignGroup", "setFormation", "setStance"].includes(c.kind) ? "invalid_state" :
         morphOf(s, id) && ["research", "placeBuilding"].includes(c.kind) ? "invalid_state" : handler.validate(s, c, id),
       apply: (s, c, ids) => {
-        if (["move", "attackMove", "focusAttack", "patrol", "stop", "hold", "gather", "returnCargo", "autoGather", "placeBuilding", "toggleStateAbility"].includes(c.kind))
+        if (["move", "attackMove", "focusAttack", "patrol", "stop", "hold", "gather", "returnCargo", "autoGather", "placeBuilding", "toggleStateAbility"].includes(c.kind) &&
+          !(c.kind === "toggleStateAbility" && c.payload.abilityId === "cloak"))
           for (const id of ids) {
             const loading = loadingIn(s, id); if (loading) loading.loadQueue = loading.loadQueue.filter((p) => p !== id);
             const t = carrierOf(s, id);
