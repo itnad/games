@@ -56,7 +56,9 @@ export function InteractiveBattle({
     );
   const [preview, setPreview] = useState<number[]>([]),
     [pending, setPending] = useState<number[] | null>(null),
-    [mode, setMode] = useState<"move" | "patrol" | "rally" | null>(null);
+    [mode, setMode] = useState<
+      "move" | "attackMove" | "patrol" | "rally" | null
+    >(null);
   const [build, setBuild] = useState<{ id: string; repeat: boolean } | null>(
       null,
     ),
@@ -600,6 +602,7 @@ export function InteractiveBattle({
                 issue={issue}
                 openBuildMenu={() => setBuildMenu(true)}
                 selectWorker={selectWorker}
+                attackMove={() => setMode("attackMove")}
                 rally={() => {
                   setMode("rally");
                   setBuild(null);
@@ -683,7 +686,9 @@ export function InteractiveBattle({
       viewportHint={
         build
           ? `${economyDefinition(build.id)?.name}${build.repeat ? " · 연속 배치" : ""} · ${placement?.reason ?? "건설 위치를 터치하세요"}`
-          : null
+          : mode === "attackMove"
+            ? "공격 이동할 위치를 터치하세요."
+            : null
       }
       overlay={
         buildMenu && snapshot.economy ? (
