@@ -4,7 +4,8 @@
  */
 import { STW_UNITS } from "./starswar-data.js";
 
-/** @typedef {{ id: string, text: string, race?: "protoss" | "terran" | "zerg" }} StwTip */
+/** @typedef {{ id: string, text: string, race?: "protoss" | "terran" | "zerg", first?: boolean }} StwTip */
+// first: 새로 넣은 규칙처럼 꼭 먼저 알려 줄 팁. 아직 안 봤으면 다른 안 본 팁보다 앞에 둔다.
 
 /** @type {StwTip[]} */
 export const STW_TIPS = [
@@ -42,6 +43,7 @@ export const STW_TIPS = [
   { id: "t-cloak", race: "terran", text: "은폐 장치(레이스)와 고스트 은폐는 연구 시 영구 은폐예요. 에너지를 쓰지 않아요." },
   { id: "t-yamato", race: "terran", text: "야마토 포는 체력 100 이상인 목표에 260 피해를 줘요. 전투 유닛과 공격하는 건물을 먼저 노려요." },
   { id: "t-turret", race: "terran", text: "미사일 터렛은 공중 유닛과 은폐 유닛을 함께 막아요. 레이스·뮤탈 상대로 본진에 하나 두세요." },
+  { id: "t-repair", race: "terran", first: true, text: "기계 유닛을 커맨드 센터 곁으로 물려 3초 넘게 두면 SCV가 붙어 고쳐요. 채운 체력만큼 유닛 값의 1/3을 쓰고, 채취는 멈추지 않아요." },
   { id: "t-siege", race: "terran", text: "시즈 탱크와 스팀팩은 알아서 써요. 탱크는 방어 건물 사거리 밖에서 때릴 수 있어요." },
   // 저그
   { id: "z-overlord", race: "zerg", text: "오버로드가 있는 기지는 은폐를 탐지해요. 병력 탭에서 오버로드를 출격에 동행시킬 수 있어요." },
@@ -52,7 +54,7 @@ export const STW_TIPS = [
 const TIP_BY_ID = new Map(STW_TIPS.map((tip) => [tip.id, tip]));
 
 /**
- * 보여 줄 팁 순서: 고른 종족에 맞는 팁(무작위면 공통 팁만)을, 아직 안 본 것부터 섞어서.
+ * 보여 줄 팁 순서: 고른 종족에 맞는 팁(무작위면 공통 팁만)을, 아직 안 본 것부터 섞어서(안 본 first 팁이 맨 앞).
  * @param {string} race 내 종족(protoss·terran·zerg·random)
  * @param {Iterable<string>} seen 이미 본 팁 id
  * @param {() => number} [random]
@@ -68,7 +70,8 @@ export function stwTipQueue(race, seen, random = Math.random) {
     }
     return out;
   };
-  const fresh = shuffle(pool.filter((tip) => !seenSet.has(tip.id)));
+  const unseen = pool.filter((tip) => !seenSet.has(tip.id));
+  const fresh = [...shuffle(unseen.filter((tip) => tip.first)), ...shuffle(unseen.filter((tip) => !tip.first))];
   const old = shuffle(pool.filter((tip) => seenSet.has(tip.id)));
   return [...fresh, ...old];
 }
@@ -132,7 +135,12 @@ export function stwResultTips(game) {
 
   if (!won && game.time < 300) out.push("초반 공격에 무너졌어요. 본진 앞에 방어 건물을 하나 두고 첫 병력을 집결지에 모아 막아 보세요.");
 
+  // 테란 기계 유닛을 썼는데 한 번도 SCV 수리를 하지 않았으면 수리 방법을 알려 준다.
+  const usedMech = race === "terran" && history.some((point) => Object.keys(point.player?.mix ?? {}).some((type) => STW_UNITS[type]?.mech && !STW_UNITS[type]?.worker));
+  if (usedMech && !(mine.repaired > 0)) out.push(TIP_BY_ID.get("t-repair")?.text ?? "");
+
   if (out.length) return out.slice(0, 2);
-  const queue = stwTipQueue(race, []);
+  // 일반 팁 하나: 이미 수리를 해 본 경기면 수리 팁은 건너뛴다.
+  const queue = stwTipQueue(race, mine.repaired > 0 ? ["t-repair"] : []);
   return queue.length ? [queue[0].text] : [];
 }

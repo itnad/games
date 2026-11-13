@@ -143,6 +143,10 @@ function statsTable(state) {
     ["최대 인구", mine.supplyPeak, theirs.supplyPeak],
     ["마법 사용", (mine.spells ?? 0) + (mine.storms ?? 0), (theirs.spells ?? 0) + (theirs.storms ?? 0)],
   ];
+  // SCV 수리는 테란 기계 유닛이 고쳐졌을 때만 줄을 넣는다(체력과 쓴 광물+가스).
+  if ((mine.repaired ?? 0) + (theirs.repaired ?? 0) > 0) {
+    rows.push(["SCV 수리 체력", Math.round(mine.repaired ?? 0), Math.round(theirs.repaired ?? 0)], ["SCV 수리 비용", Math.round(mine.repairCost ?? 0), Math.round(theirs.repairCost ?? 0)]);
+  }
   return ["항목 | 나 | 적", ...rows.map(([label, a, b]) => `${label} | ${number(a)} | ${number(b)}`)].join("\n");
 }
 

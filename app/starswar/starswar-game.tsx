@@ -1576,6 +1576,7 @@ function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwS
     ["마법 사용", (mine.spells ?? 0) + mine.storms, (theirs.spells ?? 0) + theirs.storms],
     ["완료한 연구", researchDone(game, "player"), researchDone(game, "enemy")],
   ];
+  if ((mine.repaired ?? 0) + (theirs.repaired ?? 0) > 0) rows.push(["SCV 수리 체력", Math.round(mine.repaired ?? 0), Math.round(theirs.repaired ?? 0)]);
   return (
     <div className="stw-overlay stw-overlay-full stw-result" role="dialog" aria-modal="true" aria-labelledby="stw-result-title">
       <section className={won ? "won" : draw ? "draw" : "lost"}>

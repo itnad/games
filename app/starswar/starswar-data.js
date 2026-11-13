@@ -485,7 +485,7 @@ export const STW_RACES = {
     mainProducer: "barracks", producers: ["barracks", "factory", "starport"], startLines: { barracks: "marine" },
     builds: ["depot", "barracks", "refinery", "ebay", "bunker", "turret", "academy", "comsat", "factory", "shop", "armory", "starport", "science", "expand"],
     weapons: ["infWeapons1", "infWeapons2"], armor: ["infArmor1"], shields: [],
-    note: "값싼 보병과 메딕, 시즈 탱크의 포격 · 건물이 스스로 수리됨",
+    note: "값싼 보병과 메딕, 시즈 탱크의 포격 · 건물이 스스로 수리되고 기계 유닛은 커맨드 센터 곁에서 SCV가 고침",
   },
   zerg: {
     id: "zerg", name: "저그", worker: "drone", base: "hatchery", supply: "overlord", refinery: "extractor", buildVerb: "변태", trainVerb: "변태",
@@ -507,6 +507,14 @@ export const STW_CANCEL_REFUND = 0.75;
  * 7.5칸으로 줄이면 캐논 수비가 약해져 프로토스 대 바이오가 18판 12승에서 6승으로 떨어졌다(8칸은 11승).
  */
 export const STW_DEFENSE_REACH = 8;
+
+/**
+ * 테란 기계 유닛 수리: 완성된 커맨드 센터 가장자리에서 reach칸 안에 delay초 넘게 머문 기계 유닛을 SCV가 고친다.
+ * 채취하는 SCV는 그대로 일하고(겉모습만 SCV가 붙는다), 생산 시간 동안 체력을 모두 채우며,
+ * 채운 체력 비율만큼 유닛 값(광물·가스)의 costRatio를 쓴다. 자원이 모자라면 멈춘다.
+ * 6칸: "본진 앞" 집결지(커맨드 센터에서 약 4칸)는 들어오고, 앞마당 집결지 앞쪽 끝은 빠진다.
+ */
+export const STW_REPAIR = { reach: 6, delay: 3, costRatio: 1 / 3 };
 
 export const STW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 35, castRange: 9, minTargets: 3 };
 

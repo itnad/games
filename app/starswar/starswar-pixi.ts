@@ -127,6 +127,8 @@ export class StwPixiRenderer {
   private readonly decalList: Decal[] = [];
   private readonly workerLayer: Container;
   private readonly workerPool: WorkerView[] = [];
+  private readonly repairLayer: Container;
+  private readonly repairPool: WorkerView[] = [];
   private readonly badges = new Map<string, Badge>();
   private processed = new WeakSet<object>();
   private impacted = new WeakSet<object>();
@@ -173,7 +175,8 @@ export class StwPixiRenderer {
     this.rallyFlag.anchor.set(0.5, 0.9);
     this.flagScale = this.rallyFlag.scale.x;
     this.workerLayer = new PIXI.Container();
-    this.world.addChild(ground, resources, this.steamLayer, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.tentacleLayer, this.rallyFlag, this.unitLayer, this.interceptorLayer, this.zoneLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
+    this.repairLayer = new PIXI.Container();
+    this.world.addChild(ground, resources, this.steamLayer, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.tentacleLayer, this.rallyFlag, this.unitLayer, this.repairLayer, this.interceptorLayer, this.zoneLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
     this.overlay = new PIXI.Container();
     this.bars = new PIXI.Graphics();
     this.overlay.addChild(this.bars);
@@ -279,6 +282,7 @@ export class StwPixiRenderer {
     this.syncBuildings(state, realDt);
     this.syncWorkers(state, ui.clock);
     this.syncUnits(state, realDt);
+    this.syncRepairs(state, ui.clock);
     this.drawBeams(state, ui.clock);
     this.spawnEffects(state);
     this.drawProjectiles(state);
@@ -590,6 +594,50 @@ export class StwPixiRenderer {
       });
     }
     for (let index = used; index < this.workerPool.length; index += 1) this.workerPool[index].root.visible = false;
+  }
+
+  /**
+   * SCV 수리(겉모습 전용): 엔진이 고치는 중이라고 표시한 테란 기계 유닛 둘레에 SCV가 붙어 용접 불꽃을 튀긴다.
+   * 채취하는 SCV 수는 그대로다. 크기에 따라 1~3기가 붙는다.
+   */
+  private syncRepairs(state: StwState, clock: number) {
+    let used = 0;
+    for (const unit of state.units) {
+      if (!unit.repairing) continue;
+      const target = this.unitViews.get(unit.id);
+      if (!target || !target.root.visible) continue;
+      const size = UNIT_SIZE[unit.type] ?? 3;
+      const crew = size >= 6 ? 3 : size >= 4 ? 2 : 1;
+      for (let index = 0; index < crew; index += 1) {
+        let view = this.repairPool[used];
+        if (!view) {
+          const PIXI = this.PIXI;
+          const root = new PIXI.Container();
+          const body = this.sprite(this.tex.units.player.scv, WORKER_SIZE);
+          const cargo = this.sprite(this.tex.spark, 0.9);
+          cargo.blendMode = "add";
+          cargo.tint = 0xffd27a;
+          root.addChild(body, cargo);
+          this.repairLayer.addChild(root);
+          view = { root, body, cargo };
+          this.repairPool.push(view);
+        }
+        used += 1;
+        view.body.texture = this.tex.units[unit.side].scv;
+        // 유닛 둘레에 고르게 서서 조금씩 자리를 옮기며 몸통 쪽을 바라본다.
+        const angle = unit.id * 1.7 + (index * Math.PI * 2) / crew + Math.sin(clock * 1.3 + index * 2) * 0.3;
+        const reach = size * 0.42 + 0.6;
+        view.root.visible = true;
+        view.root.position.set(target.x + Math.cos(angle) * reach, target.y + Math.sin(angle) * reach);
+        view.body.rotation = angle + Math.PI;
+        // 용접 불꽃: 맞닿은 자리에서 빠르게 깜빡인다.
+        const flicker = (Math.sin(clock * 37 + unit.id * 3 + index * 7) + 1) / 2;
+        view.cargo.visible = flicker > 0.3;
+        view.cargo.alpha = 0.4 + flicker * 0.6;
+        view.cargo.position.set(-Math.cos(angle) * 0.95, -Math.sin(angle) * 0.95);
+      }
+    }
+    for (let index = used; index < this.repairPool.length; index += 1) this.repairPool[index].root.visible = false;
   }
 
   /** 넥서스와 어시밀레이터 옆의 채취 인원 표시(아군만). */

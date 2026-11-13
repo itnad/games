@@ -44,6 +44,9 @@ export type StwUnit = {
   sieged?: boolean;
   siegeUntil?: number;
   healTargetId?: number | null;
+  /** 테란 기계 유닛: 커맨드 센터 곁에 머문 시간(초)과 이번 틱에 SCV가 고치는 중인지. */
+  repairWait?: number;
+  repairing?: boolean;
   stimAt?: number;
   burrowed?: boolean;
   burrowUntil?: number;
@@ -112,7 +115,7 @@ export type StwStorm = { id: number; side: StwSide; x: number; y: number; ttl: n
 export type StwZone = { id: number; kind: "swarm"; side: StwSide; x: number; y: number; radius: number; ttl: number; max: number };
 export type StwIntel = { race?: StwRaceId; time: number; buildings: Partial<Record<StwBuildingType, number>>; units: Record<StwArmyType, number>; research: { id: StwResearchId; status: string }[]; probes: number };
 export type StwSeen = { id: number; type: StwBuildingType; x: number; y: number; base: string; radius: number; at: number };
-export type StwStats = { minerals: number; gas: number; produced: number; lost: number; kills: number; buildingsLost: number; buildingsDestroyed: number; storms: number; overkill: number; workersLost?: number; workersKilled?: number; valueLost?: number; supplyPeak?: number; spells?: number };
+export type StwStats = { minerals: number; gas: number; produced: number; lost: number; kills: number; buildingsLost: number; buildingsDestroyed: number; storms: number; overkill: number; workersLost?: number; workersKilled?: number; valueLost?: number; supplyPeak?: number; spells?: number; repaired?: number; repairCost?: number };
 export type StwDropMission = "raid" | "bomb";
 export type StwDropTarget = "main" | "natural" | "tech" | "alternate" | "production";
 export type StwDropPlan = { mission: StwDropMission; target: StwDropTarget; repeat: boolean; sync: boolean };

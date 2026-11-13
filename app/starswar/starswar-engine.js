@@ -7,6 +7,7 @@ import {
   STW_BUILDINGS,
   STW_CANCEL_REFUND,
   STW_DEFENSE_REACH,
+  STW_REPAIR,
   STW_DIFFICULTIES,
   STW_ECONOMY,
   STW_LANE_LENGTH,
@@ -4052,8 +4053,43 @@ function regenerate(state, dt) {
       if (item.kind === "building" && STW_BUILDINGS[item.type].race !== "protoss" && item.hp < item.maxHp) item.hp = Math.min(item.maxHp, item.hp + STW_ECONOMY.shieldRegen * dt);
     }
   }
+  repairMech(state, dt);
   for (const scan of state.scans ?? []) scan.ttl -= dt;
   if (state.scans?.length) state.scans = state.scans.filter((scan) => scan.ttl > 0);
+}
+
+/** 테란 기계 유닛을 고칠 수 있는 자리: 같은 편의 완성된 커맨드 센터 가장자리에서 STW_REPAIR.reach칸 안. */
+export function stwNearRepair(state, unit) {
+  return state.buildings.some((building) => building.side === unit.side && building.hp > 0 && STW_BUILDINGS[building.type].base
+    && STW_BUILDINGS[building.type].race === "terran" && stwDone(building)
+    && distance(building.x, building.y, unit.x, unit.y) - building.radius - unit.radius <= STW_REPAIR.reach);
+}
+
+/**
+ * SCV 수리: 커맨드 센터 곁에 STW_REPAIR.delay초 넘게 머문 테란 기계 유닛의 체력을 생산 시간 동안 모두 채우고,
+ * 채운 비율만큼 값의 STW_REPAIR.costRatio를 쓴다. 채취 인원은 줄지 않는다(SCV가 붙는 모습은 렌더러가 그린다).
+ */
+function repairMech(state, dt) {
+  for (const unit of state.units) {
+    const def = STW_UNITS[unit.type];
+    if (def.race !== "terran" || !def.mech || def.worker) continue;
+    const near = unit.hp > 0 && unit.group !== "cargo" && stwNearRepair(state, unit);
+    unit.repairWait = near ? Math.round(((unit.repairWait ?? 0) + dt) * 1000) / 1000 : 0;
+    unit.repairing = false;
+    if (!near || unit.repairWait < STW_REPAIR.delay || unit.hp >= unit.maxHp) continue;
+    const gain = Math.min(unit.maxHp - unit.hp, (unit.maxHp / def.time) * dt);
+    const share = (gain / unit.maxHp) * STW_REPAIR.costRatio;
+    const minerals = def.minerals * share;
+    const gas = def.gas * share;
+    const record = state.sides[unit.side];
+    if (record.minerals < minerals || record.gas < gas) continue;
+    record.minerals -= minerals;
+    record.gas -= gas;
+    record.stats.repaired = (record.stats.repaired ?? 0) + gain;
+    record.stats.repairCost = (record.stats.repairCost ?? 0) + minerals + gas;
+    unit.hp += gain;
+    unit.repairing = true;
+  }
 }
 
 function stepEffects(state, dt) {

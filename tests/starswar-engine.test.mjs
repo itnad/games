@@ -526,6 +526,46 @@ test("starswar medics heal bio and stim speeds up researched infantry", () => {
   assert.ok(state.effects.some((effect) => effect.kind === "stim") || marine.hp < marine.maxHp);
 });
 
+test("starswar SCVs repair terran mech units that stay near a command center, spending resources", () => {
+  const state = terran();
+  stwCommand(state, "player", { type: "move", y: 88 });
+  const tank = stwSpawnUnitAt(state, "player", "tank", 20, 88);
+  const marine = stwSpawnUnitAt(state, "player", "marine", 21, 88);
+  tank.hp = 50;
+  marine.hp = 20;
+  state.sides.player.minerals = 1000;
+  state.sides.player.gas = 1000;
+  run(state, 2.5);
+  // 3초 동안은 기다린다.
+  assert.equal(tank.hp, 50);
+  assert.equal(tank.repairing, false);
+  run(state, 1.5);
+  assert.equal(tank.repairing, true, "3초가 지나면 SCV가 수리");
+  // 생산 시간(30초) 동안 체력 150을 모두 채운다: 초당 5.
+  run(state, 10);
+  assert.ok(tank.hp > 90 && tank.hp < 115, `수리 속도 ${tank.hp}`);
+  run(state, 20);
+  assert.equal(tank.hp, tank.maxHp);
+  assert.equal(tank.repairing, false);
+  // 채운 체력 100/150만큼 값(150/100)의 1/3: 광물 33.3, 가스 22.2. 채취는 그대로라 광물 차이는 보지 않고 가스로 확인한다.
+  assert.ok(Math.abs(state.sides.player.gas - (1000 - 100 * (100 / 150) / 3) - state.sides.player.stats.gas) < 0.01, `가스 ${state.sides.player.gas}`);
+  assert.ok(Math.abs(state.sides.player.stats.repaired - 100) < 0.01);
+  // 생체 유닛은 고치지 않는다.
+  assert.equal(marine.repairing, undefined);
+  assert.ok(marine.hp <= 20);
+
+  // 커맨드 센터에서 멀면 고치지 않고, 자원이 없으면 멈춘다.
+  const far = stwSpawnUnitAt(state, "enemy", "vulture", 20, 50, "walk");
+  far.hp = 10;
+  run(state, 5);
+  assert.equal(far.hp, 10);
+  tank.hp = 50;
+  state.sides.player.gas = 0;
+  run(state, 2);
+  assert.equal(tank.hp, 50);
+  assert.equal(tank.repairing, false);
+});
+
 test("starswar siege tanks auto-siege after research and shell clumps", () => {
   const state = terran();
   const tank = stwSpawnUnitAt(state, "player", "tank", 20, 60, "attack");
@@ -3116,6 +3156,11 @@ test("starswar tips: race filter, unseen first, and result tips follow the game'
   const next = stwTipQueue("terran", seen, random);
   assert.equal(next.length, terran.length);
   assert.ok(next.slice(0, next.length - seen.length).every((tip) => !seen.includes(tip.id)), "unseen tips come first");
+  // 새 규칙(SCV 수리) 팁은 안 봤으면 맨 앞, 봤으면 다른 안 본 팁 뒤로.
+  assert.equal(stwTipQueue("terran", [], () => 0.99)[0].id, "t-repair");
+  assert.equal(stwTipQueue("terran", [], () => 0)[0].id, "t-repair");
+  assert.notEqual(stwTipQueue("terran", ["t-repair"], random)[0].id, "t-repair");
+  assert.ok(stwTipQueue("protoss", [], random).every((tip) => tip.id !== "t-repair"));
 
   const game = createStarswarGame({ seed: 3, aiSides: [], races: { player: "protoss", enemy: "zerg" } });
   game.status = "over";
@@ -3137,4 +3182,13 @@ test("starswar tips: race filter, unseen first, and result tips follow the game'
   game.sides.player.stats.workersLost = 0;
   game.winner = "player";
   assert.equal(stwResultTips(game).length, 1, "a quiet win still gets one general tip");
+
+  // 테란이 기계 유닛을 쓰고도 수리하지 않았으면 결과 화면에 수리 방법을 알려 준다.
+  const mech = createStarswarGame({ seed: 3, aiSides: [], races: { player: "terran", enemy: "zerg" } });
+  mech.status = "over";
+  mech.winner = "player";
+  mech.history = [{ t: 300, player: { supply: 20, army: 600, workers: 18, minerals: 100, gas: 0, mix: { tank: 3, marine: 6 } }, enemy: { supply: 20, army: 400, workers: 18, minerals: 100, gas: 0, mix: { hydra: 6 } } }];
+  assert.match(stwResultTips(mech)[0], /SCV가 붙어 고쳐요/);
+  mech.sides.player.stats.repaired = 120;
+  assert.ok(stwResultTips(mech).every((tip) => !tip.includes("SCV가 붙어")), "once repaired, no repair tip");
 });
