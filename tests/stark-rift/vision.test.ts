@@ -1,3 +1,4 @@
+import { ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION } from "../../app/stark-rift/data/economy-catalog";
 import { describe, it, expect, vi } from "vitest";
 import { getRuntimeMap, type BattleMap } from "../../app/stark-rift/data/maps";
 import {
@@ -277,6 +278,7 @@ describe("height and concealed target rules", () => {
     const f = fixture("zerg"),
       scout = f.add(0, "zerg-hydralisk", 40, 40),
       enemy = f.add(1, "zerg-drone", 42, 40);
+    f.state.economy.upgrades.push({ playerId: 1, technologyId: "burrowing", level: 1 });
     f.state.vision!.concealed.push({ entityId: enemy, kind: "burrow" });
     updateVision(f.state, f.map);
     expect(canSeeEntity(f.state, f.map, 0, indexOf(f.state, enemy))).toBe(
@@ -458,6 +460,8 @@ describe("fog and in-flight save compatibility", () => {
     old.simulation.combat.rulesVersion = RANGED_COMBAT_RULES_VERSION;
     for (const r of old.simulation.combat.records) delete r.lastSeenTarget;
     for (const p of old.simulation.combat.projectiles) delete p.miss;
+    old.dataVersion = old.simulation.dataVersion = old.dataVersion.replace(ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION);
+    if (old.simulation.vision) old.simulation.vision.rulesVersion = "fog-1-los-edge-detector11-memory600";
     old.checksum = checksum(old.simulation);
     const raw = JSON.stringify(old),
       key = DEVELOPMENT_SAVE_PREFIX + "terran",
@@ -530,9 +534,9 @@ describe("terminal outcomes and observation boundaries", () => {
     });
   });
   it("retains the most recent visible target position when concealment ends focus pursuit", () => {
-    const f = fixture(),
+    const f = fixture("terran", "terran"),
       a = f.add(0, "terran-marine", 40, 40),
-      b = f.add(1, "zerg-drone", 42, 40);
+      b = f.add(1, "terran-ghost", 42, 40);
     f.issue({
       kind: "focusAttack",
       entityIds: [a],
@@ -547,6 +551,7 @@ describe("terminal outcomes and observation boundaries", () => {
     expect(
       f.state.combat!.records.find((r) => r.entityId === a)!.lastSeenTarget,
     ).toEqual(last);
+    f.state.economy.upgrades.push({ playerId: 1, technologyId: "personnel-cloaking", level: 1 });
     f.state.vision!.concealed.push({ entityId: b, kind: "cloak" });
     f.state.entities.x[indexOf(f.state, b)] += 100;
     f.tick();

@@ -1,3 +1,4 @@
+import { countsAsDefinition } from "../data/economy-catalog";
 import { useEffect, useRef } from "react";
 import type { RenderSnapshot } from "../worker/render-snapshot";
 import {
@@ -26,7 +27,7 @@ export function ConstructionMenu({
     economy.structures.some(
       (b) =>
         b.completed &&
-        snapshot.entities.find((e) => e.id === b.entityId)?.definitionId === id,
+        countsAsDefinition(snapshot.entities.find((e) => e.id === b.entityId)?.definitionId ?? "", id),
     );
   return (
     <section

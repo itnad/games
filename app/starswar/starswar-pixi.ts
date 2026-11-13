@@ -9,6 +9,28 @@ type MapData = StwMapData;
 
 type PixiModule = typeof import("pixi.js");
 
+let stwPixiModulePromise: Promise<PixiModule> | null = null;
+
+function loadStwPixiModule() {
+  if (!stwPixiModulePromise) {
+    stwPixiModulePromise = import("pixi.js").then(async (PIXI) => {
+      // CSP가 eval을 막는 환경에서도 동작하도록 eval 없는 구현을 켠다.
+      // @ts-expect-error 이 하위 경로는 타입 선언 없이 배포된다.
+      await import("pixi.js/unsafe-eval");
+      return PIXI;
+    }).catch((error) => {
+      stwPixiModulePromise = null;
+      throw error;
+    });
+  }
+  return stwPixiModulePromise;
+}
+
+/** 메뉴가 보이는 동안 대형 Pixi 청크를 미리 받아 첫 전투의 빈 지도를 줄인다. */
+export function preloadStwPixiRenderer() {
+  return loadStwPixiModule();
+}
+
 const UNIT_SIZE: Record<StwUnitType, number> = {
   zealot: 3.4, dragoon: 3.9, templar: 3.1, probe: 1.9, dark: 3.3, archon: 4.8, darkArchon: 4.8, observer: 2.4, shuttle: 3.8, reaver: 4.6, scout: 3.8, corsair: 3.1, carrier: 6.4, arbiter: 4.8,
   scv: 1.9, marine: 2.6, firebat: 2.9, medic: 2.5, ghost: 2.6, vulture: 3.6, tank: 4.4, goliath: 3.6, wraith: 3.5, dropship: 4, vessel: 4.4, valkyrie: 4, battlecruiser: 6.8,
@@ -49,10 +71,7 @@ const MINE_CYCLE = 3.4;
 const GAS_CYCLE = 3;
 
 export async function createStwPixiRenderer(host: HTMLElement, width: number, height: number) {
-  const PIXI = await import("pixi.js");
-  // CSP가 eval을 막는 환경에서도 동작하도록 eval 없는 구현을 켠다.
-  // @ts-expect-error 이 하위 경로는 타입 선언 없이 배포된다.
-  await import("pixi.js/unsafe-eval");
+  const PIXI = await loadStwPixiModule();
   const app = new PIXI.Application();
   await app.init({
     width: Math.max(1, width),

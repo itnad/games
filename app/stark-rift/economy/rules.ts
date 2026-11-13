@@ -1,3 +1,5 @@
+import { morphOf } from "../abilities/special-state";
+import { isBurrowed } from "../abilities/burrow";
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import type { EngineRules, CommandHandler } from "../core/simulation";
@@ -9,6 +11,7 @@ import type {
 import { allocateId, removeEntity } from "../core/world";
 import {
   ECONOMY_MECHANICS,
+  countsAsDefinition, isLarvaProducer,
   ECONOMY_UPGRADES,
   economyDefinition,
   type EconomyDefinition,
@@ -54,20 +57,19 @@ export function productionFailure(
     !producer ||
     d.kind === "building" ||
     d.faction !== s.players[owner].faction ||
-    d.producer !== producer.id
+    !countsAsDefinition(producer.id, d.producer)
   )
     return "invalid_target";
-  if (!activeBuilding(s, b) || b.queue.length >= 5 || b.research)
+  if (!activeBuilding(s, b) || b.queue.length >= 5 || (b.research && !isLarvaProducer(producer.id)))
     return "invalid_state";
   if (!meetsRequirements(s, owner, d)) return "missing_prerequisite";
   if (
-    d.requires.includes("terran-machine-shop") &&
-    !s.economy.structures.some(
-      (add) => add.addonParentId === id && complete(add),
-    )
+    d.requires.some((required) => economyDefinition(required)?.addonParent === producer.id &&
+      !s.economy.structures.some((add) => add.addonParentId === id &&
+        definitionOf(s, add.entityId)?.id === required && complete(add)))
   )
     return "missing_prerequisite";
-  if (producer.id === "zerg-hatchery" && b.larva < 1) return "invalid_state";
+  if (isLarvaProducer(producer.id) && b.larva < 1) return "invalid_state";
   const p = s.players[owner];
   if (
     charge &&
@@ -87,7 +89,7 @@ export function enqueueProduction(
     p = s.players[s.entities.owner[indexOf(s, id)]];
   p.minerals -= d.minerals;
   p.gas -= d.gas;
-  if (definitionOf(s, id)?.id === "zerg-hatchery") b.larva--;
+  if (isLarvaProducer(definitionOf(s, id)?.id ?? "")) b.larva--;
   b.queue.push({
     id: allocateId(s, "nextEventId"),
     definitionId: d.id,
@@ -183,7 +185,7 @@ export function createEconomyRules(
   ): CommandHandler => ({
     policy: "partial",
     validate: (s, c, id) =>
-      s.economy.enabled ? validate(s, c, id) : "invalid_state",
+      s.economy.enabled && !isBurrowed(s, id) ? validate(s, c, id) : "invalid_state",
     apply,
   });
   const workerValid = (s: SimulationState, id: number) =>
@@ -278,6 +280,7 @@ export function createEconomyRules(
         .filter(
           (n) =>
             definitionOf(s, n)?.id === d.producer &&
+            !isBurrowed(s, n) &&
             s.entities.owner[indexOf(s, n)] === c.playerId &&
             s.entities.health[indexOf(s, n)] > 0 &&
             (!c.payload.queued ||
@@ -386,7 +389,7 @@ export function createEconomyRules(
         !d ||
         !b ||
         !complete(b) ||
-        definitionOf(s, id)?.id !== d.producer ||
+        !countsAsDefinition(definitionOf(s, id)?.id ?? "", d.producer) ||
         d.kind === "building"
       )
         return "invalid_target";
@@ -443,9 +446,9 @@ export function createEconomyRules(
       if (c.kind !== "research") return "invalid_command";
       const t = ECONOMY_UPGRADES.find((t) => t.id === c.payload.technologyId),
         b = structureOf(s, id);
-      if (!t || !b || definitionOf(s, id)?.id !== t.producer)
+      if (!t || !b || !countsAsDefinition(definitionOf(s, id)?.id ?? "", t.producer))
         return "invalid_target";
-      if (!activeBuilding(s, b) || b.research || b.queue.length)
+      if (!activeBuilding(s, b) || b.research || (b.queue.length > 0 && !isLarvaProducer(t.producer)))
         return "invalid_state";
       if (
         s.economy.upgrades.some(
@@ -461,9 +464,10 @@ export function createEconomyRules(
       const chosen = c.entityIds
         .filter(
           (n) =>
-            definitionOf(s, n)?.id === t.producer &&
+            countsAsDefinition(definitionOf(s, n)?.id ?? "", t.producer) &&
             s.entities.owner[indexOf(s, n)] === c.playerId &&
             activeBuilding(s, structureOf(s, n)!) &&
+            !morphOf(s, n) &&
             !structureOf(s, n)!.research,
         )
         .sort((a, b) => a - b)[0];

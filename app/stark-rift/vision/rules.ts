@@ -1,3 +1,5 @@
+import { permanentCloak } from "../abilities/special-state";
+import { isEmbarked } from "../abilities/special-state";
 import type { SimulationState } from "../core/state";
 import type { EngineRules } from "../core/simulation";
 import type { BattleMap } from "../data/maps";
@@ -6,6 +8,7 @@ import { MEMORY_TICKS, VISION_RULES_VERSION, type Contact } from "./state";
 // Every mobile detector in the current roster is an Overlord. Content-stage detectors can extend this table.
 export const DETECTOR_RADIUS_TILES: Record<string, number> = {
   "zerg-overlord": 11,
+  "protoss-observer": 11,
 };
 const caches = new WeakMap<BattleMap, Map<string, number[]>>();
 export function terrainSight(
@@ -85,7 +88,7 @@ export function visibilityMask(
     e = s.entities;
   for (const cell of s.vision?.players[owner].explored ?? []) mask[cell] = 1;
   for (let i = 0; i < e.id.length; i++)
-    if (e.owner[i] === owner && e.health[i] > 0) {
+    if (e.owner[i] === owner && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
       const b = s.economy.structures.find((b) => b.entityId === e.id[i]);
       if (b && !b.started) continue;
       const cx = Math.floor(e.x[i] / 256),
@@ -137,6 +140,7 @@ export function canSeeEntity(
 ): boolean {
   const e = s.entities;
   if (index < 0 || index >= e.id.length || e.health[index] === 0) return false;
+  if (isEmbarked(s, e.id[index])) return false;
   if (e.owner[index] === owner) return true;
   if (
     s.economy.structures.some((b) => b.entityId === e.id[index] && !b.started)
@@ -151,9 +155,9 @@ export function canSeeEntity(
     })
   )
     return false;
-  if (!s.vision?.concealed.some((c) => c.entityId === e.id[index])) return true;
+  if (!permanentCloak(e.definitionId[index]) && !s.vision?.concealed.some((c) => c.entityId === e.id[index])) return true;
   for (let i = 0; i < e.id.length; i++)
-    if (e.owner[i] === owner && e.health[i] > 0) {
+    if (e.owner[i] === owner && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
       const r = DETECTOR_RADIUS_TILES[e.definitionId[i]];
       if (
         r &&
@@ -175,7 +179,7 @@ export function highGroundSight(
     ty = Math.floor(e.y[target] / 256),
     height = map.height[ty * map.widthTiles + tx];
   for (let i = 0; i < e.id.length; i++)
-    if (e.owner[i] === owner && e.health[i] > 0) {
+    if (e.owner[i] === owner && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
       const b = s.economy.structures.find((b) => b.entityId === e.id[i]);
       if (b && !b.started) continue;
       const x = Math.floor(e.x[i] / 256),

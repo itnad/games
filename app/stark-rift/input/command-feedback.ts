@@ -28,6 +28,7 @@ export function commandFeedback(
     }
   }
   switch (command.kind) {
+    case "loadTransport":
     case "move":
       break;
     case "attackMove":
@@ -37,6 +38,8 @@ export function commandFeedback(
     case "patrol":
       kind = "patrol";
       break;
+    case "unloadTransport":
+    case "unloadPassenger":
     case "setRallyPoint":
       kind = "rally";
       break;

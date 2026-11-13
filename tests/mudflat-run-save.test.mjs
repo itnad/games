@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { MUDFLAT_ACTIVE_RUN_KEY, encodeMudflatRun, decodeMudflatRun, writeMudflatRun, readMudflatRun, clearMudflatRun } from "../app/mudflat-run-save.js";
-import { mudflatEquipmentStats, mudflatCastNetStats } from "../app/mudflat-survivor-engine.js";
+import { mudflatEquipmentStats, mudflatCastNetStats, mudflatMosquitoRunEnabled } from "../app/mudflat-survivor-engine.js";
 import { createLumiMotion } from "../app/mudflat-lumi-animation.js";
 import { createCastNet } from "../app/mudflat-cast-net.js";
 import { createExperiencePickup, advanceExperiencePickup } from "../app/mudflat-experience.js";
@@ -13,10 +13,13 @@ const game = readFileSync(new URL("../app/mudflat-survivor-game.tsx", import.met
 // Exercise the real runtime initializer without mounting React/canvas in Node.
 const initializer = game.match(/function makeRuntime\(campaign: Campaign, seed = createMudflatSeed\(\)\): Runtime \{[\s\S]*?\n\}/)[0];
 const makeRuntime = new Function("mudflatEquipmentStats", "createLumiMotion", "GENERAL_CHARACTER", "BASE_CAMP", "mudflatHiddenRockStage",
-  "createMudflatSeed", "normalizeMudflatSeed",
+  "createMudflatSeed", "normalizeMudflatSeed", "nextMudflatRandom", "mudflatMosquitoRunEnabled",
   ts.transpileModule(initializer, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText + "\nreturn makeRuntime;")
   (mudflatEquipmentStats, createLumiMotion, { levels: { tongs: 1, digging: 1 } }, { x: 0, y: 250 }, (stage) => stage === 3 || stage === 4,
-    createMudflatSeed, normalizeMudflatSeed);
+    createMudflatSeed, normalizeMudflatSeed, (seed) => {
+      const state = normalizeMudflatSeed(seed + 0x9e3779b9);
+      return { state, value: state / 0x100000000 };
+    }, mudflatMosquitoRunEnabled);
 
 function fixture(mode = "normal") {
   const campaign = { version: 1, mode, characterId: "lumi", stage: 4, coins: 1380,
@@ -102,6 +105,15 @@ test("older live saves backfill deterministic RNG state", () => {
   assert.ok(restored);
   assert.equal(restored.runtime.seed, normalizeMudflatSeed(1000));
   assert.equal(restored.runtime.rngState, restored.runtime.seed);
+});
+
+test("older live saves backfill the one-time mosquito run decision", () => {
+  const { campaign, runtime } = fixture();
+  const save = JSON.parse(encodeMudflatRun(campaign, runtime, [], 30, 1000));
+  delete save.runtime.mosquitoRunEnabled;
+  const restored = decodeMudflatRun(JSON.stringify(save), makeRuntime);
+  assert.ok(restored);
+  assert.equal(typeof restored.runtime.mosquitoRunEnabled, "boolean");
 });
 
 test("a pickup in flight is restored mid-flight and grants XP only once", () => {

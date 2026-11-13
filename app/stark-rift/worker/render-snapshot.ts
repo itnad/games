@@ -1,3 +1,6 @@
+import { activeCloak, energyView } from "../abilities/cloak-state";
+import { isEmbarked, permanentCloak } from "../abilities/special-state";
+import { isBurrowed } from "../abilities/burrow";
 import { SCENARIOS } from "../combat/state";
 import { contactSchema, MEMORY_TICKS, type Contact } from "../vision/state";
 import {
@@ -6,7 +9,7 @@ import {
   revealedBody,
 } from "../vision/rules";
 import {
-  combatEffectSchema,
+  renderCombatEffectSchema,
   renderProjectileSchema,
   type CombatState,
 } from "../combat/state";
@@ -19,6 +22,7 @@ import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import {
   array,
+  boolean,
   integer,
   object,
   parse,
@@ -29,6 +33,7 @@ import {
   text,
   type Schema,
 } from "../core/validation";
+export type RenderEffect = Omit<CombatState["effects"][number], "sourceId" | "kind"> & { kind: CombatState["effects"][number]["kind"] | "hiddenAttack" };
 export type RenderEntity = {
   id: number;
   owner: number;
@@ -37,6 +42,10 @@ export type RenderEntity = {
   y: number;
   health: number;
   shield?: number;
+  burrowed?: boolean;
+  cloaked?: boolean;
+  energy?: number;
+  maxEnergy?: number;
   kind: "combat" | "worker" | "building";
   layer: "ground" | "air";
   radius: number;
@@ -60,7 +69,7 @@ export type RenderSnapshot = {
     friendlyRemaining: number;
     targetsRemaining: number;
     totalTargets: number;
-    effects: CombatState["effects"];
+    effects: RenderEffect[];
     projectiles: {
       id: number;
       owner: number;
@@ -95,6 +104,10 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         y: integer(),
         health: integer(),
         shield: optional(integer()),
+        burrowed: optional(boolean),
+        cloaked: optional(boolean),
+        energy: optional(integer(0, 200)),
+        maxEnergy: optional(integer(200, 200)),
         kind: enumeration(["combat", "worker", "building"]),
         layer: enumeration(["ground", "air"]),
         radius: integer(1, 512),
@@ -108,7 +121,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         friendlyRemaining: integer(0, 10),
         targetsRemaining: integer(0, 10),
         totalTargets: integer(0, 10),
-        effects: array(combatEffectSchema, 0, 128),
+        effects: array(renderCombatEffectSchema, 0, 128),
         projectiles: array(renderProjectileSchema, 0, 4096),
       }),
     ),
@@ -169,7 +182,9 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
             ] === 2,
         ))) &&
     (!snapshot.economy ||
-      (snapshot.economy.structures.every((b) =>
+      ((snapshot.economy.transports ?? []).every((t) => snapshot.entities.some((e) => e.id === t.entityId && e.owner === snapshot.viewerPlayerId) &&
+        t.passengers.every((p) => !snapshot.entities.some((e) => e.id === p.id)) &&
+        t.loading.every((p) => snapshot.entities.some((e) => e.id === p.id && e.owner === snapshot.viewerPlayerId))) && snapshot.economy.structures.every((b) =>
         snapshot.entities.some(
           (e) =>
             e.id === b.entityId &&
@@ -220,7 +235,7 @@ export function createRenderSnapshot(
   const entities: RenderEntity[] = [];
   const s = state.entities;
   for (let i = 0; i < s.id.length; i++) {
-    if (s.health[i] === 0) continue;
+    if (s.health[i] === 0 || isEmbarked(state, s.id[i])) continue;
     const tileX = Math.floor(s.x[i] / 256),
       tileY = Math.floor(s.y[i] / 256);
     if (
@@ -251,6 +266,9 @@ export function createRenderSnapshot(
       continue;
     entities.push({
       ...(state.economy.enabled ? { shield: s.shield[i] } : {}),
+      ...(isBurrowed(state, s.id[i]) ? { burrowed: true } : {}),
+      ...(state.economy.enabled ? energyView(state, s.id[i]) : {}),
+      ...(permanentCloak(s.definitionId[i]) || activeCloak(state, s.id[i]) ? { cloaked: true } : {}),
       id: s.id[i],
       owner: s.owner[i],
       definitionId: s.definitionId[i],
@@ -290,7 +308,16 @@ export function createRenderSnapshot(
           })),
         effects: state.combat.effects
           .filter((e) => seen(e.x, e.y) && seen(e.toX, e.toY))
-          .map((e) => ({ ...e })),
+          .map((effect): RenderEffect => {
+            const { sourceId, ...e } = effect;
+            const source = sourceId === undefined ? -1 : s.id.indexOf(sourceId);
+            if (e.owner !== viewer && ["shot", "slash", "launch"].includes(e.kind) &&
+              (source < 0 || !canSeeEntity(state, map, viewer, source, visibility))) {
+              const { weaponId, ...anonymous } = e;
+              return { ...anonymous, kind: "hiddenAttack", toX: e.x, toY: e.y };
+            }
+            return e;
+          }),
       }
     : undefined;
   return {

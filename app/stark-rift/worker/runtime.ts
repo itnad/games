@@ -1,3 +1,7 @@
+import { createCloakRules } from "../abilities/cloak-rules";
+import { createSpecialRules } from "../abilities/special-rules";
+import { specialFitsMap } from "../abilities/special-validation";
+import { createBurrowRules } from "../abilities/burrow-rules";
 import {
   initializeVision,
   canSeeEntity,
@@ -129,10 +133,10 @@ export class SimulationRuntime {
       );
     };
     const defaults = createMovementRules(map, visible, combatReach);
-    const combined = createVisionRules(
+    const combined = createSpecialRules(map, createCloakRules(createBurrowRules(map, createVisionRules(
       map,
       createCombatRules(createEconomyRules(map, defaults), visible, map),
-    );
+    ))));
     this.rules = {
       commands: { ...combined.commands, ...this.options.rules?.commands },
       systems: {
@@ -371,6 +375,7 @@ export class SimulationRuntime {
             point.x >= 0 && point.x < maxX && point.y >= 0 && point.y < maxY;
           if (
             !visionFitsMap(saved.simulation, registered.map) ||
+            !specialFitsMap(saved.simulation, registered.map) ||
             !combatFitsMap(saved.simulation, registered.map) ||
             !economyFitsMap(saved.simulation, registered.map) ||
             !navigationFitsMap(saved.simulation, registered.map) ||

@@ -50,7 +50,7 @@ import { stwAiThink } from "./starswar-ai.js";
 import { stwAiReport, stwBugReport, stwLosingAiSides } from "./starswar-report.js";
 import { stwLearnAdd, stwLearnEmpty, stwLearnNormalize, stwLearnSnapshot } from "./starswar-learn.js";
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
-import { createStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
+import { createStwPixiRenderer, preloadStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
 import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./starswar-lab";
 import { THEMES, ThemeFonts, themeProps, type ThemeId } from "./starswar-theme";
 import { PAPEROID_BUILD_ID, PAPEROID_GIT_SHA } from "../app-version";
@@ -389,6 +389,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [confirmExit, setConfirmExit] = useState(false);
   const [record, setRecord] = useState<BattleRecord>(() => (typeof window === "undefined" ? { wins: 0, losses: 0, best: {} } : readRecord()));
   const [renderer, setRenderer] = useState<"loading" | "ready" | "failed">("loading");
+  const [rendererAttempt, setRendererAttempt] = useState(0);
   const [icons, setIcons] = useState<Record<string, string>>({});
   const [labConfig, setLabConfig] = useState<LabConfig | null>(null);
   const [saved, setSaved] = useState<SavedBattle | null>(() => (typeof window === "undefined" ? null : readSave()));
@@ -415,6 +416,12 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     if ((paused || confirmExit) && gameRef.current) writeSave(gameRef.current);
   }, [confirmExit, paused]);
+
+  useEffect(() => {
+    preloadStwPixiRenderer().catch(() => {
+      // 실제 전투 화면의 초기화 단계에서 오류와 재시도를 처리한다.
+    });
+  }, []);
 
   useEffect(() => {
     selectedRef.current = selected;
@@ -447,6 +454,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     recordedRef.current = false;
     cameraRef.current.ready = false;
     cameraRef.current.follow = true;
+    setRenderer("loading");
     setTab("build");
     setSelected([]);
     setSquadOpen(false);
@@ -546,6 +554,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     if (!surface) return;
     let cancelled = false;
     let created: StwPixiRenderer | null = null;
+    let iconTimer = 0;
     const resize = () => {
       const rect = surface.getBoundingClientRect();
       sizeRef.current = { width: rect.width, height: rect.height };
@@ -563,25 +572,31 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         created = pixi;
         pixiRef.current = pixi;
         resize();
+        draw(performance.now() / 1000);
         setRenderer("ready");
-        try {
-          setIcons(pixi.exportIcons());
-        } catch (error) {
-          // 아이콘을 못 뽑으면 글자 칩으로 보여 준다.
-          console.error("starswar icons", error);
-        }
+        // 텍스처 아이콘 추출은 동기 작업이라 첫 지도 표시를 막지 않도록 다음 화면이 그려진 뒤 처리한다.
+        iconTimer = window.setTimeout(() => {
+          if (cancelled) return;
+          try {
+            setIcons(pixi.exportIcons());
+          } catch (error) {
+            // 아이콘을 못 뽑으면 글자 칩으로 보여 준다.
+            console.error("starswar icons", error);
+          }
+        }, 50);
       })
       .catch(() => {
         if (!cancelled) setRenderer("failed");
       });
     return () => {
       cancelled = true;
+      window.clearTimeout(iconTimer);
       observer.disconnect();
       pixiRef.current = null;
       created?.destroy();
       setRenderer("loading");
     };
-  }, [screen]);
+  }, [draw, rendererAttempt, screen]);
 
   useEffect(() => {
     if (screen !== "play") return;
@@ -592,7 +607,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       const dt = Math.min(0.25, (now - last) / 1000);
       last = now;
       const current = gameRef.current;
-      if (current && !pausedRef.current && current.status === "playing") {
+      // 동적 Pixi 청크와 WebGL 지도가 준비되기 전에는 전투 시간과 AI를 진행하지 않는다.
+      if (current && pixiRef.current && !pausedRef.current && current.status === "playing") {
         advanceStarswar(current, dt, stwAiThink);
         if (current.time - savedAtRef.current >= SAVE_EVERY) {
           savedAtRef.current = current.time;
@@ -902,7 +918,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const mapScoutsMain = mapScouts.filter((unit) => unit.scoutMode !== "resources").length;
 
   return (
-    <main className="stw-shell stw-play-shell" data-game-menu={finished ? "true" : undefined} {...themeProps(theme, game.sides.player.race)}>
+    <main className="stw-shell stw-play-shell" data-game-menu={finished ? "true" : undefined} data-renderer={renderer} aria-busy={renderer === "loading"} {...themeProps(theme, game.sides.player.race)}>
       <ThemeFonts theme={theme} />
       <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
@@ -930,7 +946,15 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             onPointerCancel={onPointerUp}
             onWheel={onWheel}
           />
+          {renderer === "loading" ? (
+            <div className="stw-map-loading" role="status" aria-live="polite">
+              <i aria-hidden="true" />
+              <b>전장을 준비하고 있습니다</b>
+              <span>지도가 표시될 때까지 전투 시간은 흐르지 않습니다.</span>
+            </div>
+          ) : null}
           {renderer === "failed" ? <p className="stw-map-error">이 기기에서 그래픽을 초기화하지 못했습니다.</p> : null}
+          {renderer === "failed" ? <button type="button" className="stw-map-retry" onClick={() => { setRenderer("loading"); setRendererAttempt((value) => value + 1); }}>지도 다시 불러오기</button> : null}
           <div className="stw-map-tools">
             <button type="button" className={squadOpen ? "active" : ""} aria-pressed={squadOpen} onClick={() => (squadOpen ? closeSquad() : setSquadOpen(true))}>
               부대{selected.length ? ` ${selected.length}` : ""}

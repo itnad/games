@@ -4,6 +4,7 @@ import type { BattleMap } from "../data/maps";
 import type { EconomyDefinition } from "../data/economy-catalog";
 import {
   ECONOMY_MECHANICS,
+  countsAsDefinition, economyLayer, isLarvaProducer,
   economyDefinition,
   factionHeadquarters,
   factionWorker,
@@ -31,8 +32,9 @@ export function hasCompleted(
   return s.economy.structures.some(
     (b) =>
       complete(b) &&
+      (!definitionOf(s, b.entityId)?.addonParent || activeBuilding(s, b)) &&
       s.entities.owner[indexOf(s, b.entityId)] === owner &&
-      definitionOf(s, b.entityId)?.id === id,
+      countsAsDefinition(definitionOf(s, b.entityId)?.id ?? "", id),
   );
 }
 export function meetsRequirements(
@@ -55,7 +57,7 @@ export function createEconomicEntity(
     health: d.health,
     shield: d.shield,
     kind: d.kind,
-    layer: d.icon === "airSupply" ? "air" : "ground",
+    layer: economyLayer(d),
     speed: d.speed,
     radius: d.radius,
   });
@@ -91,7 +93,7 @@ export function newStructure(
     repeatUnitId: null,
     queue: [],
     research: null,
-    larva: done && d.id === "zerg-hatchery" ? 3 : 0,
+    larva: done && isLarvaProducer(d.id) ? 3 : 0,
     larvaTicks: ECONOMY_MECHANICS.larvaTicks,
   };
 }
@@ -356,6 +358,12 @@ export function activeBuilding(s: SimulationState, b: StructureState): boolean {
   return (
     complete(b) &&
     !!d &&
+    s.entities.health[i] > 0 &&
+    (!d.addonParent || s.economy.structures.some((p) =>
+      p.entityId === b.addonParentId && complete(p) &&
+      definitionOf(s, p.entityId)?.id === d.addonParent &&
+      s.entities.owner[indexOf(s, p.entityId)] === s.entities.owner[i] &&
+      s.entities.health[indexOf(s, p.entityId)] > 0)) &&
     (!d.power ||
       psiPower(s, s.entities.owner[i], s.entities.x[i], s.entities.y[i]))
   );

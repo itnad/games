@@ -355,6 +355,7 @@ export class BattleRenderer {
                 ? 0xffda8b
                 : 0xff7c80,
         age = (snapshot.tick - e.tick) / 9;
+      if(e.kind==='hiddenAttack'){this.combatEffects.circle(e.x/256,e.y/256,.45+age*.7).stroke({color:0xffc875,width:.06,alpha:1-age});continue;}
       if(e.kind==='miss'){const x=e.toX/256,y=e.toY/256;this.combatEffects.moveTo(x-.18,y-.18).lineTo(x+.18,y+.18).moveTo(x+.18,y-.18).lineTo(x-.18,y+.18).stroke({color:0xc1c6cd,width:.06,alpha:1-age});}
       else if (e.kind === "death")
         this.combatEffects

@@ -153,6 +153,9 @@ import {
   mudflatHeadlampDiscoveryRange,
   mudflatJoystickVector,
   mudflatNetStats,
+  mudflatMosquitoAppears,
+  mudflatMosquitoChance,
+  mudflatMosquitoRunEnabled,
   mudflatMarketImageScale,
   mudflatPufferBleedOnContact,
   mudflatPufferBleedStep,
@@ -425,6 +428,7 @@ test("hides unverified games by default and reveals them from the footer phrase"
     "paper-dungeon",
     "tetris",
     "starswar",
+    "baksal",
   ];
 
   for (const id of hiddenIds) {
@@ -439,6 +443,7 @@ test("hides unverified games by default and reveals them from the footer phrase"
 test("uses the game guide as a normal topbar action instead of a duplicate exit action", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const janggiSource = await readFile(new URL("../app/janggi-game.tsx", import.meta.url), "utf8");
+  const simpleChromeSource = await readFile(new URL("../app/simple-game-chrome.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
 
   assert.match(pageSource, /<GameObjectiveGuide gameId=\{gameId\} \/>/);
@@ -447,7 +452,7 @@ test("uses the game guide as a normal topbar action instead of a duplicate exit 
   assert.match(styles, /\.game-readability-scope \.exit-button\s*\{\s*display:\s*none;/);
   assert.match(styles, /\.game-readability-scope \.game-topbar\s*\{[\s\S]*?grid-template-columns:\s*48px minmax\(0, 1fr\) 128px;/);
   assert.match(styles, /\.game-title-lockup strong\s*\{[\s\S]*?text-overflow:\s*ellipsis;[\s\S]*?white-space:\s*nowrap;/);
-  assert.match(pageSource, /<strong title=\{title\}>\{title\}<\/strong>/);
+  assert.match(simpleChromeSource, /<strong title=\{title\}>\{title\}<\/strong>/);
 });
 
 test("folds the mudflat departure panel and keeps its guide out of the active HUD", async () => {
@@ -502,7 +507,7 @@ test("folds the mudflat departure panel and keeps its guide out of the active HU
   const activeGame = source.slice(source.indexOf('return <main className={`ms-shell ms-game'));
   assert.doesNotMatch(activeGame, /GameObjectiveGuide/);
   assert.match(activeGame, /\{pauseLayer\}/);
-  assert.match(guide, /modal && inline \? createPortal\(modal, document.body\) : modal/);
+  assert.match(guide, /modal && createPortal\(modal, document.body\)/);
 });
 
 test("shows an in-game mudflat seafood guide with collapsible market-backed entries", async () => {
@@ -581,6 +586,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "mudflat-survivor",
     "tetris",
     "starswar",
+    "baksal",
   ];
 
   assert.deepEqual(Object.keys(GAME_OBJECTIVES).sort(), expectedGameIds.sort());
@@ -606,6 +612,13 @@ test("provides a complete objective and victory guide for every game", async () 
   assert.match(guideSource, /승리 조건/);
   assert.match(guideSource, /게임 종료 시점/);
   assert.match(guideSource, /game-objective-steps/);
+  assert.match(guideSource, /modal && createPortal\(modal, document\.body\)/);
+  assert.match(guideSource, /className="game-objective-scroll"/);
+  assert.match(guideSource, /classList\.add\("paperoid-guide-open"\)/);
+  assert.match(guideSource, /classList\.remove\("paperoid-guide-open"\)/);
+  const globalStyles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(globalStyles, /\.game-objective-scroll\s*\{[\s\S]*?align-items:\s*safe center;[\s\S]*?overflow-y:\s*auto;[\s\S]*?overscroll-behavior:\s*contain;[\s\S]*?touch-action:\s*pan-y;/);
+  assert.match(globalStyles, /html\.paperoid-guide-open,[\s\S]*?overflow:\s*hidden;/);
   assert.deepEqual(GAME_OBJECTIVES["mudflat-survivor"].steps.map((step) => step.title), ["이동", "채집과 위험", "베이스캠프 복귀"]);
   assert.match(GAME_OBJECTIVES["mudflat-survivor"].summary, /4분 동안 채집/);
   assert.match(GAME_OBJECTIVES["mudflat-survivor"].victory, /베이스캠프에 도착해야 성공/);
@@ -618,7 +631,7 @@ test("provides a complete objective and victory guide for every game", async () 
 });
 
 test("uses independently centered Paperoid character images in the memory game", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const memorySource = await readFile(new URL("../app/memory-game.tsx", import.meta.url), "utf8");
   const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   const characterIds = [
     "moon-jelly",
@@ -636,13 +649,27 @@ test("uses independently centered Paperoid character images in the memory game",
     assert.equal(image.subarray(1, 4).toString(), "PNG");
     assert.ok(image.length > 100_000);
   }
-  assert.match(pageSource, /\["moon-jelly", "달빛 해파리"\]/);
-  assert.match(pageSource, /\["cloud-whale", "구름 아기고래"\]/);
-  assert.match(pageSource, /memoryCharacterLabel\(card\.symbol\)/);
-  assert.match(pageSource, /return `\/memory-characters\/\$\{id\}\.png`/);
-  assert.match(pageSource, /<img\s+className="memory-character"/);
+  assert.match(memorySource, /\["moon-jelly", "달빛 해파리"\]/);
+  assert.match(memorySource, /\["cloud-whale", "구름 아기고래"\]/);
+  assert.match(memorySource, /memoryCharacterLabel\(card\.symbol\)/);
+  assert.match(memorySource, /return `\/memory-characters\/\$\{id\}\.png`/);
+  assert.match(memorySource, /<img\s+className="memory-character"/);
   assert.match(styles, /\.memory-character \{[\s\S]*object-fit: contain;[\s\S]*object-position: center;/);
   assert.doesNotMatch(styles, /memory-character-atlas\.png|--memory-atlas-/);
+});
+
+test("loads every playable game through an independent lazy module", async () => {
+  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const lazyGames = [...pageSource.matchAll(/^const \w+Game = lazy\(\(\) => import\(/gm)];
+
+  assert.equal(lazyGames.length, 43);
+  assert.match(pageSource, /lazy\(\(\) => import\("\.\/mudflat-survivor-game"\)/);
+  assert.match(pageSource, /lazy\(\(\) => import\("\.\/gomoku-game"\)/);
+  assert.match(pageSource, /lazy\(\(\) => import\("\.\/memory-game"\)/);
+  assert.match(pageSource, /lazy\(\(\) => import\("\.\/starswar\/starswar-game"\)/);
+  assert.match(pageSource, /<Suspense fallback=\{<GameLoadingScreen gameId=\{gameId\} \/>\}>/);
+  assert.doesNotMatch(pageSource, /from "\.\/mudflat-survivor-game"/);
+  assert.doesNotMatch(pageSource, /from "\.\/more-games"/);
 });
 
 test("applies the shared readable typography contract to every current and future game", async () => {
@@ -803,7 +830,7 @@ test("keeps StarDraft in its own app/starswar folder as a mobile game at /stardr
     "starswar.css",
   ]);
   assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^(starswar|frontline)/.test(file) && file !== "starswar"), false);
-  assert.match(pageSource, /import \{ StarswarGame \} from "\.\/starswar\/starswar-game";/);
+  assert.match(pageSource, /const StarswarGame = lazy\(\(\) => import\("\.\/starswar\/starswar-game"\)/);
   assert.match(layoutSource, /import "\.\/starswar\/starswar\.css";/);
   // 게임 설명은 떠 있는 버튼 대신 메뉴 위쪽 줄과 일시정지 창 안에 둔다. 배속 버튼은 없앴다.
   const starswarSource = await readFile(new URL("../app/starswar/starswar-game.tsx", import.meta.url), "utf8");
@@ -818,13 +845,20 @@ test("keeps StarDraft in its own app/starswar folder as a mobile game at /stardr
   assert.match(pageSource, /if \(gameId === "starswar"\) return "\/stardraft"/);
 
   const pixiSource = await readFile(new URL("../app/starswar/starswar-pixi.ts", import.meta.url), "utf8");
-  assert.match(pixiSource, /await import\("pixi\.js"\)/, "PixiJS는 브라우저에서만 동적으로 불러온다");
+  assert.match(pixiSource, /import\("pixi\.js"\)/, "PixiJS는 브라우저에서만 동적으로 불러온다");
   assert.match(pixiSource, /pixi\.js\/unsafe-eval/);
   assert.match(viteConfig, /consumer === "server"/, "서버 번들에서는 PixiJS를 뺀다");
 
   const gameSource = await readFile(new URL("../app/starswar/starswar-game.tsx", import.meta.url), "utf8");
   for (const label of ["경제·건설", "생산", "연구", "병력", "출격", "후퇴", "집결지", "자동 출격", "정찰", "모든 \\{mainName\\}", "내 종족", "상대 종족", "무작위", "전투 시작"]) assert.match(gameSource, new RegExp(label));
   assert.match(gameSource, /data-game-menu="true"/);
+  assert.match(gameSource, /preloadStwPixiRenderer\(\)\.catch/);
+  assert.match(gameSource, /current && pixiRef\.current && !pausedRef\.current/);
+  assert.match(gameSource, /iconTimer = window\.setTimeout[\s\S]*?pixi\.exportIcons\(\)[\s\S]*?, 50\)/);
+  assert.match(gameSource, /지도가 표시될 때까지 전투 시간은 흐르지 않습니다\./);
+  assert.match(gameSource, /지도 다시 불러오기/);
+  assert.match(pixiSource, /let stwPixiModulePromise: Promise<PixiModule> \| null = null/);
+  assert.match(pixiSource, /return loadStwPixiModule\(\)/);
   const brief = await readFile(new URL("../docs/starswar-design.md", import.meta.url), "utf8");
   assert.match(brief, /app\/starswar\//);
 });
@@ -1528,14 +1562,17 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const MOSQUITO_REPELLENT_PRICE = 100/);
   assert.match(source, /const MOSQUITO_DAMAGE = 6/);
   assert.match(source, /const MOSQUITO_LOW_HP_THRESHOLD = 10/);
-  assert.match(source, /모기떼 · 16~24초마다 \$\{MOSQUITO_DAMAGE\} 피해, 체력 \$\{MOSQUITO_LOW_HP_THRESHOLD\} 미만은 피해 없음/);
+  assert.match(source, /모기떼 · 판 진입 \$\{chance\}% · 발생 시점마다 \$\{chance\}% · 피해 \$\{MOSQUITO_DAMAGE\}, 체력 \$\{MOSQUITO_LOW_HP_THRESHOLD\} 미만은 피해 없음/);
   assert.match(source, /showPlayerMessage\("해충기피제 덕분에 모기떼를 피했다\.", 2\.2\)/);
   assert.match(source, /runtime\.player\.hp < MOSQUITO_LOW_HP_THRESHOLD/);
   assert.match(source, /showPlayerMessage\("모기떼가 성가시게 구네\.", 2\.2\)/);
   assert.match(source, /damagePlayer\(MOSQUITO_DAMAGE, "#d69d68"\)/);
   assert.match(source, /showPlayerMessage\("모기떼에 물렸다!", 2\.2\)/);
   assert.match(source, /mosquitoClock: 10/);
-  assert.match(source, /stageProfile\.mosquitoes/);
+  assert.match(source, /mosquitoRunEnabled: mudflatMosquitoRunEnabled\(campaign\.stage, mosquitoRoll\)/);
+  assert.match(source, /if \(!tutorialActiveAtFrame && runtime\.mosquitoRunEnabled\)/);
+  assert.match(source, /mudflatMosquitoAppears\(runtime\.stage, runtime\.mosquitoRunEnabled, runtimeRandom\(runtime\)\)/);
+  assert.doesNotMatch(source, /stageProfile\.mosquitoes/);
   assert.doesNotMatch(source, /nextProfile\.mosquitoes/);
   assert.doesNotMatch(source, /mosquitoRepellentAvailable/);
   assert.match(source, /function withoutMosquitoRepellent\(equipment: CountMap\)/);
@@ -1548,9 +1585,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /<small>해충기피제<\/small><b>\{hud\.mosquitoRepellent \? "사용 중" : "없음"\}<\/b>/);
   assert.doesNotMatch(source, /거센 파도 · 16~24초마다 체력 피해/);
   assert.doesNotMatch(source, /거센 파도가 체력을 깎았다!/);
-  assert.match(engineSource, /바람과 모기떼 사이로/);
-  assert.match(engineSource, /잦은 돌발 물살과 모기떼/);
-  assert.match(engineSource, /name: "돌풍과 모기떼"/);
+  assert.match(engineSource, /거센 바람 사이로/);
+  assert.match(engineSource, /잦은 돌발 물살을 피해/);
+  assert.match(engineSource, /name: "거센 돌풍"/);
   assert.match(source, /function mudflatHiddenRockStage\(stage: number\)/);
   assert.match(source, /return stage === 3 \|\| stage === 4/);
   assert.match(source, /hiddenRockClock: mudflatHiddenRockStage\(campaign\.stage\) \? \.5 : 0/);
@@ -1802,7 +1839,7 @@ test("distributes persistent stage-three water channels without adding recurring
   assert.equal(mudflatStageStats(1).rockLimit, 13);
   assert.equal(profile.tideInterval, 0);
   assert.equal(profile.safeZone, "none");
-  assert.equal(profile.mosquitoes, false);
+  assert.equal(profile.mosquitoes, true);
   const lanes = mudflatWaterChannelLanes(-3000, 3000, 3);
   assert.ok(lanes.length > 6 && lanes.some((lane) => lane < 0) && lanes.some((lane) => lane > 0));
   for (const y of [-2400, -173, 0, 417, 3200]) {
@@ -1822,6 +1859,20 @@ test("distributes persistent stage-three water channels without adding recurring
   assert.deepEqual(mudflatWaterChannelLanes(-3000, 3000, 2), [0]);
   assert.deepEqual(mudflatWaterChannelLanes(-3000, 3000, 8), [0, 1]);
   assert.deepEqual(mudflatWaterChannelLanes(-3000, 3000, 1), []);
+});
+
+test("scales mosquito nuisance chance by stage and applies both run and timing gates", () => {
+  const expected = [0, .1, .2, .3, .4, .5, .6, .7, .8, .9];
+  expected.forEach((chance, index) => assert.ok(Math.abs(mudflatMosquitoChance(index + 1) - chance) < Number.EPSILON));
+  assert.equal(mudflatMosquitoChance(11), .9);
+  assert.equal(mudflatMosquitoChance(99), .9);
+  assert.equal(mudflatMosquitoRunEnabled(1, 0), false);
+  assert.equal(mudflatMosquitoRunEnabled(2, .099), true);
+  assert.equal(mudflatMosquitoRunEnabled(2, .1), false);
+  assert.equal(mudflatMosquitoRunEnabled(10, .899), true);
+  assert.equal(mudflatMosquitoAppears(8, false, 0), false, "a mosquito-free run must stay mosquito-free");
+  assert.equal(mudflatMosquitoAppears(3, true, .199), true);
+  assert.equal(mudflatMosquitoAppears(3, true, .2), false);
 });
 
 test("uses official classic Battleship fleet and American checkers crowning", async () => {

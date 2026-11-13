@@ -40,6 +40,8 @@ export const commandSchemas = {
   toggleRepeatProduction: command("toggleRepeatProduction", { entityIds: actors, payload: object({ unitId: text, enabled: boolean }) }),
   cancelProduction: command("cancelProduction", { entityIds: actors, payload: object({ queueEntryId: integer(1) }) }),
   placeBuilding: command("placeBuilding", { entityIds: actors, target: pointTargetSchema, payload: object({ buildingId: text,queued:optional(boolean) }) }),
+  morphStructure: command("morphStructure", { entityIds: actors, payload: object({ buildingId: text }) }),
+  cancelStructureMorph: command("cancelStructureMorph", { entityIds: actors }),
   cancelConstruction: command("cancelConstruction", { entityIds: actors }),
   research: command("research", { entityIds: actors, payload: object({ technologyId: text }) }),
   cancelResearch: command("cancelResearch", { entityIds: actors }),

@@ -1,3 +1,5 @@
+import { isEmbarked } from "../abilities/special-state";
+import { isBurrowed } from "../abilities/burrow";
 import type { SimulationState } from "../core/state";
 import type { BattleMap, ResourceNode } from "../data/maps";
 import type { Point } from "../pathfinding/navigation";
@@ -151,7 +153,7 @@ export function tickWorkers(
   if (!s.economy.enabled) return;
   for (const w of s.economy.workers) {
     const i = indexOf(s, w.entityId);
-    if (i < 0 || s.entities.health[i] === 0) continue;
+    if (i < 0 || s.entities.health[i] === 0 || (isBurrowed(s, w.entityId) || isEmbarked(s, w.entityId))) continue;
     if (w.task === "toBuild" || w.task === "constructing") continue;
     if (w.task === "idle") {
       if (

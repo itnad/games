@@ -1,0 +1,775 @@
+{
+  "source": {
+    "reference": "BWAPI v4.4.0 / Brood War 1.16.1",
+    "url": "https://github.com/bwapi/bwapi/tree/v4.4.0/bwapi/BWAPILIB/Source",
+    "unitSourceSha256": "b5ffb3f41e053c8198ee4254b1f06d9eb664c348648935561586b9d523359710",
+    "weaponSourceSha256": "4636ebc2edbe5b5fa3887d6ee99d7a7d0ea6c8afe8f4f3208428e163bfbbdad2",
+    "upgradeSourceSha256": "5575217dd535d5e41d7b6680ca3cc55c4a85283abba6c24045f43ef1bddaa4b0"
+  },
+  "units": [
+    {
+      "defaultOreCost": 150,
+      "defaultGasCost": 100,
+      "defaultTimeCost": 1050,
+      "defaultMaxHP": 1300,
+      "defaultMaxSP": 0,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 0,
+      "unitTopSpeeds": 1,
+      "sightRangeTiles": 10,
+      "unitSpaceRequired": 255,
+      "unitSpaceProvided": 0,
+      "name": "Terran_Starport",
+      "bwapiId": 114,
+      "dimensions": [
+        4,
+        3,
+        48,
+        40,
+        48,
+        38
+      ]
+    },
+    {
+      "defaultOreCost": 50,
+      "defaultGasCost": 50,
+      "defaultTimeCost": 600,
+      "defaultMaxHP": 500,
+      "defaultMaxSP": 0,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 0,
+      "unitTopSpeeds": 0,
+      "sightRangeTiles": 8,
+      "unitSpaceRequired": 255,
+      "unitSpaceProvided": 0,
+      "name": "Terran_Control_Tower",
+      "bwapiId": 115,
+      "dimensions": [
+        2,
+        2,
+        47,
+        24,
+        28,
+        22
+      ]
+    },
+    {
+      "defaultOreCost": 100,
+      "defaultGasCost": 100,
+      "defaultTimeCost": 750,
+      "defaultMaxHP": 150,
+      "defaultMaxSP": 0,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 4,
+      "unitTopSpeeds": 5.47,
+      "sightRangeTiles": 8,
+      "unitSpaceRequired": 255,
+      "unitSpaceProvided": 8,
+      "name": "Terran_Dropship",
+      "bwapiId": 11,
+      "dimensions": [
+        2,
+        2,
+        24,
+        16,
+        24,
+        20
+      ]
+    },
+    {
+      "defaultOreCost": 150,
+      "defaultGasCost": 100,
+      "defaultTimeCost": 1500,
+      "defaultMaxHP": 1800,
+      "defaultMaxSP": 0,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 2,
+      "unitSupplyRequired": 0,
+      "unitTopSpeeds": 0,
+      "sightRangeTiles": 10,
+      "unitSpaceRequired": 255,
+      "unitSpaceProvided": 0,
+      "name": "Zerg_Lair",
+      "bwapiId": 132,
+      "dimensions": [
+        4,
+        3,
+        49,
+        32,
+        49,
+        32
+      ]
+    },
+    {
+      "defaultOreCost": 150,
+      "defaultGasCost": 100,
+      "defaultTimeCost": 900,
+      "defaultMaxHP": 450,
+      "defaultMaxSP": 450,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 0,
+      "unitTopSpeeds": 0,
+      "sightRangeTiles": 10,
+      "unitSpaceRequired": 255,
+      "unitSpaceProvided": 0,
+      "name": "Protoss_Citadel_of_Adun",
+      "bwapiId": 163,
+      "dimensions": [
+        3,
+        2,
+        24,
+        24,
+        40,
+        24
+      ]
+    },
+    {
+      "defaultOreCost": 150,
+      "defaultGasCost": 200,
+      "defaultTimeCost": 900,
+      "defaultMaxHP": 500,
+      "defaultMaxSP": 500,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 0,
+      "unitTopSpeeds": 0,
+      "sightRangeTiles": 10,
+      "unitSpaceRequired": 255,
+      "unitSpaceProvided": 0,
+      "name": "Protoss_Templar_Archives",
+      "bwapiId": 165,
+      "dimensions": [
+        3,
+        2,
+        32,
+        24,
+        32,
+        24
+      ]
+    },
+    {
+      "defaultOreCost": 125,
+      "defaultGasCost": 100,
+      "defaultTimeCost": 750,
+      "defaultMaxHP": 80,
+      "defaultMaxSP": 40,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 4,
+      "unitTopSpeeds": 4.92,
+      "sightRangeTiles": 7,
+      "unitSpaceRequired": 2,
+      "unitSpaceProvided": 0,
+      "name": "Protoss_Dark_Templar",
+      "bwapiId": 61,
+      "dimensions": [
+        1,
+        1,
+        12,
+        6,
+        11,
+        19
+      ]
+    },
+    {
+      "defaultOreCost": 200,
+      "defaultGasCost": 200,
+      "defaultTimeCost": 1200,
+      "defaultMaxHP": 500,
+      "defaultMaxSP": 500,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 0,
+      "unitTopSpeeds": 0,
+      "sightRangeTiles": 10,
+      "unitSpaceRequired": 255,
+      "unitSpaceProvided": 0,
+      "name": "Protoss_Robotics_Facility",
+      "bwapiId": 155,
+      "dimensions": [
+        3,
+        2,
+        36,
+        16,
+        40,
+        20
+      ]
+    },
+    {
+      "defaultOreCost": 50,
+      "defaultGasCost": 100,
+      "defaultTimeCost": 450,
+      "defaultMaxHP": 250,
+      "defaultMaxSP": 250,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 0,
+      "unitTopSpeeds": 0,
+      "sightRangeTiles": 10,
+      "unitSpaceRequired": 255,
+      "unitSpaceProvided": 0,
+      "name": "Protoss_Observatory",
+      "bwapiId": 159,
+      "dimensions": [
+        3,
+        2,
+        44,
+        16,
+        44,
+        28
+      ]
+    },
+    {
+      "defaultOreCost": 25,
+      "defaultGasCost": 75,
+      "defaultTimeCost": 600,
+      "defaultMaxHP": 40,
+      "defaultMaxSP": 20,
+      "defaultArmorAmount": 0,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 2,
+      "unitTopSpeeds": 3.33,
+      "sightRangeTiles": 9,
+      "unitSpaceRequired": 255,
+      "unitSpaceProvided": 0,
+      "name": "Protoss_Observer",
+      "bwapiId": 84,
+      "dimensions": [
+        1,
+        1,
+        16,
+        16,
+        15,
+        15
+      ]
+    },
+    {
+      "defaultOreCost": 200,
+      "defaultGasCost": 0,
+      "defaultTimeCost": 900,
+      "defaultMaxHP": 80,
+      "defaultMaxSP": 60,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 4,
+      "unitTopSpeeds": 4.43,
+      "sightRangeTiles": 8,
+      "unitSpaceRequired": 255,
+      "unitSpaceProvided": 8,
+      "name": "Protoss_Shuttle",
+      "bwapiId": 69,
+      "dimensions": [
+        2,
+        1,
+        20,
+        16,
+        19,
+        15
+      ]
+    }
+  ],
+  "weapons": [
+    {
+      "name": "Warp_Blades",
+      "bwapiId": 111,
+      "defaultWpnDamageAmt": 40,
+      "defaultWpnDamageBonus": 3,
+      "wpnDamageCooldowns": 30,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 15,
+      "damageType": "Normal",
+      "upgrade": "Protoss_Ground_Weapons"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "Terran_Starport",
+      "size": "large",
+      "bounds": [
+        48,
+        40,
+        48,
+        38
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Terran_Control_Tower",
+      "size": "large",
+      "bounds": [
+        47,
+        24,
+        28,
+        22
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Terran_Dropship",
+      "size": "large",
+      "bounds": [
+        24,
+        16,
+        24,
+        20
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Zerg_Lair",
+      "size": "large",
+      "bounds": [
+        49,
+        32,
+        49,
+        32
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Citadel_of_Adun",
+      "size": "large",
+      "bounds": [
+        24,
+        24,
+        40,
+        24
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Templar_Archives",
+      "size": "large",
+      "bounds": [
+        32,
+        24,
+        32,
+        24
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Dark_Templar",
+      "size": "small",
+      "bounds": [
+        12,
+        6,
+        11,
+        19
+      ],
+      "groundWeapon": "Warp_Blades",
+      "airWeapon": "None",
+      "hits": 1
+    },
+    {
+      "name": "Protoss_Robotics_Facility",
+      "size": "large",
+      "bounds": [
+        36,
+        16,
+        40,
+        20
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Observatory",
+      "size": "large",
+      "bounds": [
+        44,
+        16,
+        44,
+        28
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Observer",
+      "size": "small",
+      "bounds": [
+        16,
+        16,
+        15,
+        15
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    },
+    {
+      "name": "Protoss_Shuttle",
+      "size": "large",
+      "bounds": [
+        20,
+        16,
+        19,
+        15
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    }
+  ],
+  "upgrades": [
+    {
+      "name": "Ventral_Sacs",
+      "bwapiId": 24,
+      "defaultOreCostBase": 200,
+      "defaultOreCostFactor": 0,
+      "defaultTimeCostBase": 2400,
+      "defaultTimeCostFactor": 0,
+      "defaultMaxRepeats": 1
+    }
+  ],
+  "traits": [
+    {
+      "name": "Terran_SCV",
+      "spaceRequired": 1,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Marine",
+      "spaceRequired": 1,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Vulture",
+      "spaceRequired": 2,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Siege_Tank_Tank_Mode",
+      "spaceRequired": 4,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Command_Center",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Supply_Depot",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Barracks",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Refinery",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Engineering_Bay",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Factory",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Machine_Shop",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Drone",
+      "spaceRequired": 1,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Zergling",
+      "spaceRequired": 1,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Hydralisk",
+      "spaceRequired": 2,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Overlord",
+      "spaceRequired": 255,
+      "spaceProvided": 8,
+      "flyer": true,
+      "detector": true,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Hatchery",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Spawning_Pool",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Extractor",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Creep_Colony",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Evolution_Chamber",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Hydralisk_Den",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Probe",
+      "spaceRequired": 1,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Zealot",
+      "spaceRequired": 2,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Dragoon",
+      "spaceRequired": 4,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Nexus",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Pylon",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Gateway",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Assimilator",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Forge",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Cybernetics_Core",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Starport",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Control_Tower",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Terran_Dropship",
+      "spaceRequired": 255,
+      "spaceProvided": 8,
+      "flyer": true,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Lair",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Citadel_of_Adun",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Templar_Archives",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Dark_Templar",
+      "spaceRequired": 2,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": true
+    },
+    {
+      "name": "Protoss_Robotics_Facility",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Observatory",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Protoss_Observer",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": true,
+      "detector": true,
+      "permanentCloak": true
+    },
+    {
+      "name": "Protoss_Shuttle",
+      "spaceRequired": 255,
+      "spaceProvided": 8,
+      "flyer": true,
+      "detector": false,
+      "permanentCloak": false
+    }
+  ]
+}

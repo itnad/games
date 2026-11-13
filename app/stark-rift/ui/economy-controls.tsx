@@ -1,8 +1,13 @@
+import { CloakControls } from "./cloak-controls";
+import { TransportControls } from "./transport-controls";
+import { permanentCloak } from "../abilities/special-state";
 import { hasBasicWeapon } from "../combat/catalog";
+import { BURROW_ABILITY, BURROW_RESEARCH, supportsBurrow } from "../abilities/burrow";
 import { useEffect, useRef } from "react";
 import type { GameCommand } from "../core/commands";
 import type { RenderSnapshot } from "../worker/render-snapshot";
 import {
+  countsAsDefinition, isLarvaProducer,
   ECONOMY_DEFINITIONS,
   ECONOMY_UPGRADES,
   economyDefinition,
@@ -19,7 +24,7 @@ export function EconomyControls({
   running,
   openBuildMenu,
   selectWorker,
-  scout,
+  scout, loadTransport, unloadTransport, selectEntities,
 }: {
   snapshot: RenderSnapshot;
   selected: number[];
@@ -30,6 +35,7 @@ export function EconomyControls({
   openBuildMenu: () => void;
   selectWorker: () => void;
   scout: () => void;
+  loadTransport?: (ids: number[]) => void; unloadTransport?: (ids: number[]) => void; selectEntities?: (ids: number[]) => void;
 }) {
   const economy = snapshot.economy!,
     entities = snapshot.entities.filter(
@@ -67,7 +73,8 @@ export function EconomyControls({
     economy.structures.some(
       (b) =>
         b.completed &&
-        snapshot.entities.find((e) => e.id === b.entityId)?.definitionId === id,
+        (!economyDefinition(snapshot.entities.find((e) => e.id === b.entityId)?.definitionId ?? "")?.addonParent || b.powered) &&
+        countsAsDefinition(snapshot.entities.find((e) => e.id === b.entityId)?.definitionId ?? "", id),
     );
   const canAfford = (minerals: number, gas: number) =>
     economy.minerals >= minerals && economy.gas >= gas;
@@ -89,6 +96,9 @@ export function EconomyControls({
     toBuild: "건설 지점으로 이동",
     constructing: "건설 중",
   };
+  const transport = <TransportControls snapshot={snapshot} selected={selected} running={running} issue={issue}
+    load={loadTransport ?? (() => {})} unload={unloadTransport ?? (() => {})} select={selectEntities ?? (() => {})} />;
+  if (!def && (economy.transports ?? []).some((t) => t.passengers.some((p) => selected.includes(p.id)))) return transport;
   if (!def)
     return (
       <div>
@@ -104,6 +114,10 @@ export function EconomyControls({
       </div>
     );
   const mixed = entities.some((e) => e.definitionId !== first.definitionId);
+  const burrowActors = entities.filter((e) => supportsBurrow(e.definitionId)),
+    surfaceIds = burrowActors.filter((e) => !e.burrowed).map((e) => e.id),
+    burrowIds = burrowActors.filter((e) => e.burrowed).map((e) => e.id),
+    burrowReady = economy.upgrades.some((u) => u.technologyId === BURROW_RESEARCH);
   return (
     <div className="sr-economy-controls">
       <div className="sr-selection-title sr-selection-toolbar">
@@ -122,14 +136,14 @@ export function EconomyControls({
           hasBasicWeapon(def.id) && (
             <button
               className="sr-attack-move"
-              disabled={!running}
+              disabled={!running || entities.every((e) => e.burrowed)}
               onClick={attackMove}
             >
               공격 이동
             </button>
           )}
         {worker ? (
-          <button className="sr-open-build" onClick={openBuildMenu}>
+          <button className="sr-open-build" disabled={!running || first.burrowed} onClick={openBuildMenu}>
             건설
           </button>
         ) : (
@@ -144,24 +158,47 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
+      <CloakControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
+      {transport}
+      {permanentCloak(def.id) && <p className="sr-help">영구 은폐 · {def.id === "protoss-observer" ? "비무장 탐지기 · 탐지 범위 11타일" : "지상 근접 공격 · 적 탐지기에 노출되면 공격받습니다."}</p>}
+      {burrowActors.length > 0 && (
+        <div className="sr-burrow-controls">
+          <div className="sr-action-row">
+            <button data-state-ability="burrow" data-enabled="true"
+              disabled={!running || !burrowReady || surfaceIds.length === 0 || !!(worker && ["toBuild", "constructing"].includes(worker.task))}
+              onClick={() => issue({ kind: "toggleStateAbility", entityIds: surfaceIds,
+                payload: { abilityId: BURROW_ABILITY, enabled: true } })}>버로우</button>
+            <button data-state-ability="burrow" data-enabled="false"
+              disabled={!running || burrowIds.length === 0}
+              onClick={() => issue({ kind: "toggleStateAbility", entityIds: burrowIds,
+                payload: { abilityId: BURROW_ABILITY, enabled: false } })}>잠복 해제</button>
+          </div>
+          <p className="sr-help" role="status">
+            {worker && ["toBuild", "constructing"].includes(worker.task) ? "건설 예약을 먼저 취소해야 잠복할 수 있습니다." :
+              !burrowReady ? "해처리에서 버로우 연구 필요 · ◆ 100 ◉ 100 · 25초" :
+              burrowIds.length > 0 ? `잠복 ${burrowIds.length}기 · 직접 해제 전까지 이동·공격·작업 불가. 위에 유닛이 있으면 먼저 비워 주세요.` :
+              "잠복하면 적 탐지기 없이 보이지 않습니다. 이동·공격·작업을 하려면 직접 잠복을 해제하세요."}
+          </p>
+        </div>
+      )}
       {worker && (
         <>
           <p className="sr-help">
             건설 버튼 → 건물 선택 → 전장 위치 터치 → 건설 확정
           </p>
           <div className="sr-work-status">
-            {tasks[worker.task] ?? worker.task} · 운반 ◆ {worker.cargoMinerals}{" "}
+            {first.burrowed ? "잠복 중" : tasks[worker.task] ?? worker.task} · 운반 ◆ {worker.cargoMinerals}{" "}
             ◉ {worker.cargoGas}
           </div>
           <div className="sr-action-row">
             <button
-              disabled={!running}
+              disabled={!running || first.burrowed}
               onClick={() => issue({ kind: "autoGather", entityIds: selected })}
             >
               자동 채취
             </button>
             <button
-              disabled={!running}
+              disabled={!running || first.burrowed}
               onClick={() =>
                 issue({ kind: "returnCargo", entityIds: selected })
               }
@@ -214,17 +251,21 @@ export function EconomyControls({
       {building?.completed && (
         <>
           <div className="sr-action-row">
-            {def.id === "zerg-hatchery" && (
+            {isLarvaProducer(def.id) && (
               <span>라바 {building.larva} / 3</span>
             )}
             {def.power && !building.powered && (
               <span className="sr-locked">동력 필요 · 생산 정지</span>
             )}
+            {def.addonParent && !building.powered && <span className="sr-locked">부모 건물 연결 필요 · 연구 정지</span>}
           </div>
+          {def.id === "zerg-hatchery" && <button data-morph="zerg-lair" disabled={!running || !!building.morph || !!building.research || !has("zerg-spawning-pool") || !canAfford(150, 100)}
+            onClick={() => issue({ kind: "morphStructure", entityIds: selected, payload: { buildingId: "zerg-lair" } })}>레어 변태 ◆ 150 ◉ 100 · 31.25초{!has("zerg-spawning-pool") ? " · 스포닝 풀 필요" : ""}</button>}
+          {building.morph && <div className="sr-research-status"><span>레어 변태 중 · {Math.ceil(building.morph.remainingTicks / 20)}초</span><progress max={building.morph.totalTicks} value={building.morph.totalTicks - building.morph.remainingTicks} /><button disabled={!running} onClick={() => issue({ kind: "cancelStructureMorph", entityIds: [building.entityId] })}>변태 취소 · 75% 환불</button></div>}
           <div className="sr-action-label">생산 · 길게 누르면 반복</div>
           <div className="sr-build-grid">
             {ECONOMY_DEFINITIONS.filter(
-              (d) => d.kind !== "building" && d.producer === def.id,
+              (d) => d.kind !== "building" && countsAsDefinition(def.id, d.producer),
             ).map((d) => {
               const why = reason(d),
                 repeat = building.repeatUnitId === d.id,
@@ -232,8 +273,9 @@ export function EconomyControls({
                   running &&
                   !why &&
                   building.powered &&
+                  (!building.research || isLarvaProducer(def.id)) &&
                   building.queue.length < 5 &&
-                  (def.id !== "zerg-hatchery" || building.larva > 0) &&
+                  (!isLarvaProducer(def.id) || building.larva > 0) &&
                   economy.supplyUsedHalf + d.supply * d.batch <=
                     economy.supplyCapHalf;
               return (
@@ -363,7 +405,7 @@ export function EconomyControls({
               </div>
             </>
           )}
-          {ECONOMY_UPGRADES.filter((t) => t.producer === def.id).map((t) => {
+          {ECONOMY_UPGRADES.filter((t) => countsAsDefinition(def.id, t.producer)).map((t) => {
             const done = economy.upgrades.some((u) => u.technologyId === t.id),
               busy = economy.structures.some(
                 (b) => b.research?.technologyId === t.id,
@@ -375,6 +417,9 @@ export function EconomyControls({
                   !running ||
                   done ||
                   busy ||
+                  !!building.research ||
+                  !!building.morph ||
+                  (building.queue.length > 0 && !isLarvaProducer(def.id)) ||
                   !building.powered ||
                   !canAfford(t.minerals, t.gas)
                 }
@@ -386,7 +431,11 @@ export function EconomyControls({
                   })
                 }
               >
-                {t.name} 1단계 {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field"].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.id === BURROW_RESEARCH && !done && <small>25초 · 드론·저글링·히드라 잠복</small>}
+                {t.id === "ventral-sacs" && !done && <small>50초 · 오버로드 8칸 수송</small>}
+                {t.id === "personnel-cloaking" && !done && <small>25초 · 고스트 수동 은폐</small>}
+                {t.id === "cloaking-field" && !done && <small>31.25초 · 레이스 수동 은폐</small>}
               </button>
             );
           })}

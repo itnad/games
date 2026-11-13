@@ -1,20 +1,30 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { GAME_OBJECTIVES } from "./game-objectives.js";
 
 export function GameObjectiveGuide({ gameId, inline = false }: { gameId: string; inline?: boolean }) {
   const [open, setOpen] = useState(false);
+  const modalRef = useRef<HTMLElement>(null);
   const guide = GAME_OBJECTIVES[gameId as keyof typeof GAME_OBJECTIVES];
 
   useEffect(() => {
     if (!open) return;
+    const root = document.documentElement;
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
+    root.classList.add("paperoid-guide-open");
     window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+    const focusFrame = window.requestAnimationFrame(() => {
+      modalRef.current?.focus({ preventScroll: true });
+    });
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", handleKey);
+      root.classList.remove("paperoid-guide-open");
+    };
   }, [open]);
 
   if (!guide) return null;
@@ -23,14 +33,17 @@ export function GameObjectiveGuide({ gameId, inline = false }: { gameId: string;
 
   const modal = open ? (
         <div className="game-objective-backdrop" role="presentation" onClick={() => setOpen(false)}>
-          <section
-            className="game-objective-modal"
-            style={style}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="game-objective-title"
-            onClick={(event) => event.stopPropagation()}
-          >
+          <div className="game-objective-scroll">
+            <section
+              ref={modalRef}
+              className="game-objective-modal"
+              style={style}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="game-objective-title"
+              tabIndex={-1}
+              onClick={(event) => event.stopPropagation()}
+            >
             <button className="game-objective-close" onClick={() => setOpen(false)} aria-label="게임 설명 닫기">×</button>
             <header>
               <i aria-hidden="true">{guide.icon}</i>
@@ -63,7 +76,8 @@ export function GameObjectiveGuide({ gameId, inline = false }: { gameId: string;
               <strong>{guide.finish}</strong>
             </aside>
             <button className="game-objective-confirm" onClick={() => setOpen(false)}>확인하고 게임하기</button>
-          </section>
+            </section>
+          </div>
         </div>
   ) : null;
 
@@ -73,7 +87,7 @@ export function GameObjectiveGuide({ gameId, inline = false }: { gameId: string;
         <span aria-hidden="true">◎</span>
         <span><small>GOAL &amp; WIN</small><strong>게임 설명</strong></span>
       </button>
-      {modal && inline ? createPortal(modal, document.body) : modal}
+      {modal && createPortal(modal, document.body)}
     </>
   );
 }

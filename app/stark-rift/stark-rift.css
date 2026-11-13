@@ -1,4 +1,4 @@
-.sr-battle { height: 100dvh; min-height: 480px; box-sizing: border-box; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); background: #070b12; color: #d9e5f4; font-family: system-ui, sans-serif; overflow: hidden; }
+.sr-battle { height: 100dvh; min-height: 480px; box-sizing: border-box; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1.6fr) minmax(220px, 1.4fr); background: #070b12; color: #d9e5f4; font-family: system-ui, sans-serif; overflow: hidden; }
 .sr-top { display: grid; grid-template-columns: minmax(0, 55fr) minmax(0, 45fr); gap: 8px; padding: 8px; min-height: 0; box-sizing: border-box; }
 .sr-minimap { aspect-ratio: 1; height: 100%; max-width: 100%; justify-self: center; overflow: hidden; border: 1px solid #52647a; min-height: 0; }
 .sr-overview { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow: auto; }
@@ -37,3 +37,8 @@
 .sr-bottom{align-items:stretch;justify-items:stretch;justify-content:stretch;align-content:stretch}.sr-bottom .sr-command-space{min-height:0;min-width:0}.sr-economy-controls{flex-shrink:0}
 
 .sr-selection-toolbar .sr-attack-move{flex:none;min-height:52px;padding:6px 10px;border-color:#dfb48a;background:#513c2a;color:#ffdfbf;font-size:11px}.sr-selection-toolbar>strong{min-width:0}
+
+/* Keep one full 52px action below the sticky selection bar on short portrait screens. */
+.sr-commands {scroll-padding-top:64px}.sr-economy-controls button {scroll-margin-top:64px}
+
+.sr-transport-controls{display:flex;flex-direction:column;gap:5px}.sr-cargo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.sr-cargo-grid button{display:flex;flex-direction:column;gap:3px;padding:6px!important;font-size:11px!important}.sr-cargo-grid small{font-size:10px;color:#b4cccf}

@@ -26,6 +26,7 @@ const commands = {
   toggleStateAbility: { payload: { abilityId: "siege", enabled: false } },
   loadTransport: { target }, unloadTransport: { target: point },
   unloadPassenger: { target: point, payload: { passengerId: 3 } },
+  morphStructure: { payload: { buildingId: "zerg-lair" } }, cancelStructureMorph: {},
   surrender: { entityIds: [] },
 } satisfies Record<(typeof COMMAND_KINDS)[number], object>;
 const move = { ...base, kind: "move", target: point };

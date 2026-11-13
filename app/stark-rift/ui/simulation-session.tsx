@@ -1,4 +1,5 @@
 "use client";
+import { unitTraits } from "../abilities/special-state";
 import { hasBasicWeapon } from "../combat/catalog";
 import type { Scenario } from "../combat/state";
 import type { WorkerToMainMessage } from "../worker/messages";
@@ -42,7 +43,7 @@ export function SimulationSession({
         (scenario !== "economy" ? 18 : registered.map.spawnPoints[0].x) * 256,
       centerY:
         (scenario !== "economy"
-          ? scenario === "ranged-practice"
+          ? ["ranged-practice", "special-practice"].includes(scenario)
             ? 20
             : 18
           : registered.map.spawnPoints[0].y) * 256,
@@ -142,11 +143,11 @@ export function SimulationSession({
                   (e) =>
                     e.owner === 0 &&
                     e.kind === "combat" &&
-                    hasBasicWeapon(e.definitionId),
+                    (scenario === "special-practice" ? !!unitTraits(e.definitionId)?.spaceProvided && message.payload.combat?.scenario === "special-practice" : hasBasicWeapon(e.definitionId)),
                 )
                 .map((e) => e.id),
               controlGroupIds:
-                scenario === "ranged-practice" && faction === "terran"
+                scenario === "special-practice" ? [] : scenario === "ranged-practice" && faction === "terran"
                   ? [0, 1]
                   : [0],
             };
@@ -216,7 +217,7 @@ export function SimulationSession({
           { id: 0, faction, controller: "human" },
           {
             id: 1,
-            faction: scenario === "siege-practice" ? "terran" : "zerg",
+            faction: scenario === "special-practice" ? "protoss" : scenario === "siege-practice" ? "terran" : "zerg",
             controller: "ai",
           },
         ],
@@ -334,7 +335,7 @@ export function SimulationSession({
         </header>
         {snapshot?.combat && snapshot.combat.scenario !== "economy" && (
           <div className="sr-practice-status" role="status">
-            {snapshot.combat.scenario === "ranged-practice"
+            {snapshot.combat.scenario === "special-practice" ? "특수 연습" : snapshot.combat.scenario === "ranged-practice"
               ? "원거리 연습"
               : snapshot.combat.scenario === "siege-practice"
                 ? "본부 공략"
@@ -346,7 +347,7 @@ export function SimulationSession({
               ? " · 목표 처치 완료"
               : snapshot.combat.friendlyRemaining === 0
                 ? " · 연습 병력 전멸 · 선택 화면에서 다시 시작하세요"
-                : " · 부대 1번 → 붉은 적 터치"}
+                : snapshot.combat.scenario === "special-practice" ? " · 탑승 → 부대 선택 → 하차 지점" : " · 부대 1번 → 붉은 적 터치"}
           </div>
         )}
         <div className="sr-session-battle">

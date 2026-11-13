@@ -1,3 +1,4 @@
+import { specialFitsMap } from "../abilities/special-validation";
 import { visionFitsMap } from "../vision/rules";
 import { STARK_RIFT_FORMAT_VERSION } from "../core/versions";
 import { combatFitsMap } from "../combat/rules";
@@ -46,6 +47,7 @@ export class DevelopmentSaveStore {
       economyFitsMap(s, map) &&
       combatFitsMap(s, map) &&
       visionFitsMap(s, map) &&
+      specialFitsMap(s, map) &&
       navigationFitsMap(s, map) &&
       s.entities.x.every((x, i) => inside({ x, y: s.entities.y[i] })) &&
       s.movement.every(
@@ -65,7 +67,9 @@ export class DevelopmentSaveStore {
             ? "combat."
             : scenario === "ranged-practice"
               ? "ranged."
-              : scenario === "siege-practice"
+              : scenario === "special-practice"
+                ? "special."
+                : scenario === "siege-practice"
                 ? "siege."
                 : "") +
           faction,
@@ -95,7 +99,9 @@ export class DevelopmentSaveStore {
           ? "combat."
           : snapshot.simulation.combat?.scenario === "ranged-practice"
             ? "ranged."
-            : snapshot.simulation.combat?.scenario === "siege-practice"
+            : snapshot.simulation.combat?.scenario === "special-practice"
+              ? "special."
+              : snapshot.simulation.combat?.scenario === "siege-practice"
               ? "siege."
               : "") +
         faction;
@@ -111,7 +117,13 @@ export class DevelopmentSaveStore {
                 ? "stage5a-backup"
                 : version === 8
                   ? "stage5b-backup"
-                  : version === STARK_RIFT_FORMAT_VERSION
+                  : version === 9
+                    ? "stage5c-backup"
+                    : version === 10
+                      ? "stage6a-backup"
+                      : version === 11
+                        ? "stage6b-backup"
+                      : version === STARK_RIFT_FORMAT_VERSION
                     ? ""
                     : "invalid-backup";
         } catch {}

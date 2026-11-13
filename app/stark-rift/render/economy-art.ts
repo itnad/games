@@ -16,15 +16,22 @@ export function updateEconomicMarker(
   const hp = Math.floor((e.health / d.health) * 10),
     sp = Math.floor(((e.shield ?? 0) / Math.max(1, d.shield)) * 10),
     p = progress === null ? -1 : Math.floor(progress * 20),
-    key = [d.id, color, ring, hp, sp, p, started].join(":");
+    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, Math.floor((e.energy ?? 0) / 10)].join(":");
   if (keys.get(g) === key) return true;
   keys.set(g, key);
   g.clear();
-  g.alpha = started ? 1 : 0.42;
+  g.alpha = e.cloaked ? 0.48 : started ? 1 : 0.42;
   const w = d.width,
     h = d.height,
     terr = d.faction === "terran",
     zerg = d.faction === "zerg";
+  if (e.burrowed) {
+    const r = Math.max(0.3, e.radius / 256);
+    g.ellipse(0, 0.08, r * 1.2, r * 0.55).fill(0x362a38).stroke({ color: 0xae876e, width: 0.05 });
+    g.ellipse(0, 0, r * 0.85, r * 0.3).fill(0x604553).stroke({ color, width: 0.045 });
+    if (ring !== null) g.ellipse(0, 0.08, r * 1.5, r * 0.8).stroke({ color: ring, width: 0.055 });
+    return true;
+  }
   if (d.kind === "building") {
     g.ellipse(0.12, 0.22, w * 0.55, h * 0.48).fill({
       color: 0x030911,
@@ -212,7 +219,19 @@ export function updateEconomicMarker(
     }
   } else {
     g.ellipse(0.06, 0.15, 0.36, 0.2).fill({ color: 0x030810, alpha: 0.7 });
-    if (terr && d.kind === "worker") {
+    if (d.icon === "transport") {
+      g.ellipse(0, 0.12, .8, .38).fill({ color: 0x030810, alpha: .6 });
+      g.poly([-.35,-.72,.35,-.72,.48,.55,0,.8,-.48,.55]).fill(terr ? 0x6b858d : 0xd4ba78).stroke({color:terr?0xa8c3c9:0xffe4a8,width:.06});
+      for (const sign of [-1,1]) g.poly([sign*.32,-.3,sign*.9,-.1,sign*.85,.45,sign*.32,.3]).fill(terr?0x405965:0xa58b60).stroke({color,width:.07});
+      g.ellipse(0,-.38,.2,.24).fill(color);g.rect(-.2,.1,.4,.4).fill(0x253542);
+    } else if (d.icon === "detector") {
+      g.ellipse(0,0,.55,.3).fill(0xcbb778).stroke({color:0xffe3a2,width:.06});
+      g.circle(0,0,.22).fill(color).stroke({color:0xd4faff,width:.05});
+      for (const sign of [-1,1]) g.moveTo(sign*.4,0).lineTo(sign*.7,-.35).stroke({color:0xdcc99c,width:.08});
+    } else if (d.id === "protoss-dark-templar") {
+      g.poly([-.36,.35,-.2,-.4,0,-.6,.2,-.4,.36,.35,0,.55]).fill(0x584d7d).stroke({color:0xb49de0,width:.05});
+      g.circle(0,-.28,.12).fill(color);g.moveTo(.15,.1).lineTo(.6,-.55).stroke({color:0x9df6bc,width:.1});
+    } else if (terr && d.kind === "worker") {
       g.rect(-0.3, -0.21, 0.6, 0.43)
         .fill(0x889d9f)
         .stroke({ color: 0xd9c38b, width: 0.06 });
@@ -222,6 +241,14 @@ export function updateEconomicMarker(
       g.rect(-0.45, -0.22, 0.9, 0.45).fill(0x3e5660);
       g.rect(-0.3, -0.3, 0.6, 0.15).fill(0x91a7a8);
       g.rect(-0.1, -0.12, 0.2, 0.6).fill(color);
+    } else if (d.id === "terran-wraith") {
+      g.poly([-0.72, 0.4, -0.48, -0.05, -0.22, -0.12, 0, -0.7, 0.22, -0.12, 0.48, -0.05, 0.72, 0.4, 0.2, 0.23, 0, 0.4, -0.2, 0.23]).fill(0x718b9a).stroke({ color: 0xc1d7df, width: 0.04 });
+      g.poly([-0.1, 0.1, 0, -0.45, 0.1, 0.1]).fill(color);
+      for (const x of [-0.45, 0.45]) g.rect(x - 0.06, 0.18, 0.12, 0.24).fill(0x7edce8);
+    } else if (d.id === "terran-ghost") {
+      g.circle(0, -0.2, 0.12).fill(0xb0c8d0);
+      g.poly([-0.15, -0.08, 0.15, -0.08, 0.2, 0.32, -0.2, 0.32]).fill(0x73969e).stroke({ color, width: 0.05 });
+      g.rect(0.12, -0.05, 0.07, 0.65).fill(0xc5d8dc);
     } else if (terr) {
       g.circle(0, -0.18, 0.17).fill(0xa7b3ae);
       g.roundRect(-0.23, -0.1, 0.46, 0.45, 0.1).fill(color);
@@ -291,6 +318,11 @@ export function updateEconomicMarker(
       (width * Math.max(0, sp)) / 10,
       0.08,
     ).fill(0x7ebdff);
+  }
+  if (e.energy !== undefined) {
+    const width = 1;
+    g.rect(-width / 2, -h / 2 - 0.42, width, 0.08).fill(0x172327);
+    g.rect(-width / 2, -h / 2 - 0.42, width * e.energy / (e.maxEnergy ?? 200), 0.08).fill(0xc28cff);
   }
   return true;
 }
