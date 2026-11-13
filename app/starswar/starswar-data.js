@@ -131,8 +131,8 @@ export const STW_UNITS = {
   carrier: {
     id: "carrier", name: "캐리어", short: "C", minerals: 350, gas: 250, time: 70, supply: 6, from: "stargate", requires: "beacon",
     hp: 300, shields: 150, armor: 4, size: "large", speed: 2.2, radius: 2.2, sight: 11, flying: true, decoy: 0.4,
-    damage: 6, hits: 4, damageType: "normal", range: 8, cooldown: 1, weaponStep: 0, role: "air", targets: "both",
-    note: "인터셉터 4기(연구 후 8기)가 6씩 · 사거리 8 · 지상·공중 모두 · 날아다니는 인터셉터가 공격의 40%를 대신 맞음",
+    damage: 6, hits: 4, damageType: "normal", range: 9, cooldown: 1, weaponStep: 0, role: "air", targets: "both",
+    note: "인터셉터 4기(연구 후 8기)가 6씩 · 사거리 9 · 지상·공중 모두 · 날아다니는 인터셉터가 공격의 40%를 대신 맞음",
   },
   arbiter: {
     id: "arbiter", name: "아비터", short: "B", minerals: 100, gas: 350, time: 80, supply: 4, from: "stargate", requires: "tribunal",
@@ -144,9 +144,9 @@ export const STW_UNITS = {
   reaver: {
     id: "reaver", name: "리버", short: "R", minerals: 200, gas: 100, time: 35, supply: 4, from: "robo", requires: "bay",
     hp: 100, shields: 80, armor: 0, size: "large", speed: 1.8, radius: 1.7, sight: 10,
-    damage: 100, hits: 1, damageType: "normal", range: 8, cooldown: 3.5, weaponStep: 0, role: "siege",
+    damage: 100, hits: 1, damageType: "normal", range: 9, cooldown: 3.5, weaponStep: 0, role: "siege",
     splash: { radius: 2.4, factor: 0.5 },
-    note: "느림 · 사거리 8 범위 포격 · 뭉친 적과 건물에 강함",
+    note: "느림 · 사거리 9 범위 포격(방어 건물 밖에서 칠 수 있음) · 뭉친 적과 건물에 강함",
   },
 
   // ───── 테란 ─────
@@ -214,9 +214,9 @@ export const STW_UNITS = {
   battlecruiser: {
     id: "battlecruiser", race: "terran", name: "배틀크루저", short: "B", minerals: 400, gas: 300, time: 80, supply: 6, from: "starport", requires: "science",
     hp: 650, shields: 0, armor: 3, size: "large", speed: 2.3, radius: 2.4, sight: 11, flying: true,
-    damage: 25, hits: 1, damageType: "normal", range: 6, cooldown: 1, weaponStep: 0, role: "air", targets: "both",
+    damage: 25, hits: 1, damageType: "normal", range: 8, cooldown: 1, weaponStep: 0, role: "air", targets: "both",
     energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["yamato"],
-    note: "체력 650 전함 · 지상·공중 25 · 야마토 포(연구 후, 260 한 방)",
+    note: "체력 650 전함 · 사거리 8 · 지상·공중 25 · 야마토 포(연구 후, 260 한 방, 사거리 10)",
   },
   wraith: {
     id: "wraith", race: "terran", name: "레이스", short: "W", minerals: 150, gas: 100, time: 38, supply: 2, from: "starport",
@@ -278,8 +278,8 @@ export const STW_UNITS = {
   guardian: {
     id: "guardian", race: "zerg", name: "가디언", short: "G", minerals: 150, gas: 200, time: 40, supply: 2, from: "hatchery", requires: "spire", requiresResearch: "greaterSpire",
     hp: 150, shields: 0, armor: 2, size: "large", speed: 1.8, radius: 1.6, sight: 11, flying: true,
-    damage: 20, hits: 1, damageType: "normal", range: 8, cooldown: 2, weaponStep: 0, role: "air", targets: "ground",
-    note: "느린 공중 포대 · 사거리 8로 지상만 · 공중 공격을 못 함",
+    damage: 20, hits: 1, damageType: "normal", range: 9, cooldown: 2, weaponStep: 0, role: "air", targets: "ground",
+    note: "느린 공중 포대 · 사거리 9로 지상만(방어 건물 밖에서 칠 수 있음) · 공중 공격을 못 함",
   },
   devourer: {
     id: "devourer", race: "zerg", name: "디바우러", short: "V", minerals: 250, gas: 150, time: 40, supply: 2, from: "hatchery", requires: "spire", requiresResearch: "greaterSpire",
@@ -419,7 +419,7 @@ export const STW_RESEARCH = {
   armor1: { id: "armor1", name: "지상 방어 1단계", at: "forge", minerals: 100, gas: 100, time: 40, note: "모든 유닛 방어력 +1" },
   weapons2: { id: "weapons2", name: "지상 공격 2단계", at: "forge", minerals: 150, gas: 150, time: 50, requires: ["weapons1", "citadel"], note: "공격력 한 단계 더" },
   shields1: { id: "shields1", name: "보호막 1단계", at: "forge", minerals: 150, gas: 150, time: 45, requires: ["armor1"], note: "보호막 방어력 +1" },
-  range: { id: "range", name: "특이점 충전", at: "core", minerals: 150, gas: 150, time: 45, note: "드라군 사거리 5.5 → 8" },
+  range: { id: "range", name: "특이점 충전", at: "core", minerals: 150, gas: 150, time: 45, note: "드라군 사거리 5.5 → 7" },
   charge: { id: "charge", name: "다리 강화", at: "citadel", minerals: 150, gas: 150, time: 45, note: "질럿 이동 속도 +50%" },
   storm: { id: "storm", name: "사이오닉 스톰", at: "archives", minerals: 200, gas: 200, time: 55, note: "하이템플러가 뭉친 적에게 스톰을 자동 시전" },
   carrierCapacity: { id: "carrierCapacity", name: "캐리어 수용량", at: "beacon", minerals: 100, gas: 100, time: 50, note: "캐리어 인터셉터 4 → 8기" },
@@ -432,7 +432,7 @@ export const STW_RESEARCH = {
   infArmor1: { id: "infArmor1", race: "terran", name: "보병 방어 1단계", at: "ebay", minerals: 100, gas: 100, time: 40, note: "보병 방어력 +1" },
   infWeapons2: { id: "infWeapons2", race: "terran", name: "보병 공격 2단계", at: "ebay", minerals: 175, gas: 175, time: 50, requires: ["infWeapons1", "academy"], note: "보병 공격력 한 단계 더" },
   stim: { id: "stim", race: "terran", name: "스팀팩", at: "academy", minerals: 100, gas: 100, time: 45, note: "교전 시 체력 10을 써서 10초간 공격·이동 속도 +50%" },
-  u238: { id: "u238", race: "terran", name: "U-238 탄", at: "academy", minerals: 150, gas: 150, time: 40, note: "해병 사거리 4.5 → 5.5" },
+  u238: { id: "u238", race: "terran", name: "U-238 탄", at: "academy", minerals: 150, gas: 150, time: 40, note: "해병 사거리 5 → 6" },
   siege: { id: "siege", race: "terran", name: "시즈 모드", at: "shop", minerals: 150, gas: 150, time: 50, note: "적이 오면 탱크가 자동으로 시즈 · 사거리 12 범위 포격" },
   ion: { id: "ion", race: "terran", name: "이온 추진기", at: "shop", minerals: 100, gas: 100, time: 35, note: "벌처 이동 속도 +40%" },
   irradiate: { id: "irradiate", race: "terran", name: "이레디에이트", at: "science", minerals: 200, gas: 200, time: 50, note: "사이언스 베슬이 생체 유닛에 25초 동안 초당 10 피해(주변 생체 유닛도)" },
@@ -501,9 +501,12 @@ export const STW_CANCEL_REFUND = 0.75;
 
 /**
  * 지역 방어: 방어 건물은 자기 사거리 안의 적뿐 아니라, 같은 기지의 어떤 건물이든 이 거리 안에서 노릴 수 있는 적을 모두 쏜다.
- * 사거리 8(드라군 특이점 충전, 리버)까지 덮고, 시즈 모드 탱크(12)만 밖에서 때릴 수 있다.
+ * 8칸: 사거리 7(캐논·성큰과 같은 드라군 특이점 충전)과 배틀크루저(8)까지 덮고, 원작처럼 사거리 9(가디언·리버·캐리어)와
+ * 시즈 모드 탱크(12)는 밖에서 때릴 수 있다(구역은 유닛 몸집의 절반을 빼고 재므로 사거리 9 유닛은 약 8.2~8.4칸에 선다).
+ * 예전에는 드라군을 8로 늘려 놓아 8.5칸으로 덮었고, 그 때문에 가디언·리버도 벙커 사거리 밖에서 맞았다.
+ * 7.5칸으로 줄이면 캐논 수비가 약해져 프로토스 대 바이오가 18판 12승에서 6승으로 떨어졌다(8칸은 11승).
  */
-export const STW_DEFENSE_REACH = 8.5;
+export const STW_DEFENSE_REACH = 8;
 
 export const STW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 35, castRange: 9, minTargets: 3 };
 

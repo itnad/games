@@ -2297,7 +2297,8 @@ function stimmed(state, unit) {
 
 function unitRange(state, unit) {
   const def = STW_UNITS[unit.type];
-  if (unit.type === "dragoon" && stwResearchDone(state, unit.side, "range")) return 8;
+  // 특이점 충전: 7(캐논·성큰과 같다). 8이던 때는 캐논 밖에서 건물을 쳐서 지역 방어 구역을 넓게 잡아야 했다.
+  if (unit.type === "dragoon" && stwResearchDone(state, unit.side, "range")) return 7;
   if (unit.type === "marine" && stwResearchDone(state, unit.side, "u238")) return def.range + 1;
   if (unit.type === "hydra" && stwResearchDone(state, unit.side, "spines")) return def.range + 1.5;
   return def.range ?? 0;
