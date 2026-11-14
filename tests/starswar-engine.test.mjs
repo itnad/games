@@ -2649,6 +2649,48 @@ test("starswar defence buildings guard the main first once enemy transports have
   assert.equal(stwOwnBuildings(state, "player", "cannon")[1].base, "main", "수송선을 본 뒤 본진에 하나");
   stwCommand(state, "player", { type: "build", building: "cannon" });
   assert.equal(stwOwnBuildings(state, "player", "cannon")[2].base, "natural", "본진에 하나 있으면 다시 앞마당");
+  // 자동으로 본진에 세운 첫 캐논은 광물 줄 왼쪽 전용 자리에 선다(예전에는 빈 일반 자리 아무 곳, 실제 경기에서는 앞 구석).
+  assert.equal(stwOwnBuildings(state, "player", "cannon")[1].slot, "guard-0");
+});
+
+test("starswar defence buildings go front (natural, else the main's front row) or rear (mineral-line guard slots, then the main from the back)", () => {
+  const state = quiet();
+  state.sides.player.minerals = 20000;
+  for (const building of ["pylon", "forge"]) {
+    stwCommand(state, "player", { type: "build", building });
+    finishAll(state);
+  }
+  const cannons = () => stwOwnBuildings(state, "player", "cannon");
+  // 앞마당이 없을 때 전방은 예전처럼 본진 앞줄 가운데(앞마당 광물 뒤쪽 길목).
+  assert.equal(stwCommand(state, "player", { type: "build", building: "cannon", spot: "front" }).ok, true);
+  assert.equal(cannons()[0].base, "main");
+  assert.ok(Math.abs(cannons()[0].x - 20) < 3, "앞줄 가운데");
+  // 후방: 광물 줄 좌우 전용 자리 둘 → 본진 뒤쪽 줄부터.
+  for (let index = 0; index < 3; index += 1) assert.equal(stwCommand(state, "player", { type: "build", building: "cannon", spot: "rear" }).ok, true);
+  const rear = cannons().slice(1);
+  assert.deepEqual(rear.slice(0, 2).map((cannon) => cannon.slot), ["guard-0", "guard-1"]);
+  assert.deepEqual(rear.slice(0, 2).map((cannon) => [cannon.x, cannon.y]), STW_LAYOUT.guardSlots.map((slot) => [slot.x, slot.y]));
+  assert.equal(rear[2].base, "main");
+  assert.ok(rear[2].y >= 91, `전용 자리가 차면 본진 뒤쪽 줄 (${rear[2].y})`);
+  // 전용 자리는 일반 건물이 쓰지 않는다.
+  stwCommand(state, "player", { type: "build", building: "gateway" });
+  assert.ok(!stwOwnBuildings(state, "player", "gateway")[0].slot.startsWith("guard"));
+  // 앞마당이 있으면 전방은 앞마당.
+  stwCommand(state, "player", { type: "build", building: "expand" });
+  finishAll(state);
+  stwCommand(state, "player", { type: "build", building: "cannon", spot: "front" });
+  assert.equal(cannons().at(-1).base, "natural");
+  stwCommand(state, "player", { type: "build", building: "cannon", spot: "rear" });
+  assert.equal(cannons().at(-1).base, "main", "앞마당이 있어도 후방은 본진");
+  // 본진 자리가 다 차면 후방은 지을 수 없다고 알린다.
+  const full = quiet();
+  full.sides.player.minerals = 99999;
+  for (const building of ["pylon", "forge"]) {
+    stwCommand(full, "player", { type: "build", building });
+    finishAll(full);
+  }
+  for (let index = 0; index < 40; index += 1) stwCommand(full, "player", { type: "build", building: "cannon", spot: "rear" });
+  assert.match(stwBuildCheck(full, "player", "cannon", "rear").reason, /후방\(본진\)에 지을 자리가 없습니다/);
 });
 
 test("starswar AI answers drops: main defence after a sighting, four guards kept home, and raids of its own", () => {

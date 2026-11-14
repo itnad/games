@@ -456,6 +456,11 @@ function costCheck(record, minerals, gas) {
   return { ok: true };
 }
 
+/** 방어 건물 위치 선택값을 정리한다(전방·후방 말고는 자동). */
+function defenseSpot(spot) {
+  return spot === "front" || spot === "rear" ? spot : undefined;
+}
+
 function freeSlot(state, side, list, prefix, { frontFirst = false } = {}) {
   const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
   // 일반 건물은 뒤쪽(본진 안쪽) 줄부터 채운다(목록 끝에 붙인 뒷줄 칸도 먼저 쓴다). 같은 줄에서는 목록 순서.
@@ -475,42 +480,57 @@ export function stwFreeSlots(state, side) {
   return free;
 }
 
-function placementFor(state, side, type) {
+function placementFor(state, side, type, spot) {
+  const layout = stwMap(state).layout;
   if (STW_BUILDINGS[type]?.refinery) {
     // 본진 간헐천 둘을 먼저, 앞마당 간헐천은 앞마당 기지가 완성된 뒤에 쓴다.
     const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
     const naturalBase = stwNexus(state, side, "natural");
     const naturalReady = Boolean(naturalBase && stwDone(naturalBase));
-    const index = stwMap(state).layout.geysers.findIndex((point, i) => (point.base === "main" || naturalReady) && !used.has(`geyser-${i}`));
+    const index = layout.geysers.findIndex((point, i) => (point.base === "main" || naturalReady) && !used.has(`geyser-${i}`));
     if (index < 0) return null;
-    const geyser = stwMap(state).layout.geysers[index];
+    const geyser = layout.geysers[index];
     return { key: `geyser-${index}`, point: stwPoint(side, geyser), base: geyser.base };
   }
   const natural = stwNexus(state, side, "natural");
   if (STW_BUILDINGS[type]?.defense) {
-    // 상대 수송선을 본 뒤에는 같은 종류의 방어 건물이 본진에 하나도 없으면 본진(광물 줄 가까운 뒤쪽)에 먼저 세운다.
+    // 후방: 본진 광물 줄 좌우 전용 자리부터, 다 차면 본진 뒤쪽 줄부터 앞쪽으로(드랍 막기).
+    const rear = () => {
+      const guard = freeSlot(state, side, layout.guardSlots ?? [], "guard");
+      if (guard) return { ...guard, base: "main" };
+      const back = freeSlot(state, side, layout.mainSlots, "main");
+      return back ? { ...back, base: "main" } : null;
+    };
+    // 전방: 앞마당이 있으면 앞마당, 없으면(또는 앞마당이 차면) 본진 앞줄 가운데부터(앞마당 광물 뒤쪽 길목).
+    const front = () => {
+      if (natural) {
+        const slot = freeSlot(state, side, layout.naturalSlots, "natural");
+        if (slot) return { ...slot, base: "natural" };
+      }
+      const main = freeSlot(state, side, layout.mainSlots, "main", { frontFirst: true });
+      return main ? { ...main, base: "main" } : null;
+    };
+    if (spot === "rear") return rear();
+    if (spot === "front") return front();
+    // 고르지 않았으면(AI·예전 명령): 상대 수송선을 본 뒤 같은 종류의 방어 건물이 본진에 하나도 없으면 후방에 먼저 세운다.
     const record = state.sides[side];
     if (natural && record.sawTransportAt !== undefined && !state.buildings.some((building) => building.side === side && building.type === type && building.base === "main")) {
-      const back = freeSlot(state, side, stwMap(state).layout.mainSlots, "main");
-      if (back) return { ...back, base: "main" };
+      const back = rear();
+      if (back) return back;
     }
-    if (natural) {
-      const slot = freeSlot(state, side, stwMap(state).layout.naturalSlots, "natural");
-      if (slot) return { ...slot, base: "natural" };
-    }
-    const front = freeSlot(state, side, stwMap(state).layout.mainSlots, "main", { frontFirst: true });
-    return front ? { ...front, base: "main" } : null;
+    return front();
   }
-  const main = freeSlot(state, side, stwMap(state).layout.mainSlots, "main");
+  const main = freeSlot(state, side, layout.mainSlots, "main");
   if (main) return { ...main, base: "main" };
   if (natural && stwDone(natural)) {
-    const slot = freeSlot(state, side, stwMap(state).layout.naturalSlots, "natural");
+    const slot = freeSlot(state, side, layout.naturalSlots, "natural");
     if (slot) return { ...slot, base: "natural" };
   }
   return null;
 }
 
-export function stwBuildCheck(state, side, type) {
+/** spot: 방어 건물을 지을 쪽("front" 전방·"rear" 후방). 없으면 예전처럼 자동으로 고른다. */
+export function stwBuildCheck(state, side, type, spot) {
   const record = state.sides[side];
   if (type === "expand") {
     if (stwNexus(state, side, "natural")) return fail("이미 앞마당에 기지가 있습니다");
@@ -524,8 +544,8 @@ export function stwBuildCheck(state, side, type) {
   if (def.requires && !stwHas(state, side, def.requires)) return fail(`${withKoreanSubject(STW_BUILDINGS[def.requires].name)} 필요합니다`);
   if (def.requiresResearch && !stwResearchDone(state, side, def.requiresResearch)) return fail(`${withKoreanSubject(STW_RESEARCH[def.requiresResearch].name)} 필요합니다`);
   if (def.unique && stwOwnBuildings(state, side, type).length) return fail("이미 있습니다");
-  if (!placementFor(state, side, type)) {
-    if (!def.refinery) return fail("지을 자리가 없습니다");
+  if (!placementFor(state, side, type, defenseSpot(spot))) {
+    if (!def.refinery) return fail(def.defense && spot === "rear" ? "후방(본진)에 지을 자리가 없습니다" : "지을 자리가 없습니다");
     const naturalTaken = state.buildings.some((building) => building.side === side && building.slot === `geyser-${stwMap(state).layout.geysers.findIndex((point) => point.base === "natural")}`);
     return fail(naturalTaken ? "가스 간헐천이 모두 찼습니다" : "앞마당 기지가 서면 앞마당 간헐천에 지을 수 있습니다");
   }
@@ -816,7 +836,8 @@ function runCommand(state, side, command) {
       return { ok: true };
     }
     case "build": {
-      const check = stwBuildCheck(state, side, command.building);
+      const spot = defenseSpot(command.spot);
+      const check = stwBuildCheck(state, side, command.building, spot);
       if (!check.ok) return check;
       const race = stwRace(state, side);
       if (command.building === "expand") {
@@ -827,7 +848,7 @@ function runCommand(state, side, command) {
         return { ok: true };
       }
       const def = STW_BUILDINGS[command.building];
-      const place = placementFor(state, side, command.building);
+      const place = placementFor(state, side, command.building, spot);
       record.minerals -= def.minerals;
       record.gas -= def.gas;
       placeBuilding(state, side, command.building, place.point, place.base, place.key);
@@ -4166,7 +4187,7 @@ function updateVision(state) {
       const carrying = STW_UNITS[unit.type].transport || (unit.type === "overlord" && (unit.cargo?.length || unit.dropPath?.length));
       if (!carrying || (side === "player" ? unit.y < 50 : unit.y > 50) || !stwVisible(state, side, unit.x, unit.y)) continue;
       record.sawTransportAt = state.time;
-      if (side === "player") alertOnce(state, "transport", 30, "player", "적 수송선이 다가옵니다! 본진에 방어 건물을 갖추세요.", "danger");
+      if (side === "player") alertOnce(state, "transport", 30, "player", "적 수송선이 다가옵니다! 방어 건물을 \"후방\"으로 지어 본진 광물 줄을 지키세요.", "danger");
     }
     const foeMain = stwNexus(state, foe, "main");
     if (foeMain && stwVisible(state, side, foeMain.x, foeMain.y, 2)) {

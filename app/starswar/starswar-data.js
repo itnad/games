@@ -38,6 +38,9 @@ export const STW_LAYOUT = {
   geysers: GEYSERS,
   // 본진 건물 자리: 넥서스·광물·간헐천을 피한 격자. 일반 건물은 뒤쪽부터, 포톤 캐논은 앞쪽부터 채운다.
   mainSlots: mainGrid(),
+  // 본진 광물 줄 좌우의 방어 건물 전용 자리(일반 건물은 쓰지 않는다). 간헐천과 넥서스 사이, 광물 줄 바로 위.
+  // "후방"으로 지은 방어 건물이 이 두 칸부터 쓰고, 다 차면 본진 뒤쪽 줄부터 앞쪽으로 일반 자리를 쓴다.
+  guardSlots: [{ x: 13.9, y: 94.5 }, { x: 26.1, y: 94.5 }],
   // 앞마당 건물 자리: 앞마당 기지가 완성되면 쓴다. 처음 6칸 뒤로 앞마당 양옆과 앞쪽 가장자리 10칸을 더했다(가운데 길은 비운다).
   // 본진 20칸이 차면 위쪽(앞마당 쪽)에 빈 땅이 보여도 짓지 못했다. 앞에 붙인 칸의 순서는 저장한 경기의 자리 번호라 바꾸지 않는다.
   naturalSlots: [
@@ -353,7 +356,7 @@ export const STW_BUILDINGS = {
   forge: { unique: true, id: "forge", name: "포지", minerals: 150, gas: 0, time: 28, hp: 550, shields: 550, armor: 1, size: 4.6, requires: "pylon", sight: 8, note: "지상 공격·방어 업그레이드 · 포톤 캐논 해금" },
   cannon: {
     id: "cannon", name: "포톤 캐논", minerals: 150, gas: 0, time: 25, hp: 100, shields: 100, armor: 0, size: 3.2, requires: "forge", sight: 11,
-    damage: 20, hits: 1, damageType: "normal", range: 7, cooldown: 1.25, detector: 7, defense: true, targets: "both", note: "지상·공중 모두 쏘며 기지 전체를 지키고 은폐를 탐지 · 앞마당이 있으면 앞마당에 세움",
+    damage: 20, hits: 1, damageType: "normal", range: 7, cooldown: 1.25, detector: 7, defense: true, targets: "both", note: "지상·공중 모두 쏘며 기지 전체를 지키고 은폐를 탐지",
   },
   citadel: { unique: true, id: "citadel", name: "아둔의 성소", minerals: 150, gas: 100, time: 35, hp: 450, shields: 450, armor: 1, size: 4.4, requires: "core", sight: 8, note: "질럿 다리 강화 연구 · 아카이브 해금" },
   archives: { unique: true, id: "archives", name: "템플러 아카이브", minerals: 150, gas: 200, time: 40, hp: 500, shields: 500, armor: 1, size: 4.6, requires: "citadel", sight: 8, note: "하이템플러·다크템플러 해금 · 사이오닉 스톰 연구" },
@@ -371,7 +374,7 @@ export const STW_BUILDINGS = {
   ebay: { unique: true, id: "ebay", race: "terran", name: "엔지니어링 베이", minerals: 125, gas: 0, time: 28, hp: 850, shields: 0, armor: 1, size: 4.6, requires: "depot", sight: 8, note: "보병 공격·방어 업그레이드 · 미사일 터렛 해금" },
   bunker: {
     id: "bunker", race: "terran", name: "벙커", minerals: 100, gas: 0, time: 22, hp: 350, shields: 0, armor: 1, size: 3.6, requires: "barracks", sight: 10,
-    damage: 6, hits: 3, damageType: "normal", range: 6, cooldown: 1.1, defense: true, targets: "both", note: "해병 3기가 주둔한 화력으로 기지 전체를 지킴(대공) · 앞마당이 있으면 앞마당에 세움",
+    damage: 6, hits: 3, damageType: "normal", range: 6, cooldown: 1.1, defense: true, targets: "both", note: "해병 3기가 주둔한 화력으로 기지 전체를 지킴(대공)",
   },
   turret: {
     id: "turret", race: "terran", name: "미사일 터렛", minerals: 75, gas: 0, time: 18, hp: 200, shields: 0, armor: 0, size: 3, requires: "ebay", sight: 11, detector: 7, defense: true,
@@ -397,7 +400,7 @@ export const STW_BUILDINGS = {
   evo: { unique: true, id: "evo", race: "zerg", name: "에볼루션 챔버", minerals: 75, gas: 0, time: 25, hp: 750, shields: 0, armor: 1, size: 4.4, sight: 8, note: "근접·원거리 공격과 갑피 업그레이드 · 스포어 콜로니 해금" },
   sunken: {
     id: "sunken", race: "zerg", name: "성큰 콜로니", minerals: 125, gas: 0, time: 25, hp: 300, shields: 0, armor: 2, size: 3.4, requires: "pool", sight: 10,
-    damage: 40, hits: 1, damageType: "explosive", range: 7, cooldown: 2, defense: true, note: "땅속 촉수로 기지 전체를 지킴 · 폭발형 40 · 앞마당이 있으면 앞마당에 세움",
+    damage: 40, hits: 1, damageType: "explosive", range: 7, cooldown: 2, defense: true, note: "땅속 촉수로 기지 전체를 지킴 · 폭발형 40",
   },
   spore: {
     id: "spore", race: "zerg", name: "스포어 콜로니", minerals: 75, gas: 0, time: 20, hp: 400, shields: 0, armor: 0, size: 3.2, requires: "evo", sight: 10, detector: 7, defense: true,

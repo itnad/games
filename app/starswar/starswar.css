@@ -118,6 +118,12 @@
 .stw-panel-body { min-height:0; padding:10px 10px 16px; overflow-y:auto; overscroll-behavior:contain; }
 .stw-tab { display:grid; gap:10px; }
 .stw-workers { margin:0; color:var(--stw-soft); font-size:14px !important; }
+/* 방어 건물 위치(전방·후방): 건설 카드 위 한 줄. */
+.stw-defense-spot { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.stw-defense-spot > span { color:var(--stw-soft); font-size:14px !important; font-weight:800; }
+.stw-defense-spot button { min-height:34px; padding:0 14px; border:1px solid color-mix(in srgb,var(--stw-gold) 30%,transparent); border-radius:10px; background:color-mix(in srgb,var(--stw-veil) 3%,transparent); font-size:14px !important; font-weight:900; }
+.stw-defense-spot button.active { color:var(--stw-on-gold); border-color:var(--stw-gold); background:var(--stw-gold); }
+.stw-defense-spot small { flex:1 1 140px; color:var(--stw-muted); font-size:12.5px !important; }
 /* 카드는 세 줄. 좁은 휴대폰(411px)에서도 한 칸이 120px 남짓이라 이름·비용·설명을 줄여 쓴다. */
 .stw-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
 .stw-card { min-width:0; min-height:70px; padding:7px 8px; display:grid; align-content:start; gap:2px; text-align:left; border:1px solid color-mix(in srgb,var(--stw-gold) 19%,transparent); border-radius:12px; background:var(--stw-card); overflow-wrap:anywhere; word-break:keep-all; }

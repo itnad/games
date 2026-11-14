@@ -55,7 +55,7 @@ import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./starswar
 import { THEMES, ThemeFonts, themeProps, type ThemeId } from "./starswar-theme";
 import { PAPEROID_BUILD_ID, PAPEROID_GIT_SHA } from "../app-version";
 import { GameObjectiveGuide } from "../game-objective-guide";
-import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwMapData, StwMapId, StwOp, StwBuildingType, StwCheck, StwCommand, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
+import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwMapData, StwMapId, StwOp, StwBuildingType, StwCheck, StwCommand, StwDefenseSpot, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
 
 type Screen = "menu" | "play" | "lab";
 
@@ -385,6 +385,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [, setFrame] = useState(0);
   const [paused, setPaused] = useState(false);
   const [tab, setTab] = useState<Tab>("build");
+  // 방어 건물을 지을 쪽(전방·후방). 경기 중 탭을 옮겨도 그대로 둔다.
+  const [defenseSpot, setDefenseSpot] = useState<StwDefenseSpot>("front");
   const [toast, setToast] = useState<Toast | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
   const [record, setRecord] = useState<BattleRecord>(() => (typeof window === "undefined" ? { wins: 0, losses: 0, best: {} } : readRecord()));
@@ -769,8 +771,17 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     if (Math.hypot(point.x - gesture.x, point.y - gesture.y) > 10) return;
     const target = stwScreenToMap(viewRef.current, point.x, point.y);
     lastMapTapRef.current = event.timeStamp;
-    if (selected.length) issue({ type: "squadMove", units: selected, y: target.y });
-    else issue({ type: "move", y: target.y });
+    // 부대 지휘 중에는 고른 부대만 옮기고, 명령마다 다시 고른다(예전 선택이 남아 엉뚱한 부대가 움직이지 않게).
+    if (squadOpen) {
+      if (!selected.length) {
+        showToast("옮길 부대를 먼저 고르세요. 부대 지휘를 닫으면 지도를 눌러 본대를 옮깁니다.");
+        return;
+      }
+      issue({ type: "squadMove", units: selected, y: target.y });
+      setSelected([]);
+      return;
+    }
+    issue({ type: "move", y: target.y });
   };
 
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
@@ -1011,7 +1022,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             <div className="stw-panel-body stw-squad-panel" role="group" aria-label="부대 고르기">
               <div className="stw-squad-head">
                 <b>부대 지휘</b>
-                <span>{selected.length ? "지도를 누르면 고른 부대만 그 자리로 갑니다" : "옮길 유닛 종류를 고르세요"}</span>
+                <span>{selected.length ? "지도를 누르면 고른 부대만 그 자리로 갑니다" : "옮길 유닛 종류를 고르세요 · 명령마다 다시 고릅니다"}</span>
                 <button type="button" onClick={closeSquad}>닫기</button>
               </div>
               <div className="stw-squad-chips">
@@ -1023,8 +1034,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 )) : <span>옮길 전투 유닛이 없습니다</span>}
               </div>
               <div className="stw-squad-actions">
-                <button type="button" disabled={!selected.length} onClick={() => issue({ type: "squadMove", units: selected, y: 20 })}>이 부대 출격</button>
-                <button type="button" disabled={!selected.some((type) => squadSpots[type] || walkingTypes.has(type))} onClick={() => issue({ type: "squadRelease", units: selected })}>본대로</button>
+                <button type="button" disabled={!selected.length} onClick={() => { issue({ type: "squadMove", units: selected, y: 20 }); setSelected([]); }}>이 부대 출격</button>
+                <button type="button" disabled={!selected.some((type) => squadSpots[type] || walkingTypes.has(type))} onClick={() => { issue({ type: "squadRelease", units: selected }); setSelected([]); }}>본대로</button>
                 <button type="button" disabled={!selected.length} onClick={() => setSelected([])}>선택 해제</button>
               </div>
               <div className="stw-squad-actions two">
@@ -1045,7 +1056,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             </div>
           ) : (
             <div className="stw-panel-body" key={tab}>
-              {tab === "build" ? <BuildTab game={game} issue={issue} /> : null}
+              {tab === "build" ? <BuildTab game={game} issue={issue} defenseSpot={defenseSpot} setDefenseSpot={setDefenseSpot} /> : null}
               {tab === "produce" ? <ProduceTab game={game} issue={issue} /> : null}
               {tab === "research" ? <ResearchTab game={game} issue={issue} /> : null}
               {tab === "army" ? <ArmyTab game={game} issue={issue} /> : null}
@@ -1163,7 +1174,12 @@ function Card({ title, sub, note, disabled, onClick, tone, badge }: { title: str
   );
 }
 
-function BuildTab({ game, issue }: { game: StwState; issue: Issue }) {
+const DEFENSE_SPOTS: { id: StwDefenseSpot; name: string; note: string }[] = [
+  { id: "front", name: "전방", note: "앞마당(없으면 본진 앞줄)부터" },
+  { id: "rear", name: "후방", note: "본진 광물 줄 좌우부터 · 드랍 막기" },
+];
+
+function BuildTab({ game, issue, defenseSpot, setDefenseSpot }: { game: StwState; issue: Issue; defenseSpot: StwDefenseSpot; setDefenseSpot: (spot: StwDefenseSpot) => void }) {
   const race = raceOf(game);
   const worker = STW_UNITS[race.worker];
   const baseDef = STW_BUILDINGS[race.base];
@@ -1176,17 +1192,26 @@ function BuildTab({ game, issue }: { game: StwState; issue: Issue }) {
       <p className="stw-workers">
         {worker.name} {game.sides.player.probes} · 본진 {split.main}/{STW_ECONOMY.fullSaturation}{bases.length > 1 ? ` · 앞마당 ${split.natural}/${STW_ECONOMY.fullSaturation}` : ""} · 가스 {split.gas}{split.idle ? ` · 남는 ${split.idle}` : ""}
       </p>
+      <div className="stw-defense-spot" role="group" aria-label="방어 건물 위치">
+        <span>방어 건물</span>
+        {DEFENSE_SPOTS.map((item) => (
+          <button key={item.id} type="button" className={defenseSpot === item.id ? "active" : ""} aria-pressed={defenseSpot === item.id} onClick={() => setDefenseSpot(item.id)}>{item.name}</button>
+        ))}
+        <small>{DEFENSE_SPOTS.find((item) => item.id === defenseSpot)?.note}</small>
+      </div>
       <div className="stw-grid">
         <Card title={`${worker.name} +1`} sub={cost(worker.minerals, 0)} badge={queued ? `대기 ${queued}` : undefined} note={probe.ok ? "광물 채취 속도 증가" : probe.reason} disabled={!probe.ok} onClick={() => issue({ type: "probe" })} />
         {race.builds.map((id) => {
           const def = id === "expand" ? baseDef : STW_BUILDINGS[id];
-          const check = stwBuildCheck(game, "player", id) as StwCheck;
+          const defense = id !== "expand" && Boolean((def as { defense?: boolean }).defense);
+          const spot = defense ? defenseSpot : undefined;
+          const check = stwBuildCheck(game, "player", id, spot) as StwCheck;
           const owned = id === "expand" ? bases.filter((item) => (item as { base: string }).base === "natural") : stwOwnBuildings(game, "player", id);
           const building = owned.filter((item) => !stwDone(item)).length;
           const done = owned.length - building;
           const badge = building ? `${race.buildVerb} 중 ${building}` : done ? `보유 ${done}` : undefined;
-          const note = check.ok ? (id === "expand" ? "앞마당 광물 채취 · 인구 +10" : "note" in def ? def.note : "") : check.reason;
-          return <Card key={id} title={id === "expand" ? `앞마당 ${baseDef.name}` : def.name} sub={cost(def.minerals, def.gas)} badge={badge} note={note} disabled={!check.ok} onClick={() => issue({ type: "build", building: id })} />;
+          const note = check.ok ? (id === "expand" ? "앞마당 광물 채취 · 인구 +10" : `${defense ? `${spot === "rear" ? "후방" : "전방"} · ` : ""}${"note" in def ? def.note : ""}`) : check.reason;
+          return <Card key={id} title={id === "expand" ? `앞마당 ${baseDef.name}` : def.name} sub={cost(def.minerals, def.gas)} badge={badge} note={note} disabled={!check.ok} onClick={() => issue(spot ? { type: "build", building: id, spot } : { type: "build", building: id })} />;
         })}
       </div>
     </div>

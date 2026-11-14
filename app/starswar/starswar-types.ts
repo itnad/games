@@ -115,6 +115,9 @@ export type StwStorm = { id: number; side: StwSide; x: number; y: number; ttl: n
 export type StwZone = { id: number; kind: "swarm"; side: StwSide; x: number; y: number; radius: number; ttl: number; max: number };
 export type StwIntel = { race?: StwRaceId; time: number; buildings: Partial<Record<StwBuildingType, number>>; units: Record<StwArmyType, number>; research: { id: StwResearchId; status: string }[]; probes: number };
 export type StwSeen = { id: number; type: StwBuildingType; x: number; y: number; base: string; radius: number; at: number };
+/** 방어 건물을 지을 쪽: 전방(앞마당, 없으면 본진 앞줄), 후방(본진 광물 줄 좌우 전용 자리 → 본진 뒤쪽부터). */
+export type StwDefenseSpot = "front" | "rear";
+
 export type StwStats = { minerals: number; gas: number; produced: number; lost: number; kills: number; buildingsLost: number; buildingsDestroyed: number; storms: number; overkill: number; workersLost?: number; workersKilled?: number; valueLost?: number; supplyPeak?: number; spells?: number; repaired?: number; repairCost?: number };
 export type StwDropMission = "raid" | "bomb";
 export type StwDropTarget = "main" | "natural" | "tech" | "alternate" | "production";
@@ -183,6 +186,7 @@ export type StwMapData = {
     naturalMinerals: StwSpot;
     geysers: (StwSpot & { base: "main" | "natural" })[];
     mainSlots: (StwSpot & { blocked?: boolean })[];
+    guardSlots: StwSpot[];
     naturalSlots: StwSpot[];
   };
   rallyRange: { min: number; max: number };
@@ -227,7 +231,7 @@ export type StwState = {
 export type StwCommand =
   | { type: "probe" }
   | { type: "worker" }
-  | { type: "build"; building: StwBuildChoice }
+  | { type: "build"; building: StwBuildChoice; spot?: StwDefenseSpot }
   | { type: "research"; research: StwResearchId }
   | { type: "line"; buildingId: number; unit: StwArmyType | null }
   | { type: "lineAll"; unit: StwArmyType | null; producer?: StwProducerType }
