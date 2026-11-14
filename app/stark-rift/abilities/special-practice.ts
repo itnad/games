@@ -4,7 +4,7 @@ import { economyDefinition } from "../data/economy-catalog";
 /** A labelled practice setup supplies units and completed Zerg cargo research; normal economy still pays full costs. */
 export function initializeSpecialPractice(s: SimulationState) {
   const race = s.players[0].faction;
-  if (race === "zerg") for (const technologyId of ["ventral-sacs", "burrowing"])
+  if (race === "zerg") for (const technologyId of ["ventral-sacs", "burrowing", "lurker-aspect"])
     s.economy.upgrades.push({ playerId: 0, technologyId, level: 1 });
   if (race !== "zerg") {
     const supply = economyDefinition(race === "terran" ? "terran-supply-depot" : "protoss-pylon")!, tx = 10, ty = 19;
@@ -21,16 +21,33 @@ export function initializeSpecialPractice(s: SimulationState) {
     if (n >= 2) s.players[0].controlGroups[n < 4 ? 0 : 1].entityIds.push(id);
   }
   if (race === "terran") {
-    for (const technologyId of ["personnel-cloaking", "cloaking-field"]) s.economy.upgrades.push({ playerId: 0, technologyId, level: 1 });
+    for (const technologyId of ["personnel-cloaking", "cloaking-field", "tank-siege-mode"]) s.economy.upgrades.push({ playerId: 0, technologyId, level: 1 });
     for (const [n, definition] of ["terran-ghost", "terran-wraith"].entries()) {
       const id = createEconomicEntity(s, 0, economyDefinition(definition)!, { x: (16 + n * 4) * 256, y: 24 * 256 });
       s.combat!.friendlyIds.push(id); s.players[0].controlGroups[n + 2].entityIds.push(id);
     }
+  }
+  if (race === "zerg") {
+    s.players[0].minerals += 100; s.players[0].gas += 200;
+    const id = createEconomicEntity(s, 0, economyDefinition("zerg-lurker")!, { x: 24 * 256, y: 20 * 256 });
+    s.combat!.friendlyIds.push(id); s.players[0].controlGroups[2].entityIds.push(id);
+  }
+  if (race === "protoss") {
+    const d = economyDefinition("protoss-pylon")!, tx = 12, ty = 22;
+    const supply = createEconomicEntity(s, 0, d, { x: (tx + d.width / 2) * 256, y: (ty + d.height / 2) * 256 });
+    s.economy.structures.push(newStructure(supply, d, tx, ty, true, s.tick));
+    const id = createEconomicEntity(s, 0, economyDefinition("protoss-arbiter")!, { x: 18 * 256, y: 20 * 256 });
+    s.combat!.friendlyIds.push(id); s.players[0].controlGroups[2].entityIds.push(id);
   }
   if (race === "protoss") s.combat!.friendlyIds.push(createEconomicEntity(s, 0, economyDefinition("protoss-observer")!, { x: 14 * 256, y: 18 * 256 }));
   const target = race === "protoss" ? "protoss-dark-templar" : "protoss-probe";
   const id = createEconomicEntity(s, 1, economyDefinition(target)!, { x: 29 * 256, y: 20 * 256 });
   s.combat!.targetIds.push(id); s.movement[s.entities.id.indexOf(id)].order = "hold";
   const worker = workerOf(s, id); if (worker) releaseWork(s, worker, false);
+  if (race !== "protoss") for (const [x, y] of race === "zerg" ? [[28, 20], [30, 20]] : [[30, 20], [29, 21]]) {
+    const target = createEconomicEntity(s, 1, economyDefinition("protoss-probe")!, { x: x * 256, y: y * 256 });
+    s.combat!.targetIds.push(target); s.movement[s.entities.id.indexOf(target)].order = "hold";
+    const w = workerOf(s, target); if (w) releaseWork(s, w, false);
+  }
   recomputeSupply(s);
 }

@@ -1,3 +1,7 @@
+import { advanceSpines, launchSpines } from "./lurker-waves";
+import { LURKER, LURKER_WEAPON, LURKER_WAVE_RULES } from "../abilities/lurker-state";
+import { isTank, isSieged, siegeTransitionOf } from "../abilities/siege-state";
+import { siegeSplashTargets, SIEGE_CANNON } from "./siege-splash";
 import { initializeSpecialPractice } from "../abilities/special-practice";
 import { isEmbarked } from "../abilities/special-state";
 import { isBurrowed } from "../abilities/burrow";
@@ -29,7 +33,7 @@ export function synchronizeCombat(s: SimulationState) {
     const definitionId = s.entities.definitionId[i],
       old = previous.get(id);
     if (old?.definitionId === definitionId) return old;
-    const restored = definitionId === "zerg-drone" ? old?.workerFraction : definitionId === "zerg-lair" && old?.definitionId === "zerg-hatchery" ? { health: old.healthFraction, shield: old.shieldFraction } : null;
+    const restored = isTank(definitionId) && old && isTank(old.definitionId) ? { health: old.healthFraction, shield: old.shieldFraction } : definitionId === "zerg-drone" ? old?.workerFraction : definitionId === "zerg-lair" && old?.definitionId === "zerg-hatchery" ? { health: old.healthFraction, shield: old.shieldFraction } : null;
     return {
       entityId: id,
       definitionId,
@@ -208,7 +212,7 @@ function validTarget(
   const e = s.entities;
   return (
     b >= 0 &&
-    !isBurrowed(s, e.id[a]) && !isEmbarked(s, e.id[a]) && !isEmbarked(s, e.id[b]) &&
+    !siegeTransitionOf(s, e.id[a]) && (e.definitionId[a] === LURKER ? isBurrowed(s, e.id[a]) : !isBurrowed(s, e.id[a])) && !isEmbarked(s, e.id[a]) && !isEmbarked(s, e.id[b]) &&
     a !== b &&
     e.owner[a] !== e.owner[b] &&
     e.health[b] > 0 &&
@@ -335,6 +339,7 @@ export function createCombatRules(
     validate: (s, c, id) => {
       const failure = focus.validate(s, c, id);
       if (failure || !s.combat || c.kind !== "focusAttack") return failure;
+      if (s.entities.definitionId[s.entities.id.indexOf(id)] === LURKER && !isBurrowed(s, id)) return "invalid_state";
       return weaponFor(
         s.entities.definitionId[s.entities.id.indexOf(id)],
         s.entities.layer[s.entities.id.indexOf(c.target.entityId)],
@@ -400,9 +405,12 @@ export function createCombatRules(
             if (m.order !== "focusAttack") continue;
             const b = s.entities.id.indexOf(m.targetEntityId!);
             if (!validTarget(s, a, b, visible)) {
+              if (s.entities.definitionId[a] === LURKER) r.lastSeenTarget = null;
               const target = m.trackedTarget ?? m.target;
-              Object.assign(m, idleMovement(m.entityId));
-              if (target) {
+              const style = { formation: m.formation, stance: m.stance };
+              Object.assign(m, idleMovement(m.entityId), style);
+              if (isSieged(s.entities.definitionId[a]) || isBurrowed(s, m.entityId)) m.order = "hold";
+              else if (target) {
                 m.order = "move";
                 m.target = target;
                 m.status = "waiting";
@@ -459,6 +467,7 @@ export function createCombatRules(
             type: string;
             weaponId?: string;
           }[] = [];
+        shots.push(...advanceSpines(s));
         const flying: typeof s.combat.projectiles = [];
         for (const bullet of s.combat.projectiles) {
           const b = e.id.indexOf(bullet.targetId),
@@ -526,13 +535,14 @@ export function createCombatRules(
                 u.technologyId === economyId(w.upgrade),
             )?.level ?? 0;
           const flight = projectileRule(w.name);
+          if (w.name === LURKER_WEAPON.name && (s.lurker?.waves.length ?? 0) >= LURKER_WAVE_RULES.maximum) continue;
           if (flight && s.combat.projectiles.length >= MAX_COMBAT_PROJECTILES)
             continue;
           const frames = w.wpnDamageCooldowns * 5 + r.remainder;
           r.nextAttackTick = s.tick + Math.max(1, Math.floor(frames / 6));
           r.remainder = frames % 6;
           const miss =
-            !!map &&
+            !!map && w.name !== LURKER_WEAPON.name &&
             w.wpnMaxRange > 32 &&
             uphillAttack(s, map, a, b) &&
             (nextUint32(s.rngStreams, "combat") & 1) === 0;
@@ -545,7 +555,7 @@ export function createCombatRules(
               owner: e.owner[a],
               targetId: e.id[b],
               targetLayer: e.layer[b],
-              weaponId: w.name as "Fragmentation_Grenade" | "Phase_Disruptor",
+              weaponId: w.name as NonNullable<SimulationState["combat"]>["projectiles"][number]["weaponId"],
               x: e.x[a],
               y: e.y[a],
               spawnTick: s.tick,
@@ -556,6 +566,14 @@ export function createCombatRules(
               hits: p.hits,
             });
             effect(s, "launch", a, a, w.name);
+          } else if (w.name === LURKER_WEAPON.name) {
+            launchSpines(s, a, b, damage, map ?? { widthTiles: 128, heightTiles: 128 }); effect(s, "launch", a, a, w.name);
+          } else if (w.name === SIEGE_CANNON.name) {
+            if (!miss) for (const hit of siegeSplashTargets(s, a, e.x[b], e.y[b]))
+              shots.push({ a, b: hit.index, damage: Math.floor(damage / hit.divisor), hits: p.hits, type: w.damageType, weaponId: w.name });
+            effect(s, "shot", a, b, w.name);
+            effect(s, miss ? "miss" : "impact", a, b, w.name);
+            const blast = s.combat.effects.at(-1)!; blast.x = blast.toX; blast.y = blast.toY;
           } else {
             if (!miss)
               shots.push({

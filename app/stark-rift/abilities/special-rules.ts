@@ -1,3 +1,4 @@
+import { siegeTransitionOf } from "./siege-state";
 import type { SimulationState } from "../core/state";
 import type { GameCommand } from "../core/commands";
 import type { EngineRules } from "../core/simulation";
@@ -154,7 +155,7 @@ export function createSpecialRules(map: BattleMap, base: EngineRules): EngineRul
       validate: (s, c, id) => isEmbarked(s, id) && !["assignGroup", "setFormation", "setStance"].includes(c.kind) ? "invalid_state" :
         morphOf(s, id) && ["research", "placeBuilding"].includes(c.kind) ? "invalid_state" : handler.validate(s, c, id),
       apply: (s, c, ids) => {
-        if (["move", "attackMove", "focusAttack", "patrol", "stop", "hold", "gather", "returnCargo", "autoGather", "placeBuilding", "toggleStateAbility"].includes(c.kind) &&
+        if (["move", "attackMove", "focusAttack", "patrol", "stop", "hold", "gather", "returnCargo", "autoGather", "placeBuilding", "morphUnit", "toggleStateAbility"].includes(c.kind) &&
           !(c.kind === "toggleStateAbility" && c.payload.abilityId === "cloak"))
           for (const id of ids) {
             const loading = loadingIn(s, id); if (loading) loading.loadQueue = loading.loadQueue.filter((p) => p !== id);
@@ -171,7 +172,7 @@ export function createSpecialRules(map: BattleMap, base: EngineRules): EngineRul
       if (c.kind !== "loadTransport" || !s.economy.enabled) return "invalid_command";
       const e = s.entities, j = indexOf(s, c.target.entityId), w = workerOf(s, c.target.entityId);
       if (j < 0 || e.health[j] === 0 || e.owner[j] !== c.playerId || e.kind[j] === "building" || e.layer[j] !== "ground" || cargoSpace(s, c.target.entityId) > 8) return "invalid_target";
-      if (isEmbarked(s, c.target.entityId) || loadingIn(s, c.target.entityId) || isBurrowed(s, c.target.entityId) || w?.buildingId) return "invalid_state";
+      if (siegeTransitionOf(s, c.target.entityId) || isEmbarked(s, c.target.entityId) || loadingIn(s, c.target.entityId) || isBurrowed(s, c.target.entityId) || w?.buildingId) return "invalid_state";
       if (!transportCapacity(s, id)) return definitionOf(s, id)?.id === "zerg-overlord" ? "missing_prerequisite" : "invalid_target";
       return candidateCarrier(s, c, c.target.entityId) === id ? null : "invalid_state";
     },

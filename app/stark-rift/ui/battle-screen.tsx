@@ -225,6 +225,7 @@ export function BattleScreen({
           aria-label="미니맵: 터치하거나 드래그해 화면 이동"
         />
         <div className="sr-overview">
+          <button className="sr-pause" onClick={onPause}>일시정지</button>
           <strong>STARK RIFT</strong>
           <span>
             균열 분지 ·{" "}
@@ -271,7 +272,6 @@ export function BattleScreen({
               </button>
             ))}
           </div>
-          <button onClick={onPause}>일시정지</button>
         </div>
       </header>
       <div

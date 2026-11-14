@@ -4,7 +4,7 @@ import { idleMovement } from "../core/orders";
 import { releaseWork, workerOf } from "../economy/helpers";
 import { NavigationGrid } from "../pathfinding/navigation";
 import { SpatialHash } from "../pathfinding/spatial-hash";
-import { BURROW_ABILITY, supportsBurrow, isBurrowed, hasBurrowResearch } from "./burrow";
+import { BURROW_ABILITY, supportsBurrow, isBurrowed, canBurrow } from "./burrow";
 
 /** State abilities wrap the complete rule stack, so neither work nor movement bypasses the lock. */
 export function createBurrowRules(map: BattleMap, base: EngineRules): EngineRules {
@@ -14,7 +14,7 @@ export function createBurrowRules(map: BattleMap, base: EngineRules): EngineRule
     if (!handler) continue;
     commands[kind] = {
       ...handler,
-      validate: (s, c, id) => isBurrowed(s, id) ? "invalid_state" : handler.validate(s, c, id),
+      validate: (s, c, id) => isBurrowed(s, id) && !(c.kind === "focusAttack" && s.entities.definitionId[s.entities.id.indexOf(id)] === "zerg-lurker") ? "invalid_state" : handler.validate(s, c, id),
     };
   }
   commands.toggleStateAbility = {
@@ -25,7 +25,7 @@ export function createBurrowRules(map: BattleMap, base: EngineRules): EngineRule
       const i = s.entities.id.indexOf(id);
       if (!s.vision || !s.economy.enabled || !supportsBurrow(s.entities.definitionId[i]))
         return "invalid_target";
-      if (!hasBurrowResearch(s, c.playerId)) return "missing_prerequisite";
+      if (!canBurrow(s, id)) return "missing_prerequisite";
       if (isBurrowed(s, id) === c.payload.enabled) return "invalid_state";
       if (c.payload.enabled) {
         const w = workerOf(s, id);

@@ -216,6 +216,7 @@ export function validEconomy(s: SimulationState): boolean {
     for (const b of e.structures)
       if (owner(b.entityId) === p.id)
         used += b.queue.reduce((n, q) => n + q.supplyHalf, 0);
+    for (const j of s.lurker?.morphs ?? []) if (owner(j.entityId) === p.id) used += j.supplyHalf;
     if (p.supplyUsedHalf !== used || p.supplyCapHalf !== Math.min(200, cap))
       return false;
   }

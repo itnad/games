@@ -23,7 +23,7 @@ export function createCloakRules(base: EngineRules): EngineRules {
   return { ...base, commands: { ...base.commands, toggleStateAbility: {
     policy: "partial",
     validate: (s, c, id) => {
-      if (c.kind !== "toggleStateAbility" || c.payload.abilityId !== CLOAK_ABILITY) return fallback?.validate(s, c, id) ?? "invalid_command";
+      if (c.kind !== "toggleStateAbility" || c.payload.abilityId !== CLOAK_ABILITY) return fallback ? fallback.validate(s, c, id) : "invalid_command";
       const i = s.entities.id.indexOf(id);
       if (!s.vision || !s.economy.enabled || !supportsCloak(s.entities.definitionId[i])) return "invalid_target";
       if (activeCloak(s, id) === c.payload.enabled) return "invalid_state";

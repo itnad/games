@@ -6440,15 +6440,40 @@ footer { font-size: 15px; }
 }
 
 .game-shelf-heading h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 23px;
 }
 
+.game-shelf-count {
+  min-width: 25px;
+  height: 25px;
+  padding: 0 7px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #6655a2;
+  background: #ece8f7;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
 .game-shelf-track {
-  grid-auto-columns: minmax(278px, 29%);
+  grid-auto-flow: row;
+  grid-auto-columns: unset;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 216px));
+  gap: 12px;
+  padding: 0;
+  overflow: visible;
+  scroll-snap-type: none;
 }
 
 .shelf-game-card {
+  width: 100%;
   height: 156px;
+  scroll-snap-align: none;
 }
 
 .shelf-game-play {
@@ -6667,24 +6692,65 @@ footer { font-size: 15px; }
   }
 
   .game-shelf-track {
-    grid-auto-columns: minmax(245px, 76%);
+    margin-right: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding-right: 0;
   }
 
   .shelf-game-card {
-    height: 146px;
+    max-width: none;
+    height: 136px;
+  }
+
+  .shelf-game-play {
+    grid-template-columns: 44% 56%;
+  }
+
+  .shelf-game-art .card-art {
+    transform: scale(.39);
   }
 
   .shelf-game-copy {
-    padding: 15px 13px 13px;
+    padding: 12px 9px 10px;
   }
 
   .shelf-game-category {
-    font-size: 12px;
+    padding: 3px 6px;
+    font-size: 10px;
   }
 
   .shelf-game-copy h3 {
-    margin-top: 8px;
-    font-size: 18px;
+    margin-top: 7px;
+    overflow: visible;
+    font-size: 15px;
+    line-height: 1.25;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .shelf-game-open {
+    font-size: 0;
+  }
+
+  .shelf-game-open span {
+    width: 25px;
+    height: 25px;
+    margin-left: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #fff;
+    background: #6550b7;
+    font-size: 14px;
+  }
+
+  .shelf-favorite-button {
+    width: 31px;
+    height: 31px;
+    top: 6px;
+    left: 6px;
+    font-size: 16px;
   }
 
   .home-explore-bar {

@@ -75,3 +75,63 @@ it("restores a verified checkpoint into a new Worker after the old Worker is ter
     expect(recovered.messages.filter(m=>m.kind==="fatalError")).toEqual([]);
   }finally{await original.worker.terminate();await recovered?.worker.terminate();}
 },10000);
+
+it.each([
+  ['terran','terran-ghost','cloak','cloaked'],
+  ['terran','terran-wraith','cloak','cloaked'],
+  ['terran','terran-siege-tank-tank-mode','siege-mode','sieged'],
+  ['zerg','zerg-hydralisk','burrow','burrowed'],
+  ['zerg','zerg-lurker','burrow','burrowed'],
+] as const)('built production Worker forwards %s %s ability %s through the complete rule stack',async(race,definition,ability,expected)=>{
+  const worker=new Worker(pathToFileURL(join(directory,'bridge.mjs'))),messages:WorkerToMainMessage[]=[];let messageId=0;
+  const {STARK_RIFT_PROTOCOL_VERSION}=await import('../../app/stark-rift/core/versions');
+  const send=(kind:string,payload:unknown)=>worker.postMessage({protocolVersion:STARK_RIFT_PROTOCOL_VERSION,messageId:++messageId,kind,payload});
+  worker.on('message',(m:WorkerToMainMessage)=>{messages.push(m);if(m.kind==='renderSnapshot')send('releaseRenderBuffer',{bufferId:m.payload.bufferId});});
+  const wait=async(predicate:(m:WorkerToMainMessage)=>boolean)=>{const until=Date.now()+6000;while(Date.now()<until){const m=messages.findLast(predicate);if(m)return m;await new Promise(r=>setTimeout(r,10));}throw new Error('Ability Worker timeout: '+JSON.stringify(messages.filter(m=>['commandAck','fatalError'].includes(m.kind))));};
+  try{
+    const {map,dataVersion}=getRuntimeMap('rift-basin');send('init',{seed:42,mapId:map.id,dataVersion,scenario:'special-practice',players:[{id:0,faction:race,controller:'human'},{id:1,faction:'protoss',controller:'ai'}]});await wait(m=>m.kind==='ready');
+    send('pause',{reason:'ability setup'});await wait(m=>m.kind==='phaseChanged'&&m.payload.phase==='paused');send('saveSnapshot',{requestId:91});const saved=await wait(m=>m.kind==='saveSnapshotReady'&&m.payload.requestId===91);if(saved.kind!=='saveSnapshotReady')throw Error('save');
+    const s=saved.payload.snapshot.simulation,actor=s.entities.id.find((id,i)=>s.entities.owner[i]===0&&s.entities.definitionId[i]===definition)!;expect(actor).toBeDefined();const tick=s.tick;
+    send('resume',{reason:'ability test'});send('commandBatch',{lastSeenTick:tick,commands:[{kind:'toggleStateAbility',entityIds:[actor],payload:{abilityId:ability,enabled:true},sequence:1,issuedTick:tick,executeTick:tick+3,playerId:0,source:'player'}]});
+    const ack=await wait(m=>m.kind==='commandAck'&&m.payload.sequence===1);if(ack.kind!=='commandAck')throw Error('ack');expect(ack.payload.accepted).toBe(true);
+    await wait(m=>m.kind==='renderSnapshot'&&m.payload.entities.some(e=>e.id===actor&&(expected==='sieged'?e.definitionId==='terran-siege-tank-siege-mode':expected==='cloaked'?e.cloaked===true:e.burrowed===true)));
+    expect(messages.filter(m=>m.kind==='fatalError')).toEqual([]);
+  }finally{send('dispose',{});await worker.terminate();}
+},15000);
+
+
+it('built production Worker morphs Hydralisks and saves paid egg reservations', async () => {
+  const worker=new Worker(pathToFileURL(join(directory,'bridge.mjs'))), messages:WorkerToMainMessage[]=[];let messageId=0;
+  const {STARK_RIFT_PROTOCOL_VERSION}=await import('../../app/stark-rift/core/versions');
+  const send=(kind:string,payload:unknown)=>worker.postMessage({protocolVersion:STARK_RIFT_PROTOCOL_VERSION,messageId:++messageId,kind,payload});
+  worker.on('message',(m:WorkerToMainMessage)=>{messages.push(m);if(m.kind==='renderSnapshot')send('releaseRenderBuffer',{bufferId:m.payload.bufferId});});
+  const wait=async(predicate:(m:WorkerToMainMessage)=>boolean)=>{const until=Date.now()+6000;while(Date.now()<until){const m=messages.findLast(predicate);if(m)return m;await new Promise(r=>setTimeout(r,10));}throw new Error('Morph Worker timeout');};
+  try {
+    const {map,dataVersion}=getRuntimeMap('rift-basin');send('init',{seed:42,mapId:map.id,dataVersion,scenario:'special-practice',players:[{id:0,faction:'zerg',controller:'human'},{id:1,faction:'protoss',controller:'ai'}]});await wait(m=>m.kind==='ready');
+    const first=await wait(m=>m.kind==='renderSnapshot');if(first.kind!=='renderSnapshot')throw Error('render');const ids=first.payload.entities.filter(e=>e.owner===0&&e.definitionId==='zerg-hydralisk').map(e=>e.id), tick=first.payload.tick, supply=first.payload.economy!.supplyUsedHalf;
+    send('commandBatch',{lastSeenTick:tick,commands:[{kind:'morphUnit',entityIds:ids,payload:{unitId:'zerg-lurker'},sequence:1,issuedTick:tick,executeTick:tick+3,playerId:0,source:'player'}]});
+    const ack=await wait(m=>m.kind==='commandAck'&&m.payload.sequence===1);if(ack.kind!=='commandAck')throw Error('ack');expect(ack.payload.accepted).toBe(true);
+    await wait(m=>m.kind==='renderSnapshot'&&ids.every(id=>m.payload.entities.some(e=>e.id===id&&e.unitMorph)));
+    send('pause',{reason:'morph checkpoint'});await wait(m=>m.kind==='phaseChanged'&&m.payload.phase==='paused');send('saveSnapshot',{requestId:92});const saved=await wait(m=>m.kind==='saveSnapshotReady'&&m.payload.requestId===92);if(saved.kind!=='saveSnapshotReady')throw Error('save');
+    expect(saved.payload.snapshot.simulation.lurker!.morphs).toHaveLength(2);expect(saved.payload.snapshot.simulation.players[0].gas).toBe(0);expect(saved.payload.snapshot.simulation.players[0].supplyUsedHalf).toBe(supply+4);expect(messages.filter(m=>m.kind==='fatalError')).toEqual([]);
+  } finally {send('dispose',{});await worker.terminate();}
+},15000);
+
+
+it('built production Worker derives Arbiter cloak coverage through movement and save/load', async () => {
+  const worker=new Worker(pathToFileURL(join(directory,'bridge.mjs'))), messages:WorkerToMainMessage[]=[];let messageId=0;
+  const {STARK_RIFT_PROTOCOL_VERSION}=await import('../../app/stark-rift/core/versions');
+  const send=(kind:string,payload:unknown)=>worker.postMessage({protocolVersion:STARK_RIFT_PROTOCOL_VERSION,messageId:++messageId,kind,payload});
+  worker.on('message',(m:WorkerToMainMessage)=>{messages.push(m);if(m.kind==='renderSnapshot')send('releaseRenderBuffer',{bufferId:m.payload.bufferId});});
+  const wait=async(predicate:(m:WorkerToMainMessage)=>boolean)=>{const until=Date.now()+7000;while(Date.now()<until){const m=messages.findLast(predicate);if(m)return m;await new Promise(r=>setTimeout(r,10));}throw new Error('Arbiter Worker timeout');};
+  try {
+    const {map,dataVersion}=getRuntimeMap('rift-basin');send('init',{seed:42,mapId:map.id,dataVersion,scenario:'special-practice',players:[{id:0,faction:'protoss',controller:'human'},{id:1,faction:'protoss',controller:'ai'}]});await wait(m=>m.kind==='ready');
+    const first=await wait(m=>m.kind==='renderSnapshot');if(first.kind!=='renderSnapshot')throw Error('render');const actor=first.payload.entities.find(e=>e.owner===0&&e.definitionId==='protoss-arbiter')!,ids=first.payload.entities.filter(e=>e.owner===0&&e.definitionId==='protoss-zealot').map(e=>e.id),tick=first.payload.tick;
+    expect(actor.cloaked).toBeUndefined();expect(ids.every(id=>first.payload.entities.find(e=>e.id===id)?.auraCloaked)).toBe(true);
+    send('commandBatch',{lastSeenTick:tick,commands:[{kind:'move',entityIds:[actor.id],target:{kind:'point',x:27*256,y:20*256},sequence:1,issuedTick:tick,executeTick:tick+3,playerId:0,source:'player'}]});
+    await wait(m=>m.kind==='renderSnapshot'&&m.payload.tick>tick+3&&ids.every(id=>m.payload.entities.some(e=>e.id===id&&!e.auraCloaked)));
+    send('pause',{reason:'arbiter checkpoint'});await wait(m=>m.kind==='phaseChanged'&&m.payload.phase==='paused');send('saveSnapshot',{requestId:93});const saved=await wait(m=>m.kind==='saveSnapshotReady'&&m.payload.requestId===93);if(saved.kind!=='saveSnapshotReady')throw Error('save');
+    expect(saved.payload.snapshot.simulation.vision!.concealed).toEqual([]);send('loadSnapshot',{snapshot:saved.payload.snapshot});await wait(m=>m.kind==='snapshotLoaded');await wait(m=>m.kind==='renderSnapshot'&&m.payload.tick===saved.payload.snapshot.simulation.tick&&ids.every(id=>m.payload.entities.some(e=>e.id===id&&!e.auraCloaked)));
+    expect(messages.filter(m=>m.kind==='fatalError')).toEqual([]);
+  } finally {send('dispose',{});await worker.terminate();}
+},15000);

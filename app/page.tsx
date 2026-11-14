@@ -1066,7 +1066,7 @@ function GameShelf({
     <section className="game-shelf" aria-label={title}>
       <header className="game-shelf-heading">
         <div>
-          <h3>{title}</h3>
+          <h3>{title}<span className="game-shelf-count">{games.length}</span></h3>
           {description && <p>{description}</p>}
         </div>
         {onViewAll && (
@@ -1400,7 +1400,6 @@ function HomeContent({
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
-      document.querySelectorAll<HTMLElement>(".game-shelf-track").forEach((track) => { track.scrollLeft = 0; });
     };
     resetHomeView();
     const frame = window.requestAnimationFrame(resetHomeView);
@@ -1524,9 +1523,10 @@ function HomeContent({
   const favoriteGames = favorites
     .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => Boolean(game));
+  const recentGameIdSet = new Set(recentGames.map((game) => game.id));
   const defaultQuickStartGames = DEFAULT_QUICK_START_GAME_IDS
     .map((id) => availableGames.find((game) => game.id === id))
-    .filter((game): game is GameDefinition => Boolean(game));
+    .filter((game): game is GameDefinition => game !== undefined && !recentGameIdSet.has(game.id));
 
   if (activeGame === "gomoku") {
     return <GuidedGame gameId={activeGame}><GomokuGame onExit={exitGame} /></GuidedGame>;

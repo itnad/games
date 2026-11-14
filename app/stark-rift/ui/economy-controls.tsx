@@ -1,3 +1,8 @@
+import { ArbiterControls } from "./arbiter-controls";
+import { LurkerControls } from "./lurker-controls";
+import { technologyRequirements } from "../data/economy-catalog";
+import { SiegeControls } from "./siege-controls";
+import { isSieged } from "../abilities/siege-state";
 import { CloakControls } from "./cloak-controls";
 import { TransportControls } from "./transport-controls";
 import { permanentCloak } from "../abilities/special-state";
@@ -7,7 +12,7 @@ import { useEffect, useRef } from "react";
 import type { GameCommand } from "../core/commands";
 import type { RenderSnapshot } from "../worker/render-snapshot";
 import {
-  countsAsDefinition, isLarvaProducer,
+  countsAsDefinition, isLarvaProducer, unitFamily,
   ECONOMY_DEFINITIONS,
   ECONOMY_UPGRADES,
   economyDefinition,
@@ -113,16 +118,16 @@ export function EconomyControls({
         </p>
       </div>
     );
-  const mixed = entities.some((e) => e.definitionId !== first.definitionId);
+  const mixed = entities.some((e) => unitFamily(e.definitionId) !== unitFamily(first.definitionId));
   const burrowActors = entities.filter((e) => supportsBurrow(e.definitionId)),
-    surfaceIds = burrowActors.filter((e) => !e.burrowed).map((e) => e.id),
+    surfaceIds = burrowActors.filter((e) => !e.burrowed && (e.definitionId === "zerg-lurker" || economy.upgrades.some((u) => u.technologyId === BURROW_RESEARCH))).map((e) => e.id),
     burrowIds = burrowActors.filter((e) => e.burrowed).map((e) => e.id),
-    burrowReady = economy.upgrades.some((u) => u.technologyId === BURROW_RESEARCH);
+    burrowReady = burrowActors.some((e) => e.definitionId === "zerg-lurker") || economy.upgrades.some((u) => u.technologyId === BURROW_RESEARCH);
   return (
     <div className="sr-economy-controls">
       <div className="sr-selection-title sr-selection-toolbar">
         <strong>
-          {mixed ? "혼합 병력" : def.name}
+          {mixed ? "혼합 병력" : entities.some((e) => e.definitionId !== first.definitionId) ? "히드라·러커 부대" : def.name}
           {entities.length > 1 ? ` × ${entities.length}` : ""}
         </strong>
         {snapshot.combat?.scenario === "siege-practice" &&
@@ -136,7 +141,7 @@ export function EconomyControls({
           hasBasicWeapon(def.id) && (
             <button
               className="sr-attack-move"
-              disabled={!running || entities.every((e) => e.burrowed)}
+              disabled={!running || entities.every((e) => e.burrowed || e.siegeTransition || isSieged(e.definitionId))}
               onClick={attackMove}
             >
               공격 이동
@@ -158,6 +163,9 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
+      <ArbiterControls snapshot={snapshot} selected={selected} select={selectEntities} />
+      <LurkerControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
+      <SiegeControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <CloakControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       {transport}
       {permanentCloak(def.id) && <p className="sr-help">영구 은폐 · {def.id === "protoss-observer" ? "비무장 탐지기 · 탐지 범위 11타일" : "지상 근접 공격 · 적 탐지기에 노출되면 공격받습니다."}</p>}
@@ -176,6 +184,7 @@ export function EconomyControls({
           <p className="sr-help" role="status">
             {worker && ["toBuild", "constructing"].includes(worker.task) ? "건설 예약을 먼저 취소해야 잠복할 수 있습니다." :
               !burrowReady ? "해처리에서 버로우 연구 필요 · ◆ 100 ◉ 100 · 25초" :
+              burrowActors.some((e) => e.definitionId === "zerg-lurker") ? "러커는 잠복 중에만 공격합니다. 이동·탑승하려면 직접 잠복을 해제하세요. 위에 유닛이 있으면 먼저 비워 주세요." :
               burrowIds.length > 0 ? `잠복 ${burrowIds.length}기 · 직접 해제 전까지 이동·공격·작업 불가. 위에 유닛이 있으면 먼저 비워 주세요.` :
               "잠복하면 적 탐지기 없이 보이지 않습니다. 이동·공격·작업을 하려면 직접 잠복을 해제하세요."}
           </p>
@@ -421,6 +430,7 @@ export function EconomyControls({
                   !!building.morph ||
                   (building.queue.length > 0 && !isLarvaProducer(def.id)) ||
                   !building.powered ||
+                  !technologyRequirements(t.id).every(has) ||
                   !canAfford(t.minerals, t.gas)
                 }
                 onClick={() =>
@@ -431,11 +441,13 @@ export function EconomyControls({
                   })
                 }
               >
-                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field"].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field", "tank-siege-mode", "lurker-aspect"].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
                 {t.id === BURROW_RESEARCH && !done && <small>25초 · 드론·저글링·히드라 잠복</small>}
                 {t.id === "ventral-sacs" && !done && <small>50초 · 오버로드 8칸 수송</small>}
                 {t.id === "personnel-cloaking" && !done && <small>25초 · 고스트 수동 은폐</small>}
                 {t.id === "cloaking-field" && !done && <small>31.25초 · 레이스 수동 은폐</small>}
+                {t.id === "lurker-aspect" && !done && <small>37.5초 · 레어 필요 · 히드라 → 러커</small>}
+                {t.id === "tank-siege-mode" && !done && <small>25초 · 시즈 탱크 포격 모드</small>}
               </button>
             );
           })}
@@ -483,13 +495,13 @@ export function EconomyControls({
       {def.kind === "combat" && (
         <div className="sr-action-row">
           <button
-            disabled={!running}
+            disabled={!running || entities.every((e) => !!e.siegeTransition || !!e.unitMorph)}
             onClick={() => issue({ kind: "stop", entityIds: selected })}
           >
             정지
           </button>
           <button
-            disabled={!running}
+            disabled={!running || entities.every((e) => !!e.siegeTransition || !!e.unitMorph)}
             onClick={() => issue({ kind: "hold", entityIds: selected })}
           >
             위치 사수

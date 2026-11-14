@@ -1,0 +1,41 @@
+"""Production touch test for automatic Arbiter coverage, movement, cargo and persistence. No game-state injection."""
+import argparse,importlib.util,json,os,sys,traceback
+from pathlib import Path
+from playwright.sync_api import sync_playwright,expect
+sys.dont_write_bytecode=True
+root=Path(__file__).resolve().parent;spec=importlib.util.spec_from_file_location('m',root/'browser-smoke.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+a=argparse.ArgumentParser();a.add_argument('--url',default='http://127.0.0.1:4189');a.add_argument('--output',type=Path,required=True);a.add_argument('--width',type=int,choices=[360,390]);args=a.parse_args();args.output.mkdir(parents=True,exist_ok=True);results=[]
+ARBITER='protoss-arbiter';KEY='paperoid.stark-rift.development.v1.special.protoss'
+with sync_playwright() as pw:
+ opts={'executable_path':'/usr/bin/chromium','headless':True,'args':['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']}
+ if args.url.startswith('https:'):opts['proxy']={'server':os.environ['HTTPS_PROXY']}
+ browser=pw.chromium.launch(**opts)
+ for width,height in [(360,640),(390,844)]:
+  if args.width and args.width!=width:continue
+  c=browser.new_context(viewport={'width':width,'height':height},is_mobile=True,has_touch=True);page=c.new_page();page.set_default_timeout(15000);page.add_init_script(m.OBSERVER);case={'viewport':[width,height],'checks':[],'errors':[]};results.append(case);page.on('pageerror',lambda e:case['errors'].append(str(e)))
+  def data():return page.evaluate('window.__qa.snapshot')
+  def check(name):case['checks'].append(name);print(f'{width}: {name}',flush=True)
+  def tap(locator):
+   locator.evaluate('(e)=>e.scrollIntoView({block:"end",inline:"nearest"})');box=locator.bounding_box();assert box and box['y']>=0 and box['y']+box['height']<=height,box
+   assert locator.evaluate('(e)=>{const b=e.getBoundingClientRect();return e.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2));}'),'covered control';locator.tap()
+  def point(x,y):
+   m.save(page);p=m.world(page,{'x':x*256,'y':y*256});b=page.locator('.sr-viewport canvas').bounding_box();assert b['x']<=p['x']<=b['x']+b['width'] and b['y']<=p['y']<=b['y']+b['height'];page.touchscreen.tap(**p)
+  try:
+   page.goto(args.url+'/stark-rift-dev',wait_until='networkidle');tap(page.locator('[data-faction="protoss"]'));tap(page.get_by_role('button',name='특수 연습',exact=True));tap(page.get_by_role('button',name='새 테스트 시작',exact=True));page.wait_for_function('window.__qa.snapshot?.combat?.scenario==="special-practice"&&window.__qa.ui?.phase==="running"');expect(page.get_by_role('button',name='기본',exact=True)).to_be_enabled()
+   actor=next(e for e in data()['entities'] if e['owner']==0 and e['definitionId']==ARBITER);aid=actor['id'];zealots=[e['id'] for e in data()['entities'] if e['owner']==0 and e['definitionId']=='protoss-zealot'];assert len(zealots)==2;assert actor['layer']=='air' and not actor.get('cloaked') and 'energy' not in actor;assert all(next(e for e in data()['entities'] if e['id']==id).get('auraCloaked') for id in zealots);assert any(e['layer']=='air' and e.get('auraCloaked') for e in data()['entities']);assert not any(e.get('auraCloaked') and (e['kind']=='building' or e['definitionId']==ARBITER) for e in data()['entities']);supply=data()['economy']['supplyUsedHalf'];check('practice_provides_air_arbiter_and_automatic_ground_air_coverage')
+   tap(page.locator('[data-arbiter-select]'));expect(page.locator('[data-cloak-field-status]')).to_contain_text('에너지 소모 없음');m.save(page);canvas=page.locator('.sr-viewport canvas').bounding_box();p=m.world(page,actor);assert canvas['x']<=p['x']<=canvas['x']+canvas['width'];page.screenshot(path=str(args.output/f'{width}-field.png'));check('touch_selects_arbiter_and_displays_passive_field_status_and_range')
+   point(27,20);page.wait_for_function('({id,ids})=>window.__qa.snapshot.entities.some(e=>e.id===id&&e.x>26*256)&&ids.every(id=>window.__qa.snapshot.entities.some(e=>e.id===id&&!e.auraCloaked&&!e.cloaked))',arg={'id':aid,'ids':zealots});assert any(e['definitionId']=='protoss-dark-templar' and e.get('cloaked') for e in data()['entities']);check('real_touch_movement_removes_aura_but_keeps_permanent_cloak')
+   tap(page.get_by_role('button',name='일시정지',exact=True));page.wait_for_function('window.__qa.ui.phase==="paused"');m.save(page);raw=page.evaluate('(k)=>localStorage.getItem(k)',KEY);saved=json.loads(raw);assert saved['formatVersion']==15;assert not saved['simulation']['vision']['concealed'];assert saved['simulation']['players'][0]['controlGroups'][2]['entityIds']==[aid];(args.output/f'{width}-away-save.json').write_text(raw);case['savedTick']=saved['simulation']['tick'];page.screenshot(path=str(args.output/f'{width}-away.png'))
+   tap(page.get_by_role('button',name='저장하고 나가기',exact=True));page.reload(wait_until='networkidle');tap(page.locator('[data-faction="protoss"]'));tap(page.get_by_role('button',name='특수 연습',exact=True));tap(page.get_by_role('button',name='이어서 하기',exact=True));page.wait_for_function('t=>window.__qa.ui?.phase==="paused"&&window.__qa.snapshot?.tick===t',arg=saved['simulation']['tick']);assert all(not next(e for e in data()['entities'] if e['id']==id).get('auraCloaked') for id in zealots);check('reload_recomputes_field_at_exact_saved_positions_without_stale_flags');m.resume(page)
+   tap(page.locator('[data-arbiter-select]'));point(18,20);page.wait_for_function('ids=>ids.every(id=>window.__qa.snapshot.entities.some(e=>e.id===id&&e.auraCloaked&&e.cloaked))',arg=zealots);check('returning_arbiter_immediately_restores_cloak_without_research_or_energy')
+   tap(page.locator('[data-arbiter-escort-select]'));expect(page.locator('[data-aura-cloaked-status]')).to_be_visible();before={str(e['id']):(e['x'],e['y']) for e in data()['entities'] if e['id'] in zealots};point(16,21);page.wait_for_function('({ids,before})=>ids.every(id=>window.__qa.snapshot.entities.some(e=>e.id===id&&e.auraCloaked&&(e.x!==before[id][0]||e.y!==before[id][1])))',arg={'ids':zealots,'before':before});check('covered_escorts_remain_controllable_while_cloaked')
+   m.save(page);ship=next(e for e in data()['entities'] if e['owner']==0 and e['definitionId']=='protoss-shuttle' and e['x']==20*256);page.touchscreen.tap(**m.world(page,ship));tap(page.locator('[data-transport="load"]'));tap(page.locator('[data-slot="0"]'));page.wait_for_function('ids=>ids.every(id=>window.__qa.snapshot.economy.transports.some(t=>t.passengers.some(p=>p.id===id)))',arg=zealots,timeout=45000);assert not any(e['id'] in zealots for e in data()['entities']);assert data()['economy']['supplyUsedHalf']==supply;check('cloaked_escorts_board_and_disappear_from_world_snapshots')
+   tap(page.locator('[data-transport="unload"]'));point(21,20);page.wait_for_function('ids=>ids.every(id=>window.__qa.snapshot.entities.some(e=>e.id===id&&e.auraCloaked))',arg=zealots,timeout=45000);assert data()['economy']['supplyUsedHalf']==supply;check('unloading_back_in_field_restores_coverage_and_preserves_supply');page.screenshot(path=str(args.output/f'{width}-restored.png'))
+   page.set_viewport_size({'width':height,'height':width});expect(page.get_by_text('세로 화면으로 돌려 주세요',exact=True)).to_be_visible();page.wait_for_function('window.__qa.ui.phase==="paused"');page.set_viewport_size({'width':width,'height':height});assert not case['errors'];assert not any(e['kind']=='fatalError' for e in m.state(page)['events']);check('portrait_only_pause_and_no_runtime_errors')
+  except Exception as e:
+   case['failure']=str(e);traceback.print_exc()
+   try:page.screenshot(path=str(args.output/f'{width}-failure.png'));case['snapshot']=data();case['commands']=page.evaluate('window.__qa.commands');case['ui']=page.evaluate('window.__qa.ui')
+   except Exception:pass
+  finally:c.close()
+ browser.close()
+report={'url':args.url,'scope':'Production Worker/Pixi; actual mobile touch and normal time, no resource/state injection. Chromium SwiftShader emulation; not physical Android/iOS or hardware GPU certification.','results':results};(args.output/'arbiter-browser.json').write_text(json.dumps(report,ensure_ascii=False,indent=2));print(json.dumps([{k:v for k,v in r.items() if k not in ['snapshot','commands']} for r in results],ensure_ascii=False),flush=True);raise SystemExit(int(any('failure' in r for r in results)))

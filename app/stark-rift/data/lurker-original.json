@@ -1,0 +1,133 @@
+{
+  "source": {
+    "reference": "BWAPI v4.4.0 / Brood War 1.16.1; OpenBW lurker behavior",
+    "bwapiUrl": "https://github.com/bwapi/bwapi/tree/v4.4.0/bwapi/BWAPILIB/Source",
+    "openbwUrl": "https://github.com/OpenBW/openbw/blob/4b046d5f65302b10cb0a745f0fecd37ec85b20a8/bwgame.h",
+    "sha256": {
+      "UnitType.cpp": "b5ffb3f41e053c8198ee4254b1f06d9eb664c348648935561586b9d523359710",
+      "WeaponType.cpp": "4636ebc2edbe5b5fa3887d6ee99d7a7d0ea6c8afe8f4f3208428e163bfbbdad2",
+      "TechType.cpp": "84c209953b49ca5142bf671bb638991a50325b21c86e0972e7c1137153c46fe7",
+      "bwgame.h": "5ee316ca2c008c9252f7fde7444ca5dc7f35440549be2576dc37fa228fb31ae6"
+    }
+  },
+  "units": [
+    {
+      "name": "Zerg_Lurker",
+      "bwapiId": 103,
+      "defaultOreCost": 50,
+      "defaultGasCost": 100,
+      "defaultTimeCost": 600,
+      "defaultMaxHP": 125,
+      "defaultMaxSP": 0,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 4,
+      "unitTopSpeeds": 5.82,
+      "sightRangeTiles": 8,
+      "dimensions": [
+        1,
+        1,
+        15,
+        15,
+        16,
+        16
+      ]
+    },
+    {
+      "name": "Zerg_Lurker_Egg",
+      "bwapiId": 97,
+      "defaultOreCost": 1,
+      "defaultGasCost": 1,
+      "defaultTimeCost": 1,
+      "defaultMaxHP": 200,
+      "defaultMaxSP": 0,
+      "defaultArmorAmount": 10,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 0,
+      "unitTopSpeeds": 0,
+      "sightRangeTiles": 4,
+      "dimensions": [
+        1,
+        1,
+        16,
+        16,
+        15,
+        15
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "name": "Zerg_Lurker",
+      "size": "medium",
+      "bounds": [
+        15,
+        15,
+        16,
+        16
+      ],
+      "groundWeapon": "Subterranean_Spines",
+      "airWeapon": "None",
+      "hits": 1
+    },
+    {
+      "name": "Zerg_Lurker_Egg",
+      "size": "medium",
+      "bounds": [
+        16,
+        16,
+        15,
+        15
+      ],
+      "groundWeapon": "None",
+      "airWeapon": "None",
+      "hits": 0
+    }
+  ],
+  "traits": [
+    {
+      "name": "Zerg_Lurker",
+      "spaceRequired": 4,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    },
+    {
+      "name": "Zerg_Lurker_Egg",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    }
+  ],
+  "weapons": [
+    {
+      "name": "Subterranean_Spines",
+      "bwapiId": 109,
+      "defaultWpnDamageAmt": 20,
+      "defaultWpnDamageBonus": 2,
+      "wpnDamageCooldowns": 37,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 192,
+      "wpnSplashRangeInner": 20,
+      "wpnSplashRangeMid": 20,
+      "wpnSplashRangeOuter": 20,
+      "damageType": "Normal",
+      "upgrade": "Zerg_Missile_Attacks",
+      "explosionType": "Enemy_Splash"
+    }
+  ],
+  "technology": {
+    "name": "Lurker_Aspect",
+    "bwapiId": 32,
+    "minerals": 200,
+    "gas": 200,
+    "frames": 1800,
+    "energy": 0,
+    "producer": "zerg-hydralisk-den"
+  },
+  "requiredUnit": "zerg-lair"
+}

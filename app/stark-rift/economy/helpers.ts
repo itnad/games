@@ -114,6 +114,7 @@ export function recomputeSupply(s: SimulationState): void {
     for (const b of s.economy.structures)
       if (es.owner[indexOf(s, b.entityId)] === p.id)
         used += b.queue.reduce((v, q) => v + q.supplyHalf, 0);
+    for (const j of s.lurker?.morphs ?? []) if (es.owner[indexOf(s, j.entityId)] === p.id) used += j.supplyHalf;
     p.supplyUsedHalf = used;
     p.supplyCapHalf = Math.min(200, cap);
   }

@@ -1,4 +1,5 @@
 "use client";
+import { unitFamily } from "../data/economy-catalog";
 import { useEffect, useRef, useState } from "react";
 import type { BattleMap } from "../data/maps";
 import type { RenderSnapshot } from "../worker/render-snapshot";
@@ -310,9 +311,9 @@ export function InteractiveBattle({
             current.snapshot.entities.some(
               (e) =>
                 e.id === id &&
-                e.definitionId ===
+                unitFamily(e.definitionId) === unitFamily(
                   current.snapshot.entities.find((e) => e.id === hit.entityId)
-                    ?.definitionId,
+                    ?.definitionId ?? ""),
             ),
           )
             ? current.slots[0]

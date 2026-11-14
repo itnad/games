@@ -1,3 +1,4 @@
+import { coveredByArbiter } from "../abilities/arbiter";
 import { permanentCloak } from "../abilities/special-state";
 import { isEmbarked } from "../abilities/special-state";
 import type { SimulationState } from "../core/state";
@@ -155,7 +156,7 @@ export function canSeeEntity(
     })
   )
     return false;
-  if (!permanentCloak(e.definitionId[index]) && !s.vision?.concealed.some((c) => c.entityId === e.id[index])) return true;
+  if (!coveredByArbiter(s, index) && !permanentCloak(e.definitionId[index]) && !s.vision?.concealed.some((c) => c.entityId === e.id[index])) return true;
   for (let i = 0; i < e.id.length; i++)
     if (e.owner[i] === owner && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
       const r = DETECTOR_RADIUS_TILES[e.definitionId[i]];

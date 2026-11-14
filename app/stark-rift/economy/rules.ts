@@ -1,3 +1,4 @@
+import { technologyRequirements } from "../data/economy-catalog";
 import { morphOf } from "../abilities/special-state";
 import { isBurrowed } from "../abilities/burrow";
 import type { SimulationState } from "../core/state";
@@ -448,6 +449,7 @@ export function createEconomyRules(
         b = structureOf(s, id);
       if (!t || !b || !countsAsDefinition(definitionOf(s, id)?.id ?? "", t.producer))
         return "invalid_target";
+      if (!technologyRequirements(t.id).every((required) => hasCompleted(s, c.playerId, required))) return "missing_prerequisite";
       if (!activeBuilding(s, b) || b.research || (b.queue.length > 0 && !isLarvaProducer(t.producer)))
         return "invalid_state";
       if (

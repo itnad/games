@@ -16,7 +16,7 @@ export function updateEconomicMarker(
   const hp = Math.floor((e.health / d.health) * 10),
     sp = Math.floor(((e.shield ?? 0) / Math.max(1, d.shield)) * 10),
     p = progress === null ? -1 : Math.floor(progress * 20),
-    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, Math.floor((e.energy ?? 0) / 10)].join(":");
+    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, e.auraCloaked, e.unitMorph ? Math.floor(20 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks)) : -1, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
   if (keys.get(g) === key) return true;
   keys.set(g, key);
   g.clear();
@@ -237,6 +237,12 @@ export function updateEconomicMarker(
         .stroke({ color: 0xd9c38b, width: 0.06 });
       g.rect(-0.14, -0.28, 0.28, 0.24).fill(color);
       for (const x of [-0.4, 0.26]) g.rect(x, -0.12, 0.14, 0.47).fill(0xd0a34e);
+    } else if (d.id === "terran-siege-tank-siege-mode") {
+      for (const x of [-0.65, 0.5]) g.rect(x, -0.3, 0.15, 0.65).fill(0xa7a17f).stroke({ color: 0xe9d795, width: 0.04 });
+      g.rect(-0.45, -0.28, 0.9, 0.57).fill(0x55717c).stroke({ color: 0xb1c6c9, width: 0.05 });
+      g.rect(-0.28, -0.22, 0.56, 0.4).fill(color);
+      g.rect(-0.09, -1.05, 0.18, 1.12).fill(0xbbc5ae);
+      g.rect(-0.17, -1.1, 0.34, 0.14).fill(0x3c4a50);
     } else if (terr && d.icon === "vehicle") {
       g.rect(-0.45, -0.22, 0.9, 0.45).fill(0x3e5660);
       g.rect(-0.3, -0.3, 0.6, 0.15).fill(0x91a7a8);
@@ -253,6 +259,17 @@ export function updateEconomicMarker(
       g.circle(0, -0.18, 0.17).fill(0xa7b3ae);
       g.roundRect(-0.23, -0.1, 0.46, 0.45, 0.1).fill(color);
       g.rect(0.15, -0.1, 0.15, 0.5).fill(0x152933);
+    } else if (d.id === "protoss-arbiter") {
+      g.poly([-.95, .3, -.45, -.2, -.2, -.65, 0, -.45, .2, -.65, .45, -.2, .95, .3, .45, .16, .2, .45, -.2, .45, -.45, .16]).fill(0xd1bc78).stroke({ color: 0xf1dfab, width: .06 });
+      g.ellipse(0, -.04, .23, .4).fill(0x7757ab).stroke({ color, width: .05 });
+      g.circle(0, -.08, .11).fill(0xc5b9ff);
+    } else if (d.id === "zerg-lurker-egg") {
+      g.ellipse(0, 0, .43, .58).fill(0x8d627e).stroke({ color: 0xd6b494, width: .06 });
+      for (const y of [-.3, -.05, .2]) g.ellipse(0, y, .35, .13).stroke({ color, width: .07 });
+    } else if (d.id === "zerg-lurker") {
+      for (const x of [-.6, .6]) for (const y of [-.3, .15, .45]) g.moveTo(x * .4, y * .4).lineTo(x, y).lineTo(x * 1.15, y + .2).stroke({ color: 0xe6bb96, width: .08 });
+      g.ellipse(0, 0, .38, .47).fill(0x805265).stroke({ color, width: .07 });
+      g.poly([-.25, -.1, 0, -.65, .25, -.1]).fill(0xe6bb96);
     } else if (zerg && d.icon === "airSupply") {
       g.ellipse(0, 0, 0.7, 0.5).fill(0x9d797e);
       for (const x of [-0.4, 0, 0.4])
@@ -318,6 +335,16 @@ export function updateEconomicMarker(
       (width * Math.max(0, sp)) / 10,
       0.08,
     ).fill(0x7ebdff);
+  }
+  if (e.auraCloaked) g.ellipse(0, 0, Math.max(.4, e.radius / 256) * 1.25, Math.max(.3, e.radius / 256) * .85).stroke({ color: 0xc6a1ff, width: .05, alpha: .8 });
+  if (e.unitMorph) {
+    g.rect(-.45, .68, .9, .08).fill(0x352b42);
+    g.rect(-.45, .68, .9 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks), .08).fill(0xe5bd85);
+  }
+  if (e.siegeTransition) {
+    const progress = 1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks;
+    g.circle(0, 0, 0.75).stroke({ color: 0xffca75, width: 0.06, alpha: 0.65 });
+    g.rect(-0.5, 0.55, 1, 0.08).fill(0x253642); g.rect(-0.5, 0.55, progress, 0.08).fill(0xffca75);
   }
   if (e.energy !== undefined) {
     const width = 1;

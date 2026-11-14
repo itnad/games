@@ -1,3 +1,6 @@
+import { coveredByArbiter } from "../abilities/arbiter";
+import { unitMorphOf } from "../abilities/lurker-state";
+import { siegeTransitionOf } from "../abilities/siege-state";
 import { activeCloak, energyView } from "../abilities/cloak-state";
 import { isEmbarked, permanentCloak } from "../abilities/special-state";
 import { isBurrowed } from "../abilities/burrow";
@@ -44,8 +47,11 @@ export type RenderEntity = {
   shield?: number;
   burrowed?: boolean;
   cloaked?: boolean;
+  auraCloaked?: boolean;
   energy?: number;
   maxEnergy?: number;
+  unitMorph?: { remainingTicks: number; totalTicks: number };
+  siegeTransition?: { targetDefinitionId: string; remainingTicks: number; totalTicks: number };
   kind: "combat" | "worker" | "building";
   layer: "ground" | "air";
   radius: number;
@@ -73,11 +79,12 @@ export type RenderSnapshot = {
     projectiles: {
       id: number;
       owner: number;
-      weaponId: "Fragmentation_Grenade" | "Phase_Disruptor";
+      weaponId: "Fragmentation_Grenade" | "Phase_Disruptor" | "Phase_Disruptor_Cannon";
       x: number;
       y: number;
     }[];
   };
+  groundWaves?: { id: number; owner: number; x: number; y: number }[];
   visibility: Uint8Array;
 };
 const visibilitySchema: Schema<Uint8Array> = {
@@ -106,8 +113,11 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         shield: optional(integer()),
         burrowed: optional(boolean),
         cloaked: optional(boolean),
+        auraCloaked: optional(boolean),
         energy: optional(integer(0, 200)),
         maxEnergy: optional(integer(200, 200)),
+        unitMorph: optional(object({ remainingTicks: integer(1, 250), totalTicks: integer(250, 250) })),
+        siegeTransition: optional(object({ targetDefinitionId: enumeration(["terran-siege-tank-tank-mode", "terran-siege-tank-siege-mode"]), remainingTicks: integer(1, 40), totalTicks: integer(40, 40) })),
         kind: enumeration(["combat", "worker", "building"]),
         layer: enumeration(["ground", "air"]),
         radius: integer(1, 512),
@@ -125,6 +135,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         projectiles: array(renderProjectileSchema, 0, 4096),
       }),
     ),
+    groundWaves: optional(array(object({ id: integer(1), owner: integer(0, 1), x: integer(), y: integer() }), 0, 128)),
     visibility: visibilitySchema,
     economy: optional(economyViewSchema),
     scouting: optional(
@@ -136,6 +147,8 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
     ),
   }),
   (snapshot) =>
+    (snapshot.groundWaves ?? []).every((w) => w.x < snapshot.widthTiles * 256 && w.y < snapshot.heightTiles * 256 && snapshot.visibility[Math.floor(w.y / 256) * snapshot.widthTiles + Math.floor(w.x / 256)] === 2) &&
+    new Set((snapshot.groundWaves ?? []).map((w) => w.id)).size === (snapshot.groundWaves ?? []).length &&
     snapshot.previousTick <= snapshot.tick &&
     snapshot.visibility.length === snapshot.widthTiles * snapshot.heightTiles &&
     (!snapshot.scouting ||
@@ -209,6 +222,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
       const x = Math.floor(e.x / 256),
         y = Math.floor(e.y / 256);
       return (
+        (!e.auraCloaked || (e.cloaked && e.kind !== "building" && e.definitionId !== "protoss-arbiter")) &&
         x < snapshot.widthTiles &&
         y < snapshot.heightTiles &&
         (e.owner === snapshot.viewerPlayerId ||
@@ -268,7 +282,10 @@ export function createRenderSnapshot(
       ...(state.economy.enabled ? { shield: s.shield[i] } : {}),
       ...(isBurrowed(state, s.id[i]) ? { burrowed: true } : {}),
       ...(state.economy.enabled ? energyView(state, s.id[i]) : {}),
-      ...(permanentCloak(s.definitionId[i]) || activeCloak(state, s.id[i]) ? { cloaked: true } : {}),
+      ...(coveredByArbiter(state, i) ? { auraCloaked: true } : {}),
+      ...(coveredByArbiter(state, i) || permanentCloak(s.definitionId[i]) || activeCloak(state, s.id[i]) ? { cloaked: true } : {}),
+      ...(unitMorphOf(state, s.id[i]) ? { unitMorph: { remainingTicks: unitMorphOf(state, s.id[i])!.remainingTicks, totalTicks: unitMorphOf(state, s.id[i])!.totalTicks } } : {}),
+      ...(siegeTransitionOf(state, s.id[i]) ? { siegeTransition: { targetDefinitionId: siegeTransitionOf(state, s.id[i])!.targetDefinitionId, remainingTicks: siegeTransitionOf(state, s.id[i])!.remainingTicks, totalTicks: siegeTransitionOf(state, s.id[i])!.totalTicks } } : {}),
       id: s.id[i],
       owner: s.owner[i],
       definitionId: s.definitionId[i],
@@ -311,7 +328,7 @@ export function createRenderSnapshot(
           .map((effect): RenderEffect => {
             const { sourceId, ...e } = effect;
             const source = sourceId === undefined ? -1 : s.id.indexOf(sourceId);
-            if (e.owner !== viewer && ["shot", "slash", "launch"].includes(e.kind) &&
+            if (e.owner !== viewer && (["shot", "slash", "launch"].includes(e.kind) || (sourceId !== undefined && ["impact", "miss"].includes(e.kind))) &&
               (source < 0 || !canSeeEntity(state, map, viewer, source, visibility))) {
               const { weaponId, ...anonymous } = e;
               return { ...anonymous, kind: "hiddenAttack", toX: e.x, toY: e.y };
@@ -331,6 +348,7 @@ export function createRenderSnapshot(
         }
       : {}),
     ...(combat ? { combat } : {}),
+    ...(state.lurker ? { groundWaves: state.lurker.waves.filter((w) => seen(w.x, w.y)).map(({ id, owner, x, y }) => ({ id, owner, x, y })) } : {}),
     ...(state.economy.enabled
       ? { economy: createEconomyView(state, map, viewer, visibility) }
       : {}),

@@ -1,4 +1,8 @@
-import { LEGACY_VISION_RULES_VERSION, VISION_RULES_VERSION } from "../vision/state";
+import arbiter from "../data/arbiter-original.json";
+import { ARBITER_RULES_VERSION } from "../abilities/arbiter";
+import lurker from "../data/lurker-original.json";
+import { LURKER_RULES_VERSION } from "../abilities/lurker-state";
+import { LEGACY_VISION_RULES_VERSION, CARGO_VISION_RULES_VERSION, VISION_RULES_VERSION } from "../vision/state";
 import { PROJECTILE_RULES, MAX_COMBAT_PROJECTILES } from "./mechanics";
 import {
   array,
@@ -15,6 +19,8 @@ import {
   type Infer,
 } from "../core/validation";
 import { checksum } from "../core/checksum";
+import siege from "../data/siege-original.json";
+import { SIEGE_RULES_VERSION } from "../abilities/siege-state";
 import cloak from "../data/cloak-original.json";
 import { CLOAK_RULES_VERSION } from "../abilities/cloak-state";
 import special from "../data/special-original.json";
@@ -30,8 +36,11 @@ export const TERRAIN_COMBAT_RULES_VERSION =
     vision: LEGACY_VISION_RULES_VERSION,
   });
 export const BURROW_COMBAT_RULES_VERSION = "burrow-1-" + checksum(TERRAIN_COMBAT_RULES_VERSION);
-export const SPECIAL_COMBAT_RULES_VERSION = "special-combat-" + checksum({ base: BURROW_COMBAT_RULES_VERSION, vision: VISION_RULES_VERSION, special: SPECIAL_RULES_VERSION });
-export const COMBAT_RULES_VERSION = "cloak-combat-" + checksum({ base: SPECIAL_COMBAT_RULES_VERSION, cloak: CLOAK_RULES_VERSION });
+export const SPECIAL_COMBAT_RULES_VERSION = "special-combat-" + checksum({ base: BURROW_COMBAT_RULES_VERSION, vision: CARGO_VISION_RULES_VERSION, special: SPECIAL_RULES_VERSION });
+export const CLOAK_COMBAT_RULES_VERSION = "cloak-combat-" + checksum({ base: SPECIAL_COMBAT_RULES_VERSION, cloak: CLOAK_RULES_VERSION });
+export const SIEGE_COMBAT_RULES_VERSION = "siege-combat-" + checksum({ base: CLOAK_COMBAT_RULES_VERSION, siege: SIEGE_RULES_VERSION });
+export const LURKER_COMBAT_RULES_VERSION = "lurker-combat-" + checksum({ base: SIEGE_COMBAT_RULES_VERSION, lurker: LURKER_RULES_VERSION });
+export const COMBAT_RULES_VERSION = "arbiter-combat-" + checksum({ base: LURKER_COMBAT_RULES_VERSION, arbiter: ARBITER_RULES_VERSION, vision: VISION_RULES_VERSION });
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(
@@ -52,7 +61,7 @@ export const combatRecordSchema = object({
 });
 const effectFields = {
   id: integer(1), tick: integer(),
-  weaponId: optional(enumeration([...original.weapons, ...special.weapons, ...cloak.weapons].map((w) => w.name))),
+  weaponId: optional(enumeration([...original.weapons, ...special.weapons, ...cloak.weapons, ...siege.weapons, ...lurker.weapons, ...arbiter.weapons].map((w) => w.name))),
   owner: integer(0, 1), x: integer(), y: integer(), toX: integer(), toY: integer(),
 };
 export const combatEffectSchema = object({ ...effectFields,
@@ -68,7 +77,7 @@ export const combatProjectileSchema = object({
   owner: integer(0, 1),
   targetId: integer(1),
   targetLayer: enumeration(["ground", "air"]),
-  weaponId: enumeration(["Fragmentation_Grenade", "Phase_Disruptor"]),
+  weaponId: enumeration(["Fragmentation_Grenade", "Phase_Disruptor", "Phase_Disruptor_Cannon"]),
   x: integer(),
   y: integer(),
   spawnTick: integer(),
@@ -81,7 +90,7 @@ export const combatProjectileSchema = object({
 export const renderProjectileSchema = object({
   id: integer(1),
   owner: integer(0, 1),
-  weaponId: enumeration(["Fragmentation_Grenade", "Phase_Disruptor"]),
+  weaponId: enumeration(["Fragmentation_Grenade", "Phase_Disruptor", "Phase_Disruptor_Cannon"]),
   x: integer(),
   y: integer(),
 });

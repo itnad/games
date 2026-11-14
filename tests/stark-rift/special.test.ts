@@ -49,7 +49,7 @@ function fixture(race: Faction = "terran", enemy: Faction = "zerg") {
 }
 describe("original cloak and transport content", () => {
   it("keeps original costs, air layers, permanent cloak and unit-specific cargo slots", () => {
-    expect(ECONOMY_DEFINITIONS).toHaveLength(46);
+    expect(ECONOMY_DEFINITIONS).toHaveLength(52);
     expect(economyDefinition("protoss-observer")).toMatchObject({ minerals: 25, gas: 75, supply: 2 });
     expect(economyDefinition("protoss-dark-templar")).toMatchObject({ minerals: 125, gas: 100 });
     expect(unitTraits("terran-dropship")?.spaceProvided).toBe(8);

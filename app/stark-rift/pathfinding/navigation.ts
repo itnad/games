@@ -1,4 +1,5 @@
 import { isEmbarked } from "../abilities/special-state";
+import { tankLocked } from "../abilities/siege-state";
 import { isBurrowed } from "../abilities/burrow";
 import {isBlueprint,tileWalkable,bodyContains,segmentHitsBody} from '../economy/footprints';
 import type { BattleMap } from "../data/maps";
@@ -134,10 +135,11 @@ export function navigate(state:SimulationState,map:BattleMap):void{
   const signature=obstacles.length?checksum(obstacles):"none";
   if(n.obstacleSignature!==signature){n.obstacleSignature=signature;state.map.obstacleVersion++;}
   n.lastStarted=0;n.lastExpanded=0;n.lastReused=0;
-  n.jobs=n.jobs.filter(j=>{const i=s.id.indexOf(j.entityId);return i>=0&&state.movement[i].status==="waiting"&&j.version===state.map.obstacleVersion;});
+  n.jobs=n.jobs.filter(j=>{const i=s.id.indexOf(j.entityId);return i>=0&&!isBurrowed(state,s.id[i])&&!tankLocked(state,s.id[i],s.definitionId[i])&&state.movement[i].status==="waiting"&&j.version===state.map.obstacleVersion;});
   n.cache=n.cache.filter(c=>c.key.endsWith(`:${state.map.obstacleVersion}`));
   const order=s.id.map((_,i)=>i).sort((a,b)=>state.movement[a].priority-state.movement[b].priority||state.movement[a].requestTick-state.movement[b].requestTick||s.id[a]-s.id[b]);
   for(const i of order){
+    if(isBurrowed(state,s.id[i])||tankLocked(state,s.id[i],s.definitionId[i]))continue;
     const m=state.movement[i];
     if(m.order!=="idle"&&m.order!=="hold"&&m.obstacleVersion!==state.map.obstacleVersion){m.status="waiting";m.path=[];m.pathIndex=0;m.obstacleVersion=state.map.obstacleVersion;}
     if(m.status!=="waiting"||!m.target||n.jobs.some(j=>j.entityId===s.id[i]))continue;

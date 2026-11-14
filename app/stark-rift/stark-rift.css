@@ -42,3 +42,11 @@
 .sr-commands {scroll-padding-top:64px}.sr-economy-controls button {scroll-margin-top:64px}
 
 .sr-transport-controls{display:flex;flex-direction:column;gap:5px}.sr-cargo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.sr-cargo-grid button{display:flex;flex-direction:column;gap:3px;padding:6px!important;font-size:11px!important}.sr-cargo-grid small{font-size:10px;color:#b4cccf}
+
+/* Pause stays reachable while resource/zoom content scrolls in the narrow header. */
+.sr-overview {scroll-padding-top:56px}
+.sr-overview>.sr-pause {position:sticky;top:0;z-index:2;flex-shrink:0;background:#173641}
+.sr-overview>.sr-resource-hud {order:-1;flex-shrink:0}
+.sr-overview>.sr-pause {order:-2}
+.sr-overview>.sr-zoom {flex-shrink:0}
+.sr-zoom button {scroll-margin-top:56px}

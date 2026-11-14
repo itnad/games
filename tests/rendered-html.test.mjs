@@ -2072,17 +2072,24 @@ test("allows native refresh in game menus, protects play, and releases the guard
   assert.equal(pull(), false, "leaving the game restores unrestricted home refresh");
 });
 
-test("resets the home view and game shelves after a browser refresh", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+test("shows home games as a compact grid and keeps quick start distinct from recent games", async () => {
+  const [pageSource, styles] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
 
   assert.match(pageSource, /window\.history\.scrollRestoration = "manual"/);
-  assert.match(pageSource, /document\.querySelectorAll<HTMLElement>\("\.game-shelf-track"\)/);
-  assert.match(pageSource, /track\.scrollLeft = 0/);
+  assert.doesNotMatch(pageSource, /track\.scrollLeft = 0/);
   assert.match(pageSource, /window\.addEventListener\("pageshow", resetHomeView\)/);
   assert.match(pageSource, /setShowAllGames\(false\)/);
   assert.match(pageSource, /window\.localStorage\.removeItem\(SHOW_ALL_GAMES_STORAGE_KEY\)/);
   assert.match(pageSource, /key="recent-games"/);
   assert.match(pageSource, /key="quick-start-games"/);
+  assert.match(pageSource, /const recentGameIdSet = new Set\(recentGames\.map\(\(game\) => game\.id\)\)/);
+  assert.match(pageSource, /!recentGameIdSet\.has\(game\.id\)/);
+  assert.match(pageSource, /className="game-shelf-count">\{games\.length\}/);
+  assert.match(styles, /\.game-shelf-track\s*\{[\s\S]*?grid-auto-flow:\s*row;[\s\S]*?grid-template-columns:\s*repeat\(auto-fill, minmax\(190px, 216px\)\);[\s\S]*?overflow:\s*visible;/);
+  assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.game-shelf-track\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
 });
 
 test("balances distinct AI personalities automatically in Seven Civilizations", async () => {

@@ -1,3 +1,5 @@
+import { ARBITER, ARBITER_RANGE } from "../abilities/arbiter";
+import { combatProfile } from "../combat/catalog";
 import {MEMORY_TICKS} from "../vision/state";
 import {economyDefinition} from "../data/economy-catalog";
 import {
@@ -345,11 +347,20 @@ export class BattleRenderer {
       g.alpha=alpha;g.position.set(c.x/256,c.y/256);updateMinimapMarker(mini!,0x9ba7ae);mini!.alpha=alpha;mini!.position.set(c.x/256,c.y/256);
     }
     this.combatEffects.clear();
+    for (const e of this.snapshot?.entities ?? []) if (e.owner === this.snapshot!.viewerPlayerId && e.definitionId === ARBITER && this.selectedIds.has(e.id)) {
+      const b = combatProfile(ARBITER)!.bounds, r = ARBITER_RANGE / 256;
+      this.combatEffects.roundRect(e.x / 256 - b[0] / 32 - r, e.y / 256 - b[1] / 32 - r, (b[0] + b[2]) / 32 + r * 2, (b[1] + b[3]) / 32 + r * 2, r).fill({ color: 0xa78be8, alpha: .045 }).stroke({ color: 0xc6a1ff, width: .045, alpha: .65 });
+    }
+    for (const w of this.snapshot?.groundWaves ?? []) {
+      const x = w.x / 256, y = w.y / 256;
+      this.combatEffects.ellipse(x, y, .5, .28).fill({ color: 0x64434b, alpha: .65 });
+      for (const offset of [-.3, 0, .3]) this.combatEffects.poly([x + offset - .11, y + .12, x + offset, y - .42, x + offset + .11, y + .12]).fill(0xebbc8d).stroke({ color: 0x7e4651, width: .03 });
+    }
     for (const e of snapshot.combat?.effects ?? []) {
       const color =
           e.weaponId === "Needle_Spines"
             ? 0x9de387
-            : e.weaponId === "Phase_Disruptor"
+            : ["Phase_Disruptor", "Phase_Disruptor_Cannon"].includes(e.weaponId ?? "")
               ? 0x8ac9ff
               : e.owner === snapshot.viewerPlayerId
                 ? 0xffda8b
@@ -366,6 +377,9 @@ export class BattleRenderer {
           .circle(e.x / 256, e.y / 256, 0.12)
           .fill({ color, alpha: 1 - age });
       else {
+        if (e.weaponId === "Arclite_Shock_Cannon" && e.kind === "impact")
+          this.combatEffects.circle(e.toX / 256, e.toY / 256, 0.4 + age * 0.85)
+            .fill({ color: 0xffb45b, alpha: (1 - age) * 0.15 }).stroke({ color: 0xffc875, width: 0.09, alpha: 1 - age });
         if (e.weaponId === "Arclite_Cannon")
           this.combatEffects
             .circle(e.toX / 256, e.toY / 256, 0.25 + age * 0.35)
@@ -514,7 +528,7 @@ export class BattleRenderer {
         ] !== 2
       )
         continue;
-      if (bullet.weaponId === "Phase_Disruptor")
+      if (["Phase_Disruptor", "Phase_Disruptor_Cannon"].includes(bullet.weaponId))
         this.flying
           .circle(px, py, 0.22)
           .fill({ color: 0x5b97ff, alpha: 0.25 })

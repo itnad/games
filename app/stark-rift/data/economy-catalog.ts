@@ -1,7 +1,10 @@
+import arbiter from "./arbiter-original.json";
+import lurker from "./lurker-original.json";
 import original from "./economy-original.json";
 import burrow from "./burrow-original.json";
 import special from "./special-original.json";
 import cloak from "./cloak-original.json";
+import siege from "./siege-original.json";
 import { checksum } from "../core/checksum";
 export type Faction = "terran" | "zerg" | "protoss";
 export type EconomyDefinition = {
@@ -157,6 +160,10 @@ const cloakRows: typeof rows = [
   ["Terran_Science_Facility", "사이언스 퍼실리티", "research", "terran-scv", ["terran-starport"]],
   ["Terran_Covert_Ops", "코버트 옵스", "addon", "terran-science-facility"],
 ];
+const siegeRows: typeof rows = [["Terran_Siege_Tank_Siege_Mode", "시즈 탱크 · 시즈 모드", "vehicle", "terran-siege-tank-tank-mode"]];
+const lurkerRows: typeof rows = [["Zerg_Lurker", "러커", "vehicle", "zerg-hydralisk"], ["Zerg_Lurker_Egg", "러커 알", "cocoon", "zerg-hydralisk"]];
+const arbiterRows: typeof rows = [["Protoss_Arbiter", "아비터", "airCombat", "protoss-stargate", ["protoss-arbiter-tribunal"]], ["Protoss_Stargate", "스타게이트", "military", "protoss-probe", ["protoss-cybernetics-core"]], ["Protoss_Arbiter_Tribunal", "아비터 트리뷰널", "research", "protoss-probe", ["protoss-stargate", "protoss-templar-archives"]]];
+export const unitFamily = (id: string) => id === "terran-siege-tank-siege-mode" ? "terran-siege-tank-tank-mode" : ["zerg-lurker", "zerg-lurker-egg"].includes(id) ? "zerg-hydralisk" : id;
 /** A Lair retains Hatchery production, prerequisites, larvae and resource return. */
 export const countsAsDefinition = (actual: string, expected: string) =>
   actual === expected || (actual === "zerg-lair" && expected === "zerg-hatchery");
@@ -165,16 +172,16 @@ export const economyLayer = (d: EconomyDefinition): "air" | "ground" =>
   ["airSupply", "transport", "detector", "airCombat"].includes(d.icon) ? "air" : "ground";
 export const economyId = (name: string) =>
   name.toLowerCase().replaceAll("_", "-");
-export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows, ...cloakRows].map(
+export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows, ...cloakRows, ...siegeRows, ...lurkerRows, ...arbiterRows].map(
   ([sourceName, name, icon, producer, requires = []]) => {
-    const raw = [...original.units, ...special.units, ...cloak.units].find((u) => u.name === sourceName);
+    const raw = [...original.units, ...special.units, ...cloak.units, ...siege.units, ...lurker.units, ...arbiter.units].find((u) => u.name === sourceName);
     if (!raw) throw new Error("Missing original definition " + sourceName);
     const id = economyId(sourceName),
       faction = id.split("-")[0] as Faction;
     const kind =
       icon === "worker"
         ? "worker"
-        : ["infantry", "vehicle", "airSupply", "transport", "detector", "airCombat"].includes(icon)
+        : ["infantry", "vehicle", "airSupply", "transport", "detector", "airCombat", "cocoon"].includes(icon)
           ? "combat"
           : "building";
     const headquarters = icon === "headquarters",
@@ -272,10 +279,16 @@ const specialUpgrades = [...burrowUpgrades, {
   factor: 0, frames: sacs.defaultTimeCostBase, ticks: economicTicks(sacs.defaultTimeCostBase),
   timeFactor: 0, maxLevel: 1, availableLevels: 1,
 }];
-export const ECONOMY_UPGRADES = [...specialUpgrades, ...cloak.technologies.map((raw, i) => ({
+const cloakUpgrades = [...specialUpgrades, ...cloak.technologies.map((raw, i) => ({
   id: economyId(raw.name), name: i === 0 ? "개인 은폐" : "클로킹 필드", faction: "terran" as Faction, producer: raw.producer,
   minerals: raw.minerals, gas: raw.gas, factor: 0, frames: raw.frames, ticks: economicTicks(raw.frames), timeFactor: 0, maxLevel: 1, availableLevels: 1,
 }))];
+const siegeTech = siege.technology;
+const siegeUpgrades = [...cloakUpgrades, {
+  id: "tank-siege-mode", name: "시즈 모드", faction: "terran" as Faction, producer: siegeTech.producer, minerals: siegeTech.minerals, gas: siegeTech.gas, factor: 0, frames: siegeTech.frames, ticks: economicTicks(siegeTech.frames), timeFactor: 0, maxLevel: 1, availableLevels: 1,
+}];
+export const ECONOMY_UPGRADES = [...siegeUpgrades, { id: "lurker-aspect", name: "러커 변태", faction: "zerg" as Faction, producer: lurker.technology.producer, minerals: lurker.technology.minerals, gas: lurker.technology.gas, factor: 0, frames: lurker.technology.frames, ticks: economicTicks(lurker.technology.frames), timeFactor: 0, maxLevel: 1, availableLevels: 1 }];
+export const technologyRequirements = (id: string): string[] => id === "lurker-aspect" ? [lurker.requiredUnit] : [];
 export const ECONOMY_SOURCE = original.source;
 export const ECONOMY_MECHANICS = {
   mineralHarvestTicks: economicTicks(75),
@@ -303,7 +316,10 @@ export const SPECIAL_ECONOMY_DATA_VERSION = "special-economy-" + checksum({
   base: BURROW_ECONOMY_DATA_VERSION, special: JSON.stringify(special), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length),
   upgrades: specialUpgrades,
 });
-export const ECONOMY_DATA_VERSION = "cloak-economy-" + checksum({ base: SPECIAL_ECONOMY_DATA_VERSION, cloak: JSON.stringify(cloak), definitions: ECONOMY_DEFINITIONS, upgrades: ECONOMY_UPGRADES });
+export const CLOAK_ECONOMY_DATA_VERSION = "cloak-economy-" + checksum({ base: SPECIAL_ECONOMY_DATA_VERSION, cloak: JSON.stringify(cloak), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length), upgrades: cloakUpgrades });
+export const SIEGE_ECONOMY_DATA_VERSION = "siege-economy-" + checksum({ base: CLOAK_ECONOMY_DATA_VERSION, siege: JSON.stringify(siege), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length + siegeRows.length), upgrades: siegeUpgrades });
+export const LURKER_ECONOMY_DATA_VERSION = "lurker-economy-" + checksum({ base: SIEGE_ECONOMY_DATA_VERSION, lurker: JSON.stringify(lurker), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length + siegeRows.length + lurkerRows.length), upgrades: ECONOMY_UPGRADES });
+export const ECONOMY_DATA_VERSION = "arbiter-economy-" + checksum({ base: LURKER_ECONOMY_DATA_VERSION, arbiter: JSON.stringify(arbiter), definitions: ECONOMY_DEFINITIONS });
 for (const d of ECONOMY_DEFINITIONS) {
   if (
     !lookup.has(d.producer) ||

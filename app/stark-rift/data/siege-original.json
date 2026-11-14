@@ -1,0 +1,89 @@
+{
+  "source": {
+    "reference": "BWAPI v4.4.0 / Brood War 1.16.1; OpenBW splash behavior",
+    "bwapiUrl": "https://github.com/bwapi/bwapi/tree/v4.4.0/bwapi/BWAPILIB/Source",
+    "openbwUrl": "https://github.com/OpenBW/openbw/blob/4b046d5f65302b10cb0a745f0fecd37ec85b20a8/bwgame.h",
+    "sha256": {
+      "UnitType.cpp": "b5ffb3f41e053c8198ee4254b1f06d9eb664c348648935561586b9d523359710",
+      "WeaponType.cpp": "4636ebc2edbe5b5fa3887d6ee99d7a7d0ea6c8afe8f4f3208428e163bfbbdad2",
+      "TechType.cpp": "84c209953b49ca5142bf671bb638991a50325b21c86e0972e7c1137153c46fe7",
+      "bwgame.h": "5ee316ca2c008c9252f7fde7444ca5dc7f35440549be2576dc37fa228fb31ae6"
+    }
+  },
+  "units": [
+    {
+      "name": "Terran_Siege_Tank_Siege_Mode",
+      "bwapiId": 30,
+      "defaultOreCost": 150,
+      "defaultGasCost": 100,
+      "defaultTimeCost": 750,
+      "defaultMaxHP": 150,
+      "defaultMaxSP": 0,
+      "defaultArmorAmount": 1,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 4,
+      "unitTopSpeeds": 0,
+      "sightRangeTiles": 10,
+      "dimensions": [
+        1,
+        1,
+        16,
+        16,
+        15,
+        15
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "name": "Terran_Siege_Tank_Siege_Mode",
+      "size": "large",
+      "bounds": [
+        16,
+        16,
+        15,
+        15
+      ],
+      "groundWeapon": "Arclite_Shock_Cannon",
+      "airWeapon": "None",
+      "hits": 1
+    }
+  ],
+  "traits": [
+    {
+      "name": "Terran_Siege_Tank_Siege_Mode",
+      "spaceRequired": 255,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    }
+  ],
+  "weapons": [
+    {
+      "name": "Arclite_Shock_Cannon",
+      "bwapiId": 27,
+      "defaultWpnDamageAmt": 70,
+      "defaultWpnDamageBonus": 5,
+      "wpnDamageCooldowns": 75,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 64,
+      "wpnMaxRange": 384,
+      "wpnSplashRangeInner": 10,
+      "wpnSplashRangeMid": 25,
+      "wpnSplashRangeOuter": 40,
+      "damageType": "Explosive",
+      "upgrade": "Terran_Vehicle_Weapons",
+      "explosionType": "Radial_Splash"
+    }
+  ],
+  "technology": {
+    "name": "Tank_Siege_Mode",
+    "bwapiId": 5,
+    "minerals": 150,
+    "gas": 150,
+    "frames": 1200,
+    "energy": 0,
+    "producer": "terran-machine-shop"
+  }
+}

@@ -143,9 +143,9 @@ describe("production, research and previous stage save",()=>{
   it("migrates a stage6B cargo save without losing concealed units, groups, RNG or queues and backs up the raw save",()=>{
     const f=fixture(),ship=f.add(0,'terran-dropship'),troop=f.add(0,'terran-marine',41,40);f.load([ship],troop);f.tick(20);
     const old=structuredClone(f.saved());old.formatVersion=old.simulation.schemaVersion=11;old.engineVersion=old.simulation.engineVersion='0.12.0-stage6b';old.simulation.combat!.rulesVersion=SPECIAL_COMBAT_RULES_VERSION as never;
-    old.dataVersion=old.simulation.dataVersion=old.dataVersion.replace(ECONOMY_DATA_VERSION,SPECIAL_ECONOMY_DATA_VERSION);old.checksum=checksum(old.simulation);
+    old.dataVersion=old.simulation.dataVersion=old.dataVersion.replace(ECONOMY_DATA_VERSION,SPECIAL_ECONOMY_DATA_VERSION);if (old.simulation.vision) old.simulation.vision.rulesVersion = "fog-2-permanent-cloak-cargo-observer11" as never; old.checksum = checksum(old.simulation);
     const raw=JSON.stringify(old),key=DEVELOPMENT_SAVE_PREFIX+'terran',records=new Map([[key,raw]]),store=new DevelopmentSaveStore({getItem:k=>records.get(k)??null,setItem:(k,v)=>{records.set(k,v);}}),read=store.read('terran');
-    expect(read.status).toBe('ready');if(read.status!=='ready')throw Error('migration');expect(read.snapshot.formatVersion).toBe(12);expect(read.snapshot.simulation.special).toEqual(old.simulation.special);expect(read.snapshot.simulation.rngStreams).toEqual(old.simulation.rngStreams);expect(store.write(read.snapshot)).toBe(true);expect(records.get(key+'.stage6b-backup')).toBe(raw);
+    expect(read.status).toBe('ready');if(read.status!=='ready')throw Error('migration');expect(read.snapshot.formatVersion).toBe(15);expect(read.snapshot.simulation.special).toEqual(old.simulation.special);expect(read.snapshot.simulation.rngStreams).toEqual(old.simulation.rngStreams);expect(store.write(read.snapshot)).toBe(true);expect(records.get(key+'.stage6b-backup')).toBe(raw);
     const invalid=structuredClone(old);invalid.simulation.energy=[];invalid.checksum=checksum(invalid.simulation);expect(()=>restoreSnapshot(JSON.stringify(invalid))).toThrow();
   });
 });
