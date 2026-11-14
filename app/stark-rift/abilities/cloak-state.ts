@@ -9,6 +9,7 @@ export const CLOAK_ENERGY_COST = original.technologies[0].energy;
 export const CLOAK_RULES_VERSION = "cloak-1-" + checksum(JSON.stringify(original));
 export const cloakResearch = (definition: string) => definition === "terran-ghost" ? "personnel-cloaking" : definition === "terran-wraith" ? "cloaking-field" : null;
 export const supportsCloak = (definition: string) => cloakResearch(definition) !== null;
+export const supportsEnergy = (definition: string) => definition === "protoss-arbiter" || supportsCloak(definition);
 export const energyStateSchema = array(object({ entityId: integer(1), amount: integer(0, ENERGY.maximum * ENERGY.scale), frameRemainder: integer(0, 4) }), 0, 2048);
 type Record = Infer<typeof energyStateSchema>[number];
 export type EnergyRecord = { -readonly [K in keyof Record]: Record[K] };
@@ -28,9 +29,9 @@ export function validEnergy(s: SimulationState): boolean {
   if (records.some((r, n) => {
     const i = indices.get(r.entityId);
     return (n > 0 && records[n - 1].entityId >= r.entityId) || i === undefined ||
-      !supportsCloak(e.definitionId[i]) || e.layer[i] !== (e.definitionId[i] === "terran-wraith" ? "air" : "ground");
+      !supportsEnergy(e.definitionId[i]) || e.layer[i] !== (["terran-wraith", "protoss-arbiter"].includes(e.definitionId[i]) ? "air" : "ground");
   })) return false;
   if (!s.economy.enabled && records.length > 0) return false;
-  if (s.economy.enabled && e.id.some((id, i) => supportsCloak(e.definitionId[i]) && !byId.has(id))) return false;
+  if (s.economy.enabled && e.id.some((id, i) => supportsEnergy(e.definitionId[i]) && !byId.has(id))) return false;
   return (s.vision?.concealed ?? []).every((c) => c.kind !== "cloak" || (hasCloakResearch(s, c.entityId) && (energyOf(s, c.entityId)?.amount ?? 0) > 0));
 }
