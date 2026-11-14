@@ -71,7 +71,7 @@ describe('Arbiter production and passive cloak field', () => {
   it('cloaks own ground, air and workers immediately without energy, research, or saved flags', () => {
     const f=fixture(),a=f.add(0,ARBITER),ground=f.add(0,'protoss-zealot',42,40),air=f.add(0,'protoss-shuttle',41,42),probe=f.add(0,'protoss-probe',39,40);
     for(const id of [ground,air,probe])expect(coveredByArbiter(f.state,indexOf(f.state,id))).toBe(true);
-    expect(coveredByArbiter(f.state,indexOf(f.state,a))).toBe(false);expect(f.state.vision!.concealed).toEqual([]);expect(f.state.energy??[]).toEqual([]);expect(f.state.economy.upgrades).toEqual([]);
+    expect(coveredByArbiter(f.state,indexOf(f.state,a))).toBe(false);expect(f.state.vision!.concealed).toEqual([]);expect(f.state.energy).toContainEqual({entityId:a,amount:50*256,frameRemainder:0});expect(f.state.economy.upgrades).toEqual([]);
     const view=f.view();for(const id of [ground,air,probe])expect(view.entities.find(e=>e.id===id)).toMatchObject({cloaked:true,auraCloaked:true});expect(validateRenderSnapshot(view).ok).toBe(true);
   });
   it('excludes all Arbiters, structures and enemy units', () => {
@@ -124,6 +124,6 @@ describe('Arbiter production and passive cloak field', () => {
     const f=fixture('zerg','protoss'),hydra=f.add(0,'zerg-hydralisk');f.research('lurker-aspect');f.issue({kind:'morphUnit',entityIds:[hydra],payload:{unitId:'zerg-lurker'}});const l=f.add(0,'zerg-lurker',43,40);f.add(1,'protoss-probe',46,40);f.issue({kind:'toggleStateAbility',entityIds:[l],payload:{abilityId:'burrow',enabled:true}});
     const old=f.saved();old.formatVersion=old.simulation.schemaVersion=14;old.engineVersion=old.simulation.engineVersion='0.15.0-stage6e';old.dataVersion=old.simulation.dataVersion=old.dataVersion.replace(ECONOMY_DATA_VERSION,LURKER_ECONOMY_DATA_VERSION);old.simulation.combat!.rulesVersion=LURKER_COMBAT_RULES_VERSION;old.simulation.vision!.rulesVersion='fog-2-permanent-cloak-cargo-observer11' as never;old.checksum=checksum(old.simulation);
     const raw=JSON.stringify(old),key=DEVELOPMENT_SAVE_PREFIX+'zerg',records=new Map([[key,raw]]),store=new DevelopmentSaveStore({getItem:k=>records.get(k)??null,setItem:(k,v)=>{records.set(k,v);}}),read=store.read('zerg');expect(read.status).toBe('ready');if(read.status!=='ready')throw Error('migration');
-    expect(read.snapshot.formatVersion).toBe(15);for(const field of ['lurker','players','rngStreams','commandState'] as const)expect(read.snapshot.simulation[field]).toEqual(old.simulation[field]);expect(store.write(read.snapshot)).toBe(true);expect(records.get(key+'.stage6e-backup')).toBe(raw);
+    expect(read.snapshot.formatVersion).toBe(16);for(const field of ['lurker','players','rngStreams','commandState'] as const)expect(read.snapshot.simulation[field]).toEqual(old.simulation[field]);expect(store.write(read.snapshot)).toBe(true);expect(records.get(key+'.stage6e-backup')).toBe(raw);
   });
 });
