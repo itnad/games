@@ -487,12 +487,14 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "baksal",
 ]);
 
-const DEFAULT_QUICK_START_GAME_IDS: readonly GameId[] = [
+const DEFAULT_POPULAR_RECOMMENDATION_GAME_IDS: readonly GameId[] = [
   "mudflat-survivor",
+  "starswar",
   "incan-gold",
   "gomoku",
   "love-letter",
   "qwixx",
+  "dice",
 ];
 
 const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
@@ -1524,7 +1526,7 @@ function HomeContent({
     .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => Boolean(game));
   const recentGameIdSet = new Set(recentGames.map((game) => game.id));
-  const defaultQuickStartGames = DEFAULT_QUICK_START_GAME_IDS
+  const popularRecommendationGames = DEFAULT_POPULAR_RECOMMENDATION_GAME_IDS
     .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => game !== undefined && !recentGameIdSet.has(game.id));
 
@@ -1704,9 +1706,9 @@ function HomeContent({
           )}
 
           <GameShelf
-            key="quick-start-games"
-            title="빠른 시작"
-            games={defaultQuickStartGames}
+            key="popular-recommendation-games"
+            title="인기 추천"
+            games={popularRecommendationGames}
             favorites={favorites}
             onPlay={launchGame}
             onToggleFavorite={toggleFavorite}

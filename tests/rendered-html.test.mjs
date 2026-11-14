@@ -698,12 +698,12 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /<html lang="ko">/i);
   assert.match(html, /<title>paperoid — AI 보드게임 아지트<\/title>/i);
   assert.match(html, /paperoid/);
-  const quickStartTitles = ["해루질럿", "잉카의 다이아몬드", "오목", "러브레터", "큐윅스"];
-  let quickStartCursor = -1;
-  for (const title of quickStartTitles) {
-    const titleIndex = html.indexOf(`<h3>${title}</h3>`, quickStartCursor + 1);
-    assert.ok(titleIndex > quickStartCursor, `${title} 빠른 시작 순서`);
-    quickStartCursor = titleIndex;
+  const popularRecommendationTitles = ["해루질럿", "스타드래프트", "잉카의 다이아몬드", "오목", "러브레터", "큐윅스", "주사위 대결 Yahtzee"];
+  let popularRecommendationCursor = -1;
+  for (const title of popularRecommendationTitles) {
+    const titleIndex = html.indexOf(`<h3>${title}</h3>`, popularRecommendationCursor + 1);
+    assert.ok(titleIndex > popularRecommendationCursor, `${title} 인기 추천 순서`);
+    popularRecommendationCursor = titleIndex;
   }
   for (const title of [
     "체스",
@@ -753,7 +753,8 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /전체 게임 보기/);
   assert.match(pageSource, /recentGames\.length > 0 && \(/);
   assert.match(pageSource, /title="이어서 하기"/);
-  assert.match(pageSource, /title="빠른 시작"/);
+  assert.match(pageSource, /title="인기 추천"/);
+  assert.doesNotMatch(pageSource, /title="빠른 시작"/);
   assert.match(html, /사용자 의견/);
   assert.match(html, /개선안 또는 추가되면 좋을 게임을 남겨주세요/);
   assert.match(html, /의견 남기기/);
@@ -2072,7 +2073,7 @@ test("allows native refresh in game menus, protects play, and releases the guard
   assert.equal(pull(), false, "leaving the game restores unrestricted home refresh");
 });
 
-test("shows home games as a compact grid and keeps quick start distinct from recent games", async () => {
+test("shows home games as a compact grid and keeps popular recommendations distinct from recent games", async () => {
   const [pageSource, styles] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
@@ -2084,7 +2085,7 @@ test("shows home games as a compact grid and keeps quick start distinct from rec
   assert.match(pageSource, /setShowAllGames\(false\)/);
   assert.match(pageSource, /window\.localStorage\.removeItem\(SHOW_ALL_GAMES_STORAGE_KEY\)/);
   assert.match(pageSource, /key="recent-games"/);
-  assert.match(pageSource, /key="quick-start-games"/);
+  assert.match(pageSource, /key="popular-recommendation-games"/);
   assert.match(pageSource, /const recentGameIdSet = new Set\(recentGames\.map\(\(game\) => game\.id\)\)/);
   assert.match(pageSource, /!recentGameIdSet\.has\(game\.id\)/);
   assert.match(pageSource, /className="game-shelf-count">\{games\.length\}/);
