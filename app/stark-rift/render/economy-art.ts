@@ -16,7 +16,7 @@ export function updateEconomicMarker(
   const hp = Math.floor((e.health / d.health) * 10),
     sp = Math.floor(((e.shield ?? 0) / Math.max(1, d.shield)) * 10),
     p = progress === null ? -1 : Math.floor(progress * 20),
-    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, e.unitMorph ? Math.floor(20 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks)) : -1, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
+    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, e.auraCloaked, e.unitMorph ? Math.floor(20 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks)) : -1, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
   if (keys.get(g) === key) return true;
   keys.set(g, key);
   g.clear();
@@ -259,6 +259,10 @@ export function updateEconomicMarker(
       g.circle(0, -0.18, 0.17).fill(0xa7b3ae);
       g.roundRect(-0.23, -0.1, 0.46, 0.45, 0.1).fill(color);
       g.rect(0.15, -0.1, 0.15, 0.5).fill(0x152933);
+    } else if (d.id === "protoss-arbiter") {
+      g.poly([-.95, .3, -.45, -.2, -.2, -.65, 0, -.45, .2, -.65, .45, -.2, .95, .3, .45, .16, .2, .45, -.2, .45, -.45, .16]).fill(0xd1bc78).stroke({ color: 0xf1dfab, width: .06 });
+      g.ellipse(0, -.04, .23, .4).fill(0x7757ab).stroke({ color, width: .05 });
+      g.circle(0, -.08, .11).fill(0xc5b9ff);
     } else if (d.id === "zerg-lurker-egg") {
       g.ellipse(0, 0, .43, .58).fill(0x8d627e).stroke({ color: 0xd6b494, width: .06 });
       for (const y of [-.3, -.05, .2]) g.ellipse(0, y, .35, .13).stroke({ color, width: .07 });
@@ -332,6 +336,7 @@ export function updateEconomicMarker(
       0.08,
     ).fill(0x7ebdff);
   }
+  if (e.auraCloaked) g.ellipse(0, 0, Math.max(.4, e.radius / 256) * 1.25, Math.max(.3, e.radius / 256) * .85).stroke({ color: 0xc6a1ff, width: .05, alpha: .8 });
   if (e.unitMorph) {
     g.rect(-.45, .68, .9, .08).fill(0x352b42);
     g.rect(-.45, .68, .9 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks), .08).fill(0xe5bd85);
