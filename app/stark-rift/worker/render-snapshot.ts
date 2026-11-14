@@ -1,3 +1,4 @@
+import { coveredByArbiter } from "../abilities/arbiter";
 import { unitMorphOf } from "../abilities/lurker-state";
 import { siegeTransitionOf } from "../abilities/siege-state";
 import { activeCloak, energyView } from "../abilities/cloak-state";
@@ -46,6 +47,7 @@ export type RenderEntity = {
   shield?: number;
   burrowed?: boolean;
   cloaked?: boolean;
+  auraCloaked?: boolean;
   energy?: number;
   maxEnergy?: number;
   unitMorph?: { remainingTicks: number; totalTicks: number };
@@ -77,7 +79,7 @@ export type RenderSnapshot = {
     projectiles: {
       id: number;
       owner: number;
-      weaponId: "Fragmentation_Grenade" | "Phase_Disruptor";
+      weaponId: "Fragmentation_Grenade" | "Phase_Disruptor" | "Phase_Disruptor_Cannon";
       x: number;
       y: number;
     }[];
@@ -111,6 +113,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         shield: optional(integer()),
         burrowed: optional(boolean),
         cloaked: optional(boolean),
+        auraCloaked: optional(boolean),
         energy: optional(integer(0, 200)),
         maxEnergy: optional(integer(200, 200)),
         unitMorph: optional(object({ remainingTicks: integer(1, 250), totalTicks: integer(250, 250) })),
@@ -219,6 +222,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
       const x = Math.floor(e.x / 256),
         y = Math.floor(e.y / 256);
       return (
+        (!e.auraCloaked || (e.cloaked && e.kind !== "building" && e.definitionId !== "protoss-arbiter")) &&
         x < snapshot.widthTiles &&
         y < snapshot.heightTiles &&
         (e.owner === snapshot.viewerPlayerId ||
@@ -278,7 +282,8 @@ export function createRenderSnapshot(
       ...(state.economy.enabled ? { shield: s.shield[i] } : {}),
       ...(isBurrowed(state, s.id[i]) ? { burrowed: true } : {}),
       ...(state.economy.enabled ? energyView(state, s.id[i]) : {}),
-      ...(permanentCloak(s.definitionId[i]) || activeCloak(state, s.id[i]) ? { cloaked: true } : {}),
+      ...(coveredByArbiter(state, i) ? { auraCloaked: true } : {}),
+      ...(coveredByArbiter(state, i) || permanentCloak(s.definitionId[i]) || activeCloak(state, s.id[i]) ? { cloaked: true } : {}),
       ...(unitMorphOf(state, s.id[i]) ? { unitMorph: { remainingTicks: unitMorphOf(state, s.id[i])!.remainingTicks, totalTicks: unitMorphOf(state, s.id[i])!.totalTicks } } : {}),
       ...(siegeTransitionOf(state, s.id[i]) ? { siegeTransition: { targetDefinitionId: siegeTransitionOf(state, s.id[i])!.targetDefinitionId, remainingTicks: siegeTransitionOf(state, s.id[i])!.remainingTicks, totalTicks: siegeTransitionOf(state, s.id[i])!.totalTicks } } : {}),
       id: s.id[i],
