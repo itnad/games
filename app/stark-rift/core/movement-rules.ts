@@ -1,3 +1,4 @@
+import { spellLocked } from "../abilities/spells-state";
 import { isEmbarked } from "../abilities/special-state";
 import { isSieged, tankLocked } from "../abilities/siege-state";
 import { unitFamily } from "../data/economy-catalog";
@@ -330,7 +331,7 @@ function move(
   grid.trackStaticObstacles();
   for (let i = 0; i < s.id.length; i++) {
     const m = state.movement[i];
-    if (s.health[i] === 0 || s.kind[i] === "building" || isBurrowed(state, s.id[i]) || tankLocked(state, s.id[i], s.definitionId[i])) continue;
+    if (s.health[i] === 0 || s.kind[i] === "building" || spellLocked(state, s.id[i]) || isBurrowed(state, s.id[i]) || tankLocked(state, s.id[i], s.definitionId[i])) continue;
     if (m.order === "focusAttack" && m.targetEntityId !== null) {
       const t = s.id.indexOf(m.targetEntityId);
       if (t >= 0 && visible(state, s.owner[i], t)) {
