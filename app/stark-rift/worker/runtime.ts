@@ -1,3 +1,5 @@
+import { createLurkerRules } from "../abilities/lurker-rules";
+import { lurkerFitsMap } from "../abilities/lurker-state";
 import { createSiegeRules } from "../abilities/siege-rules";
 import { createCloakRules } from "../abilities/cloak-rules";
 import { createSpecialRules } from "../abilities/special-rules";
@@ -134,10 +136,10 @@ export class SimulationRuntime {
       );
     };
     const defaults = createMovementRules(map, visible, combatReach);
-    const combined = createSpecialRules(map, createSiegeRules(createCloakRules(createBurrowRules(map, createVisionRules(
+    const combined = createSpecialRules(map, createLurkerRules(createSiegeRules(createCloakRules(createBurrowRules(map, createVisionRules(
       map,
       createCombatRules(createEconomyRules(map, defaults), visible, map),
-    )))));
+    ))))));
     this.rules = {
       commands: { ...combined.commands, ...this.options.rules?.commands },
       systems: {
@@ -377,7 +379,7 @@ export class SimulationRuntime {
           if (
             !visionFitsMap(saved.simulation, registered.map) ||
             !specialFitsMap(saved.simulation, registered.map) ||
-            !combatFitsMap(saved.simulation, registered.map) ||
+            !combatFitsMap(saved.simulation, registered.map) || !lurkerFitsMap(saved.simulation, registered.map) ||
             !economyFitsMap(saved.simulation, registered.map) ||
             !navigationFitsMap(saved.simulation, registered.map) ||
             saved.simulation.entities.x.some(
