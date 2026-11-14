@@ -21,7 +21,7 @@ export function initializeSpecialPractice(s: SimulationState) {
     if (n >= 2) s.players[0].controlGroups[n < 4 ? 0 : 1].entityIds.push(id);
   }
   if (race === "terran") {
-    for (const technologyId of ["personnel-cloaking", "cloaking-field"]) s.economy.upgrades.push({ playerId: 0, technologyId, level: 1 });
+    for (const technologyId of ["personnel-cloaking", "cloaking-field", "tank-siege-mode"]) s.economy.upgrades.push({ playerId: 0, technologyId, level: 1 });
     for (const [n, definition] of ["terran-ghost", "terran-wraith"].entries()) {
       const id = createEconomicEntity(s, 0, economyDefinition(definition)!, { x: (16 + n * 4) * 256, y: 24 * 256 });
       s.combat!.friendlyIds.push(id); s.players[0].controlGroups[n + 2].entityIds.push(id);
@@ -32,5 +32,10 @@ export function initializeSpecialPractice(s: SimulationState) {
   const id = createEconomicEntity(s, 1, economyDefinition(target)!, { x: 29 * 256, y: 20 * 256 });
   s.combat!.targetIds.push(id); s.movement[s.entities.id.indexOf(id)].order = "hold";
   const worker = workerOf(s, id); if (worker) releaseWork(s, worker, false);
+  if (race === "terran") for (const [x, y] of [[30, 20], [29, 21]]) {
+    const target = createEconomicEntity(s, 1, economyDefinition("protoss-probe")!, { x: x * 256, y: y * 256 });
+    s.combat!.targetIds.push(target); s.movement[s.entities.id.indexOf(target)].order = "hold";
+    const w = workerOf(s, target); if (w) releaseWork(s, w, false);
+  }
   recomputeSupply(s);
 }
