@@ -1,3 +1,4 @@
+import { isInStasis } from "./spells-state";
 import type { SimulationState } from "../core/state";
 import { checksum } from "../core/checksum";
 import { combatProfile } from "../combat/catalog";
@@ -14,7 +15,7 @@ export function coveredByArbiter(s: SimulationState, index: number): boolean {
   if (!s.economy.enabled || index < 0 || index >= e.id.length || e.health[index] === 0 || e.kind[index] === "building" || e.definitionId[index] === ARBITER || isEmbarked(s, e.id[index])) return false;
   const target = combatProfile(e.definitionId[index]); if (!target) return false;
   for (let i = 0; i < e.id.length; i++) {
-    if (e.definitionId[i] !== ARBITER || e.owner[i] !== e.owner[index] || e.health[i] === 0 || isEmbarked(s, e.id[i])) continue;
+    if (e.definitionId[i] !== ARBITER || e.owner[i] !== e.owner[index] || e.health[i] === 0 || isInStasis(s,e.id[i]) || isEmbarked(s, e.id[i])) continue;
     const source = original.profiles[0].bounds,
       dx = Math.max(0, e.x[index] - target.bounds[0] * 8 - (e.x[i] + source[2] * 8), e.x[i] - source[0] * 8 - (e.x[index] + target.bounds[2] * 8)),
       dy = Math.max(0, e.y[index] - target.bounds[1] * 8 - (e.y[i] + source[3] * 8), e.y[i] - source[1] * 8 - (e.y[index] + target.bounds[3] * 8));
