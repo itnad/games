@@ -925,7 +925,7 @@ function GameArtwork({ game }: { game: GameDefinition }) {
   }
 
   if (game.id === "starswar") {
-    // 썸네일: 게임 렌더러로 그린 프로토스 대 저그 교전 장면(public/starswar/card.jpg).
+    // 썸네일: 게임 렌더러로 그린 교전 장면(public/starswar/card.jpg). 아군 질럿·다크템플러·캐리어·옵저버 대 적 벌처·시즈 탱크·해병·메딕·레이스.
     return <div className="card-art casual-card-art starswar" aria-hidden="true"><img src="/starswar/card.jpg" alt="" /><i /><span className="float-chip">WARP · WAVE</span></div>;
   }
 
