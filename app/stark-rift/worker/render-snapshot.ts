@@ -1,3 +1,4 @@
+import { siegeTransitionOf } from "../abilities/siege-state";
 import { activeCloak, energyView } from "../abilities/cloak-state";
 import { isEmbarked, permanentCloak } from "../abilities/special-state";
 import { isBurrowed } from "../abilities/burrow";
@@ -46,6 +47,7 @@ export type RenderEntity = {
   cloaked?: boolean;
   energy?: number;
   maxEnergy?: number;
+  siegeTransition?: { targetDefinitionId: string; remainingTicks: number; totalTicks: number };
   kind: "combat" | "worker" | "building";
   layer: "ground" | "air";
   radius: number;
@@ -108,6 +110,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         cloaked: optional(boolean),
         energy: optional(integer(0, 200)),
         maxEnergy: optional(integer(200, 200)),
+        siegeTransition: optional(object({ targetDefinitionId: enumeration(["terran-siege-tank-tank-mode", "terran-siege-tank-siege-mode"]), remainingTicks: integer(1, 40), totalTicks: integer(40, 40) })),
         kind: enumeration(["combat", "worker", "building"]),
         layer: enumeration(["ground", "air"]),
         radius: integer(1, 512),
@@ -269,6 +272,7 @@ export function createRenderSnapshot(
       ...(isBurrowed(state, s.id[i]) ? { burrowed: true } : {}),
       ...(state.economy.enabled ? energyView(state, s.id[i]) : {}),
       ...(permanentCloak(s.definitionId[i]) || activeCloak(state, s.id[i]) ? { cloaked: true } : {}),
+      ...(siegeTransitionOf(state, s.id[i]) ? { siegeTransition: { targetDefinitionId: siegeTransitionOf(state, s.id[i])!.targetDefinitionId, remainingTicks: siegeTransitionOf(state, s.id[i])!.remainingTicks, totalTicks: siegeTransitionOf(state, s.id[i])!.totalTicks } } : {}),
       id: s.id[i],
       owner: s.owner[i],
       definitionId: s.definitionId[i],
@@ -311,7 +315,7 @@ export function createRenderSnapshot(
           .map((effect): RenderEffect => {
             const { sourceId, ...e } = effect;
             const source = sourceId === undefined ? -1 : s.id.indexOf(sourceId);
-            if (e.owner !== viewer && ["shot", "slash", "launch"].includes(e.kind) &&
+            if (e.owner !== viewer && (["shot", "slash", "launch"].includes(e.kind) || (sourceId !== undefined && ["impact", "miss"].includes(e.kind))) &&
               (source < 0 || !canSeeEntity(state, map, viewer, source, visibility))) {
               const { weaponId, ...anonymous } = e;
               return { ...anonymous, kind: "hiddenAttack", toX: e.x, toY: e.y };
