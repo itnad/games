@@ -1,4 +1,4 @@
-import { supportsCloak, ENERGY } from "../abilities/cloak-state";
+import { supportsEnergy, ENERGY } from "../abilities/cloak-state";
 import { detachSpecialEntity } from "../abilities/special-cleanup";
 import { detachEconomyEntity } from "../economy/cleanup";
 import { recomputeSupply } from "../economy/helpers";
@@ -110,7 +110,7 @@ export function createEntity(
   state.entities.health.push(input.health);
   state.entities.shield.push(input.shield ?? 0);
   state.movement.push(idleMovement(id));
-  if (state.economy.enabled && supportsCloak(input.definitionId)) {
+  if (state.economy.enabled && supportsEnergy(input.definitionId)) {
     state.energy ??= []; state.energy.push({ entityId: id, amount: ENERGY.initial * ENERGY.scale, frameRemainder: 0 });
   }
   return id;
@@ -120,6 +120,7 @@ export function removeEntity(state: SimulationState, id: number): boolean {
   for (const passenger of detachSpecialEntity(state, id)) removeEntity(state, passenger);
   const index = state.entities.id.indexOf(id);
   detachEconomyEntity(state, id);
+  if (state.spells) { state.spells.stasis = state.spells.stasis.filter(r => r.entityId !== id); state.spells.recalls = state.spells.recalls.filter(r => r.entityId !== id); }
   if (state.lurker) state.lurker.morphs = state.lurker.morphs.filter((j) => j.entityId !== id);
   if (state.siege) state.siege = state.siege.filter((r) => r.entityId !== id);
   if (state.energy) state.energy = state.energy.filter((r) => r.entityId !== id);

@@ -97,7 +97,7 @@ type GameId =
   | "baksal";
 type Category = "전체" | "전략" | "모바일" | "카드" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
 
-const CATEGORIES: Category[] = ["전체", "전략", "모바일", "고전게임", "주사위", "터치류", "카드", "기억력", "추리", "퍼즐", "경주", "RPG"];
+const CATEGORIES: Category[] = ["전체", "모바일", "전략", "고전게임", "주사위", "터치류", "카드", "기억력", "추리", "퍼즐", "경주", "RPG"];
 
 type GameDefinition = {
   id: GameId;
@@ -487,16 +487,19 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "baksal",
 ]);
 
-const DEFAULT_QUICK_START_GAME_IDS: readonly GameId[] = [
+const DEFAULT_POPULAR_RECOMMENDATION_GAME_IDS: readonly GameId[] = [
   "mudflat-survivor",
+  "starswar",
   "incan-gold",
   "gomoku",
   "love-letter",
   "qwixx",
+  "dice",
 ];
 
 const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
 const PENDING_GAME_AFTER_UPDATE_KEY = "paperoid-pending-game-after-update";
+const RECENT_GAME_DISPLAY_LIMIT = 2;
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const PUBLIC_GAME_PATH_ALIASES: Readonly<Record<string, GameId>> = {
   haeru: "mudflat-survivor",
@@ -1521,12 +1524,13 @@ function HomeContent({
 
   const recentGames = recentIds
     .map((id) => availableGames.find((game) => game.id === id))
-    .filter((game): game is GameDefinition => Boolean(game));
+    .filter((game): game is GameDefinition => Boolean(game))
+    .slice(0, RECENT_GAME_DISPLAY_LIMIT);
   const favoriteGames = favorites
     .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => Boolean(game));
   const recentGameIdSet = new Set(recentGames.map((game) => game.id));
-  const defaultQuickStartGames = DEFAULT_QUICK_START_GAME_IDS
+  const popularRecommendationGames = DEFAULT_POPULAR_RECOMMENDATION_GAME_IDS
     .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => game !== undefined && !recentGameIdSet.has(game.id));
 
@@ -1706,9 +1710,9 @@ function HomeContent({
           )}
 
           <GameShelf
-            key="quick-start-games"
-            title="빠른 시작"
-            games={defaultQuickStartGames}
+            key="popular-recommendation-games"
+            title="인기 추천"
+            games={popularRecommendationGames}
             favorites={favorites}
             onPlay={launchGame}
             onToggleFavorite={toggleFavorite}
@@ -1856,7 +1860,6 @@ function HomeContent({
           </button>{" "}
           판 되세요.
         </p>
-        <a className="footer-stark-development-link" href="/stark-rift-dev">스타크 리프트 개발 테스트 →</a>
         <span>AI BOARD GAME CLUB</span>
       </footer>
     </main>

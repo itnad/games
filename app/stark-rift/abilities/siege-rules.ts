@@ -1,3 +1,4 @@
+import { isInStasis } from "./spells-state";
 import type { EngineRules } from "../core/simulation";
 import { idleMovement } from "../core/orders";
 import { economyDefinition } from "../data/economy-catalog";
@@ -47,6 +48,7 @@ export function createSiegeRules(base: EngineRules): EngineRules {
   } };
   return { ...base, commands, systems: { ...base.systems, construction: (s) => {
     for (const job of s.siege ?? []) {
+      if (isInStasis(s,job.entityId)) continue;
       if (--job.remainingTicks > 0) continue;
       const i = s.entities.id.indexOf(job.entityId), d = economyDefinition(job.targetDefinitionId)!;
       if (i < 0 || s.entities.health[i] === 0) continue;

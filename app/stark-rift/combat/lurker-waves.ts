@@ -1,3 +1,4 @@
+import { isInStasis } from "../abilities/spells-state";
 import type { SimulationState } from "../core/state";
 import { allocateId } from "../core/world";
 import { integrate } from "../core/fixed-point";
@@ -46,7 +47,7 @@ export function advanceSpines(s: SimulationState) {
     if (arrived) { wave.x = wave.toX; wave.y = wave.toY; }
     else { wave.x += Math.trunc(dx * travel.delta / distance); wave.y += Math.trunc(dy * travel.delta / distance); }
     for (let i = 0; i < e.id.length; i++) {
-      if (e.health[i] === 0 || e.owner[i] === wave.owner || e.layer[i] !== "ground" || isEmbarked(s, e.id[i]) || wave.hitIds.includes(e.id[i]) || s.economy.structures.some((b) => b.entityId === e.id[i] && !b.started)) continue;
+      if (e.health[i] === 0 || isInStasis(s,e.id[i]) || e.owner[i] === wave.owner || e.layer[i] !== "ground" || isEmbarked(s, e.id[i]) || wave.hitIds.includes(e.id[i]) || s.economy.structures.some((b) => b.entityId === e.id[i] && !b.started)) continue;
       const p = combatProfile(e.definitionId[i]); if (!p) continue;
       if (spineIntersectsBox(before, wave, e.x[i] - p.bounds[0] * 8, e.y[i] - p.bounds[1] * 8, e.x[i] + p.bounds[2] * 8, e.y[i] + p.bounds[3] * 8)) {
         wave.hitIds.push(e.id[i]); shots.push({ a: -1, b: i, damage: wave.damage, hits: 1, type: LURKER_WEAPON.damageType, weaponId: LURKER_WEAPON.name });

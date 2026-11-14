@@ -29,7 +29,7 @@ export function EconomyControls({
   running,
   openBuildMenu,
   selectWorker,
-  scout, loadTransport, unloadTransport, selectEntities,
+  scout, loadTransport, unloadTransport, selectEntities, castAbility,
 }: {
   snapshot: RenderSnapshot;
   selected: number[];
@@ -40,6 +40,7 @@ export function EconomyControls({
   openBuildMenu: () => void;
   selectWorker: () => void;
   scout: () => void;
+  castAbility?: (id: number, ability: "recall" | "stasis-field") => void;
   loadTransport?: (ids: number[]) => void; unloadTransport?: (ids: number[]) => void; selectEntities?: (ids: number[]) => void;
 }) {
   const economy = snapshot.economy!,
@@ -141,7 +142,7 @@ export function EconomyControls({
           hasBasicWeapon(def.id) && (
             <button
               className="sr-attack-move"
-              disabled={!running || entities.every((e) => e.burrowed || e.siegeTransition || isSieged(e.definitionId))}
+              disabled={!running || entities.every((e) => e.stasisTicks || e.recallTicks || e.burrowed || e.siegeTransition || isSieged(e.definitionId))}
               onClick={attackMove}
             >
               공격 이동
@@ -163,11 +164,12 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
-      <ArbiterControls snapshot={snapshot} selected={selected} select={selectEntities} />
+      <ArbiterControls snapshot={snapshot} selected={selected} select={selectEntities} running={running} cast={castAbility} />
       <LurkerControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <SiegeControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <CloakControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       {transport}
+      {entities.some(e => e.stasisTicks) && <p className="sr-help" data-stasis-status>스테이시스 정지 중 · 최대 {Math.ceil(Math.max(...entities.map(e => e.stasisTicks ?? 0))/20)}초 · 이동·공격·탑승 불가 · 피해 면역</p>}
       {permanentCloak(def.id) && <p className="sr-help">영구 은폐 · {def.id === "protoss-observer" ? "비무장 탐지기 · 탐지 범위 11타일" : "지상 근접 공격 · 적 탐지기에 노출되면 공격받습니다."}</p>}
       {burrowActors.length > 0 && (
         <div className="sr-burrow-controls">
@@ -441,11 +443,13 @@ export function EconomyControls({
                   })
                 }
               >
-                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field", "tank-siege-mode", "lurker-aspect"].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field", "tank-siege-mode", "lurker-aspect", "recall", "stasis-field"].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
                 {t.id === BURROW_RESEARCH && !done && <small>25초 · 드론·저글링·히드라 잠복</small>}
                 {t.id === "ventral-sacs" && !done && <small>50초 · 오버로드 8칸 수송</small>}
                 {t.id === "personnel-cloaking" && !done && <small>25초 · 고스트 수동 은폐</small>}
                 {t.id === "cloaking-field" && !done && <small>31.25초 · 레이스 수동 은폐</small>}
+                {t.id === "recall" && !done && <small>37.5초 · 에너지 150 · 아군 소환</small>}
+                {t.id === "stasis-field" && !done && <small>31.25초 · 에너지 100 · 범위 정지</small>}
                 {t.id === "lurker-aspect" && !done && <small>37.5초 · 레어 필요 · 히드라 → 러커</small>}
                 {t.id === "tank-siege-mode" && !done && <small>25초 · 시즈 탱크 포격 모드</small>}
               </button>
@@ -495,13 +499,13 @@ export function EconomyControls({
       {def.kind === "combat" && (
         <div className="sr-action-row">
           <button
-            disabled={!running || entities.every((e) => !!e.siegeTransition || !!e.unitMorph)}
+            disabled={!running || entities.every((e) => !!e.stasisTicks || !!e.recallTicks || !!e.siegeTransition || !!e.unitMorph)}
             onClick={() => issue({ kind: "stop", entityIds: selected })}
           >
             정지
           </button>
           <button
-            disabled={!running || entities.every((e) => !!e.siegeTransition || !!e.unitMorph)}
+            disabled={!running || entities.every((e) => !!e.stasisTicks || !!e.recallTicks || !!e.siegeTransition || !!e.unitMorph)}
             onClick={() => issue({ kind: "hold", entityIds: selected })}
           >
             위치 사수

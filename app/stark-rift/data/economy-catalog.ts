@@ -1,3 +1,4 @@
+import spells from "./spells-original.json";
 import arbiter from "./arbiter-original.json";
 import lurker from "./lurker-original.json";
 import original from "./economy-original.json";
@@ -287,7 +288,8 @@ const siegeTech = siege.technology;
 const siegeUpgrades = [...cloakUpgrades, {
   id: "tank-siege-mode", name: "시즈 모드", faction: "terran" as Faction, producer: siegeTech.producer, minerals: siegeTech.minerals, gas: siegeTech.gas, factor: 0, frames: siegeTech.frames, ticks: economicTicks(siegeTech.frames), timeFactor: 0, maxLevel: 1, availableLevels: 1,
 }];
-export const ECONOMY_UPGRADES = [...siegeUpgrades, { id: "lurker-aspect", name: "러커 변태", faction: "zerg" as Faction, producer: lurker.technology.producer, minerals: lurker.technology.minerals, gas: lurker.technology.gas, factor: 0, frames: lurker.technology.frames, ticks: economicTicks(lurker.technology.frames), timeFactor: 0, maxLevel: 1, availableLevels: 1 }];
+const lurkerUpgrades = [...siegeUpgrades, { id: "lurker-aspect", name: "러커 변태", faction: "zerg" as Faction, producer: lurker.technology.producer, minerals: lurker.technology.minerals, gas: lurker.technology.gas, factor: 0, frames: lurker.technology.frames, ticks: economicTicks(lurker.technology.frames), timeFactor: 0, maxLevel: 1, availableLevels: 1 }];
+export const ECONOMY_UPGRADES = [...lurkerUpgrades, ...spells.technologies.map((t,i) => ({ id: economyId(t.name), name: i === 0 ? "리콜" : "스테이시스 필드", faction: "protoss" as Faction, producer: t.producer, minerals: t.minerals, gas: t.gas, factor: 0, frames: t.frames, ticks: economicTicks(t.frames), timeFactor: 0, maxLevel: 1, availableLevels: 1 }))];
 export const technologyRequirements = (id: string): string[] => id === "lurker-aspect" ? [lurker.requiredUnit] : [];
 export const ECONOMY_SOURCE = original.source;
 export const ECONOMY_MECHANICS = {
@@ -318,8 +320,9 @@ export const SPECIAL_ECONOMY_DATA_VERSION = "special-economy-" + checksum({
 });
 export const CLOAK_ECONOMY_DATA_VERSION = "cloak-economy-" + checksum({ base: SPECIAL_ECONOMY_DATA_VERSION, cloak: JSON.stringify(cloak), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length), upgrades: cloakUpgrades });
 export const SIEGE_ECONOMY_DATA_VERSION = "siege-economy-" + checksum({ base: CLOAK_ECONOMY_DATA_VERSION, siege: JSON.stringify(siege), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length + siegeRows.length), upgrades: siegeUpgrades });
-export const LURKER_ECONOMY_DATA_VERSION = "lurker-economy-" + checksum({ base: SIEGE_ECONOMY_DATA_VERSION, lurker: JSON.stringify(lurker), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length + siegeRows.length + lurkerRows.length), upgrades: ECONOMY_UPGRADES });
-export const ECONOMY_DATA_VERSION = "arbiter-economy-" + checksum({ base: LURKER_ECONOMY_DATA_VERSION, arbiter: JSON.stringify(arbiter), definitions: ECONOMY_DEFINITIONS });
+export const LURKER_ECONOMY_DATA_VERSION = "lurker-economy-" + checksum({ base: SIEGE_ECONOMY_DATA_VERSION, lurker: JSON.stringify(lurker), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length + siegeRows.length + lurkerRows.length), upgrades: lurkerUpgrades });
+export const ARBITER_ECONOMY_DATA_VERSION = "arbiter-economy-" + checksum({ base: LURKER_ECONOMY_DATA_VERSION, arbiter: JSON.stringify(arbiter), definitions: ECONOMY_DEFINITIONS });
+export const ECONOMY_DATA_VERSION = "spells-economy-" + checksum({ base: ARBITER_ECONOMY_DATA_VERSION, spells: JSON.stringify(spells), upgrades: ECONOMY_UPGRADES });
 for (const d of ECONOMY_DEFINITIONS) {
   if (
     !lookup.has(d.producer) ||

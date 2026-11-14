@@ -1,3 +1,4 @@
+import { isInStasis, spellLocked } from "../abilities/spells-state";
 import { advanceSpines, launchSpines } from "./lurker-waves";
 import { LURKER, LURKER_WEAPON, LURKER_WAVE_RULES } from "../abilities/lurker-state";
 import { isTank, isSieged, siegeTransitionOf } from "../abilities/siege-state";
@@ -212,7 +213,7 @@ function validTarget(
   const e = s.entities;
   return (
     b >= 0 &&
-    !siegeTransitionOf(s, e.id[a]) && (e.definitionId[a] === LURKER ? isBurrowed(s, e.id[a]) : !isBurrowed(s, e.id[a])) && !isEmbarked(s, e.id[a]) && !isEmbarked(s, e.id[b]) &&
+    !spellLocked(s,e.id[a]) && !isInStasis(s,e.id[b]) && !siegeTransitionOf(s, e.id[a]) && (e.definitionId[a] === LURKER ? isBurrowed(s, e.id[a]) : !isBurrowed(s, e.id[a])) && !isEmbarked(s, e.id[a]) && !isEmbarked(s, e.id[b]) &&
     a !== b &&
     e.owner[a] !== e.owner[b] &&
     e.health[b] > 0 &&
@@ -388,6 +389,7 @@ export function createCombatRules(
             (e) => s.tick - e.tick <= 8,
           );
           for (let a = 0; a < s.entities.id.length; a++) {
+            if (spellLocked(s,s.entities.id[a])) continue;
             const m = s.movement[a],
               r = s.combat.records[a];
             if (
@@ -475,7 +477,7 @@ export function createCombatRules(
           if (
             b < 0 ||
             e.health[b] === 0 ||
-            isEmbarked(s, e.id[b]) ||
+            isEmbarked(s, e.id[b]) || isInStasis(s,e.id[b]) ||
             e.owner[b] === bullet.owner ||
             e.layer[b] !== bullet.targetLayer ||
             s.tick >= bullet.expiresTick
@@ -590,6 +592,7 @@ export function createCombatRules(
         }
         // Every shot is collected before damage: simultaneous lethal attacks both resolve.
         for (const shot of shots) {
+          if (isInStasis(s,e.id[shot.b])) continue;
           const r = s.combat.records[shot.b],
             d = economyDefinition(e.definitionId[shot.b])!,
             p = combatProfile(d.id)!;

@@ -698,12 +698,12 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /<html lang="ko">/i);
   assert.match(html, /<title>paperoid — AI 보드게임 아지트<\/title>/i);
   assert.match(html, /paperoid/);
-  const quickStartTitles = ["해루질럿", "잉카의 다이아몬드", "오목", "러브레터", "큐윅스"];
-  let quickStartCursor = -1;
-  for (const title of quickStartTitles) {
-    const titleIndex = html.indexOf(`<h3>${title}</h3>`, quickStartCursor + 1);
-    assert.ok(titleIndex > quickStartCursor, `${title} 빠른 시작 순서`);
-    quickStartCursor = titleIndex;
+  const popularRecommendationTitles = ["해루질럿", "스타드래프트", "잉카의 다이아몬드", "오목", "러브레터", "큐윅스", "주사위 대결 Yahtzee"];
+  let popularRecommendationCursor = -1;
+  for (const title of popularRecommendationTitles) {
+    const titleIndex = html.indexOf(`<h3>${title}</h3>`, popularRecommendationCursor + 1);
+    assert.ok(titleIndex > popularRecommendationCursor, `${title} 인기 추천 순서`);
+    popularRecommendationCursor = titleIndex;
   }
   for (const title of [
     "체스",
@@ -753,7 +753,8 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /전체 게임 보기/);
   assert.match(pageSource, /recentGames\.length > 0 && \(/);
   assert.match(pageSource, /title="이어서 하기"/);
-  assert.match(pageSource, /title="빠른 시작"/);
+  assert.match(pageSource, /title="인기 추천"/);
+  assert.doesNotMatch(pageSource, /title="빠른 시작"/);
   assert.match(html, /사용자 의견/);
   assert.match(html, /개선안 또는 추가되면 좋을 게임을 남겨주세요/);
   assert.match(html, /의견 남기기/);
@@ -796,7 +797,7 @@ test("separates traditional classics from the strategy category", async () => {
 
 test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  const categoryOrder = '["전체", "전략", "모바일", "고전게임", "주사위", "터치류"';
+  const categoryOrder = '["전체", "모바일", "전략", "고전게임", "주사위", "터치류"';
   const hiddenSet = pageSource.match(/const DEFAULT_HIDDEN_GAME_IDS[\s\S]*?\]\);/)?.[0] ?? "";
 
   assert.match(pageSource, /type Category = [^;]*"모바일"/);
@@ -2073,7 +2074,7 @@ test("allows native refresh in game menus, protects play, and releases the guard
   assert.equal(pull(), false, "leaving the game restores unrestricted home refresh");
 });
 
-test("shows home games as a compact grid and keeps quick start distinct from recent games", async () => {
+test("shows home games as a compact grid and keeps popular recommendations distinct from recent games", async () => {
   const [pageSource, styles] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
@@ -2085,7 +2086,9 @@ test("shows home games as a compact grid and keeps quick start distinct from rec
   assert.match(pageSource, /setShowAllGames\(false\)/);
   assert.match(pageSource, /window\.localStorage\.removeItem\(SHOW_ALL_GAMES_STORAGE_KEY\)/);
   assert.match(pageSource, /key="recent-games"/);
-  assert.match(pageSource, /key="quick-start-games"/);
+  assert.match(pageSource, /key="popular-recommendation-games"/);
+  assert.match(pageSource, /const RECENT_GAME_DISPLAY_LIMIT = 2/);
+  assert.match(pageSource, /const recentGames = recentIds[\s\S]*?\.slice\(0, RECENT_GAME_DISPLAY_LIMIT\)/);
   assert.match(pageSource, /const recentGameIdSet = new Set\(recentGames\.map\(\(game\) => game\.id\)\)/);
   assert.match(pageSource, /!recentGameIdSet\.has\(game\.id\)/);
   assert.match(pageSource, /className="game-shelf-count">\{games\.length\}/);
@@ -3762,7 +3765,7 @@ test("offers one shared daily Mudflat ranking without overwriting ordinary exped
 });
 
 
-test("serves the Stark Rift playtest as its own noindex page with a home entry", async () => {
+test("keeps the Stark Rift playtest private from the home footer", async () => {
   const response = await render("/stark-rift-dev");
   assert.equal(response.status, 200);
   const html = await response.text();
@@ -3771,5 +3774,6 @@ test("serves the Stark Rift playtest as its own noindex page with a home entry",
   assert.match(html, /상대 AI는 준비 중/);
   assert.match(html, /name="robots"[^>]*content="noindex[^"]*nofollow/);
   const home = await (await render()).text();
-  assert.match(home, /href="\/stark-rift-dev"/);
+  assert.doesNotMatch(home, /href="\/stark-rift-dev"/);
+  assert.doesNotMatch(home, /스타크 리프트 개발 테스트/);
 });

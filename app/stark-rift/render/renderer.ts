@@ -347,9 +347,13 @@ export class BattleRenderer {
       g.alpha=alpha;g.position.set(c.x/256,c.y/256);updateMinimapMarker(mini!,0x9ba7ae);mini!.alpha=alpha;mini!.position.set(c.x/256,c.y/256);
     }
     this.combatEffects.clear();
-    for (const e of this.snapshot?.entities ?? []) if (e.owner === this.snapshot!.viewerPlayerId && e.definitionId === ARBITER && this.selectedIds.has(e.id)) {
+    for (const e of this.snapshot?.entities ?? []) if (e.owner === this.snapshot!.viewerPlayerId && e.definitionId === ARBITER && !e.stasisTicks && this.selectedIds.has(e.id)) {
       const b = combatProfile(ARBITER)!.bounds, r = ARBITER_RANGE / 256;
       this.combatEffects.roundRect(e.x / 256 - b[0] / 32 - r, e.y / 256 - b[1] / 32 - r, (b[0] + b[2]) / 32 + r * 2, (b[1] + b[3]) / 32 + r * 2, r).fill({ color: 0xa78be8, alpha: .045 }).stroke({ color: 0xc6a1ff, width: .045, alpha: .65 });
+    }
+    for (const e of this.snapshot?.spellEffects ?? []) {
+      const age = Math.min(1, (this.snapshot!.tick-e.tick)/20), x=e.x/256, y=e.y/256, r=e.kind === "recall" ? 2 : 1.5;
+      this.combatEffects.rect(x-r,y-r,r*2,r*2).fill({ color: e.kind === "recall" ? 0xf0cf92 : 0x8acdf7, alpha: .15*(1-age) }).stroke({ color: e.kind === "recall" ? 0xf0cf92 : 0x8acdf7, width: .06, alpha: 1-age });
     }
     for (const w of this.snapshot?.groundWaves ?? []) {
       const x = w.x / 256, y = w.y / 256;
