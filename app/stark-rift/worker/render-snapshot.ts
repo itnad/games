@@ -1,3 +1,4 @@
+import { spellEffectSchema, stasisOf, recallOf } from "../abilities/spells-state";
 import { coveredByArbiter } from "../abilities/arbiter";
 import { unitMorphOf } from "../abilities/lurker-state";
 import { siegeTransitionOf } from "../abilities/siege-state";
@@ -48,6 +49,8 @@ export type RenderEntity = {
   burrowed?: boolean;
   cloaked?: boolean;
   auraCloaked?: boolean;
+  stasisTicks?: number;
+  recallTicks?: number;
   energy?: number;
   maxEnergy?: number;
   unitMorph?: { remainingTicks: number; totalTicks: number };
@@ -84,6 +87,7 @@ export type RenderSnapshot = {
       y: number;
     }[];
   };
+  spellEffects?: { id: number; kind: "recall" | "stasis-field"; owner: number; tick: number; x: number; y: number }[];
   groundWaves?: { id: number; owner: number; x: number; y: number }[];
   visibility: Uint8Array;
 };
@@ -114,6 +118,8 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         burrowed: optional(boolean),
         cloaked: optional(boolean),
         auraCloaked: optional(boolean),
+        stasisTicks: optional(integer(1, 873)),
+        recallTicks: optional(integer(1, 18)),
         energy: optional(integer(0, 200)),
         maxEnergy: optional(integer(200, 200)),
         unitMorph: optional(object({ remainingTicks: integer(1, 250), totalTicks: integer(250, 250) })),
@@ -135,6 +141,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         projectiles: array(renderProjectileSchema, 0, 4096),
       }),
     ),
+    spellEffects: optional(array(spellEffectSchema, 0, 128)),
     groundWaves: optional(array(object({ id: integer(1), owner: integer(0, 1), x: integer(), y: integer() }), 0, 128)),
     visibility: visibilitySchema,
     economy: optional(economyViewSchema),
@@ -147,6 +154,8 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
     ),
   }),
   (snapshot) =>
+    (snapshot.spellEffects ?? []).every(e => e.tick <= snapshot.tick && snapshot.tick-e.tick <= 20 && e.x < snapshot.widthTiles*256 && e.y < snapshot.heightTiles*256 && snapshot.visibility[Math.floor(e.y/256)*snapshot.widthTiles+Math.floor(e.x/256)] === 2) &&
+    new Set((snapshot.spellEffects ?? []).map(e => e.id)).size === (snapshot.spellEffects ?? []).length &&
     (snapshot.groundWaves ?? []).every((w) => w.x < snapshot.widthTiles * 256 && w.y < snapshot.heightTiles * 256 && snapshot.visibility[Math.floor(w.y / 256) * snapshot.widthTiles + Math.floor(w.x / 256)] === 2) &&
     new Set((snapshot.groundWaves ?? []).map((w) => w.id)).size === (snapshot.groundWaves ?? []).length &&
     snapshot.previousTick <= snapshot.tick &&
@@ -282,6 +291,8 @@ export function createRenderSnapshot(
       ...(state.economy.enabled ? { shield: s.shield[i] } : {}),
       ...(isBurrowed(state, s.id[i]) ? { burrowed: true } : {}),
       ...(state.economy.enabled ? energyView(state, s.id[i]) : {}),
+      ...(stasisOf(state,s.id[i]) ? { stasisTicks: stasisOf(state,s.id[i])!.expiresTick-state.tick } : {}),
+      ...(recallOf(state,s.id[i]) ? { recallTicks: recallOf(state,s.id[i])!.remainingTicks } : {}),
       ...(coveredByArbiter(state, i) ? { auraCloaked: true } : {}),
       ...(coveredByArbiter(state, i) || permanentCloak(s.definitionId[i]) || activeCloak(state, s.id[i]) ? { cloaked: true } : {}),
       ...(unitMorphOf(state, s.id[i]) ? { unitMorph: { remainingTicks: unitMorphOf(state, s.id[i])!.remainingTicks, totalTicks: unitMorphOf(state, s.id[i])!.totalTicks } } : {}),
@@ -348,6 +359,7 @@ export function createRenderSnapshot(
         }
       : {}),
     ...(combat ? { combat } : {}),
+    ...(state.spells ? { spellEffects: state.spells.effects.filter(e => seen(e.x,e.y)).map(e => ({...e})) } : {}),
     ...(state.lurker ? { groundWaves: state.lurker.waves.filter((w) => seen(w.x, w.y)).map(({ id, owner, x, y }) => ({ id, owner, x, y })) } : {}),
     ...(state.economy.enabled
       ? { economy: createEconomyView(state, map, viewer, visibility) }
