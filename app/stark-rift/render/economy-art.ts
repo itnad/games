@@ -16,7 +16,7 @@ export function updateEconomicMarker(
   const hp = Math.floor((e.health / d.health) * 10),
     sp = Math.floor(((e.shield ?? 0) / Math.max(1, d.shield)) * 10),
     p = progress === null ? -1 : Math.floor(progress * 20),
-    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
+    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, e.unitMorph ? Math.floor(20 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks)) : -1, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
   if (keys.get(g) === key) return true;
   keys.set(g, key);
   g.clear();
@@ -259,6 +259,13 @@ export function updateEconomicMarker(
       g.circle(0, -0.18, 0.17).fill(0xa7b3ae);
       g.roundRect(-0.23, -0.1, 0.46, 0.45, 0.1).fill(color);
       g.rect(0.15, -0.1, 0.15, 0.5).fill(0x152933);
+    } else if (d.id === "zerg-lurker-egg") {
+      g.ellipse(0, 0, .43, .58).fill(0x8d627e).stroke({ color: 0xd6b494, width: .06 });
+      for (const y of [-.3, -.05, .2]) g.ellipse(0, y, .35, .13).stroke({ color, width: .07 });
+    } else if (d.id === "zerg-lurker") {
+      for (const x of [-.6, .6]) for (const y of [-.3, .15, .45]) g.moveTo(x * .4, y * .4).lineTo(x, y).lineTo(x * 1.15, y + .2).stroke({ color: 0xe6bb96, width: .08 });
+      g.ellipse(0, 0, .38, .47).fill(0x805265).stroke({ color, width: .07 });
+      g.poly([-.25, -.1, 0, -.65, .25, -.1]).fill(0xe6bb96);
     } else if (zerg && d.icon === "airSupply") {
       g.ellipse(0, 0, 0.7, 0.5).fill(0x9d797e);
       for (const x of [-0.4, 0, 0.4])
@@ -324,6 +331,10 @@ export function updateEconomicMarker(
       (width * Math.max(0, sp)) / 10,
       0.08,
     ).fill(0x7ebdff);
+  }
+  if (e.unitMorph) {
+    g.rect(-.45, .68, .9, .08).fill(0x352b42);
+    g.rect(-.45, .68, .9 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks), .08).fill(0xe5bd85);
   }
   if (e.siegeTransition) {
     const progress = 1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks;
