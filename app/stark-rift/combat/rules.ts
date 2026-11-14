@@ -555,7 +555,7 @@ export function createCombatRules(
               owner: e.owner[a],
               targetId: e.id[b],
               targetLayer: e.layer[b],
-              weaponId: w.name as "Fragmentation_Grenade" | "Phase_Disruptor",
+              weaponId: w.name as NonNullable<SimulationState["combat"]>["projectiles"][number]["weaponId"],
               x: e.x[a],
               y: e.y[a],
               spawnTick: s.tick,
