@@ -345,6 +345,11 @@ export class BattleRenderer {
       g.alpha=alpha;g.position.set(c.x/256,c.y/256);updateMinimapMarker(mini!,0x9ba7ae);mini!.alpha=alpha;mini!.position.set(c.x/256,c.y/256);
     }
     this.combatEffects.clear();
+    for (const w of this.snapshot?.groundWaves ?? []) {
+      const x = w.x / 256, y = w.y / 256;
+      this.combatEffects.ellipse(x, y, .5, .28).fill({ color: 0x64434b, alpha: .65 });
+      for (const offset of [-.3, 0, .3]) this.combatEffects.poly([x + offset - .11, y + .12, x + offset, y - .42, x + offset + .11, y + .12]).fill(0xebbc8d).stroke({ color: 0x7e4651, width: .03 });
+    }
     for (const e of snapshot.combat?.effects ?? []) {
       const color =
           e.weaponId === "Needle_Spines"
