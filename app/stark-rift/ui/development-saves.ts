@@ -1,3 +1,4 @@
+import { lurkerFitsMap } from "../abilities/lurker-state";
 import { specialFitsMap } from "../abilities/special-validation";
 import { visionFitsMap } from "../vision/rules";
 import { STARK_RIFT_FORMAT_VERSION } from "../core/versions";
@@ -45,7 +46,7 @@ export class DevelopmentSaveStore {
         s.phase === "paused" ||
         s.phase === "finished") &&
       economyFitsMap(s, map) &&
-      combatFitsMap(s, map) &&
+      combatFitsMap(s, map) && lurkerFitsMap(s, map) &&
       visionFitsMap(s, map) &&
       specialFitsMap(s, map) &&
       navigationFitsMap(s, map) &&
@@ -125,6 +126,7 @@ export class DevelopmentSaveStore {
                         ? "stage6b-backup"
                       : version === 12
                         ? "stage6c-backup"
+                      : version === 13 ? "stage6d-backup"
                       : version === STARK_RIFT_FORMAT_VERSION
                     ? ""
                     : "invalid-backup";
