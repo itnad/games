@@ -32,6 +32,13 @@ export function initializeSpecialPractice(s: SimulationState) {
     const id = createEconomicEntity(s, 0, economyDefinition("zerg-lurker")!, { x: 24 * 256, y: 20 * 256 });
     s.combat!.friendlyIds.push(id); s.players[0].controlGroups[2].entityIds.push(id);
   }
+  if (race === "protoss") {
+    const d = economyDefinition("protoss-pylon")!, tx = 12, ty = 22;
+    const supply = createEconomicEntity(s, 0, d, { x: (tx + d.width / 2) * 256, y: (ty + d.height / 2) * 256 });
+    s.economy.structures.push(newStructure(supply, d, tx, ty, true, s.tick));
+    const id = createEconomicEntity(s, 0, economyDefinition("protoss-arbiter")!, { x: 18 * 256, y: 20 * 256 });
+    s.combat!.friendlyIds.push(id); s.players[0].controlGroups[2].entityIds.push(id);
+  }
   if (race === "protoss") s.combat!.friendlyIds.push(createEconomicEntity(s, 0, economyDefinition("protoss-observer")!, { x: 14 * 256, y: 18 * 256 }));
   const target = race === "protoss" ? "protoss-dark-templar" : "protoss-probe";
   const id = createEconomicEntity(s, 1, economyDefinition(target)!, { x: 29 * 256, y: 20 * 256 });
