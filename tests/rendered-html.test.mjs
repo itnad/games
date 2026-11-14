@@ -1792,7 +1792,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(await readFile(new URL("../app/globals.css", import.meta.url), "utf8"), /\.game-title-lockup strong \{[\s\S]*?color: #211d21;/);
   assert.doesNotMatch(source, /paperoid · MUDFLAT ACTION/);
   assert.match(source, /creature\.family === "crab"/);
-  assert.match(await readFile(new URL("../app/page.tsx", import.meta.url), "utf8"), /mudflat-creatures\/crab\.png/);
+  // 홈 카드 썸네일은 실제 경기 화면(채집꾼과 게 떼)이다(2026-11 사용자 요청).
+  assert.match(await readFile(new URL("../app/page.tsx", import.meta.url), "utf8"), /mudflat-illustrations\/haeru-card\.jpg/);
   assert.doesNotMatch(engineSource, /mudflat-creatures\/small-shrimp\.svg/);
   assert.match(engineSource, /mudflat-creatures\/shrimp\.png/);
   assert.match(engineSource, /mudflat-creatures\/whelk\.png/);

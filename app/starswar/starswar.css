@@ -258,8 +258,9 @@
 .stw-resume button { min-height:44px; padding:0 14px; border-radius:12px; font-weight:900; }
 .stw-danger { color:#ffb3a6 !important; }
 
-.casual-card-art.starswar { background:radial-gradient(circle at 50% 35%,#57c6ff44,transparent 34%),linear-gradient(160deg,var(--stw-on-gold),var(--stw-panel) 70%); }
-.casual-card-art.starswar > span:first-child { color:var(--stw-gold); font-size:clamp(22px,4vw,36px); letter-spacing:.06em; }
+/* 홈 목록 카드: 게임 렌더러로 그린 교전 장면. 예전에는 "◆ Z D H" 글자만 있었고, 색도 홈에는 없는 --stw- 변수를 써서 밋밋한 보라색으로 보였다. */
+.casual-card-art.starswar { background:#3a2e1d; }
+.casual-card-art.starswar > img { position:absolute; inset:0; z-index:1; width:100%; height:100%; object-fit:cover; object-position:50% 45%; }
 
 @media (min-width:900px) {
   /* 넓은 화면: 지도 아래에 상태 줄, 오른쪽에 패널. */

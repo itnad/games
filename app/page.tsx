@@ -920,11 +920,13 @@ function GameArtwork({ game }: { game: GameDefinition }) {
   }
 
   if (game.id === "mudflat-survivor") {
-    return <div className="card-art casual-card-art mudflat" aria-hidden="true"><img src="/mudflat-creatures/crab.png" alt="" /><i /><span className="float-chip">2 MODES</span></div>;
+    // 썸네일: 실제 경기 화면(채집꾼과 게 떼, 2026-11 사용자 제공 스크린샷에서 잘라 냄).
+    return <div className="card-art casual-card-art mudflat" aria-hidden="true"><img src="/mudflat-illustrations/haeru-card.jpg" alt="" /><i /><span className="float-chip">2 MODES</span></div>;
   }
 
   if (game.id === "starswar") {
-    return <div className="card-art casual-card-art starswar" aria-hidden="true"><span>{"◆\nZ  D  H"}</span><i /><span className="float-chip">WARP · WAVE</span></div>;
+    // 썸네일: 게임 렌더러로 그린 프로토스 대 저그 교전 장면(public/starswar/card.jpg).
+    return <div className="card-art casual-card-art starswar" aria-hidden="true"><img src="/starswar/card.jpg" alt="" /><i /><span className="float-chip">WARP · WAVE</span></div>;
   }
 
   if (game.id === "baksal") {
