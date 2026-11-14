@@ -9074,7 +9074,6 @@ footer { font-size: 15px; }
 @media (max-width: 600px) {
   .ms-market-cell.is-scaled img { width: calc(36px * var(--ms-market-scale, 1)); height: calc(36px * var(--ms-market-scale, 1)); }
 }
-.footer-stark-development-link {display:inline-flex;align-items:center;min-height:44px;padding:6px 10px;border:1px solid currentColor;border-radius:8px;color:inherit;font-size:12px;text-decoration:none}.footer-stark-development-link:focus-visible {outline:2px solid currentColor;outline-offset:3px}
 
 /* Route-level game modules load independently; keep the transition branded and stable. */
 .game-loading-shell{min-height:100dvh;display:grid;place-items:center;padding:24px;color:#2f2822;background:radial-gradient(circle at 50% 28%,#fff8e8 0 9%,transparent 34%),linear-gradient(155deg,#f4ead8,#e8d6ba)}

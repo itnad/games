@@ -1854,7 +1854,6 @@ function HomeContent({
           </button>{" "}
           판 되세요.
         </p>
-        <a className="footer-stark-development-link" href="/stark-rift-dev">스타크 리프트 개발 테스트 →</a>
         <span>AI BOARD GAME CLUB</span>
       </footer>
     </main>

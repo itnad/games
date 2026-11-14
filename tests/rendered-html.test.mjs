@@ -3761,7 +3761,7 @@ test("offers one shared daily Mudflat ranking without overwriting ordinary exped
 });
 
 
-test("serves the Stark Rift playtest as its own noindex page with a home entry", async () => {
+test("keeps the Stark Rift playtest private from the home footer", async () => {
   const response = await render("/stark-rift-dev");
   assert.equal(response.status, 200);
   const html = await response.text();
@@ -3770,5 +3770,6 @@ test("serves the Stark Rift playtest as its own noindex page with a home entry",
   assert.match(html, /상대 AI는 준비 중/);
   assert.match(html, /name="robots"[^>]*content="noindex[^"]*nofollow/);
   const home = await (await render()).text();
-  assert.match(home, /href="\/stark-rift-dev"/);
+  assert.doesNotMatch(home, /href="\/stark-rift-dev"/);
+  assert.doesNotMatch(home, /스타크 리프트 개발 테스트/);
 });
