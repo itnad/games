@@ -1,3 +1,4 @@
+import { energyOf, ENERGY } from "./cloak-state";
 import type { SimulationState } from "../core/state";
 import { createEconomicEntity, newStructure, recomputeSupply, workerOf, releaseWork } from "../economy/helpers";
 import { economyDefinition } from "../data/economy-catalog";
@@ -38,12 +39,20 @@ export function initializeSpecialPractice(s: SimulationState) {
     s.economy.structures.push(newStructure(supply, d, tx, ty, true, s.tick));
     const id = createEconomicEntity(s, 0, economyDefinition("protoss-arbiter")!, { x: 18 * 256, y: 20 * 256 });
     s.combat!.friendlyIds.push(id); s.players[0].controlGroups[2].entityIds.push(id);
+    const other = createEconomicEntity(s,0,economyDefinition("protoss-arbiter")!,{x:18*256,y:17*256});
+    s.combat!.friendlyIds.push(other);s.players[0].controlGroups[3].entityIds.push(other);
+    energyOf(s,id)!.amount = energyOf(s,other)!.amount = ENERGY.maximum*ENERGY.scale;
+    for (const technologyId of ["recall","stasis-field"]) s.economy.upgrades.push({playerId:0,technologyId,level:1});
   }
   if (race === "protoss") s.combat!.friendlyIds.push(createEconomicEntity(s, 0, economyDefinition("protoss-observer")!, { x: 14 * 256, y: 18 * 256 }));
   const target = race === "protoss" ? "protoss-dark-templar" : "protoss-probe";
   const id = createEconomicEntity(s, 1, economyDefinition(target)!, { x: 29 * 256, y: 20 * 256 });
   s.combat!.targetIds.push(id); s.movement[s.entities.id.indexOf(id)].order = "hold";
   const worker = workerOf(s, id); if (worker) releaseWork(s, worker, false);
+  if (race === "protoss") {
+    const probe = createEconomicEntity(s,1,economyDefinition("protoss-probe")!,{x:27*256,y:20*256});
+    s.combat!.targetIds.push(probe);s.movement[s.entities.id.indexOf(probe)].order="hold";releaseWork(s,workerOf(s,probe)!,false);
+  }
   if (race !== "protoss") for (const [x, y] of race === "zerg" ? [[28, 20], [30, 20]] : [[30, 20], [29, 21]]) {
     const target = createEconomicEntity(s, 1, economyDefinition("protoss-probe")!, { x: x * 256, y: y * 256 });
     s.combat!.targetIds.push(target); s.movement[s.entities.id.indexOf(target)].order = "hold";
