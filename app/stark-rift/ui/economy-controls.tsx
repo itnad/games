@@ -1,3 +1,4 @@
+import { ArbiterControls } from "./arbiter-controls";
 import { LurkerControls } from "./lurker-controls";
 import { technologyRequirements } from "../data/economy-catalog";
 import { SiegeControls } from "./siege-controls";
@@ -162,6 +163,7 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
+      <ArbiterControls snapshot={snapshot} selected={selected} select={selectEntities} />
       <LurkerControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <SiegeControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <CloakControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
