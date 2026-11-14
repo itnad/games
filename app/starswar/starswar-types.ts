@@ -62,8 +62,6 @@ export type StwUnit = {
   escort?: boolean;
   op?: number;
   raid?: number;
-  /** 침투 병력이 광물 줄에 닿았을 때의 체력+보호막(철수 판단 기준). */
-  walkArriveHp?: number;
   bomb?: StwDropTarget;
   scoutPhase?: "out" | "back" | null;
   /** 출발 전 탑승: 타러 가는 수송선 id. */

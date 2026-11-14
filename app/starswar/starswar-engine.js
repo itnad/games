@@ -3379,7 +3379,6 @@ function leaveWalkOps(state, units) {
     if (!inWalkOp(state, unit)) continue;
     unit.raid = undefined;
     unit.walkPath = undefined;
-    unit.walkArriveHp = undefined;
     unit.targetId = null;
     if (unit.group === "walk") unit.group = "rally";
     count += 1;
@@ -3408,9 +3407,8 @@ function walkStep(state, unit, dt) {
   unit.walkPath = undefined;
   const op = (state.ops ?? []).find((item) => item.id === unit.raid);
   if (op && op.phase !== "home") {
-    // 광물 줄에 닿았다: 게릴라 드랍 병력처럼 싸운다(raidRiderStep). 철수 판단은 이때 체력을 기준으로 한다.
+    // 광물 줄에 닿았다: 게릴라 드랍 병력처럼 싸운다(raidRiderStep).
     unit.group = "attack";
-    unit.walkArriveHp = unit.hp + unit.shields;
     return;
   }
   unit.group = "rally";
@@ -3425,7 +3423,6 @@ function walkHome(state, op) {
     if (!unit || unit.raid !== op.id) continue;
     unit.group = "walk";
     unit.targetId = null;
-    unit.walkArriveHp = undefined;
     unit.walkPath = walkPath(unit, { x: home.x + ((unit.id % 5) - 2) * 1.6, y: home.y });
   }
   op.phase = "home";
@@ -3448,24 +3445,9 @@ function stepWalkOp(state, op) {
     return;
   }
   if (op.phase === "fight") {
-    const alive = riders.filter((unit) => unit.group !== "walk");
-    if (!alive.length) return;
-    const cx = alive.reduce((sum, unit) => sum + unit.x, 0) / alive.length;
-    const cy = alive.reduce((sum, unit) => sum + unit.y, 0) / alive.length;
-    const aliveValue = alive.reduce((sum, unit) => sum + unitValue(unit) * (unit.hp + unit.shields) / (unit.maxHp + unit.maxShields), 0);
-    // 들키지 않은 은폐 병력(다크템플러 등)은 맞을 일이 없으니 탐지되거나 회수할 때까지 남아 싸운다.
-    // 예전에는 오는 길에 깎인 체력이나 25초 제한 때문에 광물 줄에 닿자마자 공격 없이 돌아오기도 했다.
-    const foe = stwOpponent(op.side);
-    const hidden = alive.every((unit) => isCloaked(unit, state) && !detectionCovers(state, foe, unit));
-    if (hidden && !op.recallNow) return;
-    // 체력은 광물 줄에 닿은 때보다 절반 넘게 잃었는지로 본다(가는 길에 깎인 체력으로 바로 돌아서지 않게).
-    const health = alive.reduce((sum, unit) => sum + unit.hp + unit.shields, 0) / alive.reduce((sum, unit) => sum + (unit.walkArriveHp ?? unit.maxHp + unit.maxShields), 0);
-    const timeUp = state.time - op.since > STW_TRANSPORT.raidDwell || Boolean(op.recallNow);
-    const outnumbered = threatValue(state, op.side, cx, cy, 10) > aliveValue * STW_TRANSPORT.retreatRatio;
-    if (timeUp || outnumbered || health < STW_TRANSPORT.hpRatio) {
-      walkHome(state, op);
-      if (op.side === "player") pushLog(state, "player", timeUp ? "침투를 마치고 걸어서 돌아옵니다." : "적 병력이 몰려와 침투 병력이 돌아옵니다.", "order");
-    }
+    // 침투 병력은 스스로 물러나지 않는다: 일꾼을 치고, 일꾼이 없으면 기지를 치며 죽거나 회수("지금 회수")할 때까지 싸운다.
+    // 예전에는 게릴라 드랍의 철수 규칙(25초·적 병력·체력 절반)을 그대로 써서, 수송선 없이 걸어 나오다 같은 방어선에 죽거나
+    // 오는 길에 깎인 다크템플러가 광물 줄에 닿자마자 공격 없이 돌아서기도 했다. 회수는 dropRecall이 바로 walkHome으로 돌린다.
     return;
   }
   if (riders.every((unit) => unit.group !== "walk")) op.done = true;
