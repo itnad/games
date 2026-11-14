@@ -483,8 +483,6 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
   "winners-circle",
   "paper-dungeon",
   "tetris",
-  // 스타드래프트: 유닛·건물은 원작 이름 그대로라 공개 시점을 정할 때까지 홈 목록에서 숨긴다.
-  "starswar",
   // 박살: 0단계 재미 검증 중. 전체 게임 표시에서만 보인다.
   "baksal",
 ]);

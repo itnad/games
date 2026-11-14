@@ -450,7 +450,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  /** 전투 설정 화면으로: 진행 중이면 저장하고, 이어하기 카드를 새로 읽는다. */
+  /** 스타드래프트 메인 화면(전투 설정)으로: 진행 중이면 저장하고, 이어하기 카드를 새로 읽는다. */
   const goMenu = () => {
     if (gameRef.current) writeSave(gameRef.current);
     setSaved(readSave());
@@ -823,6 +823,12 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       setConfirmExit(true);
       return;
     }
+    // 경기가 끝난 뒤 ←는 게임 목록이 아니라 스타드래프트 메인 화면(실험 경기면 실험실)으로 간다. 게임 목록은 메인의 ←로 나간다.
+    if (screen === "play" && game) {
+      if (game.lab) setScreen("lab");
+      else goMenu();
+      return;
+    }
     onExit();
   };
 
@@ -1087,9 +1093,9 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             ) : (
               <>
                 <h2 id="stw-exit-title">전투를 멈출까요?</h2>
-                <p>지금 상태가 저장되어 전투 설정 화면의 이어하기로 돌아올 수 있습니다. 포기하면 저장을 지웁니다(패배로 기록하지 않습니다).</p>
+                <p>지금 상태가 저장되어 메인 화면의 이어하기로 돌아올 수 있습니다. 포기하면 저장을 지웁니다(패배로 기록하지 않습니다).</p>
                 <button type="button" className="stw-primary" onClick={() => setConfirmExit(false)}>계속 지휘하기</button>
-                <button type="button" className="stw-secondary" onClick={() => { setConfirmExit(false); goMenu(); }}>저장하고 전투 설정으로</button>
+                <button type="button" className="stw-secondary" onClick={() => { setConfirmExit(false); goMenu(); }}>저장하고 메인 화면으로</button>
                 <button type="button" className="stw-secondary" onClick={onExit}>저장하고 게임 목록으로</button>
                 <button type="button" className="stw-secondary stw-danger" onClick={() => { gameRef.current = null; clearSave(); setConfirmExit(false); goMenu(); }}>전투 포기</button>
               </>
@@ -1097,7 +1103,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           </section>
         </div>
       ) : null}
-      {finished ? <ResultOverlay game={game} record={record} onRestart={game.lab && labConfig ? () => startLab(labConfig) : startBattle} onMenu={game.lab ? () => setScreen("lab") : goMenu} onExit={onExit} /> : null}
+      {finished ? <ResultOverlay game={game} record={record} onMenu={game.lab ? () => setScreen("lab") : goMenu} onExit={onExit} /> : null}
     </main>
   );
 }
@@ -1583,7 +1589,7 @@ function PauseReportButton({ game }: { game: StwState }) {
   );
 }
 
-function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwState; record: BattleRecord; onRestart: () => void; onMenu: () => void; onExit: () => void }) {
+function ResultOverlay({ game, record, onMenu, onExit }: { game: StwState; record: BattleRecord; onMenu: () => void; onExit: () => void }) {
   const [report, setReport] = useState<ReportKind | null>(null);
   const aiLost = stwLosingAiSides(game).length > 0;
   const won = game.winner === "player";
@@ -1647,9 +1653,11 @@ function ResultOverlay({ game, record, onRestart, onMenu, onExit }: { game: StwS
           <button type="button" className="stw-secondary" onClick={() => setReport("bug")}>버그 리포트</button>
           {aiLost ? <button type="button" className="stw-secondary" onClick={() => setReport("ai")}>AI 개선 자료</button> : null}
         </div>
-        <button type="button" className="stw-primary" onClick={onRestart}>같은 설정으로 다시</button>
-        <button type="button" className="stw-secondary" onClick={onMenu}>{game.lab ? "실험실" : "전투 설정"}</button>
-        <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
+        {/* 나가는 버튼은 결과 창 맨 아래에 붙여, 통계·팁을 내리지 않아도 늘 보인다. */}
+        <div className="stw-result-nav">
+          <button type="button" className="stw-primary" onClick={onMenu}>{game.lab ? "실험실로" : "스타드래프트 메인으로"}</button>
+          <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
+        </div>
       </section>
       {report ? <ReportPanel game={game} kind={report} onClose={() => setReport(null)} /> : null}
     </div>

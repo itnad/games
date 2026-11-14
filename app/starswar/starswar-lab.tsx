@@ -357,7 +357,7 @@ export function LabScreen({ initial, onStart, onBack, theme = "riso", themePicke
     <main className="stw-shell stw-menu-shell" data-game-menu="true" {...themeProps(theme)}>
       <ThemeFonts theme={theme} />
       <header className="stw-topbar">
-        <button type="button" onClick={onBack} aria-label="전투 설정으로">←</button>
+        <button type="button" onClick={onBack} aria-label="메인 화면으로">←</button>
         <div><span className="stw-brand">스타드래프트</span><strong>실험실</strong></div>
       </header>
       <section className="stw-menu stw-lab">

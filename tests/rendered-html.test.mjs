@@ -805,7 +805,7 @@ test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
   assert.doesNotMatch(hiddenSet, /"mudflat-survivor"/);
 });
 
-test("keeps StarDraft in its own app/starswar folder as a mobile game at /stardraft, hidden for now", async () => {
+test("keeps StarDraft in its own app/starswar folder as a public mobile game at /stardraft", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const viteConfig = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
@@ -838,8 +838,8 @@ test("keeps StarDraft in its own app/starswar folder as a mobile game at /stardr
   assert.doesNotMatch(starswarSource, /게임 속도 전환/);
   assert.match(pageSource, /id: "starswar",[\s\S]*?title: "스타드래프트",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
-  // 유닛·건물은 원작 이름 그대로라 공개 시점을 정할 때까지 홈 목록에서 숨긴다.
-  assert.match(hiddenSet, /"starswar"/);
+  // 2026-11 공개: 홈 목록에 보인다.
+  assert.doesNotMatch(hiddenSet, /"starswar"/);
   // 주소는 제목을 따라 /stardraft(내부 ID는 starswar 그대로).
   assert.match(pageSource, /stardraft: "starswar"/);
   assert.match(pageSource, /if \(gameId === "starswar"\) return "\/stardraft"/);
