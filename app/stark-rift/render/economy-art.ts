@@ -16,7 +16,7 @@ export function updateEconomicMarker(
   const hp = Math.floor((e.health / d.health) * 10),
     sp = Math.floor(((e.shield ?? 0) / Math.max(1, d.shield)) * 10),
     p = progress === null ? -1 : Math.floor(progress * 20),
-    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, e.auraCloaked, e.unitMorph ? Math.floor(20 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks)) : -1, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
+    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, e.auraCloaked, !!e.stasisTicks, !!e.recallTicks, e.unitMorph ? Math.floor(20 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks)) : -1, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
   if (keys.get(g) === key) return true;
   keys.set(g, key);
   g.clear();
@@ -336,6 +336,8 @@ export function updateEconomicMarker(
       0.08,
     ).fill(0x7ebdff);
   }
+  if (e.stasisTicks) g.poly([-.65, -.2, -.3, -.95, .38, -.85, .7, -.1, .42, .75, -.45, .7]).fill({ color: 0x8dc9f4, alpha: .65 }).stroke({ color: 0xd8f5ff, width: .08 });
+  if (e.recallTicks) g.circle(0,0,1).stroke({ color: 0xf0d69e, width: .08 });
   if (e.auraCloaked) g.ellipse(0, 0, Math.max(.4, e.radius / 256) * 1.25, Math.max(.3, e.radius / 256) * .85).stroke({ color: 0xc6a1ff, width: .05, alpha: .8 });
   if (e.unitMorph) {
     g.rect(-.45, .68, .9, .08).fill(0x352b42);

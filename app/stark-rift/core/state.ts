@@ -1,3 +1,5 @@
+import { spellsStateSchema, validSpells, type SpellsState } from "../abilities/spells-state";
+import { ENERGY } from "../abilities/cloak-state";
 import { lurkerStateSchema, validLurker, type LurkerState } from "../abilities/lurker-state";
 import { siegeStateSchema, validSiege, type SiegeTransition } from "../abilities/siege-state";
 import { energyStateSchema, validEnergy, type EnergyRecord } from "../abilities/cloak-state";
@@ -5,8 +7,8 @@ import { specialStateSchema, type SpecialState } from "../abilities/special-stat
 import { validSpecial } from "../abilities/special-validation";
 import { validBurrowState } from "../abilities/burrow";
 import { getRuntimeMap } from "../data/maps";
-import { ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION, BURROW_ECONOMY_DATA_VERSION, SPECIAL_ECONOMY_DATA_VERSION, CLOAK_ECONOMY_DATA_VERSION, SIEGE_ECONOMY_DATA_VERSION, LURKER_ECONOMY_DATA_VERSION, unitFamily } from "../data/economy-catalog";
-import { LEGACY_VISION_RULES_VERSION, CARGO_VISION_RULES_VERSION, VISION_RULES_VERSION, visionStateSchema, type VisionState } from "../vision/state";
+import { ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION, BURROW_ECONOMY_DATA_VERSION, SPECIAL_ECONOMY_DATA_VERSION, CLOAK_ECONOMY_DATA_VERSION, SIEGE_ECONOMY_DATA_VERSION, LURKER_ECONOMY_DATA_VERSION, ARBITER_ECONOMY_DATA_VERSION, unitFamily } from "../data/economy-catalog";
+import { LEGACY_VISION_RULES_VERSION, CARGO_VISION_RULES_VERSION, ARBITER_VISION_RULES_VERSION, VISION_RULES_VERSION, visionStateSchema, type VisionState } from "../vision/state";
 import {
   combatStateSchema,
   PREVIOUS_COMBAT_RULES_VERSION,
@@ -18,6 +20,7 @@ import {
   CLOAK_COMBAT_RULES_VERSION,
   SIEGE_COMBAT_RULES_VERSION,
   LURKER_COMBAT_RULES_VERSION,
+  ARBITER_COMBAT_RULES_VERSION,
   type CombatState,
 } from "../combat/state";
 import { validEconomy } from "../economy/validation";
@@ -137,6 +140,7 @@ export type SimulationState = {
   energy?: EnergyRecord[];
   siege?: SiegeTransition[];
   lurker?: LurkerState;
+  spells?: SpellsState;
   projectiles: ProjectileStore;
   gameplayEffects: GameplayEffectStore;
   scheduledEvents: ScheduledEventQueue;
@@ -295,6 +299,7 @@ export const simulationStateSchema: Schema<SimulationState> = refine(
     energy: optional(energyStateSchema),
     siege: optional(siegeStateSchema),
     lurker: optional(lurkerStateSchema),
+    spells: optional(spellsStateSchema),
     movement: array(movementStateSchema, 0, 2048),
     entities: entityStoreSchema,
     projectiles: emptyStore,
@@ -304,7 +309,7 @@ export const simulationStateSchema: Schema<SimulationState> = refine(
     outcome: nullable(matchOutcomeSchema),
   }),
   (state) => {
-    if (!validEconomy(state) || !validBurrowState(state) || !validSpecial(state) || !validEnergy(state) || !validSiege(state) || !validLurker(state)) return false;
+    if (!validEconomy(state) || !validBurrowState(state) || !validSpecial(state) || !validEnergy(state) || !validSiege(state) || !validLurker(state) || !validSpells(state)) return false;
     if (state.vision) {
       const v = state.vision;
       if (
@@ -537,10 +542,10 @@ export const validatePersistenceEnvelope = (input: unknown) =>
 export function migrateLegacyEnvelope(input: unknown): unknown {
   if (!input || typeof input !== "object") return input;
   const old = input as PersistenceEnvelope;
-  if (![6, 7, 8, 9, 10, 11, 12, 13, 14].includes(old.formatVersion)) return input;
+  if (![6, 7, 8, 9, 10, 11, 12, 13, 14, 15].includes(old.formatVersion)) return input;
   const source = old.simulation,
     engine = (
-      { 6: "0.7.0-stage4", 7: "0.8.0-stage5a", 8: "0.9.0-stage5b", 9: "0.10.0-stage5c", 10: "0.11.0-stage6a", 11: "0.12.0-stage6b", 12: "0.13.0-stage6c", 13: "0.14.0-stage6d", 14: "0.15.0-stage6e" } as Record<
+      { 6: "0.7.0-stage4", 7: "0.8.0-stage5a", 8: "0.9.0-stage5b", 9: "0.10.0-stage5c", 10: "0.11.0-stage6a", 11: "0.12.0-stage6b", 12: "0.13.0-stage6c", 13: "0.14.0-stage6d", 14: "0.15.0-stage6e", 15: "0.16.0-stage6f" } as Record<
         number,
         string
       >
@@ -556,11 +561,12 @@ export function migrateLegacyEnvelope(input: unknown): unknown {
     (old.formatVersion < 12 && source.energy !== undefined) ||
     (old.formatVersion < 13 && source.siege !== undefined) ||
     (old.formatVersion < 14 && source.lurker !== undefined) ||
-    (source.vision !== undefined && (source.vision.rulesVersion as string) !== (old.formatVersion >= 11 ? CARGO_VISION_RULES_VERSION : LEGACY_VISION_RULES_VERSION))
+    source.spells !== undefined ||
+    (source.vision !== undefined && (source.vision.rulesVersion as string) !== (old.formatVersion === 15 ? ARBITER_VISION_RULES_VERSION : old.formatVersion >= 11 ? CARGO_VISION_RULES_VERSION : LEGACY_VISION_RULES_VERSION))
   )
     throw new TypeError("Invalid legacy save");
   const currentDataVersion = getRuntimeMap("rift-basin").dataVersion,
-    previousDataVersion = currentDataVersion.replace(ECONOMY_DATA_VERSION, old.formatVersion === 14 ? LURKER_ECONOMY_DATA_VERSION : old.formatVersion === 13 ? SIEGE_ECONOMY_DATA_VERSION : old.formatVersion === 12 ? CLOAK_ECONOMY_DATA_VERSION : old.formatVersion === 11 ? SPECIAL_ECONOMY_DATA_VERSION : old.formatVersion === 10 ? BURROW_ECONOMY_DATA_VERSION : LEGACY_ECONOMY_DATA_VERSION);
+    previousDataVersion = currentDataVersion.replace(ECONOMY_DATA_VERSION, old.formatVersion === 15 ? ARBITER_ECONOMY_DATA_VERSION : old.formatVersion === 14 ? LURKER_ECONOMY_DATA_VERSION : old.formatVersion === 13 ? SIEGE_ECONOMY_DATA_VERSION : old.formatVersion === 12 ? CLOAK_ECONOMY_DATA_VERSION : old.formatVersion === 11 ? SPECIAL_ECONOMY_DATA_VERSION : old.formatVersion === 10 ? BURROW_ECONOMY_DATA_VERSION : LEGACY_ECONOMY_DATA_VERSION);
   if (old.dataVersion !== source.dataVersion || source.map?.definitionId !== "rift-basin" || old.dataVersion !== previousDataVersion)
     throw new TypeError("Unknown legacy data version");
   if (old.formatVersion === 6 && source.combat !== undefined)
@@ -569,7 +575,7 @@ export function migrateLegacyEnvelope(input: unknown): unknown {
     const expected =
       old.formatVersion === 7
         ? PREVIOUS_COMBAT_RULES_VERSION
-        : old.formatVersion === 8 ? RANGED_COMBAT_RULES_VERSION : old.formatVersion === 9 ? TERRAIN_COMBAT_RULES_VERSION : old.formatVersion === 10 ? BURROW_COMBAT_RULES_VERSION : old.formatVersion === 11 ? SPECIAL_COMBAT_RULES_VERSION : old.formatVersion === 12 ? CLOAK_COMBAT_RULES_VERSION : old.formatVersion === 13 ? SIEGE_COMBAT_RULES_VERSION : LURKER_COMBAT_RULES_VERSION;
+        : old.formatVersion === 8 ? RANGED_COMBAT_RULES_VERSION : old.formatVersion === 9 ? TERRAIN_COMBAT_RULES_VERSION : old.formatVersion === 10 ? BURROW_COMBAT_RULES_VERSION : old.formatVersion === 11 ? SPECIAL_COMBAT_RULES_VERSION : old.formatVersion === 12 ? CLOAK_COMBAT_RULES_VERSION : old.formatVersion === 13 ? SIEGE_COMBAT_RULES_VERSION : old.formatVersion === 14 ? LURKER_COMBAT_RULES_VERSION : ARBITER_COMBAT_RULES_VERSION;
     if (
       source.combat.rulesVersion !== expected ||
       !(old.formatVersion >= 11 ? ["economy", "combat-practice", "ranged-practice", "siege-practice", "special-practice"] : old.formatVersion >= 9 ? ["economy", "combat-practice", "ranged-practice", "siege-practice"] : ["economy", "combat-practice", "ranged-practice"]).includes(
@@ -614,6 +620,11 @@ export function migrateLegacyEnvelope(input: unknown): unknown {
     if (!Object.hasOwn(m, "trackedTarget"))
       m.trackedTarget =
         m.order === "focusAttack" && m.target ? { ...m.target } : null;
+  for (const [i,id] of saved.simulation.entities.id.entries()) if (saved.simulation.entities.definitionId[i] === "protoss-arbiter") {
+    saved.simulation.energy ??= [];
+    if (!saved.simulation.energy.some(r => r.entityId === id)) saved.simulation.energy.push({ entityId: id, amount: ENERGY.initial * ENERGY.scale, frameRemainder: 0 });
+  }
+  saved.simulation.energy?.sort((a,b) => a.entityId-b.entityId);
   saved.checksum = checksum(saved.simulation);
   const parsed = validatePersistenceEnvelope(saved);
   if (!parsed.ok) throw new TypeError("Invalid migrated save");

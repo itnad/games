@@ -1,3 +1,4 @@
+import { isInStasis } from "./spells-state";
 import type { EngineRules } from "../core/simulation";
 import type { SimulationState } from "../core/state";
 import { idleMovement } from "../core/orders";
@@ -47,7 +48,7 @@ export function createLurkerRules(base: EngineRules): EngineRules {
   commands.focusAttack = { ...focus, apply: (s, c, ids) => { focus.apply(s, c, ids); for (const id of ids) if (s.entities.definitionId[s.entities.id.indexOf(id)] === LURKER && isBurrowed(s, id)) { const m = s.movement[s.entities.id.indexOf(id)]; m.path = []; m.pathIndex = 0; m.status = "arrived"; s.navigation.jobs = s.navigation.jobs.filter((j) => j.entityId !== id); } } };
   return { ...base, commands, systems: { ...base.systems, construction: (s) => {
     let completed = false;
-    for (const j of s.lurker?.morphs ?? []) if (--j.remainingTicks === 0) { changeForm(s, j.entityId, LURKER); completed = true; }
+    for (const j of s.lurker?.morphs ?? []) if (!isInStasis(s,j.entityId) && --j.remainingTicks === 0) { changeForm(s, j.entityId, LURKER); completed = true; }
     if (s.lurker) s.lurker.morphs = s.lurker.morphs.filter((j) => j.remainingTicks > 0);
     if (completed) recomputeSupply(s); base.systems?.construction?.(s);
   } } };

@@ -1,3 +1,4 @@
+import { isInStasis } from "../abilities/spells-state";
 import type { SimulationState } from "../core/state";
 import { combatProfile } from "./catalog";
 import { isEmbarked } from "../abilities/special-state";
@@ -8,7 +9,7 @@ export const SIEGE_CANNON = original.weapons[0];
 export function siegeSplashTargets(s: SimulationState, source: number, x: number, y: number) {
   const e = s.entities, result: { index: number; divisor: number }[] = [];
   for (let i = 0; i < e.id.length; i++) {
-    if (i === source || e.health[i] === 0 || e.layer[i] !== "ground" || isEmbarked(s, e.id[i]) ||
+    if (i === source || e.health[i] === 0 || isInStasis(s,e.id[i]) || e.layer[i] !== "ground" || isEmbarked(s, e.id[i]) ||
       s.economy.structures.some((b) => b.entityId === e.id[i] && !b.started)) continue;
     const p = combatProfile(e.definitionId[i]); if (!p) continue;
     const dx = Math.max(0, e.x[i] - p.bounds[0] * 8 - x, x - (e.x[i] + p.bounds[2] * 8)),
