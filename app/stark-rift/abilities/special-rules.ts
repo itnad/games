@@ -1,3 +1,4 @@
+import { isInStasis } from "./spells-state";
 import { siegeTransitionOf } from "./siege-state";
 import type { SimulationState } from "../core/state";
 import type { GameCommand } from "../core/commands";
@@ -88,10 +89,10 @@ function planUnload(s: SimulationState, map: BattleMap, id: number, target: Poin
 }
 function approachPassengers(s: SimulationState, move: Move) {
   for (const t of s.special?.transports ?? []) {
-    const i = indexOf(s, t.entityId); if (i < 0) continue;
+    const i = indexOf(s, t.entityId); if (i < 0 || isInStasis(s,t.entityId)) continue;
     const e = s.entities;
     for (const id of t.loadQueue) {
-      const j = indexOf(s, id); if (j < 0) continue;
+      const j = indexOf(s, id); if (j < 0 || isInStasis(s,id)) continue;
       const m = s.movement[j], range = e.radius[i] + e.radius[j] + TRANSPORT_MECHANICS.loadRange;
       if ((e.x[i] - e.x[j]) ** 2 + (e.y[i] - e.y[j]) ** 2 <= range ** 2) continue;
       if (!m.target || (m.target.x - e.x[i]) ** 2 + (m.target.y - e.y[i]) ** 2 > 256 ** 2 || m.status === "idle" || m.status === "blocked")
@@ -105,9 +106,9 @@ function approachPassengers(s: SimulationState, move: Move) {
 function transportArrivals(s: SimulationState, map: BattleMap) {
   const e = s.entities;
   for (const t of s.special?.transports ?? []) {
-    const i = indexOf(s, t.entityId); if (i < 0 || e.health[i] === 0) continue;
+    const i = indexOf(s, t.entityId); if (i < 0 || e.health[i] === 0 || isInStasis(s,t.entityId)) continue;
     for (const id of [...t.loadQueue]) {
-      const j = indexOf(s, id); if (j < 0 || e.health[j] === 0) continue;
+      const j = indexOf(s, id); if (j < 0 || e.health[j] === 0 || isInStasis(s,id)) continue;
       const range = e.radius[i] + e.radius[j] + TRANSPORT_MECHANICS.loadRange;
       if ((e.x[i] - e.x[j]) ** 2 + (e.y[i] - e.y[j]) ** 2 > range ** 2) continue;
       freeze(s, id); t.loadQueue = t.loadQueue.filter((p) => p !== id); t.passengers.push(id);
