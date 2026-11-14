@@ -16,7 +16,7 @@ export function updateEconomicMarker(
   const hp = Math.floor((e.health / d.health) * 10),
     sp = Math.floor(((e.shield ?? 0) / Math.max(1, d.shield)) * 10),
     p = progress === null ? -1 : Math.floor(progress * 20),
-    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, Math.floor((e.energy ?? 0) / 10)].join(":");
+    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
   if (keys.get(g) === key) return true;
   keys.set(g, key);
   g.clear();
@@ -237,6 +237,12 @@ export function updateEconomicMarker(
         .stroke({ color: 0xd9c38b, width: 0.06 });
       g.rect(-0.14, -0.28, 0.28, 0.24).fill(color);
       for (const x of [-0.4, 0.26]) g.rect(x, -0.12, 0.14, 0.47).fill(0xd0a34e);
+    } else if (d.id === "terran-siege-tank-siege-mode") {
+      for (const x of [-0.65, 0.5]) g.rect(x, -0.3, 0.15, 0.65).fill(0xa7a17f).stroke({ color: 0xe9d795, width: 0.04 });
+      g.rect(-0.45, -0.28, 0.9, 0.57).fill(0x55717c).stroke({ color: 0xb1c6c9, width: 0.05 });
+      g.rect(-0.28, -0.22, 0.56, 0.4).fill(color);
+      g.rect(-0.09, -1.05, 0.18, 1.12).fill(0xbbc5ae);
+      g.rect(-0.17, -1.1, 0.34, 0.14).fill(0x3c4a50);
     } else if (terr && d.icon === "vehicle") {
       g.rect(-0.45, -0.22, 0.9, 0.45).fill(0x3e5660);
       g.rect(-0.3, -0.3, 0.6, 0.15).fill(0x91a7a8);
@@ -318,6 +324,11 @@ export function updateEconomicMarker(
       (width * Math.max(0, sp)) / 10,
       0.08,
     ).fill(0x7ebdff);
+  }
+  if (e.siegeTransition) {
+    const progress = 1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks;
+    g.circle(0, 0, 0.75).stroke({ color: 0xffca75, width: 0.06, alpha: 0.65 });
+    g.rect(-0.5, 0.55, 1, 0.08).fill(0x253642); g.rect(-0.5, 0.55, progress, 0.08).fill(0xffca75);
   }
   if (e.energy !== undefined) {
     const width = 1;
