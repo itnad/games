@@ -2018,9 +2018,9 @@ test("allows native refresh in game menus, protects play, and releases the guard
       listeners.delete(type);
     },
   };
-  const touch = (type, positions, cancelable = true) => {
+  const touch = (type, positions, cancelable = true, target = null) => {
     let prevented = false;
-    listeners.get(type)?.({ touches: positions.map((clientY) => ({ clientY })), cancelable, preventDefault: () => { prevented = true; } });
+    listeners.get(type)?.({ target, touches: positions.map((clientY) => ({ clientY })), cancelable, preventDefault: () => { prevented = true; } });
     return prevented;
   };
   const pull = () => { touch("touchstart", [50]); return touch("touchmove", [140]); };
@@ -2040,6 +2040,14 @@ test("allows native refresh in game menus, protects play, and releases the guard
   root.scrollTop = 0;
   touch("touchstart", [140]);
   assert.equal(touch("touchmove", [50]), false, "upward swipes are not blocked");
+  // A scrolled panel inside the game (e.g. StarDraft's production list) scrolls back up with a downward drag.
+  const panel = { nodeType: 1, scrollTop: 120, parentElement: root };
+  const card = { nodeType: 1, scrollTop: 0, parentElement: panel };
+  touch("touchstart", [50], true, card);
+  assert.equal(touch("touchmove", [140], true, card), false, "a scrolled panel keeps its downward drag");
+  panel.scrollTop = 0;
+  touch("touchstart", [50], true, card);
+  assert.equal(touch("touchmove", [140], true, card), true, "a panel already at its top still blocks pull-to-refresh");
   touch("touchstart", [50]);
   assert.equal(touch("touchmove", [140], false), false, "non-cancelable events are left alone");
   touch("touchstart", [50, 60]);

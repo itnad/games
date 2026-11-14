@@ -5,6 +5,23 @@
  * @param {Document} document
  * @param {Window} window
  */
+/**
+ * Whether the touch started inside an element that is scrolled down and can still scroll up.
+ * Native pull-to-refresh only starts once every scroller under the finger is at its top,
+ * so a downward drag inside such a panel (e.g. a game's production list) must be left alone.
+ * @param {EventTarget | null | undefined} target
+ * @param {HTMLElement} root
+ */
+function insideScrolledArea(target, root) {
+  /** @type {any} */
+  let node = target;
+  while (node && node !== root && node.nodeType === 1) {
+    if (node.scrollTop > 0) return true;
+    node = node.parentElement;
+  }
+  return false;
+}
+
 export function installGameRefreshGuard(document, window) {
   const root = document.documentElement;
   root.classList.add("paperoid-game-active");
@@ -18,7 +35,10 @@ export function installGameRefreshGuard(document, window) {
     if (event.touches.length !== 1) { clearTouchStart(); return; }
     const touchY = event.touches[0]?.clientY;
     const pageAtTop = window.scrollY <= 0 && root.scrollTop <= 0;
-    if (event.cancelable && touchStartY !== null && touchY !== undefined && pageAtTop && touchY > touchStartY) event.preventDefault();
+    if (!event.cancelable || touchStartY === null || touchY === undefined || !pageAtTop || touchY <= touchStartY) return;
+    // A scrolled panel takes the downward drag itself (scrolling back up), so there is no refresh to block.
+    if (insideScrolledArea(event.target, root)) return;
+    event.preventDefault();
   };
   window.addEventListener("touchstart", rememberTouchStart, { passive: true });
   window.addEventListener("touchmove", blockPullToRefresh, { passive: false });
