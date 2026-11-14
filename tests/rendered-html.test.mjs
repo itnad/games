@@ -857,6 +857,14 @@ test("keeps StarDraft in its own app/starswar folder as a mobile game at /stardr
   assert.match(gameSource, /iconTimer = window\.setTimeout[\s\S]*?pixi\.exportIcons\(\)[\s\S]*?, 50\)/);
   assert.match(gameSource, /지도가 표시될 때까지 전투 시간은 흐르지 않습니다\./);
   assert.match(gameSource, /지도 다시 불러오기/);
+  // 난이도는 저장해 두고, 고른 카드는 어떤 테마에서도 강조색으로 채워 "✓ 선택"을 붙인다(스위스·보드게임 테마가 테두리·그림자를 덮어써 안 보이던 문제).
+  assert.match(gameSource, /DIFFICULTY_KEY = "paperoid-starswar-difficulty"/);
+  assert.match(gameSource, /onClick=\{\(\) => pickDifficulty\(id\)\}/);
+  const starswarCss = await readFile(new URL("../app/starswar/starswar.css", import.meta.url), "utf8");
+  const activeRule = starswarCss.lastIndexOf(".stw-shell .stw-difficulty button.active {");
+  assert.ok(activeRule > starswarCss.lastIndexOf('[data-theme="swiss"]') && activeRule > starswarCss.lastIndexOf('[data-theme="board"]'), "선택 표시 규칙이 테마 규칙 뒤에 온다");
+  assert.match(starswarCss.slice(activeRule), /background:var\(--stw-gold\) !important/);
+  assert.match(starswarCss, /\.stw-difficulty button\.active::after \{ content:"✓ 선택"/);
   assert.match(pixiSource, /let stwPixiModulePromise: Promise<PixiModule> \| null = null/);
   assert.match(pixiSource, /return loadStwPixiModule\(\)/);
   const brief = await readFile(new URL("../docs/starswar-design.md", import.meta.url), "utf8");

@@ -159,6 +159,18 @@ function readMap(): MapChoice {
   return "plain";
 }
 
+// 난이도도 종족·맵·테마처럼 기억한다(예전에는 메뉴를 다시 열 때마다 말없이 "보통"으로 돌아갔다).
+const DIFFICULTY_KEY = "paperoid-starswar-difficulty";
+function readDifficulty(): StwDifficulty {
+  try {
+    const stored = window.localStorage.getItem(DIFFICULTY_KEY) as StwDifficulty | null;
+    if (stored && DIFFICULTY_IDS.includes(stored)) return stored;
+  } catch {
+    // 저장소를 쓸 수 없으면 기본값을 쓴다.
+  }
+  return "normal";
+}
+
 const THEME_KEY = "paperoid-starswar-theme";
 function readTheme(): ThemeId {
   try {
@@ -379,7 +391,7 @@ function cost(minerals: number, gas: number) {
 
 export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [screen, setScreen] = useState<Screen>("menu");
-  const [difficulty, setDifficulty] = useState<StwDifficulty>("normal");
+  const [difficulty, setDifficulty] = useState<StwDifficulty>(() => (typeof window === "undefined" ? "normal" : readDifficulty()));
   const [races, setRaces] = useState<{ player: EnemyRace; enemy: EnemyRace }>(() => (typeof window === "undefined" ? { player: "protoss", enemy: "random" } : readRace()));
   const [mapChoice, setMapChoice] = useState<MapChoice>(() => (typeof window === "undefined" ? "plain" : readMap()));
   const [theme, setTheme] = useState<ThemeId>(() => (typeof window === "undefined" ? "gold" : readTheme()));
@@ -812,6 +824,15 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     }
   };
 
+  const pickDifficulty = (next: StwDifficulty) => {
+    setDifficulty(next);
+    try {
+      window.localStorage.setItem(DIFFICULTY_KEY, next);
+    } catch {
+      // 선택 저장 실패는 무시한다.
+    }
+  };
+
   const pickMap = (next: MapChoice) => {
     setMapChoice(next);
     try {
@@ -879,7 +900,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             {DIFFICULTY_IDS.map((id) => {
               const item = STW_DIFFICULTIES[id];
               return (
-                <button key={id} type="button" role="radio" aria-checked={difficulty === id} className={difficulty === id ? "active" : ""} onClick={() => setDifficulty(id)}>
+                <button key={id} type="button" role="radio" aria-checked={difficulty === id} className={difficulty === id ? "active" : ""} onClick={() => pickDifficulty(id)}>
                   <b>{item.name}</b>
                   <span>{item.note}</span>
                   {record.best[id] ? <em>최단 승리 {stwClock(record.best[id] ?? 0)}</em> : null}
