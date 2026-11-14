@@ -1,3 +1,5 @@
+import lurker from "../data/lurker-original.json";
+import { LURKER_RULES_VERSION } from "../abilities/lurker-state";
 import { LEGACY_VISION_RULES_VERSION, VISION_RULES_VERSION } from "../vision/state";
 import { PROJECTILE_RULES, MAX_COMBAT_PROJECTILES } from "./mechanics";
 import {
@@ -34,7 +36,8 @@ export const TERRAIN_COMBAT_RULES_VERSION =
 export const BURROW_COMBAT_RULES_VERSION = "burrow-1-" + checksum(TERRAIN_COMBAT_RULES_VERSION);
 export const SPECIAL_COMBAT_RULES_VERSION = "special-combat-" + checksum({ base: BURROW_COMBAT_RULES_VERSION, vision: VISION_RULES_VERSION, special: SPECIAL_RULES_VERSION });
 export const CLOAK_COMBAT_RULES_VERSION = "cloak-combat-" + checksum({ base: SPECIAL_COMBAT_RULES_VERSION, cloak: CLOAK_RULES_VERSION });
-export const COMBAT_RULES_VERSION = "siege-combat-" + checksum({ base: CLOAK_COMBAT_RULES_VERSION, siege: SIEGE_RULES_VERSION });
+export const SIEGE_COMBAT_RULES_VERSION = "siege-combat-" + checksum({ base: CLOAK_COMBAT_RULES_VERSION, siege: SIEGE_RULES_VERSION });
+export const COMBAT_RULES_VERSION = "lurker-combat-" + checksum({ base: SIEGE_COMBAT_RULES_VERSION, lurker: LURKER_RULES_VERSION });
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(
@@ -55,7 +58,7 @@ export const combatRecordSchema = object({
 });
 const effectFields = {
   id: integer(1), tick: integer(),
-  weaponId: optional(enumeration([...original.weapons, ...special.weapons, ...cloak.weapons, ...siege.weapons].map((w) => w.name))),
+  weaponId: optional(enumeration([...original.weapons, ...special.weapons, ...cloak.weapons, ...siege.weapons, ...lurker.weapons].map((w) => w.name))),
   owner: integer(0, 1), x: integer(), y: integer(), toX: integer(), toY: integer(),
 };
 export const combatEffectSchema = object({ ...effectFields,
