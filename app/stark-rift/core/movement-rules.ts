@@ -1,4 +1,6 @@
 import { isEmbarked } from "../abilities/special-state";
+import { isSieged, tankLocked } from "../abilities/siege-state";
+import { unitFamily } from "../data/economy-catalog";
 import { isBurrowed } from "../abilities/burrow";
 import type { BattleMap } from "../data/maps";
 import type { EngineRules, CommandHandler } from "./simulation";
@@ -61,11 +63,11 @@ export function createMovementRules(
           index = s.id.indexOf(id);
         if (command.kind === "assignGroup") {
           const ids = command.entityIds,
-            definition = s.definitionId[index];
+            definition = unitFamily(s.definitionId[index]);
           if (
             s.kind[index] !== "combat" ||
             ids.some(
-              (entity) => s.definitionId[s.id.indexOf(entity)] !== definition,
+              (entity) => unitFamily(s.definitionId[s.id.indexOf(entity)]) !== definition,
             )
           )
             return "invalid_target";
@@ -89,7 +91,7 @@ export function createMovementRules(
           (["move", "attackMove", "focusAttack", "patrol"].includes(
             command.kind,
           ) &&
-            s.speed[index] === 0)
+            s.speed[index] === 0 && !(command.kind === "focusAttack" && isSieged(s.definitionId[index])))
         )
           return "invalid_state";
         if (command.kind === "focusAttack") {
@@ -328,7 +330,7 @@ function move(
   grid.trackStaticObstacles();
   for (let i = 0; i < s.id.length; i++) {
     const m = state.movement[i];
-    if (s.health[i] === 0 || s.kind[i] === "building") continue;
+    if (s.health[i] === 0 || s.kind[i] === "building" || tankLocked(state, s.id[i], s.definitionId[i])) continue;
     if (m.order === "focusAttack" && m.targetEntityId !== null) {
       const t = s.id.indexOf(m.targetEntityId);
       if (t >= 0 && visible(state, s.owner[i], t)) {
