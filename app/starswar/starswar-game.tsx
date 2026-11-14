@@ -102,6 +102,8 @@ function writeLearning(data: unknown) {
   }
 }
 const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
+/** 고른 부대를 그대로 두는 명령: 부대를 옮기거나 본대로 돌리거나 침투를 거두는 동안에는 같은 부대를 이어서 지휘한다. */
+const SQUAD_KEEP_COMMANDS = new Set<StwCommand["type"]>(["squadMove", "squadRelease", "dropRecall"]);
 const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", stargate: "스타게이트", barracks: "배럭", factory: "팩토리", starport: "스타포트", hatchery: "해처리", hatch: "해처리" };
 /** 진행 중인 작전 한 줄 요약. */
 function opStatus(game: StwState, op: StwOp) {
@@ -670,6 +672,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     const result = stwIssue(game, "player", command) as StwCheck;
     if (!result.ok) showToast(result.reason ?? "지금은 할 수 없습니다");
     else if (success) showToast(success, "good");
+    // 부대 명령 말고 다른 조작(건설·생산·연구·정찰·본대 출격 등)을 하면 그 부대 지휘는 끝난 것으로 보고 고른 부대를 푼다.
+    if (result.ok && !SQUAD_KEEP_COMMANDS.has(command.type)) setSelected([]);
     refresh();
   };
 
@@ -771,17 +775,15 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     if (Math.hypot(point.x - gesture.x, point.y - gesture.y) > 10) return;
     const target = stwScreenToMap(viewRef.current, point.x, point.y);
     lastMapTapRef.current = event.timeStamp;
-    // 부대 지휘 중에는 고른 부대만 옮기고, 명령마다 다시 고른다(예전 선택이 남아 엉뚱한 부대가 움직이지 않게).
-    if (squadOpen) {
-      if (!selected.length) {
-        showToast("옮길 부대를 먼저 고르세요. 부대 지휘를 닫으면 지도를 눌러 본대를 옮깁니다.");
-        return;
-      }
-      issue({ type: "squadMove", units: selected, y: target.y });
-      setSelected([]);
-      return;
+    // 고른 부대가 있으면 그 부대만 옮기고(선택은 그대로 둬 이어서 지휘), 없으면 본대 전체를 옮긴다.
+    // 부대 지휘 패널이 열려 있으면 닫아 지도를 넓힌다. 고른 부대는 건설·생산 같은 다른 조작을 하면 풀린다(issue).
+    if (squadOpen) setSquadOpen(false);
+    const live = selected.filter((type) => squadCounts.has(type));
+    if (live.length) issue({ type: "squadMove", units: live, y: target.y });
+    else {
+      if (selected.length) setSelected([]);
+      issue({ type: "move", y: target.y });
     }
-    issue({ type: "move", y: target.y });
   };
 
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
@@ -919,10 +921,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   }
   const squadTypes = [...squadCounts.entries()].sort((a, b) => b[1] - a[1]);
   const squadSpots = game.sides.player.squads ?? {};
-  const closeSquad = () => {
-    setSelected([]);
-    setSquadOpen(false);
-  };
+  // 패널만 닫는다. 고른 부대는 남아 지도를 누르면 계속 그 부대가 움직인다("부대 N" 버튼에 수가 보인다).
+  const closeSquad = () => setSquadOpen(false);
   const toggleSquad = (type: string) => setSelected((current) => (current.includes(type) ? current.filter((item) => item !== type) : [...current, type]));
   const mapScouts = game.units.filter((unit) => unit.side === "player" && unit.group === "scout");
   const walkOps = (game.ops ?? []).filter((op) => op.side === "player" && op.kind === "walk");
@@ -1022,7 +1022,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             <div className="stw-panel-body stw-squad-panel" role="group" aria-label="부대 고르기">
               <div className="stw-squad-head">
                 <b>부대 지휘</b>
-                <span>{selected.length ? "지도를 누르면 고른 부대만 그 자리로 갑니다" : "옮길 유닛 종류를 고르세요 · 명령마다 다시 고릅니다"}</span>
+                <span>{selected.length ? "지도를 누르면 고른 부대만 그 자리로 갑니다 · 건설·생산 등 다른 조작을 하면 풀립니다" : "옮길 유닛 종류를 고르세요 · 안 고르면 본대 전체가 갑니다"}</span>
                 <button type="button" onClick={closeSquad}>닫기</button>
               </div>
               <div className="stw-squad-chips">
@@ -1034,8 +1034,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 )) : <span>옮길 전투 유닛이 없습니다</span>}
               </div>
               <div className="stw-squad-actions">
-                <button type="button" disabled={!selected.length} onClick={() => { issue({ type: "squadMove", units: selected, y: 20 }); setSelected([]); }}>이 부대 출격</button>
-                <button type="button" disabled={!selected.some((type) => squadSpots[type] || walkingTypes.has(type))} onClick={() => { issue({ type: "squadRelease", units: selected }); setSelected([]); }}>본대로</button>
+                <button type="button" disabled={!selected.length} onClick={() => issue({ type: "squadMove", units: selected, y: 20 })}>이 부대 출격</button>
+                <button type="button" disabled={!selected.some((type) => squadSpots[type] || walkingTypes.has(type))} onClick={() => issue({ type: "squadRelease", units: selected })}>본대로</button>
                 <button type="button" disabled={!selected.length} onClick={() => setSelected([])}>선택 해제</button>
               </div>
               <div className="stw-squad-actions two">
