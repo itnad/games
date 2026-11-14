@@ -1,8 +1,9 @@
+import { SPELLS_RULES_VERSION } from "../abilities/spells-state";
 import arbiter from "../data/arbiter-original.json";
 import { ARBITER_RULES_VERSION } from "../abilities/arbiter";
 import lurker from "../data/lurker-original.json";
 import { LURKER_RULES_VERSION } from "../abilities/lurker-state";
-import { LEGACY_VISION_RULES_VERSION, CARGO_VISION_RULES_VERSION, VISION_RULES_VERSION } from "../vision/state";
+import { LEGACY_VISION_RULES_VERSION, CARGO_VISION_RULES_VERSION, ARBITER_VISION_RULES_VERSION, VISION_RULES_VERSION } from "../vision/state";
 import { PROJECTILE_RULES, MAX_COMBAT_PROJECTILES } from "./mechanics";
 import {
   array,
@@ -40,7 +41,8 @@ export const SPECIAL_COMBAT_RULES_VERSION = "special-combat-" + checksum({ base:
 export const CLOAK_COMBAT_RULES_VERSION = "cloak-combat-" + checksum({ base: SPECIAL_COMBAT_RULES_VERSION, cloak: CLOAK_RULES_VERSION });
 export const SIEGE_COMBAT_RULES_VERSION = "siege-combat-" + checksum({ base: CLOAK_COMBAT_RULES_VERSION, siege: SIEGE_RULES_VERSION });
 export const LURKER_COMBAT_RULES_VERSION = "lurker-combat-" + checksum({ base: SIEGE_COMBAT_RULES_VERSION, lurker: LURKER_RULES_VERSION });
-export const COMBAT_RULES_VERSION = "arbiter-combat-" + checksum({ base: LURKER_COMBAT_RULES_VERSION, arbiter: ARBITER_RULES_VERSION, vision: VISION_RULES_VERSION });
+export const ARBITER_COMBAT_RULES_VERSION = "arbiter-combat-" + checksum({ base: LURKER_COMBAT_RULES_VERSION, arbiter: ARBITER_RULES_VERSION, vision: ARBITER_VISION_RULES_VERSION });
+export const COMBAT_RULES_VERSION = "spells-combat-" + checksum({ base: ARBITER_COMBAT_RULES_VERSION, spells: SPELLS_RULES_VERSION, vision: VISION_RULES_VERSION });
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(
