@@ -171,7 +171,9 @@ function readDifficulty(): StwDifficulty {
   return "normal";
 }
 
-const THEME_KEY = "paperoid-starswar-theme";
+// 화면 테마는 리소 인쇄로 정했다(2026-11). 시안을 고르던 때 저장한 값(예전 키)은 쓰지 않고, 실험실에서 바꾼 값만 새 키에 남긴다.
+const THEME_KEY = "paperoid-starswar-theme-v2";
+const DEFAULT_THEME: ThemeId = "riso";
 function readTheme(): ThemeId {
   try {
     const stored = window.localStorage.getItem(THEME_KEY) as ThemeId | null;
@@ -179,26 +181,18 @@ function readTheme(): ThemeId {
   } catch {
     // 저장소를 쓸 수 없으면 기본 테마.
   }
-  return "gold";
+  return DEFAULT_THEME;
 }
 
-function ThemePicker({ theme, onPick, compact = false }: { theme: ThemeId; onPick: (theme: ThemeId) => void; compact?: boolean }) {
-  if (compact) {
-    return (
-      <div className="stw-theme-row" role="radiogroup" aria-label="화면 테마">
-        {THEMES.map((item) => (
-          <button key={item.id} type="button" role="radio" aria-checked={theme === item.id} className={theme === item.id ? "active" : ""} onClick={() => onPick(item.id)}>{item.name}</button>
-        ))}
-      </div>
-    );
-  }
+/** 화면 테마 고르기: 실험실 화면에만 둔다(메인 메뉴·일시정지에서는 뺐다). */
+function ThemePicker({ theme, onPick }: { theme: ThemeId; onPick: (theme: ThemeId) => void }) {
   return (
     <div className="stw-theme-pick">
-      <h3 className="stw-section">화면 테마 (시안)</h3>
+      <h3 className="stw-section">화면 테마</h3>
       <div className="stw-segment" role="radiogroup" aria-label="화면 테마">
         {THEMES.map((item) => (
           <button key={item.id} type="button" role="radio" aria-checked={theme === item.id} className={theme === item.id ? "active" : ""} onClick={() => onPick(item.id)}>
-            {item.name}<small>{item.note}</small>
+            {item.name}<small>{item.id === DEFAULT_THEME ? "기본" : item.note}</small>
           </button>
         ))}
       </div>
@@ -394,7 +388,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [difficulty, setDifficulty] = useState<StwDifficulty>(() => (typeof window === "undefined" ? "normal" : readDifficulty()));
   const [races, setRaces] = useState<{ player: EnemyRace; enemy: EnemyRace }>(() => (typeof window === "undefined" ? { player: "protoss", enemy: "random" } : readRace()));
   const [mapChoice, setMapChoice] = useState<MapChoice>(() => (typeof window === "undefined" ? "plain" : readMap()));
-  const [theme, setTheme] = useState<ThemeId>(() => (typeof window === "undefined" ? "gold" : readTheme()));
+  const [theme, setTheme] = useState<ThemeId>(() => (typeof window === "undefined" ? DEFAULT_THEME : readTheme()));
   const [game, setGame] = useState<StwState | null>(null);
   const [, setFrame] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -853,7 +847,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   /* ───────── 메뉴 ───────── */
 
   if (screen === "lab") {
-    return <LabScreen initial={labConfig ?? readLab()} onStart={startLab} onBack={() => setScreen("menu")} theme={theme} />;
+    return <LabScreen initial={labConfig ?? readLab()} onStart={startLab} onBack={() => setScreen("menu")} theme={theme} themePicker={<ThemePicker theme={theme} onPick={pickTheme} />} />;
   }
 
   if (screen === "menu" || !game) {
@@ -872,7 +866,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             <p>무엇을 짓고 연구할지, 언제 진격할지 정하세요.</p>
             <TipLine race={races.player} rotate={9} className="stw-tip-menu" />
           </div>
-          <ThemePicker theme={theme} onPick={pickTheme} />
           {saved ? <ResumeCard saved={saved} onResume={resumeBattle} onDiscard={discardSave} /> : null}
           <div className="stw-race-pick">
             <h3 className="stw-section">내 종족</h3>
@@ -1023,7 +1016,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 <PauseReportButton game={game} />
                 <button type="button" className="stw-secondary" onClick={() => setConfirmExit(true)}>나가기</button>
                 <GameObjectiveGuide gameId="starswar" inline />
-                <ThemePicker theme={theme} onPick={pickTheme} compact />
                 <TipLine race={game.sides.player.race} className="stw-tip-pause" />
               </section>
             </div>

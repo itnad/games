@@ -402,9 +402,6 @@
 .stw-theme-pick { display:grid; gap:6px; }
 .stw-theme-pick .stw-segment button small { display:block; margin-top:2px; color:var(--stw-muted); font-family:inherit; font-size:10px; font-weight:700; }
 .stw-theme-pick .stw-segment button.active small { color:inherit; opacity:.8; }
-.stw-overlay .stw-theme-row { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; }
-.stw-overlay .stw-theme-row button { min-height:34px; padding:0 2px; font-size:12px !important; border:1px solid var(--stw-line); background:color-mix(in srgb,var(--stw-veil) 5%,transparent); }
-.stw-overlay .stw-theme-row button.active { color:var(--stw-on-gold); background:var(--stw-gold); }
 /* 종족 색의 굵은 제목 글꼴은 큰 제목에만(작은 글자에서는 획이 뭉쳐 읽기 어렵다). */
 .stw-shell[data-theme="race"] :is(h3, .stw-section, .stw-start, .stw-tabs button, .stw-segment button, .stw-difficulty b) { font-family:inherit; }
 .stw-theme-pick .stw-segment button { min-height:48px; padding:0 4px; font-size:13px !important; line-height:1.2; word-break:keep-all; }

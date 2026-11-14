@@ -1,7 +1,7 @@
 "use client";
 
 // 스타드래프트 실험실: 종족·전략·건물·유닛·연구·시각을 마음대로 정해 경기를 바로 세우고 시험하는 테스트용 메뉴.
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { withKoreanDirection, withKoreanObject } from "../korean-particles.js";
 import { STW_AI_PERSONAS, STW_BUILDINGS, STW_ECONOMY, STW_MAPS, STW_MAP_IDS, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./starswar-data.js";
 import type { StwMapId, StwRaceId } from "./starswar-types";
@@ -332,7 +332,7 @@ function SideEditor({ title, which, race, side, onRace, onChange }: { title: str
   );
 }
 
-export function LabScreen({ initial, onStart, onBack, theme = "gold" }: { initial: LabConfig; onStart: (config: LabConfig) => void; onBack: () => void; theme?: ThemeId }) {
+export function LabScreen({ initial, onStart, onBack, theme = "riso", themePicker = null }: { initial: LabConfig; onStart: (config: LabConfig) => void; onBack: () => void; theme?: ThemeId; themePicker?: ReactNode }) {
   const [config, setConfig] = useState<LabConfig>(() => normalizeLab(initial) ?? structuredClone(LAB_PRESETS[0].config));
   const [custom, setCustom] = useState<LabPreset[]>(() => (typeof window === "undefined" ? [] : readCustom()));
   const [name, setName] = useState("");
@@ -401,6 +401,8 @@ export function LabScreen({ initial, onStart, onBack, theme = "gold" }: { initia
           <button type="button" className="stw-secondary" onClick={saveCurrent}>지금 설정 저장</button>
         </div>
         <button type="button" className="stw-start" onClick={() => onStart(config)}>이 상황으로 시작</button>
+        {/* 화면 테마는 실험실에서만 바꾼다(기본 리소 인쇄). */}
+        {themePicker}
       </section>
     </main>
   );
