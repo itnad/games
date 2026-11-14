@@ -326,7 +326,7 @@ describe("stage 5a deterministic basic combat", () => {
     expect(read.status).toBe("ready");
     if (read.status !== "ready") throw Error();
     expect(read.snapshot.simulation.players).toEqual(old.simulation.players);
-    expect(read.snapshot.simulation.engineVersion).toBe("0.14.0-stage6d");
+    expect(read.snapshot.simulation.engineVersion).toBe("0.15.0-stage6e");
     expect(records.get(DEVELOPMENT_SAVE_PREFIX + "terran")).toBe(
       JSON.stringify(old),
     );
