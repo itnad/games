@@ -1,3 +1,5 @@
+import { SiegeControls } from "./siege-controls";
+import { isSieged } from "../abilities/siege-state";
 import { CloakControls } from "./cloak-controls";
 import { TransportControls } from "./transport-controls";
 import { permanentCloak } from "../abilities/special-state";
@@ -7,7 +9,7 @@ import { useEffect, useRef } from "react";
 import type { GameCommand } from "../core/commands";
 import type { RenderSnapshot } from "../worker/render-snapshot";
 import {
-  countsAsDefinition, isLarvaProducer,
+  countsAsDefinition, isLarvaProducer, unitFamily,
   ECONOMY_DEFINITIONS,
   ECONOMY_UPGRADES,
   economyDefinition,
@@ -113,7 +115,7 @@ export function EconomyControls({
         </p>
       </div>
     );
-  const mixed = entities.some((e) => e.definitionId !== first.definitionId);
+  const mixed = entities.some((e) => unitFamily(e.definitionId) !== unitFamily(first.definitionId));
   const burrowActors = entities.filter((e) => supportsBurrow(e.definitionId)),
     surfaceIds = burrowActors.filter((e) => !e.burrowed).map((e) => e.id),
     burrowIds = burrowActors.filter((e) => e.burrowed).map((e) => e.id),
@@ -136,7 +138,7 @@ export function EconomyControls({
           hasBasicWeapon(def.id) && (
             <button
               className="sr-attack-move"
-              disabled={!running || entities.every((e) => e.burrowed)}
+              disabled={!running || entities.every((e) => e.burrowed || e.siegeTransition || isSieged(e.definitionId))}
               onClick={attackMove}
             >
               공격 이동
@@ -158,6 +160,7 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
+      <SiegeControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <CloakControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       {transport}
       {permanentCloak(def.id) && <p className="sr-help">영구 은폐 · {def.id === "protoss-observer" ? "비무장 탐지기 · 탐지 범위 11타일" : "지상 근접 공격 · 적 탐지기에 노출되면 공격받습니다."}</p>}
@@ -431,11 +434,12 @@ export function EconomyControls({
                   })
                 }
               >
-                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field"].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field", "tank-siege-mode"].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
                 {t.id === BURROW_RESEARCH && !done && <small>25초 · 드론·저글링·히드라 잠복</small>}
                 {t.id === "ventral-sacs" && !done && <small>50초 · 오버로드 8칸 수송</small>}
                 {t.id === "personnel-cloaking" && !done && <small>25초 · 고스트 수동 은폐</small>}
                 {t.id === "cloaking-field" && !done && <small>31.25초 · 레이스 수동 은폐</small>}
+                {t.id === "tank-siege-mode" && !done && <small>25초 · 시즈 탱크 포격 모드</small>}
               </button>
             );
           })}
@@ -483,13 +487,13 @@ export function EconomyControls({
       {def.kind === "combat" && (
         <div className="sr-action-row">
           <button
-            disabled={!running}
+            disabled={!running || entities.every((e) => !!e.siegeTransition)}
             onClick={() => issue({ kind: "stop", entityIds: selected })}
           >
             정지
           </button>
           <button
-            disabled={!running}
+            disabled={!running || entities.every((e) => !!e.siegeTransition)}
             onClick={() => issue({ kind: "hold", entityIds: selected })}
           >
             위치 사수
