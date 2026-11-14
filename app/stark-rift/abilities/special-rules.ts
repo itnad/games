@@ -1,3 +1,4 @@
+import { siegeTransitionOf } from "./siege-state";
 import type { SimulationState } from "../core/state";
 import type { GameCommand } from "../core/commands";
 import type { EngineRules } from "../core/simulation";
@@ -171,7 +172,7 @@ export function createSpecialRules(map: BattleMap, base: EngineRules): EngineRul
       if (c.kind !== "loadTransport" || !s.economy.enabled) return "invalid_command";
       const e = s.entities, j = indexOf(s, c.target.entityId), w = workerOf(s, c.target.entityId);
       if (j < 0 || e.health[j] === 0 || e.owner[j] !== c.playerId || e.kind[j] === "building" || e.layer[j] !== "ground" || cargoSpace(s, c.target.entityId) > 8) return "invalid_target";
-      if (isEmbarked(s, c.target.entityId) || loadingIn(s, c.target.entityId) || isBurrowed(s, c.target.entityId) || w?.buildingId) return "invalid_state";
+      if (siegeTransitionOf(s, c.target.entityId) || isEmbarked(s, c.target.entityId) || loadingIn(s, c.target.entityId) || isBurrowed(s, c.target.entityId) || w?.buildingId) return "invalid_state";
       if (!transportCapacity(s, id)) return definitionOf(s, id)?.id === "zerg-overlord" ? "missing_prerequisite" : "invalid_target";
       return candidateCarrier(s, c, c.target.entityId) === id ? null : "invalid_state";
     },
