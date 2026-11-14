@@ -11,7 +11,8 @@ import {
   type Infer,
 } from "../core/validation";
 export const LEGACY_VISION_RULES_VERSION = "fog-1-los-edge-detector11-memory600";
-export const VISION_RULES_VERSION = "fog-2-permanent-cloak-cargo-observer11";
+export const CARGO_VISION_RULES_VERSION = "fog-2-permanent-cloak-cargo-observer11";
+export const VISION_RULES_VERSION = "fog-3-arbiter-passive-field-hitboxes";
 export const MEMORY_TICKS = 600;
 export const contactSchema = object({
   entityId: integer(1),
