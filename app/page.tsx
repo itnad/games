@@ -499,6 +499,7 @@ const DEFAULT_POPULAR_RECOMMENDATION_GAME_IDS: readonly GameId[] = [
 
 const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
 const PENDING_GAME_AFTER_UPDATE_KEY = "paperoid-pending-game-after-update";
+const RECENT_GAME_DISPLAY_LIMIT = 2;
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const PUBLIC_GAME_PATH_ALIASES: Readonly<Record<string, GameId>> = {
   haeru: "mudflat-survivor",
@@ -1521,7 +1522,8 @@ function HomeContent({
 
   const recentGames = recentIds
     .map((id) => availableGames.find((game) => game.id === id))
-    .filter((game): game is GameDefinition => Boolean(game));
+    .filter((game): game is GameDefinition => Boolean(game))
+    .slice(0, RECENT_GAME_DISPLAY_LIMIT);
   const favoriteGames = favorites
     .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => Boolean(game));

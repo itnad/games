@@ -2086,6 +2086,8 @@ test("shows home games as a compact grid and keeps popular recommendations disti
   assert.match(pageSource, /window\.localStorage\.removeItem\(SHOW_ALL_GAMES_STORAGE_KEY\)/);
   assert.match(pageSource, /key="recent-games"/);
   assert.match(pageSource, /key="popular-recommendation-games"/);
+  assert.match(pageSource, /const RECENT_GAME_DISPLAY_LIMIT = 2/);
+  assert.match(pageSource, /const recentGames = recentIds[\s\S]*?\.slice\(0, RECENT_GAME_DISPLAY_LIMIT\)/);
   assert.match(pageSource, /const recentGameIdSet = new Set\(recentGames\.map\(\(game\) => game\.id\)\)/);
   assert.match(pageSource, /!recentGameIdSet\.has\(game\.id\)/);
   assert.match(pageSource, /className="game-shelf-count">\{games\.length\}/);
