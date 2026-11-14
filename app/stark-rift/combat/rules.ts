@@ -1,3 +1,5 @@
+import { isTank, isSieged, siegeTransitionOf } from "../abilities/siege-state";
+import { siegeSplashTargets, SIEGE_CANNON } from "./siege-splash";
 import { initializeSpecialPractice } from "../abilities/special-practice";
 import { isEmbarked } from "../abilities/special-state";
 import { isBurrowed } from "../abilities/burrow";
@@ -29,7 +31,7 @@ export function synchronizeCombat(s: SimulationState) {
     const definitionId = s.entities.definitionId[i],
       old = previous.get(id);
     if (old?.definitionId === definitionId) return old;
-    const restored = definitionId === "zerg-drone" ? old?.workerFraction : definitionId === "zerg-lair" && old?.definitionId === "zerg-hatchery" ? { health: old.healthFraction, shield: old.shieldFraction } : null;
+    const restored = isTank(definitionId) && old && isTank(old.definitionId) ? { health: old.healthFraction, shield: old.shieldFraction } : definitionId === "zerg-drone" ? old?.workerFraction : definitionId === "zerg-lair" && old?.definitionId === "zerg-hatchery" ? { health: old.healthFraction, shield: old.shieldFraction } : null;
     return {
       entityId: id,
       definitionId,
@@ -208,7 +210,7 @@ function validTarget(
   const e = s.entities;
   return (
     b >= 0 &&
-    !isBurrowed(s, e.id[a]) && !isEmbarked(s, e.id[a]) && !isEmbarked(s, e.id[b]) &&
+    !siegeTransitionOf(s, e.id[a]) && !isBurrowed(s, e.id[a]) && !isEmbarked(s, e.id[a]) && !isEmbarked(s, e.id[b]) &&
     a !== b &&
     e.owner[a] !== e.owner[b] &&
     e.health[b] > 0 &&
@@ -401,8 +403,10 @@ export function createCombatRules(
             const b = s.entities.id.indexOf(m.targetEntityId!);
             if (!validTarget(s, a, b, visible)) {
               const target = m.trackedTarget ?? m.target;
-              Object.assign(m, idleMovement(m.entityId));
-              if (target) {
+              const style = { formation: m.formation, stance: m.stance };
+              Object.assign(m, idleMovement(m.entityId), style);
+              if (isSieged(s.entities.definitionId[a])) m.order = "hold";
+              else if (target) {
                 m.order = "move";
                 m.target = target;
                 m.status = "waiting";
@@ -556,6 +560,12 @@ export function createCombatRules(
               hits: p.hits,
             });
             effect(s, "launch", a, a, w.name);
+          } else if (w.name === SIEGE_CANNON.name) {
+            if (!miss) for (const hit of siegeSplashTargets(s, a, e.x[b], e.y[b]))
+              shots.push({ a, b: hit.index, damage: Math.floor(damage / hit.divisor), hits: p.hits, type: w.damageType, weaponId: w.name });
+            effect(s, "shot", a, b, w.name);
+            effect(s, miss ? "miss" : "impact", a, b, w.name);
+            const blast = s.combat.effects.at(-1)!; blast.x = blast.toX; blast.y = blast.toY;
           } else {
             if (!miss)
               shots.push({
