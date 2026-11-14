@@ -40,7 +40,7 @@ export function SimulationSession({
   const initialSession = (): SessionState => ({
     camera: {
       centerX:
-        (scenario !== "economy" ? 18 : registered.map.spawnPoints[0].x) * 256,
+        (scenario === "special-practice" && faction === "zerg" ? 24 : scenario !== "economy" ? 18 : registered.map.spawnPoints[0].x) * 256,
       centerY:
         (scenario !== "economy"
           ? ["ranged-practice", "special-practice"].includes(scenario)
