@@ -1,6 +1,6 @@
 // 스타드래프트 AI. 플레이어와 같은 stwCommand만 쓴다.
 // 성향마다 빌드 순서와 출격 규모가 다르다. 프로토스·테란·저그가 같은 틀을 쓴다.
-import { STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
+import { STW_BUILDINGS, STW_DEFENSE_REACH, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
 import { stwIntelTag, stwLearnSwitch } from "./starswar-learn.js";
 import {
   stwArmy,
@@ -575,9 +575,12 @@ export function stwAiThink(state, side) {
     if (!state.buildings.some((building) => building.side === side && building.type === guard && building.base === "main")) ensureDefense(state, side, race, stwOwnBuildings(state, side, guard).length + 1);
   }
 
-  // 3-1-1. 저그 상대: 저글링 물량에 대비해 테란은 벙커 하나를 세운다.
+  // 3-1-1. 저그·프로토스 상대: 저글링 물량이나 이른 질럿에 대비해 테란은 2분 30초에 벙커 하나를 미리 세운다(본진 앞줄 가운데 길목).
+  // 프로토스 상대는 예전에 경계(건물이 맞음)에 들어간 뒤에야 벙커를 지어, 3분에 들어온 질럿 둘에 짓던 벙커가 부서지고
+  // 해병이 하나씩 잡혀 5분에 무너졌다(사람이 같은 질럿 견제로 테란 AI 6성향 60판 중 42판 승).
   const versusZerg = state.sides[stwOpponent(side)].race === "zerg";
-  if (versusZerg && race.id === "terran" && stwHas(state, side, "barracks") && state.time > 150) {
+  const versusProtoss = state.sides[stwOpponent(side)].race === "protoss";
+  if ((versusZerg || versusProtoss) && race.id === "terran" && stwHas(state, side, "barracks") && state.time > 150 && !baseIntruders(state, side).length) {
     // 벙커는 기지 전체를 지키므로 하나면 된다.
     if (!stwOwnBuildings(state, side, "bunker").length) stwCommand(state, side, { type: "build", building: "bunker" });
   }
@@ -1182,8 +1185,82 @@ function alertProducerFor(state, side, race, persona) {
   return STW_BUILDINGS[extra].gas > state.sides[side].gas ? race.mainProducer : extra;
 }
 
+/** 기지 안(어떤 아군 건물이든 지역 방어 거리 안)에 보이는 적 전투 유닛. 공중 유닛·일꾼·지원 유닛은 뺀다. */
+function baseIntruders(state, side) {
+  const foe = stwOpponent(side);
+  const own = state.buildings.filter((building) => building.side === side && building.hp > 0);
+  return state.units.filter((unit) => {
+    const def = STW_UNITS[unit.type];
+    if (unit.side !== foe || unit.hp <= 0 || !def.damage || def.worker || def.flying || def.role === "support" || unit.group === "cargo") return false;
+    if (!stwVisible(state, side, unit.x, unit.y)) return false;
+    return own.some((building) => Math.hypot(building.x - unit.x, building.y - unit.y) - building.radius <= STW_DEFENSE_REACH);
+  });
+}
+
+/** 우리 완성된 방어 건물의 힘(defensePower와 같은 셈: √(초당 피해 × 체력·보호막) × 1.5, 남은 체력 반영). */
+function ownDefensePower(state, side) {
+  return state.buildings.reduce((sum, building) => {
+    const def = STW_BUILDINGS[building.type];
+    if (building.side !== side || !def.damage || !def.defense || !stwDone(building) || building.hp <= 0) return sum;
+    const health = Math.sqrt((building.hp + building.shields) / Math.max(1, building.maxHp + building.maxShields));
+    return sum + Math.sqrt(((def.damage * (def.hits ?? 1)) / (def.cooldown ?? 1)) * (def.hp + def.shields)) * 1.5 * health;
+  }, 0);
+}
+
+/** 모아서 칠 때 필요한 힘(들어온 적의 배수), 모으는 최대 시간(초), 서둘러 나갈 건물 체력 비율. */
+const MUSTER_RATIO = 1.2;
+const MUSTER_MAX = 25;
+const MUSTER_URGENT = 0.35;
+
+/**
+ * 기지 안 수비: 들어온 적보다 힘(방어 건물 포함)이 밀리면 새 병력을 적에게서 먼 쪽(본진 앞줄 78 또는 광물 줄 곁 96)에 모은다.
+ * 들어온 적의 1.2배가 되거나, 25초가 지나거나, 기지·생산 건물 체력이 35% 아래로 떨어지면 적이 있는 높이로 함께 나간다.
+ * 한 번 나가면 적이 기지에서 사라질 때까지 계속 싸운다. 적이 없으면 null(평소 규칙).
+ * 예전에는 새 해병이 하나씩 나가 질럿 둘에게 차례로 잡혀, 3분부터 5분까지 해병 약 15기를 뽑고도 질럿 둘만 잡고 무너졌다.
+ */
+function musterAtHome(state, side, memory) {
+  const intruders = baseIntruders(state, side);
+  if (!intruders.length) {
+    memory.musterSince = undefined;
+    memory.musterGo = undefined;
+    return null;
+  }
+  const ownY = (y) => (side === "player" ? y : 100 - y);
+  const foeY = ownY(intruders.reduce((sum, unit) => sum + unit.y, 0) / intruders.length);
+  const clampY = (y) => Math.max(34, Math.min(97, Math.round(y)));
+  if (memory.musterGo) return { y: clampY(foeY) };
+  // 완성된 방어 건물(벙커·캐논·성큰)이 있으면 모으지 않는다: 병력이 방어 건물을 두고 물러나면 방어 건물만 홀로 맞는다.
+  // 평소 경계 규칙대로 방어 건물 뒤에서 함께 받는다(4게이트 질럿 러시를 벙커 둘과 해병으로 7분까지 막던 대응).
+  if (ownDefensePower(state, side) > 0) {
+    memory.musterSince = undefined;
+    return null;
+  }
+  const fighters = stwArmy(state, side).fighters;
+  const foeArmor = intruders.reduce((sum, unit) => sum + STW_UNITS[unit.type].armor, 0) / intruders.length;
+  const ownArmor = fighters.length ? fighters.reduce((sum, unit) => sum + STW_UNITS[unit.type].armor, 0) / fighters.length : 0;
+  const own = armyPower(fighters, foeArmor) + ownDefensePower(state, side);
+  const foePower = armyPower(intruders, ownArmor);
+  memory.musterSince ??= state.time;
+  const race = STW_RACES[state.sides[side].race ?? "protoss"];
+  const urgent = state.buildings.some((building) => building.side === side && stwDone(building) && (STW_BUILDINGS[building.type].base || race.producers.includes(building.type))
+    && building.hp + building.shields < MUSTER_URGENT * (building.maxHp + building.maxShields));
+  if (own >= foePower * MUSTER_RATIO || urgent || state.time - memory.musterSince > MUSTER_MAX) {
+    // 처음부터 넉넉하면 모으지 않고 바로 싸운다(평소 규칙). 모으던 중이면 함께 나간다.
+    if (memory.musterSince === state.time) {
+      memory.musterSince = undefined;
+      return null;
+    }
+    memory.musterGo = true;
+    return { y: clampY(foeY) };
+  }
+  return { y: Math.abs(foeY - 78) >= Math.abs(foeY - 96) ? 78 : 96 };
+}
+
 /** 방어 건물을 count개까지 갖춘다. 프로토스는 포지, 저그는 스포닝 풀, 테란은 배럭이 먼저 있어야 한다. */
 function ensureDefense(state, side, race, count) {
+  // 적이 이미 기지 안에 있으면 방어 건물을 새로 짓지 않는다: 짓는 중인 건물은 체력이 낮아 금방 부서진다.
+  // 그 돈으로 병력을 뽑아 모았다가 함께 친다(musterAtHome). 예전에는 질럿 둘이 들어온 뒤 벙커를 두 번 지었다가 둘 다 잃었다.
+  if (baseIntruders(state, side).length) return null;
   const defense = race.id === "protoss" ? "cannon" : race.id === "terran" ? "bunker" : "sunken";
   const prerequisite = STW_BUILDINGS[defense].requires;
   if (prerequisite && !stwHas(state, side, prerequisite)) {
@@ -1198,6 +1275,12 @@ function ensureDefense(state, side, race, count) {
 
 function manageArmy(state, side, persona, memory, settings, { holdHome = false, alert = false } = {}) {
   const record = state.sides[side];
+  // 기지에 들어온 적에게 지금 힘이 밀리면 하나씩 맞서지 않고 모았다가 함께 친다.
+  const muster = musterAtHome(state, side, memory);
+  if (muster) {
+    if (record.rally !== muster.y) stwCommand(state, side, { type: "move", y: muster.y });
+    return;
+  }
   // 경계 중이고 앞마당이 없으면 방어 건물 뒤(본진 안쪽, 아군 기준 84)에 모여 싸운다. 방어 건물은 앞줄 가운데(적이 들어오는 길목)에 서므로,
   // 들어온 근접 유닛은 가장 가까운 위협인 방어 건물부터 치고, 병력은 그 뒤에서 쏜다. 앞에 나가 서 있으면 해병·드라군이 질럿에게 먼저 잡힌다.
   const natural = stwNexus(state, side, "natural");

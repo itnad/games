@@ -1243,7 +1243,9 @@ test("starswar natural adds building room on its flanks and front edge, keeping 
 });
 
 test("starswar AI rebuilds a lost natural instead of staying on one base", () => {
-  const state = createStarswarGame({ seed: 4, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "mech", enemy: "dragoon" } });
+  // 시드 2: 테란 선제 벙커(2026-11)를 넣은 뒤 시드 4는 앞마당 자리에 적이 버티는 동안 광물이 모자라 다시 짓기 전에 무너졌다.
+  // 시드 1~8에서 다시 짓는 판은 넣기 전 4판, 넣은 뒤 5판이라 규칙은 그대로다.
+  const state = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "mech", enemy: "dragoon" } });
   let destroyed = false;
   let rebuilt = false;
   while (state.status === "playing" && state.time < 900 && !rebuilt) {
@@ -2692,6 +2694,46 @@ test("starswar defence buildings go front (natural, else the main's front row) o
   }
   for (let index = 0; index < 40; index += 1) stwCommand(full, "player", { type: "build", building: "cannon", spot: "rear" });
   assert.match(stwBuildCheck(full, "player", "cannon", "rear").reason, /후방\(본진\)에 지을 자리가 없습니다/);
+});
+
+test("starswar AI musters units away from intruders it cannot beat yet, then strikes together, and skips defences while they are inside", () => {
+  // 실제 경기(커밋 91ebfd7): 질럿 둘이 3분에 테란 본진에 들어오자 짓던 벙커가 부서지고 해병이 하나씩 잡혀 5분에 무너졌다.
+  const state = createStarswarGame({ seed: 5, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "tankbio" } });
+  state.sides.enemy.minerals = 600;
+  for (const building of ["depot", "barracks"]) {
+    stwCommand(state, "enemy", { type: "build", building });
+    finishAll(state);
+  }
+  state.time = 185;
+  const cc = stwNexus(state, "enemy", "main");
+  for (const offset of [-1, 1]) stwSpawnUnitAt(state, "player", "zealot", cc.x + offset, cc.y + 6, "attack");
+  stwSpawnUnitAt(state, "enemy", "marine", 20, 20, "rally");
+  run(state, 0.6);
+  state.sides.enemy.ai = { nextThink: 0, step: 0, wave: 0, attacking: false, waveStart: 0, done: [] };
+  stwAiThink(state, "enemy");
+  const memory = state.sides.enemy.ai;
+  assert.ok(memory.musterSince !== undefined && !memory.musterGo, "해병 하나로는 질럿 둘에 맞서지 않고 모은다");
+  assert.ok(state.sides.enemy.rally === 96 || state.sides.enemy.rally === 78, `적에게서 먼 쪽에 모인다 (${state.sides.enemy.rally})`);
+  assert.equal(stwOwnBuildings(state, "enemy", "bunker").length, 0, "적이 기지 안에 있으면 벙커를 짓지 않는다(2분 30초가 지났어도)");
+  for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(state, "enemy", "marine", 14 + index, 22, "rally");
+  run(state, 0.6);
+  memory.nextThink = 0;
+  stwAiThink(state, "enemy");
+  assert.equal(memory.musterGo, true, "1.2배를 넘으면 함께 나간다");
+  const zealotY = 100 - state.units.filter((unit) => unit.side === "player").reduce((sum, unit) => sum + unit.y, 0) / 2;
+  assert.ok(Math.abs(state.sides.enemy.rally - zealotY) < 1.5, `적이 있는 높이로 간다 (${state.sides.enemy.rally} vs ${zealotY.toFixed(1)})`);
+
+  // 들어온 적이 없으면 프로토스 상대로도 2분 30초에 벙커를 미리 세운다.
+  const calm = createStarswarGame({ seed: 5, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "tankbio" } });
+  calm.sides.enemy.minerals = 2000;
+  for (const building of ["depot", "barracks"]) {
+    stwCommand(calm, "enemy", { type: "build", building });
+    finishAll(calm);
+  }
+  calm.time = 155;
+  calm.sides.enemy.ai = { nextThink: 0, step: 0, wave: 0, attacking: false, waveStart: 0, done: [] };
+  stwAiThink(calm, "enemy");
+  assert.equal(stwOwnBuildings(calm, "enemy", "bunker").length, 1, "프로토스 상대 선제 벙커");
 });
 
 test("starswar AI answers drops: main defence after a sighting, four guards kept home, and raids of its own", () => {
