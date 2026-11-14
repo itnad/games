@@ -120,6 +120,7 @@ export function removeEntity(state: SimulationState, id: number): boolean {
   for (const passenger of detachSpecialEntity(state, id)) removeEntity(state, passenger);
   const index = state.entities.id.indexOf(id);
   detachEconomyEntity(state, id);
+  if (state.siege) state.siege = state.siege.filter((r) => r.entityId !== id);
   if (state.energy) state.energy = state.energy.filter((r) => r.entityId !== id);
   if (state.vision)
     state.vision.concealed = state.vision.concealed.filter(
