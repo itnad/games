@@ -1,3 +1,4 @@
+import { isInStasis } from "../abilities/spells-state";
 import { coveredByArbiter } from "../abilities/arbiter";
 import { permanentCloak } from "../abilities/special-state";
 import { isEmbarked } from "../abilities/special-state";
@@ -159,6 +160,7 @@ export function canSeeEntity(
   if (!coveredByArbiter(s, index) && !permanentCloak(e.definitionId[index]) && !s.vision?.concealed.some((c) => c.entityId === e.id[index])) return true;
   for (let i = 0; i < e.id.length; i++)
     if (e.owner[i] === owner && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
+      if (isInStasis(s,e.id[i])) continue;
       const r = DETECTOR_RADIUS_TILES[e.definitionId[i]];
       if (
         r &&
