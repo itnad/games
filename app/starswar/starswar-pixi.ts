@@ -1,7 +1,7 @@
 // 스타드래프트 PixiJS 렌더러. 엔진 상태를 읽기만 하며, 플레이어 시야 밖의 적은 감춘다.
 import type { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_MAPS, STW_STORM, STW_UNITS, stwMapData } from "./starswar-data.js";
-import { stwArmy, stwDetected, stwDone, stwIsCloaked, stwMap, stwNexus, stwPoint, stwRace, stwRallyName, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
+import { stwArmy, stwDetected, stwDone, stwIsCloaked, stwMap, stwNexus, stwPoint, stwRace, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
 import { STW_TEAM, createStwTextures, stwTerrainTexture, type StwTextureSet } from "./starswar-sprites";
 import type { StwBuilding, StwEffect, StwMapData, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./starswar-types";
 
@@ -67,6 +67,8 @@ type WorkerView = { root: Container; body: Sprite; cargo: Sprite };
 type Badge = { root: Container; bg: Graphics; text: Text; key: string };
 
 const WORKER_SIZE = 1.6;
+/** 지역 이름을 보여 주는 경기 시간(초). */
+const AREA_LABEL_SECONDS = 20;
 const MINE_CYCLE = 3.4;
 const GAS_CYCLE = 3;
 
@@ -677,13 +679,14 @@ export class StwPixiRenderer {
       if (!nexus || !stwDone(nexus as never)) continue;
       const count = base === "main" ? split.main : split.natural;
       // 넥서스 그림 아래쪽 위에 얹어 주변 건물·지역 이름과 겹치지 않게 한다.
-      show(`base:${base}`, `광물 ${count}/${STW_ECONOMY.fullSaturation}`, tone(count, STW_ECONOMY.fullSaturation), nexus.x, nexus.y + nexus.radius * 0.55);
+      // 지도를 덜 가리게 숫자만(넘치게 뽑아도 보이도록 숨기지는 않는다).
+      show(`base:${base}`, `${count}/${STW_ECONOMY.fullSaturation}`, tone(count, STW_ECONOMY.fullSaturation), nexus.x, nexus.y + nexus.radius * 0.55);
     }
     let gasLeft = split.gas;
     for (const assimilator of state.buildings.filter((building) => building.side === "player" && flags(STW_BUILDINGS[building.type]).refinery && stwDone(building))) {
       const crew = Math.min(STW_ECONOMY.probesPerGas, gasLeft);
       gasLeft -= crew;
-      show(`gas:${assimilator.id}`, `가스 ${crew}/${STW_ECONOMY.probesPerGas}`, tone(crew, STW_ECONOMY.probesPerGas), assimilator.x, assimilator.y);
+      show(`gas:${assimilator.id}`, `${crew}/${STW_ECONOMY.probesPerGas}`, tone(crew, STW_ECONOMY.probesPerGas), assimilator.x, assimilator.y);
     }
     // 따로 둔 부대 이름표: "커세어 4" (부대 자리 옆).
     for (const [type, spot] of Object.entries(state.sides.player.squads ?? {})) {
@@ -1315,7 +1318,8 @@ export class StwPixiRenderer {
     {
       const waiting = stwArmy(state, "player").rally.length;
       const label = this.rallyLabel;
-      const text = `${stwRallyName(state.sides.player.rally, state)} 집결 · 대기 ${waiting}`;
+      // 집결지 이름은 깃발과 위치로 보이므로 대기 수만 붙인다(지도를 덜 가리게).
+      const text = `대기 ${waiting}`;
       if (label.key !== text) {
         label.key = text;
         label.text.text = text;
@@ -1366,9 +1370,12 @@ export class StwPixiRenderer {
       const y = sy(uv.y) - (UNIT_SIZE[unit.type] / 2) * view.scale - 5;
       bar(unit.side, x, y, Math.max(14, UNIT_SIZE[unit.type] * view.scale * 0.8), unit.hp, unit.maxHp, unit.shields, unit.maxShields);
     }
+    // 지역 이름(적 본진·앞마당 등)은 경기 첫 20초만 보이고 2초에 걸쳐 사라진다(익힌 뒤에는 지도를 가리기만 한다).
+    const areaAlpha = Math.max(0, Math.min(1, (AREA_LABEL_SECONDS + 2 - state.time) / 2));
     for (const label of this.labels) {
       label.root.position.set(Math.max(6, sx(0) + 6), sy(label.y));
-      label.root.visible = sy(label.y) > -10 && sy(label.y) < view.height + 10;
+      label.root.alpha = areaAlpha;
+      label.root.visible = areaAlpha > 0 && sy(label.y) > -10 && sy(label.y) < view.height + 10;
     }
   }
 }

@@ -33,7 +33,7 @@ import { stwAiThink } from "../app/starswar/starswar-ai.js";
 import { stwFingerprint, stwReplay, stwReplayCode, stwReplayMatches } from "../app/starswar/starswar-replay.js";
 import { stwAiReport, stwBugReport, stwLosingAiSides } from "../app/starswar/starswar-report.js";
 import { stwIntelTag, stwLearnAdd, stwLearnEmpty, stwLearnFeatures, stwLearnPick, stwLearnSnapshot, stwLearnTags } from "../app/starswar/starswar-learn.js";
-import { STW_MAX_ZOOM, stwFillZoom, stwScreenToMap, stwViewport } from "../app/starswar/starswar-camera.js";
+import { STW_MAX_ZOOM, STW_VIEW_EDGE_Y, stwFillZoom, stwScreenToMap, stwViewport } from "../app/starswar/starswar-camera.js";
 import { STW_TIPS, stwResultTips, stwTipQueue } from "../app/starswar/starswar-tips.js";
 
 const run = (state, seconds, ai = null) => {
@@ -244,7 +244,8 @@ test("starswar camera fits the lane, clamps, and caps zoom", () => {
   const fill = stwFillZoom(390, 450);
   const view = stwViewport(390, 450, { zoom: fill, cx: 20, cy: 999 });
   assert.ok(Math.abs(view.scale - 390 / 40) < 1e-9);
-  assert.ok(Math.abs(view.oy + 100 * view.scale - 450) < 1e-9);
+  // 맨 아래까지 내리면 지도 끝 너머 STW_VIEW_EDGE_Y칸까지 보여 광물 줄 그림이 잘리지 않는다.
+  assert.ok(Math.abs(view.oy + (100 + STW_VIEW_EDGE_Y) * view.scale - 450) < 1e-9);
   const capped = stwViewport(390, 450, { zoom: 50, cx: 20, cy: 50 });
   assert.equal(capped.zoom, STW_MAX_ZOOM);
   const center = stwScreenToMap(capped, 195, 225);

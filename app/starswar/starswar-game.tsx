@@ -10,6 +10,7 @@ import {
   STW_CANCEL_REFUND,
   STW_DIFFICULTIES,
   STW_ECONOMY,
+  STW_LANE_LENGTH,
   STW_MAPS,
   STW_MAP_IDS,
   STW_PRODUCER_UNITS,
@@ -29,7 +30,6 @@ import {
   stwClock,
   stwIssue,
   stwDone,
-  stwNexus,
   stwMap,
   stwRallyName,
   stwDropCheck,
@@ -37,7 +37,6 @@ import {
   stwOwnBuildings,
   stwProbeCheck,
   stwRace,
-  stwRallyY,
   stwResearchCheck,
   stwScoutCheck,
   stwSupply,
@@ -409,9 +408,10 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const pixiRef = useRef<StwPixiRenderer | null>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
   const viewRef = useRef<StwView>(stwViewport(1, 1, { zoom: 1, cx: 20, cy: 50 }));
-  const scoutTagRef = useRef<HTMLDivElement | null>(null);
   // 부대 고르기: 지도 위 "부대" 버튼으로 연 칩에서 유닛 종류를 고르면, 지도 탭이 그 종류만 옮긴다.
   const [squadOpen, setSquadOpen] = useState(false);
+  // 지도 아래 상태 줄을 펼쳐 정찰 정보 전체와 최근 기록을 본다.
+  const [statusOpen, setStatusOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const selectedRef = useRef<string[]>([]);
   // follow: 전선 따라가기(공격 병력 선두나 집결지를 화면 가운데로). 지도를 끌거나 벌리면 멈추고, 마지막으로 만진 뒤 8초가 지나면 다시 따라간다.
@@ -520,18 +520,23 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     if (!camera.ready && width > 1) {
       camera.zoom = width < 700 ? stwFillZoom(width, height) : 1.2;
       camera.cx = 20;
-      camera.cy = 94;
+      // 기본 구도: 지도 맨 아래(아군 본진 광물 줄까지 다 보이게). 뷰포트가 지도 끝에 맞춰 자른다.
+      camera.cy = STW_LANE_LENGTH;
       camera.ready = true;
     }
     // 지도를 마지막으로 만진 뒤 8초가 지나면 다시 전선을 따라간다(따라가기 버튼을 없앴다).
     if (!camera.follow && clock * 1000 - camera.touchedAt > 8000) camera.follow = true;
     if (camera.follow) {
-      // 전선 따라가기: 공격 병력이 있으면 그 선두, 없으면 집결지를 화면 가운데로.
+      // 전선 따라가기: 공격 병력이 있으면 그 선두를 화면 가운데로, 없으면 기본 구도(지도 맨 아래, 아군 광물 줄까지 다 보이게).
+      // 예전에는 쉬는 동안 집결지를 가운데로 잡아, 맨 아래로 내려 두어도 몇 초 뒤 살짝 올라가 광물 줄이 잘렸다.
       const army = stwArmy(current, "player");
-      const focus = army.attack.length
-        ? army.attack.reduce((best, unit) => Math.min(best, unit.y), 100) + 6
-        : stwRallyY("player", current.sides.player.rally, current) + 4;
-      camera.cy += (focus - camera.cy) * 0.06;
+      const front = army.attack.reduce((best, unit) => Math.min(best, unit.y), STW_LANE_LENGTH);
+      const focus = army.attack.length ? front + 6 : STW_LANE_LENGTH;
+      // 맨 아래를 노릴 때는 뷰포트 한계(지도 끝)까지 바로 붙도록 지금 보이는 한계에서 출발한다.
+      const limit = stwViewport(width, height, { ...camera, cy: STW_LANE_LENGTH }).cy;
+      const target = Math.min(focus, limit);
+      camera.cy += (target - camera.cy) * 0.06;
+      if (Math.abs(target - camera.cy) < 0.02) camera.cy = target;
     }
     const view = stwViewport(width, height, camera) as StwView;
     camera.zoom = view.zoom;
@@ -539,23 +544,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     camera.cy = view.cy;
     viewRef.current = view;
     pixi.render(current, view, { clock, timeScale: pausedRef.current ? 0 : 1, rally: current.sides.player.rally, selected: selectedRef.current });
-    // 지도 위 정찰 버튼: 아군 본진 광물 줄 높이의 오른쪽 가장자리에 붙이고, 본진이 화면 밖이면 완성된 앞마당 광물 줄 높이에 붙인다.
-    // 둘 다 화면 밖이면(전선을 따라가는 중) 지도 오른쪽 아래(아군 기지 쪽)에 붙여 둔다.
-    // 카메라가 매 프레임 움직이므로 React 갱신(0.25초)이 아니라 여기서 바로 옮긴다.
-    const tag = scoutTagRef.current;
-    if (tag) {
-      const layout = mapOf(current).layout;
-      const anchors = [layout.mainMinerals];
-      const natural = stwNexus(current, "player", "natural");
-      if (natural && stwDone(natural)) anchors.push(layout.naturalMinerals);
-      const spot = anchors
-        .map((point) => ({ x: view.ox + point.x * view.scale, y: view.oy + point.y * view.scale }))
-        .find((point) => point.x > 40 && point.x < width - 40 && point.y > 60 && point.y < height + 6);
-      tag.style.display = current.status === "playing" ? "flex" : "none";
-      tag.classList.toggle("pinned", !spot);
-      // 가로로는 지도 오른쪽 가장자리에 붙이고, 세로로만 광물 줄 높이를 따라간다(가운데 건물·광물을 가리지 않게).
-      tag.style.transform = spot ? `translateY(${Math.round(Math.max(70, Math.min(spot.y, height - 34)))}px) translateY(-50%)` : "";
-    }
   }, []);
 
   useEffect(() => {
@@ -683,17 +671,12 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     refresh();
   };
 
-  // 정찰 버튼 오터치 막기: 지도를 누른 직후(0.7초)나 같은 정찰 버튼을 연달아 누른 경우(0.6초)는 보내지 않는다.
-  const lastMapTapRef = useRef(0);
+  // 정찰 버튼 오터치 막기: 같은 정찰 버튼을 연달아 누른 경우(0.6초)는 한 번만 보낸다.
   const lastScoutTapRef = useRef<{ target: string; at: number }>({ target: "", at: 0 });
   // 시각은 이벤트의 timeStamp(같은 기준의 밀리초)로 잰다.
   const sendMapScout = (target: "main" | "resources", now: number) => {
     const last = lastScoutTapRef.current;
     lastScoutTapRef.current = { target, at: now };
-    if (now - lastMapTapRef.current < 700) {
-      showToast("지도를 누른 직후라 정찰을 보내지 않았어요. 보내려면 한 번 더 누르세요.");
-      return;
-    }
     if (last.target === target && now - last.at < 600) {
       showToast("연달아 눌려 한 번만 보냈어요. 더 보내려면 천천히 누르세요.");
       return;
@@ -780,7 +763,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     if (!gesture || gesture.moved || gesture.pinch || event.type === "pointercancel" || finished) return;
     if (Math.hypot(point.x - gesture.x, point.y - gesture.y) > 10) return;
     const target = stwScreenToMap(viewRef.current, point.x, point.y);
-    lastMapTapRef.current = event.timeStamp;
     // 고른 부대가 있으면 그 부대만 옮기고(선택은 그대로 둬 이어서 지휘), 없으면 본대 전체를 옮긴다.
     // 부대 지휘 패널이 열려 있으면 닫아 지도를 넓힌다. 고른 부대는 건설·생산 같은 다른 조작을 하면 풀린다(issue).
     if (squadOpen) setSquadOpen(false);
@@ -918,8 +900,12 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const supply = stwSupply(game, "player") as { used: number; cap: number };
   const income = stwIncome(game, "player") as { minerals: number; gas: number };
   const army = stwArmy(game, "player");
-  const recentLog = game.log.filter((entry) => entry.side === "player" && game.time - entry.time < 8).slice(-2);
+  // 지도 위에는 위험 알림 한 줄만(6초), 나머지 기록은 지도 아래 상태 줄에 최신 하나만(5초) 보인다. 없으면 정찰 정보.
+  const playerLog = game.log.filter((entry) => entry.side === "player");
+  const mapAlert = [...playerLog].reverse().find((entry) => entry.tone === "danger" && game.time - entry.time < 6) ?? null;
+  const statusLog = [...playerLog].reverse().find((entry) => entry.tone !== "danger" && game.time - entry.time < 5) ?? null;
   const intel = side.intel;
+  const intelText = intel ? `적 ${stwClock(intel.time)} · ${intelSummary(intel)}` : "적 정보 없음 · 정찰 필요";
   const mapScout = stwScoutCheck(game, "player") as StwCheck;
   // 부대 칩: 지금 가진 전투 유닛 종류와 수, 따로 둔 부대면 그 자리.
   // 침투 중인 유닛도 칩에 넣는다(부대 명령으로 침투를 멈추고 옮기거나 물릴 수 있게). 칩에 "침투" 표시.
@@ -985,27 +971,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
               부대{selected.length ? ` ${selected.length}` : ""}
             </button>
           </div>
-          {/* 지도 위 정찰 버튼: 아군 기지 쪽(지도 아래)에 붙어 있어 후퇴하려고 지도를 누르다 잘못 눌리기 쉽다.
-              지도를 누른 직후·같은 버튼을 연달아 누른 경우는 무시하고, 가는 중인 정찰은 옆의 ↩로 되돌린다. 부대 지휘 중에는 숨긴다. */}
-          <div ref={scoutTagRef} className="stw-map-scout" data-squad={squadOpen ? "open" : undefined} role="group" aria-label="정찰">
-            {(["main", "resources"] as const).map((target) => {
-              const count = target === "main" ? mapScoutsMain : mapScouts.length - mapScoutsMain;
-              const outgoing = mapScouts.filter((unit) => unit.scoutPhase === "out" && (unit.scoutMode === "resources") === (target === "resources")).length;
-              const label = target === "main" ? "본진 정찰" : "자원 정찰";
-              return (
-                <div key={target} className="stw-map-scout-row">
-                  <button type="button" disabled={!mapScout.ok} title={mapScout.ok ? (target === "main" ? "적 본진의 건물·병력·연구 확인" : "적 앞마당과 광물 줄을 돌며 일꾼·가스·확장 확인") : mapScout.reason} onClick={(event) => sendMapScout(target, event.timeStamp)}>
-                    {label}{count ? <em>{count}</em> : null}
-                  </button>
-                  {outgoing ? <button type="button" className="stw-map-scout-undo" aria-label={`${label} 되돌리기 (가장 최근 1기)`} title="가장 최근에 보낸 정찰 1기를 되돌립니다" onClick={() => recallMapScout(target)}>↩</button> : null}
-                </div>
-              );
-            })}
-          </div>
-          <p className="stw-intel-chip">{intel ? `적 ${stwClock(intel.time)} · ${intelSummary(intel)}` : "적 정보 없음 · 정찰 필요"}</p>
-          <ul className="stw-log" aria-live="polite">
-            {recentLog.map((entry) => <li key={entry.id} className={`tone-${entry.tone}`}>{entry.text}</li>)}
-          </ul>
+          {mapAlert ? <p key={mapAlert.id} className="stw-map-alert" role="alert">{mapAlert.text}</p> : null}
           {game.finalBattle && !finished ? <p className="stw-final-banner" role="status">최종 결전 · 전원 출격 · 지휘 불가</p> : null}
           {toast ? <p key={toast.id} className={`stw-toast tone-${toast.tone}`} role="status">{toast.text}</p> : null}
           {paused && !finished && !confirmExit ? (
@@ -1018,6 +984,36 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 <GameObjectiveGuide gameId="starswar" inline />
                 <TipLine race={game.sides.player.race} className="stw-tip-pause" />
               </section>
+            </div>
+          ) : null}
+        </div>
+        {/* 지도 아래 상태 줄: 진행 기록(최신 하나)·정찰 정보와 정찰 버튼을 지도 밖에 둬 지도를 가리지 않는다. 누르면 펼친다. */}
+        <div className="stw-status" data-open={statusOpen ? "true" : undefined}>
+          <div className="stw-status-row">
+            <button type="button" className={`stw-status-text tone-${statusLog?.tone ?? "intel"}`} aria-expanded={statusOpen} aria-label={`${statusLog ? statusLog.text : intelText} (누르면 정찰 정보와 기록을 펼칩니다)`} onClick={() => setStatusOpen((value) => !value)}>
+              <span aria-live="polite">{statusLog ? statusLog.text : intelText}</span>
+              <i aria-hidden="true">{statusOpen ? "▾" : "▴"}</i>
+            </button>
+            {(["main", "resources"] as const).map((target) => {
+              const count = target === "main" ? mapScoutsMain : mapScouts.length - mapScoutsMain;
+              const outgoing = mapScouts.filter((unit) => unit.scoutPhase === "out" && (unit.scoutMode === "resources") === (target === "resources")).length;
+              const label = target === "main" ? "본진 정찰" : "자원 정찰";
+              return (
+                <div key={target} className="stw-status-scout">
+                  <button type="button" disabled={!mapScout.ok} title={mapScout.ok ? (target === "main" ? "적 본진의 건물·병력·연구 확인" : "적 앞마당과 광물 줄을 돌며 일꾼·가스·확장 확인") : mapScout.reason} onClick={(event) => sendMapScout(target, event.timeStamp)}>
+                    {label}{count ? <em>{count}</em> : null}
+                  </button>
+                  {outgoing ? <button type="button" className="stw-status-undo" aria-label={`${label} 되돌리기 (가장 최근 1기)`} title="가장 최근에 보낸 정찰 1기를 되돌립니다" onClick={() => recallMapScout(target)}>↩</button> : null}
+                </div>
+              );
+            })}
+          </div>
+          {statusOpen ? (
+            <div className="stw-status-more">
+              <p>{intelText}</p>
+              <ul>
+                {playerLog.slice(-6).reverse().map((entry) => <li key={entry.id} className={`tone-${entry.tone}`}><time>{stwClock(entry.time)}</time>{entry.text}</li>)}
+              </ul>
             </div>
           ) : null}
         </div>
