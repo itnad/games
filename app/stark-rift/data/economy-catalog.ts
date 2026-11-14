@@ -1,3 +1,4 @@
+import arbiter from "./arbiter-original.json";
 import lurker from "./lurker-original.json";
 import original from "./economy-original.json";
 import burrow from "./burrow-original.json";
@@ -161,6 +162,7 @@ const cloakRows: typeof rows = [
 ];
 const siegeRows: typeof rows = [["Terran_Siege_Tank_Siege_Mode", "시즈 탱크 · 시즈 모드", "vehicle", "terran-siege-tank-tank-mode"]];
 const lurkerRows: typeof rows = [["Zerg_Lurker", "러커", "vehicle", "zerg-hydralisk"], ["Zerg_Lurker_Egg", "러커 알", "cocoon", "zerg-hydralisk"]];
+const arbiterRows: typeof rows = [["Protoss_Arbiter", "아비터", "airCombat", "protoss-stargate", ["protoss-arbiter-tribunal"]], ["Protoss_Stargate", "스타게이트", "military", "protoss-probe", ["protoss-cybernetics-core"]], ["Protoss_Arbiter_Tribunal", "아비터 트리뷰널", "research", "protoss-probe", ["protoss-stargate", "protoss-templar-archives"]]];
 export const unitFamily = (id: string) => id === "terran-siege-tank-siege-mode" ? "terran-siege-tank-tank-mode" : ["zerg-lurker", "zerg-lurker-egg"].includes(id) ? "zerg-hydralisk" : id;
 /** A Lair retains Hatchery production, prerequisites, larvae and resource return. */
 export const countsAsDefinition = (actual: string, expected: string) =>
@@ -170,9 +172,9 @@ export const economyLayer = (d: EconomyDefinition): "air" | "ground" =>
   ["airSupply", "transport", "detector", "airCombat"].includes(d.icon) ? "air" : "ground";
 export const economyId = (name: string) =>
   name.toLowerCase().replaceAll("_", "-");
-export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows, ...cloakRows, ...siegeRows, ...lurkerRows].map(
+export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows, ...cloakRows, ...siegeRows, ...lurkerRows, ...arbiterRows].map(
   ([sourceName, name, icon, producer, requires = []]) => {
-    const raw = [...original.units, ...special.units, ...cloak.units, ...siege.units, ...lurker.units].find((u) => u.name === sourceName);
+    const raw = [...original.units, ...special.units, ...cloak.units, ...siege.units, ...lurker.units, ...arbiter.units].find((u) => u.name === sourceName);
     if (!raw) throw new Error("Missing original definition " + sourceName);
     const id = economyId(sourceName),
       faction = id.split("-")[0] as Faction;
@@ -316,7 +318,8 @@ export const SPECIAL_ECONOMY_DATA_VERSION = "special-economy-" + checksum({
 });
 export const CLOAK_ECONOMY_DATA_VERSION = "cloak-economy-" + checksum({ base: SPECIAL_ECONOMY_DATA_VERSION, cloak: JSON.stringify(cloak), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length), upgrades: cloakUpgrades });
 export const SIEGE_ECONOMY_DATA_VERSION = "siege-economy-" + checksum({ base: CLOAK_ECONOMY_DATA_VERSION, siege: JSON.stringify(siege), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length + siegeRows.length), upgrades: siegeUpgrades });
-export const ECONOMY_DATA_VERSION = "lurker-economy-" + checksum({ base: SIEGE_ECONOMY_DATA_VERSION, lurker: JSON.stringify(lurker), definitions: ECONOMY_DEFINITIONS, upgrades: ECONOMY_UPGRADES });
+export const LURKER_ECONOMY_DATA_VERSION = "lurker-economy-" + checksum({ base: SIEGE_ECONOMY_DATA_VERSION, lurker: JSON.stringify(lurker), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length + siegeRows.length + lurkerRows.length), upgrades: ECONOMY_UPGRADES });
+export const ECONOMY_DATA_VERSION = "arbiter-economy-" + checksum({ base: LURKER_ECONOMY_DATA_VERSION, arbiter: JSON.stringify(arbiter), definitions: ECONOMY_DEFINITIONS });
 for (const d of ECONOMY_DEFINITIONS) {
   if (
     !lookup.has(d.producer) ||
