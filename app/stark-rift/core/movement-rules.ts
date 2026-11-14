@@ -86,7 +86,7 @@ export function createMovementRules(
           return null;
         }
         if (
-          ((isBurrowed(state, id) || isEmbarked(state, id)) && ["move", "attackMove", "focusAttack", "patrol"].includes(command.kind)) ||
+          ((isEmbarked(state, id) || (isBurrowed(state, id) && !(command.kind === "focusAttack" && s.definitionId[index] === "zerg-lurker"))) && ["move", "attackMove", "focusAttack", "patrol"].includes(command.kind)) ||
           s.kind[index] === "building" ||
           (["move", "attackMove", "focusAttack", "patrol"].includes(
             command.kind,
@@ -330,7 +330,7 @@ function move(
   grid.trackStaticObstacles();
   for (let i = 0; i < s.id.length; i++) {
     const m = state.movement[i];
-    if (s.health[i] === 0 || s.kind[i] === "building" || tankLocked(state, s.id[i], s.definitionId[i])) continue;
+    if (s.health[i] === 0 || s.kind[i] === "building" || isBurrowed(state, s.id[i]) || tankLocked(state, s.id[i], s.definitionId[i])) continue;
     if (m.order === "focusAttack" && m.targetEntityId !== null) {
       const t = s.id.indexOf(m.targetEntityId);
       if (t >= 0 && visible(state, s.owner[i], t)) {
