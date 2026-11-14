@@ -366,6 +366,9 @@ export class BattleRenderer {
           .circle(e.x / 256, e.y / 256, 0.12)
           .fill({ color, alpha: 1 - age });
       else {
+        if (e.weaponId === "Arclite_Shock_Cannon" && e.kind === "impact")
+          this.combatEffects.circle(e.toX / 256, e.toY / 256, 0.4 + age * 0.85)
+            .fill({ color: 0xffb45b, alpha: (1 - age) * 0.15 }).stroke({ color: 0xffc875, width: 0.09, alpha: 1 - age });
         if (e.weaponId === "Arclite_Cannon")
           this.combatEffects
             .circle(e.toX / 256, e.toY / 256, 0.25 + age * 0.35)
