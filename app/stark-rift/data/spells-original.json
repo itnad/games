@@ -1,0 +1,40 @@
+{
+  "source": {
+    "reference": "BWAPI v4.4.0 / Brood War1.16.1; OpenBW Recall/Stasis",
+    "bwapiUrl": "https://github.com/bwapi/bwapi/tree/v4.4.0/bwapi/BWAPILIB/Source",
+    "openbwUrl": "https://github.com/OpenBW/openbw/blob/4b046d5f65302b10cb0a745f0fecd37ec85b20a8/bwgame.h",
+    "sha256": {
+      "TechType.cpp": "84c209953b49ca5142bf671bb638991a50325b21c86e0972e7c1137153c46fe7",
+      "WeaponType.cpp": "4636ebc2edbe5b5fa3887d6ee99d7a7d0ea6c8afe8f4f3208428e163bfbbdad2",
+      "bwgame.h": "5ee316ca2c008c9252f7fde7444ca5dc7f35440549be2576dc37fa228fb31ae6"
+    }
+  },
+  "technologies": [
+    {
+      "name": "Recall",
+      "minerals": 150,
+      "gas": 150,
+      "frames": 1800,
+      "energy": 150,
+      "producer": "protoss-arbiter-tribunal"
+    },
+    {
+      "name": "Stasis_Field",
+      "minerals": 150,
+      "gas": 150,
+      "frames": 1500,
+      "energy": 100,
+      "producer": "protoss-arbiter-tribunal"
+    }
+  ],
+  "recall": {
+    "delayFrames": 22,
+    "halfWidthPixels": 64
+  },
+  "stasis": {
+    "rangePixels": 288,
+    "halfWidthPixels": 48,
+    "statusCycles": 131,
+    "framesPerCycle": 8
+  }
+}
