@@ -3062,13 +3062,44 @@ test("starswar infiltration walks a squad along the edge to the enemy mineral li
   assert.ok(darks.every((unit) => unit.targetId === null && (unit.x < 3 || unit.x > 37)), "가장자리를 따라 걷는다");
   run(state, 30);
   assert.equal(op.phase, "fight", "적 본진 광물 줄에 닿았다");
-  run(state, 30);
+  run(state, 20);
   assert.ok(state.sides.enemy.probes < 16, `일꾼을 잡는다 (${state.sides.enemy.probes})`);
-  assert.equal(op.phase, "home", "25초 뒤 걸어서 돌아온다");
+  assert.equal(state.status, "playing");
+  assert.equal(op.phase, "fight", "탐지되지 않은 다크템플러는 25초가 지나도 남아 싸운다");
   assert.ok(guards.every((unit) => unit.hp === unit.maxHp), "적 대기 병력과 싸우지 않았다(탐지되지 않은 다크템플러)");
+  // 탐지되면(옵저버) 그때 철수 규칙을 따른다: 이미 25초가 지났으니 걸어서 돌아온다.
+  const live = darks.filter((unit) => unit.hp > 0);
+  stwSpawnUnitAt(state, "enemy", "observer", live[0].x, live[0].y + 1, "rally");
+  run(state, 1);
+  assert.equal(op.phase, "home", "탐지되자 걸어서 돌아온다");
   run(state, 60);
   assert.ok(!state.ops.some((item) => item.id === op.id), "작전이 끝났다");
   assert.ok(darks.filter((unit) => unit.hp > 0).every((unit) => unit.group === "rally" && unit.raid === undefined && unit.y > 60), "집결지로 돌아와 대기 병력이 된다");
+
+  // 오는 길에 체력이 깎인 다크템플러(35%)도 광물 줄에 닿자마자 돌아서지 않고 일꾼을 친다(실제 경기 06:37에 1초 만에 돌아선 일).
+  const hurt = quiet();
+  hurt.sides.enemy.probes = 16;
+  const scarred = stwSpawnUnitAt(hurt, "player", "dark", 20, 77, "rally");
+  scarred.hp = 23;
+  scarred.shields = 18;
+  const hurtOp = stwCommand(hurt, "player", { type: "infiltrate", units: ["dark"], base: "main" });
+  run(hurt, 45);
+  const walkOp = hurt.ops.find((item) => item.id === hurtOp.opId);
+  assert.equal(walkOp.phase, "fight");
+  run(hurt, 10);
+  assert.equal(walkOp.phase, "fight", "다친 채 닿아도 남아 싸운다");
+  assert.ok(hurt.sides.enemy.probes < 16, `일꾼을 잡는다 (${hurt.sides.enemy.probes})`);
+  // 탐지되면 도착 때 체력의 절반 아래로 떨어질 때 돌아온다(최대 체력 기준이 아니다).
+  const zealotGame = quiet();
+  zealotGame.sides.enemy.probes = 16;
+  const tired = stwSpawnUnitAt(zealotGame, "player", "zealot", 20, 77, "rally");
+  tired.shields = 0;
+  tired.hp = 60;
+  const zealotOp = stwCommand(zealotGame, "player", { type: "infiltrate", units: ["zealot"], base: "main" });
+  run(zealotGame, 45);
+  const zop = zealotGame.ops.find((item) => item.id === zealotOp.opId);
+  assert.equal(zop.phase, "fight", "체력 38%로 닿은 질럿도 바로 돌아서지 않는다");
+  assert.ok(tired.walkArriveHp > 0);
 
   // 가는 중에 회수하면 바로 걸어서 돌아온다.
   const recall = quiet();

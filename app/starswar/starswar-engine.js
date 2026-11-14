@@ -3379,6 +3379,7 @@ function leaveWalkOps(state, units) {
     if (!inWalkOp(state, unit)) continue;
     unit.raid = undefined;
     unit.walkPath = undefined;
+    unit.walkArriveHp = undefined;
     unit.targetId = null;
     if (unit.group === "walk") unit.group = "rally";
     count += 1;
@@ -3407,8 +3408,9 @@ function walkStep(state, unit, dt) {
   unit.walkPath = undefined;
   const op = (state.ops ?? []).find((item) => item.id === unit.raid);
   if (op && op.phase !== "home") {
-    // 광물 줄에 닿았다: 게릴라 드랍 병력처럼 싸운다(raidRiderStep).
+    // 광물 줄에 닿았다: 게릴라 드랍 병력처럼 싸운다(raidRiderStep). 철수 판단은 이때 체력을 기준으로 한다.
     unit.group = "attack";
+    unit.walkArriveHp = unit.hp + unit.shields;
     return;
   }
   unit.group = "rally";
@@ -3423,6 +3425,7 @@ function walkHome(state, op) {
     if (!unit || unit.raid !== op.id) continue;
     unit.group = "walk";
     unit.targetId = null;
+    unit.walkArriveHp = undefined;
     unit.walkPath = walkPath(unit, { x: home.x + ((unit.id % 5) - 2) * 1.6, y: home.y });
   }
   op.phase = "home";
@@ -3450,7 +3453,13 @@ function stepWalkOp(state, op) {
     const cx = alive.reduce((sum, unit) => sum + unit.x, 0) / alive.length;
     const cy = alive.reduce((sum, unit) => sum + unit.y, 0) / alive.length;
     const aliveValue = alive.reduce((sum, unit) => sum + unitValue(unit) * (unit.hp + unit.shields) / (unit.maxHp + unit.maxShields), 0);
-    const health = alive.reduce((sum, unit) => sum + unit.hp + unit.shields, 0) / alive.reduce((sum, unit) => sum + unit.maxHp + unit.maxShields, 0);
+    // 들키지 않은 은폐 병력(다크템플러 등)은 맞을 일이 없으니 탐지되거나 회수할 때까지 남아 싸운다.
+    // 예전에는 오는 길에 깎인 체력이나 25초 제한 때문에 광물 줄에 닿자마자 공격 없이 돌아오기도 했다.
+    const foe = stwOpponent(op.side);
+    const hidden = alive.every((unit) => isCloaked(unit, state) && !detectionCovers(state, foe, unit));
+    if (hidden && !op.recallNow) return;
+    // 체력은 광물 줄에 닿은 때보다 절반 넘게 잃었는지로 본다(가는 길에 깎인 체력으로 바로 돌아서지 않게).
+    const health = alive.reduce((sum, unit) => sum + unit.hp + unit.shields, 0) / alive.reduce((sum, unit) => sum + (unit.walkArriveHp ?? unit.maxHp + unit.maxShields), 0);
     const timeUp = state.time - op.since > STW_TRANSPORT.raidDwell || Boolean(op.recallNow);
     const outnumbered = threatValue(state, op.side, cx, cy, 10) > aliveValue * STW_TRANSPORT.retreatRatio;
     if (timeUp || outnumbered || health < STW_TRANSPORT.hpRatio) {
