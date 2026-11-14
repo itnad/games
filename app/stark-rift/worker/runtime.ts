@@ -1,3 +1,4 @@
+import { createSiegeRules } from "../abilities/siege-rules";
 import { createCloakRules } from "../abilities/cloak-rules";
 import { createSpecialRules } from "../abilities/special-rules";
 import { specialFitsMap } from "../abilities/special-validation";
@@ -133,10 +134,10 @@ export class SimulationRuntime {
       );
     };
     const defaults = createMovementRules(map, visible, combatReach);
-    const combined = createSpecialRules(map, createCloakRules(createBurrowRules(map, createVisionRules(
+    const combined = createSpecialRules(map, createSiegeRules(createCloakRules(createBurrowRules(map, createVisionRules(
       map,
       createCombatRules(createEconomyRules(map, defaults), visible, map),
-    ))));
+    )))));
     this.rules = {
       commands: { ...combined.commands, ...this.options.rules?.commands },
       systems: {
