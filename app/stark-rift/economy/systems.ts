@@ -1,3 +1,4 @@
+import { isInStasis } from "../abilities/spells-state";
 import { nextUint32 } from "../core/rng";
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
@@ -274,6 +275,7 @@ export function tickConstructionAndProduction(
     const d = definitionOf(s, b.entityId);
     if (!d) continue;
     if (!complete(b)) {
+      if (b.builderId !== null && isInStasis(s,b.builderId)) continue;
       if (!b.started) {
         if (!startBuilding(s, map, b, move)) continue;
       } else if (
