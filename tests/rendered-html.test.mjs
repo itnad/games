@@ -796,7 +796,7 @@ test("separates traditional classics from the strategy category", async () => {
 
 test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  const categoryOrder = '["전체", "전략", "모바일", "고전게임", "주사위", "터치류"';
+  const categoryOrder = '["전체", "모바일", "전략", "고전게임", "주사위", "터치류"';
   const hiddenSet = pageSource.match(/const DEFAULT_HIDDEN_GAME_IDS[\s\S]*?\]\);/)?.[0] ?? "";
 
   assert.match(pageSource, /type Category = [^;]*"모바일"/);

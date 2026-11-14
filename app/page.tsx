@@ -97,7 +97,7 @@ type GameId =
   | "baksal";
 type Category = "전체" | "전략" | "모바일" | "카드" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
 
-const CATEGORIES: Category[] = ["전체", "전략", "모바일", "고전게임", "주사위", "터치류", "카드", "기억력", "추리", "퍼즐", "경주", "RPG"];
+const CATEGORIES: Category[] = ["전체", "모바일", "전략", "고전게임", "주사위", "터치류", "카드", "기억력", "추리", "퍼즐", "경주", "RPG"];
 
 type GameDefinition = {
   id: GameId;
