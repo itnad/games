@@ -99,8 +99,19 @@
   "sourceArchiveUrl": "https://github.com/itnad/games/archive/b3724d36f427eef021267b557f641bb2599761f6.zip",
   "limits": "Chromium SwiftShader with native touch emulation; not physical Android/iOS or hardware GPU certification.",
   "localBackupZip": {
-    "status": "unverified",
-    "reason": "After all24 browser cases passed, the execution transport disconnected before backup assembly returned. The selected environment became unavailable. Do not assume local ZIP files exist."
+    "status": "verified_after_environment_recovery",
+    "source": {
+      "path": "/workspace/library-files/stark-rift-autocast-source-and-qa.zip",
+      "bytes": 32763014,
+      "sha256": "94110013bfa3dfe5ae3bd6473d40c6a0c9dc1e2c2ec251d444904af09c8dcb38",
+      "crcVerified": true
+    },
+    "qa": {
+      "path": "/workspace/library-files/stark-rift-autocast-qa.zip",
+      "bytes": 3944859,
+      "sha256": "06a20939fd81ca85633cf1fbc1dbcfe4345f64861ae53100f3db9e7203b384e5",
+      "crcVerified": true
+    }
   },
   "notes": [
     "The concurrent categorized homepage commit b51b50c8 was preserved; an outdated common-test expectation was aligned to category preview selection followed by the full finder. Final233 shared tests and final GitHub CI pass.",
