@@ -688,13 +688,16 @@ export const STW_SIZE_MULTIPLIER = {
 };
 
 export const STW_DIFFICULTIES = {
-  easy: { id: "easy", name: "쉬움", note: "적 수입 −20% · 공격이 느림", income: 0.8, thinkEvery: 1.5, waveScale: 1.25 },
-  normal: { id: "normal", name: "보통", note: "같은 규칙으로 싸우는 기본 난이도", income: 1, thinkEvery: 1, waveScale: 1 },
-  hard: { id: "hard", name: "어려움", note: "적 수입 +15% · 빠르고 집요한 공격", income: 1.15, thinkEvery: 0.6, waveScale: 0.85 },
+  // production: 일꾼을 뺀 유닛 생산 속도 배율(1 = 사람과 같음). 수입·생산 핸디캡은 사람과 싸우는 AI에게만 붙는다.
+  // 초심자: 앞마당을 먹지 않고(noExpand) 방어 건물은 3개까지만(maxDefenses) 짓는다.
+  beginner: { id: "beginner", name: "초심자", note: "확장 없음 · 유닛 생산 속도 −50% · 방어 건물 최대 3개", income: 1, production: 0.5, thinkEvery: 1.5, waveScale: 1.25, noExpand: true, maxDefenses: 3 },
+  easy: { id: "easy", name: "쉬움", note: "적 수입 −25% · 유닛 생산 속도 −25% · 공격이 느림", income: 0.75, production: 0.75, thinkEvery: 1.5, waveScale: 1.25 },
+  normal: { id: "normal", name: "보통", note: "같은 수입 · 유닛 생산 속도 −20%", income: 1, production: 0.8, thinkEvery: 1, waveScale: 1 },
+  hard: { id: "hard", name: "어려움", note: "같은 수입·생산 속도 · 빠르고 집요한 공격", income: 1, production: 1, thinkEvery: 0.6, waveScale: 0.85 },
   // 최상급: 수입은 사람과 같고, 지난 경기들로 전략을 고르고 정찰로 상대 전략을 읽어 맞받는다(starswar-learn.js).
-  master: { id: "master", name: "최상급", note: "같은 수입 · 정찰로 전략을 읽고 맞받는다", income: 1, thinkEvery: 0.5, waveScale: 0.85, master: true },
+  master: { id: "master", name: "최상급", note: "같은 수입 · 정찰로 전략을 읽고 맞받는다", income: 1, production: 1, thinkEvery: 0.5, waveScale: 0.85, master: true },
   // 프로급: 최상급의 판단에 적 수입 +15%.
-  pro: { id: "pro", name: "프로급", note: "적 수입 +15% · 최상급의 판단에 자원 우위까지", income: 1.15, thinkEvery: 0.5, waveScale: 0.85, master: true },
+  pro: { id: "pro", name: "프로급", note: "적 수입 +15% · 최상급의 판단에 자원 우위까지", income: 1.15, production: 1, thinkEvery: 0.5, waveScale: 0.85, master: true },
 };
 
 export const STW_AI_PERSONAS = {

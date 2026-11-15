@@ -1270,7 +1270,8 @@ function ensureDefense(state, side, race, count) {
   }
   if (stwOwnBuildings(state, side, defense).length >= count) return null;
   const result = stwCommand(state, side, { type: "build", building: defense });
-  return result.ok ? null : STW_BUILDINGS[defense];
+  // 난이도의 방어 건물 한도에 걸리면 기다리지 않는다(비용을 아껴 두면 생산만 멈춘다).
+  return result.ok || /한도/.test(result.reason ?? "") ? null : STW_BUILDINGS[defense];
 }
 
 function manageArmy(state, side, persona, memory, settings, { holdHome = false, alert = false } = {}) {

@@ -267,7 +267,7 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
     } else if (!state.sides[side].persona && state.aiSides.includes(side)) {
       const race = state.sides[side].race;
       const personas = Object.values(STW_AI_PERSONAS)
-        .filter((persona) => persona.race === race && !(state.difficulty === "easy" && EASY_EXCLUDED_PERSONAS.includes(persona.id)))
+        .filter((persona) => persona.race === race && !((state.difficulty === "easy" || state.difficulty === "beginner") && EASY_EXCLUDED_PERSONAS.includes(persona.id)))
         .map((persona) => persona.id);
       state.sides[side].persona = personas[Math.floor(nextRandom(state) * personas.length)];
     }
@@ -393,8 +393,18 @@ function mineralRate(count, rate = 1) {
   return (full + over * STW_ECONOMY.overflowRate) * STW_ECONOMY.mineralRate * rate;
 }
 
+/** 사람과 싸우는 AI 진영이면 그 난이도 설정을 준다. 난이도의 핸디캡(수입·생산 속도·초심자 제한)은 이 진영에만 붙는다. */
+function handicapOf(state, side) {
+  return side === "enemy" && state.aiSides.includes("enemy") && !state.aiSides.includes("player") ? STW_DIFFICULTIES[state.difficulty] : null;
+}
+
 function incomeMultiplier(state, side) {
-  return side === "enemy" && state.aiSides.includes("enemy") && !state.aiSides.includes("player") ? STW_DIFFICULTIES[state.difficulty].income : 1;
+  return handicapOf(state, side)?.income ?? 1;
+}
+
+/** 일꾼을 뺀 유닛 생산 속도 배율. */
+function productionRate(state, side) {
+  return handicapOf(state, side)?.production ?? 1;
 }
 
 /** 분당 예상 수입. */
@@ -532,6 +542,12 @@ function placementFor(state, side, type, spot) {
 /** spot: 방어 건물을 지을 쪽("front" 전방·"rear" 후방). 없으면 예전처럼 자동으로 고른다. */
 export function stwBuildCheck(state, side, type, spot) {
   const record = state.sides[side];
+  // 초심자 AI: 확장하지 않고 방어 건물은 정해진 수까지만. 사유에 "찼습니다"를 넣어 AI 빌드 순서가 그 단계를 끝난 것으로 넘긴다.
+  const limits = handicapOf(state, side);
+  if (limits?.noExpand && type === "expand") return fail("이 난이도에서는 확장 한도가 찼습니다");
+  if (limits?.maxDefenses !== undefined && STW_BUILDINGS[type]?.defense && stwOwnBuildings(state, side).filter((building) => STW_BUILDINGS[building.type].defense).length >= limits.maxDefenses) {
+    return fail("이 난이도에서는 방어 건물 한도가 찼습니다");
+  }
   if (type === "expand") {
     if (stwNexus(state, side, "natural")) return fail("이미 앞마당에 기지가 있습니다");
     const point = stwPoint(side, stwMap(state).layout.naturalNexus);
@@ -1668,7 +1684,7 @@ function joinsAttack(state, side, unitType) {
 
 function stepProducer(state, building, record, dt) {
   if (building.current) {
-    building.current.remaining -= dt;
+    building.current.remaining -= dt * productionRate(state, building.side);
     if (building.current.remaining > 0) return;
     const unitType = building.current.unit;
     building.current = null;
