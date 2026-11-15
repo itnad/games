@@ -3236,6 +3236,27 @@ test("starswar yamato picks fighters (100+ health), then defences, then overlord
   assert.ok(building.placed[0].hp <= building.placed[0].maxHp - 250, `해처리에 쏜다 (${building.placed[0].hp})`);
 });
 
+test("starswar a whole-army map tap (merge) folds separated squads back into the main army; a plain move leaves them", () => {
+  const state = quiet();
+  const zealots = [16, 18, 20].map((x) => stwSpawnUnitAt(state, "player", "zealot", x, 80, "rally"));
+  const darks = [22, 24].map((x) => stwSpawnUnitAt(state, "player", "dark", x, 80, "rally"));
+  assert.equal(stwCommand(state, "player", { type: "squadMove", units: ["dark"], y: 95 }).ok, true);
+  assert.ok(darks.every((unit) => unit.squad === "dark"));
+  // 고른 부대 없이 누른 지도 탭이 아닌 예전 이동(AI 등)은 따로 둔 부대를 그대로 둔다.
+  stwCommand(state, "player", { type: "move", y: 70 });
+  assert.ok(darks.every((unit) => unit.squad === "dark"), "merge 없이 옮기면 다크템플러는 따로 남는다");
+  // 사람이 부대를 고르지 않고 지도를 누르면(merge) 따로 둔 부대까지 합쳐 함께 간다.
+  const result = stwCommand(state, "player", { type: "move", y: 66, merge: true });
+  assert.equal(result.ok, true);
+  assert.equal(result.merged, 2);
+  assert.ok(darks.every((unit) => unit.squad === undefined), "다크템플러가 본대로 합쳐진다");
+  assert.deepEqual(state.sides.player.squads, {});
+  assert.match(state.log.at(-1).text, /따로 둔 부대까지 합쳐/);
+  run(state, 15);
+  const avgY = (units) => units.reduce((sum, unit) => sum + unit.y, 0) / units.length;
+  assert.ok(Math.abs(avgY(darks) - avgY(zealots)) < 6, `함께 움직인다 (다크 ${avgY(darks).toFixed(1)}, 질럿 ${avgY(zealots).toFixed(1)})`);
+});
+
 test("starswar squad orders stop an infiltration: move back retreats, release rejoins the main army", () => {
   const state = quiet();
   const wraiths = [18, 20, 22, 24].map((x) => stwSpawnUnitAt(state, "player", "wraith", x, 77, "rally"));

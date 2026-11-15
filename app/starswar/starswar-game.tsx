@@ -415,7 +415,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [selected, setSelected] = useState<string[]>([]);
   const selectedRef = useRef<string[]>([]);
   // follow: 전선 따라가기(공격 병력 선두나 집결지를 화면 가운데로). 지도를 끌거나 벌리면 멈추고, 마지막으로 만진 뒤 8초가 지나면 다시 따라간다.
-  const cameraRef = useRef({ zoom: 1, cx: 20, cy: 94, ready: false, follow: true, touchedAt: 0 });
+  // fightY·fightUntil: 마지막으로 본 교전 높이와 그 높이를 붙잡아 둘 경기 시각(교전이 잠깐 끊겨도 화면이 튀지 않게).
+  const cameraRef = useRef({ zoom: 1, cx: 20, cy: 94, ready: false, follow: true, touchedAt: 0, fightY: 0, fightUntil: -1 });
   const pausedRef = useRef(false);
   const recordedRef = useRef(false);
   const savedAtRef = useRef(0);
@@ -527,11 +528,24 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     // 지도를 마지막으로 만진 뒤 8초가 지나면 다시 전선을 따라간다(따라가기 버튼을 없앴다).
     if (!camera.follow && clock * 1000 - camera.touchedAt > 8000) camera.follow = true;
     if (camera.follow) {
-      // 전선 따라가기: 공격 병력이 있으면 그 선두를 화면 가운데로, 없으면 기본 구도(지도 맨 아래, 아군 광물 줄까지 다 보이게).
-      // 예전에는 쉬는 동안 집결지를 가운데로 잡아, 맨 아래로 내려 두어도 몇 초 뒤 살짝 올라가 광물 줄이 잘렸다.
+      // 전선 따라가기: 공격 병력이 있으면 그 선두를 화면 가운데로, 아니면 교전이 벌어진 곳(집결지·앞마당 수비, 따로 둔 부대, 드랍),
+      // 교전도 없으면 기본 구도(지도 맨 아래, 아군 광물 줄까지 다 보이게).
+      // 예전에는 출격 병력이 없으면 늘 맨 아래로 가서, 집결지나 앞마당에서 싸우는 중에도 화면이 갑자기 아래로 내려갔다.
       const army = stwArmy(current, "player");
       const front = army.attack.reduce((best, unit) => Math.min(best, unit.y), STW_LANE_LENGTH);
-      const focus = army.attack.length ? front + 6 : STW_LANE_LENGTH;
+      // 교전: 3초 안에 맞았거나 무언가를 노리는 아군 병력(일꾼 제외), 3초 안에 맞은 아군 건물. 그 높이의 가운데를 4초 동안 붙잡아 둔다.
+      const fightYs: number[] = [];
+      for (const unit of current.units) {
+        if (unit.side !== "player" || unit.hp <= 0 || unit.group === "cargo" || (STW_UNITS[unit.type as keyof typeof STW_UNITS] as { worker?: boolean }).worker) continue;
+        if (current.time - unit.lastHit < 3 || unit.targetId !== null) fightYs.push(unit.y);
+      }
+      for (const building of current.buildings) if (building.side === "player" && building.hp > 0 && current.time - building.lastHit < 3) fightYs.push(building.y);
+      if (fightYs.length) {
+        camera.fightY = fightYs.reduce((sum, y) => sum + y, 0) / fightYs.length;
+        camera.fightUntil = current.time + 4;
+      }
+      const fighting = current.time <= camera.fightUntil;
+      const focus = army.attack.length ? front + 6 : fighting ? camera.fightY : STW_LANE_LENGTH;
       // 맨 아래를 노릴 때는 뷰포트 한계(지도 끝)까지 바로 붙도록 지금 보이는 한계에서 출발한다.
       const limit = stwViewport(width, height, { ...camera, cy: STW_LANE_LENGTH }).cy;
       const target = Math.min(focus, limit);
@@ -770,7 +784,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     if (live.length) issue({ type: "squadMove", units: live, y: target.y });
     else {
       if (selected.length) setSelected([]);
-      issue({ type: "move", y: target.y });
+      // 고른 부대가 없으면 따로 둔 부대까지 모두 본대로 합쳐 옮긴다(전체 병력이 기본).
+      issue({ type: "move", y: target.y, merge: true });
     }
   };
 
@@ -972,11 +987,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           ) : null}
           {renderer === "failed" ? <p className="stw-map-error">이 기기에서 그래픽을 초기화하지 못했습니다.</p> : null}
           {renderer === "failed" ? <button type="button" className="stw-map-retry" onClick={() => { setRenderer("loading"); setRendererAttempt((value) => value + 1); }}>지도 다시 불러오기</button> : null}
-          <div className="stw-map-tools">
-            <button type="button" className={squadOpen ? "active" : ""} aria-pressed={squadOpen} onClick={() => (squadOpen ? closeSquad() : setSquadOpen(true))}>
-              부대{selected.length ? ` ${selected.length}` : ""}
-            </button>
-          </div>
           {mapAlert ? <p key={mapAlert.id} className="stw-map-alert" role="alert">{mapAlert.text}</p> : null}
           {game.finalBattle && !finished ? <p className="stw-final-banner" role="status">최종 결전 · 전원 출격 · 지휘 불가</p> : null}
           {toast ? <p key={toast.id} className={`stw-toast tone-${toast.tone}`} role="status">{toast.text}</p> : null}
@@ -996,6 +1006,10 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         {/* 지도 아래 상태 줄: 진행 기록(최신 하나)·정찰 정보와 정찰 버튼을 지도 밖에 둬 지도를 가리지 않는다. 누르면 펼친다. */}
         <div className="stw-status" data-open={statusOpen ? "true" : undefined}>
           <div className="stw-status-row">
+            {/* 부대 지휘: 지도 왼쪽 위에서 지도 밖(엄지가 닿는 상태 줄 왼쪽)으로 옮겼다. 고른 부대 수가 붙는다. */}
+            <button type="button" className={squadOpen ? "stw-status-squad active" : "stw-status-squad"} aria-pressed={squadOpen} onClick={() => (squadOpen ? closeSquad() : setSquadOpen(true))}>
+              부대{selected.length ? <em>{selected.length}</em> : null}
+            </button>
             <button type="button" className={`stw-status-text tone-${statusLog?.tone ?? "intel"}`} aria-expanded={statusOpen} aria-label={`${statusLog ? statusLog.text : intelText} (누르면 정찰 정보와 기록을 펼칩니다)`} onClick={() => setStatusOpen((value) => !value)}>
               <span aria-live="polite">{statusLog ? statusLog.text : intelText}</span>
               <i aria-hidden="true">{statusOpen ? "▾" : "▴"}</i>

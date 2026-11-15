@@ -1125,6 +1125,17 @@ function runCommand(state, side, command) {
       if (typeof command.y !== "number" || Number.isNaN(command.y)) return fail("알 수 없는 위치입니다");
       if (command.y <= stwMap(state).attackZoneY) return stwCommand(state, side, { type: "attack" });
       const y = Math.round(Math.min(stwMap(state).rallyRange.max, Math.max(stwMap(state).rallyRange.min, command.y)));
+      // merge: 따로 둔 부대까지 모두 본대로 합쳐 함께 옮긴다(사람이 부대를 고르지 않고 지도를 누른 경우).
+      // 예전에는 부대 선택이 풀린 뒤에도 따로 둔 부대가 제자리에 남아, 전체를 옮기려던 지도 탭에 끌려오지 않았다.
+      let merged = 0;
+      if (command.merge && record.squads && Object.keys(record.squads).length) {
+        for (const unit of state.units) {
+          if (unit.side !== side || unit.squad === undefined || inWalkOp(state, unit)) continue;
+          delete unit.squad;
+          merged += 1;
+        }
+        record.squads = {};
+      }
       const army = stwArmy(state, side);
       // 아군 기준 좌표로 병력 선두를 잰다(작을수록 앞). 따로 둔 부대는 본대 지시를 따르지 않으므로 세지 않는다.
       const units = [...army.fighters, ...army.attackers].filter((unit) => unit.squad === undefined);
@@ -1136,13 +1147,15 @@ function runCommand(state, side, command) {
       if (front !== null && y > front + 2 && (army.attack.length || units.some((unit) => (side === "player" ? unit.y : STW_LANE_LENGTH - unit.y) < y - 2))) {
         // 뒤쪽: 전군 후퇴.
         for (const unit of army.attack) unit.group = "rally";
-        if (side === "player") pushLog(state, side, `전군 ${army.attack.length + army.rally.length}기가 ${withKoreanDirection(name)} 물러납니다.`, "order");
+        // 따로 둔 부대는 이 후퇴를 따르지 않으므로 세지 않는다(예전에는 숫자에 섞여 "전군"이 실제보다 많았다).
+        const moving = [...army.attack, ...army.rally].filter((unit) => unit.squad === undefined).length;
+        if (side === "player") pushLog(state, side, `${merged ? "따로 둔 부대까지 합쳐 " : ""}전군 ${moving}기가 ${withKoreanDirection(name)} 물러납니다.`, "order");
         holdAutoWave(state, side);
-        return { ok: true, mode: "retreat", y };
+        return { ok: true, mode: "retreat", y, merged };
       }
       record.autoWaveHold = false;
-      if (side === "player") pushLog(state, side, units.length ? `병력이 ${withKoreanDirection(name)} 싸우며 전진합니다.` : `집결지를 ${withKoreanDirection(name)} 옮깁니다.`, "order");
-      return { ok: true, mode: "advance", y };
+      if (side === "player") pushLog(state, side, `${merged ? "따로 둔 부대까지 합쳐 " : ""}${units.length ? `병력이 ${withKoreanDirection(name)} 싸우며 전진합니다.` : `집결지를 ${withKoreanDirection(name)} 옮깁니다.`}`, "order");
+      return { ok: true, mode: "advance", y, merged };
     }
     case "attack": {
       const army = stwArmy(state, side);
