@@ -26,6 +26,7 @@ import {
   stwSerialize,
   stwSpawnUnitAt,
   stwSupply,
+  stwIsGuard,
   stwTapAttacks,
   stwWorkerSplit,
   stepStarswar,
@@ -3454,4 +3455,41 @@ test("starswar medics stop healing and fall back when the army retreats", () => 
   const startY = medic.y;
   run(state, 2);
   assert.ok(medic.y > startY + 3, `메딕이 물러난다 (${startY} → ${medic.y.toFixed(1)})`);
+});
+
+test("starswar guards: send only some units of a type to hold a spot; whole-army taps, attacks and new units leave them alone until released", () => {
+  const state = stwCreateScenario({ seed: 9, placement: "home", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 8, medic: 2 }, buildings: { barracks: 1 }, minerals: 2000 }, enemy: { units: {} } } });
+  const marines = () => state.units.filter((unit) => unit.side === "player" && unit.type === "marine" && unit.hp > 0);
+  // 해병 2기만 본진 광물 줄로: 경비가 된다.
+  let result = stwCommand(state, "player", { type: "squadMove", units: ["marine"], y: 96, count: 2 });
+  assert.equal(result.mode, "guard");
+  assert.equal(result.moved, 2);
+  const guards = marines().filter((unit) => stwIsGuard(unit.squad));
+  assert.equal(guards.length, 2);
+  assert.ok(state.log.some((entry) => /해병 2기가 본진 안쪽에서 경비를 섭니다/.test(entry.text)));
+  run(state, 8);
+  assert.ok(guards.every((unit) => unit.y > 90), "경비는 광물 줄 앞에 선다");
+  // 본대 지도 탭(합치기)과 적 본진 탭(공격)에도 경비는 남는다.
+  stwCommand(state, "player", { type: "move", y: 50, merge: true });
+  stwCommand(state, "player", { type: "move", y: 10, merge: true });
+  assert.ok(guards.every((unit) => unit.group === "rally" && stwIsGuard(unit.squad)));
+  assert.equal(marines().filter((unit) => unit.group === "attack").length, 6);
+  // 해병 종류를 골라 "전체"로 옮겨도 경비는 따라가지 않는다.
+  stwCommand(state, "player", { type: "squadMove", units: ["marine"], y: 60 });
+  assert.ok(guards.every((unit) => stwIsGuard(unit.squad)));
+  // 새 해병은 경비가 아니라 해병 부대(전체로 옮긴 종류)로 간다.
+  const barracks = stwOwnBuildings(state, "player", "barracks")[0];
+  barracks.line = "marine";
+  const before = new Set(state.units.map((unit) => unit.id));
+  run(state, 25);
+  const fresh = state.units.find((unit) => !before.has(unit.id) && unit.type === "marine");
+  assert.ok(fresh && !stwIsGuard(fresh.squad));
+  // "본진 경비" 바로가기(전체 + guard)도 경비가 된다. 경비 해제로 본대로 돌아간다.
+  result = stwCommand(state, "player", { type: "squadMove", units: ["medic"], y: 96, guard: true });
+  assert.equal(result.mode, "guard");
+  assert.ok(state.units.filter((unit) => unit.type === "medic" && unit.side === "player").every((unit) => unit.squad === "guard:96"));
+  result = stwCommand(state, "player", { type: "guardRelease", post: "guard:96" });
+  assert.equal(result.released, 4);
+  assert.ok(!Object.keys(state.sides.player.squads).some(stwIsGuard));
+  assert.ok(guards.every((unit) => unit.squad === undefined));
 });

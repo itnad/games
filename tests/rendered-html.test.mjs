@@ -901,6 +901,10 @@ test("keeps StarDraft in its own app/starswar folder as a public mobile game at 
   assert.match(gameSource, /경기 기록 초기화/);
   // 펼친 상태 줄은 기록 전체가 아니라 지금 챙길 것과 최근 경고만 짧게 보인다. 출격 버튼은 없다(지도 탭이 적 본진·적 건물을 누를 때만 공격).
   assert.match(gameSource, /function statusAdvice\(game: StwState\)/);
+  // 경비: 보낼 수(전체·1·2·4기), 본진 경비 바로가기, 경비 해제.
+  assert.match(gameSource, /const SQUAD_COUNTS = \[0, 1, 2, 4\] as const/);
+  assert.match(gameSource, /type: "squadMove", units: selected, y: GUARD_HOME_Y, guard: true/);
+  assert.match(gameSource, /type: "guardRelease", post: post\.key/);
   assert.doesNotMatch(gameSource, /playerLog\.slice\(-6\)/);
   assert.doesNotMatch(gameSource, /className="stw-attack"|이 부대 출격/);
   assert.match(gameSource, /const empty: BattleRecord = \{ wins: 0, losses: 0, best: \{\} \};\s*writeRecord\(empty\)/);

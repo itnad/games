@@ -147,7 +147,7 @@ export type StwSideState = {
   race: StwRaceId;
   escort: boolean;
   /** 유닛 종류별로 따로 둔 부대: { 종류: { y } }. */
-  squads?: Partial<Record<string, { y: number }>>;
+  squads?: Partial<Record<string, { y: number; guard?: boolean }>>;
   /** 공격 목표: 교전 우선(기본) 또는 건물 우선. */
   focus?: StwFocus;
   persona: "rush" | "dragoon" | "templar" | "dark" | "robo" | "bio" | "mech" | "tankbio" | "vulture" | "ling" | "hydra" | "pool" | "ultra" | null;
@@ -259,8 +259,9 @@ export type StwCommand =
   | { type: "cancelUnit"; buildingId: number }
   | { type: "dropRecall"; opId?: number }
   | { type: "infiltrate"; units: string[]; base: "main" | "natural" }
-  | { type: "squadMove"; units: string[]; y: number }
-  | { type: "squadRelease"; units?: string[] };
+  | { type: "squadMove"; units: string[]; y: number; count?: number; guard?: boolean }
+  | { type: "squadRelease"; units?: string[] }
+  | { type: "guardRelease"; post?: string };
 
 export type StwView = { width: number; height: number; scale: number; zoom: number; cx: number; cy: number; ox: number; oy: number };
 export type StwUi = { clock: number; timeScale: number; rally: StwRallyId | number; selected?: string[] };

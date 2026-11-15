@@ -709,7 +709,8 @@ export class StwPixiRenderer {
       const count = state.units.filter((unit) => unit.side === "player" && unit.hp > 0 && unit.squad === type).length;
       if (!count) continue;
       const def = STW_UNITS[type as StwUnitType];
-      show(`squad:${type}`, `${def?.name ?? type} ${count}`, 0xffd27a, STW_LANE_WIDTH / 2 + 12.5, stwRallyY("player", spot.y, state));
+      // 경비는 "경비 2"(종류가 섞일 수 있다).
+      show(`squad:${type}`, `${spot.guard ? "경비" : def?.name ?? type} ${count}`, 0xffd27a, STW_LANE_WIDTH / 2 + 12.5, stwRallyY("player", spot.y, state));
     }
     for (const [key, badge] of this.badges) {
       if (live.has(key)) continue;

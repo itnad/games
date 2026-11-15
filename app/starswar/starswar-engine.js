@@ -817,6 +817,11 @@ function homeHalf(side, y) {
   return (y - STW_LANE_LENGTH / 2) * stwForward(side) <= 0;
 }
 
+/** 경비 부대 열쇠("guard:96")인지. 경비는 본대 지도 탭·출격에 합쳐지지 않고 풀 때까지 그 자리를 지킨다. */
+export function stwIsGuard(key) {
+  return typeof key === "string" && key.startsWith("guard:");
+}
+
 /** 무기가 없는 유닛(메딕·하이템플러·옵저버 등): 혼자서는 공격하러 가지 않는다. */
 function unarmed(type) {
   return !STW_UNITS[type].damage;
@@ -977,14 +982,22 @@ function runCommand(state, side, command) {
       if (typeof command.y !== "number" || Number.isNaN(command.y)) return fail("알 수 없는 위치입니다");
       record.squads ??= {};
       // 침투 중인 유닛도 부대 명령을 따른다: 작전에서 빼고 이 명령대로 움직인다(뒤쪽이면 교전을 끊고 후퇴).
-      const members = state.units.filter((unit) => unit.side === side && unit.hp > 0 && types.includes(unit.type) && ((unit.group === "rally" || unit.group === "attack") && unit.raid === undefined || inWalkOp(state, unit)));
+      // 경비로 세운 유닛은 종류를 골라도 따라가지 않는다(경비 해제로만 푼다).
+      let members = state.units.filter((unit) => unit.side === side && unit.hp > 0 && types.includes(unit.type) && !stwIsGuard(unit.squad) && ((unit.group === "rally" || unit.group === "attack") && unit.raid === undefined || inWalkOp(state, unit)));
       if (!members.length) return fail("옮길 유닛이 없습니다");
+      // count: 종류마다 이만큼만 보낸다(누른 곳에 가까운 유닛부터). 일부만 보내거나 guard면 그 유닛들은 경비가 된다.
+      const count = Number.isInteger(command.count) && command.count > 0 ? command.count : null;
+      if (count) {
+        const target = stwPoint(side, { x: STW_LANE_WIDTH / 2, y: command.y }).y;
+        members = types.flatMap((type) => members.filter((unit) => unit.type === type).sort((a, b) => Math.abs(a.y - target) - Math.abs(b.y - target) || a.id - b.id).slice(0, count));
+      }
+      const guard = Boolean(command.guard) || (count !== null && types.some((type) => state.units.some((unit) => unit.side === side && unit.hp > 0 && unit.type === type && !members.includes(unit) && !stwIsGuard(unit.squad) && (unit.group === "rally" || unit.group === "attack"))));
       const names = types.map((type) => STW_UNITS[type].name).join("·");
       const stopped = leaveWalkOps(state, members);
       if (stopped && side === "player") pushLog(state, side, `${names} ${stopped}기가 침투를 멈춥니다.`, "order");
       // 무기 없는 유닛만 고른 부대는 공격하러 보내지 않고 설 수 있는 앞끝에 세운다(메딕만 적진으로 걸어 들어가던 문제).
       if (stwTapAttacks(state, command.y) && !types.every(unarmed)) {
-        for (const type of types) delete record.squads[type];
+        if (!guard) for (const type of types) delete record.squads[type];
         for (const unit of members) {
           delete unit.squad;
           if (!STW_UNITS[unit.type].transport) unit.group = "attack";
@@ -994,6 +1007,18 @@ function runCommand(state, side, command) {
         return { ok: true, mode: "attack" };
       }
       const y = Math.round(Math.min(stwMap(state).rallyRange.max, Math.max(stwMap(state).rallyRange.min, command.y)));
+      if (guard) {
+        const key = `guard:${y}`;
+        record.squads[key] = { y, guard: true };
+        for (const unit of members) {
+          unit.group = "rally";
+          unit.squad = key;
+          delete unit.fresh;
+          unit.passing = true;
+        }
+        if (side === "player") pushLog(state, side, `${names} ${members.length}기가 ${stwRallyName(y, state)}에서 경비를 섭니다.`, "order");
+        return { ok: true, mode: "guard", y, key, moved: members.length };
+      }
       for (const type of types) record.squads[type] = { y };
       for (const unit of members) {
         unit.group = "rally";
@@ -1009,7 +1034,7 @@ function runCommand(state, side, command) {
       // 따로 둔 부대를 본대로 되돌린다(새 유닛도 다시 본대 집결지로).
       record.squads ??= {};
       const walking = state.units.filter((unit) => unit.side === side && unit.hp > 0 && inWalkOp(state, unit) && (!command.units || command.units.includes(unit.type)));
-      const types = [...new Set([...(command.units ?? Object.keys(record.squads)).filter((type) => record.squads[type]), ...walking.map((unit) => unit.type)])];
+      const types = [...new Set([...(command.units ?? Object.keys(record.squads)).filter((type) => record.squads[type] && !stwIsGuard(type)), ...walking.map((unit) => unit.type)])];
       if (!types.length) return fail("따로 둔 부대가 없습니다");
       // 침투 중이던 유닛은 작전을 멈추고 본대 집결지로 돌아온다(교전을 끊고).
       if (leaveWalkOps(state, walking)) for (const unit of walking) unit.group = "rally";
@@ -1018,12 +1043,27 @@ function runCommand(state, side, command) {
       if (side === "player") pushLog(state, side, `${types.map((type) => STW_UNITS[type].name).join("·")} 부대가 본대로 돌아갑니다.`, "order");
       return { ok: true };
     }
+    case "guardRelease": {
+      // 경비를 풀어 본대로 되돌린다(post가 없으면 모든 경비).
+      record.squads ??= {};
+      const posts = Object.keys(record.squads).filter((key) => stwIsGuard(key) && (!command.post || key === command.post));
+      if (!posts.length) return fail("세워 둔 경비가 없습니다");
+      let released = 0;
+      for (const unit of state.units) {
+        if (unit.side !== side || !posts.includes(unit.squad)) continue;
+        delete unit.squad;
+        released += 1;
+      }
+      for (const key of posts) delete record.squads[key];
+      if (side === "player") pushLog(state, side, `경비 ${released}기가 본대로 돌아갑니다.`, "order");
+      return { ok: true, released };
+    }
     case "infiltrate": {
       // 침투: 고른 종류의 부대가 교전 없이 전장 가장자리를 따라 적 본진·앞마당 광물 줄까지 걸어가, 게릴라 드랍 병력처럼 일꾼을 친다.
       // 적 병력이 몰려오거나 25초가 지나거나 회수하면 다시 가장자리를 따라 걸어서 돌아온다.
       const types = (command.units ?? []).filter((type) => STW_UNITS[type] && !STW_UNITS[type].worker && !STW_UNITS[type].transport && type !== "overlord");
       if (!types.length) return fail("침투할 부대를 고르세요");
-      const members = state.units.filter((unit) => unit.side === side && unit.hp > 0 && types.includes(unit.type) && (unit.group === "rally" || unit.group === "attack") && unit.raid === undefined);
+      const members = state.units.filter((unit) => unit.side === side && unit.hp > 0 && types.includes(unit.type) && !stwIsGuard(unit.squad) && (unit.group === "rally" || unit.group === "attack") && unit.raid === undefined);
       if (!members.some((unit) => STW_UNITS[unit.type].damage)) return fail("침투할 전투 유닛이 없습니다");
       const base = command.base === "natural" ? "natural" : "main";
       const foe = stwOpponent(side);
@@ -1167,13 +1207,14 @@ function runCommand(state, side, command) {
       // merge: 따로 둔 부대까지 모두 본대로 합쳐 함께 옮긴다(사람이 부대를 고르지 않고 지도를 누른 경우).
       // 예전에는 부대 선택이 풀린 뒤에도 따로 둔 부대가 제자리에 남아, 전체를 옮기려던 지도 탭에 끌려오지 않았다.
       let merged = 0;
-      if (command.merge && record.squads && Object.keys(record.squads).length) {
+      if (command.merge && record.squads && Object.keys(record.squads).some((key) => !stwIsGuard(key))) {
         for (const unit of state.units) {
-          if (unit.side !== side || unit.squad === undefined || inWalkOp(state, unit)) continue;
+          if (unit.side !== side || unit.squad === undefined || stwIsGuard(unit.squad) || inWalkOp(state, unit)) continue;
           delete unit.squad;
           merged += 1;
         }
-        record.squads = {};
+        // 경비는 본대 지도 탭에 합치지 않는다.
+        record.squads = Object.fromEntries(Object.entries(record.squads).filter(([key]) => stwIsGuard(key)));
       }
       const army = stwArmy(state, side);
       // 아군 기준 좌표로 병력 선두를 잰다(작을수록 앞). 따로 둔 부대는 본대 지시를 따르지 않으므로 세지 않는다.
@@ -1205,11 +1246,12 @@ function runCommand(state, side, command) {
       if (!army.fighters.length) return fail("출격할 전투 병력이 없습니다");
       // 수송선은 출격하지 않는다(본진 침투로만 움직인다).
       // 출격 버튼은 따로 둔 부대까지 모두 합쳐 내보낸다. 자동 출격(keepSquads)은 본대만 내보낸다.
-      const going = army.rally.filter((unit) => (unit.type !== "overlord" || (record.escort && unit.escort)) && !STW_UNITS[unit.type].transport && (!command.keepSquads || unit.squad === undefined));
+      const going = army.rally.filter((unit) => (unit.type !== "overlord" || (record.escort && unit.escort)) && !STW_UNITS[unit.type].transport && !stwIsGuard(unit.squad) && (!command.keepSquads || unit.squad === undefined));
       if (!going.length) return fail("출격할 대기 병력이 없습니다");
       if (!command.keepSquads) {
-        record.squads = {};
-        for (const unit of army.rally) delete unit.squad;
+        // 따로 둔 부대는 합쳐 내보내되, 경비는 제자리를 지킨다.
+        record.squads = Object.fromEntries(Object.entries(record.squads ?? {}).filter(([key]) => stwIsGuard(key)));
+        for (const unit of army.rally) if (!stwIsGuard(unit.squad)) delete unit.squad;
       }
       for (const unit of going) unit.group = "attack";
       record.autoWaveHold = false;

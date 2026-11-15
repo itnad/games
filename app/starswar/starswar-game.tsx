@@ -28,6 +28,7 @@ import {
   stwArmy,
   stwBuildCheck,
   stwClock,
+  stwIsGuard,
   stwIssue,
   stwDone,
   stwMap,
@@ -102,7 +103,11 @@ function writeLearning(data: unknown) {
 }
 const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
 /** 고른 부대를 그대로 두는 명령: 부대를 옮기거나 본대로 돌리거나 침투를 거두는 동안에는 같은 부대를 이어서 지휘한다. */
-const SQUAD_KEEP_COMMANDS = new Set<StwCommand["type"]>(["squadMove", "squadRelease", "dropRecall"]);
+const SQUAD_KEEP_COMMANDS = new Set<StwCommand["type"]>(["squadMove", "squadRelease", "guardRelease", "dropRecall"]);
+/** 부대 지휘에서 종류마다 보낼 수. 일부만 보내면 그 유닛들은 경비가 된다. */
+const SQUAD_COUNTS = [0, 1, 2, 4] as const;
+/** "본진 경비" 버튼이 세우는 자리: 본진 기지 바로 앞(기지 위에 겹치지 않고, 광물 줄까지 12칸 안이라 거기서 지킨다). */
+const GUARD_HOME_Y = 88;
 const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", stargate: "스타게이트", barracks: "배럭", factory: "팩토리", starport: "스타포트", hatchery: "해처리", hatch: "해처리" };
 /** 진행 중인 작전 한 줄 요약. */
 function opStatus(game: StwState, op: StwOp) {
@@ -396,6 +401,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   // 부대 고르기: 지도 위 "부대" 버튼으로 연 칩에서 유닛 종류를 고르면, 지도 탭이 그 종류만 옮긴다.
   const [squadOpen, setSquadOpen] = useState(false);
   // 지도 아래 상태 줄을 펼쳐 정찰 정보 전체와 최근 기록을 본다.
+  const [squadCount, setSquadCount] = useState<(typeof SQUAD_COUNTS)[number]>(0);
   const [statusOpen, setStatusOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const selectedRef = useRef<string[]>([]);
@@ -766,7 +772,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     // 부대 지휘 패널이 열려 있으면 닫아 지도를 넓힌다. 고른 부대는 건설·생산 같은 다른 조작을 하면 풀린다(issue).
     if (squadOpen) setSquadOpen(false);
     const live = selected.filter((type) => squadCounts.has(type));
-    if (live.length) issue({ type: "squadMove", units: live, y: target.y });
+    if (live.length) issue({ type: "squadMove", units: live, y: target.y, ...(squadCount ? { count: squadCount } : {}) });
     else {
       if (selected.length) setSelected([]);
       // 고른 부대가 없으면 따로 둔 부대까지 모두 본대로 합쳐 옮긴다(전체 병력이 기본).
@@ -923,12 +929,19 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   for (const unit of game.units) {
     const def = STW_UNITS[unit.type as keyof typeof STW_UNITS] as { worker?: boolean; transport?: number };
     const walking = unit.raid !== undefined && walkOpIds.has(unit.raid);
-    if (unit.side !== "player" || unit.hp <= 0 || def.worker || def.transport || unit.type === "overlord" || (unit.group !== "rally" && unit.group !== "attack" && !walking)) continue;
+    if (unit.side !== "player" || unit.hp <= 0 || def.worker || def.transport || unit.type === "overlord" || stwIsGuard(unit.squad) || (unit.group !== "rally" && unit.group !== "attack" && !walking)) continue;
     if (walking) walkingTypes.add(unit.type);
     squadCounts.set(unit.type, (squadCounts.get(unit.type) ?? 0) + 1);
   }
   const squadTypes = [...squadCounts.entries()].sort((a, b) => b[1] - a[1]);
   const squadSpots = game.sides.player.squads ?? {};
+  // 경비: 자리마다 종류별 수("본진 안쪽 경비 · 해병 2").
+  const guardPosts = Object.entries(squadSpots).filter(([key, spot]) => spot && stwIsGuard(key)).map(([key, spot]) => {
+    const members = game.units.filter((unit) => unit.side === "player" && unit.hp > 0 && unit.squad === key);
+    const byType = new Map<string, number>();
+    for (const unit of members) byType.set(unit.type, (byType.get(unit.type) ?? 0) + 1);
+    return { key, y: spot!.y, text: [...byType].map(([type, count]) => `${STW_UNITS[type as keyof typeof STW_UNITS].name} ${count}`).join(" · "), count: members.length };
+  }).filter((post) => post.count > 0);
   // 패널만 닫는다. 고른 부대는 남아 지도를 누르면 계속 그 부대가 움직인다("부대 N" 버튼에 수가 보인다).
   const closeSquad = () => setSquadOpen(false);
   const toggleSquad = (type: string) => setSelected((current) => (current.includes(type) ? current.filter((item) => item !== type) : [...current, type]));
@@ -1051,10 +1064,27 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                   </button>
                 )) : <span>옮길 전투 유닛이 없습니다</span>}
               </div>
+              <div className="stw-squad-count" role="radiogroup" aria-label="종류마다 보낼 수">
+                <span>보낼 수</span>
+                {SQUAD_COUNTS.map((count) => (
+                  <button key={count} type="button" role="radio" aria-checked={squadCount === count} className={squadCount === count ? "active" : ""} onClick={() => setSquadCount(count)}>{count ? `${count}기` : "전체"}</button>
+                ))}
+              </div>
               <div className="stw-squad-actions">
+                <button type="button" disabled={!selected.length} onClick={() => issue({ type: "squadMove", units: selected, y: GUARD_HOME_Y, guard: true, ...(squadCount ? { count: squadCount } : {}) })}>본진 경비</button>
                 <button type="button" disabled={!selected.some((type) => squadSpots[type] || walkingTypes.has(type))} onClick={() => issue({ type: "squadRelease", units: selected })}>본대로</button>
                 <button type="button" disabled={!selected.length} onClick={() => setSelected([])}>선택 해제</button>
               </div>
+              {guardPosts.length ? (
+                <ul className="stw-ops stw-guards">
+                  {guardPosts.map((post) => (
+                    <li key={post.key}>
+                      <span>{stwRallyName(post.y, game) as string} 경비 · {post.text}</span>
+                      <button type="button" onClick={() => issue({ type: "guardRelease", post: post.key })}>경비 해제</button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <div className="stw-squad-actions two">
                 <button type="button" disabled={!selected.length} onClick={() => { issue({ type: "infiltrate", units: selected, base: "main" }); setSelected([]); }}>본진 침투</button>
                 <button type="button" disabled={!selected.length} onClick={() => { issue({ type: "infiltrate", units: selected, base: "natural" }); setSelected([]); }}>앞마당 침투</button>
@@ -1069,7 +1099,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                   ))}
                 </ul>
               ) : null}
-              <p className="stw-squad-hint">그 종류의 새 유닛도 그 부대로 갑니다. 지도를 누르면 고른 부대만 그곳까지 싸우며 가서 머뭅니다. 적 본진을 누르면 그 기지를 부수러 갑니다(메딕처럼 무기 없는 유닛만 고르면 적 본진 바로 앞에 섭니다). 침투는 고른 부대가 싸우지 않고 가장자리를 따라 적 광물 줄까지 걸어가 일꾼을 칩니다. 닿은 뒤에는 스스로 물러나지 않고 일꾼이 없으면 기지를 치며, “지금 회수”를 눌러야 걸어서 돌아옵니다. 침투 중에도 칩을 골라 지도를 누르면(뒤쪽은 후퇴) 침투를 멈추고 그 명령을 따릅니다. 따로 옮기는 부대는 길을 막는 아군을 비키게 하며 지나갑니다.</p>
+              <p className="stw-squad-hint">“보낼 수”로 일부만 보내면 그 유닛들은 경비가 되어, 본대 지도 탭에 합쳐지지 않고 “경비 해제”를 누를 때까지 그 자리를 지킵니다. “본진 경비”는 본진 기지 바로 앞에 세워 광물 줄을 지킵니다. 전체로 보낸 종류는 새 유닛도 그 부대로 갑니다. 지도를 누르면 고른 부대만 그곳까지 싸우며 가서 머뭅니다. 적 본진을 누르면 그 기지를 부수러 갑니다(메딕처럼 무기 없는 유닛만 고르면 적 본진 바로 앞에 섭니다). 침투는 고른 부대가 싸우지 않고 가장자리를 따라 적 광물 줄까지 걸어가 일꾼을 칩니다. 닿은 뒤에는 스스로 물러나지 않고 일꾼이 없으면 기지를 치며, “지금 회수”를 눌러야 걸어서 돌아옵니다. 침투 중에도 칩을 골라 지도를 누르면(뒤쪽은 후퇴) 침투를 멈추고 그 명령을 따릅니다. 따로 옮기는 부대는 길을 막는 아군을 비키게 하며 지나갑니다.</p>
             </div>
           ) : (
             <div className="stw-panel-body" key={tab}>
