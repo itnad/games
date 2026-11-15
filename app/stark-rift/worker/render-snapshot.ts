@@ -51,6 +51,7 @@ export type RenderEntity = {
   auraCloaked?: boolean;
   stasisTicks?: number;
   recallTicks?: number;
+  stasisAutocast?: boolean;
   energy?: number;
   maxEnergy?: number;
   unitMorph?: { remainingTicks: number; totalTicks: number };
@@ -120,6 +121,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         auraCloaked: optional(boolean),
         stasisTicks: optional(integer(1, 873)),
         recallTicks: optional(integer(1, 18)),
+        stasisAutocast: optional(boolean),
         energy: optional(integer(0, 200)),
         maxEnergy: optional(integer(200, 200)),
         unitMorph: optional(object({ remainingTicks: integer(1, 250), totalTicks: integer(250, 250) })),
@@ -154,6 +156,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
     ),
   }),
   (snapshot) =>
+    snapshot.entities.every(e=>e.stasisAutocast === undefined || e.owner === snapshot.viewerPlayerId && e.definitionId === "protoss-arbiter") &&
     (snapshot.spellEffects ?? []).every(e => e.tick <= snapshot.tick && snapshot.tick-e.tick <= 20 && e.x < snapshot.widthTiles*256 && e.y < snapshot.heightTiles*256 && snapshot.visibility[Math.floor(e.y/256)*snapshot.widthTiles+Math.floor(e.x/256)] === 2) &&
     new Set((snapshot.spellEffects ?? []).map(e => e.id)).size === (snapshot.spellEffects ?? []).length &&
     (snapshot.groundWaves ?? []).every((w) => w.x < snapshot.widthTiles * 256 && w.y < snapshot.heightTiles * 256 && snapshot.visibility[Math.floor(w.y / 256) * snapshot.widthTiles + Math.floor(w.x / 256)] === 2) &&
@@ -292,6 +295,7 @@ export function createRenderSnapshot(
       ...(isBurrowed(state, s.id[i]) ? { burrowed: true } : {}),
       ...(state.economy.enabled ? energyView(state, s.id[i]) : {}),
       ...(stasisOf(state,s.id[i]) ? { stasisTicks: stasisOf(state,s.id[i])!.expiresTick-state.tick } : {}),
+      ...(s.owner[i] === viewer && s.definitionId[i] === "protoss-arbiter" ? { stasisAutocast: !!state.autocast?.records.some(r => r.entityId === s.id[i]) } : {}),
       ...(recallOf(state,s.id[i]) ? { recallTicks: recallOf(state,s.id[i])!.remainingTicks } : {}),
       ...(coveredByArbiter(state, i) ? { auraCloaked: true } : {}),
       ...(coveredByArbiter(state, i) || permanentCloak(s.definitionId[i]) || activeCloak(state, s.id[i]) ? { cloaked: true } : {}),
