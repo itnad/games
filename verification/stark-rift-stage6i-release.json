@@ -107,6 +107,22 @@
     "Chromium SwiftShader with native touch emulation is not physical Android/iOS or hardware GPU certification. The prior Stage6H source/QA backup was also recovered and CRC-verified this turn."
   ],
   "localBackupZip": {
-    "status": "pendingAssembly"
+    "status": "verified",
+    "archives": [
+      {
+        "path": "/workspace/library-files/stark-rift-energy-source-and-qa.zip",
+        "bytes": 32788721,
+        "files": 528,
+        "sha256": "69dfed7d259a43d75b69877afafaf023cf2f5c14d85bf6f7b189b41a11869495",
+        "crcVerified": true
+      },
+      {
+        "path": "/workspace/library-files/stark-rift-energy-qa.zip",
+        "bytes": 2627149,
+        "files": 160,
+        "sha256": "c5339823df8c7013b40c548ee7b5aba56f95df012f8c5755b55a2c5be8fcffff",
+        "crcVerified": true
+      }
+    ]
   }
 }
