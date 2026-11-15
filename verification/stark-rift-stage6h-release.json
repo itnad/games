@@ -1,0 +1,111 @@
+{
+  "sourceCommit": "b3724d36f427eef021267b557f641bb2599761f6",
+  "sourceTree": "36574088d6a0d4b48f17fbba2726bcc740c45f26",
+  "productionUrl": "https://games.itnadcom.chatgpt.site/stark-rift-dev",
+  "feature": "Stage6H opt-in Stasis autocast: visible/detected enemy pairs, no affected allies, no automatic approach, manual command priority, per-unit preferences and control-group inheritance, format17 migration",
+  "checks": {
+    "starkRift": 508,
+    "sharedHtml": 233,
+    "haeru": 28,
+    "baksal": 28,
+    "labBuild": "passed",
+    "movementBenchmark": "passed",
+    "browserCases": 24
+  },
+  "browserReports": [
+    {
+      "environment": "local",
+      "scope": "autocast touch, long press, manual targeting, own settings and group restore, reconnaissance, single-caster payment, portrait only",
+      "cases": 2,
+      "passed": 2
+    },
+    {
+      "environment": "local",
+      "scope": "unmodified production saves from formats12 through16, including pending Recall and Stasis timers, cargo, cloak, siege and morph",
+      "cases": 8,
+      "passed": 8
+    },
+    {
+      "environment": "local",
+      "scope": "manual Recall/Stasis, exact timer restore, full873-tick thaw and subsequent movement at360px; second390px portrait case",
+      "cases": 2,
+      "passed": 2
+    },
+    {
+      "environment": "production261",
+      "scope": "autocast touch, long press, manual targeting, own settings and group restore, reconnaissance, single-caster payment, portrait only",
+      "cases": 2,
+      "passed": 2
+    },
+    {
+      "environment": "production261",
+      "scope": "unmodified production saves from formats12 through16, including pending Recall and Stasis timers, cargo, cloak, siege and morph",
+      "cases": 8,
+      "passed": 8
+    },
+    {
+      "environment": "production261",
+      "scope": "manual Recall/Stasis, exact timer restore, full873-tick thaw and subsequent movement at360px; second390px portrait case",
+      "cases": 2,
+      "passed": 2
+    }
+  ],
+  "ci": {
+    "id": 43660381203,
+    "head_sha": "b3724d36f427eef021267b557f641bb2599761f6",
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/itnad/games/actions/runs/43660381203",
+    "created_at": "2026-11-15T00:52:59Z",
+    "updated_at": "2026-11-15T00:56:20Z"
+  },
+  "savedVersion": {
+    "id": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b~appgver_7af87bc008e08191af6854953a6e45ad",
+    "project_id": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b",
+    "version_number": 261,
+    "source": {
+      "commit_sha": "b3724d36f427eef021267b557f641bb2599761f6"
+    },
+    "archive_storage": {
+      "archive_format": "tar",
+      "sediment_file_id": "file_000000002c8882068cafeda8c29e7fe1",
+      "content_hash": "sha256:2acafaf3fdfb6d8dd48b9d11132cbbce71c02aefa13e9bdb3cbe236f5eb79394",
+      "size_bytes": 41840640,
+      "file_count": 206
+    },
+    "screenshot_url": null,
+    "deployment_id": null
+  },
+  "deployment": {
+    "id": "appgdep_6af902e60464819188b94a6a30aa404b",
+    "project_id": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b",
+    "title": "paperoid — AI 보드게임 아지트",
+    "version_id": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b~appgver_7af87bc008e08191af6854953a6e45ad",
+    "type": "publish",
+    "status": "succeeded",
+    "url": "https://games.itnadcom.chatgpt.site",
+    "has_mcp": false,
+    "screenshot_asset_pointer": null,
+    "provider_deployment_id": "itnadcom--games",
+    "failure_message": null,
+    "env_set_revision": 0,
+    "updated_at": "2026-11-15T00:55:18.050825+00:00"
+  },
+  "sourcePush": {
+    "verified": true,
+    "previous": "096bf756bffc2013a5e45ffc413eb41e0966c7be",
+    "head": "b3724d36f427eef021267b557f641bb2599761f6"
+  },
+  "sourceArchiveUrl": "https://github.com/itnad/games/archive/b3724d36f427eef021267b557f641bb2599761f6.zip",
+  "limits": "Chromium SwiftShader with native touch emulation; not physical Android/iOS or hardware GPU certification.",
+  "localBackupZip": {
+    "status": "unverified",
+    "reason": "After all24 browser cases passed, the execution transport disconnected before backup assembly returned. The selected environment became unavailable. Do not assume local ZIP files exist."
+  },
+  "notes": [
+    "The concurrent categorized homepage commit b51b50c8 was preserved; an outdated common-test expectation was aligned to category preview selection followed by the full finder. Final233 shared tests and final GitHub CI pass.",
+    "The initial full-duration browser assertion sampled from a late checkpoint. Its failure snapshot was903ticks after the cast, already past the required873. The final harness measures from the cast tick; both final local and production cases pass. Initial failure evidence remains in the unavailable workspace.",
+    "Deployment261 terminal result succeeded, and production /api/version returned b3724d36f427 before final live browser QA. All206 deployment files were hash-compared to the clean committed-source build.",
+    "Code and this verification receipt are retained remotely, independent of the unavailable execution workspace."
+  ]
+}
