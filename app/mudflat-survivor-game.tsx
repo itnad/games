@@ -678,7 +678,7 @@ function drawGuideDragHand(context: CanvasRenderingContext2D, from: Point, to: P
   drawCursorHandIcon(context, current, angle, alpha);
 }
 
-function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, height: number, runtime: Runtime, screenPoint: (point: Point) => Point, actionTime: number) {
+function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, height: number, runtime: Runtime, screenPoint: (point: Point) => Point, actionTime: number, inputActive = false) {
   const guide = runtime.firstMoveGuide;
   if (!guide || guide.step === "done") return;
   const guideAlpha = Math.min(1, runtime.tutorialElapsed * 2.4);
@@ -687,7 +687,7 @@ function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, he
   const cardLeft = width / 2 - cardWidth / 2;
   const cardTop = Math.min(height - 174, Math.max(86, height * .13));
   const steps: Record<Exclude<FirstMoveGuideStep, "done">, { step: string; title: string; body: string }> = {
-    move: { step: "1 / 4", title: "목표 지점까지 드래그해 이동해보세요", body: "튜토리얼 동안 1스테이지 시간은 줄지 않습니다." },
+    move: { step: "1 / 4", title: "빈 곳을 누른 채 이동 방향으로 밀어보세요", body: "캐릭터를 직접 누를 필요가 없습니다." },
     catch: { step: "2 / 4", title: "집게 끝으로 연습용 게를 건드리세요", body: "캐릭터 몸이 아니라 집게 끝이 닿아야 채집됩니다." },
     dig: { step: "3 / 4", title: "구멍 위에 머물러 호미질하세요", body: "완성되면 조개가 떠오르고, 호미질 레벨이 높을수록 좋은 결과 확률이 올라갑니다." },
     avoid: { step: "4 / 4", title: "돌을 피해 안전 지점까지 이동하세요", body: "돌에 부딪히면 체력이 줄어드니 옆으로 돌아가세요." },
@@ -697,9 +697,23 @@ function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, he
   context.globalAlpha = guideAlpha;
   if (guide.step === "move") {
     const target = screenPoint(guide.moveTarget);
+    const directionX = target.x - center.x;
+    const directionY = target.y - center.y;
+    const directionLength = Math.hypot(directionX, directionY) || 1;
+    const handFrom = {
+      x: Math.max(58, Math.min(width - 58, center.x - 130)),
+      y: Math.max(cardTop + 128, Math.min(height - 104, center.y + 132)),
+    };
+    const handTo = {
+      x: handFrom.x + directionX / directionLength * 72,
+      y: handFrom.y + directionY / directionLength * 72,
+    };
     drawGuideArrow(context, center, target, actionTime);
     drawGuideMarker(context, target, FIRST_MOVE_GUIDE_TARGET_RADIUS, "이동 목표", "#ffd873", actionTime);
-    drawGuideDragHand(context, { x: center.x, y: center.y + 34 }, target, actionTime);
+    if (!inputActive) {
+      drawGuideMarker(context, handFrom, 29, "빈 곳 어디서든", "#fff0b7", actionTime);
+      drawGuideDragHand(context, handFrom, handTo, actionTime);
+    }
   } else if (guide.step === "catch") {
     const creature = runtime.creatures.find((item) => item.id === guide.catchCreatureId);
     const target = screenPoint(creature ?? guide.catchPoint);
@@ -729,7 +743,7 @@ function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, he
   roundedRect(context, cardLeft, cardTop, cardWidth, 78, 18); context.fill();
   context.strokeStyle = "rgba(255,220,139,.5)"; context.lineWidth = 1.4; context.stroke();
   context.fillStyle = "#ffcf78"; context.font = "900 11px system-ui"; context.textAlign = "left";
-  context.fillText(`직접 해보는 첫 움직임 · ${current.step}`, cardLeft + 18, cardTop + 21);
+  context.fillText(`직접 해보는 첫 움직임 · ${current.step} · 시간 미차감`, cardLeft + 18, cardTop + 21);
   context.fillStyle = "#fff8e9"; context.font = "900 15px system-ui"; context.fillText(current.title, cardLeft + 18, cardTop + 45);
   context.fillStyle = "#d9d2c4"; context.font = "800 12px system-ui"; context.fillText(current.body, cardLeft + 18, cardTop + 64);
   context.restore();
@@ -3429,7 +3443,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.fillStyle = "#fff8e9"; context.font = "900 23px system-ui"; context.fillText(stageProfile.name, 38, height - 94);
         context.fillStyle = "#d8d3c6"; context.font = "700 13px system-ui"; context.fillText(stageProfile.subtitle, 38, height - 67); context.restore();
       }
-      drawFirstMoveGuide(context, width, height, runtime, screenPoint, actionTime);
+      drawFirstMoveGuide(context, width, height, runtime, screenPoint, actionTime, joystickRef.current.pointerId >= 0);
       if (runtime.playerMessageLife > 0) {
         const message = runtime.playerMessage;
         const isCatchFullMessage = message === CATCH_FULL_MESSAGE;

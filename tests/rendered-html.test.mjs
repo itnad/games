@@ -1826,7 +1826,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-tutorial-skip\{/);
   assert.match(styles, /\.ms-tutorial-skip\{[^}]*bottom:54px;[^}]*color:#4d3824;[^}]*background:linear-gradient\(135deg,#fff8df,#f2d99f\)/);
   assert.match(source, /직접 해보는 첫 움직임/);
-  assert.match(source, /목표 지점까지 드래그해 이동해보세요/);
+  assert.match(source, /시간 미차감/);
+  assert.match(source, /빈 곳을 누른 채 이동 방향으로 밀어보세요/);
+  assert.match(source, /캐릭터를 직접 누를 필요가 없습니다/);
   assert.match(source, /집게 끝으로 연습용 게를 건드리세요/);
   assert.match(source, /drawGuideDottedTipArrow\(context, tip, target, actionTime\)/);
   assert.doesNotMatch(source, /context\.arc\(tip\.x, tip\.y, 17/);
@@ -1839,8 +1841,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const cycleSeconds = 2\.25/);
   assert.match(source, /const current = \{ x: from\.x \+ \(to\.x - from\.x\) \* dragProgress, y: from\.y \+ \(to\.y - from\.y\) \* dragProgress \}/);
   assert.match(source, /drawCursorHandIcon\(context, current, angle, alpha\)/);
-  assert.match(source, /drawGuideDragHand\(context, \{ x: center\.x, y: center\.y \+ 34 \}, target, actionTime\)/);
-  assert.match(source, /drawFirstMoveGuide\(context, width, height, runtime, screenPoint, actionTime\)/);
+  assert.match(source, /const handFrom = \{/);
+  assert.match(source, /x: handFrom\.x \+ directionX \/ directionLength \* 72/);
+  assert.match(source, /drawGuideMarker\(context, handFrom, 29, "빈 곳 어디서든"/);
+  assert.match(source, /if \(!inputActive\) \{[\s\S]*?drawGuideDragHand\(context, handFrom, handTo, actionTime\)/);
+  assert.match(source, /drawFirstMoveGuide\(context, width, height, runtime, screenPoint, actionTime, joystickRef\.current\.pointerId >= 0\)/);
   assert.doesNotMatch(source, /fillText\("손"/);
   const characterLayer = source.slice(source.indexOf("const lumiTongReach"), source.indexOf("if (runtime.stage === GAEBUL_STAGE"));
   assert.ok(characterLayer.indexOf("drawGatherer") < characterLayer.indexOf("for (const reveal of runtime.clamReveals)"), "clam reveal rewards draw above the gatherer");
