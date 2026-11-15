@@ -4876,6 +4876,117 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
 .janggi-setup-picker button.active strong { color: #0d4d38; }
 .janggi-setup-picker button.active span { color: #194f3d; }
 
+.janggi-bigjang-setting {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.25rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(159, 224, 195, .28);
+  border-radius: 1rem;
+  background: linear-gradient(145deg, rgba(12, 48, 38, .76), rgba(20, 61, 49, .5));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+
+.janggi-bigjang-setting > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.janggi-bigjang-setting > header > div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.janggi-bigjang-setting > header > div > span {
+  color: #9fc9b6;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.janggi-bigjang-setting > header strong {
+  color: #fffdf7;
+  font-size: 1rem;
+}
+
+.janggi-rule-state {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  color: #183c31;
+  background: #aee5c9;
+  font-size: 0.75rem;
+  font-weight: 950;
+}
+
+.janggi-rule-state.disabled {
+  color: #e7e1d9;
+  background: #4d5d56;
+}
+
+.janggi-rule-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.janggi-setup-picker .janggi-rule-options button {
+  min-height: 3.5rem;
+  padding: 0.55rem 0.65rem;
+  border-color: rgba(255, 255, 255, .13);
+  background: rgba(246, 243, 232, .09);
+  text-align: left;
+}
+
+.janggi-setup-picker .janggi-rule-options button strong {
+  margin-bottom: 0.14rem;
+  color: #f3f0e8;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.janggi-setup-picker .janggi-rule-options button span {
+  color: #b9c8c0;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.janggi-setup-picker .janggi-rule-options button.active {
+  border-color: #a6dfc2;
+  background: #f6f0df;
+  box-shadow: 0 0 0 2px rgba(126, 211, 173, .18);
+}
+
+.janggi-setup-picker .janggi-rule-options button.active strong { color: #123e31; }
+.janggi-setup-picker .janggi-rule-options button.active span { color: #365a4c; }
+
+.janggi-bigjang-explanation {
+  padding: 0.72rem 0.8rem;
+  border-left: 3px solid #e8c66c;
+  border-radius: 0.35rem 0.7rem 0.7rem 0.35rem;
+  background: rgba(0, 0, 0, .16);
+}
+
+.janggi-bigjang-explanation > strong {
+  display: block;
+  margin-bottom: 0.34rem;
+  color: #f5d886;
+  font-size: 0.82rem;
+}
+
+.janggi-bigjang-explanation p {
+  margin: 0.23rem 0 0;
+  color: #d8ded9;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.48;
+}
+
+.janggi-bigjang-explanation b { color: #fff4c9; }
+
 .janggi-setup-picker .janggi-start-button {
   grid-column: 1 / -1;
   justify-self: center;
@@ -6906,6 +7017,24 @@ footer { font-size: 15px; }
   .janggi-setup-picker button span {
     font-size: 16px;
   }
+
+  .janggi-bigjang-setting {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .janggi-bigjang-setting > header strong { font-size: 18px; }
+  .janggi-rule-state { font-size: 13px; }
+
+  .janggi-setup-picker .janggi-rule-options button {
+    min-height: 68px;
+    padding: 10px;
+  }
+
+  .janggi-setup-picker .janggi-rule-options button strong { font-size: 16px; }
+  .janggi-setup-picker .janggi-rule-options button span { font-size: 13px; }
+  .janggi-bigjang-explanation > strong { font-size: 15px; }
+  .janggi-bigjang-explanation p { font-size: 14px; line-height: 1.55; }
 
   .janggi-piece {
     border-width: 2px;

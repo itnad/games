@@ -3788,3 +3788,20 @@ test("keeps the Stark Rift playtest private from the home footer", async () => {
   assert.doesNotMatch(home, /href="\/stark-rift-dev"/);
   assert.doesNotMatch(home, /스타크 리프트 개발 테스트/);
 });
+
+test("lets players choose and understand the Janggi bigjang rule", async () => {
+  const source = await readFile(new URL("../app/janggi-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(source, /type BigjangRule = "enabled" \| "disabled"/);
+  assert.match(source, /useState<BigjangRule>\("disabled"\)/);
+  assert.match(source, /빅장 사용 여부/);
+  assert.match(source, /두 궁이 같은 세로줄에서 사이에 다른 기물 없이 서로 마주 보는 상황입니다/);
+  assert.match(source, /빅장을 받은 쪽이 한 수 응수합니다/);
+  assert.match(source, /사용 안 함:[\s\S]*빅장으로 판정하지 않고/);
+  assert.match(source, /bigjangRule === "enabled" && bigjangResponder === "cho" && isBigjang\(next\)/);
+  assert.match(source, /chooseAiMove\(board, respondingToBigjang\)/);
+  assert.doesNotMatch(source, /AI가 빅장 무승부를 청구했습니다/);
+  assert.match(styles, /\.janggi-bigjang-setting/);
+  assert.match(styles, /\.janggi-bigjang-explanation/);
+});
