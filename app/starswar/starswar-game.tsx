@@ -223,6 +223,22 @@ const RACE_MENU: Record<StwRaceId, { howto: [string, string][] }> = {
   },
 };
 
+/** 지금 챙길 것: 쌓인 자원, 노는 생산 건물, 인구 막힘, 멈춘 일꾼 생산. 최대 둘. */
+function statusAdvice(game: StwState): string[] {
+  const side = game.sides.player;
+  const race = STW_RACES[side.race as StwRaceId];
+  const items: string[] = [];
+  const supply = stwSupply(game, "player") as { used: number; cap: number };
+  if (supply.used >= supply.cap && supply.cap < 200) items.push(`인구가 찼습니다(${supply.used}/${supply.cap}) · ${STW_BUILDINGS[race.supply as StwBuildingType].name} 필요`);
+  const producers = game.buildings.filter((building) => building.side === "player" && stwDone(building) && (STW_PRODUCERS as string[]).includes(building.type));
+  const idle = producers.filter((building) => !building.current && building.blocked === "정지").length;
+  if (idle) items.push(`쉬는 생산 건물 ${idle}개 · 생산 탭에서 유닛을 고르세요`);
+  if (side.minerals >= 400) items.push(`광물 ${Math.floor(side.minerals)} 쌓임 · 생산 건물을 늘리세요`);
+  const bases = stwOwnBuildings(game, "player", race.base, { doneOnly: true }) as { queue: unknown[] }[];
+  if (bases.length && bases.every((base) => !base.queue.length) && side.probes < bases.length * 20) items.push(`일꾼 생산이 멈춰 있습니다(${side.probes}기)`);
+  return items.slice(0, 2);
+}
+
 /** "질럿 3 · 드라군 2"처럼 0이 아닌 유닛만 나열. */
 function armyText(counts: Partial<Record<string, number>>) {
   const parts = ARMY_IDS.filter((type) => (counts[type] ?? 0) > 0).map((type) => `${STW_UNITS[type].name} ${counts[type]}`);
@@ -894,6 +910,10 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const statusLog = [...playerLog].reverse().find((entry) => entry.tone !== "danger" && game.time - entry.time < 5) ?? null;
   const intel = side.intel;
   const intelText = intel ? `적 ${stwClock(intel.time)} · ${intelSummary(intel)}` : "적 정보 없음 · 정찰 필요";
+  // 펼친 상태 줄: 정찰 정보 한 줄, 지금 챙길 것(남는 자원·노는 생산 건물·인구·일꾼), 최근 1분의 위험·경고 둘.
+  // 건설 시작·완성이나 내가 내린 명령의 되풀이처럼 이미 아는 기록은 넣지 않는다.
+  const advice = statusAdvice(game);
+  const alerts = [...playerLog].reverse().filter((entry) => (entry.tone === "danger" || entry.tone === "warn") && game.time - entry.time < 60).slice(0, 2);
   const mapScout = stwScoutCheck(game, "player") as StwCheck;
   // 부대 칩: 지금 가진 전투 유닛 종류와 수, 따로 둔 부대면 그 자리.
   // 침투 중인 유닛도 칩에 넣는다(부대 명령으로 침투를 멈추고 옮기거나 물릴 수 있게). 칩에 "침투" 표시.
@@ -997,9 +1017,11 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           </div>
           {statusOpen ? (
             <div className="stw-status-more">
-              <p>{intelText}</p>
+              {statusLog ? <p>{intelText}</p> : null}
               <ul>
-                {playerLog.slice(-6).reverse().map((entry) => <li key={entry.id} className={`tone-${entry.tone}`}><time>{stwClock(entry.time)}</time>{entry.text}</li>)}
+                {advice.map((text) => <li key={text} className="tone-advice">{text}</li>)}
+                {alerts.map((entry) => <li key={entry.id} className={`tone-${entry.tone}`}><time>{stwClock(entry.time)}</time>{entry.text}</li>)}
+                {!advice.length && !alerts.length ? <li className="tone-good">챙길 것 없음 · 최근 1분 경고 없음</li> : null}
               </ul>
             </div>
           ) : null}

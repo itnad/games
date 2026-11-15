@@ -899,6 +899,10 @@ test("keeps StarDraft in its own app/starswar folder as a public mobile game at 
   assert.match(gameSource, /DIFFICULTY_IDS: StwDifficulty\[\] = \["beginner", "easy", "normal", "hard"/);
   // 전적 옆 경기 기록 초기화: 한 번 더 눌러야 전적과 최단 승리를 지운다.
   assert.match(gameSource, /경기 기록 초기화/);
+  // 펼친 상태 줄은 기록 전체가 아니라 지금 챙길 것과 최근 경고만 짧게 보인다. 출격 버튼은 없다(지도 탭이 적 본진·적 건물을 누를 때만 공격).
+  assert.match(gameSource, /function statusAdvice\(game: StwState\)/);
+  assert.doesNotMatch(gameSource, /playerLog\.slice\(-6\)/);
+  assert.doesNotMatch(gameSource, /className="stw-attack"|이 부대 출격/);
   assert.match(gameSource, /const empty: BattleRecord = \{ wins: 0, losses: 0, best: \{\} \};\s*writeRecord\(empty\)/);
   assert.match(gameSource, /onClick=\{\(\) => pickDifficulty\(id\)\}/);
   const starswarCss = await readFile(new URL("../app/starswar/starswar.css", import.meta.url), "utf8");

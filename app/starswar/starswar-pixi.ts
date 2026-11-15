@@ -139,6 +139,8 @@ export class StwPixiRenderer {
   private ground!: Sprite;
   private resources!: Container;
   private readonly terrains = new Map<string, Texture>();
+  /** 지도 바깥 여백: 바닥 그림을 경계에서 뒤집어 이어 붙이고 조금 어둡게(맨 아래 광물 줄까지 보이게 둔 여백이 까맣게 보이던 문제). */
+  private readonly bleeds: Sprite[] = [];
   private map = STW_MAPS.plain as MapData;
   private mapId = "";
   private fogAt = -1;
@@ -154,6 +156,12 @@ export class StwPixiRenderer {
     ground.height = STW_LANE_LENGTH;
     this.ground = ground;
     this.terrains.set("plain", this.tex.terrain);
+    for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) {
+      const bleed = new PIXI.Sprite(this.tex.terrain);
+      bleed.tint = 0x9c8f7c;
+      bleed.label = `${dx},${dy}`;
+      this.bleeds.push(bleed);
+    }
     const resources = new PIXI.Container();
     this.resources = resources;
     this.steamLayer = new PIXI.Graphics();
@@ -178,7 +186,7 @@ export class StwPixiRenderer {
     this.flagScale = this.rallyFlag.scale.x;
     this.workerLayer = new PIXI.Container();
     this.repairLayer = new PIXI.Container();
-    this.world.addChild(ground, resources, this.steamLayer, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.tentacleLayer, this.rallyFlag, this.unitLayer, this.repairLayer, this.interceptorLayer, this.zoneLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
+    this.world.addChild(...this.bleeds, ground, resources, this.steamLayer, this.decals, this.underlay, this.buildingLayer, this.workerLayer, this.tentacleLayer, this.rallyFlag, this.unitLayer, this.repairLayer, this.interceptorLayer, this.zoneLayer, this.beamLayer, this.stormLayer, this.fxLayer, this.fog);
     this.overlay = new PIXI.Container();
     this.bars = new PIXI.Graphics();
     this.overlay.addChild(this.bars);
@@ -217,6 +225,13 @@ export class StwPixiRenderer {
     this.ground.texture = texture;
     this.ground.width = STW_LANE_WIDTH;
     this.ground.height = STW_LANE_LENGTH;
+    for (const bleed of this.bleeds) {
+      const [dx, dy] = bleed.label.split(",").map(Number);
+      bleed.texture = texture;
+      // 옆 칸은 경계에서 거울처럼 뒤집는다: 음수 배율이면 그 위치에서 반대쪽으로 그려진다.
+      bleed.scale.set((dx ? -1 : 1) * (STW_LANE_WIDTH / texture.width), (dy ? -1 : 1) * (STW_LANE_LENGTH / texture.height));
+      bleed.position.set(dx === 1 ? STW_LANE_WIDTH * 2 : 0, dy === 1 ? STW_LANE_LENGTH * 2 : 0);
+    }
     for (const child of this.resources.removeChildren()) child.destroy();
     const layout = this.map.layout;
     for (const side of ["player", "enemy"] as StwSide[]) {
