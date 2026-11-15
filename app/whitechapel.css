@@ -567,3 +567,7 @@
   .wc-police-list { grid-template-columns: 1fr; }
   .wc-board-toolbar > span { display: none; }
 }
+
+/* Rules remain readable on narrow phones. */
+.wc-rules article b { font-size: 16px; }
+.wc-rules article p { margin-top: 5px; color: #574f43; font-size: 14px; line-height: 1.7; word-break: keep-all; }

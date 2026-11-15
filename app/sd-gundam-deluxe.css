@@ -9,6 +9,7 @@
     radial-gradient(circle at 22% 78%, rgba(221, 70, 78, .15), transparent 30rem),
     #07111d;
 }
+
 .sd-topbar { color: white; border-bottom-color: #1e3447; background: rgba(6, 16, 27, .96); }
 .sd-topbar .brand-mark i { background: var(--sd-red); }
 .sd-topbar .back-button, .sd-topbar .exit-button { color: #eef5fa; border-color: #294359; }
@@ -185,3 +186,8 @@
   .sd-fortress-actions { align-items: stretch; flex-wrap: wrap; }
   .sd-fortress-actions p { flex-basis: 100%; }
 }
+
+/* Rules remain readable on narrow phones. */
+.sd-rule-list strong { font-size: 16px; }
+.sd-rule-list p { margin-top: 5px; color: #b6c8d3; font-size: 14px; line-height: 1.7; word-break: keep-all; }
+.sd-rule-note { color: #b5c6d1; border-color: #3d6078; font-size: 14px; line-height: 1.65; word-break: keep-all; }

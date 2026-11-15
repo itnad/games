@@ -619,6 +619,23 @@ test("provides a complete objective and victory guide for every game", async () 
   const globalStyles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(globalStyles, /\.game-objective-scroll\s*\{[\s\S]*?align-items:\s*safe center;[\s\S]*?overflow-y:\s*auto;[\s\S]*?overscroll-behavior:\s*contain;[\s\S]*?touch-action:\s*pan-y;/);
   assert.match(globalStyles, /html\.paperoid-guide-open,[\s\S]*?overflow:\s*hidden;/);
+  assert.match(globalStyles, /\.game-objective-summary\s*\{[\s\S]*?font-size:\s*16px;[\s\S]*?line-height:\s*1\.72;/);
+  assert.match(globalStyles, /\.game-objective-cards p\s*\{[\s\S]*?font-size:\s*15px;[\s\S]*?line-height:\s*1\.72;/);
+  assert.match(globalStyles, /@media \(max-width: 640px\)[\s\S]*?\.game-objective-cards p\s*\{\s*font-size:\s*16px;/);
+  const ruleStyles = await Promise.all([
+    "camel-up.css",
+    "cashflow-escape.css",
+    "sd-gundam-deluxe.css",
+    "seven-wonders.css",
+    "tichu.css",
+    "scotland-yard.css",
+    "whitechapel.css",
+  ].map((file) => readFile(new URL(`../app/${file}`, import.meta.url), "utf8")));
+  for (const stylesheet of ruleStyles) {
+    assert.match(stylesheet, /Rules remain readable on narrow phones/);
+    assert.match(stylesheet, /font-size:\s*14px/);
+    assert.match(stylesheet, /line-height:\s*1\.7/);
+  }
   assert.deepEqual(GAME_OBJECTIVES["mudflat-survivor"].steps.map((step) => step.title), ["이동", "채집과 위험", "베이스캠프 복귀"]);
   assert.match(GAME_OBJECTIVES["mudflat-survivor"].summary, /4분 동안 채집/);
   assert.match(GAME_OBJECTIVES["mudflat-survivor"].victory, /베이스캠프에 도착해야 성공/);
@@ -2107,6 +2124,8 @@ test("shows home games as a compact grid and keeps popular recommendations disti
   assert.match(styles, /\.home-category-preview-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
   assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.game-shelf-track\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.home-category-preview-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(styles, /\.shelf-game-card\s*\{[\s\S]*?height:\s*78px;/);
+  assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.shelf-game-card\s*\{[\s\S]*?height:\s*68px;/);
 });
 
 test("balances distinct AI personalities automatically in Seven Civilizations", async () => {

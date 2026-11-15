@@ -760,3 +760,7 @@
   .sy-tickets { grid-column: 2 / 3; }
   .sy-lobby-copy h1 { font-size: 34px; }
 }
+
+/* Rules remain readable on narrow phones. */
+.sy-rules-modal article strong { font-size: 16px; }
+.sy-rules-modal article p { color: #bdc6cd; font-size: 14px; line-height: 1.7; word-break: keep-all; }
