@@ -794,7 +794,8 @@ test("separates traditional classics from the strategy category", async () => {
   for (const id of classicGames) {
     assert.match(pageSource, new RegExp(`id: "${id}",[\\s\\S]*?category: "고전게임"`));
   }
-  assert.match(pageSource, /CATEGORIES\.map\(\(item\) => \([\s\S]*?onClick=\{\(\) => openFinder\(item\)\}/);
+  assert.match(pageSource, /CATEGORIES\.map\(\(item\) => \([\s\S]*?onClick=\{\(\) => setHomeCategory\(item\)\}/);
+  assert.match(pageSource, /onClick=\{\(\) => openFinder\(homeCategory\)\}/);
 });
 
 test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
