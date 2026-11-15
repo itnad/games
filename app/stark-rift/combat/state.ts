@@ -42,7 +42,8 @@ export const CLOAK_COMBAT_RULES_VERSION = "cloak-combat-" + checksum({ base: SPE
 export const SIEGE_COMBAT_RULES_VERSION = "siege-combat-" + checksum({ base: CLOAK_COMBAT_RULES_VERSION, siege: SIEGE_RULES_VERSION });
 export const LURKER_COMBAT_RULES_VERSION = "lurker-combat-" + checksum({ base: SIEGE_COMBAT_RULES_VERSION, lurker: LURKER_RULES_VERSION });
 export const ARBITER_COMBAT_RULES_VERSION = "arbiter-combat-" + checksum({ base: LURKER_COMBAT_RULES_VERSION, arbiter: ARBITER_RULES_VERSION, vision: ARBITER_VISION_RULES_VERSION });
-export const COMBAT_RULES_VERSION = "spells-combat-" + checksum({ base: ARBITER_COMBAT_RULES_VERSION, spells: SPELLS_RULES_VERSION, vision: VISION_RULES_VERSION });
+export const SPELLS_COMBAT_RULES_VERSION = "spells-combat-" + checksum({ base: ARBITER_COMBAT_RULES_VERSION, spells: SPELLS_RULES_VERSION, vision: VISION_RULES_VERSION });
+export const COMBAT_RULES_VERSION = "autocast-combat-" + checksum({ base: SPELLS_COMBAT_RULES_VERSION, autocast: "stasis-visible2-no-friendly-nearest32-pairs-4casters-5ticks-manual20" });
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(

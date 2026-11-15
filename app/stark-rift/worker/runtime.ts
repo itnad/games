@@ -1,3 +1,4 @@
+import { createAutocastRules } from "../abilities/autocast-rules";
 import { createSpellsRules } from "../abilities/spells-rules";
 import { spellsFitMap } from "../abilities/spells-state";
 import { createLurkerRules } from "../abilities/lurker-rules";
@@ -138,10 +139,11 @@ export class SimulationRuntime {
       );
     };
     const defaults = createMovementRules(map, visible, combatReach);
-    const combined = createSpellsRules(map, createSpecialRules(map, createLurkerRules(createSiegeRules(createCloakRules(createBurrowRules(map, createVisionRules(
+    const spellRules = createSpellsRules(map, createSpecialRules(map, createLurkerRules(createSiegeRules(createCloakRules(createBurrowRules(map, createVisionRules(
       map,
       createCombatRules(createEconomyRules(map, defaults), visible, map),
     )))))));
+    const combined = createAutocastRules(map, spellRules);
     this.rules = {
       commands: { ...combined.commands, ...this.options.rules?.commands },
       systems: {
