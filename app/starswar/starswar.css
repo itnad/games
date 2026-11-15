@@ -67,10 +67,7 @@
 .stw-map-retry { position:absolute; z-index:12; left:50%; top:calc(50% + 24px); min-height:42px; padding:0 16px; border:1px solid #e9c77a66; border-radius:12px; color:#2a1c05; background:var(--stw-gold); font-size:14px !important; font-weight:900; transform:translateX(-50%); }
 @keyframes stw-map-loading-spin { to { transform:rotate(360deg); } }
 @media (prefers-reduced-motion:reduce) { .stw-map-loading i { animation:none; } }
-.stw-map-tools { position:absolute; left:8px; top:8px; display:flex; gap:6px; }
-.stw-map-tools button { min-height:36px; padding:0 12px; border:1px solid color-mix(in srgb,var(--stw-gold) 27%,transparent); border-radius:10px; background:color-mix(in srgb,var(--stw-bg) 85%,transparent); font-size:14px !important; font-weight:800; }
 /* 지도 위 정찰 버튼: 오른쪽 가장자리에 세로로 붙어 아군 광물 줄 높이를 따라간다(세로 위치는 그리기 루프가 transform으로 정한다). */
-.stw-map-tools button.active { color:var(--stw-on-gold); border-color:var(--stw-gold); background:var(--stw-gold); }
 /* 지도 위 부대 고르기: 도구줄 아래에 유닛 종류 칩, 고르면 동작 버튼. */
 .stw-squad-panel { display:grid; gap:8px; align-content:start; }
 .stw-squad-head { display:flex; align-items:center; gap:8px; }
@@ -476,6 +473,10 @@
 .stw-status-text.tone-order, .stw-status-more li.tone-order { border-left-color:var(--stw-blue); }
 .stw-status-text.tone-intel { border-left-color:var(--stw-gold); color:var(--stw-text); }
 .stw-status-scout { flex:0 0 auto; display:flex; gap:3px; }
+.stw-status-squad { flex:0 0 auto; height:32px; padding:0 10px; display:flex; align-items:center; gap:4px; border:1px solid color-mix(in srgb,var(--stw-gold) 45%,transparent); border-radius:9px; color:var(--stw-text); background:color-mix(in srgb,var(--stw-gold) 10%,transparent); font-size:13px !important; font-weight:900; white-space:nowrap; }
+.stw-status-squad.active { color:var(--stw-on-gold); border-color:var(--stw-gold); background:var(--stw-gold); }
+.stw-status-squad em { min-width:16px; padding:0 4px; border-radius:8px; color:var(--stw-on-gold); background:var(--stw-gold); font-size:11px; font-style:normal; line-height:16px; text-align:center; }
+.stw-status-squad.active em { color:var(--stw-gold); background:var(--stw-on-gold); }
 .stw-status-scout button { height:32px; padding:0 9px; display:flex; align-items:center; gap:4px; border:1px solid color-mix(in srgb,var(--stw-blue) 45%,transparent); border-radius:9px; color:var(--stw-text); background:color-mix(in srgb,var(--stw-blue) 10%,transparent); font-size:13px !important; font-weight:900; white-space:nowrap; }
 .stw-status-scout button:disabled { opacity:.5; }
 .stw-status-scout .stw-status-undo { width:30px; padding:0; justify-content:center; border-color:var(--stw-gold); color:var(--stw-on-gold); background:var(--stw-gold); }

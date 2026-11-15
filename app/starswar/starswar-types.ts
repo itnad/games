@@ -41,6 +41,8 @@ export type StwUnit = {
   /** 따로 옮기는 부대: 길을 막는 아군이 비켜 준다. */
   passing?: boolean;
   targetId: number | null;
+  /** 마지막으로 맞은 경기 시각(초). */
+  lastHit: number;
   sieged?: boolean;
   siegeUntil?: number;
   healTargetId?: number | null;
@@ -103,6 +105,8 @@ export type StwBuilding = {
   research: { id: StwResearchId; remaining: number } | null;
   blocked: string | null;
   targetId: number | null;
+  /** 마지막으로 맞은 경기 시각(초). */
+  lastHit: number;
 };
 
 export type StwEffect = { kind: "slash" | "plasma" | "photon" | "shock" | "scarab" | "warp" | "death" | "collapse" | "bullet" | "flame" | "grenade" | "tankshot" | "shell" | "stim" | "scan" | "bite" | "spine" | "spines" | "tentacle" | "laser" | "neutron" | "glaive" | "flak" | "sporeShot" | "burst"
@@ -240,7 +244,7 @@ export type StwCommand =
   | { type: "drop"; mission?: StwDropMission; target?: StwDropTarget; repeat?: boolean; sync?: boolean }
   | { type: "dropPlan"; mission?: StwDropMission; target?: StwDropTarget; repeat?: boolean; sync?: boolean }
   | { type: "rally"; point: StwRallyId }
-  | { type: "move"; y: number }
+  | { type: "move"; y: number; merge?: boolean }
   | { type: "attack" }
   | { type: "retreat" }
   | { type: "recall"; point: StwRallyId }
