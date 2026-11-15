@@ -52,11 +52,13 @@ export const STW_LAYOUT = {
 
 /**
  * 집결 위치. y는 아군 기준(100이 아군 끝). AI는 이 이름표를 쓰고, 플레이어는 지도를 눌러 STW_RALLY_RANGE 안의 아무 세로 위치나 고른다.
- * 아군 기준 y가 STW_ATTACK_ZONE_Y 이하(적 앞마당 안쪽)를 누르면 집결이 아니라 출격 명령이다.
+ * 지도 탭은 "누른 곳까지 싸우며 가서 선다"이고, 설 수 있는 가장 앞은 STW_RALLY_RANGE.min(적 앞마당 방어 건물 사거리 밖)이다.
+ * 적 본진 안쪽(아군 기준 y가 STW_ENEMY_BASE_Y 이하)이나 알고 있는 적 건물을 누를 때만 그곳을 부수러 간다(공격 병력).
  */
 // 뒤쪽 끝은 본진 광물 줄(97)까지: 게릴라 드랍을 막으러 광물 줄로 보내거나, 무기 없는 마법 유닛을 본진 안쪽까지 물릴 수 있다.
 export const STW_RALLY_RANGE = { min: 34, max: 97 };
-export const STW_ATTACK_ZONE_Y = 30;
+/** 적 본진 앞(아군 본진 앞 77의 맞은편). 이보다 깊은 곳을 누르면 적 본진을 치러 간다. */
+export const STW_ENEMY_BASE_Y = 23;
 export const STW_RALLY_POINTS = [
   { id: "main", name: "본진 앞", short: "본진", y: 77 },
   { id: "natural", name: "앞마당", short: "앞마당", y: 64 },
@@ -577,7 +579,7 @@ const PLAIN_MAP = {
   note: "탁 트인 기본 전장",
   layout: STW_LAYOUT,
   rallyRange: STW_RALLY_RANGE,
-  attackZoneY: STW_ATTACK_ZONE_Y,
+  enemyBaseY: STW_ENEMY_BASE_Y,
   rallyPoints: STW_RALLY_POINTS,
   /** 적 기지의 착륙 후보(적 기준 좌표). 앞 둘은 본진 광물 줄 양옆. */
   landMain: [{ x: 11, y: 96.5 }, { x: 29, y: 96.5 }, { x: 4.5, y: 93 }, { x: 35.5, y: 93 }, { x: 4.5, y: 84 }, { x: 35.5, y: 84 }],
@@ -627,7 +629,6 @@ export const STW_MAPS = {
       naturalSlots: GOLD_SLOTS,
     },
     rallyRange: { min: 38, max: 97 },
-    attackZoneY: 35,
     rallyPoints: [
       { id: "main", name: "본진 앞", short: "본진", y: 77 },
       { id: "natural", name: "앞마당", short: "앞마당", y: 60 },

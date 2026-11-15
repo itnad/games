@@ -26,6 +26,7 @@ import {
   stwSerialize,
   stwSpawnUnitAt,
   stwSupply,
+  stwTapAttacks,
   stwWorkerSplit,
   stepStarswar,
 } from "../app/starswar/starswar-engine.js";
@@ -2009,11 +2010,13 @@ test("starswar map taps move the army: forward fights, backward retreats, enemy 
   assert.ok(state.log.some((entry) => /물러납니다/.test(entry.text)));
   assert.ok(stwArmy(state, "player").rally.every((unit) => unit.targetId === null) || true);
 
-  // 범위 밖은 잘라 낸다. 적 앞마당 안쪽은 출격이다.
+  // 범위 밖은 잘라 낸다. 적 본진 안쪽을 누르면 부수러 간다.
   assert.equal(stwCommand(state, "player", { type: "move", y: 99.5 }).y, 97);
+  assert.equal(stwCommand(state, "player", { type: "move", y: 28 }).y, 34, "적 본진 앞까지의 빈 땅은 설 수 있는 앞끝에 선다");
+  assert.equal(stwArmy(state, "player").attack.length, 0);
   assert.equal(stwCommand(state, "player", { type: "move", y: 10 }).ok, true);
-  assert.ok(stwArmy(state, "player").attack.length > 0, "적 본진을 누르면 출격");
-  assert.equal(state.sides.player.rally, 97, "출격은 집결지를 바꾸지 않음");
+  assert.ok(stwArmy(state, "player").attack.length > 0, "적 본진을 누르면 부수러 간다");
+  assert.equal(state.sides.player.rally, 34, "공격은 집결지를 바꾸지 않음");
   assert.equal(stwRallyName(55), "중앙");
   assert.equal(stwRallyName("natural"), "앞마당");
 });
@@ -2885,7 +2888,7 @@ test("starswar maps: plain is the default, every map keeps its buildings clear o
       const [left, right] = stwGroundSpan(map, point.y);
       assert.ok(point.x >= left && point.x <= right, `${id} 경로 (${point.x}, ${point.y})`);
     }
-    assert.ok(map.rallyRange.min > map.attackZoneY && map.rallyPoints.every((point) => point.y >= map.rallyRange.min && point.y <= map.rallyRange.max), `${id} 집결 눈금`);
+    assert.ok(map.rallyRange.min > map.enemyBaseY && map.rallyPoints.every((point) => point.y >= map.rallyRange.min && point.y <= map.rallyRange.max), `${id} 집결 눈금`);
   }
 });
 
@@ -2924,12 +2927,14 @@ test("starswar gold natural sits forward, holds more minerals, and mines 40% fas
   assert.equal(stwRallyY("player", "natural", plain), 64);
   assert.equal(stwRallyY("player", "natural"), 64, "경기를 주지 않으면 평원 눈금");
   assert.equal(stwRallyName(41, state), "적 앞마당 앞");
-  // 적 앞마당 안쪽을 누르면 출격: 황금 앞마당은 그 선도 앞으로 나온다.
+  // 빈 땅을 누르면 출격이 아니라 그 자리(설 수 있는 앞끝까지)에 선다. 황금 앞마당은 앞끝이 38이다.
+  // (예전에는 황금 앞마당에서 34가 출격 구역이라, 앞마당 앞에 세우려던 탭에 전군이 성큰으로 뛰어들었다.)
   stwSpawnUnitAt(state, "player", "zealot", 20, 60, "rally");
   stwSpawnUnitAt(plain, "player", "zealot", 20, 60, "rally");
-  stwCommand(state, "player", { type: "move", y: 34 });
-  stwCommand(plain, "player", { type: "move", y: 34 });
-  assert.equal(stwArmy(state, "player").attack.length, 1, "황금 앞마당에서는 34가 출격 구역");
+  stwCommand(state, "player", { type: "move", y: 34, x: 20 });
+  stwCommand(plain, "player", { type: "move", y: 34, x: 20 });
+  assert.equal(stwArmy(state, "player").attack.length, 0, "황금 앞마당에서도 34는 서기");
+  assert.equal(state.sides.player.rally, 38);
   assert.equal(stwArmy(plain, "player").attack.length, 0);
   assert.equal(plain.sides.player.rally, 34);
 });
@@ -3381,4 +3386,45 @@ test("starswar difficulty handicaps: unit production speed per level, beginner A
     assert.equal(stwNexus(ai, "enemy", "natural"), null, race);
     assert.ok(stwOwnBuildings(ai, "enemy").filter((building) => STW_BUILDINGS[building.type].defense).length <= 3, race);
   }
+});
+
+test("starswar map taps: empty ground means stand there, only the enemy base or a known enemy building means attack; unarmed units never attack alone", () => {
+  const state = stwCreateScenario({ seed: 5, placement: "home", map: "gold", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 6, medic: 2 } }, enemy: { units: {}, buildings: { sunken: 1 } } } });
+  // 보고된 경기: 황금 앞마당 34를 누르자 전군이 출격했다. 이제는 적 앞마당 앞(38)에 선다.
+  let result = stwCommand(state, "player", { type: "move", y: 34, x: 20, merge: true });
+  assert.equal(result.mode, "advance");
+  assert.equal(stwArmy(state, "player").attack.length, 0);
+  // 본 적 있는 적 건물을 누르면 공격(그 건물이 앞끝보다 앞에 있어도).
+  const sunken = state.buildings.find((building) => building.side === "enemy" && building.type === "sunken");
+  state.sides.player.seen[sunken.id] = { id: sunken.id, type: "sunken", x: sunken.x, y: sunken.y, radius: sunken.radius, at: 0 };
+  assert.equal(stwTapAttacks(state, "player", sunken.x, sunken.y), true);
+  assert.equal(stwTapAttacks(state, "player", sunken.x + 12, sunken.y + 6), sunken.y + 6 <= stwMap(state).enemyBaseY);
+  assert.equal(stwTapAttacks(state, "player", 20, 20), true, "적 본진 안쪽은 건물을 몰라도 공격");
+  result = stwCommand(state, "player", { type: "move", y: sunken.y, x: sunken.x, merge: true });
+  assert.ok(stwArmy(state, "player").attack.length >= 6);
+
+  // 메딕만 고른 부대는 적 본진을 눌러도 혼자 가지 않고 앞끝에 선다.
+  const medics = stwCreateScenario({ seed: 5, placement: "home", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 4, medic: 2 } }, enemy: { units: {} } } });
+  result = stwCommand(medics, "player", { type: "squadMove", units: ["medic"], y: 10, x: 20 });
+  assert.equal(result.mode, "squad");
+  assert.ok(medics.units.filter((unit) => unit.type === "medic").every((unit) => unit.group === "rally" && unit.squad === "medic"));
+  // 앞장설 전투 유닛 없이 공격 병력이 된 메딕은 적진으로 걸어가지 않고 집결지로 돌아간다.
+  for (const unit of medics.units) if (unit.type === "medic") { delete unit.squad; unit.group = "attack"; }
+  medics.sides.player.squads = {};
+  run(medics, 1);
+  assert.ok(medics.units.filter((unit) => unit.type === "medic").every((unit) => unit.group === "rally"));
+});
+
+test("starswar medics stop healing and fall back when the army retreats", () => {
+  const state = stwCreateScenario({ seed: 6, placement: "home", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 2, medic: 1 } }, enemy: { units: {} } } });
+  // 메딕과 다친 해병을 앞(y 40)에 두고 집결지(본진 앞 77)로 물러나게 한다.
+  const medic = state.units.find((unit) => unit.side === "player" && unit.type === "medic");
+  const marine = state.units.find((unit) => unit.side === "player" && unit.type === "marine");
+  for (const unit of [medic, marine]) { unit.y = 40; unit.x = 20; unit.group = "rally"; delete unit.fresh; }
+  medic.x = 21;
+  marine.hp = 10;
+  marine.y = 40;
+  const startY = medic.y;
+  run(state, 2);
+  assert.ok(medic.y > startY + 3, `메딕이 물러난다 (${startY} → ${medic.y.toFixed(1)})`);
 });

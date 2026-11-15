@@ -800,6 +800,24 @@ const CHRONICLE_LIMIT = 900;
  * 성공한 명령은 경기 연대기(state.chronicle)에 [시각, 진영, 명령]으로 남긴다. 일꾼 생산은 너무 잦아 빼고,
  * 같은 진영이 30초 안에 똑같은 명령을 되풀이하면 한 번만 남긴다(AI가 생각할 때마다 같은 공격 명령을 내린다).
  */
+/**
+ * 지도 탭(아군 기준 x, y)이 공격 명령인지: 적 본진 안쪽을 눌렀거나, 보고 있거나 기억하는 적 건물을 눌렀다.
+ * 그 밖의 자리는 "누른 곳까지 싸우며 가서 선다"이고 설 수 있는 가장 앞은 집결 범위의 앞끝이다.
+ * 예전에는 적 앞마당 안쪽(황금 앞마당 맵은 설 수 있는 앞끝에서 3칸)부터 출격이라, 앞마당 앞에 세우려던 탭이 전군 출격이 되어
+ * 해병 14기가 적 본진 앞 성큰 셋에 뛰어들었다.
+ */
+export function stwTapAttacks(state, side, x, y) {
+  if (y <= stwMap(state).enemyBaseY) return true;
+  if (typeof x !== "number" || Number.isNaN(x)) return false;
+  const point = stwPoint(side, { x, y });
+  return Object.values(state.sides[side].seen ?? {}).some((memory) => distance(point.x, point.y, memory.x, memory.y) <= (memory.radius ?? 2) + 1.5);
+}
+
+/** 무기가 없는 유닛(메딕·하이템플러·옵저버 등): 혼자서는 공격하러 가지 않는다. */
+function unarmed(type) {
+  return !STW_UNITS[type].damage;
+}
+
 export function stwCommand(state, side, command) {
   // 최종 결전 중에는 사람도 AI도 지휘하지 않는다(남은 병력이 끝까지 적진으로 간다).
   if (state.finalBattle && state.status === "playing") return fail("최종 결전 중에는 지휘할 수 없습니다");
@@ -960,7 +978,8 @@ function runCommand(state, side, command) {
       const names = types.map((type) => STW_UNITS[type].name).join("·");
       const stopped = leaveWalkOps(state, members);
       if (stopped && side === "player") pushLog(state, side, `${names} ${stopped}기가 침투를 멈춥니다.`, "order");
-      if (command.y <= stwMap(state).attackZoneY) {
+      // 무기 없는 유닛만 고른 부대는 공격하러 보내지 않고 설 수 있는 앞끝에 세운다(메딕만 적진으로 걸어 들어가던 문제).
+      if (stwTapAttacks(state, side, command.x, command.y) && !types.every(unarmed)) {
         for (const type of types) delete record.squads[type];
         for (const unit of members) {
           delete unit.squad;
@@ -1137,9 +1156,9 @@ function runCommand(state, side, command) {
       return { ok: true };
     }
     case "move": {
-      // 지도 탭: 적 앞마당 안쪽이면 출격, 병력 앞쪽이면 싸우며 전진, 뒤쪽이면 교전을 끊고 후퇴.
+      // 지도 탭: 적 본진 안쪽이나 적 건물이면 공격, 병력 앞쪽이면 그 자리까지 싸우며 전진, 뒤쪽이면 교전을 끊고 후퇴.
       if (typeof command.y !== "number" || Number.isNaN(command.y)) return fail("알 수 없는 위치입니다");
-      if (command.y <= stwMap(state).attackZoneY) return stwCommand(state, side, { type: "attack" });
+      if (stwTapAttacks(state, side, command.x, command.y)) return stwCommand(state, side, { type: "attack" });
       const y = Math.round(Math.min(stwMap(state).rallyRange.max, Math.max(stwMap(state).rallyRange.min, command.y)));
       // merge: 따로 둔 부대까지 모두 본대로 합쳐 함께 옮긴다(사람이 부대를 고르지 않고 지도를 누른 경우).
       // 예전에는 부대 선택이 풀린 뒤에도 따로 둔 부대가 제자리에 남아, 전체를 옮기려던 지도 탭에 끌려오지 않았다.
@@ -2924,6 +2943,12 @@ function medicStep(state, unit, plan, dt) {
   }
   unit.targetId = null;
   unit.healTargetId = null;
+  // 물러나는 중이면 치료보다 후퇴가 먼저다(후퇴 명령에도 성큰 앞에서 서로를 치료하며 10초 넘게 남았다).
+  const rallySlot = unit.group !== "attack" ? plan.rallySlots.get(unit.id) : null;
+  if (rallySlot && isRetreating(unit, rallySlot)) {
+    moveToward(unit, rallySlot.x, rallySlot.y, def.speed, dt);
+    return;
+  }
   if (patient) {
     const d = distance(unit.x, unit.y, patient.x, patient.y);
     if (d <= def.healRange) {
@@ -2932,10 +2957,8 @@ function medicStep(state, unit, plan, dt) {
       unit.heading = Math.atan2(patient.y - unit.y, patient.x - unit.x);
       return;
     }
-    if (!(unit.group !== "attack" && plan.rallySlots.get(unit.id) && isRetreating(unit, plan.rallySlots.get(unit.id)))) {
-      moveToward(unit, patient.x, patient.y, def.speed, dt);
-      return;
-    }
+    moveToward(unit, patient.x, patient.y, def.speed, dt);
+    return;
   }
   supportFollow(state, unit, plan, def.speed, dt);
 }
@@ -2956,6 +2979,11 @@ function supportFollow(state, unit, plan, speed, dt) {
   if (unit.group === "attack") {
     const forward = stwForward(unit.side);
     const front = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && !isPassive(ally) && STW_UNITS[ally.type].role !== "caster");
+    // 앞장설 전투 유닛이 하나도 없으면 혼자 적진으로 가지 않고 집결지로 돌아간다(예전에는 공격 목표를 향해 계속 걸어갔다).
+    if (!front.length) {
+      unit.group = "rally";
+      return;
+    }
     const lead = front.length ? front.reduce((best, ally) => (forward < 0 ? Math.min(best, ally.y) : Math.max(best, ally.y)), front[0].y) : plan.goal.y;
     moveToward(unit, slot ? slot.x : unit.x, lead - forward * 4, Math.min(speed, plan.waveSpeed), dt);
   } else if (slot) {

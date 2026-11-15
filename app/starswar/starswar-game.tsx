@@ -202,7 +202,7 @@ const RACE_MENU: Record<StwRaceId, { howto: [string, string][] }> = {
       ["경제", "프로브를 늘리고 파일런으로 인구를 확보하세요. 어시밀레이터를 지으면 가스가 들어옵니다."],
       ["테크", "게이트웨이를 늘리고, 코어로 드라군을, 아카이브로 하이템플러를 해금하세요."],
       ["생산 라인", "게이트웨이마다 소환할 유닛을 정하면 자원이 있는 한 계속 소환됩니다."],
-      ["웨이브", "지도를 눌러 병력을 보내세요. 앞쪽은 싸우며 전진, 뒤쪽은 후퇴, 적 본진은 출격입니다."],
+      ["웨이브", "지도를 눌러 병력을 보내세요. 누른 곳까지 싸우며 가서 서고, 뒤쪽은 후퇴, 적 본진이나 적 건물을 누르면 부수러 갑니다."],
     ],
   },
   terran: {
@@ -210,7 +210,7 @@ const RACE_MENU: Record<StwRaceId, { howto: [string, string][] }> = {
       ["경제", "SCV를 늘리고 서플라이 디팟으로 인구를 확보하세요. 리파이너리를 지으면 가스가 들어옵니다."],
       ["테크", "배럭을 늘리고, 아카데미로 파이어뱃·메딕을, 머신 샵으로 시즈 탱크를 해금하세요."],
       ["생산 라인", "배럭과 팩토리마다 생산할 유닛을 정하면 자원이 있는 한 계속 생산됩니다."],
-      ["웨이브", "지도를 눌러 병력을 보내세요. 스팀팩과 시즈 모드는 알아서 씁니다. 적 본진을 누르면 출격입니다."],
+      ["웨이브", "지도를 눌러 병력을 보내세요. 스팀팩과 시즈 모드는 알아서 씁니다. 적 본진이나 적 건물을 누르면 부수러 갑니다."],
     ],
   },
   zerg: {
@@ -218,7 +218,7 @@ const RACE_MENU: Record<StwRaceId, { howto: [string, string][] }> = {
       ["경제", "드론을 늘리고 오버로드로 인구를 확보하세요. 익스트랙터를 지으면 가스가 들어옵니다."],
       ["테크", "스포닝 풀로 저글링, 히드라리스크 덴으로 히드라를 열고, 레어 변태 뒤 럴커와 울트라리스크를 해금하세요."],
       ["생산 라인", "해처리마다 변태시킬 유닛을 정하세요. 해처리를 더 지으면 생산 라인이 늘어납니다."],
-      ["웨이브", "지도를 눌러 병력을 보내세요. 럴커는 적이 오면 알아서 땅속에 숨습니다. 적 본진을 누르면 출격입니다."],
+      ["웨이브", "지도를 눌러 병력을 보내세요. 럴커는 적이 오면 알아서 땅속에 숨습니다. 적 본진이나 적 건물을 누르면 부수러 갑니다."],
     ],
   },
 };
@@ -750,11 +750,11 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     // 부대 지휘 패널이 열려 있으면 닫아 지도를 넓힌다. 고른 부대는 건설·생산 같은 다른 조작을 하면 풀린다(issue).
     if (squadOpen) setSquadOpen(false);
     const live = selected.filter((type) => squadCounts.has(type));
-    if (live.length) issue({ type: "squadMove", units: live, y: target.y });
+    if (live.length) issue({ type: "squadMove", units: live, y: target.y, x: target.x });
     else {
       if (selected.length) setSelected([]);
       // 고른 부대가 없으면 따로 둔 부대까지 모두 본대로 합쳐 옮긴다(전체 병력이 기본).
-      issue({ type: "move", y: target.y, merge: true });
+      issue({ type: "move", y: target.y, x: target.x, merge: true });
     }
   };
 
@@ -1030,7 +1030,6 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 )) : <span>옮길 전투 유닛이 없습니다</span>}
               </div>
               <div className="stw-squad-actions">
-                <button type="button" disabled={!selected.length} onClick={() => issue({ type: "squadMove", units: selected, y: 20 })}>이 부대 출격</button>
                 <button type="button" disabled={!selected.some((type) => squadSpots[type] || walkingTypes.has(type))} onClick={() => issue({ type: "squadRelease", units: selected })}>본대로</button>
                 <button type="button" disabled={!selected.length} onClick={() => setSelected([])}>선택 해제</button>
               </div>
@@ -1048,7 +1047,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                   ))}
                 </ul>
               ) : null}
-              <p className="stw-squad-hint">그 종류의 새 유닛도 그 부대로 갑니다. 병력 탭의 출격은 모든 부대를 합칩니다. 침투는 고른 부대가 싸우지 않고 가장자리를 따라 적 광물 줄까지 걸어가 일꾼을 칩니다. 닿은 뒤에는 스스로 물러나지 않고 일꾼이 없으면 기지를 치며, “지금 회수”를 눌러야 걸어서 돌아옵니다. 침투 중에도 칩을 골라 지도를 누르면(뒤쪽은 후퇴) 침투를 멈추고 그 명령을 따릅니다. 따로 옮기는 부대는 길을 막는 아군을 비키게 하며 지나갑니다.</p>
+              <p className="stw-squad-hint">그 종류의 새 유닛도 그 부대로 갑니다. 적 본진이나 적 건물을 누르면 고른 부대만 부수러 갑니다(메딕처럼 무기 없는 유닛만 고르면 가장 앞 대기 자리에 섭니다). 침투는 고른 부대가 싸우지 않고 가장자리를 따라 적 광물 줄까지 걸어가 일꾼을 칩니다. 닿은 뒤에는 스스로 물러나지 않고 일꾼이 없으면 기지를 치며, “지금 회수”를 눌러야 걸어서 돌아옵니다. 침투 중에도 칩을 골라 지도를 누르면(뒤쪽은 후퇴) 침투를 멈추고 그 명령을 따릅니다. 따로 옮기는 부대는 길을 막는 아군을 비키게 하며 지나갑니다.</p>
             </div>
           ) : (
             <div className="stw-panel-body" key={tab}>
@@ -1326,9 +1325,8 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
         <div><small>대기 병력</small><b>{army.rally.length}</b><span>{armyText(Object.fromEntries(ARMY_IDS.map((type) => [type, count(army.rally, type)])))}</span></div>
         <div><small>공격 병력</small><b>{army.attack.length}</b><span>{armyText(Object.fromEntries(ARMY_IDS.map((type) => [type, count(army.attack, type)])))}</span></div>
       </div>
-      <button type="button" className="stw-attack" disabled={!army.fighters.length} onClick={() => issue({ type: "attack" })}>출격<small>{army.rally.length && !army.fighters.length ? "출격할 전투 병력이 없습니다" : "대기 병력을 적 본진으로"}</small></button>
       <h3 className="stw-section">병력 이동</h3>
-      <p className="stw-hint">지도를 톡 누르면 그 자리로 병력이 모입니다. 병력 앞쪽을 누르면 싸우며 전진하고, 뒤쪽을 누르면 교전을 끊고 물러납니다. 적 앞마당 안쪽을 누르면 출격입니다.</p>
+      <p className="stw-hint">지도를 톡 누르면 누른 곳까지 싸우며 가서 섭니다. 가장 앞은 적 앞마당 앞이고, 뒤쪽을 누르면 교전을 끊고 물러납니다. 적 본진이나 보이는(본 적 있는) 적 건물을 누르면 그곳을 부수러 갑니다.</p>
       <div className="stw-recall">
         <button type="button" disabled={!army.rally.length && !army.attack.length} onClick={() => issue({ type: "move", y: homeY(game) })}>본진 수비<small>전원 본진 앞으로</small></button>
         <button type="button" disabled={!army.attack.length} onClick={() => issue({ type: "retreat" })}>후퇴<small>공격 병력을 집결지로</small></button>
@@ -1349,7 +1347,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
           <button key={size} type="button" className={side.autoWave === size ? "active" : ""} aria-pressed={side.autoWave === size} onClick={() => issue({ type: "autoWave", size }, size === 1 ? "전투 유닛이 생산되는 대로 바로 출격합니다." : size ? `전투 병력이 ${size}기 모이면 자동으로 출격합니다.` : "자동 출격을 껐습니다.")}>{size === 1 ? "즉시" : size ? `${size}기` : "끔"}</button>
         ))}
       </div>
-      {side.autoWave && side.autoWaveHold ? <p className="stw-hint stw-hold">후퇴 명령으로 자동 출격이 멈춰 있습니다. 출격하거나 지도 앞쪽을 누르거나 위 단계를 다시 고르면 켜집니다.</p> : null}
+      {side.autoWave && side.autoWaveHold ? <p className="stw-hint stw-hold">후퇴 명령으로 자동 출격이 멈춰 있습니다. 지도 앞쪽이나 적 본진을 누르거나 위 단계를 다시 고르면 켜집니다.</p> : null}
       {race.id === "zerg" ? (
         <>
           <h3 className="stw-section">오버로드 동행</h3>

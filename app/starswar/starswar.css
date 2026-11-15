@@ -173,8 +173,6 @@
 .stw-army-summary small { color:var(--stw-muted); font-weight:800; }
 .stw-army-summary b { font-size:26px; font-variant-numeric:tabular-nums; }
 .stw-army-summary span { color:var(--stw-soft); font-size:13px; line-height:1.35; }
-.stw-attack { min-height:62px; display:grid; place-content:center; gap:2px; border:0; border-radius:14px; color:#2a0d05 !important; background:linear-gradient(180deg,#ff9a76,#e55c3c); font-size:18px !important; font-weight:900; }
-.stw-attack small { font-size:13px !important; font-weight:700; opacity:.85; }
 .stw-hint { margin:-4px 0 0; color:var(--stw-muted); font-size:13px !important; line-height:1.4 !important; }
 .stw-recall { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
 .stw-recall button { min-height:54px; padding:6px 8px; display:grid; place-content:center; gap:1px; border:1px solid #57c6ff55; border-radius:12px; background:#57c6ff14; font-size:15px !important; font-weight:900; }
