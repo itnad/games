@@ -6709,7 +6709,7 @@ footer { font-size: 15px; }
 }
 
 .home-category-preview-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .home-category-preview-empty {
