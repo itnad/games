@@ -633,6 +633,7 @@ test("provides a complete objective and victory guide for every game", async () 
   ].map((file) => readFile(new URL(`../app/${file}`, import.meta.url), "utf8")));
   for (const stylesheet of ruleStyles) {
     assert.match(stylesheet, /Rules remain readable on narrow phones/);
+    assert.match(stylesheet, /font-size:\s*16px/);
     assert.match(stylesheet, /font-size:\s*14px/);
     assert.match(stylesheet, /line-height:\s*1\.7/);
   }
