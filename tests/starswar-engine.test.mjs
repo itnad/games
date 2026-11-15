@@ -734,7 +734,7 @@ test("starswar AI holds a four-gate zealot rush behind its defenses", () => {
   // 예전에는 바이오닉 AI가 6분 30초 안에 무너졌다.
   const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "bio" } });
   runZealotRush(state, 420);
-  assert.equal(state.status, "playing", "7분까지 버틴다");
+  assert.equal(state.status, "playing", "6분 30초까지 버틴다");
   assert.ok(state.sides.enemy.stats.kills >= 16, `질럿을 잡는다 ${state.sides.enemy.stats.kills}`);
   const bunkers = stwOwnBuildings(state, "enemy", "bunker");
   assert.ok(bunkers.length, "벙커가 있다");
@@ -1289,8 +1289,10 @@ test("starswar AI from a reported loss: no early second gas or double pylon, sur
   code.setup.difficulty = "hard";
   let pylonsAt75 = null;
   let secondGasProbes = null;
+  // 지도 탭이 "누른 곳까지 가서 머물기"로 바뀐 뒤로는 사람의 31~35 탭이 적 앞마당에 머물러 압박이 세졌다(7분 직전 AI 패배).
+  // 원래 경기는 5분 30초 패배였으므로 6분 30초까지 버티는지를 본다.
   const state = stwReplay(code, {
-    until: 420,
+    until: 390,
     onTick: (current) => {
       if (pylonsAt75 === null && current.time >= 75) pylonsAt75 = stwOwnBuildings(current, "enemy", "pylon").length;
       if (secondGasProbes === null && stwOwnBuildings(current, "enemy", "assimilator").length >= 2) secondGasProbes = current.sides.enemy.probes;
@@ -1298,7 +1300,7 @@ test("starswar AI from a reported loss: no early second gas or double pylon, sur
   });
   assert.equal(pylonsAt75, 1, "1분 15초에 파일런은 하나");
   assert.ok(secondGasProbes === null || secondGasProbes >= 18, `둘째 가스는 일꾼 18기 뒤 (${secondGasProbes})`);
-  assert.equal(state.status, "playing", "7분까지 버틴다");
+  assert.equal(state.status, "playing", "6분 30초까지 버틴다");
 });
 
 test("starswar new units join the attack group while the player is fighting, otherwise go to the rally point", () => {
@@ -2012,11 +2014,11 @@ test("starswar map taps move the army: forward fights, backward retreats, enemy 
 
   // 범위 밖은 잘라 낸다. 적 본진 안쪽을 누르면 부수러 간다.
   assert.equal(stwCommand(state, "player", { type: "move", y: 99.5 }).y, 97);
-  assert.equal(stwCommand(state, "player", { type: "move", y: 28 }).y, 34, "적 본진 앞까지의 빈 땅은 설 수 있는 앞끝에 선다");
+  assert.equal(stwCommand(state, "player", { type: "move", y: 28 }).y, 28, "적 앞마당 한가운데도 그 자리에 머문다");
   assert.equal(stwArmy(state, "player").attack.length, 0);
   assert.equal(stwCommand(state, "player", { type: "move", y: 10 }).ok, true);
   assert.ok(stwArmy(state, "player").attack.length > 0, "적 본진을 누르면 부수러 간다");
-  assert.equal(state.sides.player.rally, 34, "공격은 집결지를 바꾸지 않음");
+  assert.equal(state.sides.player.rally, 28, "공격은 집결지를 바꾸지 않음");
   assert.equal(stwRallyName(55), "중앙");
   assert.equal(stwRallyName("natural"), "앞마당");
 });
@@ -2927,14 +2929,14 @@ test("starswar gold natural sits forward, holds more minerals, and mines 40% fas
   assert.equal(stwRallyY("player", "natural", plain), 64);
   assert.equal(stwRallyY("player", "natural"), 64, "경기를 주지 않으면 평원 눈금");
   assert.equal(stwRallyName(41, state), "적 앞마당 앞");
-  // 빈 땅을 누르면 출격이 아니라 그 자리(설 수 있는 앞끝까지)에 선다. 황금 앞마당은 앞끝이 38이다.
+  // 빈 땅을 누르면 출격이 아니라 그 자리에 머문다.
   // (예전에는 황금 앞마당에서 34가 출격 구역이라, 앞마당 앞에 세우려던 탭에 전군이 성큰으로 뛰어들었다.)
   stwSpawnUnitAt(state, "player", "zealot", 20, 60, "rally");
   stwSpawnUnitAt(plain, "player", "zealot", 20, 60, "rally");
   stwCommand(state, "player", { type: "move", y: 34, x: 20 });
   stwCommand(plain, "player", { type: "move", y: 34, x: 20 });
   assert.equal(stwArmy(state, "player").attack.length, 0, "황금 앞마당에서도 34는 서기");
-  assert.equal(state.sides.player.rally, 38);
+  assert.equal(state.sides.player.rally, 34);
   assert.equal(stwArmy(plain, "player").attack.length, 0);
   assert.equal(plain.sides.player.rally, 34);
 });
@@ -3388,24 +3390,29 @@ test("starswar difficulty handicaps: unit production speed per level, beginner A
   }
 });
 
-test("starswar map taps: empty ground means stand there, only the enemy base or a known enemy building means attack; unarmed units never attack alone", () => {
-  const state = stwCreateScenario({ seed: 5, placement: "home", map: "gold", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 6, medic: 2 } }, enemy: { units: {}, buildings: { sunken: 1 } } } });
-  // 보고된 경기: 황금 앞마당 34를 누르자 전군이 출격했다. 이제는 적 앞마당 앞(38)에 선다.
-  let result = stwCommand(state, "player", { type: "move", y: 34, x: 20, merge: true });
+test("starswar map taps have one meaning: go there fighting and stay; only the enemy base means destroy it; forward units stop defending home", () => {
+  const state = stwCreateScenario({ seed: 5, placement: "home", map: "gold", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 6, medic: 2 } }, enemy: { units: {} } } });
+  // 보고된 경기: 황금 앞마당 34를 누르자 전군이 출격했다. 이제는 34에 머문다. 적 앞마당 한가운데(28)도 그 자리에 머문다.
+  let result = stwCommand(state, "player", { type: "move", y: 34, merge: true });
   assert.equal(result.mode, "advance");
+  assert.equal(result.y, 34);
   assert.equal(stwArmy(state, "player").attack.length, 0);
-  // 본 적 있는 적 건물을 누르면 공격(그 건물이 앞끝보다 앞에 있어도).
-  const sunken = state.buildings.find((building) => building.side === "enemy" && building.type === "sunken");
-  state.sides.player.seen[sunken.id] = { id: sunken.id, type: "sunken", x: sunken.x, y: sunken.y, radius: sunken.radius, at: 0 };
-  assert.equal(stwTapAttacks(state, "player", sunken.x, sunken.y), true);
-  assert.equal(stwTapAttacks(state, "player", sunken.x + 12, sunken.y + 6), sunken.y + 6 <= stwMap(state).enemyBaseY);
-  assert.equal(stwTapAttacks(state, "player", 20, 20), true, "적 본진 안쪽은 건물을 몰라도 공격");
-  result = stwCommand(state, "player", { type: "move", y: sunken.y, x: sunken.x, merge: true });
+  assert.equal(stwCommand(state, "player", { type: "move", y: 28, merge: true }).y, 28);
+  assert.equal(stwRallyName(28, state), "적 앞마당");
+  // 적 본진 안쪽을 누르면 그 기지를 부수러 간다. 그 뒤 앞쪽을 누르면 공격을 멈추고 그 자리에 머문다.
+  assert.equal(stwTapAttacks(state, 20), true);
+  assert.equal(stwTapAttacks(state, 24), false);
+  stwCommand(state, "player", { type: "move", y: 15, merge: true });
   assert.ok(stwArmy(state, "player").attack.length >= 6);
+  run(state, 1);
+  const front = Math.min(...state.units.filter((unit) => unit.side === "player" && unit.type === "marine").map((unit) => unit.y));
+  result = stwCommand(state, "player", { type: "move", y: Math.max(24, front - 5), merge: true });
+  assert.equal(result.mode, "advance");
+  assert.equal(stwArmy(state, "player").attack.length, 0, "앞쪽 탭은 공격 병력도 그 자리에 머물게 한다");
 
-  // 메딕만 고른 부대는 적 본진을 눌러도 혼자 가지 않고 앞끝에 선다.
+  // 메딕만 고른 부대는 적 본진을 눌러도 혼자 가지 않고 적 본진 바로 앞에 선다.
   const medics = stwCreateScenario({ seed: 5, placement: "home", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 4, medic: 2 } }, enemy: { units: {} } } });
-  result = stwCommand(medics, "player", { type: "squadMove", units: ["medic"], y: 10, x: 20 });
+  result = stwCommand(medics, "player", { type: "squadMove", units: ["medic"], y: 10 });
   assert.equal(result.mode, "squad");
   assert.ok(medics.units.filter((unit) => unit.type === "medic").every((unit) => unit.group === "rally" && unit.squad === "medic"));
   // 앞장설 전투 유닛 없이 공격 병력이 된 메딕은 적진으로 걸어가지 않고 집결지로 돌아간다.
@@ -3413,6 +3420,20 @@ test("starswar map taps: empty ground means stand there, only the enemy base or 
   medics.sides.player.squads = {};
   run(medics, 1);
   assert.ok(medics.units.filter((unit) => unit.type === "medic").every((unit) => unit.group === "rally"));
+
+  // 자동 수비: 우리 진영에 세운 병력은 본진에 들어온 저글링을 잡으러 가지만, 적 앞마당에 세운 병력은 끌려오지 않는다.
+  const defend = (rallyY) => {
+    const game = stwCreateScenario({ seed: 7, placement: "home", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 4 } }, enemy: { units: {} } } });
+    stwCommand(game, "player", { type: "move", y: rallyY });
+    run(game, rallyY < 50 ? 25 : 3);
+    const startY = Math.max(...game.units.filter((unit) => unit.side === "player" && unit.type === "marine").map((unit) => unit.y));
+    stwSpawnUnitAt(game, "enemy", "zergling", 20, 88, "attack");
+    run(game, 3);
+    const nowY = Math.max(...game.units.filter((unit) => unit.side === "player" && unit.type === "marine").map((unit) => unit.y));
+    return nowY - startY;
+  };
+  assert.ok(defend(64) > 3, "앞마당에 세운 병력은 본진으로 막으러 간다");
+  assert.ok(Math.abs(defend(30)) < 2, "적 앞마당에 세운 병력은 제자리");
 });
 
 test("starswar medics stop healing and fall back when the army retreats", () => {

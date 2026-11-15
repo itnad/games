@@ -244,7 +244,7 @@ export type StwCommand =
   | { type: "drop"; mission?: StwDropMission; target?: StwDropTarget; repeat?: boolean; sync?: boolean }
   | { type: "dropPlan"; mission?: StwDropMission; target?: StwDropTarget; repeat?: boolean; sync?: boolean }
   | { type: "rally"; point: StwRallyId }
-  | { type: "move"; y: number; x?: number; merge?: boolean }
+  | { type: "move"; y: number; merge?: boolean }
   | { type: "attack" }
   | { type: "retreat" }
   | { type: "recall"; point: StwRallyId }
@@ -259,7 +259,7 @@ export type StwCommand =
   | { type: "cancelUnit"; buildingId: number }
   | { type: "dropRecall"; opId?: number }
   | { type: "infiltrate"; units: string[]; base: "main" | "natural" }
-  | { type: "squadMove"; units: string[]; y: number; x?: number }
+  | { type: "squadMove"; units: string[]; y: number }
   | { type: "squadRelease"; units?: string[] };
 
 export type StwView = { width: number; height: number; scale: number; zoom: number; cx: number; cy: number; ox: number; oy: number };

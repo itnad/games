@@ -181,6 +181,9 @@ export function stwRallyY(side, rally, state = null) {
 export function stwRallyName(rally, state = null) {
   const points = stwMap(state).rallyPoints;
   if (typeof rally !== "number") return (points.find((item) => item.id === rally) ?? points[0]).name;
+  // 적 앞마당 앞보다 깊은 자리는 적 앞마당이다(집결 이름표에는 없다).
+  const forward = points.find((item) => item.id === "forward");
+  if (forward && rally < forward.y - 4) return "적 앞마당";
   return points.reduce((best, item) => (Math.abs(item.y - rally) < Math.abs(best.y - rally) ? item : best), points[0]).name;
 }
 
@@ -801,16 +804,17 @@ const CHRONICLE_LIMIT = 900;
  * 같은 진영이 30초 안에 똑같은 명령을 되풀이하면 한 번만 남긴다(AI가 생각할 때마다 같은 공격 명령을 내린다).
  */
 /**
- * 지도 탭(아군 기준 x, y)이 공격 명령인지: 적 본진 안쪽을 눌렀거나, 보고 있거나 기억하는 적 건물을 눌렀다.
- * 그 밖의 자리는 "누른 곳까지 싸우며 가서 선다"이고 설 수 있는 가장 앞은 집결 범위의 앞끝이다.
- * 예전에는 적 앞마당 안쪽(황금 앞마당 맵은 설 수 있는 앞끝에서 3칸)부터 출격이라, 앞마당 앞에 세우려던 탭이 전군 출격이 되어
- * 해병 14기가 적 본진 앞 성큰 셋에 뛰어들었다.
+ * 지도 탭(아군 기준 y)이 적 본진을 부수러 가는 명령인지: 적 본진 안쪽을 눌렀다. 그 밖은 모두 "누른 곳까지 싸우며 가서 머문다".
+ * 예전에는 적 앞마당 안쪽(황금 앞마당 맵은 설 수 있는 앞끝에서 3칸)부터 숨은 경계로 출격이라, 앞마당 앞에 세우려던 탭이
+ * 전군 출격이 되어 해병 14기가 적 본진 앞 성큰 셋에 뛰어들었다.
  */
-export function stwTapAttacks(state, side, x, y) {
-  if (y <= stwMap(state).enemyBaseY) return true;
-  if (typeof x !== "number" || Number.isNaN(x)) return false;
-  const point = stwPoint(side, { x, y });
-  return Object.values(state.sides[side].seen ?? {}).some((memory) => distance(point.x, point.y, memory.x, memory.y) <= (memory.radius ?? 2) + 1.5);
+export function stwTapAttacks(state, y) {
+  return y <= stwMap(state).enemyBaseY;
+}
+
+/** 아군 진영 절반 안의 자리인지(세계 좌표). 자동 수비는 여기 세운 병력만 한다. */
+function homeHalf(side, y) {
+  return (y - STW_LANE_LENGTH / 2) * stwForward(side) <= 0;
 }
 
 /** 무기가 없는 유닛(메딕·하이템플러·옵저버 등): 혼자서는 공격하러 가지 않는다. */
@@ -979,7 +983,7 @@ function runCommand(state, side, command) {
       const stopped = leaveWalkOps(state, members);
       if (stopped && side === "player") pushLog(state, side, `${names} ${stopped}기가 침투를 멈춥니다.`, "order");
       // 무기 없는 유닛만 고른 부대는 공격하러 보내지 않고 설 수 있는 앞끝에 세운다(메딕만 적진으로 걸어 들어가던 문제).
-      if (stwTapAttacks(state, side, command.x, command.y) && !types.every(unarmed)) {
+      if (stwTapAttacks(state, command.y) && !types.every(unarmed)) {
         for (const type of types) delete record.squads[type];
         for (const unit of members) {
           delete unit.squad;
@@ -1156,9 +1160,9 @@ function runCommand(state, side, command) {
       return { ok: true };
     }
     case "move": {
-      // 지도 탭: 적 본진 안쪽이나 적 건물이면 공격, 병력 앞쪽이면 그 자리까지 싸우며 전진, 뒤쪽이면 교전을 끊고 후퇴.
+      // 지도 탭: 적 본진 안쪽이면 그 기지를 부수러 가고, 병력 앞쪽이면 그 자리까지 싸우며 가서 머물고, 뒤쪽이면 교전을 끊고 후퇴.
       if (typeof command.y !== "number" || Number.isNaN(command.y)) return fail("알 수 없는 위치입니다");
-      if (stwTapAttacks(state, side, command.x, command.y)) return stwCommand(state, side, { type: "attack" });
+      if (stwTapAttacks(state, command.y)) return stwCommand(state, side, { type: "attack" });
       const y = Math.round(Math.min(stwMap(state).rallyRange.max, Math.max(stwMap(state).rallyRange.min, command.y)));
       // merge: 따로 둔 부대까지 모두 본대로 합쳐 함께 옮긴다(사람이 부대를 고르지 않고 지도를 누른 경우).
       // 예전에는 부대 선택이 풀린 뒤에도 따로 둔 부대가 제자리에 남아, 전체를 옮기려던 지도 탭에 끌려오지 않았다.
@@ -1189,6 +1193,8 @@ function runCommand(state, side, command) {
         return { ok: true, mode: "retreat", y, merged };
       }
       record.autoWaveHold = false;
+      // 공격 중이던 병력도 적 본진까지 가지 않고 누른 자리에 머문다(지도 탭은 한 가지 뜻).
+      for (const unit of army.attack) if (unit.squad === undefined) unit.group = "rally";
       if (side === "player") pushLog(state, side, `${merged ? "따로 둔 부대까지 합쳐 " : ""}${units.length ? `병력이 ${withKoreanDirection(name)} 싸우며 전진합니다.` : `집결지를 ${withKoreanDirection(name)} 옮깁니다.`}`, "order");
       return { ok: true, mode: "advance", y, merged };
     }
@@ -2514,7 +2520,7 @@ function stepUnits(state, dt) {
       goal: stwPoint(side, { x: 20, y: 6 }),
       intruders: findIntruders(state, side, rallyY),
     };
-    if (side === "player" && plans[side].intruders.length && army.rally.length) {
+    if (side === "player" && plans[side].intruders.length && army.rally.some((unit) => homeHalf(side, allRallySlots.get(unit.id)?.y ?? unit.y))) {
       alertOnce(state, "defend", 15, "player", "대기 병력이 기지에 들어온 적을 요격합니다.", "order");
     }
   }
@@ -2646,7 +2652,8 @@ function stepUnits(state, dt) {
     }
     let target = resolve(state, unit.targetId, unit);
     // 따로 둔 부대는 제 자리 가까이(14칸) 들어온 적만 쫓는다(기지로 불려 가지 않는다).
-    const intruders = isAttack ? [] : plan.intruders.filter((enemy) => targetable(state, unit, enemy) && (unit.squad === undefined || !slot || distance(enemy.x, enemy.y, slot.x, slot.y) < 14));
+    // 자동 수비는 우리 진영 절반 안에 세운 병력만 한다: 적진에 세워 둔 병력이 저글링 하나 때문에 집으로 끌려오지 않게.
+    const intruders = isAttack || !slot || !homeHalf(unit.side, slot.y) ? [] : plan.intruders.filter((enemy) => targetable(state, unit, enemy) && (unit.squad === undefined || !slot || distance(enemy.x, enemy.y, slot.x, slot.y) < 14));
     // 집결지에 와 있는 대기 병력은 멀리 있는 적을 쫓지 않는다. 집결지로 이동 중(싸우며 전진)일 때는 만나는 적과 모두 싸운다.
     const settled = slot && distance(unit.x, unit.y, slot.x, slot.y) < RALLY_LEASH;
     if (settled && unit.fresh) delete unit.fresh;
@@ -3022,6 +3029,8 @@ function findIntruders(state, side, rallyY) {
   const own = state.buildings.filter((building) => building.side === side);
   return state.units.filter((unit) => {
     if (unit.side === side || isPassive(unit) || unit.hp <= 0) return false;
+    // 우리 진영 절반 안에 들어온 적만 침입자다(적 앞마당에 세워 둔 병력의 집결선 뒤를 모두 침입으로 보지 않게).
+    if (!homeHalf(side, unit.y)) return false;
     if ((unit.y - rallyY) * forward < 2) return true;
     return own.some((building) => distance(unit.x, unit.y, building.x, building.y) < building.radius + 6);
   });
