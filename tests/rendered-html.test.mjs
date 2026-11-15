@@ -155,6 +155,8 @@ import {
   mudflatHeadlampDiscoveryRange,
   mudflatJoystickVector,
   mudflatNetStats,
+  mudflatOpeningCreatureSpeedMultiplier,
+  mudflatOpeningWaveCount,
   mudflatPearlTestTapProgress,
   mudflatMosquitoAppears,
   mudflatMosquitoChance,
@@ -176,6 +178,7 @@ import {
   mudflatSeafoodSaleValue,
   mudflatSettleCatch,
   mudflatSpawnInterval,
+  mudflatStageSpawnInterval,
   mudflatStageStats,
   mudflatTideStats,
   mudflatStageTideState,
@@ -1197,6 +1200,17 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatShellMovementSpeed(200), 10);
   assert.ok(mudflatSpawnInterval(200) < mudflatSpawnInterval(0));
   assert.ok(mudflatSpawnInterval(0, "normal") < mudflatSpawnInterval(0, "kids"));
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8].map((stage) => mudflatOpeningWaveCount(stage)), [0, 0, 8, 10, 12, 14, 16, 18]);
+  assert.equal(mudflatOpeningWaveCount(8, "kids"), 0);
+  assert.equal(mudflatStageSpawnInterval(3, "normal", .47), .42);
+  assert.equal(mudflatStageSpawnInterval(5, "normal", .52), .37);
+  assert.ok(Math.abs(mudflatStageSpawnInterval(8, "normal", .3) - .295) < 1e-9);
+  assert.equal(mudflatStageSpawnInterval(3, "kids", .6), .6);
+  assert.equal(mudflatOpeningCreatureSpeedMultiplier(3, 0, "small-crab"), 1.1);
+  assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 0, "shrimp"), 1.22);
+  assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 30, "shrimp"), 1.11);
+  assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 60, "shrimp"), 1);
+  assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 0, "pufferfish"), 1);
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
   assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["쓸어담기", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
@@ -1856,6 +1870,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /mudBootLevel = Math\.max\(runtime\.levels\.boots/);
   assert.match(source, /runtime\.mudPrints\.push\(/);
   assert.match(source, /mudflatClamRewardForRoll/);
+  assert.match(source, /openingWaveRemaining: mudflatOpeningWaveCount\(campaign\.stage, campaign\.mode\)/);
+  assert.match(source, /spawnCreature\(width, height, false, true\)/);
+  assert.match(source, /mudflatStageSpawnInterval\(runtime\.stage, runtime\.mode, regularInterval\)/);
+  assert.match(source, /mudflatOpeningCreatureSpeedMultiplier\(runtime\.stage, runtime\.elapsed, template\.id, runtime\.mode\)/);
   assert.match(source, /function applyClamHarvestReward\(/);
   assert.ok((source.match(/applyClamHarvestReward\(/g) ?? []).length >= 3, "normal digging and five-tap QA use the shared pearl reward path");
   assert.match(source, /mudflatPearlTestTapProgress\(tapState\.count, tapState\.lastTapAt, event\.timeStamp\)/);

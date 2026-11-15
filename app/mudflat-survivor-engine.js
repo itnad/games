@@ -302,6 +302,32 @@ export function mudflatSpawnInterval(elapsedSeconds, mode = "kids") {
   return mode === "normal" ? Math.max(0.11, base * 0.82) : base;
 }
 
+export function mudflatOpeningWaveCount(stage = 1, mode = "normal") {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (mode !== "normal" || safeStage < 3) return 0;
+  return Math.min(18, 8 + (safeStage - 3) * 2);
+}
+
+export function mudflatStageSpawnInterval(stage = 1, mode = "kids", regularInterval = 1) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  const safeInterval = Math.max(0.08, Number(regularInterval) || 1);
+  if (mode !== "normal" || safeStage < 3) return safeInterval;
+  // Later expeditions never begin more slowly than this pressure curve. The
+  // ordinary elapsed-time curve takes over as soon as it becomes faster.
+  const openingCeiling = Math.max(0.26, 0.42 - (safeStage - 3) * 0.025);
+  return Math.min(safeInterval, openingCeiling);
+}
+
+const MUDFLAT_OPENING_FAST_CREATURES = new Set(["small-crab", "crab", "shrimp", "large-shrimp"]);
+
+export function mudflatOpeningCreatureSpeedMultiplier(stage = 1, elapsedSeconds = 0, creatureType = "", mode = "normal") {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  const safeElapsed = Math.max(0, Number(elapsedSeconds) || 0);
+  if (mode !== "normal" || safeStage < 3 || safeElapsed >= 60 || !MUDFLAT_OPENING_FAST_CREATURES.has(creatureType)) return 1;
+  const maximumBonus = Math.min(.22, .1 + (safeStage - 3) * .025);
+  return 1 + maximumBonus * (1 - safeElapsed / 60);
+}
+
 export function mudflatCreatureForTime(elapsedSeconds, roll = 0, options = {}) {
   const available = MUDFLAT_CREATURES.filter((item) => !item.boss && !item.spawnVariant && item.unlock <= elapsedSeconds && (!item.requiresHeadlamp || options.headlamp));
   const safeRoll = Math.max(0, Math.min(0.9999, roll));

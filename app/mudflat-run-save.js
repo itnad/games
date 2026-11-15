@@ -73,6 +73,8 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (!Number.isInteger(runtime.seed)) runtime.seed = runtimeTemplate.seed;
     if (!Number.isInteger(runtime.rngState)) runtime.rngState = runtime.seed;
     if (typeof runtime.mosquitoRunEnabled !== "boolean") runtime.mosquitoRunEnabled = runtimeTemplate.mosquitoRunEnabled;
+    // A resumed expedition must not replay the new stage-opening migration.
+    if (!finite(runtime.openingWaveRemaining)) runtime.openingWaveRemaining = 0;
     // Older active-run autosaves did not know about stage-five deep-mud
     // visuals/state. They are cosmetic or transient, so backfill defaults
     // instead of discarding an otherwise valid expedition.
