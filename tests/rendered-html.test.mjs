@@ -157,6 +157,12 @@ import {
   mudflatNetStats,
   mudflatOpeningCreatureSpeedMultiplier,
   mudflatOpeningWaveCount,
+  mudflatPufferEventInterval,
+  mudflatCrabRushRows,
+  mudflatCrabRushInterval,
+  mudflatMudZombieCount,
+  mudflatJellyfishInterval,
+  mudflatJellyfishPoisonDamage,
   mudflatPearlTestTapProgress,
   mudflatMosquitoAppears,
   mudflatMosquitoChance,
@@ -1211,6 +1217,15 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 30, "shrimp"), 1.11);
   assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 60, "shrimp"), 1);
   assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 0, "pufferfish"), 1);
+  assert.equal(mudflatPufferEventInterval(2, .5), Infinity);
+  assert.ok(mudflatPufferEventInterval(3, 0) >= 25);
+  assert.deepEqual([3, 4, 5, 6, 7, 10].map(mudflatCrabRushRows), [0, 1, 2, 3, 4, 4]);
+  assert.equal(mudflatCrabRushInterval(3, .5), Infinity);
+  assert.ok(mudflatCrabRushInterval(8, .5) > 30);
+  assert.deepEqual([5, 6, 7, 8, 10].map(mudflatMudZombieCount), [0, 20, 30, 40, 40]);
+  assert.equal(mudflatJellyfishInterval(7), Infinity);
+  assert.equal(mudflatJellyfishInterval(8), 30);
+  assert.equal(mudflatJellyfishPoisonDamage(), 4);
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
   assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["쓸어담기", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
@@ -1874,6 +1889,16 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /spawnCreature\(width, height, false, true\)/);
   assert.match(source, /mudflatStageSpawnInterval\(runtime\.stage, runtime\.mode, regularInterval\)/);
   assert.match(source, /mudflatOpeningCreatureSpeedMultiplier\(runtime\.stage, runtime\.elapsed, template\.id, runtime\.mode\)/);
+  assert.match(source, /const spawnPufferEvent =/);
+  assert.match(source, /const spawnCrabRush =/);
+  assert.match(source, /const spawnMudZombieEvent =/);
+  assert.match(source, /const spawnJellyfish =/);
+  assert.match(source, /eventKind: "jellyfish", uncollectible: true/);
+  assert.match(source, /creature\.eventKind === "crab-line"/);
+  assert.match(source, /runtime\.jellyPoisonSeconds = Math\.max\(runtime\.jellyPoisonSeconds, 4\)/);
+  assert.match(source, /creature\.hp = creature\.maxHp/);
+  assert.match(source, /runtime\.jellyfishClock \+= mudflatJellyfishInterval\(runtime\.stage\)/);
+  assert.doesNotMatch(source, /showPlayerMessage\([^\n]*(복어 무리|게 무리|좀비|해파리)/);
   assert.match(source, /function applyClamHarvestReward\(/);
   assert.ok((source.match(/applyClamHarvestReward\(/g) ?? []).length >= 3, "normal digging and five-tap QA use the shared pearl reward path");
   assert.match(source, /mudflatPearlTestTapProgress\(tapState\.count, tapState\.lastTapAt, event\.timeStamp\)/);
@@ -3786,7 +3811,7 @@ test("all rock, hole, and falling-rock spawn paths respect the camp exclusion", 
   assert.equal((source.match(/runtime\.rocks\.push\(/g) ?? []).length, 1, "all rocks use the guarded addRock helper");
   assert.match(source, /if \(!campObstacleAllowed\(rock, rock\.radius \+ 20\)\) return false;\s*runtime\.rocks\.push\(rock\)/);
   assert.match(source, /if \(campObstacleAllowed\(hole, 48\)\) runtime\.clamHoles\.push\(hole\)/);
-  assert.match(source, /kind = runtime\.stage === GAEBUL_STAGE/);
+  assert.match(source, /kind(?:: ClamHole\["kind"\])? = runtime\.stage === GAEBUL_STAGE/);
   assert.match(source, /if \(campObstacleAllowed\(falling, falling\.radius \+ 20\)\) runtime\.fallingRocks\.push\(falling\)/);
   for (const collection of ["rocks", "clamHoles", "fallingRocks"]) {
     assert.ok(source.includes(`runtime.${collection} = runtime.${collection}.filter((`), `existing ${collection} are cleared when camp appears`);

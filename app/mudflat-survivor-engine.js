@@ -328,6 +328,41 @@ export function mudflatOpeningCreatureSpeedMultiplier(stage = 1, elapsedSeconds 
   return 1 + maximumBonus * (1 - safeElapsed / 60);
 }
 
+// Silent field events add pressure without interrupting play with banners or
+// scripted announcements. These helpers keep stage scaling explicit and easy
+// to verify independently from the canvas runtime.
+export function mudflatPufferEventInterval(stage = 1, roll = 0) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < 3) return Infinity;
+  return Math.max(25, 38 - (safeStage - 3) * 1.25) + Math.max(0, Math.min(.999999, Number(roll) || 0)) * 12;
+}
+
+export function mudflatCrabRushRows(stage = 1) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < 4) return 0;
+  return Math.min(4, safeStage - 3);
+}
+
+export function mudflatCrabRushInterval(stage = 1, roll = 0) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < 4) return Infinity;
+  return Math.max(31, 44 - (safeStage - 4)) + Math.max(0, Math.min(.999999, Number(roll) || 0)) * 14;
+}
+
+export function mudflatMudZombieCount(stage = 1) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < 6) return 0;
+  return Math.min(40, 20 + (safeStage - 6) * 10);
+}
+
+export function mudflatJellyfishInterval(stage = 1) {
+  return Math.max(1, Math.floor(Number(stage) || 1)) >= 8 ? 30 : Infinity;
+}
+
+export function mudflatJellyfishPoisonDamage() {
+  return 4;
+}
+
 export function mudflatCreatureForTime(elapsedSeconds, roll = 0, options = {}) {
   const available = MUDFLAT_CREATURES.filter((item) => !item.boss && !item.spawnVariant && item.unlock <= elapsedSeconds && (!item.requiresHeadlamp || options.headlamp));
   const safeRoll = Math.max(0, Math.min(0.9999, roll));

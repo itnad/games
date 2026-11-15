@@ -95,6 +95,12 @@ import {
   mudflatMosquitoRunEnabled,
   mudflatOpeningCreatureSpeedMultiplier,
   mudflatOpeningWaveCount,
+  mudflatPufferEventInterval,
+  mudflatCrabRushRows,
+  mudflatCrabRushInterval,
+  mudflatMudZombieCount,
+  mudflatJellyfishInterval,
+  mudflatJellyfishPoisonDamage,
   mudflatPearlTestTapProgress,
   mudflatKidsNetCanTarget,
   mudflatMarketImageScale,
@@ -127,7 +133,8 @@ import {
 } from "./mudflat-survivor-engine.js";
 
 type ExitProps = { onExit: () => void };
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; movementAngle: number; movementClock: number; facing?: 1 | -1; ovalDirection?: number; netReleaseUntil?: number };
+type CreatureEventKind = "puffer-rush" | "crab-line" | "mud-zombie" | "jellyfish";
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; movementAngle: number; movementClock: number; facing?: 1 | -1; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
 type Pickup = ReturnType<typeof createExperiencePickup>;
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
@@ -190,7 +197,7 @@ type Runtime = {
   bursts: Burst[]; floatTexts: FloatText[];
   xpCollectLife: number;
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
-  bossSpawned: boolean; openingWaveRemaining: number; spawnClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
+  bossSpawned: boolean; openingWaveRemaining: number; spawnClock: number; pufferEventClock: number; crabRushClock: number; mudZombieClock: number; mudZombieTriggered: boolean; jellyfishClock: number; jellyPoisonSeconds: number; jellyPoisonTickClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
   deepMudGauge: number; deepMudLock: number; deepMudStepClock: number;
   safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; mosquitoClock: number; mosquitoRunEnabled: boolean; rocksFlipped: number;
   paused: boolean; ended: boolean;
@@ -279,7 +286,12 @@ function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
     xpCollectLife: 0,
     elapsed: 0, tutorialElapsed: 0, firstMoveGuide, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
     creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: { ...(campaign.mode === "normal" ? GENERAL_CHARACTER.levels : {}), ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
-    caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0, headlampSpawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, selfShockNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
+    caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
+    pufferEventClock: campaign.stage >= 3 ? 18 : -1, crabRushClock: campaign.stage >= 4 ? 26 : -1,
+    mudZombieClock: campaign.stage >= 6 ? 52 : -1, mudZombieTriggered: false,
+    jellyfishClock: campaign.stage >= 8 ? mudflatJellyfishInterval(campaign.stage) : -1,
+    jellyPoisonSeconds: 0, jellyPoisonTickClock: 1,
+    headlampSpawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, selfShockNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
     playerMessage: "", playerMessageLife: 0, playerMessageOpacity: 1, pufferTouching: false, hiddenRockClock: mudflatHiddenRockStage(campaign.stage) ? .5 : 0, hiddenRockIntroShown: false, catchFullNoticeClock: 0,
     hoeEffect: 0, rockFlipEffect: null, bleedSeconds: 0, bleedTickClock: 1, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0, deepMudGauge: 0, deepMudLock: 0, deepMudStepClock: 0,
     safeZone: { x: 90, y: 0 }, baseCamp: { ...BASE_CAMP }, baseCampGuideShown: false, tideDamageClock: 1, tideMessageClock: 0, lastTideCycle: 0, lastHillCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, mosquitoClock: 10, mosquitoRunEnabled: mudflatMosquitoRunEnabled(campaign.stage, mosquitoRoll), rocksFlipped: 0,
@@ -986,6 +998,38 @@ function drawCreatureSprite(context: CanvasRenderingContext2D, creature: Creatur
   const wobble = Math.sin(elapsed * 5 + creature.phase) * .08;
   const bossPulse = creature.boss ? mudflatBossPulse(elapsed, creature.phase) : null;
   context.save();
+  if (creature.eventKind === "jellyfish") {
+    const pulse = 1 + Math.sin(elapsed * 2.2 + creature.phase) * .06;
+    context.scale(pulse, 2 - pulse);
+    context.globalAlpha *= .82;
+    context.fillStyle = "rgba(23,18,35,.3)";
+    context.beginPath(); context.ellipse(0, size * .76, size * 1.1, size * .34, 0, 0, Math.PI * 2); context.fill();
+    const dome = context.createRadialGradient(-size * .28, -size * .55, size * .12, 0, 0, size * 1.18);
+    dome.addColorStop(0, creature.hitFlash > 0 ? "rgba(255,255,255,.96)" : "rgba(228,247,255,.92)");
+    dome.addColorStop(.5, "rgba(132,198,224,.78)");
+    dome.addColorStop(1, "rgba(89,74,151,.54)");
+    context.fillStyle = dome;
+    context.strokeStyle = "rgba(222,247,255,.82)";
+    context.lineWidth = Math.max(1.5, size * .07);
+    context.beginPath();
+    context.arc(0, 0, size, Math.PI, 0);
+    context.quadraticCurveTo(size * .72, size * .45, size * .38, size * .27);
+    context.quadraticCurveTo(0, size * .58, -size * .38, size * .27);
+    context.quadraticCurveTo(-size * .72, size * .45, -size, 0);
+    context.closePath(); context.fill(); context.stroke();
+    context.strokeStyle = "rgba(183,224,240,.76)";
+    context.lineWidth = Math.max(1.2, size * .055);
+    context.lineCap = "round";
+    for (let tentacle = -2; tentacle <= 2; tentacle += 1) {
+      const x = tentacle * size * .3;
+      context.beginPath();
+      context.moveTo(x, size * .3);
+      context.bezierCurveTo(x + Math.sin(elapsed * 2 + tentacle) * size * .25, size * .82, x - size * .2, size * 1.15, x + Math.sin(elapsed * 1.6 + tentacle) * size * .18, size * 1.48);
+      context.stroke();
+    }
+    context.restore();
+    return;
+  }
   context.rotate(wobble);
   if (DIRECTIONAL_SEAFOOD_TYPES.has(creature.type)) context.scale(creatureSpriteHorizontalScale(creature), 1);
   context.fillStyle = "rgba(28,22,19,.28)";
@@ -2028,7 +2072,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       return Math.max(0, Math.min(1, (radius + 48 - distance) / 48));
     };
 
-    const isCreatureRevealed = (creature: Creature) => creatureRevealStrength(creature) >= .98;
+    const isCreatureRevealed = (creature: Creature) => (creature.emergeSeconds ?? 0) <= 0 && creatureRevealStrength(creature) >= .98;
 
     const spawnCreature = (width: number, height: number, forcedBoss = false, openingWave = false) => {
       const headlampRange = mudflatHeadlampDiscoveryRange(runtime.equipment.headlamp ?? 0);
@@ -2069,6 +2113,94 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         y: spawnPoint.y, hp: template.hp * scale, maxHp: template.hp * scale,
         speed: template.speed * (1 + runtime.elapsed / 750) * (runtime.mode === "normal" ? 1.12 : 1) * stageStats.creatureSpeedMultiplier * openingSpeed, saltHit: 0, hitFlash: 0, phase: runtimeRandom(runtime) * Math.PI * 2, age: 0,
         movement: (template.movement ?? "chase") as CreatureMovement, movementAngle: angle + Math.PI, movementClock: 1,
+      });
+    };
+
+    const eventCreatureFromTemplate = (
+      template: (typeof MUDFLAT_CREATURES)[number], point: Point, eventKind: CreatureEventKind,
+      overrides: Partial<Creature> = {},
+    ): Creature => {
+      const hpScale = (runtime.mode === "normal" ? 1.15 : 1) * stageStats.creatureHpMultiplier;
+      return {
+        ...template,
+        id: sequenceRef.current++, type: template.id, x: point.x, y: point.y,
+        hp: template.hp * hpScale, maxHp: template.hp * hpScale,
+        speed: template.speed * stageStats.creatureSpeedMultiplier,
+        saltHit: 0, hitFlash: 0, phase: runtimeRandom(runtime) * Math.PI * 2, age: 0,
+        movement: (template.movement ?? "chase") as CreatureMovement,
+        movementAngle: runtimeRandom(runtime) * Math.PI * 2, movementClock: 1,
+        eventKind,
+        ...overrides,
+      };
+    };
+
+    const spawnPufferEvent = (width: number, height: number) => {
+      const template = MUDFLAT_CREATURES.find((item) => item.id === "pufferfish");
+      if (!template) return;
+      const angle = runtimeRandom(runtime) * Math.PI * 2;
+      const distance = Math.hypot(width, height) * .62 + 90;
+      runtime.creatures.push(eventCreatureFromTemplate(template, {
+        x: runtime.player.x + Math.cos(angle) * distance,
+        y: runtime.player.y + Math.sin(angle) * distance,
+      }, "puffer-rush", {
+        movement: "chase", speed: template.speed * (1.08 + runtime.stage * .025), movementAngle: angle + Math.PI,
+      }));
+    };
+
+    const spawnCrabRush = (width: number, height: number) => {
+      const template = MUDFLAT_CREATURES.find((item) => item.id === "small-crab");
+      const rows = mudflatCrabRushRows(runtime.stage);
+      if (!template || rows <= 0) return;
+      const sourceAngle = runtimeRandom(runtime) * Math.PI * 2;
+      const forwardX = -Math.cos(sourceAngle);
+      const forwardY = -Math.sin(sourceAngle);
+      const sideX = -forwardY;
+      const sideY = forwardX;
+      const edgeDistance = Math.hypot(width, height) * .6 + 80;
+      const crabsPerRow = 7;
+      for (let row = 0; row < rows; row += 1) {
+        for (let column = 0; column < crabsPerRow; column += 1) {
+          const lateral = (column - (crabsPerRow - 1) / 2) * 38;
+          const depth = row * 58;
+          const point = {
+            x: runtime.player.x + Math.cos(sourceAngle) * (edgeDistance + depth) + sideX * lateral,
+            y: runtime.player.y + Math.sin(sourceAngle) * (edgeDistance + depth) + sideY * lateral,
+          };
+          runtime.creatures.push(eventCreatureFromTemplate(template, point, "crab-line", {
+            movement: "still", speed: 218 + runtime.stage * 7,
+            chargeX: forwardX, chargeY: forwardY, eventLife: 9,
+            movementAngle: Math.atan2(forwardY, forwardX), facing: forwardX >= 0 ? 1 : -1,
+          }));
+        }
+      }
+    };
+
+    const spawnMudZombieEvent = (width: number, height: number) => {
+      const template = MUDFLAT_CREATURES.find((item) => item.id === "small-crab");
+      const count = mudflatMudZombieCount(runtime.stage);
+      if (!template || count <= 0) return;
+      for (let index = 0; index < count; index += 1) {
+        const angle = runtimeRandom(runtime) * Math.PI * 2;
+        const minimum = 105;
+        const distance = minimum + runtimeRandom(runtime) * Math.max(180, Math.hypot(width, height) * .54);
+        const point = { x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance };
+        runtime.creatures.push(eventCreatureFromTemplate(template, point, "mud-zombie", {
+          movement: "chase", speed: (112 + runtime.stage * 5) * (.88 + runtimeRandom(runtime) * .24),
+          emergeSeconds: .55 + runtimeRandom(runtime) * 1.45,
+        }));
+      }
+    };
+
+    const spawnJellyfish = (width: number, height: number) => {
+      const angle = runtimeRandom(runtime) * Math.PI * 2;
+      const distance = Math.hypot(width, height) * .56 + 48;
+      runtime.creatures.push({
+        id: sequenceRef.current++, type: "jellyfish", name: "해파리", family: "hazard", icon: "◌", color: "#8bc6dc",
+        x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance,
+        hp: 1000, maxHp: 1000, speed: 34 + runtime.stage * 1.5, size: 25, xp: 0, score: 0,
+        saltHit: 0, hitFlash: 0, phase: runtimeRandom(runtime) * Math.PI * 2, age: 0,
+        movement: "wander", movementAngle: angle + Math.PI, movementClock: 1.4,
+        eventKind: "jellyfish", uncollectible: true,
       });
     };
 
@@ -2145,13 +2277,25 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (runtime.baseCampGuideShown && isInsideBaseCamp(runtime.player, runtime.baseCamp, runtime.stage)) return;
       const safeDamage = Math.max(0, Number(damage) || 0);
       if (safeDamage <= 0 || creature.hp <= 0) return;
+      const hitPoint = { x: creature.x, y: creature.y };
       creature.hp -= safeDamage;
       creature.hitFlash = Math.max(creature.hitFlash, hitFlash);
+      if (creature.uncollectible && creature.eventKind === "jellyfish" && creature.hp <= 0) {
+        const awayX = creature.x - runtime.player.x;
+        const awayY = creature.y - runtime.player.y;
+        const awayDistance = Math.hypot(awayX, awayY);
+        const awayAngle = awayDistance > .001 ? Math.atan2(awayY, awayX) : creature.movementAngle;
+        creature.x += Math.cos(awayAngle) * 470;
+        creature.y += Math.sin(awayAngle) * 470;
+        creature.hp = creature.maxHp;
+        creature.movementAngle = awayAngle;
+        for (const net of runtime.castNets) net.caughtIds.delete(creature.id);
+      }
       const roundedDamage = Math.round(safeDamage * 10) / 10;
       const damageText = Number.isInteger(roundedDamage) ? `-${roundedDamage}` : `-${roundedDamage.toFixed(1)}`;
       const horizontalJitter = (sequenceRef.current % 3 - 1) * 9;
       runtime.floatTexts.push({
-        id: sequenceRef.current++, x: creature.x + horizontalJitter, y: creature.y - creature.size - 4,
+        id: sequenceRef.current++, x: hitPoint.x + horizontalJitter, y: hitPoint.y - creature.size - 4,
         life: .62, text: damageText, color: DAMAGE_TEXT_COLOR, kind: "harvest",
       });
     };
@@ -2271,7 +2415,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     };
 
     const damageAndCollect = () => {
-      const defeated = runtime.creatures.filter((item) => item.hp <= 0);
+      const defeated = runtime.creatures.filter((item) => item.hp <= 0 && !item.uncollectible);
       if (defeated.length) {
         const catchCapacity = mudflatCatchCapacity(runtime.equipment.cooler ?? 0);
         for (const item of defeated) {
@@ -2285,7 +2429,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           runtime.pickups.push(createExperiencePickup(sequenceRef.current++, item.x, item.y, item.xp));
           runtime.bursts.push({ id: sequenceRef.current++, x: item.x, y: item.y, life: .5, maxLife: .5, color: item.color, size: item.size, kind: "harvest" });
         }
-        runtime.creatures = runtime.creatures.filter((item) => item.hp > 0);
+        runtime.creatures = runtime.creatures.filter((item) => item.hp > 0 || item.uncollectible);
       }
     };
 
@@ -2313,6 +2457,18 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         for (let tick = 0; tick < bleed.ticks; tick += 1) {
           damagePlayer(mudflatBleedDamage(runtime.player.maxHp), "#ff695f");
         }
+      }
+      if (runtime.jellyPoisonSeconds > 0) {
+        const activePoisonTime = Math.min(dt, runtime.jellyPoisonSeconds);
+        runtime.jellyPoisonSeconds = Math.max(0, runtime.jellyPoisonSeconds - activePoisonTime);
+        runtime.jellyPoisonTickClock -= activePoisonTime;
+        let poisonTicks = 0;
+        while (runtime.jellyPoisonTickClock <= 0 && poisonTicks < 10) {
+          runtime.jellyPoisonTickClock += 1;
+          poisonTicks += 1;
+        }
+        for (let tick = 0; tick < poisonTicks; tick += 1) damagePlayer(mudflatJellyfishPoisonDamage(), "#8e82d9");
+        if (runtime.jellyPoisonSeconds <= 0) runtime.jellyPoisonTickClock = 1;
       }
 
       let inputX = joystickRef.current.x;
@@ -2525,6 +2681,34 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const regularInterval = mudflatSpawnInterval(runtime.elapsed, runtime.mode) * stageStats.spawnIntervalMultiplier;
           runtime.spawnClock = mudflatStageSpawnInterval(runtime.stage, runtime.mode, regularInterval);
         }
+        if (runtime.stage >= 3) {
+          runtime.pufferEventClock -= dt;
+          if (runtime.pufferEventClock <= 0) {
+            spawnPufferEvent(width, height);
+            runtime.pufferEventClock = mudflatPufferEventInterval(runtime.stage, runtimeRandom(runtime));
+          }
+        }
+        if (runtime.stage >= 4) {
+          runtime.crabRushClock -= dt;
+          if (runtime.crabRushClock <= 0) {
+            spawnCrabRush(width, height);
+            runtime.crabRushClock = mudflatCrabRushInterval(runtime.stage, runtimeRandom(runtime));
+          }
+        }
+        if (runtime.stage >= 6 && !runtime.mudZombieTriggered) {
+          runtime.mudZombieClock -= dt;
+          if (runtime.mudZombieClock <= 0) {
+            runtime.mudZombieTriggered = true;
+            spawnMudZombieEvent(width, height);
+          }
+        }
+        if (runtime.stage >= 8) {
+          runtime.jellyfishClock -= dt;
+          if (runtime.jellyfishClock <= 0) {
+            spawnJellyfish(width, height);
+            runtime.jellyfishClock += mudflatJellyfishInterval(runtime.stage);
+          }
+        }
         if (stageProfile.swarms) {
           runtime.swarmClock -= dt;
           if (runtime.swarmClock <= 0 && runtime.creatures.length < 165) {
@@ -2556,13 +2740,28 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       for (const creature of runtime.creatures) {
         if (creature.hp <= 0) continue;
         creature.age += dt;
+        if (creature.eventLife !== undefined) creature.eventLife -= dt;
+        if ((creature.emergeSeconds ?? 0) > 0) creature.emergeSeconds = Math.max(0, (creature.emergeSeconds ?? 0) - dt);
         const previousX = creature.x;
         const dx = runtime.player.x - creature.x; const dy = runtime.player.y - creature.y; const distance = Math.hypot(dx, dy) || 1;
         const revealed = isCreatureRevealed(creature);
-        const activeMovement = creature.requiresHeadlamp && !revealed ? "wander" : (creature.type === "pufferfish" ? mudflatPufferMovementForAge(creature.age) : creature.movement);
+        const activeMovement = creature.requiresHeadlamp && !revealed ? "wander"
+          : creature.eventKind === "puffer-rush" ? "chase"
+            : (creature.type === "pufferfish" ? mudflatPufferMovementForAge(creature.age) : creature.movement);
         const baseCreatureSpeed = ["whelk", "fist-whelk", "golbaengi"].includes(creature.type) ? mudflatShellMovementSpeed(speed) : creature.speed;
         const creatureSpeed = (creature.requiresHeadlamp && !revealed ? baseCreatureSpeed * .25 : baseCreatureSpeed) * castNetMovementMultiplier(creature, runtime.castNets);
-        if (activeMovement === "chase") {
+        if ((creature.emergeSeconds ?? 0) > 0) {
+          // Buried crabs become tangible only after their staggered emergence.
+        } else if (creature.eventKind === "crab-line") {
+          creature.x += (creature.chargeX ?? 0) * creatureSpeed * dt;
+          creature.y += (creature.chargeY ?? 0) * creatureSpeed * dt;
+        } else if (creature.eventKind === "jellyfish") {
+          creature.movementAngle += Math.sin(creature.age * 1.35 + creature.phase) * .42 * dt;
+          const driftX = Math.cos(creature.movementAngle) * .7 + dx / distance * .3;
+          const driftY = Math.sin(creature.movementAngle) * .7 + dy / distance * .3;
+          creature.x += driftX * creatureSpeed * dt;
+          creature.y += driftY * creatureSpeed * dt;
+        } else if (activeMovement === "chase") {
           creature.x += dx / distance * creatureSpeed * dt; creature.y += dy / distance * creatureSpeed * dt;
         } else if (activeMovement === "wander") {
           creature.movementClock -= dt;
@@ -2592,15 +2791,17 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (runtime.baseCampGuideShown) keepCreatureOutsideBaseCamp(creature, runtime.baseCamp, runtime.stage);
         if (Math.abs(creature.x - previousX) > .001) creature.facing = creature.x > previousX ? 1 : -1;
         creature.saltHit = Math.max(0, creature.saltHit - dt); creature.hitFlash = Math.max(0, creature.hitFlash - dt);
-        if (!inBaseCamp && revealed && distance < creature.size + 17) {
+        if (!inBaseCamp && revealed && (creature.emergeSeconds ?? 0) <= 0 && distance < creature.size + 17) {
           touching = true;
           touchingCreature = creature;
           if (creature.type === "pufferfish" || creature.type === "king-crab") bleedingCreatureTouching = true;
           if (creature.type === "pufferfish") pufferTouching = true;
+          if (creature.eventKind === "jellyfish") runtime.jellyPoisonSeconds = Math.max(runtime.jellyPoisonSeconds, 4);
         }
       }
       const headlampRetentionDistance = Math.max(Math.hypot(width, height) * 1.15, mudflatHeadlampDiscoveryRange(runtime.equipment.headlamp ?? 0) + 360);
-      runtime.creatures = runtime.creatures.filter((creature) => !creature.requiresHeadlamp || Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= headlampRetentionDistance);
+      runtime.creatures = runtime.creatures.filter((creature) => (creature.eventLife === undefined || creature.eventLife > 0)
+        && (!creature.requiresHeadlamp || Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= headlampRetentionDistance));
       if (bleedingCreatureTouching) {
         const bleed = mudflatPufferBleedOnContact(runtime.bleedSeconds, runtime.bleedTickClock, runtime.equipment.vest ?? 0);
         runtime.bleedSeconds = bleed.seconds; runtime.bleedTickClock = bleed.tickClock;
@@ -3009,7 +3210,21 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const visibility = creatureRevealStrength(creature);
         const point = screenPoint(creature); if (visibility <= 0 || point.x < -70 || point.y < -70 || point.x > width + 70 || point.y > height + 70) continue;
         const netStruggle = castNetMovementMultiplier(creature, runtime.castNets) === 0 ? Math.sin(actionTime * 19 + creature.id) * .8 : 0;
-        context.save(); context.globalAlpha = visibility; context.translate(point.x + netStruggle, point.y); drawCreatureSprite(context, creature, actionTime, creatureSprites); context.restore();
+        const emerging = creature.eventKind === "mud-zombie" && (creature.emergeSeconds ?? 0) > 0;
+        if (emerging) {
+          const emergeProgress = 1 - Math.min(1, (creature.emergeSeconds ?? 0) / 2);
+          context.save(); context.translate(point.x, point.y + creature.size * .72);
+          context.fillStyle = "rgba(42,27,20,.72)"; context.strokeStyle = "rgba(151,111,72,.55)"; context.lineWidth = 2;
+          context.beginPath(); context.ellipse(0, 0, creature.size * (1.15 + emergeProgress * .45), creature.size * (.34 + emergeProgress * .12), creature.phase, 0, Math.PI * 2); context.fill(); context.stroke(); context.restore();
+        }
+        context.save();
+        context.globalAlpha = visibility * (emerging ? .25 + (1 - Math.min(1, (creature.emergeSeconds ?? 0) / 2)) * .75 : 1);
+        context.translate(point.x + netStruggle, point.y);
+        if (emerging) {
+          const emergeScale = .35 + (1 - Math.min(1, (creature.emergeSeconds ?? 0) / 2)) * .65;
+          context.translate(0, creature.size * (1 - emergeScale)); context.scale(emergeScale, emergeScale);
+        }
+        drawCreatureSprite(context, creature, actionTime, creatureSprites); context.restore();
         if (creature.boss || creature.hp < creature.maxHp) {
           context.save(); context.globalAlpha = visibility;
           const visualSize = creature.size * (creature.visualScale ?? 1);

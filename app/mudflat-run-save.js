@@ -75,6 +75,13 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (typeof runtime.mosquitoRunEnabled !== "boolean") runtime.mosquitoRunEnabled = runtimeTemplate.mosquitoRunEnabled;
     // A resumed expedition must not replay the new stage-opening migration.
     if (!finite(runtime.openingWaveRemaining)) runtime.openingWaveRemaining = 0;
+    // Silent stage events were added after the first active-run format. Resume
+    // old runs with the current stage timers rather than rejecting the save or
+    // firing every event immediately on the first frame.
+    for (const key of ["pufferEventClock", "crabRushClock", "mudZombieClock", "jellyfishClock", "jellyPoisonSeconds", "jellyPoisonTickClock"]) {
+      if (!finite(runtime[key])) runtime[key] = runtimeTemplate[key];
+    }
+    if (typeof runtime.mudZombieTriggered !== "boolean") runtime.mudZombieTriggered = runtimeTemplate.mudZombieTriggered;
     // Older active-run autosaves did not know about stage-five deep-mud
     // visuals/state. They are cosmetic or transient, so backfill defaults
     // instead of discarding an otherwise valid expedition.
@@ -95,6 +102,9 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     }
     if (!runtime.creatures.every((creature) => typeof creature.type === "string" && typeof creature.name === "string"
       && ["chase", "still", "wander", "flee", "oval"].includes(creature.movement))) return null;
+    if (!runtime.creatures.every((creature) => (creature.eventKind === undefined || ["puffer-rush", "crab-line", "mud-zombie", "jellyfish"].includes(creature.eventKind))
+      && ["chargeX", "chargeY", "eventLife", "emergeSeconds"].every((key) => creature[key] === undefined || finite(creature[key]))
+      && (creature.uncollectible === undefined || typeof creature.uncollectible === "boolean"))) return null;
     if (!runtime.clamHoles.every((hole) => (hole.kind === undefined || ["clam", "gaebul"].includes(hole.kind))
       && (hole.angle === undefined || finite(hole.angle)))) return null;
     if (!runtime.pickups.every((pickup) => ["spawn", "idle", "pull", "arrived"].includes(pickup.phase) && Array.isArray(pickup.trail) && pickup.trail.every(point))) return null;
