@@ -1348,7 +1348,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
         <div><small>공격 병력</small><b>{army.attack.length}</b><span>{armyText(Object.fromEntries(ARMY_IDS.map((type) => [type, count(army.attack, type)])))}</span></div>
       </div>
       <h3 className="stw-section">병력 이동</h3>
-      <p className="stw-hint">지도를 톡 누르면 누른 곳까지 싸우며 가서 그 자리에 머물며 근처 적과 싸웁니다. 병력보다 뒤쪽을 누르면 교전을 끊고 물러나고, 적 본진을 누르면 그 기지를 다 부술 때까지 싸웁니다. 우리 진영 절반 안에 세운 병력은 기지에 들어온 적을 자동으로 막으러 갑니다.</p>
+      <p className="stw-hint">지도를 톡 누르면 누른 곳까지 싸우며 가서 그 자리에 머물며 근처 적과 싸웁니다. 병력보다 뒤쪽을 누르면 교전을 끊고 물러나고, 적 본진을 누르면 그 기지를 다 부술 때까지 싸웁니다. 기지에 적이 들어오면 저절로 막으러 가지 않으니, 그쪽을 누르거나 “본진 수비”를 누르세요.</p>
       <div className="stw-recall">
         <button type="button" disabled={!army.rally.length && !army.attack.length} onClick={() => issue({ type: "move", y: homeY(game) })}>본진 수비<small>전원 본진 앞으로</small></button>
         <button type="button" disabled={!army.attack.length} onClick={() => issue({ type: "retreat" })}>후퇴<small>공격 병력을 집결지로</small></button>

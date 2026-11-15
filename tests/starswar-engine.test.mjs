@@ -300,8 +300,10 @@ test("starswar cancels buildings, probes, research, and units with the right ref
   assert.match(stwCommand(state, "player", { type: "cancelUnit", gatewayId: gateway.id }).reason, /생산 중인 유닛이 없습니다/);
 });
 
-test("starswar rally units automatically defend buildings from flanking attackers", () => {
+test("starswar AI rally units automatically defend buildings from flanking attackers (people defend by tapping)", () => {
+  // 자동 수비는 AI만 한다. 같은 상황을 AI가 맡은 진영으로 본다(사람 진영은 아래 지도 탭 시험에서 끌려가지 않음을 본다).
   const state = quiet();
+  state.aiSides = ["player"];
   state.sides.player.minerals = 2000;
   stwCommand(state, "player", { type: "build", building: "pylon" });
   finishAll(state);
@@ -3390,7 +3392,7 @@ test("starswar difficulty handicaps: unit production speed per level, beginner A
   }
 });
 
-test("starswar map taps have one meaning: go there fighting and stay; only the enemy base means destroy it; forward units stop defending home", () => {
+test("starswar map taps have one meaning: go there fighting and stay; only the enemy base means destroy it; people are never auto-pulled home", () => {
   const state = stwCreateScenario({ seed: 5, placement: "home", map: "gold", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 6, medic: 2 } }, enemy: { units: {} } } });
   // 보고된 경기: 황금 앞마당 34를 누르자 전군이 출격했다. 이제는 34에 머문다. 적 앞마당 한가운데(28)도 그 자리에 머문다.
   let result = stwCommand(state, "player", { type: "move", y: 34, merge: true });
@@ -3421,19 +3423,23 @@ test("starswar map taps have one meaning: go there fighting and stay; only the e
   run(medics, 1);
   assert.ok(medics.units.filter((unit) => unit.type === "medic").every((unit) => unit.group === "rally"));
 
-  // 자동 수비: 우리 진영에 세운 병력은 본진에 들어온 저글링을 잡으러 가지만, 적 앞마당에 세운 병력은 끌려오지 않는다.
-  const defend = (rallyY) => {
+  // 자동 수비는 AI만 한다: 사람 병력은 어디에 세워 뒀든 본진에 들어온 저글링에 끌려가지 않는다(지도를 눌러 직접 부른다).
+  // AI는 우리 진영 절반 안에 세운 병력만 막으러 가고, 적 앞마당에 세운 병력은 끌려오지 않는다.
+  const defend = (rallyY, ai = false) => {
     const game = stwCreateScenario({ seed: 7, placement: "home", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 4 } }, enemy: { units: {} } } });
+    if (ai) game.aiSides = ["player"];
     stwCommand(game, "player", { type: "move", y: rallyY });
-    run(game, rallyY < 50 ? 25 : 3);
+    run(game, rallyY < 50 ? 25 : 8);
     const startY = Math.max(...game.units.filter((unit) => unit.side === "player" && unit.type === "marine").map((unit) => unit.y));
     stwSpawnUnitAt(game, "enemy", "zergling", 20, 88, "attack");
     run(game, 3);
     const nowY = Math.max(...game.units.filter((unit) => unit.side === "player" && unit.type === "marine").map((unit) => unit.y));
     return nowY - startY;
   };
-  assert.ok(defend(64) > 3, "앞마당에 세운 병력은 본진으로 막으러 간다");
-  assert.ok(Math.abs(defend(30)) < 2, "적 앞마당에 세운 병력은 제자리");
+  assert.ok(Math.abs(defend(64)) < 2, "사람: 앞마당에 세운 병력도 제자리");
+  assert.ok(Math.abs(defend(30)) < 2, "사람: 적 앞마당에 세운 병력도 제자리");
+  assert.ok(defend(64, true) > 3, "AI: 앞마당에 세운 병력은 본진으로 막으러 간다");
+  assert.ok(Math.abs(defend(30, true)) < 2, "AI: 적 앞마당에 세운 병력은 제자리");
 });
 
 test("starswar medics stop healing and fall back when the army retreats", () => {

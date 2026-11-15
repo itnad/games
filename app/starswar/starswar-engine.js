@@ -2518,7 +2518,8 @@ function stepUnits(state, dt) {
       waveSpeed: speeds.length ? Math.min(...speeds) : 3,
       rearY,
       goal: stwPoint(side, { x: 20, y: 6 }),
-      intruders: findIntruders(state, side, rallyY),
+      // 자동 수비(기지에 들어온 적을 대기 병력이 거리와 상관없이 쫓기)는 AI만 한다. 사람은 지도를 눌러 직접 불러온다.
+      intruders: state.aiSides.includes(side) ? findIntruders(state, side, rallyY) : [],
     };
     if (side === "player" && plans[side].intruders.length && army.rally.some((unit) => homeHalf(side, allRallySlots.get(unit.id)?.y ?? unit.y))) {
       alertOnce(state, "defend", 15, "player", "대기 병력이 기지에 들어온 적을 요격합니다.", "order");
