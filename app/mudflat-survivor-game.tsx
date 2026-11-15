@@ -62,6 +62,8 @@ import {
   MUDFLAT_FIXED_GENERAL_SKILL_IDS,
   MUDFLAT_GAEBUL,
   MUDFLAT_GENERAL_UPGRADES,
+  MUDFLAT_PEARL,
+  MUDFLAT_PEARL_TEST_TAP_WINDOW_MS,
   MUDFLAT_RECOVERY_FOODS,
   MUDFLAT_REGULAR_STAGES,
   MUDFLAT_TIDE_MESSAGE_INTERVAL,
@@ -91,6 +93,7 @@ import {
   mudflatNetStats,
   mudflatMosquitoAppears,
   mudflatMosquitoRunEnabled,
+  mudflatPearlTestTapProgress,
   mudflatKidsNetCanTarget,
   mudflatMarketImageScale,
   mudflatPufferBleedOnContact,
@@ -163,6 +166,9 @@ const DEEP_MUD_GAUGE_DECAY = .36;
 const DEEP_MUD_STUCK_SECONDS = .82;
 const FIRST_MOVE_GUIDE_TARGET_RADIUS = 38;
 const FIRST_MOVE_GUIDE_DANGER_RADIUS = 62;
+const PEARL_TEST_TAP_RADIUS = 66;
+const PEARL_TEST_TAP_MOVE_TOLERANCE = 15;
+const PEARL_TEST_TAP_MAX_DURATION_MS = 420;
 const TUTORIAL_HAND_CURSOR_SRC = "/mudflat-ui/windows-hand-cursor.svg";
 const MUDFLAT_DEFEAT_ART_SRC = "/mudflat-illustrations/defeat-gatherer.webp";
 const MUDFLAT_DEFEAT_ART_WIDTH = 980;
@@ -189,6 +195,44 @@ type Runtime = {
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; xpCollecting?: boolean; tutorialActive?: boolean; mosquitoRepellent?: boolean; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
 type SavedRun = { version: 1; savedAt: number; campaign: Campaign; runtime: Runtime; choiceIds: string[]; nextSequence: number };
 type MudflatDevLaunch = { version: 1; campaign: Campaign; run?: boolean; tutorial?: boolean; label?: string; seed?: number };
+type ClamHarvestReward = { id: string; name: string; xp: number; score: number };
+
+function applyClamHarvestReward(
+  runtime: Runtime,
+  reward: ClamHarvestReward,
+  point: Point,
+  nextId: () => number,
+  onCatchFull: () => void,
+  onPearl: () => void,
+) {
+  const stored = runtime.caught < mudflatCatchCapacity(runtime.equipment.cooler ?? 0);
+  if (stored) {
+    runtime.caught += 1;
+    runtime.catchScore += reward.score;
+    runtime.basket[reward.id] = (runtime.basket[reward.id] ?? 0) + 1;
+  } else onCatchFull();
+  runtime.pickups.push(createExperiencePickup(nextId(), point.x, point.y, reward.xp));
+  const pearl = reward.id === MUDFLAT_PEARL.id;
+  const revealLife = pearl ? 1.55 : .9;
+  runtime.clamReveals.push({ id: nextId(), x: point.x, y: point.y, life: revealLife, maxLife: revealLife, type: reward.id });
+  runtime.bursts.push({
+    id: nextId(), x: point.x, y: point.y, life: pearl ? .95 : .55, maxLife: pearl ? .95 : .55,
+    color: pearl ? "#fff0a2" : reward.id === MUDFLAT_GAEBUL.id ? "#d59272" : "#dbc69c",
+    size: pearl ? 38 : reward.id === MUDFLAT_GAEBUL.id ? 24 : 18,
+    kind: "harvest",
+  });
+  runtime.floatTexts.push({
+    id: nextId(), x: point.x, y: point.y - 24, life: pearl ? 1.65 : 1.05,
+    text: stored ? `${reward.name} 채집!` : `${reward.name} 발견!`,
+    color: pearl ? "#fff2a4" : "#ffe2a6", kind: "harvest",
+  });
+  if (pearl && stored) {
+    runtime.bursts.push({ id: nextId(), x: point.x, y: point.y, life: 1.25, maxLife: 1.25, color: "#f6cfff", size: 58, kind: "harvest" });
+    runtime.floatTexts.push({ id: nextId(), x: point.x, y: point.y - 48, life: 2, text: "희귀 보물 · 10,000C", color: "#fff7cf", kind: "harvest" });
+    onPearl();
+  }
+  return stored;
+}
 
 const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, catchCapacity: 500, score: 0, levels: {}, basket: {}, bossCaught: false };
 
@@ -1521,6 +1565,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const campaignRef = useRef<Campaign | null>(null);
   const departureRef = useRef<HTMLElement | null>(null);
   const joystickRef = useRef({ pointerId: -1, originX: 0, originY: 0, x: 0, y: 0 });
+  const pearlTapRef = useRef({ count: 0, lastTapAt: 0, pointerId: -1, startX: 0, startY: 0, startedAt: 0, candidate: false });
+  const pearlCelebrationSequenceRef = useRef(0);
   const keysRef = useRef(new Set<string>());
   const sequenceRef = useRef(1);
   const lumiHoldTimerRef = useRef<number | null>(null);
@@ -1554,9 +1600,25 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [lumiLoadStatus, setLumiLoadStatus] = useState<"loading" | "ready" | "error">("loading");
   const [dailyResult, setDailyResult] = useState<MudflatDailyResult | null>(null);
   const [dailyChallengeActive, setDailyChallengeActive] = useState(false);
+  const [pearlCelebration, setPearlCelebration] = useState<number | null>(null);
 
   useEffect(() => { screenRef.current = screen; }, [screen]);
   useEffect(() => { exitOpenRef.current = exitOpen; }, [exitOpen]);
+
+  const celebratePearl = useCallback(() => {
+    pearlCelebrationSequenceRef.current += 1;
+    setPearlCelebration(pearlCelebrationSequenceRef.current);
+    if ("vibrate" in navigator) navigator.vibrate([28, 38, 48, 42, 80]);
+  }, []);
+
+  useEffect(() => {
+    if (pearlCelebration === null) return;
+    const celebrationId = pearlCelebration;
+    const timer = window.setTimeout(() => {
+      setPearlCelebration((current) => current === celebrationId ? null : current);
+    }, 2700);
+    return () => window.clearTimeout(timer);
+  }, [pearlCelebration]);
 
   const clearLumiHold = useCallback(() => {
     if (lumiHoldTimerRef.current !== null) window.clearTimeout(lumiHoldTimerRef.current);
@@ -1930,6 +1992,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const clamSprite = new Image(); clamSprite.src = "/mudflat-creatures/clam.png"; creatureSprites.set("clam-reveal", clamSprite);
     const razorClamSprite = new Image(); razorClamSprite.src = "/mudflat-creatures/razor-clam.svg"; creatureSprites.set("razor-clam-reveal", razorClamSprite);
     const gaebulSprite = new Image(); gaebulSprite.src = "/mudflat-creatures/gaebul.svg"; creatureSprites.set("gaebul-reveal", gaebulSprite);
+    const pearlSprite = new Image(); pearlSprite.src = "/mudflat-creatures/pearl.png"; creatureSprites.set("pearl-reveal", pearlSprite);
     const lumiArt = characterId === "lumi" ? loadLumiArt() : null;
     if (lumiArt) {
       window.requestAnimationFrame(() => { if (mounted) setLumiLoadStatus(lumiArt.status); });
@@ -2051,7 +2114,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const spawnClamHole = (width: number, height: number) => {
       const angle = runtimeRandom(runtime) * Math.PI * 2;
       const distance = 70 + runtimeRandom(runtime) * Math.max(150, Math.hypot(width, height) * .52);
-      const kind = runtime.stage === GAEBUL_STAGE && runtimeRandom(runtime) < GAEBUL_SPAWN_CHANCE ? "gaebul" : "clam";
+      const kind: ClamHole["kind"] = runtime.stage === GAEBUL_STAGE && runtimeRandom(runtime) < GAEBUL_SPAWN_CHANCE ? "gaebul" : "clam";
       const deepMudPoint = kind === "gaebul" ? randomDeepMudPointNear(runtime.player, width, height, () => runtimeRandom(runtime)) : null;
       const hole = {
         id: sequenceRef.current++,
@@ -2567,17 +2630,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (activeClamHole.progress >= digSeconds) {
           const diggingLevel = runtime.mode === "normal" ? (runtime.levels.digging ?? 1) : Math.max(1, runtime.levels.hoe ?? 1);
           const reward = activeClamHole.kind === "gaebul" ? MUDFLAT_GAEBUL : (mudflatClamRewardForRoll(diggingLevel, runtimeRandom(runtime)) ?? MUDFLAT_CLAM_GRADES[0]!);
-          const catchCapacity = mudflatCatchCapacity(runtime.equipment.cooler ?? 0);
-          if (runtime.caught < catchCapacity) {
-            runtime.caught += 1; runtime.catchScore += reward.score;
-            runtime.basket[reward.id] = (runtime.basket[reward.id] ?? 0) + 1;
-          } else showCatchFullMessage();
-          runtime.pickups.push(createExperiencePickup(sequenceRef.current++, activeClamHole.x, activeClamHole.y, reward.xp));
-          runtime.clamReveals.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .9, maxLife: .9, type: reward.id });
-          runtime.bursts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y, life: .55, maxLife: .55, color: reward.id === "pearl" ? "#fff0a2" : reward.id === "gaebul" ? "#d59272" : "#dbc69c", size: reward.id === "gaebul" ? 24 : 18, kind: "harvest" });
-          runtime.floatTexts.push({ id: sequenceRef.current++, x: activeClamHole.x, y: activeClamHole.y - 24, life: 1.05, text: `${reward.name} 채집!`, color: reward.id === "pearl" ? "#fff2a4" : "#ffe2a6", kind: "harvest" });
+          applyClamHarvestReward(
+            runtime, reward, activeClamHole,
+            () => sequenceRef.current++, showCatchFullMessage, celebratePearl,
+          );
           runtime.clamHoles = runtime.clamHoles.filter((hole) => hole.id !== activeClamHole?.id);
-          if ("vibrate" in navigator) navigator.vibrate([18, 25, 35]);
+          if (reward.id !== MUDFLAT_PEARL.id && "vibrate" in navigator) navigator.vibrate([18, 25, 35]);
         }
       }
 
@@ -2983,7 +3041,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (reveal.type === "pearl") {
           const glow = context.createRadialGradient(0, 0, 2, 0, 0, 22); glow.addColorStop(0, "#fffef2"); glow.addColorStop(.35, "#ffe98e"); glow.addColorStop(1, "rgba(255,219,94,0)");
           context.fillStyle = glow; context.beginPath(); context.arc(0, 0, 22, 0, Math.PI * 2); context.fill();
-          context.fillStyle = "#fffbe3"; context.beginPath(); context.arc(0, 0, 8, 0, Math.PI * 2); context.fill();
+          const pearlImage = creatureSprites.get("pearl-reveal");
+          if (pearlImage?.complete && pearlImage.naturalWidth > 0) {
+            const pearlSize = 52 + Math.sin(progress * Math.PI) * 8;
+            context.drawImage(pearlImage, -pearlSize / 2, -pearlSize / 2, pearlSize, pearlSize);
+          } else {
+            context.fillStyle = "#fffbe3"; context.beginPath(); context.arc(0, 0, 8, 0, Math.PI * 2); context.fill();
+          }
         } else if (reveal.type === "gaebul") {
           const image = creatureSprites.get("gaebul-reveal");
           if (image?.complete && image.naturalWidth > 0) {
@@ -3178,7 +3242,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     };
     animation = requestAnimationFrame(loop);
     return () => { mounted = false; cancelAnimationFrame(animation); };
-  }, [characterId, completeStage, endRun, resetMovementInput, runId, setChoices, snapshot]);
+  }, [celebratePearl, characterId, completeStage, endRun, resetMovementInput, runId, setChoices, snapshot]);
 
   useEffect(() => {
     const down = (event: KeyboardEvent) => { if (!runtimeRef.current?.paused && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) { event.preventDefault(); keysRef.current.add(event.code); } };
@@ -3193,18 +3257,81 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); document.removeEventListener("visibilitychange", visibility); };
   }, [persistActiveRun, resetMovementInput]);
 
+  const triggerPearlTest = useCallback(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime || screenRef.current !== "running" || runtime.paused || runtime.ended || exitOpenRef.current) return;
+    if (firstMoveGuideActive(runtime)) return;
+    if (runtime.baseCampGuideShown && isInsideBaseCamp(runtime.player, runtime.baseCamp, runtime.stage)) return;
+    const point = { x: runtime.player.x, y: runtime.player.y - 18 };
+    const stored = applyClamHarvestReward(
+      runtime, MUDFLAT_PEARL, point,
+      () => sequenceRef.current++,
+      () => {
+        if (runtime.catchFullNoticeClock > 0) return;
+        runtime.playerMessage = CATCH_FULL_MESSAGE;
+        runtime.playerMessageLife = 1.2;
+        runtime.playerMessageOpacity = 1;
+        runtime.catchFullNoticeClock = 15;
+      },
+      celebratePearl,
+    );
+    if (stored) {
+      runtime.playerMessage = "반짝이는 진주를 찾아냈다! 정말 귀한 보물이야.";
+      runtime.playerMessageLife = 2.7;
+      runtime.playerMessageOpacity = 1;
+    }
+    snapshot(runtime);
+    persistActiveRun();
+  }, [celebratePearl, persistActiveRun, snapshot]);
+
   const pointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (screen !== "running" || runtimeRef.current?.paused || exitOpen) return;
+    if (screen !== "running" || runtimeRef.current?.paused || exitOpen || !event.isPrimary || event.button !== 0) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const localX = event.clientX - rect.left;
+    const localY = event.clientY - rect.top;
+    const nearPlayer = Math.hypot(localX - rect.width / 2, localY - rect.height / 2) <= PEARL_TEST_TAP_RADIUS;
+    const tapState = pearlTapRef.current;
+    if (tapState.lastTapAt > 0 && event.timeStamp - tapState.lastTapAt > MUDFLAT_PEARL_TEST_TAP_WINDOW_MS) tapState.count = 0;
+    if (!nearPlayer) { tapState.count = 0; tapState.lastTapAt = 0; }
+    tapState.pointerId = event.pointerId;
+    tapState.startX = event.clientX;
+    tapState.startY = event.clientY;
+    tapState.startedAt = event.timeStamp;
+    tapState.candidate = nearPlayer;
     event.currentTarget.setPointerCapture(event.pointerId);
     joystickRef.current = { pointerId: event.pointerId, originX: event.clientX, originY: event.clientY, x: 0, y: 0 };
   };
   const pointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const joystick = joystickRef.current; if (joystick.pointerId !== event.pointerId) return;
+    const tapState = pearlTapRef.current;
+    if (tapState.pointerId === event.pointerId && tapState.candidate
+      && Math.hypot(event.clientX - tapState.startX, event.clientY - tapState.startY) > PEARL_TEST_TAP_MOVE_TOLERANCE) {
+      tapState.candidate = false;
+      tapState.count = 0;
+      tapState.lastTapAt = 0;
+    }
     const vector = mudflatJoystickVector(event.clientX - joystick.originX, event.clientY - joystick.originY);
     joystick.x = vector.x; joystick.y = vector.y;
   };
   const pointerEnd = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (joystickRef.current.pointerId !== event.pointerId) return;
+    const tapState = pearlTapRef.current;
+    const validTap = event.type === "pointerup"
+      && tapState.pointerId === event.pointerId
+      && tapState.candidate
+      && event.timeStamp - tapState.startedAt <= PEARL_TEST_TAP_MAX_DURATION_MS
+      && Math.hypot(event.clientX - tapState.startX, event.clientY - tapState.startY) <= PEARL_TEST_TAP_MOVE_TOLERANCE;
+    if (validTap) {
+      const progress = mudflatPearlTestTapProgress(tapState.count, tapState.lastTapAt, event.timeStamp);
+      tapState.count = progress.count;
+      tapState.lastTapAt = progress.lastTapAt;
+      if (progress.triggered) triggerPearlTest();
+    } else {
+      tapState.count = 0;
+      tapState.lastTapAt = 0;
+    }
+    tapState.pointerId = -1;
+    tapState.candidate = false;
     joystickRef.current = { pointerId: -1, originX: 0, originY: 0, x: 0, y: 0 };
   };
   const skipFirstMoveGuide = () => {
@@ -3597,16 +3724,25 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   if (screen === "defeat") return <main className="ms-shell ms-result defeat"><MudflatTopbar onExit={onExit} /><section><img className="ms-defeat-art" src={MUDFLAT_DEFEAT_ART_SRC} width={MUDFLAT_DEFEAT_ART_WIDTH} height={MUDFLAT_DEFEAT_ART_HEIGHT} decoding="async" alt="갯벌에 쓰러진 해루질럿" /><small>EXPEDITION ENDED</small><h1><span>갯벌에서</span>{" "}<span>힘이 다했습니다</span></h1><p><span>갯벌에는 여러가지 위험이 도사리고 있습니다.</span><br /><span>절대로 자만하지 말고 안전한 해루질 하세요.</span></p><div className="ms-result-grid"><span><small>도전 스테이지</small><b>{hud.stage}</b></span><span><small>잡은 수</small><b>{hud.caught}</b></span><span><small>레벨</small><b>{hud.level}</b></span><span><small>대왕 박하지</small><b>{hud.bossCaught ? "포획" : "놓침"}</b></span></div><p className="ms-reentry-note">한 번 성공한 스테이지는 언제든 재도전 가능합니다.<br />하지만 장비·기술·경험치·코인은 모두 초기화됩니다.</p><div className="ms-result-actions"><button onClick={reset}>메인 화면으로</button><MudflatRetryButton onRetry={() => beginAtStage(hud.stage)} onSecretRetry={retryWithProgress}>{hud.stage === 9 ? "끝없는 물때 재도전" : `${hud.stage}단계 재도전`}</MudflatRetryButton></div></section></main>;
 
   const hpWidth = Math.max(0, hud.hp / hud.maxHp * 100);
-  const lumiLoadingLayer = characterId === "lumi" && screen === "running" && lumiLoadStatus !== "ready" ? (
-    <div className="ms-layer pause"><section role={lumiLoadStatus === "error" ? "alert" : "status"}>
+  const lumiLoadingLayer = <>
+    {pearlCelebration !== null && <div key={pearlCelebration} className="ms-pearl-celebration" role="status" aria-live="assertive">
+      <i className="ms-pearl-rays" aria-hidden="true" />
+      <section className="ms-pearl-treasure">
+        <small>RARE TREASURE</small>
+        <div className="ms-pearl-gem" aria-hidden="true"><img src="/mudflat-creatures/pearl.png" alt="" /></div>
+        <strong>귀한 보물을 발견했습니다!</strong>
+        <span>진주 · 감정가 10,000C</span>
+      </section>
+    </div>}
+    {characterId === "lumi" && screen === "running" && lumiLoadStatus !== "ready" ? <div className="ms-layer pause"><section role={lumiLoadStatus === "error" ? "alert" : "status"}>
       <h2>{lumiLoadStatus === "error" ? "루미를 불러오지 못했어요" : "루미를 준비하고 있어요"}</h2>
       <p>{lumiLoadStatus === "error" ? "연결을 확인한 뒤 다시 시도해 주세요." : "준비가 끝나면 바로 시작합니다. 게임 시간은 흐르지 않습니다."}</p>
       {lumiLoadStatus === "error" && <button type="button" className="ms-primary" onClick={() => {
         setLumiLoadStatus("loading"); loadLumiArt(true); setRunId((value) => value + 1);
       }}>다시 불러오기</button>}
       <button type="button" className="ms-quit" onClick={openExitDialog}>저장하고 나가기</button>
-    </section></div>
-  ) : null;
+    </section></div> : null}
+  </>;
   const xpWidth = Math.max(0, hud.xp / hud.nextXp * 100);
   const fixedNormalSkills = GENERAL_SKILL_ORDER.map((id) => MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === id)).filter((skill): skill is (typeof MUDFLAT_GENERAL_UPGRADES)[number] => Boolean(skill && MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id)));
   const normalSkills = GENERAL_SKILL_ORDER.map((id) => MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === id)).filter((skill): skill is (typeof MUDFLAT_GENERAL_UPGRADES)[number] => Boolean(skill && !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id) && (hud.levels[skill.id] ?? 0) > 0)).slice(0, 6);

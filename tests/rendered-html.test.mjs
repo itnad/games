@@ -133,6 +133,8 @@ import {
   MUDFLAT_UPGRADES,
   MUDFLAT_TIDE_SPEED_MULTIPLIER,
   MUDFLAT_PEARL,
+  MUDFLAT_PEARL_TEST_TAP_COUNT,
+  MUDFLAT_PEARL_TEST_TAP_WINDOW_MS,
   mudflatAutoSellInventory,
   mudflatAdvancedSkillUnlocks,
   mudflatCanLearnSkill,
@@ -153,6 +155,7 @@ import {
   mudflatHeadlampDiscoveryRange,
   mudflatJoystickVector,
   mudflatNetStats,
+  mudflatPearlTestTapProgress,
   mudflatMosquitoAppears,
   mudflatMosquitoChance,
   mudflatMosquitoRunEnabled,
@@ -1282,6 +1285,17 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatClamRewardForRoll(6, 0.01).id, "clam");
   assert.equal(mudflatClamRewardForRoll(6, 0.999).id, "razor-clam");
   assert.equal(MUDFLAT_PEARL.price, 10000);
+  assert.equal(MUDFLAT_PEARL_TEST_TAP_COUNT, 5);
+  assert.equal(MUDFLAT_PEARL_TEST_TAP_WINDOW_MS, 850);
+  let pearlTap = mudflatPearlTestTapProgress(0, 0, 1000);
+  assert.deepEqual(pearlTap, { count: 1, lastTapAt: 1000, triggered: false });
+  pearlTap = mudflatPearlTestTapProgress(pearlTap.count, pearlTap.lastTapAt, 1800);
+  assert.equal(pearlTap.count, 2);
+  pearlTap = mudflatPearlTestTapProgress(pearlTap.count, pearlTap.lastTapAt, 1900);
+  pearlTap = mudflatPearlTestTapProgress(pearlTap.count, pearlTap.lastTapAt, 2000);
+  pearlTap = mudflatPearlTestTapProgress(pearlTap.count, pearlTap.lastTapAt, 2100);
+  assert.deepEqual(pearlTap, { count: 0, lastTapAt: 2100, triggered: true });
+  assert.deepEqual(mudflatPearlTestTapProgress(3, 1000, 1900), { count: 1, lastTapAt: 1900, triggered: false });
   assert.deepEqual(MUDFLAT_GAEBUL, { id: "gaebul", name: "개불", xp: 11, score: 88, price: 24 });
   assert.deepEqual(mudflatEmptySeafoodHazard(9.99), { damagePerSecond: 0, message: "" });
   assert.deepEqual(mudflatEmptySeafoodHazard(10), { damagePerSecond: 1, message: "너무 깊게 들어온 것 같다." });
@@ -1842,6 +1856,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /mudBootLevel = Math\.max\(runtime\.levels\.boots/);
   assert.match(source, /runtime\.mudPrints\.push\(/);
   assert.match(source, /mudflatClamRewardForRoll/);
+  assert.match(source, /function applyClamHarvestReward\(/);
+  assert.ok((source.match(/applyClamHarvestReward\(/g) ?? []).length >= 3, "normal digging and five-tap QA use the shared pearl reward path");
+  assert.match(source, /mudflatPearlTestTapProgress\(tapState\.count, tapState\.lastTapAt, event\.timeStamp\)/);
+  assert.match(source, /반짝이는 진주를 찾아냈다! 정말 귀한 보물이야\./);
+  assert.match(source, /귀한 보물을 발견했습니다!/);
+  assert.match(source, /pearl-reveal/);
+  assert.match(styles, /\.ms-pearl-celebration\{/);
+  assert.match(styles, /@keyframes ms-pearl-card/);
   assert.match(source, /const clamSize = clamGrade\?\.visualSize \?\? 42/);
   assert.match(source, /context\.rotate\(Math\.PI \/ 2\)/);
   assert.match(source, /isVertical \? " is-vertical" : ""/);

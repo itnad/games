@@ -46,6 +46,20 @@ export const MUDFLAT_CLAM_GRADES = [
 ];
 
 export const MUDFLAT_PEARL = { id: "pearl", name: "진주", xp: 30, score: 500, price: 10000 };
+export const MUDFLAT_PEARL_TEST_TAP_COUNT = 5;
+export const MUDFLAT_PEARL_TEST_TAP_WINDOW_MS = 850;
+
+export function mudflatPearlTestTapProgress(count = 0, lastTapAt = 0, now = 0) {
+  const safeCount = Math.max(0, Math.floor(Number(count) || 0));
+  const safeLastTapAt = Math.max(0, Number(lastTapAt) || 0);
+  const safeNow = Math.max(0, Number(now) || 0);
+  const continued = safeCount > 0
+    && safeNow >= safeLastTapAt
+    && safeNow - safeLastTapAt <= MUDFLAT_PEARL_TEST_TAP_WINDOW_MS;
+  const nextCount = (continued ? safeCount : 0) + 1;
+  const triggered = nextCount >= MUDFLAT_PEARL_TEST_TAP_COUNT;
+  return { count: triggered ? 0 : nextCount, lastTapAt: safeNow, triggered };
+}
 export const MUDFLAT_GAEBUL = { id: "gaebul", name: "개불", xp: 11, score: 88, price: 24 };
 
 const MUDFLAT_CLAM_WEIGHTS = [
