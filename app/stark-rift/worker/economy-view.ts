@@ -1,4 +1,4 @@
-import { energyView } from "../abilities/cloak-state";
+import { energyMaximumSchema, energyView, supportsEnergy } from "../abilities/cloak-state";
 import { carrierOf, isEmbarked, transportCapacity, unitTraits, occupiedSpace, morphOf } from "../abilities/special-state";
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
@@ -10,6 +10,7 @@ import {
   nullable,
   optional,
   object,
+  refine,
   text,
   type Infer,
 } from "../core/validation";
@@ -25,7 +26,7 @@ export const economyViewSchema = object({
   creepCells: array(integer(0, 16383), 0, 16384),
   transports: optional(array(object({
     entityId: integer(1), capacity: integer(0, 8), usedSpace: integer(0, 8),
-    passengers: array(object({ id: integer(1), definitionId: text, health: integer(), shield: integer(), energy: optional(integer(0, 200)), maxEnergy: optional(integer(200, 200)), space: integer(1, 8) }), 0, 8),
+    passengers: array(refine(object({ id: integer(1), definitionId: text, health: integer(), shield: integer(), energy: optional(integer(0, 250)), maxEnergy: optional(energyMaximumSchema), space: integer(1, 8) }), p => p.energy === undefined ? p.maxEnergy === undefined : p.maxEnergy !== undefined && p.energy <= p.maxEnergy && supportsEnergy(p.definitionId), "Invalid passenger energy capacity"), 0, 8),
     loading: array(object({ id: integer(1), definitionId: text }), 0, 8),
     unloadTarget: nullable(point),
   }), 0, 2048)),

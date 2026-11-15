@@ -1,0 +1,48 @@
+{
+  "source": {
+    "reference": "BWAPI v4.4.0 / Brood War1.16.1; pinned OpenBW capacity and initial-energy rules",
+    "bwapiUrl": "https://github.com/bwapi/bwapi/blob/v4.4.0/bwapi/BWAPILIB/Source/UpgradeType.cpp",
+    "openbwUrl": "https://github.com/OpenBW/openbw/blob/4b046d5f65302b10cb0a745f0fecd37ec85b20a8/bwgame.h",
+    "sha256": {
+      "UpgradeType.cpp": "5575217dd535d5e41d7b6680ca3cc55c4a85283abba6c24045f43ef1bddaa4b0",
+      "bwgame.h": "5ee316ca2c008c9252f7fde7444ca5dc7f35440549be2576dc37fa228fb31ae6"
+    }
+  },
+  "upgrades": [
+    {
+      "name": "Moebius_Reactor",
+      "unitId": "terran-ghost",
+      "title": "뫼비우스 반응로",
+      "producer": "terran-covert-ops",
+      "minerals": 150,
+      "gas": 150,
+      "frames": 2500,
+      "maxLevel": 1
+    },
+    {
+      "name": "Apollo_Reactor",
+      "unitId": "terran-wraith",
+      "title": "아폴로 반응로",
+      "producer": "terran-control-tower",
+      "minerals": 200,
+      "gas": 200,
+      "frames": 2500,
+      "maxLevel": 1
+    },
+    {
+      "name": "Khaydarin_Core",
+      "unitId": "protoss-arbiter",
+      "title": "카이다린 코어",
+      "producer": "protoss-arbiter-tribunal",
+      "minerals": 150,
+      "gas": 150,
+      "frames": 2500,
+      "maxLevel": 1
+    }
+  ],
+  "energy": {
+    "baseMaximum": 200,
+    "upgradedMaximum": 250,
+    "initialDivisor": 4
+  }
+}

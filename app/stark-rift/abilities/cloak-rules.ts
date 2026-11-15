@@ -1,3 +1,4 @@
+import { maximumEnergy } from "./energy-upgrades";
 import type { EngineRules } from "../core/simulation";
 import type { SimulationState } from "../core/state";
 import { CLOAK_ABILITY, CLOAK_ENERGY_COST, ENERGY, activeCloak, energyOf, hasCloakResearch, supportsCloak } from "./cloak-state";
@@ -13,7 +14,7 @@ export function advanceEnergy(s: SimulationState) {
         const drain = s.entities.definitionId[i] === "terran-ghost" ? ENERGY.ghostDrainPerFrame : ENERGY.wraithDrainPerFrame;
         r.amount = Math.max(0, r.amount - drain);
         if (r.amount === 0) s.vision!.concealed = s.vision!.concealed.filter((c) => c.entityId !== r.entityId);
-      } else r.amount = Math.min(ENERGY.maximum * ENERGY.scale, r.amount + ENERGY.regenerationPerFrame);
+      } else r.amount = Math.min(maximumEnergy(s,s.entities.owner[i],s.entities.definitionId[i]) * ENERGY.scale, r.amount + ENERGY.regenerationPerFrame);
     }
   }
 }

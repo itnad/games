@@ -131,6 +131,7 @@ export class DevelopmentSaveStore {
                       : version === 14 ? "stage6e-backup"
                       : version === 15 ? "stage6f-backup"
                       : version === 16 ? "stage6g-backup"
+                      : version === 17 ? "stage6h-backup"
                       : version === STARK_RIFT_FORMAT_VERSION
                     ? ""
                     : "invalid-backup";

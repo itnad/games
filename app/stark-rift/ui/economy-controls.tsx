@@ -1,3 +1,5 @@
+import { EnergyResearchControls } from "./energy-research-controls";
+import { ENERGY_UPGRADES } from "../abilities/energy-upgrades";
 import { ArbiterControls } from "./arbiter-controls";
 import { LurkerControls } from "./lurker-controls";
 import { technologyRequirements } from "../data/economy-catalog";
@@ -164,6 +166,7 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
+      <EnergyResearchControls snapshot={snapshot} select={selectEntities} />
       <ArbiterControls snapshot={snapshot} selected={selected} select={selectEntities} running={running} cast={castAbility} toggleAutocast={(ids,enabled) => issue({kind:"toggleAutocast",entityIds:ids,payload:{abilityId:"stasis-field",enabled}})} />
       <LurkerControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <SiegeControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
@@ -424,6 +427,7 @@ export function EconomyControls({
             return (
               <button
                 key={t.id}
+                data-research={t.id}
                 disabled={
                   !running ||
                   done ||
@@ -443,7 +447,8 @@ export function EconomyControls({
                   })
                 }
               >
-                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field", "tank-siege-mode", "lurker-aspect", "recall", "stasis-field"].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field", "tank-siege-mode", "lurker-aspect", "recall", "stasis-field", ...ENERGY_UPGRADES.map(u => u.id)].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
+                {ENERGY_UPGRADES.some(u => u.id === t.id) && !done && <small>52.1초 · 최대 에너지 200 → 250 · 새 생산 62.5</small>}
                 {t.id === BURROW_RESEARCH && !done && <small>25초 · 드론·저글링·히드라 잠복</small>}
                 {t.id === "ventral-sacs" && !done && <small>50초 · 오버로드 8칸 수송</small>}
                 {t.id === "personnel-cloaking" && !done && <small>25초 · 고스트 수동 은폐</small>}

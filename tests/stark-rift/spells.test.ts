@@ -4,7 +4,7 @@ import { SPELLS_COMBAT_RULES_VERSION } from "../../app/stark-rift/combat/state";
 import { createSpellsRules, resolveRecall, spellArea } from "../../app/stark-rift/abilities/spells-rules";
 import { RECALL, STASIS, RECALL_TICKS, STASIS_TICKS, isInStasis, recallOf, validSpells, spellsFitMap } from "../../app/stark-rift/abilities/spells-state";
 import { energyOf, ENERGY } from "../../app/stark-rift/abilities/cloak-state";
-import { ECONOMY_UPGRADES, ARBITER_ECONOMY_DATA_VERSION } from "../../app/stark-rift/data/economy-catalog";
+import { ECONOMY_UPGRADES, SPELLS_ECONOMY_DATA_VERSION, ARBITER_ECONOMY_DATA_VERSION } from "../../app/stark-rift/data/economy-catalog";
 import { ARBITER_COMBAT_RULES_VERSION } from "../../app/stark-rift/combat/state";
 import { ARBITER_VISION_RULES_VERSION } from "../../app/stark-rift/vision/state";
 import { describe, expect, it, vi } from "vitest";
@@ -185,7 +185,7 @@ describe('opt-in Stasis autocast',()=>{
     const f=autoFixture(),b=f.add(1,ARBITER,43,44);toggleAuto(f,[f.a]);const v=f.view();expect(v.entities.find(e=>e.id===f.a)?.stasisAutocast).toBe(true);const enemy=v.entities.find(e=>e.id===b)!;expect(enemy).toBeDefined();expect(enemy.stasisAutocast).toBeUndefined();enemy.stasisAutocast=true;expect(validateRenderSnapshot(v).ok).toBe(false);
   });
   it('migrates a stage6G save without losing live spell timers and backs up its original bytes',()=>{
-    const f=autoFixture();cast(f,f.a,STASIS,44,40);const b=caster(f,40,44);cast(f,b,RECALL,60,60);const old=f.saved();old.formatVersion=old.simulation.schemaVersion=16;old.engineVersion=old.simulation.engineVersion='0.17.0-stage6g';old.simulation.combat!.rulesVersion=SPELLS_COMBAT_RULES_VERSION;old.checksum=checksum(old.simulation);
+    const f=autoFixture();cast(f,f.a,STASIS,44,40);const b=caster(f,40,44);cast(f,b,RECALL,60,60);const old=f.saved();old.formatVersion=old.simulation.schemaVersion=16;old.engineVersion=old.simulation.engineVersion='0.17.0-stage6g';old.dataVersion=old.simulation.dataVersion=old.dataVersion.replace(ECONOMY_DATA_VERSION,SPELLS_ECONOMY_DATA_VERSION);old.simulation.combat!.rulesVersion=SPELLS_COMBAT_RULES_VERSION;old.checksum=checksum(old.simulation);
     const raw=JSON.stringify(old),key=DEVELOPMENT_SAVE_PREFIX+'protoss',records=new Map([[key,raw]]),store=new DevelopmentSaveStore({getItem:k=>records.get(k)??null,setItem:(k,v)=>{records.set(k,v);}});const read=store.read('protoss');expect(read.status).toBe('ready');if(read.status!=='ready')throw Error('migration');expect(read.snapshot.simulation.spells).toEqual(old.simulation.spells);expect(read.snapshot.simulation.autocast).toBeUndefined();expect(store.write(read.snapshot)).toBe(true);expect(records.get(key+'.stage6g-backup')).toBe(raw);
   });
 });

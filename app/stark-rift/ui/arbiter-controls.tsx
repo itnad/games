@@ -34,7 +34,7 @@ export function ArbiterControls({ snapshot, selected, select, running = true, ca
       })}</div>
       <div className="sr-action-row"><button data-stasis-autocast-toggle disabled={!running} aria-pressed={allAuto} onClick={toggle}>스테이시스 자동시전 {allAuto ? "끄기" : "켜기"}</button></div>
       <p className="sr-help" data-stasis-autocast-status>자동시전 {allAuto ? "켜짐 · A" : anyAuto ? "일부 켜짐" : "꺼짐"} · 스테이시스 길게 누르기 또는 자동시전 버튼으로 전환. 연구·에너지 필요. 현재 사거리 안 보이는 적 2기 이상, 아군이 범위에 없을 때 사용합니다. 자동 접근하지 않으며 수동 명령을 우선합니다.</p>
-      {actors.map(e => <p key={e.id} className="sr-work-status" data-arbiter-energy={e.id}>아비터 #{e.id} · 에너지 {e.energy ?? 0} / 200{e.recallTicks ? " · 리콜 시전 중" : e.stasisTicks ? " · 스테이시스 정지 중" : ""}</p>)}
+      {actors.map(e => <p key={e.id} className="sr-work-status" data-arbiter-energy={e.id}>아비터 #{e.id} · 에너지 {e.energy ?? 0} / {e.maxEnergy ?? 200}{e.recallTicks ? " · 리콜 시전 중" : e.stasisTicks ? " · 스테이시스 정지 중" : ""}</p>)}
       <p className="sr-help">트리뷰널 연구 필요 · 리콜: 지정 지역의 아군을 약 0.9초 후 소환 · 스테이시스: 9타일 안 지정, 아군도 약 44초 정지·무적. 시전 버튼 → 전장 또는 미니맵 위치 터치.</p>
       <p className="sr-work-status" data-cloak-field-status>자동 은폐장 · 적용 아군 {covered.length}기 · 에너지 소모 없음</p>
       <p className="sr-help">주변 아군 지상·공중 유닛을 은폐합니다. 기본 범위 5타일 · 충돌 상자 기준. 선택하면 범위가 표시됩니다. 위치를 터치해 이동시키면 은폐장도 따라갑니다.</p>
