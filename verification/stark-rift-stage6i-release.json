@@ -1,0 +1,112 @@
+{
+  "sourceCommit": "1f6b2b25038ef501d72575af1c0e621b093ead3a",
+  "tree": "5c9972519efafcd465b8b14cd99c426bce72ae02",
+  "preservedMainCommit": "cbe5bf29dc4f51dc2a37ea9691cdfe6b51377227",
+  "productionUrl": "https://games.itnadcom.chatgpt.site/stark-rift-dev",
+  "checks": {
+    "starkRift": 530,
+    "haeru": 28,
+    "baksal": 28,
+    "labBuild": true,
+    "benchmark": true,
+    "factsReproduction": true,
+    "sharedHtml": 235,
+    "cleanInstall": true
+  },
+  "scope": "Stage6I original caster energy capacity upgrades: research,250max,62.5new caster energy, unchanged current energy, fixed-frame regen/drain, private cargo and format18 migration. Portrait only. Native touch emulation/SwiftShader; not physical Android/iOS or hardware GPU certification.",
+  "featureCommit": "1128f9a93a2c74f3a762337264cb4f9cd51f00e4",
+  "siteVersion": 264,
+  "versionId": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b~appgver_c3749c88f10c8191ae32b9f4d4f2df93",
+  "deploymentId": "appgdep_6af9449c2e3c81919898474c9a306f34",
+  "siteUrl": "https://games.itnadcom.chatgpt.site",
+  "verifiedAt": "2026-11-15T05:40:43.922769+00:00",
+  "ci": {
+    "id": 43681485859,
+    "head_sha": "1f6b2b25038ef501d72575af1c0e621b093ead3a",
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/itnad/games/actions/runs/43681485859",
+    "created_at": "2026-11-15T05:32:04Z",
+    "updated_at": "2026-11-15T05:34:35Z"
+  },
+  "browserReports": {
+    "verified-local-terran": {
+      "path": "stark-rift-energy/verified-local-terran/energy-browser.json",
+      "cases": 2,
+      "passed": 2,
+      "scope": "Actual Worker/Pixi, native touch paid research, normal-time1042-tick completion and reload. No resource or game-state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "local-protoss": {
+      "path": "stark-rift-energy/local-protoss/energy-browser.json",
+      "cases": 2,
+      "passed": 2,
+      "scope": "Actual Worker/Pixi, native touch paid research, normal-time1042-tick completion and reload. No resource or game-state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "local-legacy": {
+      "path": "stark-rift-energy/local-legacy/legacy-browser.json",
+      "cases": 10,
+      "passed": 10,
+      "scope": "Replay of unmodified saves captured from the previous live version; no new-game resource injection"
+    },
+    "local-manual": {
+      "path": "stark-rift-energy/local-manual/spells-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Production Worker/Pixi; real touch casts, native pointer checkpoint pause, normal time;360px waits for the full43.65-second stasis duration. No resource/state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "local-autocast": {
+      "path": "stark-rift-energy/local-autocast/autocast-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native mobile touch/long press and normal-time gameplay; no new-game state/resource injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "live-terran": {
+      "path": "stark-rift-energy/live-terran/energy-browser.json",
+      "cases": 2,
+      "passed": 2,
+      "scope": "Actual Worker/Pixi, native touch paid research, normal-time1042-tick completion and reload. No resource or game-state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "live-protoss": {
+      "path": "stark-rift-energy/live-protoss/energy-browser.json",
+      "cases": 2,
+      "passed": 2,
+      "scope": "Actual Worker/Pixi, native touch paid research, normal-time1042-tick completion and reload. No resource or game-state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "live-legacy": {
+      "path": "stark-rift-energy/live-legacy/legacy-browser.json",
+      "cases": 10,
+      "passed": 10,
+      "scope": "Replay of unmodified saves captured from the previous live version; no new-game resource injection"
+    },
+    "live-manual": {
+      "path": "stark-rift-energy/live-manual/spells-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Production Worker/Pixi; real touch casts, native pointer checkpoint pause, normal time;360px waits for the full43.65-second stasis duration. No resource/state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "live-autocast": {
+      "path": "stark-rift-energy/live-autocast/autocast-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native mobile touch/long press and normal-time gameplay; no new-game state/resource injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    }
+  },
+  "browserCases": 32,
+  "sourceArchive": "stark-rift-energy-source-and-qa.zip",
+  "qaArchive": "stark-rift-energy-qa.zip",
+  "evidenceNotes": [
+    "BWAPI4.4 and pinned OpenBW capacity rules reproduce three one-level upgrades. Research2500frames maps to1042economic ticks; costs150/150,200/200,150/150. Capacity250; newly created casters start16000/256=62.5; current energy is not gifted.",
+    "530 engine tests and both28-test existing-game suites pass. The merged latest homepage, Janggi and StarDraft changes remain intact; final235 shared tests pass. Final GitHub CI includes fresh npm ci, full tests, lab build and benchmark.",
+    "Both portrait sizes for both caster factions perform real paid research, pause/reload at exact progress, normal-time completion, capacity display and exact energy accounting, completed research/energy/cloak restore, and portrait-only pause.",
+    "The final cloak check uses commandAck actual execution tick and integrates original fixed-point regeneration and drain, allowing for Worker retiming. Initial UI-latency-based assertions and superseded/interrupted attempts remain in QA evidence.",
+    "Ten unmodified production saves from formats12 through17 restore with raw backups, including stage6H autocast/unit-group preferences, manual grace, Recall/Stasis, cargo, cloak, siege and morphs, resources and RNG.",
+    "Actual manual Recall/Stasis and opt-in autocast checks also pass locally and on production. Manual360px tests await full873-tick thaw in normal time and verify movement resumes.",
+    "Practice facility footprints are on buildable nonoverlapping tiles; Terran addon coordinates derive from their actual parent dimensions. Practice grants are labelled and do not complete the new research or refill caster energy.",
+    "A clean-install CI failure exposed two missing optional WASI lock records from the concurrent lock update. Exactly those records were restored from the previous valid lock, preserving package versions and other metadata. Fresh isolated npm ci and final CI pass.",
+    "All206 deploy files match the clean committed-source build by SHA256. Lossless concatenated gzip members fit the upload envelope without removing assets.",
+    "Chromium SwiftShader with native touch emulation is not physical Android/iOS or hardware GPU certification. The prior Stage6H source/QA backup was also recovered and CRC-verified this turn."
+  ],
+  "localBackupZip": {
+    "status": "pendingAssembly"
+  }
+}
