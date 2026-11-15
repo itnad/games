@@ -690,7 +690,7 @@ export const STW_SIZE_MULTIPLIER = {
 export const STW_DIFFICULTIES = {
   // production: 일꾼을 뺀 유닛 생산 속도 배율(1 = 사람과 같음). 수입·생산 핸디캡은 사람과 싸우는 AI에게만 붙는다.
   // 초심자: 앞마당을 먹지 않고(noExpand) 방어 건물은 3개까지만(maxDefenses) 짓는다.
-  beginner: { id: "beginner", name: "초심자", note: "확장 없음 · 유닛 생산 속도 −50% · 방어 건물 최대 3개", income: 1, production: 0.5, thinkEvery: 1.5, waveScale: 1.25, noExpand: true, maxDefenses: 3 },
+  beginner: { id: "beginner", name: "초심자", note: "적 유닛 생산 속도 −50% · 방어 건물 최대 3개", income: 1, production: 0.5, thinkEvery: 1.5, waveScale: 1.25, noExpand: true, maxDefenses: 3 },
   easy: { id: "easy", name: "쉬움", note: "적 수입 −25% · 유닛 생산 속도 −25% · 공격이 느림", income: 0.75, production: 0.75, thinkEvery: 1.5, waveScale: 1.25 },
   normal: { id: "normal", name: "보통", note: "같은 수입 · 유닛 생산 속도 −20%", income: 1, production: 0.8, thinkEvery: 1, waveScale: 1 },
   hard: { id: "hard", name: "어려움", note: "같은 수입·생산 속도 · 빠르고 집요한 공격", income: 1, production: 1, thinkEvery: 0.6, waveScale: 0.85 },
