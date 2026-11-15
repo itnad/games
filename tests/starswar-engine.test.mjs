@@ -1284,6 +1284,8 @@ test("starswar AI from a reported loss: no early second gas or double pylon, sur
   // 예전 AI는 1분 15초에 파일런을 둘 짓고, 일꾼 13기에 둘째 가스를 지어 광물이 모자라 코어도 질럿도 못 뽑은 채 가스만 626 쌓였다.
   const { readFile } = await import("node:fs/promises");
   const code = JSON.parse(await readFile(new URL("./fixtures/starswar-early-zealot-replay.json", import.meta.url), "utf8"));
+  // 이 경기는 보통 난이도였다. 보통 AI는 이제 유닛 생산이 20% 느려 일부러 약하므로, 빌드 판단은 핸디캡 없는 어려움 AI로 본다.
+  code.setup.difficulty = "hard";
   let pylonsAt75 = null;
   let secondGasProbes = null;
   const state = stwReplay(code, {
@@ -3333,4 +3335,50 @@ test("starswar tips: race filter, unseen first, and result tips follow the game'
   assert.match(stwResultTips(mech)[0], /SCV가 붙어 고쳐요/);
   mech.sides.player.stats.repaired = 120;
   assert.ok(stwResultTips(mech).every((tip) => !tip.includes("SCV가 붙어")), "once repaired, no repair tip");
+});
+
+test("starswar difficulty handicaps: unit production speed per level, beginner AI never expands and stops at 3 defenses", () => {
+  assert.deepEqual(["beginner", "easy", "normal", "hard"].map((id) => [STW_DIFFICULTIES[id].income, STW_DIFFICULTIES[id].production]), [[1, 0.5], [0.75, 0.75], [1, 0.8], [1, 1]]);
+  // 생산 속도: 같은 게이트웨이 질럿 한 기가 초심자 AI에게는 두 배 걸리고, 사람 쪽은 그대로다.
+  const timeFor = (difficulty, side) => {
+    const game = createStarswarGame({ seed: 3, difficulty, races: { player: "protoss", enemy: "protoss" } });
+    game.sides[side].minerals = 1000;
+    stwCommand(game, side, { type: "build", building: "pylon" });
+    finishAll(game);
+    stwCommand(game, side, { type: "build", building: "gateway" });
+    finishAll(game);
+    const gateway = stwOwnBuildings(game, side, "gateway")[0];
+    assert.equal(gateway.line, "zealot");
+    const before = game.units.filter((unit) => unit.side === side && unit.type === "zealot").length;
+    for (let tick = 0; tick < 600; tick += 1) {
+      stepStarswar(game);
+      if (game.units.filter((unit) => unit.side === side && unit.type === "zealot").length > before) return Math.round(game.time);
+    }
+    return Infinity;
+  };
+  const zealot = STW_UNITS.zealot.time;
+  assert.ok(Math.abs(timeFor("normal", "player") - zealot) <= 1);
+  assert.ok(Math.abs(timeFor("beginner", "enemy") - zealot / 0.5) <= 1);
+  assert.ok(Math.abs(timeFor("normal", "enemy") - zealot / 0.8) <= 1);
+  assert.ok(Math.abs(timeFor("hard", "enemy") - zealot) <= 1);
+
+  // 초심자 AI: 확장과 넷째 방어 건물은 막히고(빌드 순서가 넘어가도록 "찼습니다"), 사람은 같은 난이도에서도 막히지 않는다.
+  const game = createStarswarGame({ seed: 4, difficulty: "beginner", races: { player: "protoss", enemy: "protoss" } });
+  game.sides.enemy.minerals = 5000;
+  assert.match(stwBuildCheck(game, "enemy", "expand").reason, /찼습니다/);
+  assert.equal(stwBuildCheck(game, "player", "expand").ok, game.sides.player.minerals >= 400);
+  stwCommand(game, "enemy", { type: "build", building: "pylon" });
+  finishAll(game);
+  stwCommand(game, "enemy", { type: "build", building: "forge" });
+  finishAll(game);
+  for (let index = 0; index < 3; index += 1) assert.equal(stwCommand(game, "enemy", { type: "build", building: "cannon" }).ok, true);
+  assert.match(stwBuildCheck(game, "enemy", "cannon").reason, /방어 건물 한도가 찼습니다/);
+
+  // 초심자 AI가 7분 동안 혼자 운영해도 앞마당이 없고 방어 건물은 3개 이하다.
+  for (const race of ["protoss", "terran", "zerg"]) {
+    const ai = createStarswarGame({ seed: 7, difficulty: "beginner", races: { player: "protoss", enemy: race } });
+    while (ai.time < 420 && ai.status === "playing") stepStarswar(ai, stwAiThink);
+    assert.equal(stwNexus(ai, "enemy", "natural"), null, race);
+    assert.ok(stwOwnBuildings(ai, "enemy").filter((building) => STW_BUILDINGS[building.type].defense).length <= 3, race);
+  }
 });

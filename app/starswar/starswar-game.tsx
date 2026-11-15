@@ -81,7 +81,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "research", label: "연구" },
   { id: "army", label: "병력" },
 ];
-const DIFFICULTY_IDS: StwDifficulty[] = ["easy", "normal", "hard", "master", "pro"];
+const DIFFICULTY_IDS: StwDifficulty[] = ["beginner", "easy", "normal", "hard", "master", "pro"];
 /** 최상급 AI가 쓰는 지난 경기 분석(사람 대 AI 경기마다 갱신). 화면에는 드러내지 않는다. */
 const LEARN_KEY = "paperoid-starswar-learning";
 
@@ -138,39 +138,17 @@ function unitTags(def: { flying?: boolean; targets?: string; damage?: number }) 
 const RACE_IDS: StwRaceId[] = ["protoss", "terran", "zerg"];
 type EnemyRace = StwRaceId | "random";
 const ENEMY_RACE_IDS: EnemyRace[] = ["protoss", "terran", "zerg", "random"];
-const RACE_KEY = "paperoid-starswar-race";
 type MapChoice = StwMapId | "random";
 const MAP_IDS = STW_MAP_IDS as StwMapId[];
 const MAP_CHOICES: MapChoice[] = [...MAP_IDS, "random"];
-const MAP_KEY = "paperoid-starswar-map";
 
 function mapOf(game: StwState) {
   return stwMap(game) as unknown as StwMapData;
 }
 
-function readMap(): MapChoice {
-  try {
-    const stored = window.localStorage.getItem(MAP_KEY) as MapChoice | null;
-    if (stored && MAP_CHOICES.includes(stored)) return stored;
-  } catch {
-    // 저장소를 쓸 수 없으면 기본값을 쓴다.
-  }
-  return "plain";
-}
+// 메인 화면에 들어올 때마다 종족은 둘 다 무작위, 맵은 평원, 난이도는 보통으로 시작한다(선택은 저장하지 않는다).
+const MENU_DEFAULTS = { races: { player: "random", enemy: "random" } as { player: EnemyRace; enemy: EnemyRace }, map: "plain" as MapChoice, difficulty: "normal" as StwDifficulty };
 
-// 난이도도 종족·맵·테마처럼 기억한다(예전에는 메뉴를 다시 열 때마다 말없이 "보통"으로 돌아갔다).
-const DIFFICULTY_KEY = "paperoid-starswar-difficulty";
-function readDifficulty(): StwDifficulty {
-  try {
-    const stored = window.localStorage.getItem(DIFFICULTY_KEY) as StwDifficulty | null;
-    if (stored && DIFFICULTY_IDS.includes(stored)) return stored;
-  } catch {
-    // 저장소를 쓸 수 없으면 기본값을 쓴다.
-  }
-  return "normal";
-}
-
-// 화면 테마는 리소 인쇄로 정했다(2026-11). 시안을 고르던 때 저장한 값(예전 키)은 쓰지 않고, 실험실에서 바꾼 값만 새 키에 남긴다.
 const THEME_KEY = "paperoid-starswar-theme-v2";
 const DEFAULT_THEME: ThemeId = "riso";
 function readTheme(): ThemeId {
@@ -244,16 +222,6 @@ const RACE_MENU: Record<StwRaceId, { howto: [string, string][] }> = {
     ],
   },
 };
-
-function readRace(): { player: EnemyRace; enemy: EnemyRace } {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(RACE_KEY) ?? "null");
-    if (parsed && ENEMY_RACE_IDS.includes(parsed.player) && ENEMY_RACE_IDS.includes(parsed.enemy)) return parsed;
-  } catch {
-    // 저장소를 쓸 수 없으면 기본값을 쓴다.
-  }
-  return { player: "protoss", enemy: "random" };
-}
 
 /** "질럿 3 · 드라군 2"처럼 0이 아닌 유닛만 나열. */
 function armyText(counts: Partial<Record<string, number>>) {
@@ -384,9 +352,9 @@ function cost(minerals: number, gas: number) {
 
 export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [screen, setScreen] = useState<Screen>("menu");
-  const [difficulty, setDifficulty] = useState<StwDifficulty>(() => (typeof window === "undefined" ? "normal" : readDifficulty()));
-  const [races, setRaces] = useState<{ player: EnemyRace; enemy: EnemyRace }>(() => (typeof window === "undefined" ? { player: "protoss", enemy: "random" } : readRace()));
-  const [mapChoice, setMapChoice] = useState<MapChoice>(() => (typeof window === "undefined" ? "plain" : readMap()));
+  const [difficulty, setDifficulty] = useState<StwDifficulty>(MENU_DEFAULTS.difficulty);
+  const [races, setRaces] = useState<{ player: EnemyRace; enemy: EnemyRace }>(MENU_DEFAULTS.races);
+  const [mapChoice, setMapChoice] = useState<MapChoice>(MENU_DEFAULTS.map);
   const [theme, setTheme] = useState<ThemeId>(() => (typeof window === "undefined" ? DEFAULT_THEME : readTheme()));
   const [game, setGame] = useState<StwState | null>(null);
   const [, setFrame] = useState(0);
@@ -397,6 +365,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [toast, setToast] = useState<Toast | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
   const [record, setRecord] = useState<BattleRecord>(() => (typeof window === "undefined" ? { wins: 0, losses: 0, best: {} } : readRecord()));
+  const [confirmReset, setConfirmReset] = useState(false);
   const [renderer, setRenderer] = useState<"loading" | "ready" | "failed">("loading");
   const [rendererAttempt, setRendererAttempt] = useState(0);
   const [icons, setIcons] = useState<Record<string, string>>({});
@@ -794,17 +763,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     zoomAround(point, stwScreenToMap(viewRef.current, point.x, point.y), cameraRef.current.zoom * Math.exp(-event.deltaY * 0.0015));
   };
 
-  const pickRace = (next: Partial<{ player: EnemyRace; enemy: EnemyRace }>) => {
-    setRaces((current) => {
-      const merged = { ...current, ...next };
-      try {
-        window.localStorage.setItem(RACE_KEY, JSON.stringify(merged));
-      } catch {
-        // 선택 저장 실패는 무시한다.
-      }
-      return merged;
-    });
-  };
+  const pickRace = (next: Partial<{ player: EnemyRace; enemy: EnemyRace }>) => setRaces((current) => ({ ...current, ...next }));
 
   const pickTheme = (next: ThemeId) => {
     setTheme(next);
@@ -815,22 +774,19 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     }
   };
 
-  const pickDifficulty = (next: StwDifficulty) => {
-    setDifficulty(next);
-    try {
-      window.localStorage.setItem(DIFFICULTY_KEY, next);
-    } catch {
-      // 선택 저장 실패는 무시한다.
-    }
-  };
+  const pickDifficulty = (next: StwDifficulty) => setDifficulty(next);
+  const pickMap = (next: MapChoice) => setMapChoice(next);
 
-  const pickMap = (next: MapChoice) => {
-    setMapChoice(next);
-    try {
-      window.localStorage.setItem(MAP_KEY, next);
-    } catch {
-      // 선택 저장 실패는 무시한다.
+  // 경기 기록 초기화: 전적과 난이도별 최단 승리를 지운다. 한 번 더 눌러야 지워진다.
+  const resetRecord = () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      return;
     }
+    const empty: BattleRecord = { wins: 0, losses: 0, best: {} };
+    writeRecord(empty);
+    setRecord(empty);
+    setConfirmReset(false);
   };
 
   const requestExit = () => {
@@ -909,7 +865,18 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           </ol>
           <button type="button" className="stw-start" onClick={startBattle}>전투 시작</button>
           <button type="button" className="stw-secondary stw-lab-entry" onClick={() => setScreen("lab")}>실험실<small>원하는 병력·연구·시각으로 교전 시험</small></button>
-          <p className="stw-record-line">전적 {record.wins}승 {record.losses}패</p>
+          <div className="stw-record-line">
+            <span>전적 {record.wins}승 {record.losses}패</span>
+            {confirmReset ? (
+              <>
+                <button type="button" className="stw-record-reset danger" onClick={resetRecord}>지우기</button>
+                <button type="button" className="stw-record-reset" onClick={() => setConfirmReset(false)}>취소</button>
+              </>
+            ) : (
+              <button type="button" className="stw-record-reset" disabled={!record.wins && !record.losses && !Object.keys(record.best).length} onClick={resetRecord}>경기 기록 초기화</button>
+            )}
+          </div>
+          {confirmReset ? <p className="stw-hint stw-record-confirm">전적과 난이도별 최단 승리 기록을 지웁니다.</p> : null}
         </section>
       </main>
     );

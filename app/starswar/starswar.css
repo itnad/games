@@ -37,7 +37,11 @@
 .stw-howto b { font-size:16px; }
 .stw-howto span { color:var(--stw-soft); }
 .stw-start { min-height:58px; border:0; border-radius:16px; color:var(--stw-on-gold) !important; background:linear-gradient(180deg,var(--stw-gold),var(--stw-gold)); font-size:18px !important; font-weight:900; box-shadow:0 10px 30px color-mix(in srgb,var(--stw-gold) 20%,transparent); }
-.stw-record-line { margin:0; color:var(--stw-muted); text-align:center; }
+.stw-record-line { margin:0; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px; color:var(--stw-muted); text-align:center; }
+.stw-record-reset { min-height:32px; padding:4px 10px; border:1px solid var(--stw-line); border-radius:999px; color:var(--stw-muted); background:transparent; font:inherit; font-size:12px; cursor:pointer; }
+.stw-record-reset:disabled { opacity:.45; cursor:default; }
+.stw-record-reset.danger { border-color:var(--stw-red); color:var(--stw-red); font-weight:700; }
+.stw-record-confirm { margin:0; text-align:center; }
 
 /* 전투 */
 .stw-play-shell { height:100dvh; display:flex; flex-direction:column; overflow:hidden; }

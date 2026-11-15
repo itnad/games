@@ -893,8 +893,13 @@ test("keeps StarDraft in its own app/starswar folder as a public mobile game at 
   assert.match(gameSource, /iconTimer = window\.setTimeout[\s\S]*?pixi\.exportIcons\(\)[\s\S]*?, 50\)/);
   assert.match(gameSource, /지도가 표시될 때까지 전투 시간은 흐르지 않습니다\./);
   assert.match(gameSource, /지도 다시 불러오기/);
-  // 난이도는 저장해 두고, 고른 카드는 어떤 테마에서도 강조색으로 채워 "✓ 선택"을 붙인다(스위스·보드게임 테마가 테두리·그림자를 덮어써 안 보이던 문제).
-  assert.match(gameSource, /DIFFICULTY_KEY = "paperoid-starswar-difficulty"/);
+  // 메인 화면은 늘 종족 둘 다 무작위·평원·보통으로 시작하고(선택을 저장하지 않는다), 고른 난이도 카드는 어떤 테마에서도 강조색으로 채워 "✓ 선택"을 붙인다.
+  assert.match(gameSource, /MENU_DEFAULTS = \{ races: \{ player: "random", enemy: "random" \}[^\n]*map: "plain"[^\n]*difficulty: "normal"/);
+  assert.doesNotMatch(gameSource, /paperoid-starswar-(difficulty|race|map)"/);
+  assert.match(gameSource, /DIFFICULTY_IDS: StwDifficulty\[\] = \["beginner", "easy", "normal", "hard"/);
+  // 전적 옆 경기 기록 초기화: 한 번 더 눌러야 전적과 최단 승리를 지운다.
+  assert.match(gameSource, /경기 기록 초기화/);
+  assert.match(gameSource, /const empty: BattleRecord = \{ wins: 0, losses: 0, best: \{\} \};\s*writeRecord\(empty\)/);
   assert.match(gameSource, /onClick=\{\(\) => pickDifficulty\(id\)\}/);
   const starswarCss = await readFile(new URL("../app/starswar/starswar.css", import.meta.url), "utf8");
   const activeRule = starswarCss.lastIndexOf(".stw-shell .stw-difficulty button.active {");
