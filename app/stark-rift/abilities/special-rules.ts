@@ -100,7 +100,11 @@ function approachPassengers(s: SimulationState, move: Move) {
     }
     const job = t.unloads[0], m = s.movement[i];
     if (job && (e.x[i] - job.x) ** 2 + (e.y[i] - job.y) ** 2 > 192 ** 2 &&
-      (m.status === "idle" || m.status === "blocked")) move(s, [t.entityId], job);
+      (m.status === "idle" || m.status === "blocked" || m.status === "arrived")) {
+      move(s, [t.entityId], job);
+      // Each next passenger needs the same clear air waypoint correction as the first.
+      if (m.target) { job.x = m.target.x; job.y = m.target.y; }
+    }
   }
 }
 function transportArrivals(s: SimulationState, map: BattleMap) {

@@ -223,3 +223,11 @@ describe("simultaneous landing and incoming fire", () => {
     expect(f.state.entities.health[indexOf(f.state,troop)]).toBe(hp);expect(f.state.combat!.projectiles).toEqual([]);expect(isEmbarked(f.state,troop)).toBe(true);
   });
 });
+
+it('finishes all passenger unloads when nearby Arbiters displace the carrier arrival waypoint',()=>{
+  const f=fixture('protoss','terran');f.add(0,'protoss-arbiter',15.75,19.75);f.add(0,'protoss-arbiter',20.25,19.75);
+  const ship=f.add(0,'protoss-shuttle',20,18),a=f.add(0,'protoss-zealot',16,21),b=f.add(0,'protoss-zealot',18,21),supply=f.state.players[0].supplyUsedHalf;
+  f.load([ship],a);f.load([ship],b);for(let n=0;n<200&&!([a,b].every(id=>isEmbarked(f.state,id)));n++)f.tick();expect([a,b].every(id=>isEmbarked(f.state,id))).toBe(true);
+  expect(f.unload([ship],21,20).accepted).toBe(true);for(let n=0;n<300&&[a,b].some(id=>isEmbarked(f.state,id));n++)f.tick();
+  expect([a,b].some(id=>isEmbarked(f.state,id))).toBe(false);expect(f.state.players[0].supplyUsedHalf).toBe(supply);expect(parse(simulationStateSchema,f.state).ok).toBe(true);
+});

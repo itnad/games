@@ -164,7 +164,7 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
-      <ArbiterControls snapshot={snapshot} selected={selected} select={selectEntities} running={running} cast={castAbility} />
+      <ArbiterControls snapshot={snapshot} selected={selected} select={selectEntities} running={running} cast={castAbility} toggleAutocast={(ids,enabled) => issue({kind:"toggleAutocast",entityIds:ids,payload:{abilityId:"stasis-field",enabled}})} />
       <LurkerControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <SiegeControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <CloakControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />

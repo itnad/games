@@ -1,3 +1,6 @@
+import { createAutocastRules } from "../../app/stark-rift/abilities/autocast-rules";
+import { autocastOf, validAutocast } from "../../app/stark-rift/abilities/autocast-state";
+import { SPELLS_COMBAT_RULES_VERSION } from "../../app/stark-rift/combat/state";
 import { createSpellsRules, resolveRecall, spellArea } from "../../app/stark-rift/abilities/spells-rules";
 import { RECALL, STASIS, RECALL_TICKS, STASIS_TICKS, isInStasis, recallOf, validSpells, spellsFitMap } from "../../app/stark-rift/abilities/spells-state";
 import { energyOf, ENERGY } from "../../app/stark-rift/abilities/cloak-state";
@@ -38,7 +41,8 @@ function fixture(race: Faction = "protoss", enemy: Faction = "terran") {
   initializeEconomy(state, map); initializeCombat(state); initializeVision(state, map);
   for (const w of state.economy.workers) w.autoAllowed = false;
   const visible = (s: typeof state, p: number, i: number) => canSeeEntity(s, map, p, i);
-  const rules = createSpellsRules(map, createSpecialRules(map, createLurkerRules(createSiegeRules(createCloakRules(createBurrowRules(map, createVisionRules(map, createCombatRules(createEconomyRules(map, createMovementRules(map, visible, combatReach)), visible, map))))))));
+  const spellRules = createSpellsRules(map, createSpecialRules(map, createLurkerRules(createSiegeRules(createCloakRules(createBurrowRules(map, createVisionRules(map, createCombatRules(createEconomyRules(map, createMovementRules(map, visible, combatReach)), visible, map))))))));
+  const rules = createAutocastRules(map,spellRules);
   const tick = (n = 1) => { for (let i = 0; i < n; i++) stepSimulation(state, rules); };
   const issue = (body: object, owner = 0) => {
     const c = { ...body, sequence: state.commandState.lastAcceptedSequenceByPlayer[owner] + 1, issuedTick: state.tick, executeTick: state.tick + 1, playerId: owner, source: "player" } as GameCommand;
@@ -124,5 +128,64 @@ describe('Arbiter spells and research',()=>{
   it('migrates the previous Arbiter save with original 50-energy initialization and untouched raw backup',()=>{
     const f=fixture(),a=f.add(0,ARBITER),old=f.saved();old.formatVersion=old.simulation.schemaVersion=15;old.engineVersion=old.simulation.engineVersion='0.16.0-stage6f';old.dataVersion=old.simulation.dataVersion=old.dataVersion.replace(ECONOMY_DATA_VERSION,ARBITER_ECONOMY_DATA_VERSION);old.simulation.combat!.rulesVersion=ARBITER_COMBAT_RULES_VERSION;old.simulation.vision!.rulesVersion=ARBITER_VISION_RULES_VERSION as never;delete old.simulation.energy;old.checksum=checksum(old.simulation);
     const raw=JSON.stringify(old),key=DEVELOPMENT_SAVE_PREFIX+'protoss',records=new Map([[key,raw]]),store=new DevelopmentSaveStore({getItem:k=>records.get(k)??null,setItem:(k,v)=>{records.set(k,v);}}),read=store.read('protoss');expect(read.status).toBe('ready');if(read.status!=='ready')throw Error('migration');expect(energyOf(read.snapshot.simulation,a)).toMatchObject({amount:50*256,frameRemainder:0});expect(store.write(read.snapshot)).toBe(true);expect(records.get(key+'.stage6f-backup')).toBe(raw);
+  });
+});
+
+const toggleAuto=(f:F,ids:number[],enabled=true,abilityId=STASIS)=>f.issue({kind:'toggleAutocast',entityIds:ids,payload:{abilityId,enabled}});
+function autoFixture(){
+  const f=fixture('protoss','protoss'),a=caster(f),first=f.add(1,'protoss-probe',44,40),second=f.add(1,'protoss-probe',45,40);
+  return {...f,a,first,second};
+}
+describe('opt-in Stasis autocast',()=>{
+  it('defaults off, freezes a visible enemy pair after enabling, charges once and does not spend on frozen targets',()=>{
+    const f=autoFixture();f.tick(5);expect(f.state.spells).toBeUndefined();expect(f.view().entities.find(e=>e.id===f.a)?.stasisAutocast).toBe(false);
+    expect(toggleAuto(f,[f.a]).accepted).toBe(true);f.tick(5);expect(isInStasis(f.state,f.first)).toBe(true);expect(isInStasis(f.state,f.second)).toBe(true);expect(energyOf(f.state,f.a)!.amount).toBeLessThan(101*256);const n=f.state.spells!.effects.length;f.tick(10);expect(f.state.spells!.effects).toHaveLength(n);
+  });
+  it('rejects unsupported abilities, units and ownership without changing settings',()=>{
+    const f=autoFixture();expect(toggleAuto(f,[f.a],true,RECALL).accepted).toBe(false);expect(toggleAuto(f,[f.state.economy.workers[0].entityId]).accepted).toBe(false);expect(toggleAuto(f,[f.first]).accepted).toBe(false);expect(f.state.autocast).toBeUndefined();
+  });
+  it('can configure before research or energy, but casts only when both become available',()=>{
+    const f=autoFixture();f.state.economy.upgrades=f.state.economy.upgrades.filter(u=>u.technologyId!==STASIS);energyOf(f.state,f.a)!.amount=50*256;toggleAuto(f,[f.a]);f.tick(10);expect(f.state.spells).toBeUndefined();f.research(STASIS);f.tick(10);expect(f.state.spells).toBeUndefined();energyOf(f.state,f.a)!.amount=100*256;f.tick(5);expect(isInStasis(f.state,f.first)).toBe(true);
+  });
+  it('does not waste energy on a single enemy or a pair outside current cast range',()=>{
+    const f=autoFixture();removeEntity(f.state,f.second);toggleAuto(f,[f.a]);f.tick(10);expect(f.state.spells).toBeUndefined();f.add(1,'protoss-probe',44,41);f.state.entities.x[indexOf(f.state,f.a)]=30*256;f.tick(10);expect(f.state.spells).toBeUndefined();expect(energyOf(f.state,f.a)!.amount).toBe(200*256);
+  });
+  it('avoids every affected ally, including another Arbiter and air carriers',()=>{
+    for(const name of ['protoss-zealot',ARBITER,'protoss-shuttle']){
+      const f=autoFixture(),ally=f.add(0,name,44.5,40);toggleAuto(f,[f.a]);f.tick(10);expect(f.state.spells).toBeUndefined();expect(isInStasis(f.state,ally)).toBe(false);
+    }
+  });
+  it('ignores unseen and undetected targets instead of using hidden density',()=>{
+    const f=autoFixture();removeEntity(f.state,f.second);const dark=f.add(1,'protoss-dark-templar',45,40);toggleAuto(f,[f.a]);f.tick(10);expect(f.view().entities.some(e=>e.id===dark)).toBe(false);expect(f.state.spells).toBeUndefined();const detector=f.add(0,'protoss-observer',40,43);f.tick(5);expect(isInStasis(f.state,dark)).toBe(true);expect(isInStasis(f.state,f.first)).toBe(true);
+  });
+  it('does not seek a remembered pair through fog or move toward it',()=>{
+    const f=autoFixture();f.state.entities.x[indexOf(f.state,f.a)]=30*256;const pos=[f.state.entities.x[indexOf(f.state,f.a)],f.state.entities.y[indexOf(f.state,f.a)]];toggleAuto(f,[f.a]);f.tick(10);expect(f.state.spells).toBeUndefined();expect([f.state.entities.x[indexOf(f.state,f.a)],f.state.entities.y[indexOf(f.state,f.a)]]).toEqual(pos);
+  });
+  it('casts from hold without movement and gives a same-tick manual recall priority',()=>{
+    const f=autoFixture();toggleAuto(f,[f.a]);const c={kind:'castAbility',entityIds:[f.a],payload:{abilityId:RECALL},target:{kind:'point',x:70*256,y:70*256},sequence:f.state.commandState.lastAcceptedSequenceByPlayer[0]+1,issuedTick:f.state.tick,executeTick:5,playerId:0,source:'player'};
+    expect(enqueueCommand(f.state,c,f.rules)).toEqual({ok:true});f.tick(4);expect(recallOf(f.state,f.a)).toBeDefined();expect(f.state.spells!.stasis).toHaveLength(0);expect(autocastOf(f.state,f.a)!.manualUntilTick).toBe(25);
+  });
+  it('honours stop grace and a manual movement order, then resumes from the arrival location',()=>{
+    const f=autoFixture();toggleAuto(f,[f.a]);f.issue({kind:'stop',entityIds:[f.a]});f.tick(18);expect(f.state.spells).toBeUndefined();f.issue({kind:'move',entityIds:[f.a],target:{kind:'point',x:38*256,y:40*256}});f.tick(5);expect(f.state.spells).toBeUndefined();f.tick(30);expect(isInStasis(f.state,f.first)).toBe(true);
+  });
+  it('coordinates two casters without duplicate payment and leaves separate clusters available',()=>{
+    const f=autoFixture(),b=caster(f,40,43);f.add(1,'protoss-probe',44,45);f.add(1,'protoss-probe',45,45);toggleAuto(f,[f.a,b]);f.tick(5);expect(f.state.spells!.stasis).toHaveLength(4);expect(f.state.spells!.effects).toHaveLength(2);expect(energyOf(f.state,f.a)!.amount).toBeLessThan(101*256);expect(energyOf(f.state,b)!.amount).toBeLessThan(101*256);
+  });
+  it('inherits group settings on assignment and permits disabling while frozen without energy',()=>{
+    const f=autoFixture(),b=caster(f,40,45);f.issue({kind:'assignGroup',entityIds:[f.a],payload:{slot:0,confirmed:false}});toggleAuto(f,[f.a]);expect(f.state.players[0].controlGroups[0].autocastAbilityIds).toEqual([STASIS]);f.issue({kind:'assignGroup',entityIds:[f.a,b],payload:{slot:0,confirmed:true}});expect(autocastOf(f.state,b)).toBeDefined();
+    const enemyCaster=f.add(1,ARBITER,42,40);energyOf(f.state,enemyCaster)!.amount=200*256;f.state.economy.upgrades.push({playerId:1,technologyId:STASIS,level:1});f.issue({kind:'castAbility',entityIds:[enemyCaster],payload:{abilityId:STASIS},target:{kind:'point',x:40*256,y:40*256}},1);expect(isInStasis(f.state,f.a)).toBe(true);expect(toggleAuto(f,[f.a,b],false).accepted).toBe(true);expect(f.state.autocast!.records).toHaveLength(0);expect(f.state.players[0].controlGroups[0].autocastAbilityIds).toHaveLength(0);
+  });
+  it('saves preferences, manual priority and deterministic continuation; removes dead references',()=>{
+    const f=autoFixture();toggleAuto(f,[f.a]);f.issue({kind:'hold',entityIds:[f.a]});const copy=restoreSnapshot(JSON.stringify(f.saved())).simulation;for(let n=0;n<30;n++){f.tick();stepSimulation(copy,f.rules);}expect(checksum(copy)).toBe(checksum(f.state));removeEntity(f.state,f.a);expect(f.state.autocast!.records).toHaveLength(0);expect(validAutocast(f.state)).toBe(true);
+  });
+  it('rejects forged duplicate/dead/unsupported preferences and excessive manual timers',()=>{
+    const f=autoFixture();toggleAuto(f,[f.a]);const r=f.state.autocast!.records[0];r.manualUntilTick=f.state.tick+21;expect(parse(simulationStateSchema,f.state).ok).toBe(false);r.manualUntilTick=0;f.state.autocast!.records.push({...r});expect(validAutocast(f.state)).toBe(false);f.state.autocast!.records=[{entityId:f.first,manualUntilTick:0}];expect(validAutocast(f.state)).toBe(false);
+  });
+  it('exposes only own caster preferences and rejects an enemy preference in the render packet',()=>{
+    const f=autoFixture(),b=f.add(1,ARBITER,43,44);toggleAuto(f,[f.a]);const v=f.view();expect(v.entities.find(e=>e.id===f.a)?.stasisAutocast).toBe(true);const enemy=v.entities.find(e=>e.id===b)!;expect(enemy).toBeDefined();expect(enemy.stasisAutocast).toBeUndefined();enemy.stasisAutocast=true;expect(validateRenderSnapshot(v).ok).toBe(false);
+  });
+  it('migrates a stage6G save without losing live spell timers and backs up its original bytes',()=>{
+    const f=autoFixture();cast(f,f.a,STASIS,44,40);const b=caster(f,40,44);cast(f,b,RECALL,60,60);const old=f.saved();old.formatVersion=old.simulation.schemaVersion=16;old.engineVersion=old.simulation.engineVersion='0.17.0-stage6g';old.simulation.combat!.rulesVersion=SPELLS_COMBAT_RULES_VERSION;old.checksum=checksum(old.simulation);
+    const raw=JSON.stringify(old),key=DEVELOPMENT_SAVE_PREFIX+'protoss',records=new Map([[key,raw]]),store=new DevelopmentSaveStore({getItem:k=>records.get(k)??null,setItem:(k,v)=>{records.set(k,v);}});const read=store.read('protoss');expect(read.status).toBe('ready');if(read.status!=='ready')throw Error('migration');expect(read.snapshot.simulation.spells).toEqual(old.simulation.spells);expect(read.snapshot.simulation.autocast).toBeUndefined();expect(store.write(read.snapshot)).toBe(true);expect(records.get(key+'.stage6g-backup')).toBe(raw);
   });
 });

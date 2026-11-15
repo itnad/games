@@ -7,7 +7,7 @@ import { isEmbarked } from "./special-state";
 export const RECALL = "recall", STASIS = "stasis-field";
 export const RECALL_TICKS = originalTicks(original.recall.delayFrames);
 export const STASIS_TICKS = originalTicks(original.stasis.statusCycles * original.stasis.framesPerCycle);
-export const SPELLS_RULES_VERSION = "spells-1-" + checksum({ original: JSON.stringify(original), landing: "stable-id-local-6-tiles", orders: "hold-workers-resume", stasisMorph: "paused", recallApproach: "in-place", stasisApproach: "reject-outside-range" });
+export const SPELLS_RULES_VERSION = "spells-1-" + checksum({ original: JSON.stringify(original), landing: "stable-id-local-6-tiles", orders: "hold-workers-resume", stasisMorph: "paused", recallApproach: "in-place", stasisApproach: "reject-outside-range", transportUnload: "normalize-each-leg" });
 const point = { x: integer(), y: integer() };
 export const spellEffectSchema = object({ id: integer(1), kind: enumeration(["recall", "stasis-field"]), owner: integer(0, 1), tick: integer(), ...point });
 export const spellsStateSchema = object({

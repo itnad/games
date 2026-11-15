@@ -1,0 +1,27 @@
+import json,os,sys,importlib.util,traceback,argparse
+from pathlib import Path
+from playwright.sync_api import sync_playwright,expect
+sys.dont_write_bytecode=True
+root=Path(__file__).resolve().parents[2];spec=importlib.util.spec_from_file_location('m',root/'tools/stark-rift-lab/browser-smoke.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+a=argparse.ArgumentParser();a.add_argument('--url',default='http://127.0.0.1:4189');a.add_argument('--output',type=Path,required=True);args=a.parse_args();args.output.mkdir(parents=True,exist_ok=True);results=[]
+with sync_playwright() as p:
+ opts={'executable_path':'/usr/bin/chromium','headless':True,'args':['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']}
+ if args.url.startswith('https:'):opts['proxy']={'server':os.environ['HTTPS_PROXY']}
+ browser=p.chromium.launch(**opts)
+ cases=[('protoss','pending-spells',Path('/workspace/library-files/stark-rift-spells/verified-live/360-pending-save.json')),('protoss','arbiter-away',Path('/workspace/library-files/stark-rift-arbiter/verified-live/360-away-save.json')),('zerg','lurker-morph',Path('/workspace/library-files/stark-rift-lurker/verified-live/360-morph-save.json')),('protoss','cargo',Path('/workspace/library-files/stark-rift-cloak/verified-live-special/protoss-360-cargo-save.json')),('terran','siege',Path('/workspace/library-files/stark-rift-siege/verified-live/360-transition-save.json')),('terran','active-cloak',Path('/workspace/library-files/stark-rift-siege/verified-live-cloak/active-360-save.json')),('terran','cargo',Path('/workspace/library-files/stark-rift-siege/verified-live-special/terran-360-cargo-save.json')),('zerg','cargo',Path('/workspace/library-files/stark-rift-cloak/verified-live-special/zerg-360-cargo-save.json'))]
+ for race,label,path in cases:
+  raw=path.read_text();old=json.loads(raw);assert old['formatVersion'] in [12,13,14,15,16];key='paperoid.stark-rift.development.v1.special.'+race;case={'race':race,'savedScenario':label,'oldTick':old['simulation']['tick'],'checks':[]};results.append(case)
+  c=browser.new_context(viewport={'width':360,'height':640},is_mobile=True,has_touch=True);page=c.new_page();page.add_init_script(m.OBSERVER);page.add_init_script('localStorage.setItem('+json.dumps(key)+','+json.dumps(raw)+')');errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+  try:
+   page.goto(args.url+'/stark-rift-dev',wait_until='networkidle');page.locator('[data-faction="'+race+'"]').tap();page.get_by_role('button',name='특수 연습',exact=True).tap();page.get_by_role('button',name='이어서 하기',exact=True).tap();page.wait_for_function('t=>window.__qa.ui?.phase==="paused"&&window.__qa.snapshot?.tick===t',arg=old['simulation']['tick']);case['checks'].append('actual_previous_live_save_restores_at_exact_tick');m.save(page)
+   upgraded=json.loads(page.evaluate('(k)=>localStorage.getItem(k)',key));s=upgraded['simulation'];assert upgraded['formatVersion']==17
+   for field in ['special','rngStreams','players','movement','commandState','economy','siege','lurker','spells','entities']:assert s.get(field)==old['simulation'].get(field),field
+   old_energy=old['simulation'].get('energy',[]);assert all(r in s.get('energy',[]) for r in old_energy)
+   for i,eid in enumerate(old['simulation']['entities']['id']):
+    if old['formatVersion']<16 and old['simulation']['entities']['definitionId'][i]=='protoss-arbiter':assert {'entityId':eid,'amount':50*256,'frameRemainder':0} in s['energy']
+   assert s['vision']=={**old['simulation']['vision'],'rulesVersion':'fog-4-stasis-disabled-field-detector'};assert s['combat']['projectiles']==old['simulation']['combat']['projectiles'];assert page.evaluate('({k,suffix})=>localStorage.getItem(k+suffix)',{'k':key,'suffix':'.stage6g-backup' if old['formatVersion']==16 else '.stage6f-backup' if old['formatVersion']==15 else '.stage6e-backup' if old['formatVersion']==14 else '.stage6d-backup' if old['formatVersion']==13 else '.stage6c-backup'})==raw
+   case['checks']+=['cargo_research_groups_resources_vision_rng_and_pending_orders_preserved','format17_rewrite_retains_exact_raw_version_backup'];(args.output/(race+'-'+label+'-migrated-save.json')).write_text(json.dumps(upgraded,ensure_ascii=False));assert not errors;assert not any(e['kind']=='fatalError' for e in m.state(page)['events']);case['checks'].append('no_runtime_errors');page.screenshot(path=str(args.output/(race+'-'+label+'-restored.png')))
+  except Exception as e:case['failure']=str(e);traceback.print_exc()
+  finally:c.close()
+ browser.close()
+report={'url':args.url,'scope':'Replay of unmodified saves captured from the previous live version; no new-game resource injection','results':results};(args.output/'legacy-browser.json').write_text(json.dumps(report,ensure_ascii=False,indent=2));print(json.dumps(report,ensure_ascii=False));raise SystemExit(int(any('failure' in r for r in results)))

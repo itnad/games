@@ -698,7 +698,7 @@ test("server-renders the paperoid game library", async () => {
   assert.match(html, /<html lang="ko">/i);
   assert.match(html, /<title>paperoid — AI 보드게임 아지트<\/title>/i);
   assert.match(html, /paperoid/);
-  const popularRecommendationTitles = ["해루질럿", "스타드래프트", "잉카의 다이아몬드", "오목", "러브레터", "큐윅스", "주사위 대결 Yahtzee"];
+  const popularRecommendationTitles = ["해루질럿", "스타드래프트", "잉카의 다이아몬드", "오목", "장기", "러브레터", "큐윅스", "주사위 대결 Yahtzee"];
   let popularRecommendationCursor = -1;
   for (const title of popularRecommendationTitles) {
     const titleIndex = html.indexOf(`<h3>${title}</h3>`, popularRecommendationCursor + 1);
@@ -750,7 +750,9 @@ test("server-renders the paperoid game library", async () => {
   }
   assert.match(html, /모든 게임 표시/);
   assert.match(html, /게임 찾기/);
-  assert.match(html, /전체 게임 보기/);
+  assert.match(html, /다른 게임 둘러보기/);
+  assert.match(html, /더 많은 게임 보기/);
+  assert.doesNotMatch(html, /전체 게임 보기/);
   assert.match(pageSource, /recentGames\.length > 0 && \(/);
   assert.match(pageSource, /title="이어서 하기"/);
   assert.match(pageSource, /title="인기 추천"/);
@@ -792,7 +794,8 @@ test("separates traditional classics from the strategy category", async () => {
   for (const id of classicGames) {
     assert.match(pageSource, new RegExp(`id: "${id}",[\\s\\S]*?category: "고전게임"`));
   }
-  assert.match(pageSource, /CATEGORIES\.map\(\(item\) => \([\s\S]*?onClick=\{\(\) => openFinder\(item\)\}/);
+  assert.match(pageSource, /CATEGORIES\.map\(\(item\) => \([\s\S]*?onClick=\{\(\) => setHomeCategory\(item\)\}/);
+  assert.match(pageSource, /onClick=\{\(\) => openFinder\(homeCategory\)\}/);
 });
 
 test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
@@ -941,8 +944,9 @@ test("keeps the home introduction compact on mobile", async () => {
   assert.match(styles, /\.hero-mudflat-shortcut \{[\s\S]*?font: inherit/);
   assert.match(styles, /\.hub-hero \{[\s\S]*?min-height: 132px/);
   assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.hub-hero \{[\s\S]*?min-height: 104px/);
-  assert.match(pageSource, /className="home-explore-bar"/);
-  assert.match(pageSource, /className="all-games-trigger"/);
+  assert.match(pageSource, /className="home-explore-panel"/);
+  assert.match(pageSource, /className="game-shelf-track home-category-preview-grid"/);
+  assert.match(pageSource, /className="more-games-link"/);
   assert.match(pageSource, /const \[expanded, setExpanded\] = useState\(false\)/);
 });
 
@@ -2091,9 +2095,16 @@ test("shows home games as a compact grid and keeps popular recommendations disti
   assert.match(pageSource, /const recentGames = recentIds[\s\S]*?\.slice\(0, RECENT_GAME_DISPLAY_LIMIT\)/);
   assert.match(pageSource, /const recentGameIdSet = new Set\(recentGames\.map\(\(game\) => game\.id\)\)/);
   assert.match(pageSource, /!recentGameIdSet\.has\(game\.id\)/);
+  assert.match(pageSource, /const \[homeCategory, setHomeCategory\] = useState<Category>\("전체"\)/);
+  assert.match(pageSource, /const featuredHomeGameIds = new Set\([\s\S]*?recentGames[\s\S]*?popularRecommendationGames[\s\S]*?favoriteGames/);
+  assert.match(pageSource, /const categoryPreviewGames = availableGames[\s\S]*?!featuredHomeGameIds\.has\(game\.id\)[\s\S]*?homeCategory === "전체"[\s\S]*?\.slice\(0, 5\)/);
+  assert.match(pageSource, /onClick=\{\(\) => setHomeCategory\(item\)\}/);
+  assert.match(pageSource, /onClick=\{\(\) => openFinder\(homeCategory\)\}/);
   assert.match(pageSource, /className="game-shelf-count">\{games\.length\}/);
   assert.match(styles, /\.game-shelf-track\s*\{[\s\S]*?grid-auto-flow:\s*row;[\s\S]*?grid-template-columns:\s*repeat\(auto-fill, minmax\(190px, 216px\)\);[\s\S]*?overflow:\s*visible;/);
+  assert.match(styles, /\.home-category-preview-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
   assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.game-shelf-track\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.home-category-preview-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
 });
 
 test("balances distinct AI personalities automatically in Seven Civilizations", async () => {
