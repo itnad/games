@@ -133,6 +133,8 @@ import {
   MUDFLAT_UPGRADES,
   MUDFLAT_TIDE_SPEED_MULTIPLIER,
   MUDFLAT_PEARL,
+  MUDFLAT_PEARL_TEST_TAP_COUNT,
+  MUDFLAT_PEARL_TEST_TAP_WINDOW_MS,
   mudflatAutoSellInventory,
   mudflatAdvancedSkillUnlocks,
   mudflatCanLearnSkill,
@@ -153,6 +155,15 @@ import {
   mudflatHeadlampDiscoveryRange,
   mudflatJoystickVector,
   mudflatNetStats,
+  mudflatOpeningCreatureSpeedMultiplier,
+  mudflatOpeningWaveCount,
+  mudflatPufferEventInterval,
+  mudflatCrabRushRows,
+  mudflatCrabRushInterval,
+  mudflatMudZombieCount,
+  mudflatJellyfishInterval,
+  mudflatJellyfishPoisonDamage,
+  mudflatPearlTestTapProgress,
   mudflatMosquitoAppears,
   mudflatMosquitoChance,
   mudflatMosquitoRunEnabled,
@@ -173,6 +184,7 @@ import {
   mudflatSeafoodSaleValue,
   mudflatSettleCatch,
   mudflatSpawnInterval,
+  mudflatStageSpawnInterval,
   mudflatStageStats,
   mudflatTideStats,
   mudflatStageTideState,
@@ -619,6 +631,24 @@ test("provides a complete objective and victory guide for every game", async () 
   const globalStyles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
   assert.match(globalStyles, /\.game-objective-scroll\s*\{[\s\S]*?align-items:\s*safe center;[\s\S]*?overflow-y:\s*auto;[\s\S]*?overscroll-behavior:\s*contain;[\s\S]*?touch-action:\s*pan-y;/);
   assert.match(globalStyles, /html\.paperoid-guide-open,[\s\S]*?overflow:\s*hidden;/);
+  assert.match(globalStyles, /\.game-objective-summary\s*\{[\s\S]*?font-size:\s*16px;[\s\S]*?line-height:\s*1\.72;/);
+  assert.match(globalStyles, /\.game-objective-cards p\s*\{[\s\S]*?font-size:\s*15px;[\s\S]*?line-height:\s*1\.72;/);
+  assert.match(globalStyles, /@media \(max-width: 640px\)[\s\S]*?\.game-objective-cards p\s*\{\s*font-size:\s*16px;/);
+  const ruleStyles = await Promise.all([
+    "camel-up.css",
+    "cashflow-escape.css",
+    "sd-gundam-deluxe.css",
+    "seven-wonders.css",
+    "tichu.css",
+    "scotland-yard.css",
+    "whitechapel.css",
+  ].map((file) => readFile(new URL(`../app/${file}`, import.meta.url), "utf8")));
+  for (const stylesheet of ruleStyles) {
+    assert.match(stylesheet, /Rules remain readable on narrow phones/);
+    assert.match(stylesheet, /font-size:\s*16px/);
+    assert.match(stylesheet, /font-size:\s*14px/);
+    assert.match(stylesheet, /line-height:\s*1\.7/);
+  }
   assert.deepEqual(GAME_OBJECTIVES["mudflat-survivor"].steps.map((step) => step.title), ["이동", "채집과 위험", "베이스캠프 복귀"]);
   assert.match(GAME_OBJECTIVES["mudflat-survivor"].summary, /4분 동안 채집/);
   assert.match(GAME_OBJECTIVES["mudflat-survivor"].victory, /베이스캠프에 도착해야 성공/);
@@ -840,6 +870,8 @@ test("keeps StarDraft in its own app/starswar folder as a public mobile game at 
   const starswarSource = await readFile(new URL("../app/starswar/starswar-game.tsx", import.meta.url), "utf8");
   assert.equal(starswarSource.match(/<GameObjectiveGuide gameId="starswar" inline \/>/g)?.length, 2);
   assert.doesNotMatch(starswarSource, /게임 속도 전환/);
+  assert.match(starswarSource, /<h1>간단한 조작\. 명작의 즐거움\.<\/h1>/);
+  assert.doesNotMatch(starswarSource, /전략은 당신이|전투는 병력이/);
   assert.match(pageSource, /id: "starswar",[\s\S]*?title: "스타드래프트",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
   // 2026-11 공개: 홈 목록에 보인다.
@@ -1179,6 +1211,26 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatShellMovementSpeed(200), 10);
   assert.ok(mudflatSpawnInterval(200) < mudflatSpawnInterval(0));
   assert.ok(mudflatSpawnInterval(0, "normal") < mudflatSpawnInterval(0, "kids"));
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8].map((stage) => mudflatOpeningWaveCount(stage)), [0, 0, 8, 10, 12, 14, 16, 18]);
+  assert.equal(mudflatOpeningWaveCount(8, "kids"), 0);
+  assert.equal(mudflatStageSpawnInterval(3, "normal", .47), .42);
+  assert.equal(mudflatStageSpawnInterval(5, "normal", .52), .37);
+  assert.ok(Math.abs(mudflatStageSpawnInterval(8, "normal", .3) - .295) < 1e-9);
+  assert.equal(mudflatStageSpawnInterval(3, "kids", .6), .6);
+  assert.equal(mudflatOpeningCreatureSpeedMultiplier(3, 0, "small-crab"), 1.1);
+  assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 0, "shrimp"), 1.22);
+  assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 30, "shrimp"), 1.11);
+  assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 60, "shrimp"), 1);
+  assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 0, "pufferfish"), 1);
+  assert.equal(mudflatPufferEventInterval(2, .5), Infinity);
+  assert.ok(mudflatPufferEventInterval(3, 0) >= 25);
+  assert.deepEqual([3, 4, 5, 6, 7, 10].map(mudflatCrabRushRows), [0, 1, 2, 3, 4, 4]);
+  assert.equal(mudflatCrabRushInterval(3, .5), Infinity);
+  assert.ok(mudflatCrabRushInterval(8, .5) > 30);
+  assert.deepEqual([5, 6, 7, 8, 10].map(mudflatMudZombieCount), [0, 20, 30, 40, 40]);
+  assert.equal(mudflatJellyfishInterval(7), Infinity);
+  assert.equal(mudflatJellyfishInterval(8), 30);
+  assert.equal(mudflatJellyfishPoisonDamage(), 4);
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
   assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["쓸어담기", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
@@ -1267,6 +1319,17 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatClamRewardForRoll(6, 0.01).id, "clam");
   assert.equal(mudflatClamRewardForRoll(6, 0.999).id, "razor-clam");
   assert.equal(MUDFLAT_PEARL.price, 10000);
+  assert.equal(MUDFLAT_PEARL_TEST_TAP_COUNT, 5);
+  assert.equal(MUDFLAT_PEARL_TEST_TAP_WINDOW_MS, 850);
+  let pearlTap = mudflatPearlTestTapProgress(0, 0, 1000);
+  assert.deepEqual(pearlTap, { count: 1, lastTapAt: 1000, triggered: false });
+  pearlTap = mudflatPearlTestTapProgress(pearlTap.count, pearlTap.lastTapAt, 1800);
+  assert.equal(pearlTap.count, 2);
+  pearlTap = mudflatPearlTestTapProgress(pearlTap.count, pearlTap.lastTapAt, 1900);
+  pearlTap = mudflatPearlTestTapProgress(pearlTap.count, pearlTap.lastTapAt, 2000);
+  pearlTap = mudflatPearlTestTapProgress(pearlTap.count, pearlTap.lastTapAt, 2100);
+  assert.deepEqual(pearlTap, { count: 0, lastTapAt: 2100, triggered: true });
+  assert.deepEqual(mudflatPearlTestTapProgress(3, 1000, 1900), { count: 1, lastTapAt: 1900, triggered: false });
   assert.deepEqual(MUDFLAT_GAEBUL, { id: "gaebul", name: "개불", xp: 11, score: 88, price: 24 });
   assert.deepEqual(mudflatEmptySeafoodHazard(9.99), { damagePerSecond: 0, message: "" });
   assert.deepEqual(mudflatEmptySeafoodHazard(10), { damagePerSecond: 1, message: "너무 깊게 들어온 것 같다." });
@@ -1827,6 +1890,28 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /mudBootLevel = Math\.max\(runtime\.levels\.boots/);
   assert.match(source, /runtime\.mudPrints\.push\(/);
   assert.match(source, /mudflatClamRewardForRoll/);
+  assert.match(source, /openingWaveRemaining: mudflatOpeningWaveCount\(campaign\.stage, campaign\.mode\)/);
+  assert.match(source, /spawnCreature\(width, height, false, true\)/);
+  assert.match(source, /mudflatStageSpawnInterval\(runtime\.stage, runtime\.mode, regularInterval\)/);
+  assert.match(source, /mudflatOpeningCreatureSpeedMultiplier\(runtime\.stage, runtime\.elapsed, template\.id, runtime\.mode\)/);
+  assert.match(source, /const spawnPufferEvent =/);
+  assert.match(source, /const spawnCrabRush =/);
+  assert.match(source, /const spawnMudZombieEvent =/);
+  assert.match(source, /const spawnJellyfish =/);
+  assert.match(source, /eventKind: "jellyfish", uncollectible: true/);
+  assert.match(source, /creature\.eventKind === "crab-line"/);
+  assert.match(source, /runtime\.jellyPoisonSeconds = Math\.max\(runtime\.jellyPoisonSeconds, 4\)/);
+  assert.match(source, /creature\.hp = creature\.maxHp/);
+  assert.match(source, /runtime\.jellyfishClock \+= mudflatJellyfishInterval\(runtime\.stage\)/);
+  assert.doesNotMatch(source, /showPlayerMessage\([^\n]*(복어 무리|게 무리|좀비|해파리)/);
+  assert.match(source, /function applyClamHarvestReward\(/);
+  assert.ok((source.match(/applyClamHarvestReward\(/g) ?? []).length >= 3, "normal digging and five-tap QA use the shared pearl reward path");
+  assert.match(source, /mudflatPearlTestTapProgress\(tapState\.count, tapState\.lastTapAt, event\.timeStamp\)/);
+  assert.match(source, /반짝이는 진주를 찾아냈다! 정말 귀한 보물이야\./);
+  assert.match(source, /귀한 보물을 발견했습니다!/);
+  assert.match(source, /pearl-reveal/);
+  assert.match(styles, /\.ms-pearl-celebration\{/);
+  assert.match(styles, /@keyframes ms-pearl-card/);
   assert.match(source, /const clamSize = clamGrade\?\.visualSize \?\? 42/);
   assert.match(source, /context\.rotate\(Math\.PI \/ 2\)/);
   assert.match(source, /isVertical \? " is-vertical" : ""/);
@@ -2097,19 +2182,22 @@ test("shows home games as a compact grid and keeps popular recommendations disti
   assert.match(pageSource, /key="recent-games"/);
   assert.match(pageSource, /key="popular-recommendation-games"/);
   assert.match(pageSource, /const RECENT_GAME_DISPLAY_LIMIT = 2/);
+  assert.match(pageSource, /const HOME_CATEGORY_PREVIEW_LIMIT = 6/);
   assert.match(pageSource, /const recentGames = recentIds[\s\S]*?\.slice\(0, RECENT_GAME_DISPLAY_LIMIT\)/);
   assert.match(pageSource, /const recentGameIdSet = new Set\(recentGames\.map\(\(game\) => game\.id\)\)/);
   assert.match(pageSource, /!recentGameIdSet\.has\(game\.id\)/);
   assert.match(pageSource, /const \[homeCategory, setHomeCategory\] = useState<Category>\("전체"\)/);
   assert.match(pageSource, /const featuredHomeGameIds = new Set\([\s\S]*?recentGames[\s\S]*?popularRecommendationGames[\s\S]*?favoriteGames/);
-  assert.match(pageSource, /const categoryPreviewGames = availableGames[\s\S]*?!featuredHomeGameIds\.has\(game\.id\)[\s\S]*?homeCategory === "전체"[\s\S]*?\.slice\(0, 5\)/);
+  assert.match(pageSource, /const categoryPreviewGames = availableGames[\s\S]*?!featuredHomeGameIds\.has\(game\.id\)[\s\S]*?homeCategory === "전체"[\s\S]*?\.slice\(0, HOME_CATEGORY_PREVIEW_LIMIT\)/);
   assert.match(pageSource, /onClick=\{\(\) => setHomeCategory\(item\)\}/);
   assert.match(pageSource, /onClick=\{\(\) => openFinder\(homeCategory\)\}/);
   assert.match(pageSource, /className="game-shelf-count">\{games\.length\}/);
   assert.match(styles, /\.game-shelf-track\s*\{[\s\S]*?grid-auto-flow:\s*row;[\s\S]*?grid-template-columns:\s*repeat\(auto-fill, minmax\(190px, 216px\)\);[\s\S]*?overflow:\s*visible;/);
-  assert.match(styles, /\.home-category-preview-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/);
+  assert.match(styles, /\.home-category-preview-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\);/);
   assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.game-shelf-track\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.home-category-preview-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(styles, /\.shelf-game-card\s*\{[\s\S]*?height:\s*78px;/);
+  assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.shelf-game-card\s*\{[\s\S]*?height:\s*68px;/);
 });
 
 test("balances distinct AI personalities automatically in Seven Civilizations", async () => {
@@ -3728,7 +3816,7 @@ test("all rock, hole, and falling-rock spawn paths respect the camp exclusion", 
   assert.equal((source.match(/runtime\.rocks\.push\(/g) ?? []).length, 1, "all rocks use the guarded addRock helper");
   assert.match(source, /if \(!campObstacleAllowed\(rock, rock\.radius \+ 20\)\) return false;\s*runtime\.rocks\.push\(rock\)/);
   assert.match(source, /if \(campObstacleAllowed\(hole, 48\)\) runtime\.clamHoles\.push\(hole\)/);
-  assert.match(source, /kind = runtime\.stage === GAEBUL_STAGE/);
+  assert.match(source, /kind(?:: ClamHole\["kind"\])? = runtime\.stage === GAEBUL_STAGE/);
   assert.match(source, /if \(campObstacleAllowed\(falling, falling\.radius \+ 20\)\) runtime\.fallingRocks\.push\(falling\)/);
   for (const collection of ["rocks", "clamHoles", "fallingRocks"]) {
     assert.ok(source.includes(`runtime.${collection} = runtime.${collection}.filter((`), `existing ${collection} are cleared when camp appears`);
@@ -3792,4 +3880,21 @@ test("keeps the Stark Rift playtest private from the home footer", async () => {
   const home = await (await render()).text();
   assert.doesNotMatch(home, /href="\/stark-rift-dev"/);
   assert.doesNotMatch(home, /스타크 리프트 개발 테스트/);
+});
+
+test("lets players choose and understand the Janggi bigjang rule", async () => {
+  const source = await readFile(new URL("../app/janggi-game.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(source, /type BigjangRule = "enabled" \| "disabled"/);
+  assert.match(source, /useState<BigjangRule>\("disabled"\)/);
+  assert.match(source, /빅장 사용 여부/);
+  assert.match(source, /두 궁이 같은 세로줄에서 사이에 다른 기물 없이 서로 마주 보는 상황입니다/);
+  assert.match(source, /빅장을 받은 쪽이 한 수 응수합니다/);
+  assert.match(source, /사용 안 함:[\s\S]*빅장으로 판정하지 않고/);
+  assert.match(source, /bigjangRule === "enabled" && bigjangResponder === "cho" && isBigjang\(next\)/);
+  assert.match(source, /chooseAiMove\(board, respondingToBigjang\)/);
+  assert.doesNotMatch(source, /AI가 빅장 무승부를 청구했습니다/);
+  assert.match(styles, /\.janggi-bigjang-setting/);
+  assert.match(styles, /\.janggi-bigjang-explanation/);
 });

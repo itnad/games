@@ -46,6 +46,20 @@ export const MUDFLAT_CLAM_GRADES = [
 ];
 
 export const MUDFLAT_PEARL = { id: "pearl", name: "진주", xp: 30, score: 500, price: 10000 };
+export const MUDFLAT_PEARL_TEST_TAP_COUNT = 5;
+export const MUDFLAT_PEARL_TEST_TAP_WINDOW_MS = 850;
+
+export function mudflatPearlTestTapProgress(count = 0, lastTapAt = 0, now = 0) {
+  const safeCount = Math.max(0, Math.floor(Number(count) || 0));
+  const safeLastTapAt = Math.max(0, Number(lastTapAt) || 0);
+  const safeNow = Math.max(0, Number(now) || 0);
+  const continued = safeCount > 0
+    && safeNow >= safeLastTapAt
+    && safeNow - safeLastTapAt <= MUDFLAT_PEARL_TEST_TAP_WINDOW_MS;
+  const nextCount = (continued ? safeCount : 0) + 1;
+  const triggered = nextCount >= MUDFLAT_PEARL_TEST_TAP_COUNT;
+  return { count: triggered ? 0 : nextCount, lastTapAt: safeNow, triggered };
+}
 export const MUDFLAT_GAEBUL = { id: "gaebul", name: "개불", xp: 11, score: 88, price: 24 };
 
 const MUDFLAT_CLAM_WEIGHTS = [
@@ -286,6 +300,67 @@ export function mudflatEmptySeafoodHazard(emptySeconds = 0) {
 export function mudflatSpawnInterval(elapsedSeconds, mode = "kids") {
   const base = Math.max(0.14, 0.62 - Math.max(0, elapsedSeconds) * 0.002);
   return mode === "normal" ? Math.max(0.11, base * 0.82) : base;
+}
+
+export function mudflatOpeningWaveCount(stage = 1, mode = "normal") {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (mode !== "normal" || safeStage < 3) return 0;
+  return Math.min(18, 8 + (safeStage - 3) * 2);
+}
+
+export function mudflatStageSpawnInterval(stage = 1, mode = "kids", regularInterval = 1) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  const safeInterval = Math.max(0.08, Number(regularInterval) || 1);
+  if (mode !== "normal" || safeStage < 3) return safeInterval;
+  // Later expeditions never begin more slowly than this pressure curve. The
+  // ordinary elapsed-time curve takes over as soon as it becomes faster.
+  const openingCeiling = Math.max(0.26, 0.42 - (safeStage - 3) * 0.025);
+  return Math.min(safeInterval, openingCeiling);
+}
+
+const MUDFLAT_OPENING_FAST_CREATURES = new Set(["small-crab", "crab", "shrimp", "large-shrimp"]);
+
+export function mudflatOpeningCreatureSpeedMultiplier(stage = 1, elapsedSeconds = 0, creatureType = "", mode = "normal") {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  const safeElapsed = Math.max(0, Number(elapsedSeconds) || 0);
+  if (mode !== "normal" || safeStage < 3 || safeElapsed >= 60 || !MUDFLAT_OPENING_FAST_CREATURES.has(creatureType)) return 1;
+  const maximumBonus = Math.min(.22, .1 + (safeStage - 3) * .025);
+  return 1 + maximumBonus * (1 - safeElapsed / 60);
+}
+
+// Silent field events add pressure without interrupting play with banners or
+// scripted announcements. These helpers keep stage scaling explicit and easy
+// to verify independently from the canvas runtime.
+export function mudflatPufferEventInterval(stage = 1, roll = 0) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < 3) return Infinity;
+  return Math.max(25, 38 - (safeStage - 3) * 1.25) + Math.max(0, Math.min(.999999, Number(roll) || 0)) * 12;
+}
+
+export function mudflatCrabRushRows(stage = 1) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < 4) return 0;
+  return Math.min(4, safeStage - 3);
+}
+
+export function mudflatCrabRushInterval(stage = 1, roll = 0) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < 4) return Infinity;
+  return Math.max(31, 44 - (safeStage - 4)) + Math.max(0, Math.min(.999999, Number(roll) || 0)) * 14;
+}
+
+export function mudflatMudZombieCount(stage = 1) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < 6) return 0;
+  return Math.min(40, 20 + (safeStage - 6) * 10);
+}
+
+export function mudflatJellyfishInterval(stage = 1) {
+  return Math.max(1, Math.floor(Number(stage) || 1)) >= 8 ? 30 : Infinity;
+}
+
+export function mudflatJellyfishPoisonDamage() {
+  return 4;
 }
 
 export function mudflatCreatureForTime(elapsedSeconds, roll = 0, options = {}) {

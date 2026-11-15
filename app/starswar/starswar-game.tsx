@@ -821,7 +821,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         <section className="stw-menu">
           <div className="stw-menu-hero">
             <small>BUILD · TECH · WAVE</small>
-            <h1>전략은 당신이,<br />전투는 병력이.</h1>
+            <h1>간단한 조작. 명작의 즐거움.</h1>
             <p>무엇을 짓고 연구할지, 언제 진격할지 정하세요.</p>
             <TipLine race={races.player} rotate={9} className="stw-tip-menu" />
           </div>

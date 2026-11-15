@@ -1440,7 +1440,7 @@ html.paperoid-guide-open body {
   display: block;
   color: var(--objective-accent);
   font-family: var(--font-geist-mono), monospace;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: .15em;
 }
@@ -1454,9 +1454,11 @@ html.paperoid-guide-open body {
 .game-objective-summary {
   max-width: 580px;
   margin: 16px 0 20px;
-  color: #716a70;
-  font-size: 14px;
-  line-height: 1.65;
+  color: #5f585e;
+  font-size: 16px;
+  line-height: 1.72;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .game-objective-cards {
@@ -1499,7 +1501,7 @@ html.paperoid-guide-open body {
   gap: 7px;
   color: var(--objective-accent);
   font-family: var(--font-geist-mono), monospace;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: .12em;
 }
@@ -1513,12 +1515,19 @@ html.paperoid-guide-open body {
   border-radius: 7px;
   color: white;
   background: var(--objective-accent);
-  font-size: 8px;
+  font-size: 10px;
 }
 .game-objective-cards article.victory > span b { color: var(--objective-accent); background: white; }
-.game-objective-cards h3 { margin: 13px 0 7px; font-size: 19px; }
-.game-objective-cards p { margin: 0; color: #6f686e; font-size: 12px; line-height: 1.65; }
-.game-objective-cards article.victory p { color: rgba(255,255,255,.77); }
+.game-objective-cards h3 { margin: 13px 0 7px; font-size: 21px; }
+.game-objective-cards p {
+  margin: 0;
+  color: #5c555b;
+  font-size: 15px;
+  line-height: 1.72;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.game-objective-cards article.victory p { color: rgba(255,255,255,.9); }
 
 .game-objective-steps {
   display: grid;
@@ -1550,14 +1559,16 @@ html.paperoid-guide-open body {
 
 .game-objective-steps h3 {
   margin: 1px 0 4px;
-  font-size: 16px;
+  font-size: 18px;
 }
 
 .game-objective-steps p {
   margin: 0;
-  color: #6f686e;
-  font-size: 12px;
-  line-height: 1.55;
+  color: #5c555b;
+  font-size: 15px;
+  line-height: 1.65;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 .game-objective-modal > aside {
@@ -1577,14 +1588,15 @@ html.paperoid-guide-open body {
   border-radius: 999px;
   color: white;
   background: var(--objective-accent);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 900;
 }
 
 .game-objective-modal > aside strong {
   color: #5d565c;
-  font-size: 11px;
-  line-height: 1.45;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: keep-all;
 }
 
 .game-objective-confirm {
@@ -1596,7 +1608,7 @@ html.paperoid-guide-open body {
   color: white;
   background: var(--objective-accent);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 900;
 }
 
@@ -1618,11 +1630,14 @@ html.paperoid-guide-open body {
   .game-objective-close { top: 13px; right: 13px; }
   .game-objective-modal > header { padding-right: 42px; }
   .game-objective-modal > header > i { width: 46px; height: 46px; border-radius: 14px; }
-  .game-objective-summary { margin: 13px 0 15px; font-size: 13px; }
+  .game-objective-summary { margin: 13px 0 17px; font-size: 16px; line-height: 1.72; }
   .game-objective-cards { grid-template-columns: 1fr; }
-  .game-objective-cards article { min-height: 0; padding: 15px; }
-  .game-objective-cards h3 { margin: 9px 0 5px; font-size: 17px; }
-  .game-objective-steps article { padding: 12px; }
+  .game-objective-cards article { min-height: 0; padding: 17px; }
+  .game-objective-cards h3 { margin: 10px 0 7px; font-size: 20px; }
+  .game-objective-cards p { font-size: 16px; line-height: 1.75; }
+  .game-objective-steps article { padding: 14px 13px; }
+  .game-objective-steps h3 { font-size: 18px; }
+  .game-objective-steps p { font-size: 15px; line-height: 1.7; }
   .game-objective-modal > aside { grid-template-columns: 1fr; gap: 7px; }
   .game-objective-modal > aside span { justify-self: start; }
 }
@@ -4876,6 +4891,117 @@ button.mancala-pit:not(:disabled):hover { outline: 3px solid rgba(255, 242, 193,
 .janggi-setup-picker button.active strong { color: #0d4d38; }
 .janggi-setup-picker button.active span { color: #194f3d; }
 
+.janggi-bigjang-setting {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.25rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(159, 224, 195, .28);
+  border-radius: 1rem;
+  background: linear-gradient(145deg, rgba(12, 48, 38, .76), rgba(20, 61, 49, .5));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+
+.janggi-bigjang-setting > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.janggi-bigjang-setting > header > div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.janggi-bigjang-setting > header > div > span {
+  color: #9fc9b6;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.janggi-bigjang-setting > header strong {
+  color: #fffdf7;
+  font-size: 1rem;
+}
+
+.janggi-rule-state {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  color: #183c31;
+  background: #aee5c9;
+  font-size: 0.75rem;
+  font-weight: 950;
+}
+
+.janggi-rule-state.disabled {
+  color: #e7e1d9;
+  background: #4d5d56;
+}
+
+.janggi-rule-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.janggi-setup-picker .janggi-rule-options button {
+  min-height: 3.5rem;
+  padding: 0.55rem 0.65rem;
+  border-color: rgba(255, 255, 255, .13);
+  background: rgba(246, 243, 232, .09);
+  text-align: left;
+}
+
+.janggi-setup-picker .janggi-rule-options button strong {
+  margin-bottom: 0.14rem;
+  color: #f3f0e8;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.janggi-setup-picker .janggi-rule-options button span {
+  color: #b9c8c0;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.janggi-setup-picker .janggi-rule-options button.active {
+  border-color: #a6dfc2;
+  background: #f6f0df;
+  box-shadow: 0 0 0 2px rgba(126, 211, 173, .18);
+}
+
+.janggi-setup-picker .janggi-rule-options button.active strong { color: #123e31; }
+.janggi-setup-picker .janggi-rule-options button.active span { color: #365a4c; }
+
+.janggi-bigjang-explanation {
+  padding: 0.72rem 0.8rem;
+  border-left: 3px solid #e8c66c;
+  border-radius: 0.35rem 0.7rem 0.7rem 0.35rem;
+  background: rgba(0, 0, 0, .16);
+}
+
+.janggi-bigjang-explanation > strong {
+  display: block;
+  margin-bottom: 0.34rem;
+  color: #f5d886;
+  font-size: 0.82rem;
+}
+
+.janggi-bigjang-explanation p {
+  margin: 0.23rem 0 0;
+  color: #d8ded9;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.48;
+}
+
+.janggi-bigjang-explanation b { color: #fff4c9; }
+
 .janggi-setup-picker .janggi-start-button {
   grid-column: 1 / -1;
   justify-self: center;
@@ -6472,33 +6598,56 @@ footer { font-size: 15px; }
 
 .shelf-game-card {
   width: 100%;
-  height: 156px;
+  height: 78px;
   scroll-snap-align: none;
 }
 
 .shelf-game-play {
-  grid-template-columns: 43% 57%;
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.shelf-game-art .card-art {
+  transform: scale(.2);
 }
 
 .shelf-game-copy {
-  padding: 18px 15px 14px;
+  padding: 8px 34px 8px 10px;
+  position: relative;
+  justify-content: center;
 }
 
 .shelf-game-copy h3 {
-  margin: 10px 0 0;
-  font-size: 19px;
+  margin: 5px 0 0;
+  font-size: 16px;
 }
 
 .shelf-game-open {
-  margin-top: auto;
+  width: 25px;
+  height: 25px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  position: absolute;
+  right: 7px;
+  bottom: 8px;
+  border-radius: 50%;
   color: #5d47ab;
-  font-size: 13px;
+  background: #eee9fb;
+  font-size: 0;
   font-weight: 800;
 }
 
 .shelf-game-open span {
-  margin-left: 3px;
-  font-size: 15px;
+  margin-left: 0;
+  font-size: 14px;
+}
+
+.shelf-favorite-button {
+  width: 28px;
+  height: 28px;
+  top: 4px;
+  left: 4px;
+  font-size: 14px;
 }
 
 .home-explore-panel {
@@ -6560,7 +6709,7 @@ footer { font-size: 15px; }
 }
 
 .home-category-preview-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .home-category-preview-empty {
@@ -6731,33 +6880,32 @@ footer { font-size: 15px; }
 
   .shelf-game-card {
     max-width: none;
-    height: 136px;
+    height: 68px;
   }
 
   .shelf-game-play {
-    grid-template-columns: 44% 56%;
+    grid-template-columns: 58px minmax(0, 1fr);
   }
 
   .shelf-game-art .card-art {
-    transform: scale(.39);
+    transform: scale(.175);
   }
 
   .shelf-game-copy {
-    padding: 12px 9px 10px;
+    padding: 7px 31px 7px 8px;
   }
 
   .shelf-game-category {
-    padding: 3px 6px;
-    font-size: 10px;
+    padding: 2px 5px;
+    font-size: 9px;
   }
 
   .shelf-game-copy h3 {
-    margin-top: 7px;
-    overflow: visible;
-    font-size: 15px;
-    line-height: 1.25;
-    text-overflow: clip;
-    white-space: normal;
+    margin-top: 4px;
+    font-size: 14px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .shelf-game-open {
@@ -6765,23 +6913,23 @@ footer { font-size: 15px; }
   }
 
   .shelf-game-open span {
-    width: 25px;
-    height: 25px;
+    width: auto;
+    height: auto;
     margin-left: 0;
     display: grid;
     place-items: center;
-    border-radius: 50%;
-    color: #fff;
-    background: #6550b7;
+    border-radius: 0;
+    color: inherit;
+    background: transparent;
     font-size: 14px;
   }
 
   .shelf-favorite-button {
-    width: 31px;
-    height: 31px;
-    top: 6px;
-    left: 6px;
-    font-size: 16px;
+    width: 26px;
+    height: 26px;
+    top: 3px;
+    left: 3px;
+    font-size: 13px;
   }
 
   .home-explore-panel {
@@ -6906,6 +7054,24 @@ footer { font-size: 15px; }
   .janggi-setup-picker button span {
     font-size: 16px;
   }
+
+  .janggi-bigjang-setting {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .janggi-bigjang-setting > header strong { font-size: 18px; }
+  .janggi-rule-state { font-size: 13px; }
+
+  .janggi-setup-picker .janggi-rule-options button {
+    min-height: 68px;
+    padding: 10px;
+  }
+
+  .janggi-setup-picker .janggi-rule-options button strong { font-size: 16px; }
+  .janggi-setup-picker .janggi-rule-options button span { font-size: 13px; }
+  .janggi-bigjang-explanation > strong { font-size: 15px; }
+  .janggi-bigjang-explanation p { font-size: 14px; line-height: 1.55; }
 
   .janggi-piece {
     border-width: 2px;

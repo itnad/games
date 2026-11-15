@@ -501,6 +501,7 @@ const DEFAULT_POPULAR_RECOMMENDATION_GAME_IDS: readonly GameId[] = [
 const SHOW_ALL_GAMES_STORAGE_KEY = "paperoid-show-all-games";
 const PENDING_GAME_AFTER_UPDATE_KEY = "paperoid-pending-game-after-update";
 const RECENT_GAME_DISPLAY_LIMIT = 2;
+const HOME_CATEGORY_PREVIEW_LIMIT = 6;
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const PUBLIC_GAME_PATH_ALIASES: Readonly<Record<string, GameId>> = {
   haeru: "mudflat-survivor",
@@ -1545,7 +1546,7 @@ function HomeContent({
         !featuredHomeGameIds.has(game.id) &&
         (homeCategory === "전체" || game.category === homeCategory),
     )
-    .slice(0, 5);
+    .slice(0, HOME_CATEGORY_PREVIEW_LIMIT);
 
   if (activeGame === "gomoku") {
     return <GuidedGame gameId={activeGame}><GomokuGame onExit={exitGame} /></GuidedGame>;

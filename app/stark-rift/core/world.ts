@@ -1,4 +1,5 @@
-import { supportsEnergy, ENERGY } from "../abilities/cloak-state";
+import { initialEnergy } from "../abilities/energy-upgrades";
+import { supportsEnergy } from "../abilities/cloak-state";
 import { detachSpecialEntity } from "../abilities/special-cleanup";
 import { detachEconomyEntity } from "../economy/cleanup";
 import { recomputeSupply } from "../economy/helpers";
@@ -111,7 +112,7 @@ export function createEntity(
   state.entities.shield.push(input.shield ?? 0);
   state.movement.push(idleMovement(id));
   if (state.economy.enabled && supportsEnergy(input.definitionId)) {
-    state.energy ??= []; state.energy.push({ entityId: id, amount: ENERGY.initial * ENERGY.scale, frameRemainder: 0 });
+    state.energy ??= []; state.energy.push({ entityId: id, amount: initialEnergy(state,input.owner,input.definitionId), frameRemainder: 0 });
   }
   return id;
 }

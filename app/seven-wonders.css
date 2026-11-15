@@ -10,6 +10,7 @@
   font-family: var(--font-geist-sans), "Noto Sans KR", sans-serif;
 }
 
+
 .seven-wonders-card-art {
   position: relative;
   overflow: hidden;
@@ -345,3 +346,7 @@
   .sw-action-buttons { position: sticky; z-index: 20; bottom: 0; grid-template-columns: 1.25fr 1fr .75fr; padding-top: 7px; background: #172228; }.sw-action-buttons button { padding: 8px; }.sw-action-buttons button > span { display: none; }.sw-action-buttons b { font-size: 11px; }.sw-action-buttons small { font-size: 7px; }
   .sw-modal { padding: 24px 18px; }.sw-rule-list article { grid-template-columns: 26px 1fr; }.sw-result { width: calc(100% - 24px); padding-top: 35px; }.sw-result-actions { flex-direction: column; }
 }
+
+/* Rules remain readable on narrow phones. */
+.sw-rule-list h3 { font-size: 16px; }
+.sw-rule-list p { margin-top: 5px; color: #c1c9c8; font-size: 14px; line-height: 1.7; word-break: keep-all; }

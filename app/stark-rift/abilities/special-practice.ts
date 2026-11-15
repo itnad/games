@@ -1,3 +1,4 @@
+import { initializeEnergyPractice } from "./energy-practice";
 import { energyOf, ENERGY } from "./cloak-state";
 import type { SimulationState } from "../core/state";
 import { createEconomicEntity, newStructure, recomputeSupply, workerOf, releaseWork } from "../economy/helpers";
@@ -58,5 +59,6 @@ export function initializeSpecialPractice(s: SimulationState) {
     s.combat!.targetIds.push(target); s.movement[s.entities.id.indexOf(target)].order = "hold";
     const w = workerOf(s, target); if (w) releaseWork(s, w, false);
   }
+  initializeEnergyPractice(s);
   recomputeSupply(s);
 }

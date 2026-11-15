@@ -10,6 +10,7 @@ type Board = Array<Piece | null>;
 type Move = { from: number; to: number };
 type JanggiSetup = "inner" | "outer" | "left" | "right";
 type JanggiResult = Side | "draw" | null;
+type BigjangRule = "enabled" | "disabled";
 
 const COLS = 9;
 const ROWS = 10;
@@ -365,8 +366,12 @@ function minimax(board: Board, depth: number, maximizing: boolean, alpha: number
   return best;
 }
 
-function chooseAiMove(board: Board) {
-  const moves = legalMoves(board, "han");
+function chooseAiMove(board: Board, shouldBreakBigjang = false) {
+  const legal = legalMoves(board, "han");
+  const breakingMoves = shouldBreakBigjang
+    ? legal.filter((move) => !isBigjang(applyMove(board, move)))
+    : [];
+  const moves = breakingMoves.length ? breakingMoves : legal;
   if (!moves.length) return null;
   return moves
     .map((move) => {
@@ -402,6 +407,8 @@ function JanggiTopbar({ onExit }: { onExit: () => void }) {
 export function JanggiGame({ onExit }: { onExit: () => void }) {
   const [choSetup, setChoSetup] = useState<JanggiSetup>("inner");
   const [hanSetup, setHanSetup] = useState<JanggiSetup>("inner");
+  const [bigjangRule, setBigjangRule] = useState<BigjangRule>("disabled");
+  const [bigjangResponder, setBigjangResponder] = useState<Side | null>(null);
   const [started, setStarted] = useState(false);
   const [board, setBoard] = useState<Board>(() => newJanggiBoard("inner", "inner"));
   const [turn, setTurn] = useState<Side>("cho");
@@ -483,16 +490,30 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
     if (kingIndex(next, "han") < 0 || (checked && replies.length === 0)) {
       setWinner("cho");
       setNotice("외통수입니다");
+    } else if (bigjangRule === "enabled" && bigjangResponder === "cho" && isBigjang(next)) {
+      setWinner("draw");
+      setBigjangResponder(null);
+      setNotice("빅장에 응수한 뒤에도 두 궁이 마주 보아 무승부입니다");
     } else {
+      const createdBigjang = bigjangRule === "enabled" && bigjangResponder !== "cho" && isBigjang(next);
+      setBigjangResponder(createdBigjang ? "han" : null);
       if (registerPosition(next, "han")) return;
       setTurn("han");
-      setNotice(checked ? "장군!" : "AI가 수를 읽는 중…");
+      setNotice(createdBigjang
+        ? "빅장입니다. AI가 한 수 안에 두 궁의 마주침을 풀어야 합니다"
+        : checked ? "장군!" : "AI가 수를 읽는 중…");
     }
   };
 
   const pass = () => {
     if (!started || turn !== "cho" || winner || choChecked) return;
     setSelected(null);
+    if (bigjangRule === "enabled" && bigjangResponder === "cho" && isBigjang(board)) {
+      setWinner("draw");
+      setBigjangResponder(null);
+      setNotice("빅장 무승부를 받아들였습니다");
+      return;
+    }
     if (lastActionWasPass) {
       setWinner("draw");
       setNotice("양쪽이 연속으로 한 수를 쉬어 무승부입니다");
@@ -508,16 +529,16 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     if (!started || turn !== "han" || winner) return;
     const timer = window.setTimeout(() => {
-      if (isBigjang(board)) {
-        setWinner("draw");
-        setNotice("AI가 빅장 무승부를 청구했습니다");
-        return;
-      }
-      const aiMove = chooseAiMove(board);
+      const respondingToBigjang = bigjangRule === "enabled" && bigjangResponder === "han";
+      const aiMove = chooseAiMove(board, respondingToBigjang);
       if (!aiMove) {
         if (isInCheck(board, "han")) {
           setWinner("cho");
           setNotice("외통수입니다");
+        } else if (respondingToBigjang && isBigjang(board)) {
+          setWinner("draw");
+          setBigjangResponder(null);
+          setNotice("AI가 빅장 무승부를 받아들였습니다");
         } else {
           if (lastActionWasPass) {
             setWinner("draw");
@@ -545,14 +566,22 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
       if (kingIndex(next, "cho") < 0 || (checked && replies.length === 0)) {
         setWinner("han");
         setNotice("AI가 외통을 만들었습니다");
+      } else if (respondingToBigjang && isBigjang(next)) {
+        setWinner("draw");
+        setBigjangResponder(null);
+        setNotice("AI가 응수한 뒤에도 두 궁이 마주 보아 무승부입니다");
       } else {
+        const createdBigjang = bigjangRule === "enabled" && !respondingToBigjang && isBigjang(next);
+        setBigjangResponder(createdBigjang ? "cho" : null);
         if (registerPosition(next, "cho")) return;
         setTurn("cho");
-        setNotice(checked ? "장군! 궁을 피하세요" : "내 차례입니다");
+        setNotice(createdBigjang
+          ? "AI가 빅장을 만들었습니다. 한 수 안에 두 궁의 마주침을 풀거나 무승부를 받아들이세요"
+          : checked ? "장군! 궁을 피하세요" : "내 차례입니다");
       }
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [board, started, turn, winner]);
+  }, [bigjangResponder, bigjangRule, board, started, turn, winner]);
 
   const start = () => {
     const nextHanSetup = randomJanggiSetup(previousHanSetup.current);
@@ -561,6 +590,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
     setBoard(newJanggiBoard(choSetup, nextHanSetup));
     setPositionHistory([boardSignature(newJanggiBoard(choSetup, nextHanSetup), "cho")]);
     setLastActionWasPass(false);
+    setBigjangResponder(null);
     setStarted(true);
     setTurn("cho");
     setNotice(`${withKoreanDirection(JANGGI_SETUPS[choSetup].label)} 대국을 시작합니다`);
@@ -573,6 +603,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
     setSelected(null);
     setWinner(null);
     setLastActionWasPass(false);
+    setBigjangResponder(null);
     setPositionHistory([boardSignature(newJanggiBoard(choSetup, "inner"), "cho")]);
     setLastAiMove(null);
     setCapturedCho([]);
@@ -586,7 +617,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
     ? winner === "draw" ? "무승부" : winner === "cho" ? "초의 승리!" : "한의 승리"
     : !started ? "차림을 선택하세요"
     : turn === "cho"
-      ? choChecked ? "장군!" : "초 · 내 차례"
+      ? bigjangResponder === "cho" ? "빅장에 응수하세요" : choChecked ? "장군!" : "초 · 내 차례"
       : hanChecked ? "장군을 불렀어요" : "한 · AI 차례";
 
   return (
@@ -597,7 +628,7 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
           <div>
             <span className="eyebrow">KOREAN CHESS</span>
             <h1>궁을 지키고<br />외통을 만드세요</h1>
-            <p>초 진영으로 먼저 시작합니다. 친선 승부제를 적용해 외통은 승리, 빅장 청구·동일 국면 3회·연속 한 수 쉼은 무승부로 처리합니다.</p>
+            <p>초 진영으로 먼저 시작합니다. 외통은 승리, 동일 국면 3회·연속 한 수 쉼은 무승부입니다. 빅장 판정은 대국 전에 선택할 수 있습니다.</p>
           </div>
           {!started && (
             <fieldset className="janggi-setup-picker" data-game-menu>
@@ -611,8 +642,43 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
                   <span>{setup.label}</span>
                 </button>
               ))}
+              <section className="janggi-bigjang-setting" aria-labelledby="janggi-bigjang-title">
+                <header>
+                  <div>
+                    <span>대국 규칙</span>
+                    <strong id="janggi-bigjang-title">빅장 사용 여부</strong>
+                  </div>
+                  <span className={`janggi-rule-state ${bigjangRule}`}>{bigjangRule === "enabled" ? "사용" : "사용 안 함"}</span>
+                </header>
+                <div className="janggi-rule-options" role="group" aria-label="빅장 사용 여부 선택">
+                  <button
+                    type="button"
+                    className={bigjangRule === "enabled" ? "active" : ""}
+                    aria-pressed={bigjangRule === "enabled"}
+                    onClick={() => setBigjangRule("enabled")}
+                  >
+                    <strong>빅장 사용</strong>
+                    <span>한 번 응수 후 무승부 판정</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={bigjangRule === "disabled" ? "active" : ""}
+                    aria-pressed={bigjangRule === "disabled"}
+                    onClick={() => setBigjangRule("disabled")}
+                  >
+                    <strong>사용 안 함</strong>
+                    <span>두 궁이 마주쳐도 계속 대국</span>
+                  </button>
+                </div>
+                <div className="janggi-bigjang-explanation">
+                  <strong>빅장이란?</strong>
+                  <p>두 궁이 같은 세로줄에서 사이에 다른 기물 없이 서로 마주 보는 상황입니다.</p>
+                  <p><b>사용:</b> 빅장을 받은 쪽이 한 수 응수합니다. 응수 후에도 두 궁이 계속 마주 보면 무승부가 됩니다.</p>
+                  <p><b>사용 안 함:</b> 같은 상황이 생겨도 빅장으로 판정하지 않고 외통이나 다른 종료 조건까지 대국을 계속합니다.</p>
+                </div>
+              </section>
               <button className="janggi-start-button" onClick={start}>
-                <span className="janggi-start-cue">차림 선택 완료 · AI 차림 무작위</span>
+                <span className="janggi-start-cue">차림 선택 완료 · AI 차림 무작위 · 빅장 {bigjangRule === "enabled" ? "사용" : "사용 안 함"}</span>
                 <strong>이 차림으로 대국 시작</strong>
                 <span className="janggi-start-arrow" aria-hidden="true">→</span>
               </button>
@@ -733,11 +799,12 @@ export function JanggiGame({ onExit }: { onExit: () => void }) {
           <div className="game-actions janggi-actions">
             <button className="text-action" onClick={reset}>↻ 새 대국</button>
             <button className="pass-action" onClick={pass} disabled={!started || turn !== "cho" || Boolean(winner) || choChecked}>한 수 쉼</button>
-            {started && turn === "cho" && !winner && isBigjang(board) && (
+            {started && turn === "cho" && !winner && bigjangRule === "enabled" && bigjangResponder === "cho" && isBigjang(board) && (
               <button className="pass-action" onClick={() => {
                 setWinner("draw");
-                setNotice("빅장 무승부를 청구했습니다");
-              }}>빅장 무승부</button>
+                setBigjangResponder(null);
+                setNotice("빅장 무승부를 받아들였습니다");
+              }}>빅장 무승부 수락</button>
             )}
             <span className="game-hint">기물을 선택하면 이동할 수 있는 교차점이 표시됩니다</span>
             {winner && <button className="primary-action" onClick={reset}>다시 대국</button>}

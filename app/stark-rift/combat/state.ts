@@ -1,3 +1,4 @@
+import { ENERGY_UPGRADE_RULES_VERSION } from "../abilities/energy-upgrades";
 import { SPELLS_RULES_VERSION } from "../abilities/spells-state";
 import arbiter from "../data/arbiter-original.json";
 import { ARBITER_RULES_VERSION } from "../abilities/arbiter";
@@ -43,7 +44,8 @@ export const SIEGE_COMBAT_RULES_VERSION = "siege-combat-" + checksum({ base: CLO
 export const LURKER_COMBAT_RULES_VERSION = "lurker-combat-" + checksum({ base: SIEGE_COMBAT_RULES_VERSION, lurker: LURKER_RULES_VERSION });
 export const ARBITER_COMBAT_RULES_VERSION = "arbiter-combat-" + checksum({ base: LURKER_COMBAT_RULES_VERSION, arbiter: ARBITER_RULES_VERSION, vision: ARBITER_VISION_RULES_VERSION });
 export const SPELLS_COMBAT_RULES_VERSION = "spells-combat-" + checksum({ base: ARBITER_COMBAT_RULES_VERSION, spells: SPELLS_RULES_VERSION, vision: VISION_RULES_VERSION });
-export const COMBAT_RULES_VERSION = "autocast-combat-" + checksum({ base: SPELLS_COMBAT_RULES_VERSION, autocast: "stasis-visible2-no-friendly-nearest32-pairs-4casters-5ticks-manual20" });
+export const AUTOCAST_COMBAT_RULES_VERSION = "autocast-combat-" + checksum({ base: SPELLS_COMBAT_RULES_VERSION, autocast: "stasis-visible2-no-friendly-nearest32-pairs-4casters-5ticks-manual20" });
+export const COMBAT_RULES_VERSION = "energy-combat-" + checksum({ base: AUTOCAST_COMBAT_RULES_VERSION, energy: ENERGY_UPGRADE_RULES_VERSION });
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(

@@ -1,3 +1,4 @@
+import { energyMaximumSchema, supportsEnergy } from "../abilities/cloak-state";
 import { spellEffectSchema, stasisOf, recallOf } from "../abilities/spells-state";
 import { coveredByArbiter } from "../abilities/arbiter";
 import { unitMorphOf } from "../abilities/lurker-state";
@@ -122,8 +123,8 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         stasisTicks: optional(integer(1, 873)),
         recallTicks: optional(integer(1, 18)),
         stasisAutocast: optional(boolean),
-        energy: optional(integer(0, 200)),
-        maxEnergy: optional(integer(200, 200)),
+        energy: optional(integer(0, 250)),
+        maxEnergy: optional(energyMaximumSchema),
         unitMorph: optional(object({ remainingTicks: integer(1, 250), totalTicks: integer(250, 250) })),
         siegeTransition: optional(object({ targetDefinitionId: enumeration(["terran-siege-tank-tank-mode", "terran-siege-tank-siege-mode"]), remainingTicks: integer(1, 40), totalTicks: integer(40, 40) })),
         kind: enumeration(["combat", "worker", "building"]),
@@ -156,6 +157,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
     ),
   }),
   (snapshot) =>
+    snapshot.entities.every(e => e.energy === undefined ? e.maxEnergy === undefined : e.maxEnergy !== undefined && e.energy <= e.maxEnergy && supportsEnergy(e.definitionId)) &&
     snapshot.entities.every(e=>e.stasisAutocast === undefined || e.owner === snapshot.viewerPlayerId && e.definitionId === "protoss-arbiter") &&
     (snapshot.spellEffects ?? []).every(e => e.tick <= snapshot.tick && snapshot.tick-e.tick <= 20 && e.x < snapshot.widthTiles*256 && e.y < snapshot.heightTiles*256 && snapshot.visibility[Math.floor(e.y/256)*snapshot.widthTiles+Math.floor(e.x/256)] === 2) &&
     new Set((snapshot.spellEffects ?? []).map(e => e.id)).size === (snapshot.spellEffects ?? []).length &&
