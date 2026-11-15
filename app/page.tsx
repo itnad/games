@@ -492,6 +492,7 @@ const DEFAULT_POPULAR_RECOMMENDATION_GAME_IDS: readonly GameId[] = [
   "starswar",
   "incan-gold",
   "gomoku",
+  "janggi",
   "love-letter",
   "qwixx",
   "dice",
@@ -1322,6 +1323,7 @@ function HomeContent({
 }) {
   const [activeGame, setActiveGame] = useState<GameId | null>(null);
   const [category, setCategory] = useState<Category>("전체");
+  const [homeCategory, setHomeCategory] = useState<Category>("전체");
   const [query, setQuery] = useState("");
   const [favorites, setFavorites] = useState<GameId[]>([]);
   const [recentIds, setRecentIds] = useState<GameId[]>([]);
@@ -1369,6 +1371,7 @@ function HomeContent({
     // history and favourites, but do not restore a previously opened secret
     // catalogue or browser scroll position.
     setCategory("전체");
+    setHomeCategory("전체");
     setQuery("");
     setFinderOpen(false);
     setShowAllGames(false);
@@ -1533,6 +1536,16 @@ function HomeContent({
   const popularRecommendationGames = DEFAULT_POPULAR_RECOMMENDATION_GAME_IDS
     .map((id) => availableGames.find((game) => game.id === id))
     .filter((game): game is GameDefinition => game !== undefined && !recentGameIdSet.has(game.id));
+  const featuredHomeGameIds = new Set(
+    [...recentGames, ...popularRecommendationGames, ...favoriteGames].map((game) => game.id),
+  );
+  const categoryPreviewGames = availableGames
+    .filter(
+      (game) =>
+        !featuredHomeGameIds.has(game.id) &&
+        (homeCategory === "전체" || game.category === homeCategory),
+    )
+    .slice(0, 5);
 
   if (activeGame === "gomoku") {
     return <GuidedGame gameId={activeGame}><GomokuGame onExit={exitGame} /></GuidedGame>;
@@ -1728,22 +1741,52 @@ function HomeContent({
             />
           )}
 
-          <div className="home-explore-bar">
-            <div className="category-row home-category-row" aria-label="게임 분류">
+          <section className="home-explore-panel" aria-labelledby="home-explore-title">
+            <header className="home-explore-heading">
+              <div>
+                <small>DISCOVER GAMES</small>
+                <h3 id="home-explore-title">
+                  {homeCategory === "전체" ? "다른 게임 둘러보기" : `${homeCategory} 게임 둘러보기`}
+                </h3>
+              </div>
+              <span>최대 5개</span>
+            </header>
+            <div className="category-row home-category-row" role="tablist" aria-label="메인 게임 분류">
               {CATEGORIES.map((item) => (
-                <button key={item} type="button" onClick={() => openFinder(item)}>
+                <button
+                  key={item}
+                  type="button"
+                  role="tab"
+                  aria-selected={homeCategory === item}
+                  className={homeCategory === item ? "active" : ""}
+                  onClick={() => setHomeCategory(item)}
+                >
                   {item}
                 </button>
               ))}
             </div>
-            <button className="all-games-trigger" type="button" onClick={() => openFinder()}>
-              <span>
-                <small>GAME LIBRARY</small>
-                <strong>전체 게임 보기</strong>
-              </span>
-              <b>{availableGames.length} <i aria-hidden="true">→</i></b>
+            {categoryPreviewGames.length > 0 ? (
+              <div className="game-shelf-track home-category-preview-grid">
+                {categoryPreviewGames.map((game) => (
+                  <ShelfGameCard
+                    key={game.id}
+                    game={game}
+                    isFavorite={favorites.includes(game.id)}
+                    onPlay={launchGame}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="home-category-preview-empty">
+                이 카테고리의 공개 게임은 위 추천 영역에서 모두 소개했어요.
+              </p>
+            )}
+            <button className="more-games-link" type="button" onClick={() => openFinder(homeCategory)}>
+              <span>{homeCategory === "전체" ? "더 많은 게임 보기" : `${homeCategory} 게임 더 보기`}</span>
+              <i aria-hidden="true">→</i>
             </button>
-          </div>
+          </section>
         </div>
       </section>
 
