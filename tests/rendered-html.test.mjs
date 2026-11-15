@@ -840,6 +840,8 @@ test("keeps StarDraft in its own app/starswar folder as a public mobile game at 
   const starswarSource = await readFile(new URL("../app/starswar/starswar-game.tsx", import.meta.url), "utf8");
   assert.equal(starswarSource.match(/<GameObjectiveGuide gameId="starswar" inline \/>/g)?.length, 2);
   assert.doesNotMatch(starswarSource, /게임 속도 전환/);
+  assert.match(starswarSource, /<h1>간단한 조작\. 명작의 즐거움\.<\/h1>/);
+  assert.doesNotMatch(starswarSource, /전략은 당신이|전투는 병력이/);
   assert.match(pageSource, /id: "starswar",[\s\S]*?title: "스타드래프트",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
   // 2026-11 공개: 홈 목록에 보인다.
