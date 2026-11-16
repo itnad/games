@@ -3253,6 +3253,15 @@ function casterMove(state, unit, plan, speed, dt) {
       moveToward(unit, slot ? slot.x : unit.x, plan.goal.y, Math.min(speed, plan.waveSpeed), dt);
       return;
     }
+    // 마법을 쓸 수 있으면 아군 선두가 아니라 적을 보고 나간다: 14칸 안의 적에게 4칸까지 다가간다.
+    // 원거리 아군이 근접 적을 피해 무빙하며 물러나도(선두가 흩어져도) 템플러의 전진이 막히지 않게.
+    if (ready) {
+      const foe = findTarget(state, unit, 14, { unitsOnly: true });
+      if (foe && !isPassive(foe)) {
+        if (distance(unit.x, unit.y, foe.x, foe.y) > 4) moveToward(unit, foe.x, foe.y, speed, dt);
+        return;
+      }
+    }
     const lead = army.reduce((best, ally) => (ahead(ally) > ahead(best) ? ally : best), army[0]).y;
     const rear = army.reduce((best, ally) => (ahead(ally) < ahead(best) ? ally : best), army[0]).y;
     const goalY = ready ? lead : rear - forward * 3;

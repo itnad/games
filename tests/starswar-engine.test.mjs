@@ -877,8 +877,8 @@ test("starswar casters wait behind the army until a spell is ready, then move to
   const ready = stwSpawnUnitAt(state, "player", "templar", 22, 62, "attack");
   ready.energy = 80;
   // 스톰을 쓸 무리가 없는 큰 적 하나: 마법을 쓸 수 있는 템플러는 선두에 서서 기회를 노린다.
-  // 원거리 적(골리앗)으로 둔다: 근접 적이면 드라군이 무빙 공격으로 물러나 선두가 흩어진다.
-  const ultra = stwSpawnUnitAt(state, "enemy", "goliath", 20, 30, "rally");
+  // 근접 적(울트라)이라 드라군은 무빙 공격으로 물러나며 흩어지지만, 템플러는 아군 선두가 아니라 적을 보고 나간다.
+  const ultra = stwSpawnUnitAt(state, "enemy", "ultra", 20, 30, "rally");
   ultra.hp = ultra.maxHp = 1e6;
   run(state, 25);
   // 맨 뒤는 y로, 최전방은 적과의 거리로 잰다(근접 유닛이 적을 빙 둘러싸므로 y만으로는 선두를 알 수 없다).
