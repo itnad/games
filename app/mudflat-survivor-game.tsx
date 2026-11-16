@@ -175,6 +175,7 @@ const GAEBUL_SPAWN_CHANCE = .24;
 const DEEP_MUD_GAUGE_RISE = .42;
 const DEEP_MUD_GAUGE_DECAY = .36;
 const DEEP_MUD_STUCK_SECONDS = .82;
+const FALLING_ROCK_DAMAGE = 100;
 const FIRST_MOVE_GUIDE_TARGET_RADIUS = 38;
 const FIRST_MOVE_GUIDE_DANGER_RADIUS = 62;
 const PEARL_TEST_TAP_RADIUS = 66;
@@ -1327,6 +1328,95 @@ function drawRock(context: CanvasRenderingContext2D, rock: Rock, effect?: RockFl
     context.fillText(`돌뒤집기 ${Math.ceil(progress * 100)}%`, 0, -ACTION_PROGRESS_RING_RADIUS - 7);
     context.restore();
   }
+}
+
+function fallingRockProgress(falling: FallingRock) {
+  return Math.max(0, Math.min(1, 1 - falling.life / falling.maxLife));
+}
+
+function drawFallingRockTarget(context: CanvasRenderingContext2D, point: Point, falling: FallingRock) {
+  const progress = fallingRockProgress(falling);
+  const pulse = .5 + Math.sin(progress * Math.PI * 9 + falling.id) * .5;
+  context.save();
+  context.translate(point.x, point.y);
+  context.fillStyle = `rgba(34,20,17,${.16 + progress * .34})`;
+  context.beginPath();
+  context.ellipse(0, 7, falling.radius * (.58 + progress * .48), falling.radius * (.2 + progress * .18), 0, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = `rgba(255,177,108,${.58 + progress * .34})`;
+  context.lineWidth = 2.4 + progress * 1.4;
+  context.setLineDash([7, 6]);
+  context.lineDashOffset = -progress * 34;
+  context.beginPath();
+  context.arc(0, 0, falling.radius * (1.2 - progress * .2) + pulse * 2, 0, Math.PI * 2);
+  context.stroke();
+  context.setLineDash([]);
+  context.fillStyle = "rgba(255,240,207,.92)";
+  context.font = "900 11px system-ui";
+  context.textAlign = "center";
+  context.shadowColor = "rgba(20,12,10,.85)";
+  context.shadowBlur = 5;
+  context.fillText("낙석", 0, -falling.radius - 12);
+  context.restore();
+}
+
+function drawFallingRockBody(context: CanvasRenderingContext2D, point: Point, falling: FallingRock, viewportHeight: number) {
+  const progress = fallingRockProgress(falling);
+  const fall = progress * progress;
+  const travelHeight = Math.min(360, Math.max(230, viewportHeight * .56));
+  const drift = Math.sin(falling.id * 12.9898) * 66;
+  const rockX = point.x + drift * (1 - fall);
+  const rockY = point.y - (1 - fall) * travelHeight - falling.radius * .56;
+  const scale = .52 + progress * .68;
+  const spinDirection = falling.id % 2 === 0 ? 1 : -1;
+
+  context.save();
+  context.globalAlpha = Math.min(1, .3 + progress * 1.25);
+  context.strokeStyle = `rgba(255,226,187,${.12 + progress * .3})`;
+  context.lineWidth = 2.2;
+  context.lineCap = "round";
+  for (let trail = -1; trail <= 1; trail += 1) {
+    const offset = trail * 8;
+    context.beginPath();
+    context.moveTo(rockX + offset, rockY - 20 - progress * 18);
+    context.lineTo(rockX + offset - drift * .08, rockY - 64 - progress * 34);
+    context.stroke();
+  }
+  context.translate(rockX, rockY);
+  context.rotate((falling.id % 11 - 5) * .08 + progress * Math.PI * 2.2 * spinDirection);
+  context.scale(scale, scale);
+  context.shadowColor = "rgba(12,8,7,.76)";
+  context.shadowBlur = 9 + progress * 9;
+  context.shadowOffsetY = 7;
+  const radius = falling.radius;
+  const gradient = context.createLinearGradient(-radius, -radius, radius, radius);
+  gradient.addColorStop(0, "#b09a82");
+  gradient.addColorStop(.45, "#75695e");
+  gradient.addColorStop(1, "#3f3a36");
+  context.fillStyle = gradient;
+  context.beginPath();
+  context.moveTo(-radius, radius * .14);
+  context.lineTo(-radius * .62, -radius * .72);
+  context.lineTo(radius * .12, -radius);
+  context.lineTo(radius * .94, -radius * .26);
+  context.lineTo(radius * .72, radius * .64);
+  context.lineTo(-radius * .25, radius * .88);
+  context.closePath();
+  context.fill();
+  context.shadowColor = "transparent";
+  context.strokeStyle = "rgba(255,236,205,.38)";
+  context.lineWidth = 2;
+  context.stroke();
+  context.strokeStyle = "rgba(47,40,36,.5)";
+  context.lineWidth = 2.4;
+  context.beginPath();
+  context.moveTo(-radius * .54, -radius * .26);
+  context.lineTo(-radius * .05, -radius * .48);
+  context.lineTo(radius * .38, -radius * .18);
+  context.moveTo(radius * .05, radius * .14);
+  context.lineTo(radius * .48, radius * .38);
+  context.stroke();
+  context.restore();
 }
 
 function drawClamHole(context: CanvasRenderingContext2D, hole: ClamHole) {
@@ -2694,7 +2784,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const previousLife = falling.life;
           falling.life -= dt;
           if (previousLife > 0 && falling.life <= 0 && campObstacleAllowed(falling, falling.radius + 20)) {
-            if (Math.hypot(falling.x - runtime.player.x, falling.y - runtime.player.y) <= falling.radius + 16) damagePlayer(14 + runtime.stage * 2, "#d69d68");
+            if (Math.hypot(falling.x - runtime.player.x, falling.y - runtime.player.y) <= falling.radius + 16) damagePlayer(FALLING_ROCK_DAMAGE, "#d69d68");
             addRock({ id: sequenceRef.current++, x: falling.x, y: falling.y, radius: 18 + runtimeRandom(runtime) * 7, tone: runtimeRandom(runtime) });
             runtime.bursts.push({ id: sequenceRef.current++, x: falling.x, y: falling.y, life: .55, maxLife: .55, color: "#c99564", size: 36 });
           }
@@ -3220,11 +3310,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.restore();
       }
       for (const falling of runtime.fallingRocks) {
-        const point = screenPoint(falling); const progress = 1 - falling.life / falling.maxLife;
-        context.save(); context.translate(point.x, point.y);
-        context.fillStyle = `rgba(114,51,35,${.18 + progress * .3})`; context.strokeStyle = `rgba(255,177,108,${.55 + progress * .4})`; context.lineWidth = 3;
-        context.beginPath(); context.arc(0, 0, falling.radius * (1 - progress * .18), 0, Math.PI * 2); context.fill(); context.stroke();
-        context.fillStyle = "#fff0cf"; context.font = "900 15px system-ui"; context.textAlign = "center"; context.fillText("낙석!", 0, 5); context.restore();
+        drawFallingRockTarget(context, screenPoint(falling), falling);
       }
 
       for (const hole of runtime.clamHoles) {
@@ -3321,6 +3407,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (lumiArt) drawLumiGatherer(context, width / 2, height / 2, runtime.lumiMotion, lumiArt,
         actionTime, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
       if (characterId !== "lumi") drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);
+      for (const falling of runtime.fallingRocks) {
+        drawFallingRockBody(context, screenPoint(falling), falling, height);
+      }
       for (const reveal of runtime.clamReveals) {
         const point = screenPoint(reveal); const progress = 1 - reveal.life / reveal.maxLife;
         context.save(); context.globalAlpha = Math.min(1, reveal.life * 3); context.translate(point.x, point.y - progress * 26);

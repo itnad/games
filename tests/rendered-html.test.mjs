@@ -3825,6 +3825,12 @@ test("all rock, hole, and falling-rock spawn paths respect the camp exclusion", 
   assert.match(source, /if \(campObstacleAllowed\(hole, 48\)\) runtime\.clamHoles\.push\(hole\)/);
   assert.match(source, /kind(?:: ClamHole\["kind"\])? = runtime\.stage === GAEBUL_STAGE/);
   assert.match(source, /if \(campObstacleAllowed\(falling, falling\.radius \+ 20\)\) runtime\.fallingRocks\.push\(falling\)/);
+  assert.match(source, /function drawFallingRockTarget\(/);
+  assert.match(source, /function drawFallingRockBody\(/);
+  assert.match(source, /const fall = progress \* progress/);
+  assert.match(source, /drawFallingRockBody\(context, screenPoint\(falling\), falling, height\)/);
+  assert.match(source, /const FALLING_ROCK_DAMAGE = 100/);
+  assert.match(source, /damagePlayer\(FALLING_ROCK_DAMAGE, "#d69d68"\)/);
   for (const collection of ["rocks", "clamHoles", "fallingRocks"]) {
     assert.ok(source.includes(`runtime.${collection} = runtime.${collection}.filter((`), `existing ${collection} are cleared when camp appears`);
   }
