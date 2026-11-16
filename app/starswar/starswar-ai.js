@@ -141,10 +141,12 @@ const BUILD_ORDERS = {
     { build: "cavern", at: 560 }, { research: "chitin" }, { research: "zCarapace1" },
   ],
   // 디파일러 하이브: 히드라·럴커로 버티며 하이브를 올려 디파일러(다크 스웜·플레이그)와 가디언, 퀸을 섞는다.
+  // 앞마당은 레어 바로 뒤(4분): 예전에는 하이브 연구 뒤(5분 30초 이후)라 하이브 연구에 자원이 묶여 9분까지 일꾼 22기·가스 6기로
+  // 본진 하나에 머물다 디파일러 전에 무너졌다(6판 중 디파일러·가디언이 나온 판 3, 승 0).
   hive: [
     { build: "overlord" }, { build: "pool" }, { build: "extractor" }, { build: "hatch" }, { build: "sunken" }, { build: "den" },
-    { build: "extractor" }, { research: "lair", at: 210 }, { build: "overlord" }, { build: "nest" }, { research: "spines" },
-    { research: "hive" }, { build: "expand", at: 330 }, { build: "mound" }, { build: "sunken" }, { research: "plague" }, { build: "evo" },
+    { build: "extractor" }, { research: "lair", at: 210 }, { build: "expand", at: 240 }, { build: "overlord" }, { build: "nest" }, { research: "spines" },
+    { research: "hive" }, { build: "mound" }, { build: "sunken" }, { research: "plague" }, { build: "evo" },
     { build: "spire" }, { research: "ensnare" }, { research: "greaterSpire" }, { research: "zMissile1" }, { research: "zCarapace1" },
   ],
 };
@@ -229,6 +231,8 @@ const ALERT_TECH = new Set(["core", "academy", "den", "evo", "shop"]);
  * 8~9분까지 묶인 채 대표 유닛을 못 뽑았다(평원, 다른 종족 상대: 울트라 0/13판, 리버 2/12, 디파일러·가디언 3/13, 캐리어 4/12, 배틀크루저 5/13).
  */
 // 캐리어 함대는 넣지 않는다: 비컨·캐리어 자원을 먼저 모으게 하면 병력이 얇아 평원 승률이 19% → 11%로 떨어졌다.
+/** 대표 유닛이 가스를 많이 먹는 성향: 일꾼이 18기를 넘으면 남은 간헐천에 가스 건물을 더 짓는다. */
+const GAS_HUNGRY = new Set(["templar", "dark", "robo", "carrier", "corsair", "bc", "wraith", "tankbio", "mech", "ultra", "hive", "hydra", "muta"]);
 const TECH_STEPS = {
   muta: ["lair", "spire"], ultra: ["lair", "cavern"], hive: ["lair", "nest", "hive", "mound"],
   bc: ["factory", "starport", "science"], templar: ["core", "citadel", "archives", "storm"],
@@ -249,6 +253,8 @@ const DELAYED_PERSONAS = new Set(["templar", "robo", "muta"]);
 const COMMIT_ARMY = { protoss: 6, zerg: 10 };
 const COMMIT_EARLIEST = 270;
 const COMMIT_LATEST = 450;
+/** 성향별로 더 일찍 넘어가는 시각. 템플러 테크는 7분 30초에 넘어가면 아카이브가 10분, 첫 하이템플러가 11분이라 그 전에 끝나는 판이 많았다. */
+const COMMIT_LATEST_BY = { templar: 360 };
 
 function openingPersona(state, side, memory, race, alert) {
   const record = state.sides[side];
@@ -258,7 +264,7 @@ function openingPersona(state, side, memory, race, alert) {
   const army = stwArmy(state, side);
   const fighters = [...army.fighters, ...army.attackers].reduce((sum, unit) => sum + (unit.type === "zergling" ? 0.5 : 1), 0);
   const stable = state.time >= COMMIT_EARLIEST && !alert && fighters >= COMMIT_ARMY[race.id] && armySafe(state, side, memory, opener);
-  if (!stable && state.time < COMMIT_LATEST) return opener;
+  if (!stable && state.time < (COMMIT_LATEST_BY[chosen] ?? COMMIT_LATEST)) return opener;
   // 넘어갈 때는 자기 빌드 순서를 처음부터 다시 보되, 이미 가진 건물·끝낸 연구는 한 것으로 친다(게이트웨이를 또 짓지 않게).
   memory.committedAt = state.time;
   memory.done = [];
@@ -382,9 +388,23 @@ export function stwAiThink(state, side) {
     if (!waiting && producersNow >= 3) waiting = ensureDefense(state, side, race, race.id === "protoss" ? 1 : race.id === "terran" ? 2 : 3);
     if (waiting) save(waiting.minerals, waiting.gas, true);
   }
-  // 0. 상위 유닛 몫: 울트라리스크·럴커를 만들 차례면 연구보다 먼저 그 자원을 아껴 둔다.
+  // 0. 대표 유닛 몫: 성향의 대표 유닛(하이템플러·리버·탱크·캐리어·배틀크루저·울트라·럴커·디파일러·가디언)을 만들 수 있으면
+  // 연구·다른 가스 유닛보다 먼저 그 가스를 늘 남겨 둔다. 예전에는 가스가 모자랄 때만 아껴, 가스가 차는 대로 연구가 먼저 가져가
+  // 울트라 동굴을 7분 30초에 올리고도 15분까지 울트라가 0기, 팩토리를 4분에 올린 탱크 바이오가 10분까지 탱크 1기였다.
   const signature = signatureUnit(state, side, persona);
-  if (signature) save(STW_UNITS[signature].minerals, STW_UNITS[signature].gas);
+  if (signature) {
+    save(STW_UNITS[signature].minerals, 0);
+    reserve.gas = Math.max(reserve.gas, STW_UNITS[signature].gas);
+    reserve.signature = signature;
+  }
+  // 대표 유닛 자신은 제 몫을 아낀 가스까지 써도 된다.
+  const gasReserveFor = (unit) => (unit && unit === reserve.signature ? Math.max(0, reserve.gas - STW_UNITS[unit].gas) : reserve.gas);
+  reserve.gasFor = gasReserveFor;
+  // 0-1. 테크 성향은 일꾼이 18기를 넘으면 남은 간헐천에 가스 건물을 더 짓는다(본진 둘 + 앞마당 하나). 가스 일꾼 3~6기로는
+  // 대표 유닛과 연구를 함께 댈 수 없었다.
+  if (GAS_HUNGRY.has(persona) && state.time > 300 && record.probes >= 18 && !alert && record.minerals - reserve.minerals >= STW_BUILDINGS[race.refinery].minerals) {
+    if (stwBuildCheck(state, side, race.refinery).ok) stwCommand(state, side, { type: "build", building: race.refinery });
+  }
 
   // 1. 프로브
   const bases = ["main", "natural"].filter((base) => {
@@ -653,7 +673,7 @@ export function stwAiThink(state, side) {
     else if (foeAirHeavy && corsairs < 6) unit = "corsair";
     // 커세어·캐리어는 그 성향의 핵심이라 연구용 가스보다 먼저 만든다.
     const core = persona === "corsair" || persona === "carrier";
-    if (unit && !core && record.gas < STW_UNITS[unit].gas + reserve.gas && record.minerals < 400) unit = null;
+    if (unit && !core && record.gas < STW_UNITS[unit].gas + gasReserveFor(unit) && record.minerals < 400) unit = null;
     // 확장·방어 비용을 모으는 중에 놀고 있으면 멈춘다. 커세어·캐리어 성향도 반드시 사야 할 비용(hard)은 지킨다:
     // 예전에는 핵심 유닛이라 빼 줬더니, 캐논에 녹는 커세어를 계속 다시 뽑느라 확장 400을 9분 넘게 못 모았다.
     if (unit && safe && ((reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && !stargate.current) || (!core && reserve.expand))) unit = null;
@@ -696,7 +716,7 @@ export function stwAiThink(state, side) {
     // 가스를 아끼는 중이면 가스 유닛 대신 질럿. 광물이 250 넘을 때만 바꾸면, 드라군·커세어가 가스를 계속 먹어
     // 사거리 연구(가스 100)가 13분 동안 한 번도 안 끝나고 그 뒤의 확장까지 막혔다. 30초 넘게 막힌 단계면 광물과 상관없이 바꾼다.
     const gasStarved = reserve.gas > 0 && memory.headSince !== undefined && state.time - memory.headSince > 30;
-    if (STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas && (record.minerals > 250 || gasStarved)) unit = "zealot";
+    if (STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + gasReserveFor(unit) && (record.minerals > 250 || gasStarved)) unit = "zealot";
     const def = STW_UNITS[unit];
     const starving = reserve.hard && record.minerals - def.minerals < reserve.hard;
     // 게이트웨이 셋 중 하나는 아끼는 중에도 계속 소환한다.
@@ -811,6 +831,7 @@ function protossCounter(state, side) {
 
 function terranLines(state, side, persona, units, reserve) {
   const record = state.sides[side];
+  const gasReserveFor = reserve.gasFor ?? (() => reserve.gas);
   const count = (type) => units.filter((unit) => unit.type === type).length;
   const marines = count("marine");
   const medics = count("medic");
@@ -834,7 +855,7 @@ function terranLines(state, side, persona, units, reserve) {
     if ((persona === "mech" || persona === "vulture" || persona === "wraith" || persona === "bc") && units.length > 10 && record.minerals < 300 && !airDominant) unit = null;
     // 락다운을 연구했으면 배럭 하나는 고스트(셋까지): 드라군·리버·캐리어 같은 기계 유닛을 묶는다.
     if (index === 0 && stwResearchDone(state, side, "lockdown") && count("ghost") < 3) unit = "ghost";
-    if (unit && STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + reserve.gas) unit = "marine";
+    if (unit && STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + gasReserveFor(unit)) unit = "marine";
     const starving = unit && reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && units.length >= 3 && reserve.safe;
     // 광물을 기다리며 놀고 있는 배럭만 멈춘다(만드는 중이면 그것까지는 끝낸다). 병력이 안전하지 않으면 멈추지 않는다.
     const desired = (starving && !barracks.current) || (reserve.expand && reserve.safe && index > 0) ? null : unit;
@@ -857,8 +878,8 @@ function terranLines(state, side, persona, units, reserve) {
       } else if (airDominant || index % 2 === 0 || unit === null) unit = "goliath";
     }
     // 가스가 모자라 탱크를 못 뽑으면 벌처(레이스 메카닉도: 예전에는 팩토리가 가스를 기다리며 경기당 몇 분씩 놀았다).
-    if (unit === "tank" && record.gas < STW_UNITS.tank.gas + reserve.gas) unit = persona === "mech" || persona === "vulture" || persona === "bc" || persona === "wraith" ? "vulture" : null;
-    if (unit === "goliath" && record.gas < STW_UNITS.goliath.gas + reserve.gas) unit = "vulture";
+    if (unit === "tank" && record.gas < STW_UNITS.tank.gas + gasReserveFor("tank")) unit = persona === "mech" || persona === "vulture" || persona === "bc" || persona === "wraith" ? "vulture" : null;
+    if (unit === "goliath" && record.gas < STW_UNITS.goliath.gas + gasReserveFor("goliath")) unit = "vulture";
     if (reserve.expand && reserve.safe && index > 0) unit = null;
     if (factory.line !== unit) stwCommand(state, side, { type: "line", buildingId: factory.id, unit });
   });
@@ -880,7 +901,7 @@ function terranLines(state, side, persona, units, reserve) {
     if (airHeavy && stwHas(state, side, "armory") && count("valkyrie") < 4 && (index === 1 || unit === null)) unit = "valkyrie";
     // 레이스·배틀크루저는 그 성향의 핵심이라 연구용 가스보다 먼저 만든다.
     const core = persona === "wraith" || persona === "bc";
-    if (unit && !core && record.gas < STW_UNITS[unit].gas + reserve.gas && record.minerals < 400) unit = null;
+    if (unit && !core && record.gas < STW_UNITS[unit].gas + gasReserveFor(unit) && record.minerals < 400) unit = null;
     if (unit && !core && reserve.safe && ((reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && !starport.current) || reserve.expand)) unit = null;
     if (starport.line !== unit) stwCommand(state, side, { type: "line", buildingId: starport.id, unit });
   });
@@ -895,6 +916,12 @@ function signatureUnit(state, side, persona) {
   // 캐리어 함대·배틀크루저: 함선을 만들 수 있게 되면 가스를 먼저 그쪽에 모은다(드라군·탱크 대신 질럿·벌처).
   if (persona === "carrier" && stwHas(state, side, "beacon") && count("carrier") < 8) return "carrier";
   if (persona === "bc" && stwHas(state, side, "science") && count("battlecruiser") < 8) return "battlecruiser";
+  // 템플러 테크: 아카이브가 서고 스톰을 연구했거나 연구 중이면 하이템플러(아콘은 둘로 친다) 여섯까지.
+  if (persona === "templar" && stwHas(state, side, "archives") && record.research.storm && count("templar") + count("archon") * 2 < 6) return "templar";
+  // 로보 운영: 지원 베이가 서면 리버 넷까지.
+  if (persona === "robo" && stwHas(state, side, "bay") && count("reaver") < 4) return "reaver";
+  // 탱크 바이오·메카닉: 머신 샵이 서면 시즈 탱크(탱크 바이오 넷, 메카닉 여섯)까지.
+  if ((persona === "tankbio" || persona === "mech") && stwHas(state, side, "shop") && count("tank") < (persona === "mech" ? 6 : 4)) return "tank";
   if (record.race !== "zerg") return null;
   // 디파일러 하이브: 디파일러 둘, 그 뒤 가디언.
   if (stwHas(state, side, "mound") && count("defiler") < 2) return "defiler";
