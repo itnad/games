@@ -3609,3 +3609,30 @@ test("starswar a squad sent in front of a packed friendly line passes through it
     assert.ok(medics.filter((unit) => Math.abs(unit.y - (front - 3)) < 0.5).length >= 6, `${map}: 맨 앞줄은 누른 자리`);
   }
 });
+
+test("starswar medics heal the wounded within reach before walking to a worse one, and split patients instead of stacking", () => {
+  const state = quiet();
+  const medic = stwSpawnUnitAt(state, "player", "medic", 20, 60, "rally");
+  const near = stwSpawnUnitAt(state, "player", "marine", 22, 60, "rally");
+  const far = stwSpawnUnitAt(state, "player", "marine", 20, 66.5, "rally");
+  for (const unit of [medic, near, far]) delete unit.fresh;
+  near.hp = near.maxHp * 0.6;
+  far.hp = far.maxHp * 0.2;
+  state.sides.player.rally = 60;
+  stepStarswar(state);
+  assert.equal(medic.healTargetId, near.id, "사거리 안의 다친 해병부터 치료한다(더 다친 해병이 7칸 밖에 있어도)");
+
+  // 메딕 둘, 사거리 안의 다친 해병 둘: 한 명에게 몰리지 않고 나눠 치료한다.
+  const pair = quiet();
+  const medics = [stwSpawnUnitAt(pair, "player", "medic", 19, 60, "rally"), stwSpawnUnitAt(pair, "player", "medic", 21, 60, "rally")];
+  const marines = [stwSpawnUnitAt(pair, "player", "marine", 19, 62, "rally"), stwSpawnUnitAt(pair, "player", "marine", 21, 62, "rally")];
+  for (const unit of [...medics, ...marines]) delete unit.fresh;
+  marines[0].hp = marines[0].maxHp * 0.3;
+  marines[1].hp = marines[1].maxHp * 0.5;
+  pair.sides.player.rally = 60;
+  stepStarswar(pair);
+  stepStarswar(pair);
+  assert.notEqual(medics[0].healTargetId, null);
+  assert.notEqual(medics[1].healTargetId, null);
+  assert.notEqual(medics[0].healTargetId, medics[1].healTargetId, "둘이 서로 다른 해병을 치료한다");
+});

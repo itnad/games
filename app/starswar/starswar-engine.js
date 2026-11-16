@@ -3072,20 +3072,36 @@ function segmentDistance(px, py, ax, ay, bx, by) {
 }
 
 /** 메딕: 하이템플러처럼 병력 뒤를 따라다니며 체력이 가장 많이 깎인 근처 보병을 치료한다. */
-function medicStep(state, unit, plan, dt) {
+/**
+ * 메딕이 치료할 아군을 고른다(작을수록 좋은 점수). 체력 비율에 더해,
+ * - 치료 사거리 밖이면 크게 미룬다(사거리 안의 다친 아군을 두고 더 다친 아군에게 걸어가지 않게),
+ * - 다른 메딕이 이미 치료 중이면 한 명당 0.35를 더한다(여럿이 한 명에게 몰리지 않게),
+ * - 지금 치료하던 아군은 0.1 덜어 준다(대상이 틱마다 바뀌지 않게).
+ * 예전에는 7.5칸 안에서 체력 비율만 봐서, 교전 중 메딕이 치료하는 시간(20%)보다 사거리 안의 다친 아군을 두고 다른 아군에게
+ * 걸어가는 시간(43%)이 길었고, 치료 중 30%는 다른 메딕과 같은 대상을 겹쳐 치료하며 옆의 다친 아군을 놔뒀다.
+ */
+function choosePatient(state, unit, previous) {
   const def = STW_UNITS.medic;
   let patient = null;
-  let worst = 1;
+  let best = Infinity;
   for (const ally of state.units) {
-    if (ally.side !== unit.side || ally === unit || !STW_UNITS[ally.type].bio || ally.hp >= ally.maxHp) continue;
+    if (ally.side !== unit.side || ally === unit || !STW_UNITS[ally.type].bio || ally.hp >= ally.maxHp || ally.hp <= 0 || ally.group === "cargo") continue;
     const d = distance(unit.x, unit.y, ally.x, ally.y);
     if (d > def.healRange + 3) continue;
-    const ratio = ally.hp / ally.maxHp;
-    if (ratio < worst) {
-      worst = ratio;
+    let healers = 0;
+    for (const other of state.units) if (other !== unit && other.side === unit.side && other.type === "medic" && other.healTargetId === ally.id) healers += 1;
+    const score = ally.hp / ally.maxHp + healers * 0.35 + (d <= def.healRange ? 0 : 1 + (d - def.healRange) * 0.1) - (ally.id === previous ? 0.1 : 0);
+    if (score < best) {
+      best = score;
       patient = ally;
     }
   }
+  return patient;
+}
+
+function medicStep(state, unit, plan, dt) {
+  const def = STW_UNITS.medic;
+  const patient = choosePatient(state, unit, unit.healTargetId);
   unit.targetId = null;
   unit.healTargetId = null;
   // 물러나는 중이면 치료보다 후퇴가 먼저다(후퇴 명령에도 성큰 앞에서 서로를 치료하며 10초 넘게 남았다).
