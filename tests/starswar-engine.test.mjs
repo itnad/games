@@ -3636,3 +3636,33 @@ test("starswar medics heal the wounded within reach before walking to a worse on
   assert.notEqual(medics[1].healTargetId, null);
   assert.notEqual(medics[0].healTargetId, medics[1].healTargetId, "둘이 서로 다른 해병을 치료한다");
 });
+
+test("starswar casters keep energy for the spell they are walking toward: vessels irradiate zerg, defilers plague a big marine ball", () => {
+  // 베슬: 저글링·히드라 상대로 이레디에이트를 쓴다(예전에는 다가가는 사이 디펜시브 매트릭스가 에너지를 다 썼다).
+  const zergFight = stwCreateScenario({ seed: 1, time: 900, placement: "clash", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { vessel: 2, marine: 12 }, research: ["irradiate", "emp"] }, enemy: { units: { zergling: 16, hydra: 8 } } } });
+  const spells = new Set();
+  for (let tick = 0; tick < 200; tick += 1) {
+    stepStarswar(zergFight);
+    for (const effect of zergFight.effects) if (effect.kind === "spell" && effect.side === "player") spells.add(effect.spell);
+  }
+  assert.ok(spells.has("irradiate"), `이레디에이트 ${[...spells]}`);
+
+  // 디파일러: 뭉친 해병 16기 앞에서는 다크 스웜만 되풀이하지 않고 플레이그도 쓴다.
+  const ball = createStarswarGame({ seed: 1, aiSides: [], races: { player: "zerg", enemy: "terran" } });
+  ball.sides.player.research.plague = "done";
+  for (const building of ball.buildings) building.hp = building.maxHp = 1e6;
+  for (let index = 0; index < 2; index += 1) stwSpawnUnitAt(ball, "player", "defiler", 18 + index * 4, 66, "attack").energy = 200;
+  for (let index = 0; index < 10; index += 1) stwSpawnUnitAt(ball, "player", "hydra", 12 + index * 1.8, 60, "rally");
+  for (let index = 0; index < 16; index += 1) {
+    const marine = stwSpawnUnitAt(ball, "enemy", "marine", 17 + (index % 4) * 1.6, 50 + Math.floor(index / 4) * 1.6, "rally");
+    marine.stunUntil = 1e9;
+    marine.hp = marine.maxHp = 1e4;
+  }
+  ball.sides.player.rally = 60;
+  const used = new Set();
+  for (let tick = 0; tick < 250; tick += 1) {
+    stepStarswar(ball);
+    for (const effect of ball.effects) if (effect.kind === "spell" && effect.side === "player") used.add(effect.spell);
+  }
+  assert.ok(used.has("plague"), `플레이그 ${[...used]}`);
+});

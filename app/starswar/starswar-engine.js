@@ -3801,7 +3801,10 @@ const inArea = (unit, spot, radius) => distance(unit.x, unit.y, spot.x, spot.y) 
  * - 없으면 (적 가치 − 아군 가치 × 2)가 가장 큰, 아군이 걸리는 자리에 쓴다.
  * pool은 노릴 적, value는 유닛 하나의 가치, skip은 쓰면 안 되는 자리(겹치는 스톰 등)다.
  */
-function areaSpot(state, caster, { pool, range, radius, minTargets, value, skip }) {
+/** areaSpot이 "쓸 자리가 사거리 조금 밖에 있어 다가가는 중"임을 알리는 값(reportWait일 때만). */
+const SPOT_WAIT = { wait: true };
+
+function areaSpot(state, caster, { pool, range, radius, minTargets, value, skip, reportWait = false }) {
   const allies = state.units.filter((unit) => unit.side === caster.side && unit.hp > 0 && unit.group !== "cargo");
   let clean = null;
   let cleanScore = -Infinity;
@@ -3858,13 +3861,19 @@ function areaSpot(state, caster, { pool, range, radius, minTargets, value, skip 
     }
   }
   if (clean) return clean;
-  return cleanReachable ? null : mixed;
+  if (cleanReachable) return reportWait ? SPOT_WAIT : null;
+  return mixed;
 }
 
 /** 범위 마법 자리: 조건에 맞는 적이 minTargets 이상 걸리는 곳(마릿수로 센다). 고르는 규칙은 areaSpot. */
 function clusterSpot(state, caster, spell, filter) {
   const pool = spellFoes(state, caster, spell.range + SPELL_LOOKAHEAD + spell.radius).filter((unit) => !isPassive(unit) && filter(unit));
-  return areaSpot(state, caster, { pool, range: spell.range, radius: spell.radius, minTargets: spell.minTargets, value: () => 1 });
+  const spot = areaSpot(state, caster, { pool, range: spell.range, radius: spell.radius, minTargets: spell.minTargets, value: () => 1, reportWait: true });
+  if (spot === SPOT_WAIT) {
+    caster.spellWaiting = true;
+    return null;
+  }
+  return spot;
 }
 
 function foesAround(state, caster, spot, radius) {
@@ -3930,7 +3939,9 @@ const SPELL_CASTERS = {
   },
   irradiate(state, caster, spell) {
     // 아군이 바로 옆(반경 + 1칸)에 붙어 있지 않은 대상을 먼저 고른다. 그런 대상이 사거리 밖 SPELL_LOOKAHEAD칸 안에 있으면
-    // 다가가서 쓰고, 없을 때만 아군과 맞붙은 대상에게 쓴다(이레디에이트는 대상 편 생체 유닛에게만 피해를 준다).
+    // 다가가서 쓰고(그동안 다른 마법이 이 에너지를 쓰지 않게 알린다), 없을 때만 아군과 맞붙은 대상에게 쓴다(이레디에이트는 대상 편 생체 유닛에게만 피해를 준다).
+    // 점수 = 반경 안 생체 유닛 수 + 대상 체력이 80 이상이면 1 + 비싼 유닛(150 이상) 2. 예전에는 체력 점수가 없어 히드라 하나에는
+    // 쓰지 않았고, 다가가는 동안 디펜시브 매트릭스가 에너지를 다 써 저글링·히드라 상대로 이레디에이트를 한 번도 못 썼다.
     const allies = state.units.filter((unit) => unit.side === caster.side && unit.hp > 0 && unit.group !== "cargo");
     let clean = null;
     let cleanScore = 1.5;
@@ -3940,7 +3951,7 @@ const SPELL_CASTERS = {
     for (const unit of spellFoes(state, caster, spell.range + SPELL_LOOKAHEAD)) {
       if (!isBiological(unit) || isPassive(unit) || (unit.irradiateUntil ?? 0) > state.time) continue;
       const near = state.units.filter((other) => other.side === unit.side && other.hp > 0 && isBiological(other) && distance(other.x, other.y, unit.x, unit.y) <= spell.radius).length;
-      const score = near + (unitValue(unit) >= 150 ? 2 : 0);
+      const score = near + (unit.hp + unit.shields >= 80 ? 1 : 0) + (unitValue(unit) >= 150 ? 2 : 0);
       if (score <= 1.5) continue;
       const inRange = distance(caster.x, caster.y, unit.x, unit.y) <= spell.range + unit.radius;
       if (!allies.some((ally) => inArea(ally, unit, spell.radius + 1))) {
@@ -3955,7 +3966,10 @@ const SPELL_CASTERS = {
       }
     }
     const best = clean ?? (cleanReachable ? null : mixed);
-    if (!best) return null;
+    if (!best) {
+      if (cleanReachable) caster.spellWaiting = true;
+      return null;
+    }
     best.irradiateUntil = state.time + spell.duration;
     return { x: best.x, y: best.y, targetId: best.id };
   },
@@ -3995,6 +4009,15 @@ const SPELL_CASTERS = {
     return { x: target.x, y: target.y, targetId: target.id };
   },
   darkSwarm(state, caster, spell) {
+    // 플레이그로 적 5기 이상을 지금 덮을 수 있으면 스웜 대신 플레이그를 쓴다(스웜 100을 먼저 쓰면 에너지 200으로 플레이그 150이 남지 않아,
+    // 해병 무리 앞에서 디파일러가 스웜만 되풀이했다).
+    // 그런 자리로 다가가는 중이어도 스웜을 아낀다(먼저 쓰면 다가간 뒤 플레이그 에너지가 없다).
+    if (stwResearchDone(state, caster.side, "plague") && caster.energy >= STW_SPELLS.plague.energy) {
+      const big = clusterSpot(state, caster, { ...STW_SPELLS.plague, minTargets: 5 }, (unit) => !((unit.plagueUntil ?? 0) > state.time) && unit.hp > 20);
+      const approaching = caster.spellWaiting;
+      caster.spellWaiting = false;
+      if (big || approaching) return null;
+    }
     // 원거리 적에게 맞고 있는 아군 지상 전투 유닛이 셋 이상 뭉친 곳을 덮는다.
     const shooters = state.units.filter((unit) => unit.side !== caster.side && unit.hp > 0 && !isPassive(unit) && STW_UNITS[unit.type].role !== "melee" && (unitRange(state, unit) >= 3 || unit.sieged))
       .concat(state.buildings.filter((building) => building.side !== caster.side && STW_BUILDINGS[building.type].damage && building.type !== "sunken"));
@@ -4031,12 +4054,20 @@ const YAMATO_MIN_HP = 100;
 function castSpells(state, unit) {
   const def = STW_UNITS[unit.type];
   if (!def.spells || (unit.castReadyAt ?? 0) > state.time) return false;
+  // 앞 순서의 마법이 쓸 자리로 다가가는 중이면 그 에너지는 남겨 둔다(디파일러가 플레이그 자리로 가는 사이 다크 스웜을 써서
+  // 에너지 200으로 플레이그를 한 번도 못 쓰던 문제).
+  let reserved = 0;
   for (const id of def.spells) {
     const spell = STW_SPELLS[id];
-    if (unit.energy < spell.energy) continue;
+    if (unit.energy - reserved < spell.energy) continue;
     if (spell.research && !stwResearchDone(state, unit.side, spell.research)) continue;
+    unit.spellWaiting = false;
     const cast = SPELL_CASTERS[id](state, unit, spell);
-    if (!cast) continue;
+    if (!cast) {
+      if (unit.spellWaiting) reserved += spell.energy;
+      unit.spellWaiting = false;
+      continue;
+    }
     unit.energy -= spell.energy;
     unit.castReadyAt = state.time + 1;
     unit.heading = Math.atan2(cast.y - unit.y, cast.x - unit.x);
