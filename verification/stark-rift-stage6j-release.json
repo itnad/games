@@ -97,5 +97,21 @@
     "Actual opt-in Stasis automatic and manual Recall/Stasis browser flows continue to work through the new Medic wrapper; manual360px waits for full873tick Stasis thaw and resumed movement.",
     "All206 deployment files SHA256-match a clean build of the canonical main source. Lossless concatenated gzip members (zopfli5 text,zopfli1 binary) meet the32MiB envelope without removing or modifying assets. Superseded attempts remain in QA logs.",
     "Chromium SwiftShader/native mobile touch is not physical Android/iOS or hardware GPU certification; those checks remain external to this environment."
+  ],
+  "localBackupZip": [
+    {
+      "name": "stark-rift-medic-source-and-qa.zip",
+      "bytes": 32876873,
+      "files": 536,
+      "sha256": "f1888f10e52aeed31d2441ad6829b335284355e3d75e2023b67ccfe847229229",
+      "crcVerified": true
+    },
+    {
+      "name": "stark-rift-medic-qa.zip",
+      "bytes": 2807839,
+      "files": 175,
+      "sha256": "74eeb4613135b796926ffa725d3d7096cb97697cdc9d6e4f60b210e9c7a4dda3",
+      "crcVerified": true
+    }
   ]
 }
