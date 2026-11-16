@@ -1483,8 +1483,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /className="ms-defeat-art" src=\{MUDFLAT_DEFEAT_ART_SRC\} width=\{MUDFLAT_DEFEAT_ART_WIDTH\} height=\{MUDFLAT_DEFEAT_ART_HEIGHT\} decoding="async"/);
   assert.ok(defeatWebp.length < defeatPng.length / 4, "defeat art WebP should be much lighter while the PNG original remains available");
   assert.match(source, /onClick=\{reset\}>메인 화면으로/);
-  assert.match(source, /onRetry=\{\(\) => beginAtStage\(hud\.stage\)\} onSecretRetry=\{retryWithProgress\}/);
-  assert.match(source, /hud\.stage === 9 \? "끝없는 물때 재도전" : `\$\{hud\.stage\}단계 재도전`/);
+  assert.match(source, /onRetry=\{retryFromCheckpoint\} onSecretRetry=\{retryFromCheckpoint\}/);
+  assert.match(source, /hud\.stage === 9 \? "끝없는 물때 구조 재도전" : `\$\{hud\.stage\}단계 구조 재도전`/);
   assert.doesNotMatch(source, /onClick=\{\(\) => setScreen\("camp"\)\}>정비소에서 재도전/);
   assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
   assert.match(source, /totalScore: number;\s*lastBossCaught: boolean/);
@@ -1857,7 +1857,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /앗 따가워, 몸이 이상해\./);
   assert.match(source, /아 깜짝이야, 여기 돌이 있었네!/);
   assert.match(source, /HIGHEST_STAGE_KEY/);
-  assert.match(source, /장비·기술·경험치·코인은 모두 초기화됩니다/);
+  assert.match(source, /스테이지 진입 시점의 장비·기술·경험치로 복구됩니다/);
   assert.match(source, /\{Math\.floor\(hud\.hp\)\} \/ \{Math\.floor\(hud\.maxHp\)\}/);
   assert.match(source, /createRadialGradient[\s\S]*?rgba\(3,8,15,0\)/);
   assert.match(source, /const bubbleTop = Math\.max\(18, height \/ 2 - 116/);
@@ -3397,64 +3397,47 @@ test("periodic tides rise for one second, hit at the crest, and drain in one sec
   assert.equal(mudflatTideStats(242, 100).active, true, "return tide stays full instead of draining");
 });
 
-test("secret defeat retry preserves progression, restores full HP, and resets the stage world", async () => {
-  const { createDefeatRetrySnapshot, restoreDefeatRetryRuntime } = await import("../app/mudflat-retry.js");
+test("rescue retry restores the stage-entry checkpoint, fills HP, and charges thirty percent of coins", async () => {
+  const { createStageEntryCheckpoint, createRescueRetryCampaign, mudflatRescueCost, MUDFLAT_RESCUE_COST_RATE } = await import("../app/mudflat-retry.js");
+  assert.equal(MUDFLAT_RESCUE_COST_RATE, .3);
   for (const mode of ["normal", "kids"]) {
     const campaign = { version: 1, mode, characterId: mode === "kids" ? "netter" : "lumi", stage: 14, coins: 732,
       hp: 70, maxHp: 140, baseMaxHp: 100, level: 5, xp: 4, nextXp: 35,
       levels: { hoe: 1, net: 1 }, equipment: { vest: 2 }, inventory: { clam: 3 }, lastHaul: { crab: 2 },
       totalScore: 2400, lastSaleValue: 36, lastBossCaught: true, pendingSkillDiscovery: true };
-    const failed = { mode, stage: 14, elapsed: 265, player: { x: 850, y: -600, hp: 0, maxHp: 208, baseMaxHp: 100, speed: 155 },
-      level: 11, xp: 23, nextXp: 120, levels: { net: 6, hoe: 4, stamina: 6, snack: 2, boots: 3 },
-      equipment: { vest: 4, cooler: 5, headlamp: 2 }, basket: { crab: 9, clam: 11 }, caught: 20,
-      catchScore: 530, bossCaught: true, rocksFlipped: 6, bleedSeconds: 8, ended: true, paused: true };
-    const saved = createDefeatRetrySnapshot(campaign, failed);
-    assert.equal(saved.campaign.characterId, campaign.characterId);
-    assert.equal(saved.campaign.stage, 14, "endless stages must not be clamped to stage 9");
-    assert.equal(saved.campaign.coins, 732);
-    assert.equal(saved.campaign.totalScore, 2400);
-    for (const key of ["level", "xp", "nextXp"]) assert.equal(saved.campaign[key], failed[key]);
-    assert.deepEqual(saved.campaign.levels, failed.levels);
-    assert.deepEqual(saved.campaign.equipment, failed.equipment);
-    assert.equal(saved.campaign.hp, 208);
-    assert.equal(saved.campaign.maxHp, 208, "keep stamina and equipment max-health bonuses");
-    assert.equal(saved.campaign.pendingSkillDiscovery, false);
-    assert.notEqual(saved.campaign.levels, failed.levels);
-    assert.notEqual(saved.campaign.inventory, campaign.inventory);
-    assert.notEqual(saved.campaign.lastHaul, campaign.lastHaul);
+    const checkpoint = createStageEntryCheckpoint(campaign);
+    const { campaign: restored, rescueCost } = createRescueRetryCampaign(checkpoint);
+    assert.equal(restored.characterId, campaign.characterId);
+    assert.equal(restored.stage, 14, "endless stages must not be clamped to stage 9");
+    assert.equal(mudflatRescueCost(732), 220);
+    assert.equal(rescueCost, 220, "fractional costs round up so the full thirty-percent penalty is never waived");
+    assert.equal(restored.coins, 512);
+    assert.equal(restored.totalScore, 2400);
+    for (const key of ["level", "xp", "nextXp"]) assert.equal(restored[key], campaign[key]);
+    assert.deepEqual(restored.levels, campaign.levels);
+    assert.deepEqual(restored.equipment, campaign.equipment);
+    assert.equal(restored.hp, 140);
+    assert.equal(restored.maxHp, 140);
+    assert.equal(restored.pendingSkillDiscovery, false);
+    assert.notEqual(restored.levels, campaign.levels);
+    assert.notEqual(restored.inventory, campaign.inventory);
+    assert.notEqual(restored.lastHaul, campaign.lastHaul);
     assert.equal(campaign.hp, 70);
-    assert.equal(failed.player.hp, 0);
-    const fresh = { ...failed, elapsed: 0, player: { x: 0, y: 0, hp: 140, maxHp: 140, damageCooldown: 0, facing: 0 },
-      levels: { ...saved.campaign.levels }, equipment: { ...saved.campaign.equipment },
-      creatures: [], pickups: [], bleedSeconds: 0, paused: false, ended: false };
-    const restored = restoreDefeatRetryRuntime(fresh, saved);
-    assert.equal(restored.elapsed, 0);
-    assert.equal(restored.player.hp, 208);
-    assert.equal(restored.player.maxHp, 208);
-    assert.equal(restored.player.speed, 155);
-    assert.equal(restored.player.x, 0);
-    assert.equal(restored.player.damageCooldown, 0);
-    assert.equal(restored.bleedSeconds, 0);
-    assert.equal(restored.paused, false);
-    assert.equal(restored.ended, false);
-    assert.deepEqual(restored.creatures, []);
-    assert.deepEqual(restored.basket, { crab: 9, clam: 11 });
-    assert.equal(restored.caught, 20);
-    assert.equal(restored.catchScore, 530);
-    assert.equal(restored.rocksFlipped, 6);
-    assert.equal(restored.bossSpawned, true);
-    restored.basket.crab = 99;
-    assert.equal(saved.progress.basket.crab, 9);
-    assert.equal(fresh.player.hp, 140, "restoring does not mutate the template");
+    assert.equal(campaign.coins, 732);
+    assert.equal(checkpoint.coins, 732);
   }
+  assert.equal(mudflatRescueCost(0), 0);
+  assert.equal(mudflatRescueCost(1), 1);
   const source = await readMudflatSourceBundle();
-  assert.match(source, /defeatRetryRef.current = campaignRef.current \? createDefeatRetrySnapshot\(campaignRef.current, runtime\) : null/);
+  assert.match(source, /defeatRetryRef.current = stageEntryRef.current \? createStageEntryCheckpoint\(stageEntryRef.current\)/);
   const defeat = source.slice(source.indexOf('if (screen === "defeat") return'), source.indexOf('const pauseLayer ='));
   assert.match(defeat, /onClick=\{reset\}>메인 화면으로/);
   assert.doesNotMatch(defeat, /onClick=\{onExit\}>메인 화면으로|3초|비밀|길게 누르/);
   assert.match(source, /const beginAtStage = \(stage: number, secretEntry = false, tutorialEntry = false\) => \{\s*defeatRetryRef.current = null/);
-  assert.match(source, /const reset = \(\) => \{ defeatRetryRef.current = null/);
-  assert.match(source, /restoreDefeatRetryRuntime\(makeRuntime\(next\), saved\)/);
+  assert.match(source, /stageEntryRef.current = createStageEntryCheckpoint\(nextCampaign\)/);
+  assert.match(source, /const reset = \(\) => \{ defeatRetryRef.current = null; stageEntryRef.current = null/);
+  assert.match(source, /createRescueRetryCampaign\(checkpoint\)/);
+  assert.match(source, /runtime\.playerMessage = `구조 비용 \$\{rescueCost\.toLocaleString\(\)\}C를 내고 다시 갯벌로 돌아왔습니다\.`/);
 });
 
 test("secret route entry sets only the requested skills and leaves ordinary starts unchanged", async () => {
@@ -3733,7 +3716,7 @@ test("experience attraction respects its radius, tracks movement, and freezes sa
   assert.equal(pickup.visualY, player.y - 10);
 });
 
-test("keeps experience flights above gameplay art and uses the requested two-line retry note", async () => {
+test("keeps experience flights above gameplay art and explains checkpoint rescue cost", async () => {
   const source = await readMudflatSourceBundle();
   const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
   assert.equal((source.match(/runtime\.pickups\.push\(createExperiencePickup\(/g) ?? []).length, 2, "both creature and clam rewards use the animation");
@@ -3743,7 +3726,7 @@ test("keeps experience flights above gameplay art and uses the requested two-lin
   assert.ok(gathererDraw > 0 && source.indexOf("// Active rewards sit above") > gathererDraw);
   assert.match(source, /if \(earnedExperience > 0\) \{ hudClock = 0; snapshot\(runtime\); \}/);
   assert.match(source, /data-xp-collecting=\{hud\.xpCollecting \|\| undefined\}/);
-  assert.match(source, /<p className="ms-reentry-note">한 번 성공한 스테이지는 언제든 재도전 가능합니다\.<br \/>하지만 장비·기술·경험치·코인은 모두 초기화됩니다\.<\/p>/);
+  assert.match(source, /<p className="ms-reentry-note">스테이지 진입 시점의 장비·기술·경험치로 복구됩니다\.<br \/>보유 코인의 30%인 <strong>\{defeatRescueCost\.toLocaleString\(\)\}C<\/strong>가 구조 비용으로 차감됩니다\.<\/p>/);
   assert.match(styles, /\.ms-result\.defeat \.ms-reentry-note\{margin:10px 0 18px!important;color:#d6cbc7!important\}/);
   assert.doesNotMatch(source, /한 번 연 스테이지는 유지됩니다/);
 });

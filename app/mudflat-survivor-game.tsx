@@ -6,7 +6,7 @@ import { drawLumiGatherer, loadLumiArt } from "./mudflat-lumi-renderer";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import { MudflatDailyChallengePanel, MudflatDailyResultPanel, submitMudflatDailyResult, type MudflatDailyResult, type MudflatDailyStart } from "./mudflat-daily-challenge-panel";
 import { MudflatHoldButton, MudflatRetryButton } from "./mudflat-retry-button";
-import { createDefeatRetrySnapshot, restoreDefeatRetryRuntime } from "./mudflat-retry.js";
+import { createRescueRetryCampaign, createStageEntryCheckpoint, mudflatRescueCost } from "./mudflat-retry.js";
 import { withSecretExpeditionSkills } from "./mudflat-secret-entry.js";
 import { CAST_NET_RETRY, advanceCastNets, castNetMovementMultiplier, castNetOnScreen, createCastNet, findCastNetTarget } from "./mudflat-cast-net.js";
 import { drawCastNetThrow } from "./mudflat-cast-net-renderer.js";
@@ -203,7 +203,7 @@ type Runtime = {
   paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; xpCollecting?: boolean; tutorialActive?: boolean; mosquitoRepellent?: boolean; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
-type SavedRun = { version: 1; savedAt: number; campaign: Campaign; runtime: Runtime; choiceIds: string[]; nextSequence: number };
+type SavedRun = { version: 1; savedAt: number; campaign: Campaign; stageEntryCampaign: Campaign; runtime: Runtime; choiceIds: string[]; nextSequence: number };
 type MudflatDevLaunch = { version: 1; campaign: Campaign; run?: boolean; tutorial?: boolean; label?: string; seed?: number };
 type ClamHarvestReward = { id: string; name: string; xp: number; score: number };
 
@@ -1631,7 +1631,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const keysRef = useRef(new Set<string>());
   const sequenceRef = useRef(1);
   const lumiHoldTimerRef = useRef<number | null>(null);
-  const defeatRetryRef = useRef<ReturnType<typeof createDefeatRetrySnapshot> | null>(null);
+  const defeatRetryRef = useRef<Campaign | null>(null);
+  const stageEntryRef = useRef<Campaign | null>(null);
   const dailyChallengeRef = useRef<MudflatDailyStart | null>(null);
   const defeatArtPreloadRef = useRef<HTMLImageElement | null>(null);
   const screenRef = useRef<Screen>("setup");
@@ -1828,7 +1829,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (dailyChallengeRef.current) return true;
     const runtime = runtimeRef.current;
     if (!runtime || runtime.ended || runtime.player.hp <= 0 || !campaignRef.current) return false;
-    const success = writeMudflatRun(campaignRef.current, runtime, choicesRef.current.map((item) => item.id), sequenceRef.current);
+    const success = writeMudflatRun(campaignRef.current, runtime, choicesRef.current.map((item) => item.id), sequenceRef.current, undefined, stageEntryRef.current ?? campaignRef.current);
     setSaveError(success ? "" : "진행 상황을 저장하지 못했습니다. 브라우저의 저장 공간과 개인정보 설정을 확인한 뒤 다시 시도해 주세요.");
     return success;
   }, []);
@@ -1888,6 +1889,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       });
       try { window.localStorage.setItem(LAST_MODE_KEY, nextCampaign.mode); } catch { /* Ignore unavailable local storage. */ }
       discardActiveRun();
+      stageEntryRef.current = launch.run ? createStageEntryCheckpoint(nextCampaign) : null;
       storeCampaign(nextCampaign, Boolean(launch.run));
       resetMovementInput();
       runtimeRef.current = runtime;
@@ -1911,6 +1913,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const entryStage = Math.max(1, Math.min(highestUnlockedStage, Math.floor(stage)));
     const freshCampaign = createCampaign(characterId, mode, entryStage);
     const nextCampaign = secretEntry ? withSecretExpeditionSkills(freshCampaign) : freshCampaign;
+    stageEntryRef.current = createStageEntryCheckpoint(nextCampaign);
     storeCampaign(nextCampaign, true);
     const runtime = makeRuntime(nextCampaign);
     if (!shouldAutoStartTutorial(entryStage, secretEntry, tutorialEntry)) runtime.firstMoveGuide = null;
@@ -1920,6 +1923,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const beginWithTutorial = () => beginAtStage(1, false, true);
   const beginDailyChallenge = (challenge: MudflatDailyStart) => {
     defeatRetryRef.current = null;
+    stageEntryRef.current = null;
     dailyChallengeRef.current = challenge;
     setDailyChallengeActive(true);
     setDailyResult(null);
@@ -1942,6 +1946,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (!saved) { setSavedRun(null); setSaveError("저장된 진행 상황을 불러올 수 없습니다."); return; }
     defeatRetryRef.current = null;
     setMode(saved.campaign.mode); setCharacterId(saved.campaign.characterId);
+    stageEntryRef.current = createStageEntryCheckpoint(saved.stageEntryCampaign ?? saved.campaign);
     storeCampaign(saved.campaign, true);
     runtimeRef.current = saved.runtime; sequenceRef.current = saved.nextSequence;
     resetMovementInput(); snapshot(saved.runtime); setSelectedSkillId(null);
@@ -1989,13 +1994,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const endRun = useCallback((runtime: Runtime) => {
     if (runtime.ended) return;
     if (finishDailyRun(runtime, false)) return;
-    defeatRetryRef.current = campaignRef.current ? createDefeatRetrySnapshot(campaignRef.current, runtime) : null;
+    defeatRetryRef.current = stageEntryRef.current ? createStageEntryCheckpoint(stageEntryRef.current) : campaignRef.current ? createStageEntryCheckpoint(campaignRef.current) : null;
     runtime.ended = true; runtime.paused = true; snapshot(runtime);
     discardActiveRun();
     const score = mudflatFinalScore({ catchScore: runtime.catchScore, caught: runtime.caught, elapsed: runtime.elapsed, bossCaught: runtime.bossCaught });
     if (score > best) { setBest(score); window.localStorage.setItem(BEST_KEY, String(score)); }
-    // Ordinary retries still start over. Keep only a memory-only backup for
-    // the hidden hold action; the normal persistent camp save is removed.
+    // The stage-entry checkpoint remains in memory for a paid rescue retry.
     window.localStorage.removeItem(CAMPAIGN_KEY);
     campaignRef.current = null;
     setCampaign(null);
@@ -2029,6 +2033,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     });
     const regularClear = runtime.stage === 8 ? " 정규 원정을 완주해 끝없는 물때가 열렸습니다." : "";
     const objectiveNotice = objective.label ? ` 보조 목표 ${objective.complete ? `달성(+${objective.bonus}코인)` : "미달성"}: ${objective.label}.` : "";
+    stageEntryRef.current = null; defeatRetryRef.current = null;
     storeCampaign(next); discardActiveRun(); setCampNotice(`${runtime.stage}단계에서 잡은 ${settlement.catchCount}마리를 판매해서 ${autoSale.value}코인을 얻었습니다.${regularClear}${objectiveNotice}`); setScreen("camp");
   }, [best, characterId, discardActiveRun, finishDailyRun, snapshot, storeCampaign]);
 
@@ -3682,22 +3687,27 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   };
   const startNextStage = () => {
     const current = campaignRef.current; if (!current) return;
-    const runtime = makeRuntime(current);
+    const entry = { ...current, pendingSkillDiscovery: false };
+    stageEntryRef.current = createStageEntryCheckpoint(entry);
+    const runtime = makeRuntime(entry);
     if (!(current.mode === "normal" && current.stage === 1 && highestUnlockedStage <= 1)) runtime.firstMoveGuide = null;
-    storeCampaign({ ...current, pendingSkillDiscovery: false }, true);
+    storeCampaign(entry, true);
     resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
   };
-  const retryWithProgress = () => {
-    const saved = defeatRetryRef.current;
-    if (screen !== "defeat" || !saved) return;
+  const retryFromCheckpoint = () => {
+    const checkpoint = defeatRetryRef.current;
+    if (screen !== "defeat" || !checkpoint) return;
     defeatRetryRef.current = null;
-    const next: Campaign = saved.campaign;
-    const runtime: Runtime = restoreDefeatRetryRuntime(makeRuntime(next), saved);
+    const { campaign: next, rescueCost } = createRescueRetryCampaign(checkpoint) as { campaign: Campaign; rescueCost: number };
+    stageEntryRef.current = createStageEntryCheckpoint(next);
+    const runtime: Runtime = makeRuntime(next);
+    runtime.playerMessage = `구조 비용 ${rescueCost.toLocaleString()}C를 내고 다시 갯벌로 돌아왔습니다.`;
+    runtime.playerMessageLife = 3; runtime.playerMessageOpacity = 1;
     setMode(next.mode); setCharacterId(next.characterId); storeCampaign(next, true);
     resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime);
     setChoices([]); setSelectedSkillId(null); setScreen("running"); setRunId((value) => value + 1);
   };
-  const reset = () => { defeatRetryRef.current = null; dailyChallengeRef.current = null; runtimeRef.current = null; campaignRef.current = null; resetMovementInput(); setRunId(0); setExitOpen(false); setCampaign(null); setDailyResult(null); setDailyChallengeActive(false); setCharacterId(defaultCharacterId(mode)); setHud({ ...emptyHud, mode }); setSelectedStage(1); setChoices([]); setSelectedSkillId(null); setScreen("setup"); };
+  const reset = () => { defeatRetryRef.current = null; stageEntryRef.current = null; dailyChallengeRef.current = null; runtimeRef.current = null; campaignRef.current = null; resetMovementInput(); setRunId(0); setExitOpen(false); setCampaign(null); setDailyResult(null); setDailyChallengeActive(false); setCharacterId(defaultCharacterId(mode)); setHud({ ...emptyHud, mode }); setSelectedStage(1); setChoices([]); setSelectedSkillId(null); setScreen("setup"); };
   const clearCampaign = () => { window.localStorage.removeItem(CAMPAIGN_KEY); discardActiveRun(); setSavedCampaign(null); reset(); };
   const openExitDialog = () => {
     const runtime = runtimeRef.current;
@@ -3765,6 +3775,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const selectedRouteProfile = routeStageProfiles.find((stage) => stage.stage === selectedStage) ?? (mudflatStageProfile(1) as StageProfile);
   const selectedRouteStats = mudflatStageStats(selectedRouteProfile.stage);
   const selectedRouteHazards = mudflatStageHazardNotes(selectedRouteProfile);
+  const defeatRescueCost = defeatRetryRef.current ? mudflatRescueCost(defeatRetryRef.current.coins) : 0;
 
   if (screen === "setup") return (
     <main className="ms-shell ms-setup" data-game-menu>
@@ -3972,7 +3983,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     </main>;
   }
 
-  if (screen === "defeat") return <main className="ms-shell ms-result defeat"><MudflatTopbar onExit={onExit} /><section><img className="ms-defeat-art" src={MUDFLAT_DEFEAT_ART_SRC} width={MUDFLAT_DEFEAT_ART_WIDTH} height={MUDFLAT_DEFEAT_ART_HEIGHT} decoding="async" alt="갯벌에 쓰러진 해루질럿" /><small>EXPEDITION ENDED</small><h1><span>갯벌에서</span>{" "}<span>힘이 다했습니다</span></h1><p><span>갯벌에는 여러가지 위험이 도사리고 있습니다.</span><br /><span>절대로 자만하지 말고 안전한 해루질 하세요.</span></p><div className="ms-result-grid"><span><small>도전 스테이지</small><b>{hud.stage}</b></span><span><small>잡은 수</small><b>{hud.caught}</b></span><span><small>레벨</small><b>{hud.level}</b></span><span><small>대왕 박하지</small><b>{hud.bossCaught ? "포획" : "놓침"}</b></span></div><p className="ms-reentry-note">한 번 성공한 스테이지는 언제든 재도전 가능합니다.<br />하지만 장비·기술·경험치·코인은 모두 초기화됩니다.</p><div className="ms-result-actions"><button onClick={reset}>메인 화면으로</button><MudflatRetryButton onRetry={() => beginAtStage(hud.stage)} onSecretRetry={retryWithProgress}>{hud.stage === 9 ? "끝없는 물때 재도전" : `${hud.stage}단계 재도전`}</MudflatRetryButton></div></section></main>;
+  if (screen === "defeat") return <main className="ms-shell ms-result defeat"><MudflatTopbar onExit={onExit} /><section><img className="ms-defeat-art" src={MUDFLAT_DEFEAT_ART_SRC} width={MUDFLAT_DEFEAT_ART_WIDTH} height={MUDFLAT_DEFEAT_ART_HEIGHT} decoding="async" alt="갯벌에 쓰러진 해루질럿" /><small>EXPEDITION ENDED</small><h1><span>갯벌에서</span>{" "}<span>힘이 다했습니다</span></h1><p><span>갯벌에는 여러가지 위험이 도사리고 있습니다.</span><br /><span>절대로 자만하지 말고 안전한 해루질 하세요.</span></p><div className="ms-result-grid"><span><small>도전 스테이지</small><b>{hud.stage}</b></span><span><small>잡은 수</small><b>{hud.caught}</b></span><span><small>레벨</small><b>{hud.level}</b></span><span><small>대왕 박하지</small><b>{hud.bossCaught ? "포획" : "놓침"}</b></span></div><p className="ms-reentry-note">스테이지 진입 시점의 장비·기술·경험치로 복구됩니다.<br />보유 코인의 30%인 <strong>{defeatRescueCost.toLocaleString()}C</strong>가 구조 비용으로 차감됩니다.</p><div className="ms-result-actions"><button onClick={reset}>메인 화면으로</button><MudflatRetryButton onRetry={retryFromCheckpoint} onSecretRetry={retryFromCheckpoint}>{hud.stage === 9 ? "끝없는 물때 구조 재도전" : `${hud.stage}단계 구조 재도전`}</MudflatRetryButton></div></section></main>;
 
   const hpWidth = Math.max(0, hud.hp / hud.maxHp * 100);
   const lumiLoadingLayer = <>

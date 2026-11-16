@@ -9,6 +9,12 @@ const positive = (value) => finite(value) && value > 0;
 const countMap = (value) => record(value) && Object.values(value).every((n) => Number.isInteger(n) && n >= 0);
 const point = (value) => record(value) && finite(value.x) && finite(value.y);
 const numericFields = (value, fields) => fields.split(" ").every((key) => finite(value[key]));
+const campaignShape = (value) => record(value) && value.version === 1 && ["normal", "kids"].includes(value.mode)
+  && typeof value.characterId === "string" && Number.isInteger(value.stage) && value.stage >= 1
+  && numericFields(value, "coins hp maxHp baseMaxHp level xp nextXp lastSaleValue totalScore")
+  && value.coins >= 0 && positive(value.hp) && positive(value.maxHp) && value.hp <= value.maxHp
+  && [value.levels, value.equipment, value.inventory, value.lastHaul].every(countMap);
+const copyCampaign = (campaign) => ({ ...campaign, levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, inventory: { ...campaign.inventory }, lastHaul: { ...campaign.lastHaul } });
 const ENTITY_FIELDS = {
   creatures: "hp maxHp speed size xp score saltHit hitFlash phase age movementAngle movementClock",
   pickups: "xp age visualX visualY fromX fromY pullTime pullDuration", projectiles: "vx vy damage life",
@@ -34,7 +40,7 @@ function matchesShape(value, template) {
   return typeof value === typeof template && (typeof template !== "number" || finite(value));
 }
 
-export function encodeMudflatRun(campaign, runtime, choiceIds = [], nextSequence = 1, savedAt = Date.now()) {
+export function encodeMudflatRun(campaign, runtime, choiceIds = [], nextSequence = 1, savedAt = Date.now(), stageEntryCampaign = campaign) {
   if (!campaign || !runtime || runtime.ended || !positive(runtime.player?.hp)) return null;
   const currentCampaign = {
     ...campaign, mode: runtime.mode, stage: runtime.stage,
@@ -43,7 +49,7 @@ export function encodeMudflatRun(campaign, runtime, choiceIds = [], nextSequence
     levels: runtime.levels, equipment: runtime.equipment,
   };
   return JSON.stringify({
-    version: 1, savedAt, campaign: currentCampaign, choiceIds, nextSequence,
+    version: 1, savedAt, campaign: currentCampaign, stageEntryCampaign: copyCampaign(stageEntryCampaign), choiceIds, nextSequence,
     runtime: {
       ...runtime, paused: true, ended: false,
       player: { ...runtime.player, walking: false },
@@ -58,11 +64,11 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     const save = JSON.parse(serialized ?? "null");
     if (!record(save) || save.version !== 1 || !positive(save.savedAt) || !safeJson(save)) return null;
     const { campaign, runtime } = save;
-    if (!record(campaign) || campaign.version !== 1 || !["normal", "kids"].includes(campaign.mode)
-      || typeof campaign.characterId !== "string" || !Number.isInteger(campaign.stage) || campaign.stage < 1
-      || !numericFields(campaign, "coins hp maxHp baseMaxHp level xp nextXp lastSaleValue totalScore")
-      || campaign.coins < 0 || !positive(campaign.hp) || !positive(campaign.maxHp) || campaign.hp > campaign.maxHp
-      || ![campaign.levels, campaign.equipment, campaign.inventory, campaign.lastHaul].every(countMap)) return null;
+    if (!campaignShape(campaign)) return null;
+    const stageEntryCampaign = save.stageEntryCampaign ?? campaign;
+    if (!campaignShape(stageEntryCampaign) || stageEntryCampaign.mode !== campaign.mode || stageEntryCampaign.stage !== campaign.stage
+      || stageEntryCampaign.characterId !== campaign.characterId) return null;
+    save.stageEntryCampaign = copyCampaign(stageEntryCampaign);
     if (!record(runtime) || runtime.ended !== false || runtime.stage !== campaign.stage || runtime.mode !== campaign.mode) return null;
     const runtimeTemplate = makeRuntime(campaign, save.savedAt);
     // Older active-run autosaves did not know about the interactive first-run
@@ -137,9 +143,9 @@ export function readMudflatRun(makeRuntime, getStorage = () => window.localStora
   catch { return null; }
 }
 
-export function writeMudflatRun(campaign, runtime, choiceIds, nextSequence, getStorage = () => window.localStorage) {
+export function writeMudflatRun(campaign, runtime, choiceIds, nextSequence, getStorage = () => window.localStorage, stageEntryCampaign = campaign) {
   try {
-    const serialized = encodeMudflatRun(campaign, runtime, choiceIds, nextSequence);
+    const serialized = encodeMudflatRun(campaign, runtime, choiceIds, nextSequence, Date.now(), stageEntryCampaign);
     if (!serialized) return false;
     getStorage().setItem(MUDFLAT_ACTIVE_RUN_KEY, serialized);
     return true;
