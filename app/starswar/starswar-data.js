@@ -549,7 +549,8 @@ export const STW_ECONOMY = {
   fullSaturation: 16,
   maxSaturation: 24,
   overflowRate: 0.45,
-  gasPerProbe: 0.55,
+  // 가스 건물 하나(일꾼 3기) 분당 144. 0.55(분당 99)는 원작 비율의 절반쯤이라 2기지 가스:광물이 1:6(원작 약 1:3.5~4)이었고, 테크 성향이 연구와 대표 유닛을 함께 대지 못했다.
+  gasPerProbe: 0.8,
   probesPerGas: 3,
   minMineralProbes: 4,
   mainMinerals: 12000,

@@ -230,13 +230,15 @@ const ALERT_TECH = new Set(["core", "academy", "den", "evo", "shop"]);
  * 예전에는 저그가 맨 앞 단계를 아끼지 않고(확장만 아꼈다) 프로토스·테란은 경계 중 테크를 막아, 테크 성향이 본진 일꾼 22기로
  * 8~9분까지 묶인 채 대표 유닛을 못 뽑았다(평원, 다른 종족 상대: 울트라 0/13판, 리버 2/12, 디파일러·가디언 3/13, 캐리어 4/12, 배틀크루저 5/13).
  */
-// 캐리어 함대는 넣지 않는다: 비컨·캐리어 자원을 먼저 모으게 하면 병력이 얇아 평원 승률이 19% → 11%로 떨어졌다.
+// 캐리어 함대는 가스가 모자라던 때(일꾼당 0.55) 넣었더니 병력이 얇아 평원 승률이 19% → 11%로 떨어져 뺐다가, 가스 0.8에서 다시 넣었다.
 /** 대표 유닛이 가스를 많이 먹는 성향: 일꾼이 18기를 넘으면 남은 간헐천에 가스 건물을 더 짓는다. */
 const GAS_HUNGRY = new Set(["templar", "dark", "robo", "carrier", "corsair", "bc", "wraith", "tankbio", "mech", "ultra", "hive", "hydra", "muta"]);
 const TECH_STEPS = {
   muta: ["lair", "spire"], ultra: ["lair", "cavern"], hive: ["lair", "nest", "hive", "mound"],
   bc: ["factory", "starport", "science"], templar: ["core", "citadel", "archives", "storm"],
   robo: ["core", "robo", "bay"], dark: ["core", "citadel", "archives"], wraith: ["factory", "starport"],
+  // 캐리어 함대: 가스 채취량을 올린 뒤에는 가스가 1,000 넘게 쌓이는데 광물을 드라군에 다 써서 스타게이트 8분, 비컨 11분이었다.
+  carrier: ["stargate", "beacon"],
 };
 
 /**
@@ -400,6 +402,19 @@ export function stwAiThink(state, side) {
   // 대표 유닛 자신은 제 몫을 아낀 가스까지 써도 된다.
   const gasReserveFor = (unit) => (unit && unit === reserve.signature ? Math.max(0, reserve.gas - STW_UNITS[unit].gas) : reserve.gas);
   reserve.gasFor = gasReserveFor;
+  // 0-0. 가스가 400 넘게 쌓였는데 성향의 핵심 테크 건물(TECH_STEPS 중 건물)이 아직 없으면, 적이 밀고 오는 중이 아닌 한
+  // 광물을 그 건물에 먼저 쓴다(생산을 멈춰서라도). 가스를 올린 뒤 캐리어 함대가 가스 1,000을 쌓아 두고 광물을 드라군에 다 써
+  // 스타게이트 8분, 비컨 11분이었다(테란·저그 상대 캐리어 0기).
+  const techBuildings = (TECH_STEPS[persona] ?? []).filter((id) => STW_BUILDINGS[id]);
+  // 앞마당이 서기 전(7분 전)에는 하지 않는다: 확장보다 테크 건물을 먼저 사면 로보 운영이 저글링 상대로 7분까지 본진 하나에 묶였다.
+  if (techBuildings.length && record.gas >= 400 && !incomingWave(state, side) && (stwNexus(state, side, "natural") || state.time > 420)) {
+    const nextTech = techBuildings.find((id) => !stwOwnBuildings(state, side, id).length);
+    if (nextTech) {
+      const check = stwBuildCheck(state, side, nextTech);
+      if (check.ok) stwCommand(state, side, { type: "build", building: nextTech });
+      else if (/광물/.test(check.reason ?? "")) save(STW_BUILDINGS[nextTech].minerals, 0, true);
+    }
+  }
   // 0-1. 테크 성향은 일꾼이 18기를 넘으면 남은 간헐천에 가스 건물을 더 짓는다(본진 둘 + 앞마당 하나). 가스 일꾼 3~6기로는
   // 대표 유닛과 연구를 함께 댈 수 없었다.
   if (GAS_HUNGRY.has(persona) && state.time > 300 && record.probes >= 18 && !alert && record.minerals - reserve.minerals >= STW_BUILDINGS[race.refinery].minerals) {
