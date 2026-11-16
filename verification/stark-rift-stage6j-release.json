@@ -1,0 +1,101 @@
+{
+  "sourceCommit": "532de66a11f4f52a7792ad6ac8fb8d6b08ca1dd0",
+  "sourceTree": "c66e4bb72ae4bbfe9ad2e0443f720767b4e6be27",
+  "githubUrl": "https://github.com/itnad/games/commit/532de66a11f4f52a7792ad6ac8fb8d6b08ca1dd0",
+  "projectId": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b",
+  "checks": {
+    "engine": 556,
+    "medic": 26,
+    "sharedHtml": 248,
+    "haeru": 31,
+    "baksal": 28,
+    "labBuild": true,
+    "benchmark": true,
+    "factsReproduced": true
+  },
+  "scope": "Stage6J Medic production/manual and automatic healing/Caduceus capacity upgrade/save19; portrait only",
+  "siteVersion": 279,
+  "versionId": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b~appgver_e619754a0d708191b115f58b385e8f7e",
+  "deploymentId": "appgdep_6afad9cb56f48191bfd0de558825e367",
+  "siteUrl": "https://games.itnadcom.chatgpt.site",
+  "verifiedAt": "2026-11-16T10:29:58.589189+00:00",
+  "ci": {
+    "id": 43815586561,
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "532de66a11f4f52a7792ad6ac8fb8d6b08ca1dd0",
+    "html_url": "https://github.com/itnad/games/actions/runs/43815586561",
+    "updated_at": "2026-11-16T06:18:40Z"
+  },
+  "browserReports": {
+    "local-final-360": {
+      "path": "stark-rift-medic/local-final-360/medic-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native touch/manual target/group slot/long press; paid normal-time production and research; exact paused save recovery. No resource or game-state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "local-390": {
+      "path": "stark-rift-medic/local-390/medic-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native touch/manual target/group slot/long press; paid normal-time production and research; exact paused save recovery. No resource or game-state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "local-legacy": {
+      "path": "stark-rift-medic/local-legacy/legacy-browser.json",
+      "cases": 12,
+      "passed": 12,
+      "scope": "Replay of unmodified saves captured from the previous live version; no new-game resource injection"
+    },
+    "local-autocast": {
+      "path": "stark-rift-medic/local-autocast/autocast-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native mobile touch/long press and normal-time gameplay; no new-game state/resource injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "live-360": {
+      "path": "stark-rift-medic/live-360/medic-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native touch/manual target/group slot/long press; paid normal-time production and research; exact paused save recovery. No resource or game-state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "live-390": {
+      "path": "stark-rift-medic/live-390/medic-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native touch/manual target/group slot/long press; paid normal-time production and research; exact paused save recovery. No resource or game-state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "live-legacy": {
+      "path": "stark-rift-medic/live-legacy/legacy-browser.json",
+      "cases": 12,
+      "passed": 12,
+      "scope": "Replay of unmodified saves captured from the previous live version; no new-game resource injection"
+    },
+    "live-autocast": {
+      "path": "stark-rift-medic/live-autocast/autocast-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native mobile touch/long press and normal-time gameplay; no new-game state/resource injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "live-manual": {
+      "path": "stark-rift-medic/live-manual/spells-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Production Worker/Pixi; real touch casts, native pointer checkpoint pause, normal time;360px waits for the full43.65-second stasis duration. No resource/state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    }
+  },
+  "browserCases": 31,
+  "sourceArchive": "stark-rift-medic-source-and-qa.zip",
+  "qaArchive": "stark-rift-medic-qa.zip",
+  "remoteVerification": "https://github.com/itnad/games/blob/verification/stark-rift-stage6j-532de66a/verification/stark-rift-stage6j-release.json",
+  "evidenceNotes": [
+    "Medic50/25,Academy prerequisite,Barracks188ticks,60HP/1armor/1supply. Caduceus150/150,1042ticks,one level; capacity250 and new-unit62.5, existing energy retained.",
+    "Pinned BWAPI/OpenBW extractor reproduces source facts: heal200/256HP per original frame, floor(amount/2) raw energy, minimum1energy,30px inclusive hitbox range. Interleaved fixed-point regeneration and healing preserve cap edges and saved frame remainders.",
+    "556 game tests,26 Medic tests,248 shared checks,31 Haeru and28 Baksal checks pass. Final GitHub CI verifies clean npm ci, full npm test, lab build and benchmark against the source commit.",
+    "Practice Medics initially blocked a lane between the wall and minerals. The second Medic was moved to22,27; a real-map ramp/wall integration regression and native browser routing now pass. Group refill also cancels an active automatic patient when inheriting explicit off.",
+    "Both portrait widths perform actual native-touch manual healing (360px group slot,390px battlefield unit), pause/reload mid-path with exact state, automatic healing via long press, paid production, paid normal-time1042tick research and exact upgraded save recovery. Healing beams are observed and captured.",
+    "Twelve untouched production saves from formats12..18 restore locally and on production, retaining raw backups, resources/RNG/groups, cargo/cloak/morphs/siege, paid spells and upgraded energy. Old saves receive no new practice grants.",
+    "Actual opt-in Stasis automatic and manual Recall/Stasis browser flows continue to work through the new Medic wrapper; manual360px waits for full873tick Stasis thaw and resumed movement.",
+    "All206 deployment files SHA256-match a clean build of the canonical main source. Lossless concatenated gzip members (zopfli5 text,zopfli1 binary) meet the32MiB envelope without removing or modifying assets. Superseded attempts remain in QA logs.",
+    "Chromium SwiftShader/native mobile touch is not physical Android/iOS or hardware GPU certification; those checks remain external to this environment."
+  ]
+}
