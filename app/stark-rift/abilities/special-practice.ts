@@ -1,3 +1,4 @@
+import { initializeMedicPractice } from "./medic-practice";
 import { initializeEnergyPractice } from "./energy-practice";
 import { energyOf, ENERGY } from "./cloak-state";
 import type { SimulationState } from "../core/state";
@@ -60,5 +61,6 @@ export function initializeSpecialPractice(s: SimulationState) {
     const w = workerOf(s, target); if (w) releaseWork(s, w, false);
   }
   initializeEnergyPractice(s);
+  initializeMedicPractice(s);
   recomputeSupply(s);
 }

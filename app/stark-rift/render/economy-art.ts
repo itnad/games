@@ -255,6 +255,11 @@ export function updateEconomicMarker(
       g.circle(0, -0.2, 0.12).fill(0xb0c8d0);
       g.poly([-0.15, -0.08, 0.15, -0.08, 0.2, 0.32, -0.2, 0.32]).fill(0x73969e).stroke({ color, width: 0.05 });
       g.rect(0.12, -0.05, 0.07, 0.65).fill(0xc5d8dc);
+    } else if (d.id === "terran-medic") {
+      g.circle(0,-.23,.19).fill(0xd9e8df).stroke({color,width:.04});
+      g.roundRect(-.27,-.08,.54,.45,.1).fill(0xc0d5ca).stroke({color,width:.04});
+      g.rect(-.34,.04,.16,.33).fill(0x779b8e);g.rect(.2,.04,.16,.33).fill(0x779b8e);
+      g.rect(-.16,.1,.32,.09).fill(0x3bb78b);g.rect(-.045,-.015,.09,.32).fill(0x3bb78b);
     } else if (terr) {
       g.circle(0, -0.18, 0.17).fill(0xa7b3ae);
       g.roundRect(-0.23, -0.1, 0.46, 0.45, 0.1).fill(color);

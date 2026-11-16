@@ -347,7 +347,7 @@ export function SimulationSession({
               ? " · 목표 처치 완료"
               : snapshot.combat.friendlyRemaining === 0
                 ? " · 연습 병력 전멸 · 선택 화면에서 다시 시작하세요"
-                : snapshot.combat.scenario === "special-practice" ? " · 탑승 → 부대 선택 → 하차 지점" : " · 부대 1번 → 붉은 적 터치"}
+                : snapshot.combat.scenario === "special-practice" ? snapshot.economy?.faction === "terran" ? " · 메딕 5번 → 치료 → 마린 1번" : " · 탑승 → 부대 선택 → 하차 지점" : " · 부대 1번 → 붉은 적 터치"}
           </div>
         )}
         <div className="sr-session-battle">

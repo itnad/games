@@ -1,3 +1,4 @@
+import { MedicControls } from "./medic-controls";
 import { EnergyResearchControls } from "./energy-research-controls";
 import { ENERGY_UPGRADES } from "../abilities/energy-upgrades";
 import { ArbiterControls } from "./arbiter-controls";
@@ -31,7 +32,7 @@ export function EconomyControls({
   running,
   openBuildMenu,
   selectWorker,
-  scout, loadTransport, unloadTransport, selectEntities, castAbility,
+  scout, loadTransport, unloadTransport, selectEntities, castAbility, heal,
 }: {
   snapshot: RenderSnapshot;
   selected: number[];
@@ -42,6 +43,7 @@ export function EconomyControls({
   openBuildMenu: () => void;
   selectWorker: () => void;
   scout: () => void;
+  heal?: (id:number)=>void;
   castAbility?: (id: number, ability: "recall" | "stasis-field") => void;
   loadTransport?: (ids: number[]) => void; unloadTransport?: (ids: number[]) => void; selectEntities?: (ids: number[]) => void;
 }) {
@@ -166,6 +168,7 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
+      <MedicControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} heal={heal} issue={issue} />
       <EnergyResearchControls snapshot={snapshot} select={selectEntities} />
       <ArbiterControls snapshot={snapshot} selected={selected} select={selectEntities} running={running} cast={castAbility} toggleAutocast={(ids,enabled) => issue({kind:"toggleAutocast",entityIds:ids,payload:{abilityId:"stasis-field",enabled}})} />
       <LurkerControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
@@ -498,7 +501,7 @@ export function EconomyControls({
           주세요.
         </p>
       )}
-      {def.kind === "combat" && !hasBasicWeapon(def.id) && (
+      {def.kind === "combat" && !hasBasicWeapon(def.id) && def.id !== "terran-medic" && (
         <p className="sr-help">비무장 유닛입니다. 이동과 정찰에 활용하세요.</p>
       )}
       {def.kind === "combat" && (

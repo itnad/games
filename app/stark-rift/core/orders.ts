@@ -1,5 +1,7 @@
 import {
   array,
+  boolean,
+  optional,
   enumeration,
   integer,
   nullable,
@@ -16,6 +18,7 @@ export const controlGroupSchema = object({
   formation: enumeration(["line", "column", "spread"]),
   stance: enumeration(["free", "formation", "breakthrough"]),
   autocastAbilityIds: unique(array(text)),
+  autocastConfiguredAbilityIds: optional(unique(array(text))),
 });
 export type ControlGroup = {
   -readonly [K in keyof Infer<typeof controlGroupSchema>]: Infer<

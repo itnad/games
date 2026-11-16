@@ -1,3 +1,4 @@
+import { createMedicRules } from "../abilities/medic-rules";
 import { createAutocastRules } from "../abilities/autocast-rules";
 import { createSpellsRules } from "../abilities/spells-rules";
 import { spellsFitMap } from "../abilities/spells-state";
@@ -143,7 +144,7 @@ export class SimulationRuntime {
       map,
       createCombatRules(createEconomyRules(map, defaults), visible, map),
     )))))));
-    const combined = createAutocastRules(map, spellRules);
+    const combined = createMedicRules(map,createAutocastRules(map, spellRules));
     this.rules = {
       commands: { ...combined.commands, ...this.options.rules?.commands },
       systems: {

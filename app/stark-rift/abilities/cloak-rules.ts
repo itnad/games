@@ -1,3 +1,4 @@
+import { MEDIC } from "./medic-data";
 import { maximumEnergy } from "./energy-upgrades";
 import type { EngineRules } from "../core/simulation";
 import type { SimulationState } from "../core/state";
@@ -6,7 +7,7 @@ import { CLOAK_ABILITY, CLOAK_ENERGY_COST, ENERGY, activeCloak, energyOf, hasClo
 export function advanceEnergy(s: SimulationState) {
   for (const r of s.energy ?? []) {
     const i = s.entities.id.indexOf(r.entityId);
-    if (i < 0 || s.entities.health[i] === 0) continue;
+    if (i < 0 || s.entities.health[i] === 0 || s.entities.definitionId[i] === MEDIC) continue;
     const frames = Math.floor((r.frameRemainder + 6) / 5);
     r.frameRemainder = (r.frameRemainder + 6) % 5;
     for (let f = 0; f < frames; f++) {
