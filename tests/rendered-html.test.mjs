@@ -337,11 +337,12 @@ async function render(path = "/") {
 }
 
 test("provides a direct-only mudflat developer tool route with local QA presets", async () => {
-  const [route, tools, model, game, styles] = await Promise.all([
+  const [route, tools, model, game, supervisor, styles] = await Promise.all([
     readFile(new URL("../app/haeru-dev/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/mudflat-dev-tools.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/mudflat-survivor-model.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/mudflat-survivor-game.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/mudflat-supervisor.js", import.meta.url), "utf8"),
     readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8"),
   ]);
   assert.match(route, /robots: \{ index: false, follow: false \}/);
@@ -355,10 +356,20 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(tools, /현재 해루질럿 저장값을 붙여 넣은 데이터로 교체할까요/);
   assert.match(tools, /붙여 넣은 저장값 복원/);
   assert.match(tools, /seed: 20261102 \+ preset\.stage \* 101/);
+  assert.match(tools, /AI 감독모드 · 1단계부터/);
+  assert.match(tools, /supervisor: Boolean\(preset\.supervisor\)/);
+  assert.match(tools, /if \(!preset\.supervisor\) \{[\s\S]*?window\.localStorage\.removeItem\(MUDFLAT_ACTIVE_RUN_KEY\);[\s\S]*?\}/);
   assert.match(tools, /window\.location\.assign\("\/haeru"\)/);
   assert.match(game, /JSON\.parse\(window\.sessionStorage\.getItem\(MUDFLAT_DEV_LAUNCH_KEY\)/);
   assert.match(game, /setScreen\(launch\.run \? "running" : "setup"\)/);
   assert.match(game, /makeRuntime\(nextCampaign, launch\.seed\)/);
+  assert.match(game, /decideMudflatSupervisorMove/);
+  assert.match(game, /maintainMudflatSupervisorCampaign/);
+  assert.match(game, /SUPERVISOR PAUSED/);
+  assert.match(supervisor, /baseCampGuideShown/);
+  assert.match(supervisor, /fallingRocks/);
+  assert.match(supervisor, /while \(upgradesBought < 2\)/);
+  assert.match(styles, /\.ms-supervisor-status/);
   assert.match(styles, /\.mudflat-dev-shell/);
 });
 
@@ -1516,7 +1527,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /className="ms-camp-skill-levels" aria-label="채집기술 레벨"/);
   assert.match(source, /<h3>채집기술<\/h3>/);
   assert.match(source, /GENERAL_SKILL_LABELS\[skill\.id\] \?\? skill\.name/);
-  assert.match(source, /<p>선택 기술 \{normalSkills\.length\} \/ 6 · 집게와 호미질은 기본 기술입니다\.<\/p>/);
+  assert.match(source, /`선택 기술 \$\{normalSkills\.length\} \/ 6 · 집게와 호미질은 기본 기술입니다\.`/);
   assert.match(source, /className="ms-skill-slots">기본 기술 이외에 6개의 채집 기술을 익힐 수 있습니다\.<\/small>/);
   assert.doesNotMatch(source, /선택하는 동안 갯벌의 시간은 멈춥니다/);
   assert.match(styles, /\.ms-camp-skill-levels\{/);
@@ -1595,7 +1606,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const deepMudSlow = deepMud\.strength > 0 \?/);
   assert.match(source, /const stuckSlow = runtime\.deepMudLock > 0 \?/);
   assert.match(source, /const speed = \(tide\.active \? runtime\.player\.speed \* tide\.speedMultiplier : regularSpeed\) \* deepMudSlow \* stuckSlow;/);
-  assert.match(source, /damagePlayer\(tide\.damagePerSecond, "#73d4ea"\);/);
+  assert.match(source, /damagePlayer\(tide\.damagePerSecond, "#73d4ea", "밀물 귀환 실패"\);/);
   assert.match(source, /TIDE_RETURN_MESSAGE = "물이 가득찼어\. 빨리 복귀해야해!"/);
   assert.match(source, /runtime\.tideMessageClock \+= MUDFLAT_TIDE_MESSAGE_INTERVAL;/);
   assert.match(source, /const BASE_CAMP_STAGE_ONE_WIDTH_MULTIPLIER = 5;/);
@@ -1669,7 +1680,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /showPlayerMessage\("해충기피제 덕분에 모기떼를 피했다\.", 2\.2\)/);
   assert.match(source, /runtime\.player\.hp < MOSQUITO_LOW_HP_THRESHOLD/);
   assert.match(source, /showPlayerMessage\("모기떼가 성가시게 구네\.", 2\.2\)/);
-  assert.match(source, /damagePlayer\(MOSQUITO_DAMAGE, "#d69d68"\)/);
+  assert.match(source, /damagePlayer\(MOSQUITO_DAMAGE, "#d69d68", "모기떼 피해"\)/);
   assert.match(source, /showPlayerMessage\("모기떼에 물렸다!", 2\.2\)/);
   assert.match(source, /mosquitoClock: 10/);
   assert.match(source, /mosquitoRunEnabled: mudflatMosquitoRunEnabled\(campaign\.stage, mosquitoRoll\)/);
@@ -1757,7 +1768,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /content:"- 최대 체력의 20% 사용"/);
   assert.match(source, /GENERAL_SKILL_ORDER/);
   assert.match(source, /MUDFLAT_FIXED_GENERAL_SKILL_IDS/);
-  assert.match(source, /선택 기술 \{normalSkills\.length\} \/ 6/);
+  assert.match(source, /선택 기술 \$\{normalSkills\.length\} \/ 6/);
   assert.match(source, /className="ms-base-tools"/);
   assert.match(source, /basket: "담기"/);
   assert.match(source, /<b>채집 \{hud\.caught\}<\/b><span>\(최대 \{hud\.catchCapacity\}\)<\/span>/);
@@ -3465,7 +3476,7 @@ test("rescue retry restores the stage-entry checkpoint, fills HP, and charges th
   assert.doesNotMatch(defeat, /onClick=\{onExit\}>메인 화면으로|3초|비밀|길게 누르/);
   assert.match(source, /const beginAtStage = \(stage: number, secretEntry = false, tutorialEntry = false\) => \{\s*defeatRetryRef.current = null/);
   assert.match(source, /stageEntryRef.current = createStageEntryCheckpoint\(nextCampaign\)/);
-  assert.match(source, /const reset = \(\) => \{ defeatRetryRef.current = null; stageEntryRef.current = null/);
+  assert.match(source, /const reset = \(\) => \{[\s\S]*?defeatRetryRef\.current = null; stageEntryRef\.current = null/);
   assert.match(source, /createRescueRetryCampaign\(checkpoint\)/);
   assert.match(source, /runtime\.playerMessage = `구조 비용 \$\{rescueCost\.toLocaleString\(\)\}C를 내고 다시 갯벌로 돌아왔습니다\.`/);
 });
@@ -3841,7 +3852,7 @@ test("all rock, hole, and falling-rock spawn paths respect the camp exclusion", 
   assert.match(source, /const fall = progress \* progress/);
   assert.match(source, /drawFallingRockBody\(context, screenPoint\(falling\), falling, height\)/);
   assert.match(source, /const FALLING_ROCK_DAMAGE = 100/);
-  assert.match(source, /damagePlayer\(FALLING_ROCK_DAMAGE, "#d69d68"\)/);
+  assert.match(source, /damagePlayer\(FALLING_ROCK_DAMAGE, "#d69d68", "낙석 충돌"\)/);
   for (const collection of ["rocks", "clamHoles", "fallingRocks"]) {
     assert.ok(source.includes(`runtime.${collection} = runtime.${collection}.filter((`), `existing ${collection} are cleared when camp appears`);
   }

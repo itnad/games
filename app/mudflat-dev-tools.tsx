@@ -24,6 +24,7 @@ type DevPreset = {
   mode?: GameMode;
   characterId?: string;
   tutorial?: boolean;
+  supervisor?: boolean;
   coins?: number;
   level?: number;
   xp?: number;
@@ -41,6 +42,13 @@ type LocalSnapshot = {
 };
 
 const DEV_PRESETS: DevPreset[] = [
+  {
+    id: "supervisor",
+    title: "AI 감독모드 · 1단계부터",
+    stage: 1,
+    supervisor: true,
+    description: "AI가 실제 조작과 피해 판정으로 채집·회피·귀환·자동 정비를 수행합니다. 레벨업 기술만 직접 선택하며 일반 기록과 저장에는 반영되지 않습니다.",
+  },
   {
     id: "tutorial",
     title: "1단계 튜토리얼 확인",
@@ -261,9 +269,11 @@ export function MudflatDevTools() {
   const startPreset = (preset: DevPreset) => {
     try {
       const campaign = makePresetCampaign(preset);
-      window.localStorage.setItem(LAST_MODE_KEY, campaign.mode);
-      window.localStorage.setItem(HIGHEST_STAGE_KEY, String(Math.max(1, Math.min(9, campaign.stage))));
-      window.localStorage.removeItem(MUDFLAT_ACTIVE_RUN_KEY);
+      if (!preset.supervisor) {
+        window.localStorage.setItem(LAST_MODE_KEY, campaign.mode);
+        window.localStorage.setItem(HIGHEST_STAGE_KEY, String(Math.max(1, Math.min(9, campaign.stage))));
+        window.localStorage.removeItem(MUDFLAT_ACTIVE_RUN_KEY);
+      }
       window.sessionStorage.setItem(MUDFLAT_DEV_LAUNCH_KEY, JSON.stringify({
         version: 1,
         seed: 20261102 + preset.stage * 101,
@@ -271,6 +281,7 @@ export function MudflatDevTools() {
         campaign,
         run: true,
         tutorial: Boolean(preset.tutorial),
+        supervisor: Boolean(preset.supervisor),
       }));
       window.location.assign("/haeru");
     } catch {
@@ -396,7 +407,7 @@ export function MudflatDevTools() {
         <header>
           <small>ONE TAP PRESETS</small>
           <h2>테스트 프리셋</h2>
-          <p>바로 실행은 현재 진행 중 저장을 지우고 선택한 상태로 시작합니다. “정비 저장만”은 다음에 해루질럿 메인에서 이어서 확인할 때 사용합니다.</p>
+          <p>일반 바로 실행은 현재 진행 중 저장을 지웁니다. 감독모드는 기존 저장과 순위에 영향을 주지 않습니다. “정비 저장만”은 다음에 해루질럿 메인에서 이어서 확인할 때 사용합니다.</p>
         </header>
         <div>
           {DEV_PRESETS.map((preset) => (
@@ -405,8 +416,8 @@ export function MudflatDevTools() {
               <h3>{preset.title}</h3>
               <p>{preset.description}</p>
               <div>
-                <button type="button" onClick={() => startPreset(preset)}>바로 실행</button>
-                <button type="button" onClick={() => savePresetOnly(preset)}>정비 저장만</button>
+                <button type="button" onClick={() => startPreset(preset)}>{preset.supervisor ? "감독모드 관전 시작" : "바로 실행"}</button>
+                {!preset.supervisor && <button type="button" onClick={() => savePresetOnly(preset)}>정비 저장만</button>}
               </div>
             </article>
           ))}
