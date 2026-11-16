@@ -387,6 +387,11 @@ export class StwPixiRenderer {
     // 따로 둔 부대의 자리(금색 타원)와, 고른 종류의 유닛 발밑 고리.
     for (const [type, spot] of Object.entries(state.sides.player.squads ?? {})) {
       if (!spot) continue;
+      // 정해진 자리가 있는 경비(본진 경비)는 자리마다 작은 원.
+      if (spot.spots?.length) {
+        for (const point of spot.spots) g.circle(point.x, point.y, 2.2).fill({ color: 0xffd27a, alpha: 0.08 }).stroke({ width: 0.16, color: 0xffd27a, alpha: 0.45 });
+        continue;
+      }
       const y = stwRallyY("player", spot.y, state);
       g.ellipse(STW_LANE_WIDTH / 2, y, 11, 3.2).fill({ color: 0xffd27a, alpha: selected.includes(type) ? 0.12 : 0.05 }).stroke({ width: 0.16, color: 0xffd27a, alpha: 0.45 });
     }
@@ -710,7 +715,8 @@ export class StwPixiRenderer {
       if (!count) continue;
       const def = STW_UNITS[type as StwUnitType];
       // 경비는 "경비 2"(종류가 섞일 수 있다).
-      show(`squad:${type}`, `${spot.guard ? "경비" : def?.name ?? type} ${count}`, 0xffd27a, STW_LANE_WIDTH / 2 + 12.5, stwRallyY("player", spot.y, state));
+      const labelAt = spot.spots?.length ? { x: Math.max(...spot.spots.map((point) => point.x)) + 5, y: spot.spots[0].y - 3 } : { x: STW_LANE_WIDTH / 2 + 12.5, y: stwRallyY("player", spot.y, state) };
+      show(`squad:${type}`, `${spot.guard ? "경비" : def?.name ?? type} ${count}`, 0xffd27a, labelAt.x, labelAt.y);
     }
     for (const [key, badge] of this.badges) {
       if (live.has(key)) continue;

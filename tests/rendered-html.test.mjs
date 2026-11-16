@@ -903,7 +903,7 @@ test("keeps StarDraft in its own app/starswar folder as a public mobile game at 
   assert.match(gameSource, /function statusAdvice\(game: StwState\)/);
   // 경비: 보낼 수(전체·1·2·4기), 본진 경비 바로가기, 경비 해제.
   assert.match(gameSource, /const SQUAD_COUNTS = \[0, 1, 2, 4\] as const/);
-  assert.match(gameSource, /type: "squadMove", units: selected, y: GUARD_HOME_Y, guard: true/);
+  assert.match(gameSource, /type: "squadMove", units: selected, y: 96, guard: true, post: "home"/);
   assert.match(gameSource, /type: "guardRelease", post: post\.key/);
   assert.doesNotMatch(gameSource, /playerLog\.slice\(-6\)/);
   assert.doesNotMatch(gameSource, /className="stw-attack"|이 부대 출격/);

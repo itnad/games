@@ -822,6 +822,15 @@ export function stwIsGuard(key) {
   return typeof key === "string" && key.startsWith("guard:");
 }
 
+/**
+ * 본진 경비 자리(아군 기준): 본진 간헐천과 본진 기지 사이, 양쪽. 근접 유닛도 광물 줄에 바로 닿는다.
+ * 예전 자리(기지 바로 앞 y 88)는 광물 줄까지 멀어 질럿·저글링 경비가 늦었다.
+ */
+export function stwHomeGuardSpots(state) {
+  const layout = stwMap(state).layout;
+  return layout.geysers.filter((geyser) => geyser.base === "main").map((geyser) => ({ x: Math.round(((geyser.x + layout.mainNexus.x) / 2) * 10) / 10, y: Math.round(((geyser.y + layout.mainNexus.y) / 2) * 10) / 10 }));
+}
+
 /** 무기가 없는 유닛(메딕·하이템플러·옵저버 등): 혼자서는 공격하러 가지 않는다. */
 function unarmed(type) {
   return !STW_UNITS[type].damage;
@@ -1008,16 +1017,20 @@ function runCommand(state, side, command) {
       }
       const y = Math.round(Math.min(stwMap(state).rallyRange.max, Math.max(stwMap(state).rallyRange.min, command.y)));
       if (guard) {
-        const key = `guard:${y}`;
-        record.squads[key] = { y, guard: true };
+        // 본진 경비(post: "home")는 간헐천과 기지 사이 양쪽 자리에 번갈아 선다.
+        const home = command.post === "home";
+        const spots = home ? stwHomeGuardSpots(state) : null;
+        const postY = home ? Math.round(spots.reduce((sum, spot) => sum + spot.y, 0) / spots.length) : y;
+        const key = home ? "guard:home" : `guard:${postY}`;
+        record.squads[key] = home ? { y: postY, guard: true, spots } : { y: postY, guard: true };
         for (const unit of members) {
           unit.group = "rally";
           unit.squad = key;
           delete unit.fresh;
           unit.passing = true;
         }
-        if (side === "player") pushLog(state, side, `${names} ${members.length}기가 ${stwRallyName(y, state)}에서 경비를 섭니다.`, "order");
-        return { ok: true, mode: "guard", y, key, moved: members.length };
+        if (side === "player") pushLog(state, side, `${names} ${members.length}기가 ${home ? "본진 광물 줄" : stwRallyName(postY, state)}에서 경비를 섭니다.`, "order");
+        return { ok: true, mode: "guard", y: postY, key, moved: members.length };
       }
       for (const type of types) record.squads[type] = { y };
       for (const unit of members) {
@@ -2553,7 +2566,19 @@ function stepUnits(state, dt) {
       }
     }
     const allRallySlots = rallySlots(state, side, mainRally, rallyY);
-    for (const [type, members] of squadMembers) for (const [id, slot] of rallySlots(state, side, members, stwRallyY(side, squads[type].y, state))) allRallySlots.set(id, slot);
+    for (const [type, members] of squadMembers) {
+      const spots = squads[type].spots;
+      if (spots?.length) {
+        // 정해진 자리가 있는 경비: 자리마다 번갈아, 같은 자리는 옆으로 조금씩 비켜 선다.
+        [...members].sort((a, b) => a.id - b.id).forEach((unit, index) => {
+          const spot = stwPoint(side, spots[index % spots.length]);
+          const lap = Math.floor(index / spots.length);
+          allRallySlots.set(unit.id, { x: spot.x + (lap % 2 ? -1 : 1) * Math.ceil(lap / 2) * 1.8, y: spot.y });
+        });
+        continue;
+      }
+      for (const [id, slot] of rallySlots(state, side, members, stwRallyY(side, squads[type].y, state))) allRallySlots.set(id, slot);
+    }
     plans[side] = {
       rallySlots: allRallySlots,
       attackSlots,

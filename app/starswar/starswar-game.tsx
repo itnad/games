@@ -106,8 +106,6 @@ const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
 const SQUAD_KEEP_COMMANDS = new Set<StwCommand["type"]>(["squadMove", "squadRelease", "guardRelease", "dropRecall"]);
 /** 부대 지휘에서 종류마다 보낼 수. 일부만 보내면 그 유닛들은 경비가 된다. */
 const SQUAD_COUNTS = [0, 1, 2, 4] as const;
-/** "본진 경비" 버튼이 세우는 자리: 본진 기지 바로 앞(기지 위에 겹치지 않고, 광물 줄까지 12칸 안이라 거기서 지킨다). */
-const GUARD_HOME_Y = 88;
 const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", stargate: "스타게이트", barracks: "배럭", factory: "팩토리", starport: "스타포트", hatchery: "해처리", hatch: "해처리" };
 /** 진행 중인 작전 한 줄 요약. */
 function opStatus(game: StwState, op: StwOp) {
@@ -1071,7 +1069,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 ))}
               </div>
               <div className="stw-squad-actions">
-                <button type="button" disabled={!selected.length} onClick={() => issue({ type: "squadMove", units: selected, y: GUARD_HOME_Y, guard: true, ...(squadCount ? { count: squadCount } : {}) })}>본진 경비</button>
+                <button type="button" disabled={!selected.length} onClick={() => issue({ type: "squadMove", units: selected, y: 96, guard: true, post: "home", ...(squadCount ? { count: squadCount } : {}) })}>본진 경비</button>
                 <button type="button" disabled={!selected.some((type) => squadSpots[type] || walkingTypes.has(type))} onClick={() => issue({ type: "squadRelease", units: selected })}>본대로</button>
                 <button type="button" disabled={!selected.length} onClick={() => setSelected([])}>선택 해제</button>
               </div>
@@ -1079,7 +1077,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 <ul className="stw-ops stw-guards">
                   {guardPosts.map((post) => (
                     <li key={post.key}>
-                      <span>{stwRallyName(post.y, game) as string} 경비 · {post.text}</span>
+                      <span>{post.key === "guard:home" ? "본진 광물 줄" : (stwRallyName(post.y, game) as string)} 경비 · {post.text}</span>
                       <button type="button" onClick={() => issue({ type: "guardRelease", post: post.key })}>경비 해제</button>
                     </li>
                   ))}
@@ -1099,7 +1097,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                   ))}
                 </ul>
               ) : null}
-              <p className="stw-squad-hint">“보낼 수”로 일부만 보내면 그 유닛들은 경비가 되어, 본대 지도 탭에 합쳐지지 않고 “경비 해제”를 누를 때까지 그 자리를 지킵니다. “본진 경비”는 본진 기지 바로 앞에 세워 광물 줄을 지킵니다. 전체로 보낸 종류는 새 유닛도 그 부대로 갑니다. 지도를 누르면 고른 부대만 그곳까지 싸우며 가서 머뭅니다. 적 본진을 누르면 그 기지를 부수러 갑니다(메딕처럼 무기 없는 유닛만 고르면 적 본진 바로 앞에 섭니다). 침투는 고른 부대가 싸우지 않고 가장자리를 따라 적 광물 줄까지 걸어가 일꾼을 칩니다. 닿은 뒤에는 스스로 물러나지 않고 일꾼이 없으면 기지를 치며, “지금 회수”를 눌러야 걸어서 돌아옵니다. 침투 중에도 칩을 골라 지도를 누르면(뒤쪽은 후퇴) 침투를 멈추고 그 명령을 따릅니다. 따로 옮기는 부대는 길을 막는 아군을 비키게 하며 지나갑니다.</p>
+              <p className="stw-squad-hint">“보낼 수”로 일부만 보내면 그 유닛들은 경비가 되어, 본대 지도 탭에 합쳐지지 않고 “경비 해제”를 누를 때까지 그 자리를 지킵니다. “본진 경비”는 본진 간헐천과 기지 사이 양쪽에 번갈아 세워, 근접 유닛도 광물 줄에 바로 닿습니다. 전체로 보낸 종류는 새 유닛도 그 부대로 갑니다. 지도를 누르면 고른 부대만 그곳까지 싸우며 가서 머뭅니다. 적 본진을 누르면 그 기지를 부수러 갑니다(메딕처럼 무기 없는 유닛만 고르면 적 본진 바로 앞에 섭니다). 침투는 고른 부대가 싸우지 않고 가장자리를 따라 적 광물 줄까지 걸어가 일꾼을 칩니다. 닿은 뒤에는 스스로 물러나지 않고 일꾼이 없으면 기지를 치며, “지금 회수”를 눌러야 걸어서 돌아옵니다. 침투 중에도 칩을 골라 지도를 누르면(뒤쪽은 후퇴) 침투를 멈추고 그 명령을 따릅니다. 따로 옮기는 부대는 길을 막는 아군을 비키게 하며 지나갑니다.</p>
             </div>
           ) : (
             <div className="stw-panel-body" key={tab}>

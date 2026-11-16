@@ -26,6 +26,7 @@ import {
   stwSerialize,
   stwSpawnUnitAt,
   stwSupply,
+  stwHomeGuardSpots,
   stwIsGuard,
   stwTapAttacks,
   stwWorkerSplit,
@@ -3490,6 +3491,16 @@ test("starswar guards: send only some units of a type to hold a spot; whole-army
   assert.ok(state.units.filter((unit) => unit.type === "medic" && unit.side === "player").every((unit) => unit.squad === "guard:96"));
   result = stwCommand(state, "player", { type: "guardRelease", post: "guard:96" });
   assert.equal(result.released, 4);
+  // "본진 경비"(post: home): 본진 간헐천과 기지 사이 양쪽 자리에 번갈아 선다(근접 유닛도 광물 줄에 바로 닿게).
+  const spots = stwHomeGuardSpots(state);
+  assert.deepEqual(spots, [{ x: 15.6, y: 96.2 }, { x: 24.4, y: 96.2 }]);
+  result = stwCommand(state, "player", { type: "squadMove", units: ["marine"], y: 96, guard: true, post: "home", count: 2 });
+  assert.equal(result.key, "guard:home");
+  run(state, 12);
+  const posted = state.units.filter((unit) => unit.squad === "guard:home");
+  assert.equal(posted.length, 2);
+  assert.ok(spots.every((spot) => posted.some((unit) => Math.hypot(unit.x - spot.x, unit.y - spot.y) < 1.5)), "양쪽 자리에 하나씩");
+  stwCommand(state, "player", { type: "guardRelease" });
   assert.ok(!Object.keys(state.sides.player.squads).some(stwIsGuard));
   assert.ok(guards.every((unit) => unit.squad === undefined));
 });
