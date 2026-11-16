@@ -270,7 +270,8 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
     } else if (!state.sides[side].persona && state.aiSides.includes(side)) {
       const race = state.sides[side].race;
       const personas = Object.values(STW_AI_PERSONAS)
-        .filter((persona) => persona.race === race && !((state.difficulty === "easy" || state.difficulty === "beginner") && EASY_EXCLUDED_PERSONAS.includes(persona.id)))
+        .filter((persona) => persona.race === race && !persona.avoid?.includes(state.sides[stwOpponent(side)].race)
+          && !((state.difficulty === "easy" || state.difficulty === "beginner") && EASY_EXCLUDED_PERSONAS.includes(persona.id)))
         .map((persona) => persona.id);
       state.sides[side].persona = personas[Math.floor(nextRandom(state) * personas.length)];
     }

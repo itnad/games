@@ -714,6 +714,8 @@ export const STW_AI_PERSONAS = {
   mech: { id: "mech", race: "terran", name: "메카닉 운영", note: "벌처로 버티며 시즈 탱크 포격선을 민다" },
   tankbio: { id: "tankbio", race: "terran", name: "탱크 바이오", note: "해병·메딕 뒤에 시즈 탱크를 받쳐 앞마당과 함께 민다" },
   vulture: { id: "vulture", race: "terran", name: "벌처 러시", note: "팩토리 둘에서 빠른 벌처를 쏟아내 일찍 흔든다" },
+  // avoid: 이 종족 상대로는 무작위로 고르지 않는다(고스트의 락다운은 기계 유닛에만 걸려 저그 상대로는 쓸 데가 없다).
+  ghost: { id: "ghost", race: "terran", name: "고스트 특수전", note: "벙커와 시즈 탱크로 버티며 은폐·락다운 고스트 부대를 모아 해병·메딕·시즈 탱크와 함께 민다", avoid: ["zerg"] },
   bc: { id: "bc", race: "terran", name: "배틀크루저", note: "탱크로 버티며 사이언스 퍼실리티를 올려 배틀크루저와 야마토 포로 민다" },
   wraith: { id: "wraith", race: "terran", name: "레이스 메카닉", note: "스타포트 레이스와 골리앗·벌처로 하늘과 땅을 같이 민다" },
   ling: { id: "ling", race: "zerg", name: "저글링 물량", note: "해처리를 늘리고 저글링을 끝까지 업그레이드해 쉬지 않고 밀어붙인다 · 계속 막히면 다른 길을 찾는다" },

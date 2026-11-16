@@ -1,6 +1,6 @@
 // 스타드래프트 AI. 플레이어와 같은 stwCommand만 쓴다.
 // 성향마다 빌드 순서와 출격 규모가 다르다. 프로토스·테란·저그가 같은 틀을 쓴다.
-import { STW_BUILDINGS, STW_DEFENSE_REACH, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_UNITS } from "./starswar-data.js";
+import { STW_BUILDINGS, STW_DEFENSE_REACH, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./starswar-data.js";
 import { stwIntelTag, stwLearnSwitch } from "./starswar-learn.js";
 import {
   stwArmy,
@@ -74,18 +74,28 @@ const BUILD_ORDERS = {
     { build: "academy" }, { build: "barracks" }, { research: "stim" }, { build: "ebay" }, { research: "infWeapons1" },
     { build: "expand", at: 300 }, { research: "u238" }, { build: "comsat" }, { build: "refinery" }, { research: "infArmor1" }, { build: "barracks" },
     { build: "factory", at: 480 }, { build: "starport" }, { build: "science" }, { research: "irradiate" }, { research: "emp" },
+    // 고스트는 보병 계열이라 바이오닉 쪽에서 쓴다(예전에는 메카닉 빌드 끝에 붙어 있었다). 락다운은 기계 유닛에만 걸리므로 저그 상대로는 연구하지 않는다.
+    { research: "lockdown", vs: ["protoss", "terran"] }, { research: "personnelCloak", vs: ["protoss", "terran"] },
   ],
   mech: [
     { build: "depot" }, { build: "barracks" }, { build: "refinery" }, { build: "depot" }, { build: "factory" },
     { build: "refinery" }, { build: "shop" }, { build: "bunker" }, { research: "siege" }, { build: "factory" },
     { build: "expand", at: 280 }, { build: "academy" }, { research: "ion" }, { build: "comsat" }, { build: "ebay" }, { build: "turret" },
-    { build: "starport", at: 480 }, { build: "science" }, { research: "lockdown" },
+    { build: "starport", at: 480 },
   ],
   tankbio: [
     { build: "depot" }, { build: "barracks" }, { build: "refinery" }, { build: "barracks" }, { build: "depot" },
     { build: "academy" }, { build: "factory" }, { research: "stim" }, { build: "shop" }, { research: "siege" },
     { build: "expand", at: 300 }, { build: "barracks" }, { build: "ebay" }, { research: "infWeapons1" }, { research: "u238" }, { build: "comsat" }, { build: "refinery" },
     { build: "starport", at: 360 }, { build: "science" }, { research: "irradiate" }, { research: "emp" },
+    { research: "lockdown", vs: ["protoss", "terran"] }, { research: "personnelCloak", vs: ["protoss", "terran"] },
+  ],
+  // 고스트 특수전: 벙커 둘과 시즈 탱크로 버티며 사이언스 퍼실리티를 올려 락다운·은폐 고스트를 모으고, 해병·메딕과 탱크 몇 기를 붙여 민다.
+  ghost: [
+    { build: "depot" }, { build: "barracks" }, { build: "refinery" }, { build: "depot" }, { build: "bunker" },
+    { build: "factory" }, { build: "academy" }, { build: "shop" }, { research: "siege" }, { build: "bunker" },
+    { build: "expand", at: 250 }, { build: "refinery" }, { build: "bunker" }, { build: "barracks" }, { build: "starport" }, { build: "science" }, { research: "lockdown" }, { research: "personnelCloak" },
+    { build: "ebay" }, { build: "turret" }, { build: "refinery" }, { build: "comsat" }, { build: "barracks" }, { research: "stim" }, { research: "infWeapons1" },
   ],
   // 배틀크루저: 탱크와 벙커로 버티며 스타포트 둘과 사이언스 퍼실리티를 올려 배틀크루저를 모은다.
   bc: [
@@ -191,15 +201,15 @@ function lostStep(state, side, order, index, memory) {
 
 const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22], bio: [8, 12, 16, 22], mech: [8, 12, 16, 20],
   tankbio: [10, 14, 20, 26], vulture: [8, 12, 16, 20], ling: [12, 20, 30, 42, 56], hydra: [14, 18, 24, 30], pool: [6, 10, 14, 20, 26], ultra: [12, 18, 24, 30],
-  corsair: [8, 12, 16, 20], wraith: [8, 12, 16, 20], muta: [12, 18, 26, 36], carrier: [8, 12, 16, 20], bc: [8, 12, 16, 20], hive: [14, 18, 24, 30] };
+  corsair: [8, 12, 16, 20], wraith: [8, 12, 16, 20], muta: [12, 18, 26, 36], carrier: [8, 12, 16, 20], bc: [8, 12, 16, 20], hive: [14, 18, 24, 30], ghost: [14, 18, 22, 26] };
 const RUSH_WAVES_VS_TERRAN = [8, 10, 12, 14];
 /** 시야 판단: 공격 병력 곁에 보이는 적의 힘에 대해 우리 힘이 이 비율 아래면 맞붙기 전에 물러난다. */
 const SIGHT_RETREAT = 0.6;
-const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, tankbio: 5, vulture: 4, ling: 9, hydra: 3, pool: 3, ultra: 3, corsair: 6, wraith: 4, muta: 7, carrier: 4, bc: 3, hive: 4 };
+const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, tankbio: 5, vulture: 4, ling: 9, hydra: 3, pool: 3, ultra: 3, corsair: 6, wraith: 4, muta: 7, carrier: 4, bc: 3, hive: 4, ghost: 4 };
 /** 출격 규모 상한. 저글링 물량만 더 크게 모은다(저글링은 인구 0.5). */
 const WAVE_CAP = { ling: 80 };
 /** 빌드 순서가 끝난 뒤 남는 자원으로 더 짓는 생산 건물. */
-const EXTRA_PRODUCER = { bio: "barracks", mech: "factory", tankbio: "barracks", vulture: "factory", ling: "hatch", hydra: "hatch", pool: "hatch", ultra: "hatch", corsair: "gateway", wraith: "factory", muta: "hatch", carrier: "gateway", bc: "factory", hive: "hatch" };
+const EXTRA_PRODUCER = { ghost: "barracks", bio: "barracks", mech: "factory", tankbio: "barracks", vulture: "factory", ling: "hatch", hydra: "hatch", pool: "hatch", ultra: "hatch", corsair: "gateway", wraith: "factory", muta: "hatch", carrier: "gateway", bc: "factory", hive: "hatch" };
 /** 일꾼을 적게 뽑고 일찍 찌르는 성향: 이 시간(초)까지는 일꾼 수를 제한한다. */
 const EARLY_WORKER_CAP = { pool: { until: 210, cap: 14 } };
 /** 광물이 크게 쌓이면 성향과 상관없이 늘리는 기본 생산 건물. */
@@ -232,10 +242,12 @@ const ALERT_TECH = new Set(["core", "academy", "den", "evo", "shop"]);
  */
 // 캐리어 함대는 가스가 모자라던 때(일꾼당 0.55) 넣었더니 병력이 얇아 평원 승률이 19% → 11%로 떨어져 뺐다가, 가스 0.8에서 다시 넣었다.
 /** 대표 유닛이 가스를 많이 먹는 성향: 일꾼이 18기를 넘으면 남은 간헐천에 가스 건물을 더 짓는다. */
-const GAS_HUNGRY = new Set(["templar", "dark", "robo", "carrier", "corsair", "bc", "wraith", "tankbio", "mech", "ultra", "hive", "hydra", "muta"]);
+const GAS_HUNGRY = new Set(["ghost", "templar", "dark", "robo", "carrier", "corsair", "bc", "wraith", "tankbio", "mech", "ultra", "hive", "hydra", "muta"]);
+/** 성향의 핵심 연구(순서대로): 건물이 서면 다른 지출보다 먼저 한다. */
+const KEY_RESEARCH = { ghost: ["lockdown", "personnelCloak"] };
 const TECH_STEPS = {
   muta: ["lair", "spire"], ultra: ["lair", "cavern"], hive: ["lair", "nest", "hive", "mound"],
-  bc: ["factory", "starport", "science"], templar: ["core", "citadel", "archives", "storm"],
+  bc: ["factory", "starport", "science"], ghost: ["factory", "starport", "science", "lockdown", "personnelCloak"], templar: ["core", "citadel", "archives", "storm"],
   robo: ["core", "robo", "bay"], dark: ["core", "citadel", "archives"], wraith: ["factory", "starport"],
   // 캐리어 함대: 가스 채취량을 올린 뒤에는 가스가 1,000 넘게 쌓이는데 광물을 드라군에 다 써서 스타게이트 8분, 비컨 11분이었다.
   carrier: ["stargate", "beacon"],
@@ -415,6 +427,15 @@ export function stwAiThink(state, side) {
       else if (/광물/.test(check.reason ?? "")) save(STW_BUILDINGS[nextTech].minerals, 0, true);
     }
   }
+  // 0-0-1. 핵심 연구(KEY_RESEARCH): 연구할 건물이 섰는데 아직 안 했으면, 적이 밀고 오는 중이 아닌 한 그 비용을 반드시 아낀다.
+  // 고스트 특수전이 사이언스 퍼실리티를 7분에 올리고도 해병에 광물을 다 써 11분까지 락다운(200/200)을 시작하지 못했다.
+  for (const id of KEY_RESEARCH[persona] ?? []) {
+    if (record.research[id]) continue;
+    const check = stwResearchCheck(state, side, id);
+    if (check.ok) stwCommand(state, side, { type: "research", research: id });
+    else if (/부족/.test(check.reason ?? "") && !incomingWave(state, side)) save(STW_RESEARCH[id].minerals, STW_RESEARCH[id].gas, true);
+    break;
+  }
   // 0-1. 테크 성향은 일꾼이 18기를 넘으면 남은 간헐천에 가스 건물을 더 짓는다(본진 둘 + 앞마당 하나). 가스 일꾼 3~6기로는
   // 대표 유닛과 연구를 함께 댈 수 없었다.
   if (GAS_HUNGRY.has(persona) && state.time > 300 && record.probes >= 18 && !alert && record.minerals - reserve.minerals >= STW_BUILDINGS[race.refinery].minerals) {
@@ -461,6 +482,11 @@ export function stwAiThink(state, side) {
       if (!lostStep(state, side, order, index, memory)) continue;
       memory.done = memory.done.filter((item) => item !== index);
       memory.built = memory.built.filter((item) => item !== index);
+    }
+    // 상대 종족을 가리는 단계(락다운·고스트 은폐는 기계 유닛이 없는 저그 상대로 하지 않는다)는 끝난 것으로 넘긴다.
+    if (step.vs && !step.vs.includes(state.sides[stwOpponent(side)].race)) {
+      memory.done.push(index);
+      continue;
     }
     if (step.at && state.time < step.at * STW_DIFFICULTIES[state.difficulty].waveScale) {
       blocked += 1;
@@ -857,7 +883,13 @@ function terranLines(state, side, persona, units, reserve) {
   const academy = stwHas(state, side, "academy");
   const shop = stwHas(state, side, "shop");
   const versusZerg = state.sides[stwOpponent(side)].race === "zerg";
-  const bioLike = persona === "bio" || persona === "tankbio";
+  const bioLike = persona === "bio" || persona === "tankbio" || persona === "ghost";
+  const ghosts = count("ghost");
+  const science = stwHas(state, side, "science");
+  // 고스트를 뽑을 상대: 기계 유닛이 병력의 30% 넘게 보이거나, 아직 못 봤으면 프로토스(드라군·리버·캐리어)일 때. 고스트 특수전은 늘 뽑는다.
+  const foeMix0 = foeMix(state, side);
+  const mechShare = foeMix0 ? MIX_TYPES.reduce((sum, type) => sum + (STW_UNITS[type]?.mech ? foeMix0[type] ?? 0 : 0), 0) : null;
+  const mechFoe = state.sides[stwOpponent(side)].race !== "zerg" && (mechShare === null ? state.sides[stwOpponent(side)].race === "protoss" : mechShare > 0.3);
   // 상대 구성 대응: 소형 근접(질럿·저글링)이 많으면 파이어뱃·벌처, 대형(드라군·리버)·히드라가 많으면 시즈 탱크.
   const mix = foeMix(state, side);
   const meleeHeavy = mix && mix.zealot + mix.dark + mix.zergling + mix.ultra > 0.5;
@@ -872,8 +904,10 @@ function terranLines(state, side, persona, units, reserve) {
     if (academy && bioLike) unit = medics * 4 < marines ? "medic" : !airHeavy && index % (versusZerg || meleeHeavy ? 3 : 4) === (versusZerg || meleeHeavy ? 2 : 3) ? "firebat" : "marine";
     // 메카닉 성향은 배럭을 광물이 남을 때만 돌린다.
     if ((persona === "mech" || persona === "vulture" || persona === "wraith" || persona === "bc") && units.length > 10 && record.minerals < 300 && !airDominant) unit = null;
-    // 락다운을 연구했으면 배럭 하나는 고스트(셋까지): 드라군·리버·캐리어 같은 기계 유닛을 묶는다.
-    if (index === 0 && stwResearchDone(state, side, "lockdown") && count("ghost") < 3) unit = "ghost";
+    // 바이오닉·탱크 바이오: 락다운을 연구했고 상대에 기계 유닛이 많으면 배럭 하나는 고스트(넷까지). 드라군·리버·캐리어·탱크를 묶는다.
+    if (index === 0 && persona !== "ghost" && mechFoe && stwResearchDone(state, side, "lockdown") && ghosts < 4) unit = "ghost";
+    // 고스트 특수전: 사이언스 퍼실리티가 서면 배럭 둘은 고스트(열까지), 나머지는 해병·메딕.
+    if (persona === "ghost" && science && index < 2 && ghosts < 6) unit = "ghost";
     if (unit && STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + gasReserveFor(unit)) unit = "marine";
     const starving = unit && reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && units.length >= 3 && reserve.safe;
     // 광물을 기다리며 놀고 있는 배럭만 멈춘다(만드는 중이면 그것까지는 끝낸다). 병력이 안전하지 않으면 멈추지 않는다.
@@ -886,6 +920,8 @@ function terranLines(state, side, persona, units, reserve) {
     // 벌처 러시: 벌처 위주, 시즈 모드가 끝나면 팩토리 셋 중 하나는 탱크.
     // 벌처 러시: 머신 샵이 서면 팩토리 둘 중 하나는 탱크(완벽한 카이팅이 사라진 뒤 벌처만으로는 못 민다).
     else if (persona === "vulture") unit = shop && index % 2 === 1 ? "tank" : "vulture";
+    // 고스트 특수전: 시즈 탱크는 여섯까지만(가스는 고스트에), 머신 샵 전에는 벌처로 버틴다.
+    else if (persona === "ghost") unit = shop ? (count("tank") < 6 ? "tank" : null) : count("vulture") < 4 ? "vulture" : null;
     else if (shop) unit = meleeHeavy && index % 2 === 1 ? "vulture" : "tank";
     else if (meleeHeavy) unit = "vulture";
     // 대형 상대로는 벌처 대신 탱크를 늘린다.
@@ -904,12 +940,13 @@ function terranLines(state, side, persona, units, reserve) {
   });
   // 스타포트: 레이스 메카닉은 레이스를 계속, 다른 성향은 가스가 남을 때만.
   const wraiths = count("wraith");
-  const science = stwHas(state, side, "science");
   stwOwnBuildings(state, side, "starport", { doneOnly: true }).sort((a, b) => a.id - b.id).forEach((starport, index) => {
     // 상대가 대공 위주면 레이스는 3기에서 그치고 가스를 탱크에 쓴다.
     let unit = (persona === "wraith" && wraiths < (antiAirShare(mix) > 0.5 ? 3 : 6)) || (record.gas > 400 && wraiths < 4) ? "wraith" : null;
     // 배틀크루저: 사이언스 퍼실리티가 서면 배틀크루저만.
     if (persona === "bc") unit = science ? "battlecruiser" : null;
+    // 고스트 특수전은 스타포트를 사이언스 퍼실리티의 선행 건물로만 쓴다(가스는 고스트에).
+    else if (persona === "ghost") unit = null;
     // 바이오닉·탱크 바이오는 사이언스 베슬 둘(이레디에이트·EMP·탐지).
     else if ((persona === "bio" || persona === "tankbio") && science && count("vessel") < 2) unit = "vessel";
     // 레이스 메카닉은 8분 뒤 드랍십 하나로 본진 침투를 노린다.
@@ -935,6 +972,8 @@ function signatureUnit(state, side, persona) {
   // 캐리어 함대·배틀크루저: 함선을 만들 수 있게 되면 가스를 먼저 그쪽에 모은다(드라군·탱크 대신 질럿·벌처).
   if (persona === "carrier" && stwHas(state, side, "beacon") && count("carrier") < 8) return "carrier";
   if (persona === "bc" && stwHas(state, side, "science") && count("battlecruiser") < 8) return "battlecruiser";
+  if (persona === "ghost" && stwHas(state, side, "shop") && count("tank") < 4) return "tank";
+  if (persona === "ghost" && stwHas(state, side, "science") && count("ghost") < 6) return "ghost";
   // 템플러 테크: 아카이브가 서고 스톰을 연구했거나 연구 중이면 하이템플러(아콘은 둘로 친다) 여섯까지.
   if (persona === "templar" && stwHas(state, side, "archives") && record.research.storm && count("templar") + count("archon") * 2 < 6) return "templar";
   // 로보 운영: 지원 베이가 서면 리버 넷까지.
@@ -1435,7 +1474,10 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 시야 판단으로 물러난 뒤 45초 동안은 그때 본 적보다 1.25배 넘게 강해져야 다시 나간다(물러났다 바로 다시 들어가는 왕복을 막는다).
   const abortHold = !allIn && memory.abortedAt !== undefined && state.time - memory.abortedAt < 45 && armyPower(army.fighters) < (memory.abortFoe ?? 0) * 1.25;
   const macroHold = !allIn && memory.macroUntil !== undefined && state.time < memory.macroUntil && (record.probes < 30 || !stwNexus(state, side, "natural"));
-  if (fighterCount >= size && !outgunned && !fortified && !lingsIntoBio && !macroHold && !abortHold && threat < 3) {
+  // 고스트 특수전: 락다운을 쓸 수 있는(에너지 100 이상) 고스트가 넷 모일 때까지 방어 건물 곁에서 기다린다. 14분이 지나면 그냥 나간다.
+  const ghostHold = persona === "ghost" && !allIn && state.time < 840
+    && (!stwResearchDone(state, side, "lockdown") || army.fighters.filter((unit) => unit.type === "ghost" && unit.energy >= STW_SPELLS.lockdown.energy).length < 4);
+  if (fighterCount >= size && !outgunned && !fortified && !lingsIntoBio && !macroHold && !abortHold && !ghostHold && threat < 3) {
     const value = (type) => STW_UNITS[type].minerals + STW_UNITS[type].gas;
     const total = army.fighters.reduce((sum, unit) => sum + value(unit.type), 0);
     memory.waveLings = total ? army.fighters.reduce((sum, unit) => sum + (unit.type === "zergling" ? value(unit.type) : 0), 0) / total : 0;

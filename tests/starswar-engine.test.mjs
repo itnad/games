@@ -1652,7 +1652,7 @@ test("starswar zerg AI personas field their signature units and finish a game", 
 test("starswar terran and zerg each have four AI personas and the new ones field their signature units", async () => {
   const { STW_AI_PERSONAS } = await import("../app/starswar/starswar-data.js");
   const byRace = Object.values(STW_AI_PERSONAS).reduce((map, persona) => ((map[persona.race] = (map[persona.race] ?? 0) + 1), map), {});
-  assert.deepEqual(byRace, { protoss: 7, terran: 6, zerg: 6 });
+  assert.deepEqual(byRace, { protoss: 7, terran: 7, zerg: 6 });
   const games = {
     tankbio: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio", enemy: "templar" } }),
     vulture: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "vulture", enemy: "dragoon" } }),
@@ -3706,4 +3706,42 @@ test("starswar ghosts hang back while charging lockdown, then step up and lock t
     }
     assert.equal(cast, expected, `에너지 ${energy}일 때 벌처 락다운`);
   }
+});
+
+test("starswar ghost strategy: defends with bunkers and tanks, researches lockdown and cloak, fields ghosts; never picked against zerg; mech no longer builds ghosts", async () => {
+  const { STW_AI_PERSONAS } = await import("../app/starswar/starswar-data.js");
+  assert.deepEqual(STW_AI_PERSONAS.ghost.avoid, ["zerg"]);
+  // 무작위로 고를 때 저그 상대로는 나오지 않는다(락다운은 기계 유닛에만 걸린다). 프로토스 상대로는 나온다.
+  const picked = (enemyRace) => new Set(Array.from({ length: 60 }, (_, seed) => createStarswarGame({ seed: (seed + 1) * 2654435761, aiSides: ["enemy"], races: { player: enemyRace, enemy: "terran" } }).sides.enemy.persona));
+  assert.ok(!picked("zerg").has("ghost"));
+  assert.ok(picked("protoss").has("ghost"));
+
+  // 고스트 특수전 대 프로토스: 벙커 둘 이상, 락다운·은폐 연구, 고스트가 나온다.
+  const game = createStarswarGame({ seed: 13, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "ghost", enemy: "carrier" } });
+  let bunkers = 0;
+  let ghosts = 0;
+  let tanks = 0;
+  while (game.status === "playing" && game.time < 720) {
+    stepStarswar(game, stwAiThink);
+    if (Math.round(game.time * 10) % 50 === 0) {
+      bunkers = Math.max(bunkers, stwOwnBuildings(game, "player", "bunker").length);
+      ghosts = Math.max(ghosts, game.units.filter((unit) => unit.side === "player" && unit.type === "ghost").length);
+      tanks = Math.max(tanks, game.units.filter((unit) => unit.side === "player" && unit.type === "tank").length);
+    }
+  }
+  assert.ok(bunkers >= 2, `벙커 ${bunkers}`);
+  assert.ok(tanks >= 2, `시즈 탱크 ${tanks}`);
+  assert.equal(game.sides.player.research.lockdown, "done");
+  assert.ok(game.sides.player.research.personnelCloak, "고스트 은폐 연구");
+  assert.ok(ghosts >= 3, `고스트 ${ghosts}`);
+
+  // 메카닉은 사이언스 퍼실리티·락다운·고스트를 쓰지 않는다(고스트는 보병 계열이라 바이오닉·탱크 바이오로 옮겼다).
+  const mech = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "mech" } });
+  let mechGhosts = 0;
+  while (mech.status === "playing" && mech.time < 900) {
+    stepStarswar(mech, stwAiThink);
+    if (Math.round(mech.time * 10) % 50 === 0) mechGhosts += mech.units.filter((unit) => unit.side === "player" && unit.type === "ghost").length;
+  }
+  assert.equal(mechGhosts, 0);
+  assert.equal(mech.sides.player.research.lockdown, undefined);
 });

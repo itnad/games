@@ -132,6 +132,7 @@ function basePersona(race, features, tags) {
   }
   if (race === "terran") {
     if (share("battlecruiser") > 0.05) return "bc";
+    if (share("ghost") > 0.12) return "ghost";
     if (share("wraith") > 0.15) return "wraith";
     if (share("tank") > 0.15 && share("marine", "medic", "firebat") > 0.3) return "tankbio";
     if (share("vulture") > 0.35) return "vulture";
@@ -247,7 +248,7 @@ function score(entry, total) {
  * 돌려주는 값: { persona, plan } (plan이 있으면 그 계획을 밟는다).
  */
 export function stwLearnPick(snapshot, aiRace, foeRace, rand, map = "plain") {
-  const personas = Object.values(STW_AI_PERSONAS).filter((persona) => persona.race === aiRace || (!persona.race && aiRace === "protoss")).map((persona) => persona.id);
+  const personas = Object.values(STW_AI_PERSONAS).filter((persona) => (persona.race === aiRace || (!persona.race && aiRace === "protoss")) && !persona.avoid?.includes(foeRace)).map((persona) => persona.id);
   const plans = (snapshot?.plans ?? []).filter((plan) => plan.race === aiRace);
   const choices = [...personas.map((id) => ({ key: id, persona: id, plan: null })), ...plans.map((plan) => ({ key: `plan:${plan.id}`, persona: plan.base, plan }))];
   const overall = mapTable(snapshot?.stats, `${aiRace}|${foeRace}`, map);
