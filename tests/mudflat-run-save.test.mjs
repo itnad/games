@@ -72,6 +72,29 @@ test("live save round trip preserves actual world, time, stats, drops, equipment
   }
 });
 
+test("live save keeps a detached stage-entry checkpoint for rescue retries", () => {
+  const { campaign, runtime } = fixture();
+  const stageEntryCampaign = {
+    ...campaign, coins: 2400, hp: 91, level: 7, xp: 3,
+    levels: { ...campaign.levels, electric: 3 }, equipment: { ...campaign.equipment, headlamp: 1 },
+    inventory: { clam: 2 }, lastHaul: { crab: 1 },
+  };
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime, [], 30, 1000, stageEntryCampaign), makeRuntime);
+  assert.ok(restored);
+  assert.deepEqual(restored.stageEntryCampaign, stageEntryCampaign);
+  assert.notEqual(restored.stageEntryCampaign, stageEntryCampaign);
+  assert.notEqual(restored.stageEntryCampaign.levels, stageEntryCampaign.levels);
+  assert.equal(restored.campaign.level, runtime.level, "the live run still keeps current growth separately");
+  restored.stageEntryCampaign.levels.electric = 99;
+  assert.equal(stageEntryCampaign.levels.electric, 3);
+
+  const legacy = JSON.parse(encodeMudflatRun(campaign, runtime, [], 30, 1000));
+  delete legacy.stageEntryCampaign;
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.deepEqual(legacyRestored.stageEntryCampaign, legacyRestored.campaign, "older saves fall back safely to their saved campaign state");
+});
+
 test("net/harpoon hit histories become Sets and restored IDs cannot collide", () => {
   const { campaign, runtime } = fixture();
   const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime, [], 1), makeRuntime);

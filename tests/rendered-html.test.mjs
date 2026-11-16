@@ -163,6 +163,8 @@ import {
   mudflatMudZombieCount,
   mudflatJellyfishInterval,
   mudflatJellyfishPoisonDamage,
+  mudflatSeafoodSwarmCount,
+  mudflatSeafoodSwarmInterval,
   mudflatPearlTestTapProgress,
   mudflatMosquitoAppears,
   mudflatMosquitoChance,
@@ -1242,6 +1244,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatJellyfishInterval(7), Infinity);
   assert.equal(mudflatJellyfishInterval(8), 30);
   assert.equal(mudflatJellyfishPoisonDamage(), 4);
+  assert.deepEqual([0, .19, .2, .79, .8, .999999].map((roll) => mudflatSeafoodSwarmCount(6, roll)), [8, 8, 9, 11, 12, 12]);
+  assert.equal(mudflatSeafoodSwarmCount(5, .5), 0);
+  assert.equal(mudflatSeafoodSwarmCount(7, .999999), 13);
+  assert.equal(mudflatSeafoodSwarmCount(10, .999999), 16);
+  assert.equal(mudflatSeafoodSwarmInterval(5, .5, .5), Infinity);
+  assert.ok(mudflatSeafoodSwarmInterval(6, 0, 0) < mudflatSeafoodSwarmInterval(6, 0, .5));
+  assert.ok(mudflatSeafoodSwarmInterval(6, 0, .5) < mudflatSeafoodSwarmInterval(6, 0, .9));
+  assert.ok(mudflatSeafoodSwarmInterval(6, 0, 0, true) >= 9);
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
   assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["쓸어담기", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
@@ -1470,9 +1480,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const \[mode, setMode\] = useState<GameMode>\("normal"\)/);
   assert.match(source, /const defaultCharacterId = \(mode: GameMode\) => mode === "normal" \? "beginner" : "digger";/);
   assert.match(source, /const \[characterId, setCharacterId\] = useState\(defaultCharacterId\("normal"\)\)/);
-  assert.match(source, /const lastMode = window\.localStorage\.getItem\(LAST_MODE_KEY\)[\s\S]*?if \(lastMode === "kids" \|\| lastMode === "normal"\) \{\s*setMode\(lastMode\);\s*setCharacterId\(defaultCharacterId\(lastMode\)\);/);
-  assert.match(source, /setMode\("normal"\); window\.localStorage\.setItem\(LAST_MODE_KEY, "normal"\)/);
-  assert.match(source, /setMode\("kids"\); window\.localStorage\.setItem\(LAST_MODE_KEY, "kids"\)/);
+  assert.doesNotMatch(source, /localStorage\.(?:getItem|setItem)\(LAST_MODE_KEY/);
+  assert.match(source, /setMode\("normal"\); setCharacterId\("beginner"\)/);
+  assert.match(source, /setMode\("kids"\); setCharacterId\(\(current\) => CHARACTERS\.some/);
+  assert.match(source, /const reset = \(\) => \{[\s\S]*?setMode\("normal"\); setCharacterId\(defaultCharacterId\("normal"\)\); setHud\(\{ \.\.\.emptyHud, mode: "normal" \}\)/);
   assert.match(source, /const LUMI_HOLD_MS = 3_000;/);
   assert.match(source, /setCharacterId\(LUMI_CHARACTER\.id\)/);
   assert.match(source, /onPointerDown=\{isLumi \? startLumiPointerHold : undefined\}/);
@@ -1494,8 +1505,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /className="ms-defeat-art" src=\{MUDFLAT_DEFEAT_ART_SRC\} width=\{MUDFLAT_DEFEAT_ART_WIDTH\} height=\{MUDFLAT_DEFEAT_ART_HEIGHT\} decoding="async"/);
   assert.ok(defeatWebp.length < defeatPng.length / 4, "defeat art WebP should be much lighter while the PNG original remains available");
   assert.match(source, /onClick=\{reset\}>메인 화면으로/);
-  assert.match(source, /onRetry=\{\(\) => beginAtStage\(hud\.stage\)\} onSecretRetry=\{retryWithProgress\}/);
-  assert.match(source, /hud\.stage === 9 \? "끝없는 물때 재도전" : `\$\{hud\.stage\}단계 재도전`/);
+  assert.match(source, /onRetry=\{retryFromCheckpoint\} onSecretRetry=\{retryFromCheckpoint\}/);
+  assert.match(source, /hud\.stage === 9 \? "끝없는 물때 구조 재도전" : `\$\{hud\.stage\}단계 구조 재도전`/);
   assert.doesNotMatch(source, /onClick=\{\(\) => setScreen\("camp"\)\}>정비소에서 재도전/);
   assert.doesNotMatch(source, /virtual-joystick|joystick-knob|joystick-base/);
   assert.match(source, /totalScore: number;\s*lastBossCaught: boolean/);
@@ -1720,7 +1731,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /drawMudflatDarkness\(context, width, height, stageProfile\.darkness, mudflatHeadlampDiscoveryRange\(runtime\.equipment\.headlamp \?\? 0\), runtime\.player\.facing, runtime\.equipment\.headlamp \?\? 0\)/);
   assert.doesNotMatch(source, /fillSightCone\(HEADLAMP_CONE_HALF_ANGLE, \.48\)/);
   assert.doesNotMatch(source, /const radius = headlamp \? 215 : 112/);
-  assert.match(source, /해산물 무리가 몰려옵니다/);
+  assert.doesNotMatch(source, /해산물 무리가 몰려옵니다/);
   assert.match(source, /정규 원정을 완주해 끝없는 물때가 열렸습니다/);
   assert.match(source, /context\.fillText\(emptyHazard\.message, width \/ 2, height \/ 2 - 69\)/);
   assert.match(source, /drawRockHookBar\(context, \{ x: width \/ 2, y: height \/ 2 \}, point, runtime\.rockFlipEffect\)/);
@@ -1829,10 +1840,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawFirstMoveGuide\(/);
   assert.match(source, /tutorialElapsed: 0, firstMoveGuide/);
   assert.match(source, /const shouldAutoStartTutorial = \(stage: number, secretEntry: boolean, tutorialEntry: boolean\) => \(/);
-  assert.match(source, /tutorialEntry \|\| \(!secretEntry && highestUnlockedStage <= 1\)/);
-  assert.match(source, /if \(!shouldAutoStartTutorial\(entryStage, secretEntry, tutorialEntry\)\) runtime\.firstMoveGuide = null/);
+  assert.match(source, /mode === "kids" \|\| \(mode === "normal" && stage === 1 && \(tutorialEntry \|\| \(!secretEntry && highestUnlockedStage <= 1\)\)\)/);
+  assert.match(source, /runtime\.firstMoveGuide = shouldAutoStartTutorial\(entryStage, secretEntry, tutorialEntry\) \? createFirstMoveGuide\(\) : null/);
   assert.match(source, /const beginWithTutorial = \(\) => beginAtStage\(1, false, true\)/);
   assert.match(source, /className="ms-tutorial-start"[\s\S]*튜토리얼부터/);
+  assert.match(source, /runtime\.mode === "kids"[\s\S]*?drawGuideMarker\(context, target, 31, "채집 효과로"/);
+  assert.match(source, /title: "채집 효과가 닿도록 연습용 게 가까이 가세요"/);
+  assert.match(source, /runtime\.mode === "kids" \? "좋아요\. 이번엔 채집 효과가 닿도록 게 가까이 가봐요\."/);
+  assert.match(source, /runtime\.mode === "normal" \|\| tutorialActiveAtFrame \? runtime\.rocks\.find/);
   assert.match(source, /hud\.tutorialActive && <button type="button" className="ms-tutorial-skip" onClick=\{skipFirstMoveGuide\}>튜토리얼 건너뛰기<\/button>/);
   assert.match(source, /const showTutorialDamageAndReset = \(message: string, safePoint: Point\) => \{/);
   assert.match(source, /damagePlayer\(1, "#ff7868"\);[\s\S]*?runtime\.player\.hp = runtime\.player\.maxHp/);
@@ -1842,7 +1857,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-tutorial-skip\{/);
   assert.match(styles, /\.ms-tutorial-skip\{[^}]*bottom:54px;[^}]*color:#4d3824;[^}]*background:linear-gradient\(135deg,#fff8df,#f2d99f\)/);
   assert.match(source, /직접 해보는 첫 움직임/);
-  assert.match(source, /목표 지점까지 드래그해 이동해보세요/);
+  assert.match(source, /시간 미차감/);
+  assert.match(source, /빈 곳을 누른 채 이동 방향으로 밀어보세요/);
+  assert.match(source, /캐릭터를 직접 누를 필요가 없습니다/);
   assert.match(source, /집게 끝으로 연습용 게를 건드리세요/);
   assert.match(source, /drawGuideDottedTipArrow\(context, tip, target, actionTime\)/);
   assert.doesNotMatch(source, /context\.arc\(tip\.x, tip\.y, 17/);
@@ -1855,15 +1872,18 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const cycleSeconds = 2\.25/);
   assert.match(source, /const current = \{ x: from\.x \+ \(to\.x - from\.x\) \* dragProgress, y: from\.y \+ \(to\.y - from\.y\) \* dragProgress \}/);
   assert.match(source, /drawCursorHandIcon\(context, current, angle, alpha\)/);
-  assert.match(source, /drawGuideDragHand\(context, \{ x: center\.x, y: center\.y \+ 34 \}, target, actionTime\)/);
-  assert.match(source, /drawFirstMoveGuide\(context, width, height, runtime, screenPoint, actionTime\)/);
+  assert.match(source, /const handFrom = \{/);
+  assert.match(source, /x: handFrom\.x \+ directionX \/ directionLength \* 72/);
+  assert.match(source, /drawGuideMarker\(context, handFrom, 29, "빈 곳 어디서든"/);
+  assert.match(source, /if \(!inputActive\) \{[\s\S]*?drawGuideDragHand\(context, handFrom, handTo, actionTime\)/);
+  assert.match(source, /drawFirstMoveGuide\(context, width, height, runtime, screenPoint, actionTime, joystickRef\.current\.pointerId >= 0\)/);
   assert.doesNotMatch(source, /fillText\("손"/);
   const characterLayer = source.slice(source.indexOf("const lumiTongReach"), source.indexOf("if (runtime.stage === GAEBUL_STAGE"));
   assert.ok(characterLayer.indexOf("drawGatherer") < characterLayer.indexOf("for (const reveal of runtime.clamReveals)"), "clam reveal rewards draw above the gatherer");
   assert.match(source, /앗 따가워, 몸이 이상해\./);
   assert.match(source, /아 깜짝이야, 여기 돌이 있었네!/);
   assert.match(source, /HIGHEST_STAGE_KEY/);
-  assert.match(source, /장비·기술·경험치·코인은 모두 초기화됩니다/);
+  assert.match(source, /스테이지 진입 시점의 장비·기술·경험치로 복구됩니다/);
   assert.match(source, /\{Math\.floor\(hud\.hp\)\} \/ \{Math\.floor\(hud\.maxHp\)\}/);
   assert.match(source, /createRadialGradient[\s\S]*?rgba\(3,8,15,0\)/);
   assert.match(source, /const bubbleTop = Math\.max\(18, height \/ 2 - 116/);
@@ -1909,6 +1929,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const spawnCrabRush =/);
   assert.match(source, /const spawnMudZombieEvent =/);
   assert.match(source, /const spawnJellyfish =/);
+  assert.match(source, /const spawnSeafoodSwarm =/);
+  assert.match(source, /spawnSeafoodSwarm\(width, height\)/);
+  assert.match(source, /if \(runtime\.stage >= 6\)/);
+  assert.match(source, /mudflatSeafoodSwarmInterval\(runtime\.stage, runtimeRandom\(runtime\), runtimeRandom\(runtime\)\)/);
   assert.match(source, /eventKind: "jellyfish", uncollectible: true/);
   assert.match(source, /creature\.eventKind === "crab-line"/);
   assert.match(source, /runtime\.jellyPoisonSeconds = Math\.max\(runtime\.jellyPoisonSeconds, 4\)/);
@@ -3403,64 +3427,47 @@ test("periodic tides rise for one second, hit at the crest, and drain in one sec
   assert.equal(mudflatTideStats(242, 100).active, true, "return tide stays full instead of draining");
 });
 
-test("secret defeat retry preserves progression, restores full HP, and resets the stage world", async () => {
-  const { createDefeatRetrySnapshot, restoreDefeatRetryRuntime } = await import("../app/mudflat-retry.js");
+test("rescue retry restores the stage-entry checkpoint, fills HP, and charges thirty percent of coins", async () => {
+  const { createStageEntryCheckpoint, createRescueRetryCampaign, mudflatRescueCost, MUDFLAT_RESCUE_COST_RATE } = await import("../app/mudflat-retry.js");
+  assert.equal(MUDFLAT_RESCUE_COST_RATE, .3);
   for (const mode of ["normal", "kids"]) {
     const campaign = { version: 1, mode, characterId: mode === "kids" ? "netter" : "lumi", stage: 14, coins: 732,
       hp: 70, maxHp: 140, baseMaxHp: 100, level: 5, xp: 4, nextXp: 35,
       levels: { hoe: 1, net: 1 }, equipment: { vest: 2 }, inventory: { clam: 3 }, lastHaul: { crab: 2 },
       totalScore: 2400, lastSaleValue: 36, lastBossCaught: true, pendingSkillDiscovery: true };
-    const failed = { mode, stage: 14, elapsed: 265, player: { x: 850, y: -600, hp: 0, maxHp: 208, baseMaxHp: 100, speed: 155 },
-      level: 11, xp: 23, nextXp: 120, levels: { net: 6, hoe: 4, stamina: 6, snack: 2, boots: 3 },
-      equipment: { vest: 4, cooler: 5, headlamp: 2 }, basket: { crab: 9, clam: 11 }, caught: 20,
-      catchScore: 530, bossCaught: true, rocksFlipped: 6, bleedSeconds: 8, ended: true, paused: true };
-    const saved = createDefeatRetrySnapshot(campaign, failed);
-    assert.equal(saved.campaign.characterId, campaign.characterId);
-    assert.equal(saved.campaign.stage, 14, "endless stages must not be clamped to stage 9");
-    assert.equal(saved.campaign.coins, 732);
-    assert.equal(saved.campaign.totalScore, 2400);
-    for (const key of ["level", "xp", "nextXp"]) assert.equal(saved.campaign[key], failed[key]);
-    assert.deepEqual(saved.campaign.levels, failed.levels);
-    assert.deepEqual(saved.campaign.equipment, failed.equipment);
-    assert.equal(saved.campaign.hp, 208);
-    assert.equal(saved.campaign.maxHp, 208, "keep stamina and equipment max-health bonuses");
-    assert.equal(saved.campaign.pendingSkillDiscovery, false);
-    assert.notEqual(saved.campaign.levels, failed.levels);
-    assert.notEqual(saved.campaign.inventory, campaign.inventory);
-    assert.notEqual(saved.campaign.lastHaul, campaign.lastHaul);
+    const checkpoint = createStageEntryCheckpoint(campaign);
+    const { campaign: restored, rescueCost } = createRescueRetryCampaign(checkpoint);
+    assert.equal(restored.characterId, campaign.characterId);
+    assert.equal(restored.stage, 14, "endless stages must not be clamped to stage 9");
+    assert.equal(mudflatRescueCost(732), 220);
+    assert.equal(rescueCost, 220, "fractional costs round up so the full thirty-percent penalty is never waived");
+    assert.equal(restored.coins, 512);
+    assert.equal(restored.totalScore, 2400);
+    for (const key of ["level", "xp", "nextXp"]) assert.equal(restored[key], campaign[key]);
+    assert.deepEqual(restored.levels, campaign.levels);
+    assert.deepEqual(restored.equipment, campaign.equipment);
+    assert.equal(restored.hp, 140);
+    assert.equal(restored.maxHp, 140);
+    assert.equal(restored.pendingSkillDiscovery, false);
+    assert.notEqual(restored.levels, campaign.levels);
+    assert.notEqual(restored.inventory, campaign.inventory);
+    assert.notEqual(restored.lastHaul, campaign.lastHaul);
     assert.equal(campaign.hp, 70);
-    assert.equal(failed.player.hp, 0);
-    const fresh = { ...failed, elapsed: 0, player: { x: 0, y: 0, hp: 140, maxHp: 140, damageCooldown: 0, facing: 0 },
-      levels: { ...saved.campaign.levels }, equipment: { ...saved.campaign.equipment },
-      creatures: [], pickups: [], bleedSeconds: 0, paused: false, ended: false };
-    const restored = restoreDefeatRetryRuntime(fresh, saved);
-    assert.equal(restored.elapsed, 0);
-    assert.equal(restored.player.hp, 208);
-    assert.equal(restored.player.maxHp, 208);
-    assert.equal(restored.player.speed, 155);
-    assert.equal(restored.player.x, 0);
-    assert.equal(restored.player.damageCooldown, 0);
-    assert.equal(restored.bleedSeconds, 0);
-    assert.equal(restored.paused, false);
-    assert.equal(restored.ended, false);
-    assert.deepEqual(restored.creatures, []);
-    assert.deepEqual(restored.basket, { crab: 9, clam: 11 });
-    assert.equal(restored.caught, 20);
-    assert.equal(restored.catchScore, 530);
-    assert.equal(restored.rocksFlipped, 6);
-    assert.equal(restored.bossSpawned, true);
-    restored.basket.crab = 99;
-    assert.equal(saved.progress.basket.crab, 9);
-    assert.equal(fresh.player.hp, 140, "restoring does not mutate the template");
+    assert.equal(campaign.coins, 732);
+    assert.equal(checkpoint.coins, 732);
   }
+  assert.equal(mudflatRescueCost(0), 0);
+  assert.equal(mudflatRescueCost(1), 1);
   const source = await readMudflatSourceBundle();
-  assert.match(source, /defeatRetryRef.current = campaignRef.current \? createDefeatRetrySnapshot\(campaignRef.current, runtime\) : null/);
+  assert.match(source, /defeatRetryRef.current = stageEntryRef.current \? createStageEntryCheckpoint\(stageEntryRef.current\)/);
   const defeat = source.slice(source.indexOf('if (screen === "defeat") return'), source.indexOf('const pauseLayer ='));
   assert.match(defeat, /onClick=\{reset\}>메인 화면으로/);
   assert.doesNotMatch(defeat, /onClick=\{onExit\}>메인 화면으로|3초|비밀|길게 누르/);
   assert.match(source, /const beginAtStage = \(stage: number, secretEntry = false, tutorialEntry = false\) => \{\s*defeatRetryRef.current = null/);
-  assert.match(source, /const reset = \(\) => \{ defeatRetryRef.current = null/);
-  assert.match(source, /restoreDefeatRetryRuntime\(makeRuntime\(next\), saved\)/);
+  assert.match(source, /stageEntryRef.current = createStageEntryCheckpoint\(nextCampaign\)/);
+  assert.match(source, /const reset = \(\) => \{ defeatRetryRef.current = null; stageEntryRef.current = null/);
+  assert.match(source, /createRescueRetryCampaign\(checkpoint\)/);
+  assert.match(source, /runtime\.playerMessage = `구조 비용 \$\{rescueCost\.toLocaleString\(\)\}C를 내고 다시 갯벌로 돌아왔습니다\.`/);
 });
 
 test("secret route entry sets only the requested skills and leaves ordinary starts unchanged", async () => {
@@ -3739,7 +3746,7 @@ test("experience attraction respects its radius, tracks movement, and freezes sa
   assert.equal(pickup.visualY, player.y - 10);
 });
 
-test("keeps experience flights above gameplay art and uses the requested two-line retry note", async () => {
+test("keeps experience flights above gameplay art and explains checkpoint rescue cost", async () => {
   const source = await readMudflatSourceBundle();
   const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
   assert.equal((source.match(/runtime\.pickups\.push\(createExperiencePickup\(/g) ?? []).length, 2, "both creature and clam rewards use the animation");
@@ -3749,7 +3756,7 @@ test("keeps experience flights above gameplay art and uses the requested two-lin
   assert.ok(gathererDraw > 0 && source.indexOf("// Active rewards sit above") > gathererDraw);
   assert.match(source, /if \(earnedExperience > 0\) \{ hudClock = 0; snapshot\(runtime\); \}/);
   assert.match(source, /data-xp-collecting=\{hud\.xpCollecting \|\| undefined\}/);
-  assert.match(source, /<p className="ms-reentry-note">한 번 성공한 스테이지는 언제든 재도전 가능합니다\.<br \/>하지만 장비·기술·경험치·코인은 모두 초기화됩니다\.<\/p>/);
+  assert.match(source, /<p className="ms-reentry-note">스테이지 진입 시점의 장비·기술·경험치로 복구됩니다\.<br \/>보유 코인의 30%인 <strong>\{defeatRescueCost\.toLocaleString\(\)\}C<\/strong>가 구조 비용으로 차감됩니다\.<\/p>/);
   assert.match(styles, /\.ms-result\.defeat \.ms-reentry-note\{margin:10px 0 18px!important;color:#d6cbc7!important\}/);
   assert.doesNotMatch(source, /한 번 연 스테이지는 유지됩니다/);
 });
@@ -3829,6 +3836,12 @@ test("all rock, hole, and falling-rock spawn paths respect the camp exclusion", 
   assert.match(source, /if \(campObstacleAllowed\(hole, 48\)\) runtime\.clamHoles\.push\(hole\)/);
   assert.match(source, /kind(?:: ClamHole\["kind"\])? = runtime\.stage === GAEBUL_STAGE/);
   assert.match(source, /if \(campObstacleAllowed\(falling, falling\.radius \+ 20\)\) runtime\.fallingRocks\.push\(falling\)/);
+  assert.match(source, /function drawFallingRockTarget\(/);
+  assert.match(source, /function drawFallingRockBody\(/);
+  assert.match(source, /const fall = progress \* progress/);
+  assert.match(source, /drawFallingRockBody\(context, screenPoint\(falling\), falling, height\)/);
+  assert.match(source, /const FALLING_ROCK_DAMAGE = 100/);
+  assert.match(source, /damagePlayer\(FALLING_ROCK_DAMAGE, "#d69d68"\)/);
   for (const collection of ["rocks", "clamHoles", "fallingRocks"]) {
     assert.ok(source.includes(`runtime.${collection} = runtime.${collection}.filter((`), `existing ${collection} are cleared when camp appears`);
   }

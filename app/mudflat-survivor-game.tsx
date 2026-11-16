@@ -6,7 +6,7 @@ import { drawLumiGatherer, loadLumiArt } from "./mudflat-lumi-renderer";
 import { GameObjectiveGuide } from "./game-objective-guide";
 import { MudflatDailyChallengePanel, MudflatDailyResultPanel, submitMudflatDailyResult, type MudflatDailyResult, type MudflatDailyStart } from "./mudflat-daily-challenge-panel";
 import { MudflatHoldButton, MudflatRetryButton } from "./mudflat-retry-button";
-import { createDefeatRetrySnapshot, restoreDefeatRetryRuntime } from "./mudflat-retry.js";
+import { createRescueRetryCampaign, createStageEntryCheckpoint, mudflatRescueCost } from "./mudflat-retry.js";
 import { withSecretExpeditionSkills } from "./mudflat-secret-entry.js";
 import { CAST_NET_RETRY, advanceCastNets, castNetMovementMultiplier, castNetOnScreen, createCastNet, findCastNetTarget } from "./mudflat-cast-net.js";
 import { drawCastNetThrow } from "./mudflat-cast-net-renderer.js";
@@ -33,7 +33,6 @@ import {
   GENERAL_SKILL_LABELS,
   GENERAL_SKILL_ORDER,
   HIGHEST_STAGE_KEY,
-  LAST_MODE_KEY,
   LUMI_CHARACTER,
   LUMI_HOLD_MS,
   MOSQUITO_DAMAGE,
@@ -101,6 +100,8 @@ import {
   mudflatMudZombieCount,
   mudflatJellyfishInterval,
   mudflatJellyfishPoisonDamage,
+  mudflatSeafoodSwarmCount,
+  mudflatSeafoodSwarmInterval,
   mudflatPearlTestTapProgress,
   mudflatKidsNetCanTarget,
   mudflatMarketImageScale,
@@ -174,6 +175,7 @@ const GAEBUL_SPAWN_CHANCE = .24;
 const DEEP_MUD_GAUGE_RISE = .42;
 const DEEP_MUD_GAUGE_DECAY = .36;
 const DEEP_MUD_STUCK_SECONDS = .82;
+const FALLING_ROCK_DAMAGE = 100;
 const FIRST_MOVE_GUIDE_TARGET_RADIUS = 38;
 const FIRST_MOVE_GUIDE_DANGER_RADIUS = 62;
 const PEARL_TEST_TAP_RADIUS = 66;
@@ -203,7 +205,7 @@ type Runtime = {
   paused: boolean; ended: boolean;
 };
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; xpCollecting?: boolean; tutorialActive?: boolean; mosquitoRepellent?: boolean; caught: number; catchCapacity: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
-type SavedRun = { version: 1; savedAt: number; campaign: Campaign; runtime: Runtime; choiceIds: string[]; nextSequence: number };
+type SavedRun = { version: 1; savedAt: number; campaign: Campaign; stageEntryCampaign: Campaign; runtime: Runtime; choiceIds: string[]; nextSequence: number };
 type MudflatDevLaunch = { version: 1; campaign: Campaign; run?: boolean; tutorial?: boolean; label?: string; seed?: number };
 type ClamHarvestReward = { id: string; name: string; xp: number; score: number };
 
@@ -266,12 +268,9 @@ function MudflatTopbar({ onExit }: ExitProps) {
   );
 }
 
-function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
-  const stats = mudflatEquipmentStats(campaign.equipment, campaign.baseMaxHp, campaign.mode === "normal" ? campaign.levels.snack : 0);
-  const normalizedSeed = normalizeMudflatSeed(seed);
-  const mosquitoRoll = nextMudflatRandom(normalizedSeed ^ 0x6d6f7371).value;
-  const firstMoveGuide = campaign.mode === "normal" && campaign.stage === 1 ? {
-    step: "move" as FirstMoveGuideStep, stepClock: 0,
+function createFirstMoveGuide(): FirstMoveGuide {
+  return {
+    step: "move", stepClock: 0,
     moveTarget: { x: 92, y: -52 },
     catchPoint: { x: 198, y: -54 },
     catchCreatureId: 0,
@@ -280,7 +279,15 @@ function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
     avoidRockPoint: { x: 122, y: 104 },
     avoidRockId: 0,
     avoidTarget: { x: 22, y: 116 },
-  } : null;
+  };
+}
+
+function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
+  const stats = mudflatEquipmentStats(campaign.equipment, campaign.baseMaxHp, campaign.mode === "normal" ? campaign.levels.snack : 0);
+  const normalizedSeed = normalizeMudflatSeed(seed);
+  const mosquitoRoll = nextMudflatRandom(normalizedSeed ^ 0x6d6f7371).value;
+  const initialSwarmRoll = nextMudflatRandom(normalizedSeed ^ 0x73776172).value;
+  const firstMoveGuide = campaign.mode === "normal" && campaign.stage === 1 ? createFirstMoveGuide() : null;
   return {
     mode: campaign.mode, stage: campaign.stage, seed: normalizedSeed, rngState: normalizedSeed, lumiMotion: createLumiMotion(),
     xpCollectLife: 0,
@@ -294,7 +301,7 @@ function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
     headlampSpawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, selfShockNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
     playerMessage: "", playerMessageLife: 0, playerMessageOpacity: 1, pufferTouching: false, hiddenRockClock: mudflatHiddenRockStage(campaign.stage) ? .5 : 0, hiddenRockIntroShown: false, catchFullNoticeClock: 0,
     hoeEffect: 0, rockFlipEffect: null, bleedSeconds: 0, bleedTickClock: 1, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0, deepMudGauge: 0, deepMudLock: 0, deepMudStepClock: 0,
-    safeZone: { x: 90, y: 0 }, baseCamp: { ...BASE_CAMP }, baseCampGuideShown: false, tideDamageClock: 1, tideMessageClock: 0, lastTideCycle: 0, lastHillCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, mosquitoClock: 10, mosquitoRunEnabled: mudflatMosquitoRunEnabled(campaign.stage, mosquitoRoll), rocksFlipped: 0,
+    safeZone: { x: 90, y: 0 }, baseCamp: { ...BASE_CAMP }, baseCampGuideShown: false, tideDamageClock: 1, tideMessageClock: 0, lastTideCycle: 0, lastHillCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: campaign.stage >= 6 ? mudflatSeafoodSwarmInterval(campaign.stage, initialSwarmRoll, 0, true) : -1, mosquitoClock: 10, mosquitoRunEnabled: mudflatMosquitoRunEnabled(campaign.stage, mosquitoRoll), rocksFlipped: 0,
     paused: false, ended: false,
   };
 }
@@ -678,7 +685,7 @@ function drawGuideDragHand(context: CanvasRenderingContext2D, from: Point, to: P
   drawCursorHandIcon(context, current, angle, alpha);
 }
 
-function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, height: number, runtime: Runtime, screenPoint: (point: Point) => Point, actionTime: number) {
+function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, height: number, runtime: Runtime, screenPoint: (point: Point) => Point, actionTime: number, inputActive = false) {
   const guide = runtime.firstMoveGuide;
   if (!guide || guide.step === "done") return;
   const guideAlpha = Math.min(1, runtime.tutorialElapsed * 2.4);
@@ -686,9 +693,12 @@ function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, he
   const cardWidth = Math.min(width - 28, 376);
   const cardLeft = width / 2 - cardWidth / 2;
   const cardTop = Math.min(height - 174, Math.max(86, height * .13));
+  const catchStep = runtime.mode === "kids"
+    ? { step: "2 / 4", title: "채집 효과가 닿도록 연습용 게 가까이 가세요", body: "캐릭터 주위의 채집 기술로 잡되, 몸은 닿지 않게 거리를 유지하세요." }
+    : { step: "2 / 4", title: "집게 끝으로 연습용 게를 건드리세요", body: "캐릭터 몸이 아니라 집게 끝이 닿아야 채집됩니다." };
   const steps: Record<Exclude<FirstMoveGuideStep, "done">, { step: string; title: string; body: string }> = {
-    move: { step: "1 / 4", title: "목표 지점까지 드래그해 이동해보세요", body: "튜토리얼 동안 1스테이지 시간은 줄지 않습니다." },
-    catch: { step: "2 / 4", title: "집게 끝으로 연습용 게를 건드리세요", body: "캐릭터 몸이 아니라 집게 끝이 닿아야 채집됩니다." },
+    move: { step: "1 / 4", title: "빈 곳을 누른 채 이동 방향으로 밀어보세요", body: "캐릭터를 직접 누를 필요가 없습니다." },
+    catch: catchStep,
     dig: { step: "3 / 4", title: "구멍 위에 머물러 호미질하세요", body: "완성되면 조개가 떠오르고, 호미질 레벨이 높을수록 좋은 결과 확률이 올라갑니다." },
     avoid: { step: "4 / 4", title: "돌을 피해 안전 지점까지 이동하세요", body: "돌에 부딪히면 체력이 줄어드니 옆으로 돌아가세요." },
   };
@@ -697,17 +707,36 @@ function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, he
   context.globalAlpha = guideAlpha;
   if (guide.step === "move") {
     const target = screenPoint(guide.moveTarget);
+    const directionX = target.x - center.x;
+    const directionY = target.y - center.y;
+    const directionLength = Math.hypot(directionX, directionY) || 1;
+    const handFrom = {
+      x: Math.max(58, Math.min(width - 58, center.x - 130)),
+      y: Math.max(cardTop + 128, Math.min(height - 104, center.y + 132)),
+    };
+    const handTo = {
+      x: handFrom.x + directionX / directionLength * 72,
+      y: handFrom.y + directionY / directionLength * 72,
+    };
     drawGuideArrow(context, center, target, actionTime);
     drawGuideMarker(context, target, FIRST_MOVE_GUIDE_TARGET_RADIUS, "이동 목표", "#ffd873", actionTime);
-    drawGuideDragHand(context, { x: center.x, y: center.y + 34 }, target, actionTime);
+    if (!inputActive) {
+      drawGuideMarker(context, handFrom, 29, "빈 곳 어디서든", "#fff0b7", actionTime);
+      drawGuideDragHand(context, handFrom, handTo, actionTime);
+    }
   } else if (guide.step === "catch") {
     const creature = runtime.creatures.find((item) => item.id === guide.catchCreatureId);
     const target = screenPoint(creature ?? guide.catchPoint);
-    const tong = mudflatTongStats(runtime.levels.tongs ?? 1);
-    const angle = actionTime * tong.rotationSpeed;
-    const tip = { x: center.x + Math.cos(angle) * tong.reach, y: center.y + Math.sin(angle) * tong.reach };
-    drawGuideDottedTipArrow(context, tip, target, actionTime);
-    drawGuideMarker(context, target, 31, "집게 끝으로", "#ff986f", actionTime);
+    if (runtime.mode === "kids") {
+      drawGuideArrow(context, center, target, actionTime);
+      drawGuideMarker(context, target, 31, "채집 효과로", "#ff986f", actionTime);
+    } else {
+      const tong = mudflatTongStats(runtime.levels.tongs ?? 1);
+      const angle = actionTime * tong.rotationSpeed;
+      const tip = { x: center.x + Math.cos(angle) * tong.reach, y: center.y + Math.sin(angle) * tong.reach };
+      drawGuideDottedTipArrow(context, tip, target, actionTime);
+      drawGuideMarker(context, target, 31, "집게 끝으로", "#ff986f", actionTime);
+    }
   } else if (guide.step === "dig") {
     const hole = runtime.clamHoles.find((item) => item.id === guide.digHoleId);
     const target = screenPoint(hole ?? guide.digPoint);
@@ -729,7 +758,7 @@ function drawFirstMoveGuide(context: CanvasRenderingContext2D, width: number, he
   roundedRect(context, cardLeft, cardTop, cardWidth, 78, 18); context.fill();
   context.strokeStyle = "rgba(255,220,139,.5)"; context.lineWidth = 1.4; context.stroke();
   context.fillStyle = "#ffcf78"; context.font = "900 11px system-ui"; context.textAlign = "left";
-  context.fillText(`직접 해보는 첫 움직임 · ${current.step}`, cardLeft + 18, cardTop + 21);
+  context.fillText(`직접 해보는 첫 움직임 · ${current.step} · 시간 미차감`, cardLeft + 18, cardTop + 21);
   context.fillStyle = "#fff8e9"; context.font = "900 15px system-ui"; context.fillText(current.title, cardLeft + 18, cardTop + 45);
   context.fillStyle = "#d9d2c4"; context.font = "800 12px system-ui"; context.fillText(current.body, cardLeft + 18, cardTop + 64);
   context.restore();
@@ -1301,6 +1330,95 @@ function drawRock(context: CanvasRenderingContext2D, rock: Rock, effect?: RockFl
   }
 }
 
+function fallingRockProgress(falling: FallingRock) {
+  return Math.max(0, Math.min(1, 1 - falling.life / falling.maxLife));
+}
+
+function drawFallingRockTarget(context: CanvasRenderingContext2D, point: Point, falling: FallingRock) {
+  const progress = fallingRockProgress(falling);
+  const pulse = .5 + Math.sin(progress * Math.PI * 9 + falling.id) * .5;
+  context.save();
+  context.translate(point.x, point.y);
+  context.fillStyle = `rgba(34,20,17,${.16 + progress * .34})`;
+  context.beginPath();
+  context.ellipse(0, 7, falling.radius * (.58 + progress * .48), falling.radius * (.2 + progress * .18), 0, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = `rgba(255,177,108,${.58 + progress * .34})`;
+  context.lineWidth = 2.4 + progress * 1.4;
+  context.setLineDash([7, 6]);
+  context.lineDashOffset = -progress * 34;
+  context.beginPath();
+  context.arc(0, 0, falling.radius * (1.2 - progress * .2) + pulse * 2, 0, Math.PI * 2);
+  context.stroke();
+  context.setLineDash([]);
+  context.fillStyle = "rgba(255,240,207,.92)";
+  context.font = "900 11px system-ui";
+  context.textAlign = "center";
+  context.shadowColor = "rgba(20,12,10,.85)";
+  context.shadowBlur = 5;
+  context.fillText("낙석", 0, -falling.radius - 12);
+  context.restore();
+}
+
+function drawFallingRockBody(context: CanvasRenderingContext2D, point: Point, falling: FallingRock, viewportHeight: number) {
+  const progress = fallingRockProgress(falling);
+  const fall = progress * progress;
+  const travelHeight = Math.min(360, Math.max(230, viewportHeight * .56));
+  const drift = Math.sin(falling.id * 12.9898) * 66;
+  const rockX = point.x + drift * (1 - fall);
+  const rockY = point.y - (1 - fall) * travelHeight - falling.radius * .56;
+  const scale = .52 + progress * .68;
+  const spinDirection = falling.id % 2 === 0 ? 1 : -1;
+
+  context.save();
+  context.globalAlpha = Math.min(1, .3 + progress * 1.25);
+  context.strokeStyle = `rgba(255,226,187,${.12 + progress * .3})`;
+  context.lineWidth = 2.2;
+  context.lineCap = "round";
+  for (let trail = -1; trail <= 1; trail += 1) {
+    const offset = trail * 8;
+    context.beginPath();
+    context.moveTo(rockX + offset, rockY - 20 - progress * 18);
+    context.lineTo(rockX + offset - drift * .08, rockY - 64 - progress * 34);
+    context.stroke();
+  }
+  context.translate(rockX, rockY);
+  context.rotate((falling.id % 11 - 5) * .08 + progress * Math.PI * 2.2 * spinDirection);
+  context.scale(scale, scale);
+  context.shadowColor = "rgba(12,8,7,.76)";
+  context.shadowBlur = 9 + progress * 9;
+  context.shadowOffsetY = 7;
+  const radius = falling.radius;
+  const gradient = context.createLinearGradient(-radius, -radius, radius, radius);
+  gradient.addColorStop(0, "#b09a82");
+  gradient.addColorStop(.45, "#75695e");
+  gradient.addColorStop(1, "#3f3a36");
+  context.fillStyle = gradient;
+  context.beginPath();
+  context.moveTo(-radius, radius * .14);
+  context.lineTo(-radius * .62, -radius * .72);
+  context.lineTo(radius * .12, -radius);
+  context.lineTo(radius * .94, -radius * .26);
+  context.lineTo(radius * .72, radius * .64);
+  context.lineTo(-radius * .25, radius * .88);
+  context.closePath();
+  context.fill();
+  context.shadowColor = "transparent";
+  context.strokeStyle = "rgba(255,236,205,.38)";
+  context.lineWidth = 2;
+  context.stroke();
+  context.strokeStyle = "rgba(47,40,36,.5)";
+  context.lineWidth = 2.4;
+  context.beginPath();
+  context.moveTo(-radius * .54, -radius * .26);
+  context.lineTo(-radius * .05, -radius * .48);
+  context.lineTo(radius * .38, -radius * .18);
+  context.moveTo(radius * .05, radius * .14);
+  context.lineTo(radius * .48, radius * .38);
+  context.stroke();
+  context.restore();
+}
+
 function drawClamHole(context: CanvasRenderingContext2D, hole: ClamHole) {
   const active = hole.progress > 0;
   if (hole.kind === "gaebul") {
@@ -1617,7 +1735,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const keysRef = useRef(new Set<string>());
   const sequenceRef = useRef(1);
   const lumiHoldTimerRef = useRef<number | null>(null);
-  const defeatRetryRef = useRef<ReturnType<typeof createDefeatRetrySnapshot> | null>(null);
+  const defeatRetryRef = useRef<Campaign | null>(null);
+  const stageEntryRef = useRef<Campaign | null>(null);
   const dailyChallengeRef = useRef<MudflatDailyStart | null>(null);
   const defeatArtPreloadRef = useRef<HTMLImageElement | null>(null);
   const screenRef = useRef<Screen>("setup");
@@ -1745,11 +1864,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const highest = Math.max(storedHighest, restoredHighest);
         setHighestUnlockedStage(highest);
         window.localStorage.setItem(HIGHEST_STAGE_KEY, String(highest));
-        const lastMode = window.localStorage.getItem(LAST_MODE_KEY);
-        if (lastMode === "kids" || lastMode === "normal") {
-          setMode(lastMode);
-          setCharacterId(defaultCharacterId(lastMode));
-        }
       } catch { /* Local saving can be disabled by the browser. Report it on a save attempt. */ }
     });
     return () => window.cancelAnimationFrame(frame);
@@ -1814,7 +1928,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (dailyChallengeRef.current) return true;
     const runtime = runtimeRef.current;
     if (!runtime || runtime.ended || runtime.player.hp <= 0 || !campaignRef.current) return false;
-    const success = writeMudflatRun(campaignRef.current, runtime, choicesRef.current.map((item) => item.id), sequenceRef.current);
+    const success = writeMudflatRun(campaignRef.current, runtime, choicesRef.current.map((item) => item.id), sequenceRef.current, undefined, stageEntryRef.current ?? campaignRef.current);
     setSaveError(success ? "" : "진행 상황을 저장하지 못했습니다. 브라우저의 저장 공간과 개인정보 설정을 확인한 뒤 다시 시도해 주세요.");
     return success;
   }, []);
@@ -1862,7 +1976,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       pendingSkillDiscovery: false,
     };
     const runtime = makeRuntime(nextCampaign, launch.seed);
-    if (!launch.tutorial) runtime.firstMoveGuide = null;
+    runtime.firstMoveGuide = launch.tutorial ? createFirstMoveGuide() : null;
     const frame = window.requestAnimationFrame(() => {
       setMode(nextCampaign.mode);
       setCharacterId(nextCampaign.characterId);
@@ -1872,8 +1986,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         try { window.localStorage.setItem(HIGHEST_STAGE_KEY, String(highest)); } catch { /* Ignore unavailable local storage. */ }
         return highest;
       });
-      try { window.localStorage.setItem(LAST_MODE_KEY, nextCampaign.mode); } catch { /* Ignore unavailable local storage. */ }
       discardActiveRun();
+      stageEntryRef.current = launch.run ? createStageEntryCheckpoint(nextCampaign) : null;
       storeCampaign(nextCampaign, Boolean(launch.run));
       resetMovementInput();
       runtimeRef.current = runtime;
@@ -1887,25 +2001,26 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   }, [discardActiveRun, resetMovementInput, setChoices, snapshot, storeCampaign]);
 
   const shouldAutoStartTutorial = (stage: number, secretEntry: boolean, tutorialEntry: boolean) => (
-    mode === "normal" && stage === 1 && (tutorialEntry || (!secretEntry && highestUnlockedStage <= 1))
+    mode === "kids" || (mode === "normal" && stage === 1 && (tutorialEntry || (!secretEntry && highestUnlockedStage <= 1)))
   );
 
   const beginAtStage = (stage: number, secretEntry = false, tutorialEntry = false) => {
     defeatRetryRef.current = null;
     discardActiveRun();
-    try { window.localStorage.setItem(LAST_MODE_KEY, mode); } catch { /* Live save reports failures. */ }
     const entryStage = Math.max(1, Math.min(highestUnlockedStage, Math.floor(stage)));
     const freshCampaign = createCampaign(characterId, mode, entryStage);
     const nextCampaign = secretEntry ? withSecretExpeditionSkills(freshCampaign) : freshCampaign;
+    stageEntryRef.current = createStageEntryCheckpoint(nextCampaign);
     storeCampaign(nextCampaign, true);
     const runtime = makeRuntime(nextCampaign);
-    if (!shouldAutoStartTutorial(entryStage, secretEntry, tutorialEntry)) runtime.firstMoveGuide = null;
+    runtime.firstMoveGuide = shouldAutoStartTutorial(entryStage, secretEntry, tutorialEntry) ? createFirstMoveGuide() : null;
     resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
   };
   const begin = () => beginAtStage(selectedStage);
   const beginWithTutorial = () => beginAtStage(1, false, true);
   const beginDailyChallenge = (challenge: MudflatDailyStart) => {
     defeatRetryRef.current = null;
+    stageEntryRef.current = null;
     dailyChallengeRef.current = challenge;
     setDailyChallengeActive(true);
     setDailyResult(null);
@@ -1928,6 +2043,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (!saved) { setSavedRun(null); setSaveError("저장된 진행 상황을 불러올 수 없습니다."); return; }
     defeatRetryRef.current = null;
     setMode(saved.campaign.mode); setCharacterId(saved.campaign.characterId);
+    stageEntryRef.current = createStageEntryCheckpoint(saved.stageEntryCampaign ?? saved.campaign);
     storeCampaign(saved.campaign, true);
     runtimeRef.current = saved.runtime; sequenceRef.current = saved.nextSequence;
     resetMovementInput(); snapshot(saved.runtime); setSelectedSkillId(null);
@@ -1938,7 +2054,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
   const continueCampaign = () => {
     if (!savedCampaign) return;
-    window.localStorage.setItem(LAST_MODE_KEY, savedCampaign.mode);
     setMode(savedCampaign.mode); setCharacterId(savedCampaign.characterId); storeCampaign(savedCampaign);
     const previousHaulCount = Object.values(savedCampaign.lastHaul).reduce((sum, count) => sum + count, 0);
     setCampNotice(`${savedCampaign.stage - 1}단계에서 잡은 ${previousHaulCount}마리를 판매해서 ${savedCampaign.lastSaleValue}코인을 얻었습니다.`); setScreen("camp");
@@ -1975,13 +2090,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const endRun = useCallback((runtime: Runtime) => {
     if (runtime.ended) return;
     if (finishDailyRun(runtime, false)) return;
-    defeatRetryRef.current = campaignRef.current ? createDefeatRetrySnapshot(campaignRef.current, runtime) : null;
+    defeatRetryRef.current = stageEntryRef.current ? createStageEntryCheckpoint(stageEntryRef.current) : campaignRef.current ? createStageEntryCheckpoint(campaignRef.current) : null;
     runtime.ended = true; runtime.paused = true; snapshot(runtime);
     discardActiveRun();
     const score = mudflatFinalScore({ catchScore: runtime.catchScore, caught: runtime.caught, elapsed: runtime.elapsed, bossCaught: runtime.bossCaught });
     if (score > best) { setBest(score); window.localStorage.setItem(BEST_KEY, String(score)); }
-    // Ordinary retries still start over. Keep only a memory-only backup for
-    // the hidden hold action; the normal persistent camp save is removed.
+    // The stage-entry checkpoint remains in memory for a paid rescue retry.
     window.localStorage.removeItem(CAMPAIGN_KEY);
     campaignRef.current = null;
     setCampaign(null);
@@ -2015,6 +2129,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     });
     const regularClear = runtime.stage === 8 ? " 정규 원정을 완주해 끝없는 물때가 열렸습니다." : "";
     const objectiveNotice = objective.label ? ` 보조 목표 ${objective.complete ? `달성(+${objective.bonus}코인)` : "미달성"}: ${objective.label}.` : "";
+    stageEntryRef.current = null; defeatRetryRef.current = null;
     storeCampaign(next); discardActiveRun(); setCampNotice(`${runtime.stage}단계에서 잡은 ${settlement.catchCount}마리를 판매해서 ${autoSale.value}코인을 얻었습니다.${regularClear}${objectiveNotice}`); setScreen("camp");
   }, [best, characterId, discardActiveRun, finishDailyRun, snapshot, storeCampaign]);
 
@@ -2074,11 +2189,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
     const isCreatureRevealed = (creature: Creature) => (creature.emergeSeconds ?? 0) <= 0 && creatureRevealStrength(creature) >= .98;
 
-    const spawnCreature = (width: number, height: number, forcedBoss = false, openingWave = false) => {
+    const spawnCreature = (width: number, height: number, forcedBoss = false, openingWave = false, preferredSpawn?: Point, selectionTime?: number) => {
       const headlampRange = mudflatHeadlampDiscoveryRange(runtime.equipment.headlamp ?? 0);
       const openingSelectionTime = openingWave
         ? Math.min(48, 12 + Math.max(0, runtime.stage - 3) * 6 + runtimeRandom(runtime) * 28)
-        : runtime.elapsed;
+        : selectionTime !== undefined && Number.isFinite(selectionTime) ? Math.max(0, selectionTime) : runtime.elapsed;
       let template = forcedBoss ? MUDFLAT_CREATURES.find((item) => item.boss)! : mudflatCreatureForTime(openingSelectionTime, runtimeRandom(runtime), { headlamp: headlampRange > 0 });
       if (!forcedBoss && template.requiresHeadlamp) {
         const headlampLevel = runtime.equipment.headlamp ?? 0;
@@ -2089,7 +2204,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (!canCreateEncounter) template = mudflatCreatureForTime(runtime.elapsed, runtimeRandom(runtime), { headlamp: false });
         else runtime.headlampSpawnClock = 4.4 + runtimeRandom(runtime) * 1.8;
       }
-      let angle = runtimeRandom(runtime) * Math.PI * 2;
+      let angle = preferredSpawn
+        ? Math.atan2(preferredSpawn.y - runtime.player.y, preferredSpawn.x - runtime.player.x)
+        : runtimeRandom(runtime) * Math.PI * 2;
       const lightMargin = template.requiresHeadlamp ? headlampRange + 96 : 0;
       const edgeDistance = Math.min(
         Math.abs(Math.cos(angle)) > .001 ? width / 2 / Math.abs(Math.cos(angle)) : Infinity,
@@ -2099,6 +2216,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         ? Math.max(edgeDistance + template.size + 24 + runtimeRandom(runtime) * 44, lightMargin)
         : Math.max(Math.hypot(width, height) * .58 + 70, lightMargin) + runtimeRandom(runtime) * 80;
       let spawnPoint = { x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance };
+      if (preferredSpawn) spawnPoint = preferredSpawn;
       for (let attempt = 0; runtime.baseCampGuideShown && attempt < 8 && isInsideBaseCamp(spawnPoint, runtime.baseCamp, runtime.stage, template.size + 12); attempt += 1) {
         angle = runtimeRandom(runtime) * Math.PI * 2;
         distance += 56 + runtimeRandom(runtime) * 44;
@@ -2114,6 +2232,28 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         speed: template.speed * (1 + runtime.elapsed / 750) * (runtime.mode === "normal" ? 1.12 : 1) * stageStats.creatureSpeedMultiplier * openingSpeed, saltHit: 0, hitFlash: 0, phase: runtimeRandom(runtime) * Math.PI * 2, age: 0,
         movement: (template.movement ?? "chase") as CreatureMovement, movementAngle: angle + Math.PI, movementClock: 1,
       });
+    };
+
+    const spawnSeafoodSwarm = (width: number, height: number) => {
+      const count = mudflatSeafoodSwarmCount(runtime.stage, runtimeRandom(runtime));
+      const sourceAngle = runtimeRandom(runtime) * Math.PI * 2;
+      const sourceX = Math.cos(sourceAngle);
+      const sourceY = Math.sin(sourceAngle);
+      const sideX = -sourceY;
+      const sideY = sourceX;
+      const edgeDistance = Math.hypot(width, height) * .58 + 86;
+      const columns = 4;
+      for (let index = 0; index < count; index += 1) {
+        const column = index % columns;
+        const row = Math.floor(index / columns);
+        const lateral = (column - (columns - 1) / 2) * 42 + (runtimeRandom(runtime) - .5) * 22;
+        const depth = row * 38 + (runtimeRandom(runtime) - .5) * 18;
+        const selectionTime = 45 + Math.max(0, runtime.stage - 6) * 18 + runtimeRandom(runtime) * 150;
+        spawnCreature(width, height, false, false, {
+          x: runtime.player.x + sourceX * (edgeDistance + depth) + sideX * lateral,
+          y: runtime.player.y + sourceY * (edgeDistance + depth) + sideY * lateral,
+        }, selectionTime);
+      }
     };
 
     const eventCreatureFromTemplate = (
@@ -2336,10 +2476,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const setFirstMoveGuideStep = (guide: FirstMoveGuide, step: FirstMoveGuideStep) => {
       guide.step = step;
       guide.stepClock = 0;
-      if (step === "catch") showPlayerMessage("좋아요. 이번엔 집게 끝으로 게를 건드려봐요.", 2.4);
+      if (step === "catch") showPlayerMessage(runtime.mode === "kids" ? "좋아요. 이번엔 채집 효과가 닿도록 게 가까이 가봐요." : "좋아요. 이번엔 집게 끝으로 게를 건드려봐요.", 2.4);
       else if (step === "dig") showPlayerMessage("잘했어요. 구멍 위에 서서 호미질해봐요.", 2.4);
       else if (step === "avoid") showPlayerMessage("조개 채집 완료! 호미질 레벨이 높을수록 좋은 결과 확률이 올라가요. 이제 돌을 피해 안전 지점으로 가요.", 3.6);
-      else if (step === "done") showPlayerMessage("연습 완료! 이제 1스테이지 시간이 시작됩니다.", 2.4);
+      else if (step === "done") showPlayerMessage(`연습 완료! 이제 ${runtime.stage}스테이지 시간이 시작됩니다.`, 2.4);
     };
 
     const ensureFirstMoveGuideObjects = () => {
@@ -2644,7 +2784,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const previousLife = falling.life;
           falling.life -= dt;
           if (previousLife > 0 && falling.life <= 0 && campObstacleAllowed(falling, falling.radius + 20)) {
-            if (Math.hypot(falling.x - runtime.player.x, falling.y - runtime.player.y) <= falling.radius + 16) damagePlayer(14 + runtime.stage * 2, "#d69d68");
+            if (Math.hypot(falling.x - runtime.player.x, falling.y - runtime.player.y) <= falling.radius + 16) damagePlayer(FALLING_ROCK_DAMAGE, "#d69d68");
             addRock({ id: sequenceRef.current++, x: falling.x, y: falling.y, radius: 18 + runtimeRandom(runtime) * 7, tone: runtimeRandom(runtime) });
             runtime.bursts.push({ id: sequenceRef.current++, x: falling.x, y: falling.y, life: .55, maxLife: .55, color: "#c99564", size: 36 });
           }
@@ -2709,12 +2849,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             runtime.jellyfishClock += mudflatJellyfishInterval(runtime.stage);
           }
         }
-        if (stageProfile.swarms) {
+        if (runtime.stage >= 6) {
           runtime.swarmClock -= dt;
           if (runtime.swarmClock <= 0 && runtime.creatures.length < 165) {
-            for (let index = 0; index < 5; index += 1) spawnCreature(width, height);
-            runtime.swarmClock = 18 + runtimeRandom(runtime) * 9;
-            runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y - 72, life: 1.15, text: "해산물 무리가 몰려옵니다!", color: "#fff1a8" });
+            spawnSeafoodSwarm(width, height);
+            runtime.swarmClock = mudflatSeafoodSwarmInterval(runtime.stage, runtimeRandom(runtime), runtimeRandom(runtime));
           }
         }
         if (!runtime.bossSpawned && runtime.elapsed >= 200) { runtime.bossSpawned = true; spawnCreature(width, height, true); }
@@ -2810,11 +2949,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         showPlayerMessage("앗 따가워, 몸이 이상해.", 3);
       }
       runtime.pufferTouching = pufferTouching;
-      let touchingRock = runtime.mode === "normal" ? runtime.rocks.find((rock) => Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) < rock.radius + 16) : undefined;
+      let touchingRock = runtime.mode === "normal" || tutorialActiveAtFrame ? runtime.rocks.find((rock) => Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) < rock.radius + 16) : undefined;
       const guide = runtime.firstMoveGuide;
       if (tutorialActiveAtFrame && guide) {
         if (guide.step === "catch" && touchingCreature?.id === guide.catchCreatureId) {
-          showTutorialDamageAndReset("해산물에 몸이 닿으면 피해를 입을 수 있어요. 집게 끝으로 거리를 두고 채집해봐요.", guide.moveTarget);
+          showTutorialDamageAndReset(runtime.mode === "kids" ? "해산물에 몸이 닿으면 피해를 입을 수 있어요. 채집 효과가 닿는 거리를 유지해봐요." : "해산물에 몸이 닿으면 피해를 입을 수 있어요. 집게 끝으로 거리를 두고 채집해봐요.", guide.moveTarget);
         } else if (guide.step === "avoid" && touchingRock?.id === guide.avoidRockId) {
           showTutorialDamageAndReset("돌이나 장애물에 부딪히면 피해를 입을 수 있어요. 옆으로 돌아서 피해보세요.", guide.digPoint);
         }
@@ -3171,11 +3310,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.restore();
       }
       for (const falling of runtime.fallingRocks) {
-        const point = screenPoint(falling); const progress = 1 - falling.life / falling.maxLife;
-        context.save(); context.translate(point.x, point.y);
-        context.fillStyle = `rgba(114,51,35,${.18 + progress * .3})`; context.strokeStyle = `rgba(255,177,108,${.55 + progress * .4})`; context.lineWidth = 3;
-        context.beginPath(); context.arc(0, 0, falling.radius * (1 - progress * .18), 0, Math.PI * 2); context.fill(); context.stroke();
-        context.fillStyle = "#fff0cf"; context.font = "900 15px system-ui"; context.textAlign = "center"; context.fillText("낙석!", 0, 5); context.restore();
+        drawFallingRockTarget(context, screenPoint(falling), falling);
       }
 
       for (const hole of runtime.clamHoles) {
@@ -3272,6 +3407,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (lumiArt) drawLumiGatherer(context, width / 2, height / 2, runtime.lumiMotion, lumiArt,
         actionTime, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
       if (characterId !== "lumi") drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);
+      for (const falling of runtime.fallingRocks) {
+        drawFallingRockBody(context, screenPoint(falling), falling, height);
+      }
       for (const reveal of runtime.clamReveals) {
         const point = screenPoint(reveal); const progress = 1 - reveal.life / reveal.maxLife;
         context.save(); context.globalAlpha = Math.min(1, reveal.life * 3); context.translate(point.x, point.y - progress * 26);
@@ -3429,7 +3567,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         context.fillStyle = "#fff8e9"; context.font = "900 23px system-ui"; context.fillText(stageProfile.name, 38, height - 94);
         context.fillStyle = "#d8d3c6"; context.font = "700 13px system-ui"; context.fillText(stageProfile.subtitle, 38, height - 67); context.restore();
       }
-      drawFirstMoveGuide(context, width, height, runtime, screenPoint, actionTime);
+      drawFirstMoveGuide(context, width, height, runtime, screenPoint, actionTime, joystickRef.current.pointerId >= 0);
       if (runtime.playerMessageLife > 0) {
         const message = runtime.playerMessage;
         const isCatchFullMessage = message === CATCH_FULL_MESSAGE;
@@ -3582,7 +3720,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     runtime.spawnClock = 0;
     runtime.clamSpawnClock = 0;
     runtime.rockSpawnClock = 0;
-    runtime.playerMessage = "튜토리얼을 건너뛰었습니다. 이제 1스테이지 시간이 시작됩니다.";
+    runtime.playerMessage = `튜토리얼을 건너뛰었습니다. 이제 ${runtime.stage}스테이지 시간이 시작됩니다.`;
     runtime.playerMessageLife = 2.4;
     runtime.playerMessageOpacity = 1;
     resetMovementInput();
@@ -3668,22 +3806,27 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   };
   const startNextStage = () => {
     const current = campaignRef.current; if (!current) return;
-    const runtime = makeRuntime(current);
+    const entry = { ...current, pendingSkillDiscovery: false };
+    stageEntryRef.current = createStageEntryCheckpoint(entry);
+    const runtime = makeRuntime(entry);
     if (!(current.mode === "normal" && current.stage === 1 && highestUnlockedStage <= 1)) runtime.firstMoveGuide = null;
-    storeCampaign({ ...current, pendingSkillDiscovery: false }, true);
+    storeCampaign(entry, true);
     resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
   };
-  const retryWithProgress = () => {
-    const saved = defeatRetryRef.current;
-    if (screen !== "defeat" || !saved) return;
+  const retryFromCheckpoint = () => {
+    const checkpoint = defeatRetryRef.current;
+    if (screen !== "defeat" || !checkpoint) return;
     defeatRetryRef.current = null;
-    const next: Campaign = saved.campaign;
-    const runtime: Runtime = restoreDefeatRetryRuntime(makeRuntime(next), saved);
+    const { campaign: next, rescueCost } = createRescueRetryCampaign(checkpoint) as { campaign: Campaign; rescueCost: number };
+    stageEntryRef.current = createStageEntryCheckpoint(next);
+    const runtime: Runtime = makeRuntime(next);
+    runtime.playerMessage = `구조 비용 ${rescueCost.toLocaleString()}C를 내고 다시 갯벌로 돌아왔습니다.`;
+    runtime.playerMessageLife = 3; runtime.playerMessageOpacity = 1;
     setMode(next.mode); setCharacterId(next.characterId); storeCampaign(next, true);
     resetMovementInput(); runtimeRef.current = runtime; snapshot(runtime);
     setChoices([]); setSelectedSkillId(null); setScreen("running"); setRunId((value) => value + 1);
   };
-  const reset = () => { defeatRetryRef.current = null; dailyChallengeRef.current = null; runtimeRef.current = null; campaignRef.current = null; resetMovementInput(); setRunId(0); setExitOpen(false); setCampaign(null); setDailyResult(null); setDailyChallengeActive(false); setCharacterId(defaultCharacterId(mode)); setHud({ ...emptyHud, mode }); setSelectedStage(1); setChoices([]); setSelectedSkillId(null); setScreen("setup"); };
+  const reset = () => { defeatRetryRef.current = null; stageEntryRef.current = null; dailyChallengeRef.current = null; runtimeRef.current = null; campaignRef.current = null; resetMovementInput(); setRunId(0); setExitOpen(false); setCampaign(null); setDailyResult(null); setDailyChallengeActive(false); setMode("normal"); setCharacterId(defaultCharacterId("normal")); setHud({ ...emptyHud, mode: "normal" }); setSelectedStage(1); setChoices([]); setSelectedSkillId(null); setScreen("setup"); };
   const clearCampaign = () => { window.localStorage.removeItem(CAMPAIGN_KEY); discardActiveRun(); setSavedCampaign(null); reset(); };
   const openExitDialog = () => {
     const runtime = runtimeRef.current;
@@ -3751,6 +3894,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const selectedRouteProfile = routeStageProfiles.find((stage) => stage.stage === selectedStage) ?? (mudflatStageProfile(1) as StageProfile);
   const selectedRouteStats = mudflatStageStats(selectedRouteProfile.stage);
   const selectedRouteHazards = mudflatStageHazardNotes(selectedRouteProfile);
+  const defeatRescueCost = defeatRetryRef.current ? mudflatRescueCost(defeatRetryRef.current.coins) : 0;
 
   if (screen === "setup") return (
     <main className="ms-shell ms-setup" data-game-menu>
@@ -3774,10 +3918,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         </div>
         <h3 className="ms-mode-heading">원정 방식 선택</h3>
         <div className="ms-mode-picker">
-          <button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => { setMode("normal"); window.localStorage.setItem(LAST_MODE_KEY, "normal"); setCharacterId("beginner"); }}>
+          <button type="button" className={mode === "normal" ? "selected" : ""} onClick={() => { setMode("normal"); setCharacterId("beginner"); }}>
             <strong className="ms-main-mode-badge">메인 원정</strong><i>◆</i><span><b>일반 모드</b><small>강한 해산물·돌 장애물·전용 기술</small></span>
           </button>
-          <button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => { setMode("kids"); window.localStorage.setItem(LAST_MODE_KEY, "kids"); setCharacterId((current) => CHARACTERS.some((item) => item.id === current && item.id !== LUMI_CHARACTER.id) ? current : defaultCharacterId("kids")); }}>
+          <button type="button" className={mode === "kids" ? "selected" : ""} onClick={() => { setMode("kids"); setCharacterId((current) => CHARACTERS.some((item) => item.id === current && item.id !== LUMI_CHARACTER.id) ? current : defaultCharacterId("kids")); }}>
             <i>☀</i><span><b>어린이 모드</b><small>가볍게 익히는 채집 모험</small></span>
           </button>
         </div>
@@ -3958,7 +4102,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     </main>;
   }
 
-  if (screen === "defeat") return <main className="ms-shell ms-result defeat"><MudflatTopbar onExit={onExit} /><section><img className="ms-defeat-art" src={MUDFLAT_DEFEAT_ART_SRC} width={MUDFLAT_DEFEAT_ART_WIDTH} height={MUDFLAT_DEFEAT_ART_HEIGHT} decoding="async" alt="갯벌에 쓰러진 해루질럿" /><small>EXPEDITION ENDED</small><h1><span>갯벌에서</span>{" "}<span>힘이 다했습니다</span></h1><p><span>갯벌에는 여러가지 위험이 도사리고 있습니다.</span><br /><span>절대로 자만하지 말고 안전한 해루질 하세요.</span></p><div className="ms-result-grid"><span><small>도전 스테이지</small><b>{hud.stage}</b></span><span><small>잡은 수</small><b>{hud.caught}</b></span><span><small>레벨</small><b>{hud.level}</b></span><span><small>대왕 박하지</small><b>{hud.bossCaught ? "포획" : "놓침"}</b></span></div><p className="ms-reentry-note">한 번 성공한 스테이지는 언제든 재도전 가능합니다.<br />하지만 장비·기술·경험치·코인은 모두 초기화됩니다.</p><div className="ms-result-actions"><button onClick={reset}>메인 화면으로</button><MudflatRetryButton onRetry={() => beginAtStage(hud.stage)} onSecretRetry={retryWithProgress}>{hud.stage === 9 ? "끝없는 물때 재도전" : `${hud.stage}단계 재도전`}</MudflatRetryButton></div></section></main>;
+  if (screen === "defeat") return <main className="ms-shell ms-result defeat"><MudflatTopbar onExit={onExit} /><section><img className="ms-defeat-art" src={MUDFLAT_DEFEAT_ART_SRC} width={MUDFLAT_DEFEAT_ART_WIDTH} height={MUDFLAT_DEFEAT_ART_HEIGHT} decoding="async" alt="갯벌에 쓰러진 해루질럿" /><small>EXPEDITION ENDED</small><h1><span>갯벌에서</span>{" "}<span>힘이 다했습니다</span></h1><p><span>갯벌에는 여러가지 위험이 도사리고 있습니다.</span><br /><span>절대로 자만하지 말고 안전한 해루질 하세요.</span></p><div className="ms-result-grid"><span><small>도전 스테이지</small><b>{hud.stage}</b></span><span><small>잡은 수</small><b>{hud.caught}</b></span><span><small>레벨</small><b>{hud.level}</b></span><span><small>대왕 박하지</small><b>{hud.bossCaught ? "포획" : "놓침"}</b></span></div><p className="ms-reentry-note">스테이지 진입 시점의 장비·기술·경험치로 복구됩니다.<br />보유 코인의 30%인 <strong>{defeatRescueCost.toLocaleString()}C</strong>가 구조 비용으로 차감됩니다.</p><div className="ms-result-actions"><button onClick={reset}>메인 화면으로</button><MudflatRetryButton onRetry={retryFromCheckpoint} onSecretRetry={retryFromCheckpoint}>{hud.stage === 9 ? "끝없는 물때 구조 재도전" : `${hud.stage}단계 구조 재도전`}</MudflatRetryButton></div></section></main>;
 
   const hpWidth = Math.max(0, hud.hp / hud.maxHp * 100);
   const lumiLoadingLayer = <>

@@ -267,7 +267,17 @@
 
 /* 홈 목록 카드: 게임 렌더러로 그린 교전 장면. 예전에는 "◆ Z D H" 글자만 있었고, 색도 홈에는 없는 --stw- 변수를 써서 밋밋한 보라색으로 보였다. */
 .casual-card-art.starswar { background:#3a2e1d; }
-.casual-card-art.starswar > img { position:absolute; inset:0; z-index:1; width:100%; height:100%; object-fit:cover; object-position:50% 45%; }
+.casual-card-art.starswar > img {
+  position:absolute;
+  inset:0;
+  z-index:1;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:50% 45%;
+  transform:scale(1.2);
+  transform-origin:50% 44%;
+}
 
 @media (min-width:900px) {
   /* 넓은 화면: 지도 아래에 상태 줄, 오른쪽에 패널. */
