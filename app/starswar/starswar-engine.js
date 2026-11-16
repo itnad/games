@@ -2676,6 +2676,16 @@ function stepUnits(state, dt) {
     }
     // 무기와 마법을 함께 가진 유닛(고스트, 배틀크루저, 아비터)은 마법이 먼저다.
     if (def.spells && castSpells(state, unit)) continue;
+    // 고스트(지상의 무기 + 마법 유닛)는 연구한 마법을 쓸 에너지가 아직 없으면 공격 병력의 맨 뒤를 따라가며(대기 중이면 제자리를 지키며), 사거리 안에 들어온 적만 쏜다.
+    // 대기 중에도 먼저 나가 싸우지 않는다: 사거리(7)가 길어 집결지에서 가장 먼저 적에게 다가가다 시즈 탱크에 맞아 죽었다.
+    // 에너지 50으로 태어나 락다운(100)까지 약 62초가 걸리는데, 예전에는 곧장 앞줄에 서서 AI 경기의 고스트 7기가 20~40초 만에
+    // 락다운을 한 번도 못 쓰고 죽었다. 에너지가 차면 보통 원거리 유닛처럼 나가 싸우며 락다운을 쓴다.
+    if (def.spells && def.damage && !isFlying(unit) && (unit.group === "attack" || unit.group === "rally") && unit.raid === undefined && unit.bomb === undefined && chargingSpell(state, unit)
+      && !findTarget(state, unit, range + unit.radius * 0.5, { unitsOnly: true })) {
+      unit.targetId = null;
+      casterMove(state, unit, plan, speed, dt);
+      continue;
+    }
     // 수송 작전으로 내린 병력.
     // 무기 없는 유닛(메딕)은 내린 동료를 따라다니며 치료만 한다(위의 메딕 처리).
     if (unit.raid !== undefined && def.damage && unit.type !== "tank" && unit.type !== "lurker" && raidRiderStep(state, unit, dt)) continue;
@@ -3240,6 +3250,12 @@ function templarStep(state, unit, plan, dt) {
   casterMove(state, unit, plan, unitSpeed(state, unit), dt);
 }
 
+/** 연구는 됐는데(또는 연구가 필요 없는데) 에너지가 모자라 아직 쓸 수 있는 마법이 하나도 없는지. */
+function chargingSpell(state, unit) {
+  const known = (STW_UNITS[unit.type].spells ?? []).map((id) => STW_SPELLS[id]).filter((spell) => !spell.research || stwResearchDone(state, unit.side, spell.research));
+  return known.length > 0 && known.every((spell) => unit.energy < spell.energy);
+}
+
 /** 지금 쓸 수 있는 마법이 있는지(에너지와 연구). 하이템플러는 사이오닉 스톰. */
 function spellReady(state, unit) {
   if (unit.type === "templar") return stwResearchDone(state, unit.side, "storm") && unit.energy >= STW_STORM.energy;
@@ -3272,7 +3288,9 @@ function casterMove(state, unit, plan, speed, dt) {
     }
   }
   if (unit.group === "attack") {
-    const army = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && !isPassive(ally) && STW_UNITS[ally.type].role !== "caster");
+    // 에너지를 모으며 뒤따르는 고스트는 줄의 앞뒤를 재는 데서 뺀다(자기 자신이나 서로를 "맨 뒤"로 보고 끝없이 물러나지 않게).
+    const army = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && ally !== unit && !isPassive(ally) && STW_UNITS[ally.type].role !== "caster"
+      && !(STW_UNITS[ally.type].spells && STW_UNITS[ally.type].damage && !isFlying(ally) && chargingSpell(state, ally)));
     const forward = stwForward(unit.side);
     // 아군 기준으로 앞(적 쪽)일수록 작은 값.
     const ahead = (ally) => ally.y * forward;
@@ -3909,7 +3927,12 @@ const SPELL_CASTERS = {
     return spot;
   },
   lockdown(state, caster, spell) {
-    const target = spellFoes(state, caster, spell.range).filter((unit) => STW_UNITS[unit.type].mech && !isPassive(unit) && !stunned(state, unit) && unitValue(unit) >= 150).sort((a, b) => unitValue(b) - unitValue(a))[0];
+    // 값 150 이상인 기계 전투 유닛 중 가장 비싼 것. 에너지가 가득 찼으면(더 차지 않는다) 싼 기계 유닛(벌처)에도 쓴다:
+    // 벌처만 상대하면 락다운을 한 번도 쓰지 않고 에너지 200인 채로 죽었다. 곧 죽을 목표(체력 + 보호막 40 미만)에는 쓰지 않는다.
+    const full = caster.energy >= STW_UNITS[caster.type].maxEnergy - 1;
+    const target = spellFoes(state, caster, spell.range)
+      .filter((unit) => STW_UNITS[unit.type].mech && !isPassive(unit) && !stunned(state, unit) && unit.hp + unit.shields >= 40 && unitValue(unit) >= (full ? 75 : 150))
+      .sort((a, b) => unitValue(b) - unitValue(a))[0];
     if (!target) return null;
     target.stunUntil = state.time + spell.duration;
     target.targetId = null;

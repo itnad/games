@@ -3666,3 +3666,44 @@ test("starswar casters keep energy for the spell they are walking toward: vessel
   }
   assert.ok(used.has("plague"), `플레이그 ${[...used]}`);
 });
+
+test("starswar ghosts hang back while charging lockdown, then step up and lock the priciest mech; full energy also locks vultures", () => {
+  const setup = (energy, foe) => {
+    const state = createStarswarGame({ seed: 3, aiSides: [], races: { player: "terran", enemy: "terran" } });
+    state.sides.player.research.lockdown = "done";
+    for (const building of state.buildings) building.hp = building.maxHp = 1e6;
+    const marines = Array.from({ length: 8 }, (_, index) => stwSpawnUnitAt(state, "player", "marine", 12 + index * 2.2, 60, "attack"));
+    const ghost = stwSpawnUnitAt(state, "player", "ghost", 20, 61, "attack");
+    ghost.energy = energy;
+    const foes = foe.map((type, index) => stwSpawnUnitAt(state, "enemy", type, 16 + index * 4, 44, "rally"));
+    for (const unit of [...marines, ghost, ...foes]) unit.hp = unit.maxHp = 1e5;
+    state.sides.enemy.rally = 56;
+    return { state, marines, ghost, foes };
+  };
+  // 에너지 50(락다운 100 미만): 해병 줄보다 뒤에 머문다. 사거리 안의 적은 쏜다.
+  const charging = setup(50, ["goliath", "tank"]);
+  run(charging.state, 12);
+  const rear = Math.max(...charging.marines.map((unit) => unit.y));
+  assert.ok(charging.ghost.y >= rear, `에너지를 모으는 고스트는 맨 뒤 (고스트 y ${charging.ghost.y.toFixed(1)}, 해병 맨 뒤 y ${rear.toFixed(1)})`);
+  assert.ok(!charging.state.effects.some((effect) => effect.spell === "lockdown"));
+  // 에너지 100: 나가서 락다운을 쓴다. 둘 다 사거리 안이면 더 비싼 기계 유닛(탱크 250 > 골리앗 150)부터.
+  const ready = setup(100, ["goliath", "tank"]);
+  ready.ghost.x = 18;
+  ready.ghost.y = 50;
+  let locked = null;
+  for (let tick = 0; tick < 200 && !locked; tick += 1) {
+    stepStarswar(ready.state);
+    locked = ready.foes.find((unit) => (unit.stunUntil ?? 0) > ready.state.time) ?? null;
+  }
+  assert.equal(locked?.type, "tank", "탱크부터 잠근다");
+  // 벌처(값 75): 에너지 100이면 아끼고, 가득(200) 찼으면 쓴다.
+  for (const [energy, expected] of [[100, false], [200, true]]) {
+    const vultures = setup(energy, ["vulture", "vulture"]);
+    let cast = false;
+    for (let tick = 0; tick < 150 && !cast; tick += 1) {
+      stepStarswar(vultures.state);
+      cast = vultures.foes.some((unit) => (unit.stunUntil ?? 0) > vultures.state.time);
+    }
+    assert.equal(cast, expected, `에너지 ${energy}일 때 벌처 락다운`);
+  }
+});
