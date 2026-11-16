@@ -1308,7 +1308,7 @@ function runCommand(state, side, command) {
       // 공격 목표: 교전 우선(맞으면 반격하고 싸울 수 있는 적부터) 또는 건물 우선(생산·기술 건물부터 깨고 유닛은 무시).
       if (command.mode !== "fight" && command.mode !== "buildings") return fail("알 수 없는 공격 목표입니다");
       record.focus = command.mode;
-      if (side === "player") pushLog(state, side, command.mode === "fight" ? "교전 우선: 싸울 수 있는 적과 방어 건물부터 칩니다." : "건물 우선: 맞아도 근처 건물부터 깹니다.", "order");
+      if (side === "player") pushLog(state, side, command.mode === "fight" ? "건물 강제공격 끔: 싸울 수 있는 적과 방어 건물부터 칩니다." : "건물 강제공격: 맞아도 근처 건물부터 깹니다.", "order");
       return { ok: true };
     }
     case "autoWave": {

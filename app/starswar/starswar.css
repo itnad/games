@@ -56,9 +56,9 @@
 .stw-res.supply.full { background:#ff715826; }
 .stw-res.supply.full b { color:#ffab9c; }
 .stw-speed { margin-left:auto; display:flex; gap:5px; }
-.stw-focus { margin-left:auto; display:flex; padding:2px; border:1px solid color-mix(in srgb,var(--stw-gold) 33%,transparent); border-radius:11px; background:color-mix(in srgb,var(--stw-veil) 4%,transparent); }
-.stw-focus button { height:32px; min-width:44px; padding:0 8px; border:0; border-radius:9px; color:var(--stw-muted); background:transparent; font-size:13px !important; font-weight:900; white-space:nowrap; }
-.stw-focus button.active { color:var(--stw-on-gold); background:var(--stw-gold); }
+.stw-focus { margin-left:auto; height:36px; padding:0 9px 0 7px; display:flex; align-items:center; gap:6px; border:1px solid color-mix(in srgb,var(--stw-gold) 33%,transparent); border-radius:10px; color:var(--stw-muted); background:color-mix(in srgb,var(--stw-veil) 4%,transparent); font-size:13px !important; font-weight:900; white-space:nowrap; cursor:pointer; }
+.stw-focus input { width:18px; height:18px; margin:0; accent-color:var(--stw-gold); cursor:pointer; }
+.stw-focus.active { color:var(--stw-text); border-color:var(--stw-gold); background:color-mix(in srgb,var(--stw-gold) 16%,transparent); }
 .stw-focus + .stw-speed { margin-left:0; }
 .stw-speed button { min-width:42px; height:38px; border:1px solid color-mix(in srgb,var(--stw-gold) 23%,transparent); border-radius:10px; background:color-mix(in srgb,var(--stw-veil) 6%,transparent); font-size:16px !important; font-weight:900; }
 

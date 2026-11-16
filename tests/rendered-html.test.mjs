@@ -906,7 +906,7 @@ test("keeps StarDraft in its own app/starswar folder as a public mobile game at 
   assert.match(gameSource, /type: "squadMove", units: selected, y: 96, guard: true, post: "home"/);
   assert.match(gameSource, /type: "guardRelease", post: post\.key/);
   // 공격 목표 토글은 자원 줄에 있고, 바꿔도 고른 부대는 풀리지 않는다.
-  assert.match(gameSource, /className="stw-focus" role="radiogroup" aria-label="공격 목표"/);
+  assert.match(gameSource, /<input type="checkbox" checked=\{side\.focus === "buildings"\}[^\n]*\n\s*<span>건물 강제공격<\/span>/);
   assert.match(gameSource, /"dropRecall", "focus"\]/);
   assert.doesNotMatch(gameSource, /playerLog\.slice\(-6\)/);
   assert.doesNotMatch(gameSource, /className="stw-attack"|이 부대 출격/);
