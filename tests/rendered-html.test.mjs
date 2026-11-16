@@ -163,6 +163,7 @@ import {
   mudflatMudZombieCount,
   mudflatJellyfishInterval,
   mudflatJellyfishPoisonDamage,
+  mudflatSeafoodSwarmCount,
   mudflatPearlTestTapProgress,
   mudflatMosquitoAppears,
   mudflatMosquitoChance,
@@ -1231,6 +1232,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatJellyfishInterval(7), Infinity);
   assert.equal(mudflatJellyfishInterval(8), 30);
   assert.equal(mudflatJellyfishPoisonDamage(), 4);
+  assert.deepEqual([0, .19, .2, .79, .8, .999999].map(mudflatSeafoodSwarmCount), [8, 8, 9, 11, 12, 12]);
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
   assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["쓸어담기", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
@@ -1710,7 +1712,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /drawMudflatDarkness\(context, width, height, stageProfile\.darkness, mudflatHeadlampDiscoveryRange\(runtime\.equipment\.headlamp \?\? 0\), runtime\.player\.facing, runtime\.equipment\.headlamp \?\? 0\)/);
   assert.doesNotMatch(source, /fillSightCone\(HEADLAMP_CONE_HALF_ANGLE, \.48\)/);
   assert.doesNotMatch(source, /const radius = headlamp \? 215 : 112/);
-  assert.match(source, /해산물 무리가 몰려옵니다/);
+  assert.doesNotMatch(source, /해산물 무리가 몰려옵니다/);
   assert.match(source, /정규 원정을 완주해 끝없는 물때가 열렸습니다/);
   assert.match(source, /context\.fillText\(emptyHazard\.message, width \/ 2, height \/ 2 - 69\)/);
   assert.match(source, /drawRockHookBar\(context, \{ x: width \/ 2, y: height \/ 2 \}, point, runtime\.rockFlipEffect\)/);
@@ -1908,6 +1910,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const spawnCrabRush =/);
   assert.match(source, /const spawnMudZombieEvent =/);
   assert.match(source, /const spawnJellyfish =/);
+  assert.match(source, /const spawnSeafoodSwarm =/);
+  assert.match(source, /spawnSeafoodSwarm\(width, height\)/);
   assert.match(source, /eventKind: "jellyfish", uncollectible: true/);
   assert.match(source, /creature\.eventKind === "crab-line"/);
   assert.match(source, /runtime\.jellyPoisonSeconds = Math\.max\(runtime\.jellyPoisonSeconds, 4\)/);

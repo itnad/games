@@ -100,6 +100,7 @@ import {
   mudflatMudZombieCount,
   mudflatJellyfishInterval,
   mudflatJellyfishPoisonDamage,
+  mudflatSeafoodSwarmCount,
   mudflatPearlTestTapProgress,
   mudflatKidsNetCanTarget,
   mudflatMarketImageScale,
@@ -2096,7 +2097,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
     const isCreatureRevealed = (creature: Creature) => (creature.emergeSeconds ?? 0) <= 0 && creatureRevealStrength(creature) >= .98;
 
-    const spawnCreature = (width: number, height: number, forcedBoss = false, openingWave = false) => {
+    const spawnCreature = (width: number, height: number, forcedBoss = false, openingWave = false, preferredSpawn?: Point) => {
       const headlampRange = mudflatHeadlampDiscoveryRange(runtime.equipment.headlamp ?? 0);
       const openingSelectionTime = openingWave
         ? Math.min(48, 12 + Math.max(0, runtime.stage - 3) * 6 + runtimeRandom(runtime) * 28)
@@ -2111,7 +2112,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (!canCreateEncounter) template = mudflatCreatureForTime(runtime.elapsed, runtimeRandom(runtime), { headlamp: false });
         else runtime.headlampSpawnClock = 4.4 + runtimeRandom(runtime) * 1.8;
       }
-      let angle = runtimeRandom(runtime) * Math.PI * 2;
+      let angle = preferredSpawn
+        ? Math.atan2(preferredSpawn.y - runtime.player.y, preferredSpawn.x - runtime.player.x)
+        : runtimeRandom(runtime) * Math.PI * 2;
       const lightMargin = template.requiresHeadlamp ? headlampRange + 96 : 0;
       const edgeDistance = Math.min(
         Math.abs(Math.cos(angle)) > .001 ? width / 2 / Math.abs(Math.cos(angle)) : Infinity,
@@ -2121,6 +2124,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         ? Math.max(edgeDistance + template.size + 24 + runtimeRandom(runtime) * 44, lightMargin)
         : Math.max(Math.hypot(width, height) * .58 + 70, lightMargin) + runtimeRandom(runtime) * 80;
       let spawnPoint = { x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance };
+      if (preferredSpawn) spawnPoint = preferredSpawn;
       for (let attempt = 0; runtime.baseCampGuideShown && attempt < 8 && isInsideBaseCamp(spawnPoint, runtime.baseCamp, runtime.stage, template.size + 12); attempt += 1) {
         angle = runtimeRandom(runtime) * Math.PI * 2;
         distance += 56 + runtimeRandom(runtime) * 44;
@@ -2136,6 +2140,27 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         speed: template.speed * (1 + runtime.elapsed / 750) * (runtime.mode === "normal" ? 1.12 : 1) * stageStats.creatureSpeedMultiplier * openingSpeed, saltHit: 0, hitFlash: 0, phase: runtimeRandom(runtime) * Math.PI * 2, age: 0,
         movement: (template.movement ?? "chase") as CreatureMovement, movementAngle: angle + Math.PI, movementClock: 1,
       });
+    };
+
+    const spawnSeafoodSwarm = (width: number, height: number) => {
+      const count = mudflatSeafoodSwarmCount(runtimeRandom(runtime));
+      const sourceAngle = runtimeRandom(runtime) * Math.PI * 2;
+      const sourceX = Math.cos(sourceAngle);
+      const sourceY = Math.sin(sourceAngle);
+      const sideX = -sourceY;
+      const sideY = sourceX;
+      const edgeDistance = Math.hypot(width, height) * .58 + 86;
+      const columns = 4;
+      for (let index = 0; index < count; index += 1) {
+        const column = index % columns;
+        const row = Math.floor(index / columns);
+        const lateral = (column - (columns - 1) / 2) * 42 + (runtimeRandom(runtime) - .5) * 22;
+        const depth = row * 38 + (runtimeRandom(runtime) - .5) * 18;
+        spawnCreature(width, height, false, false, {
+          x: runtime.player.x + sourceX * (edgeDistance + depth) + sideX * lateral,
+          y: runtime.player.y + sourceY * (edgeDistance + depth) + sideY * lateral,
+        });
+      }
     };
 
     const eventCreatureFromTemplate = (
@@ -2734,9 +2759,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (stageProfile.swarms) {
           runtime.swarmClock -= dt;
           if (runtime.swarmClock <= 0 && runtime.creatures.length < 165) {
-            for (let index = 0; index < 5; index += 1) spawnCreature(width, height);
+            spawnSeafoodSwarm(width, height);
             runtime.swarmClock = 18 + runtimeRandom(runtime) * 9;
-            runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y - 72, life: 1.15, text: "해산물 무리가 몰려옵니다!", color: "#fff1a8" });
           }
         }
         if (!runtime.bossSpawned && runtime.elapsed >= 200) { runtime.bossSpawned = true; spawnCreature(width, height, true); }
