@@ -164,6 +164,7 @@ import {
   mudflatJellyfishInterval,
   mudflatJellyfishPoisonDamage,
   mudflatSeafoodSwarmCount,
+  mudflatSeafoodSwarmInterval,
   mudflatPearlTestTapProgress,
   mudflatMosquitoAppears,
   mudflatMosquitoChance,
@@ -1232,7 +1233,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatJellyfishInterval(7), Infinity);
   assert.equal(mudflatJellyfishInterval(8), 30);
   assert.equal(mudflatJellyfishPoisonDamage(), 4);
-  assert.deepEqual([0, .19, .2, .79, .8, .999999].map(mudflatSeafoodSwarmCount), [8, 8, 9, 11, 12, 12]);
+  assert.deepEqual([0, .19, .2, .79, .8, .999999].map((roll) => mudflatSeafoodSwarmCount(6, roll)), [8, 8, 9, 11, 12, 12]);
+  assert.equal(mudflatSeafoodSwarmCount(5, .5), 0);
+  assert.equal(mudflatSeafoodSwarmCount(7, .999999), 13);
+  assert.equal(mudflatSeafoodSwarmCount(10, .999999), 16);
+  assert.equal(mudflatSeafoodSwarmInterval(5, .5, .5), Infinity);
+  assert.ok(mudflatSeafoodSwarmInterval(6, 0, 0) < mudflatSeafoodSwarmInterval(6, 0, .5));
+  assert.ok(mudflatSeafoodSwarmInterval(6, 0, .5) < mudflatSeafoodSwarmInterval(6, 0, .9));
+  assert.ok(mudflatSeafoodSwarmInterval(6, 0, 0, true) >= 9);
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
   assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["쓸어담기", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
@@ -1912,6 +1920,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const spawnJellyfish =/);
   assert.match(source, /const spawnSeafoodSwarm =/);
   assert.match(source, /spawnSeafoodSwarm\(width, height\)/);
+  assert.match(source, /if \(runtime\.stage >= 6\)/);
+  assert.match(source, /mudflatSeafoodSwarmInterval\(runtime\.stage, runtimeRandom\(runtime\), runtimeRandom\(runtime\)\)/);
   assert.match(source, /eventKind: "jellyfish", uncollectible: true/);
   assert.match(source, /creature\.eventKind === "crab-line"/);
   assert.match(source, /runtime\.jellyPoisonSeconds = Math\.max\(runtime\.jellyPoisonSeconds, 4\)/);

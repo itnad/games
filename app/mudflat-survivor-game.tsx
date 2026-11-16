@@ -101,6 +101,7 @@ import {
   mudflatJellyfishInterval,
   mudflatJellyfishPoisonDamage,
   mudflatSeafoodSwarmCount,
+  mudflatSeafoodSwarmInterval,
   mudflatPearlTestTapProgress,
   mudflatKidsNetCanTarget,
   mudflatMarketImageScale,
@@ -284,6 +285,7 @@ function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
   const stats = mudflatEquipmentStats(campaign.equipment, campaign.baseMaxHp, campaign.mode === "normal" ? campaign.levels.snack : 0);
   const normalizedSeed = normalizeMudflatSeed(seed);
   const mosquitoRoll = nextMudflatRandom(normalizedSeed ^ 0x6d6f7371).value;
+  const initialSwarmRoll = nextMudflatRandom(normalizedSeed ^ 0x73776172).value;
   const firstMoveGuide = campaign.mode === "normal" && campaign.stage === 1 ? createFirstMoveGuide() : null;
   return {
     mode: campaign.mode, stage: campaign.stage, seed: normalizedSeed, rngState: normalizedSeed, lumiMotion: createLumiMotion(),
@@ -298,7 +300,7 @@ function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
     headlampSpawnClock: 0, rockSpawnClock: 0, clamSpawnClock: 0, rockTurnClock: 0, harpoonClock: 0, hoeClock: 0, netClock: 0, castNetClock: 0, electricClock: 0, selfShockClock: 10, electricPulseLife: 0, electricStopNotified: false, selfShockNotified: false, discoveryMessageLife: campaign.pendingSkillDiscovery ? 3 : 0,
     playerMessage: "", playerMessageLife: 0, playerMessageOpacity: 1, pufferTouching: false, hiddenRockClock: mudflatHiddenRockStage(campaign.stage) ? .5 : 0, hiddenRockIntroShown: false, catchFullNoticeClock: 0,
     hoeEffect: 0, rockFlipEffect: null, bleedSeconds: 0, bleedTickClock: 1, emptySeafoodSeconds: 0, emptySeafoodDamageClock: 0, deepMudGauge: 0, deepMudLock: 0, deepMudStepClock: 0,
-    safeZone: { x: 90, y: 0 }, baseCamp: { ...BASE_CAMP }, baseCampGuideShown: false, tideDamageClock: 1, tideMessageClock: 0, lastTideCycle: 0, lastHillCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: 12, mosquitoClock: 10, mosquitoRunEnabled: mudflatMosquitoRunEnabled(campaign.stage, mosquitoRoll), rocksFlipped: 0,
+    safeZone: { x: 90, y: 0 }, baseCamp: { ...BASE_CAMP }, baseCampGuideShown: false, tideDamageClock: 1, tideMessageClock: 0, lastTideCycle: 0, lastHillCycle: -1, safeZoneTransition: 0, tideFlash: 0, fallClock: 5, fallingRocks: [], swarmClock: campaign.stage >= 6 ? mudflatSeafoodSwarmInterval(campaign.stage, initialSwarmRoll, 0, true) : -1, mosquitoClock: 10, mosquitoRunEnabled: mudflatMosquitoRunEnabled(campaign.stage, mosquitoRoll), rocksFlipped: 0,
     paused: false, ended: false,
   };
 }
@@ -2097,11 +2099,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
     const isCreatureRevealed = (creature: Creature) => (creature.emergeSeconds ?? 0) <= 0 && creatureRevealStrength(creature) >= .98;
 
-    const spawnCreature = (width: number, height: number, forcedBoss = false, openingWave = false, preferredSpawn?: Point) => {
+    const spawnCreature = (width: number, height: number, forcedBoss = false, openingWave = false, preferredSpawn?: Point, selectionTime?: number) => {
       const headlampRange = mudflatHeadlampDiscoveryRange(runtime.equipment.headlamp ?? 0);
       const openingSelectionTime = openingWave
         ? Math.min(48, 12 + Math.max(0, runtime.stage - 3) * 6 + runtimeRandom(runtime) * 28)
-        : runtime.elapsed;
+        : selectionTime !== undefined && Number.isFinite(selectionTime) ? Math.max(0, selectionTime) : runtime.elapsed;
       let template = forcedBoss ? MUDFLAT_CREATURES.find((item) => item.boss)! : mudflatCreatureForTime(openingSelectionTime, runtimeRandom(runtime), { headlamp: headlampRange > 0 });
       if (!forcedBoss && template.requiresHeadlamp) {
         const headlampLevel = runtime.equipment.headlamp ?? 0;
@@ -2143,7 +2145,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     };
 
     const spawnSeafoodSwarm = (width: number, height: number) => {
-      const count = mudflatSeafoodSwarmCount(runtimeRandom(runtime));
+      const count = mudflatSeafoodSwarmCount(runtime.stage, runtimeRandom(runtime));
       const sourceAngle = runtimeRandom(runtime) * Math.PI * 2;
       const sourceX = Math.cos(sourceAngle);
       const sourceY = Math.sin(sourceAngle);
@@ -2156,10 +2158,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const row = Math.floor(index / columns);
         const lateral = (column - (columns - 1) / 2) * 42 + (runtimeRandom(runtime) - .5) * 22;
         const depth = row * 38 + (runtimeRandom(runtime) - .5) * 18;
+        const selectionTime = 45 + Math.max(0, runtime.stage - 6) * 18 + runtimeRandom(runtime) * 150;
         spawnCreature(width, height, false, false, {
           x: runtime.player.x + sourceX * (edgeDistance + depth) + sideX * lateral,
           y: runtime.player.y + sourceY * (edgeDistance + depth) + sideY * lateral,
-        });
+        }, selectionTime);
       }
     };
 
@@ -2756,11 +2759,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             runtime.jellyfishClock += mudflatJellyfishInterval(runtime.stage);
           }
         }
-        if (stageProfile.swarms) {
+        if (runtime.stage >= 6) {
           runtime.swarmClock -= dt;
           if (runtime.swarmClock <= 0 && runtime.creatures.length < 165) {
             spawnSeafoodSwarm(width, height);
-            runtime.swarmClock = 18 + runtimeRandom(runtime) * 9;
+            runtime.swarmClock = mudflatSeafoodSwarmInterval(runtime.stage, runtimeRandom(runtime), runtimeRandom(runtime));
           }
         }
         if (!runtime.bossSpawned && runtime.elapsed >= 200) { runtime.bossSpawned = true; spawnCreature(width, height, true); }

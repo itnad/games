@@ -115,7 +115,7 @@ export function mudflatStageHazardNotes(profile: StageProfile) {
   const notes: string[] = [];
   if (profile.tideInterval > 0) notes.push(`돌발 물살 · 약 ${profile.tideInterval}초 주기 대피`);
   if (profile.wind > 0) notes.push("바람 · 이동 방향이 흔들림");
-  if (profile.swarms) notes.push("해산물 무리 · 추가 출현");
+  if (profile.stage >= 6) notes.push("해산물 무리 · 불규칙한 방향·간격·구성으로 추가 출현");
   if (profile.waterChannels) notes.push("물골 · 지나갈 때 이동 감속");
   if (mudflatHiddenRockStage(profile.stage)) notes.push("숨은 돌 · 가까운 곳에 갑자기 등장");
   if (profile.fallingRocks > 0) notes.push("낙석 · 충돌 피해와 바위 생성");

@@ -359,9 +359,24 @@ export function mudflatJellyfishInterval(stage = 1) {
   return Math.max(1, Math.floor(Number(stage) || 1)) >= 8 ? 30 : Infinity;
 }
 
-export function mudflatSeafoodSwarmCount(roll = 0) {
+export function mudflatSeafoodSwarmCount(stage = 6, roll = 0) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < 6) return 0;
   const safeRoll = Math.max(0, Math.min(.999999, Number(roll) || 0));
-  return 8 + Math.floor(safeRoll * 5);
+  const range = Math.min(9, 5 + (safeStage - 6));
+  return 8 + Math.floor(safeRoll * range);
+}
+
+export function mudflatSeafoodSwarmInterval(stage = 6, roll = 0, patternRoll = 0, initial = false) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < 6) return Infinity;
+  const safeRoll = Math.max(0, Math.min(.999999, Number(roll) || 0));
+  const safePattern = Math.max(0, Math.min(.999999, Number(patternRoll) || 0));
+  const stagePressure = Math.max(.72, 1 - (safeStage - 6) * .035);
+  if (initial) return (9 + safeRoll * 20) * stagePressure;
+  if (safePattern < .2) return (8 + safeRoll * 10) * stagePressure;
+  if (safePattern < .82) return (18 + safeRoll * 24) * stagePressure;
+  return (44 + safeRoll * 30) * stagePressure;
 }
 
 export function mudflatJellyfishPoisonDamage() {
