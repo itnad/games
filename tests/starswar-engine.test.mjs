@@ -3735,6 +3735,19 @@ test("starswar ghost strategy: defends with bunkers and tanks, researches lockdo
   assert.ok(game.sides.player.research.personnelCloak, "고스트 은폐 연구");
   assert.ok(ghosts >= 3, `고스트 ${ghosts}`);
 
+  // 9~12분 공격 대비(드라군 성향 상대): 9분 전에 벙커 여섯, 출격 전에는 앞마당 벙커 줄 뒤(집결지 64 + 6)에 서고,
+  // 고스트를 뽑는 동안에도 해병을 여덟 넘게 지켜 10분에 들어오는 드라군·질럿 공격을 넘긴다.
+  const hold = createStarswarGame({ seed: 13, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "ghost", enemy: "dragoon" } });
+  while (hold.status === "playing" && hold.time < 540) stepStarswar(hold, stwAiThink);
+  assert.equal(stwOwnBuildings(hold, "player", "bunker").length, 6);
+  assert.equal(hold.sides.player.rally, 70);
+  while (hold.status === "playing" && hold.time < 560) stepStarswar(hold, stwAiThink);
+  const holdMarines = hold.units.filter((unit) => unit.side === "player" && unit.type === "marine").length;
+  assert.ok(holdMarines >= 8, `해병 ${holdMarines}`);
+  while (hold.status === "playing" && hold.time < 660) stepStarswar(hold, stwAiThink);
+  assert.equal(hold.status, "playing");
+  assert.ok(hold.units.filter((unit) => unit.side === "player" && !STW_UNITS[unit.type].worker).length >= 20, "10분 공격을 넘긴 뒤 병력이 남는다");
+
   // 메카닉은 사이언스 퍼실리티·락다운·고스트를 쓰지 않는다(고스트는 보병 계열이라 바이오닉·탱크 바이오로 옮겼다).
   const mech = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "mech" } });
   let mechGhosts = 0;

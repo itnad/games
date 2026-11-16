@@ -14,6 +14,7 @@ import {
   stwNexus,
   stwOpponent,
   stwOwnBuildings,
+  stwRallyY,
   stwResearchCheck,
   stwResearchDone,
   stwSupply,
@@ -90,7 +91,7 @@ const BUILD_ORDERS = {
     { build: "starport", at: 360 }, { build: "science" }, { research: "irradiate" }, { research: "emp" },
     { research: "lockdown", vs: ["protoss", "terran"] }, { research: "personnelCloak", vs: ["protoss", "terran"] },
   ],
-  // 고스트 특수전: 벙커 둘과 시즈 탱크로 버티며 사이언스 퍼실리티를 올려 락다운·은폐 고스트를 모으고, 해병·메딕과 탱크 몇 기를 붙여 민다.
+  // 고스트 특수전: 벙커(빌드의 셋 + 6분 30초부터 여섯까지)와 시즈 탱크로 버티며 사이언스 퍼실리티를 올려 락다운·은폐 고스트를 모으고, 해병·메딕과 탱크 몇 기를 붙여 민다.
   ghost: [
     { build: "depot" }, { build: "barracks" }, { build: "refinery" }, { build: "depot" }, { build: "bunker" },
     { build: "factory" }, { build: "academy" }, { build: "shop" }, { research: "siege" }, { build: "bunker" },
@@ -245,6 +246,13 @@ const ALERT_TECH = new Set(["core", "academy", "den", "evo", "shop"]);
 const GAS_HUNGRY = new Set(["ghost", "templar", "dark", "robo", "carrier", "corsair", "bc", "wraith", "tankbio", "mech", "ultra", "hive", "hydra", "muta"]);
 /** 성향의 핵심 연구(순서대로): 건물이 서면 다른 지출보다 먼저 한다. */
 const KEY_RESEARCH = { ghost: ["lockdown", "personnelCloak"] };
+// 고스트 특수전이 갖추는 벙커 수와 늘리기 시작하는 시각(초).
+const GHOST_BUNKERS = 6;
+const GHOST_BUNKER_FROM = 390;
+// 고스트 특수전이 둘째 배럭까지 고스트로 돌리기 전에 지키는 해병 수.
+const GHOST_MARINE_FLOOR = 10;
+// 고스트 특수전이 출격 전에 서는 자리: 앞마당 집결지에서 이만큼 뒤(앞마당 앞줄 벙커 바로 뒤).
+const GHOST_HOLD_BEHIND = 6;
 const TECH_STEPS = {
   muta: ["lair", "spire"], ultra: ["lair", "cavern"], hive: ["lair", "nest", "hive", "mound"],
   bc: ["factory", "starport", "science"], ghost: ["factory", "starport", "science", "lockdown", "personnelCloak"], templar: ["core", "citadel", "archives", "storm"],
@@ -646,6 +654,15 @@ export function stwAiThink(state, side) {
     if (!stwOwnBuildings(state, side, "bunker").length) stwCommand(state, side, { type: "build", building: "bunker" });
   }
 
+  // 3-1-1-1. 고스트 특수전: 9~12분에 들어오는 큰 공격(드라군 14 + 질럿 12, 탱크 11 + 해병)을 받으려면 벙커 셋으로는 모자라다.
+  // 같은 수비 병력(해병 16·메딕 4·탱크 6·고스트 6)으로 벙커 3~4개는 6판 모두 졌고 5개부터 6판 모두 막았다. 여유를 두어 여섯까지 늘린다.
+  // 앞마당이 선 뒤 6분 30초부터 45초마다 하나씩(광물 100) 올려 9분 전에 다 선다.
+  if (persona === "ghost" && stwNexus(state, side, "natural") && state.time >= GHOST_BUNKER_FROM) {
+    const want = Math.min(GHOST_BUNKERS, 4 + Math.floor((state.time - GHOST_BUNKER_FROM) / 45));
+    const waiting = ensureDefense(state, side, race, want);
+    if (waiting) save(waiting.minerals, waiting.gas, true);
+  }
+
   // 3-1-2. 프로토스 대 저그: 앞마당이 서면 캐논을 하나 더 세운다(저글링 물량 대비).
   if (versusZerg && race.id === "protoss" && stwHas(state, side, "forge") && stwNexus(state, side, "natural") && stwOwnBuildings(state, side, "cannon").length < 2 && record.minerals > 300) {
     stwCommand(state, side, { type: "build", building: "cannon" });
@@ -906,8 +923,9 @@ function terranLines(state, side, persona, units, reserve) {
     if ((persona === "mech" || persona === "vulture" || persona === "wraith" || persona === "bc") && units.length > 10 && record.minerals < 300 && !airDominant) unit = null;
     // 바이오닉·탱크 바이오: 락다운을 연구했고 상대에 기계 유닛이 많으면 배럭 하나는 고스트(넷까지). 드라군·리버·캐리어·탱크를 묶는다.
     if (index === 0 && persona !== "ghost" && mechFoe && stwResearchDone(state, side, "lockdown") && ghosts < 4) unit = "ghost";
-    // 고스트 특수전: 사이언스 퍼실리티가 서면 배럭 둘은 고스트(열까지), 나머지는 해병·메딕.
-    if (persona === "ghost" && science && index < 2 && ghosts < 6) unit = "ghost";
+    // 고스트 특수전: 사이언스 퍼실리티가 서면 배럭 하나는 고스트(여섯까지), 해병이 열을 넘으면 둘째 배럭도 고스트. 나머지는 해병·메딕.
+    // 배럭 둘을 모두 고스트로 돌리자 8분 30초~9분 30초에 해병이 3기로 줄어, 벙커 여섯·탱크 여섯으로도 드라군 12 + 질럿 10을 못 막았다.
+    if (persona === "ghost" && science && index < (marines >= GHOST_MARINE_FLOOR ? 2 : 1) && ghosts < 6) unit = "ghost";
     if (unit && STW_UNITS[unit].gas && record.gas < STW_UNITS[unit].gas + gasReserveFor(unit)) unit = "marine";
     const starving = unit && reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && units.length >= 3 && reserve.safe;
     // 광물을 기다리며 놀고 있는 배럭만 멈춘다(만드는 중이면 그것까지는 끝낸다). 병력이 안전하지 않으면 멈추지 않는다.
@@ -1376,7 +1394,14 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
     if (record.rally !== back) stwCommand(state, side, { type: "move", y: back });
   } else {
     const desiredRally = natural || (memory.clearNatural && stwArmy(state, side).fighters.length >= 4) ? "natural" : "main";
-    if (record.rally !== desiredRally) stwCommand(state, side, { type: "rally", point: desiredRally });
+    // 고스트 특수전: 출격 전에는 앞마당 벙커 줄 뒤에 선다. 앞마당 집결지(64)는 앞줄 벙커(66)보다 앞이라, 사거리 7 드라군이
+    // 벙커 사거리(6) 밖에서 해병만 골라 잡았다(8분 15초에 해병 12기 중 9기를 잃고 드라군 5기를 잡음).
+    const behind = persona === "ghost" && natural && stwDone(natural) && !memory.attacking && !stwArmy(state, side).attack.length
+      && state.buildings.filter((building) => building.side === side && building.type === "bunker" && building.base === "natural").length >= 2
+      ? stwRallyY("player", "natural", state) + GHOST_HOLD_BEHIND : null;
+    if (behind !== null) {
+      if (record.rally !== behind) stwCommand(state, side, { type: "move", y: behind });
+    } else if (record.rally !== desiredRally) stwCommand(state, side, { type: "rally", point: desiredRally });
   }
   const army = stwArmy(state, side);
   const foe = stwOpponent(side);
