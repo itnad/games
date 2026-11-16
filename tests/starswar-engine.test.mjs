@@ -3588,3 +3588,24 @@ test("starswar ranged units step away from melee while reloading, and slip behin
   const side = (unit) => Math.sign(unit.y - cannon.y);
   assert.notEqual(side(shooter), side(chaser), `캐논을 사이에 둔다 (드라군 y ${shooter.y.toFixed(1)}, 질럿 y ${chaser.y.toFixed(1)}, 캐논 y ${cannon.y.toFixed(1)})`);
 });
+
+test("starswar a squad sent in front of a packed friendly line passes through it and holds the tapped spot, even with enemies near", () => {
+  for (const map of ["plain", "canyon"]) {
+    const state = stwCreateScenario({ seed: 5, placement: "home", map, races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 30, medic: 8 } }, enemy: { units: {} } } });
+    stwCommand(state, "player", { type: "move", y: 50 });
+    run(state, 30);
+    const marines = state.units.filter((unit) => unit.side === "player" && unit.type === "marine");
+    // 해병은 자리를 잡고 싸우는 중(앞뒤로 밀리지 않는다), 앞쪽에 저글링.
+    for (const marine of marines) marine.plantedAt = 1e9;
+    const front = Math.min(...marines.map((unit) => unit.y));
+    for (let index = 0; index < 6; index += 1) {
+      const ling = stwSpawnUnitAt(state, "enemy", "zergling", 12 + index * 3, front - 7, "rally");
+      ling.hp = ling.maxHp = 1e6;
+    }
+    stwCommand(state, "player", { type: "squadMove", units: ["medic"], y: front - 3 });
+    run(state, 10);
+    const medics = state.units.filter((unit) => unit.side === "player" && unit.type === "medic");
+    assert.ok(medics.every((unit) => unit.y < front - 0.3), `${map}: 메딕이 모두 해병 앞줄(${front}) 앞에 선다 ${medics.map((unit) => unit.y.toFixed(1)).join(",")}`);
+    assert.ok(medics.filter((unit) => Math.abs(unit.y - (front - 3)) < 0.5).length >= 6, `${map}: 맨 앞줄은 누른 자리`);
+  }
+});

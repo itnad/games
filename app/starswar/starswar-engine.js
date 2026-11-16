@@ -2580,7 +2580,13 @@ function stepUnits(state, dt) {
         });
         continue;
       }
-      for (const [id, slot] of rallySlots(state, side, members, stwRallyY(side, squads[type].y, state))) allRallySlots.set(id, slot);
+      // 따로 둔 부대는 맨 앞줄이 누른 자리에 오게 세운다(역할별 깊이로 지원 유닛이 누른 곳보다 3~4칸 뒤에 서지 않게).
+      const anchor = stwRallyY(side, squads[type].y, state);
+      const placed = rallySlots(state, side, members, anchor);
+      const forwardSign = stwForward(side);
+      const frontY = [...placed.values()].reduce((best, slot) => (slot.y * forwardSign > best * forwardSign ? slot.y : best), -Infinity * forwardSign);
+      const shift = Number.isFinite(frontY) ? anchor - frontY : 0;
+      for (const [id, slot] of placed) allRallySlots.set(id, { x: slot.x, y: Math.min(STW_LANE_LENGTH - 1.5, Math.max(1.5, slot.y + shift)) });
     }
     plans[side] = {
       rallySlots: allRallySlots,
@@ -2691,6 +2697,9 @@ function stepUnits(state, dt) {
         continue;
       }
     }
+    // 무기 없는 유닛(메딕 등)은 따로 둔 부대·경비인 동안 계속 아군을 통과한다(좁은 협곡에서 둘째 줄 자리가 해병 앞줄과 겹쳐
+    // 그 뒤에 멈추던 문제). 부대에서 풀리면 지나가기를 끝낸다. 무기 있는 유닛은 아래 교전 처리에서 제자리에 닿으면 끝낸다.
+    if (unit.passing && !def.damage && unit.squad === undefined) delete unit.passing;
     if (unit.type === "medic") {
       medicStep(state, unit, plan, dt);
       continue;
@@ -3106,7 +3115,9 @@ function supportFollow(state, unit, plan, speed, dt) {
     moveToward(unit, slot.x, slot.y, speed, dt);
     return;
   }
-  const nearest = findTarget(state, unit, 4, { unitsOnly: true });
+  // 플레이어가 부대로 직접 세운 자리(따로 둔 부대·경비)는 적이 가까워도 물러나지 않고 지킨다.
+  // 해병 앞줄에 세운 메딕이 적을 보고 해병 뒤로 돌아가, 앞으로 보내도 앞줄을 지나지 못하던 문제.
+  const nearest = unit.squad === undefined ? findTarget(state, unit, 4, { unitsOnly: true }) : null;
   if (nearest && !isPassive(nearest)) {
     const away = Math.atan2(unit.y - nearest.y, unit.x - nearest.x);
     moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
@@ -4226,13 +4237,12 @@ function separate(state) {
       }
       // 따로 옮기는 부대·침투 병력이 지나가면 막고 선 아군이 옆으로 비켜 준다(지나가는 쪽은 밀리지 않는다).
       // 예전에는 앞에 몰려 선 질럿이 자리를 지켜, 뒤의 다크템플러만 따로 보내도 길이 막혀 나가지 못했다.
+      // 협곡처럼 비켜 줄 옆자리가 없으면 그래도 막혀서(해병 30기 줄 앞으로 보낸 메딕 8기 중 2기가 20초 동안 못 지나갔다),
+      // 지나가는 쪽은 아군과 부딪히지 않고 통과한다. 제자리에 닿으면 지나가기를 끝내고 다시 부딪힌다.
       const passA = Boolean(a.passing) || a.group === "walk";
       const passB = Boolean(b.passing) || b.group === "walk";
-      if (a.side === b.side && passA !== passB && !(passA ? b : a).sieged && !(passA ? b : a).burrowed) {
-        const away = (Math.sign(dx) || (a.id % 2 ? 1 : -1)) * (passA ? 1 : -1);
-        if (passA) [ax, ay, bx, by] = [0, 0, away * overlap, ny * overlap * 0.3];
-        else [ax, ay, bx, by] = [away * overlap, -ny * overlap * 0.3, 0, 0];
-      } else if (a.side === b.side && (holdA || holdB)) {
+      if (a.side === b.side && passA !== passB) continue;
+      if (a.side === b.side && (holdA || holdB)) {
         // 자리 잡은 유닛은 아군에게 밀릴 때 레인 세로(교전선 앞뒤)로는 움직이지 않고 가로로만 비켜 준다.
         // 그 몫은 움직이는 아군이 떠안고, 둘 다 자리를 잡았으면 버린다(앞뒤로 조금 겹친 채 둔다).
         if (holdA) {
