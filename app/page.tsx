@@ -925,7 +925,7 @@ function GameArtwork({ game }: { game: GameDefinition }) {
   }
 
   if (game.id === "mudflat-survivor") {
-    // 썸네일: 실제 경기 화면(채집꾼과 게 떼, 2026-11 사용자 제공 스크린샷에서 잘라 냄).
+    // 썸네일: 사용자가 선택한 해루질럿 실제 경기 장면.
     return <div className="card-art casual-card-art mudflat" aria-hidden="true"><img src="/mudflat-illustrations/haeru-card.jpg" alt="" /><i /><span className="float-chip">2 MODES</span></div>;
   }
 
