@@ -2813,12 +2813,14 @@ function stepUnits(state, dt) {
         }
         // 물러나며 사격: 재장전의 앞 75% 동안 근접 적이 붙어 있으면 한 걸음 물러난다(테란 컨트롤을 자동으로 흉내).
         // 마지막 25%는 서서 조준하므로, 충분히 빠른 근접 유닛(발업 질럿)은 그 틈에 따라붙어 때릴 수 있다. 완벽한 컨트롤은 아니다.
-        if (def.kite && unit.cooldown > def.cooldown * KITE_HOLD) {
+        // 원거리 지상 유닛은 모두(느려도) 근접 적이 붙으면 재장전 동안 피한다(무빙 공격). 근처에 아군 방어 건물이 있으면
+        // 그 뒤쪽(근접 적의 반대편)으로 돌아 들어가, 쫓아오는 근접 유닛이 방어 건물의 사격을 받게 한다.
+        // 예전에는 붙은 근접 유닛보다 빠른 유닛(스팀팩 해병, 벌처)만 물러났다.
+        if ((def.kite || (def.role === "ranged" && !isFlying(unit))) && unit.cooldown > def.cooldown * KITE_HOLD) {
           const melee = nearestMelee(state, unit, KITE_DISTANCE);
-          // 붙은 근접 유닛보다 빠를 때만 물러난다(해병은 스팀팩을 써야 질럿보다 빠르다).
-          if (melee && speed > unitSpeed(state, melee)) {
-            const away = Math.atan2(unit.y - melee.y, unit.x - melee.x);
-            moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
+          if (melee) {
+            const spot = danceSpot(state, unit, melee);
+            moveToward(unit, spot.x, spot.y, speed, dt);
             continue;
           }
         }
@@ -2894,6 +2896,40 @@ function keepOutOfTargets(state) {
 }
 
 /** 가까이 붙은 적 근접 유닛. */
+/** 무빙 공격 때 아군 방어 건물을 찾는 거리. */
+const DANCE_TOWER_REACH = 10;
+
+/**
+ * 근접 적을 피해 갈 자리. 10칸 안에 아군 방어 건물이 있으면 그 뒤쪽(방어 건물을 사이에 두고 근접 적의 반대편)으로,
+ * 거기로 가는 길이 근접 적에게 가까워지면 방어 건물 둘레를 따라 멀어지는 쪽으로 돈다. 없으면 근접 적의 반대쪽으로 2칸.
+ */
+function danceSpot(state, unit, melee) {
+  const away = Math.atan2(unit.y - melee.y, unit.x - melee.x);
+  const straight = { x: unit.x + Math.cos(away) * 2, y: unit.y + Math.sin(away) * 2 };
+  let tower = null;
+  let towerDistance = DANCE_TOWER_REACH;
+  for (const building of state.buildings) {
+    if (building.side !== unit.side || building.hp <= 0 || !STW_BUILDINGS[building.type].damage || !stwDone(building)) continue;
+    const d = distance(unit.x, unit.y, building.x, building.y) - building.radius;
+    if (d < towerDistance) {
+      tower = building;
+      towerDistance = d;
+    }
+  }
+  if (!tower) return straight;
+  const ring = tower.radius + unit.radius + 1.2;
+  const gap = (point) => distance(point.x, point.y, melee.x, melee.y);
+  const behindAngle = Math.atan2(tower.y - melee.y, tower.x - melee.x);
+  const behind = { x: tower.x + Math.cos(behindAngle) * ring, y: tower.y + Math.sin(behindAngle) * ring };
+  // 뒤쪽으로 가는 첫걸음이 근접 적에게서 멀어지면 뒤쪽으로 간다.
+  const toward = Math.atan2(behind.y - unit.y, behind.x - unit.x);
+  const firstStep = { x: unit.x + Math.cos(toward) * 0.8, y: unit.y + Math.sin(toward) * 0.8 };
+  if (distance(unit.x, unit.y, behind.x, behind.y) > 0.6 && gap(firstStep) >= gap(unit)) return behind;
+  const angle = Math.atan2(unit.y - tower.y, unit.x - tower.x);
+  const around = [angle + 0.7, angle - 0.7].map((a) => ({ x: tower.x + Math.cos(a) * ring, y: tower.y + Math.sin(a) * ring })).sort((a, b) => gap(b) - gap(a))[0];
+  return gap(around) >= gap(unit) ? around : straight;
+}
+
 function nearestMelee(state, unit, radius) {
   let best = null;
   let bestDistance = radius;

@@ -877,7 +877,8 @@ test("starswar casters wait behind the army until a spell is ready, then move to
   const ready = stwSpawnUnitAt(state, "player", "templar", 22, 62, "attack");
   ready.energy = 80;
   // 스톰을 쓸 무리가 없는 큰 적 하나: 마법을 쓸 수 있는 템플러는 선두에 서서 기회를 노린다.
-  const ultra = stwSpawnUnitAt(state, "enemy", "ultra", 20, 30, "rally");
+  // 원거리 적(골리앗)으로 둔다: 근접 적이면 드라군이 무빙 공격으로 물러나 선두가 흩어진다.
+  const ultra = stwSpawnUnitAt(state, "enemy", "goliath", 20, 30, "rally");
   ultra.hp = ultra.maxHp = 1e6;
   run(state, 25);
   // 맨 뒤는 y로, 최전방은 적과의 거리로 잰다(근접 유닛이 적을 빙 둘러싸므로 y만으로는 선두를 알 수 없다).
@@ -2309,9 +2310,10 @@ test("starswar air units ride behind the wave and never lead it; wraith cloak ne
 
 test("starswar air AI personas field their signature flyers and opponents answer with anti-air", () => {
   const games = {
-    corsair: createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "corsair", enemy: "bio" } }),
-    wraith: createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "zerg" }, personas: { player: "wraith", enemy: "hydra" } }),
-    muta: createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "muta", enemy: "dragoon" } }),
+    // 씨앗 1: 원거리 무빙 공격을 넣은 뒤 씨앗 2의 커세어 판은 바이오닉이 대공 건물 전에 끝냈다(1·3·4·5는 대공을 갖춘다).
+    corsair: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "corsair", enemy: "bio" } }),
+    wraith: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "zerg" }, personas: { player: "wraith", enemy: "hydra" } }),
+    muta: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "muta", enemy: "dragoon" } }),
   };
   const seen = { corsair: new Set(), wraith: new Set(), muta: new Set() };
   const foeAA = { corsair: false, wraith: false, muta: false };
@@ -3550,4 +3552,39 @@ test("starswar units chasing an enemy unit switch to another enemy unit already 
   assert.equal(ling.targetId, beside.id, "바로 옆(사거리 안)의 해병부터 친다");
   // 목표가 건물(벙커·캐논)이면 이 규칙으로 바꾸지 않는다: 질럿이 방어 건물 대신 옆 유닛을 치게 하면 질럿 러시를 막던 AI가
   // 12판 중 9판을 졌다(질럿 러시 수비 시험들이 이를 지킨다).
+});
+
+test("starswar ranged units step away from melee while reloading, and slip behind a friendly defense building when one is near", () => {
+  // 탁 트인 곳: 느린 드라군(2.6)도 질럿(3.0)이 붙으면 재장전 동안 물러난다.
+  const open = quiet();
+  const dragoon = stwSpawnUnitAt(open, "player", "dragoon", 20, 50, "attack");
+  const zealot = stwSpawnUnitAt(open, "enemy", "zealot", 20, 47.6, "attack");
+  zealot.hp = zealot.maxHp = 1e6;
+  dragoon.hp = dragoon.maxHp = 1e6;
+  const moved = [];
+  for (let tick = 0; tick < 30; tick += 1) {
+    const before = { x: dragoon.x, y: dragoon.y };
+    stepStarswar(open);
+    moved.push(Math.hypot(dragoon.x - before.x, dragoon.y - before.y));
+  }
+  assert.ok(moved.filter((step) => step > 0.05).length >= 5, "재장전 동안 움직인다");
+  assert.ok(zealot.hp + zealot.shields < zealot.maxHp + zealot.maxShields, "쏘기도 한다");
+
+  // 아군 캐논 곁: 질럿을 피해 캐논 뒤쪽(질럿 반대편)으로 돌아 들어간다.
+  const home = quiet();
+  home.sides.player.minerals = 1000;
+  stwCommand(home, "player", { type: "build", building: "pylon" });
+  finishAll(home);
+  stwCommand(home, "player", { type: "build", building: "forge" });
+  finishAll(home);
+  stwCommand(home, "player", { type: "build", building: "cannon" });
+  finishAll(home);
+  const cannon = stwOwnBuildings(home, "player", "cannon")[0];
+  const shooter = stwSpawnUnitAt(home, "player", "dragoon", cannon.x, cannon.y - cannon.radius - 2, "rally");
+  shooter.hp = shooter.maxHp = 1e6;
+  const chaser = stwSpawnUnitAt(home, "enemy", "zealot", cannon.x, cannon.y - cannon.radius - 4.4, "attack");
+  chaser.hp = chaser.maxHp = 1e6;
+  run(home, 3);
+  const side = (unit) => Math.sign(unit.y - cannon.y);
+  assert.notEqual(side(shooter), side(chaser), `캐논을 사이에 둔다 (드라군 y ${shooter.y.toFixed(1)}, 질럿 y ${chaser.y.toFixed(1)}, 캐논 y ${cannon.y.toFixed(1)})`);
 });
