@@ -1,3 +1,6 @@
+import { economyDefinition } from "../data/economy-catalog";
+import { MEDIC, isOrganic } from "../abilities/medic-data";
+import { medicOf } from "../abilities/medic-state";
 import { energyMaximumSchema, supportsEnergy } from "../abilities/cloak-state";
 import { spellEffectSchema, stasisOf, recallOf } from "../abilities/spells-state";
 import { coveredByArbiter } from "../abilities/arbiter";
@@ -53,6 +56,10 @@ export type RenderEntity = {
   stasisTicks?: number;
   recallTicks?: number;
   stasisAutocast?: boolean;
+  needsHealing?: boolean;
+  healAutocast?: boolean;
+  healTargetId?: number;
+  healingTargetId?: number;
   energy?: number;
   maxEnergy?: number;
   unitMorph?: { remainingTicks: number; totalTicks: number };
@@ -123,6 +130,10 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         stasisTicks: optional(integer(1, 873)),
         recallTicks: optional(integer(1, 18)),
         stasisAutocast: optional(boolean),
+        needsHealing: optional(boolean),
+        healAutocast: optional(boolean),
+        healTargetId: optional(integer(1)),
+        healingTargetId: optional(integer(1)),
         energy: optional(integer(0, 250)),
         maxEnergy: optional(energyMaximumSchema),
         unitMorph: optional(object({ remainingTicks: integer(1, 250), totalTicks: integer(250, 250) })),
@@ -158,6 +169,10 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
   }),
   (snapshot) =>
     snapshot.entities.every(e => e.energy === undefined ? e.maxEnergy === undefined : e.maxEnergy !== undefined && e.energy <= e.maxEnergy && supportsEnergy(e.definitionId)) &&
+    snapshot.entities.every(e=>e.needsHealing===undefined || e.owner===snapshot.viewerPlayerId&&e.kind!=="building"&&e.layer==="ground"&&isOrganic(e.definitionId)&&!e.burrowed) &&
+    snapshot.entities.every(e=>(e.healAutocast === undefined && e.healTargetId === undefined || e.owner === snapshot.viewerPlayerId && e.definitionId === MEDIC) &&
+      (e.healTargetId === undefined || snapshot.entities.some(p=>p.id===e.healTargetId&&p.owner===e.owner)) &&
+      (e.healingTargetId === undefined || e.definitionId===MEDIC && snapshot.entities.some(p=>p.id===e.healingTargetId&&p.owner===e.owner&&p.id!==e.id))) &&
     snapshot.entities.every(e=>e.stasisAutocast === undefined || e.owner === snapshot.viewerPlayerId && e.definitionId === "protoss-arbiter") &&
     (snapshot.spellEffects ?? []).every(e => e.tick <= snapshot.tick && snapshot.tick-e.tick <= 20 && e.x < snapshot.widthTiles*256 && e.y < snapshot.heightTiles*256 && snapshot.visibility[Math.floor(e.y/256)*snapshot.widthTiles+Math.floor(e.x/256)] === 2) &&
     new Set((snapshot.spellEffects ?? []).map(e => e.id)).size === (snapshot.spellEffects ?? []).length &&
@@ -313,6 +328,12 @@ export function createRenderSnapshot(
       layer: s.layer[i],
       radius: s.radius[i],
     });
+  }
+  for(const e of entities){
+    if(e.owner===viewer&&e.kind!=="building"&&e.layer==="ground"&&isOrganic(e.definitionId)&&!e.burrowed&&(e.health<(economyDefinition(e.definitionId)?.health??0)||(state.combat?.records.find(r=>r.entityId===e.id)?.healthFraction??0)>0))e.needsHealing=true;
+    const r=medicOf(state,e.id);if(!r)continue;
+    if(e.owner===viewer){e.healAutocast=r.autocast;if(r.targetId!==null&&entities.some(p=>p.id===r.targetId))e.healTargetId=r.targetId;}
+    if(r.healedTick===state.tick&&r.healedTargetId!==null&&entities.some(p=>p.id===r.healedTargetId))e.healingTargetId=r.healedTargetId;
   }
   const seen = (x: number, y: number) =>
     x >= 0 &&

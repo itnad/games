@@ -1,3 +1,4 @@
+import { MEDIC } from "./medic-data";
 import { maximumEnergy } from "./energy-upgrades";
 import type { SimulationState } from "../core/state";
 import { array, integer, literal, union, object, type Infer } from "../core/validation";
@@ -10,7 +11,7 @@ export const CLOAK_ENERGY_COST = original.technologies[0].energy;
 export const CLOAK_RULES_VERSION = "cloak-1-" + checksum(JSON.stringify(original));
 export const cloakResearch = (definition: string) => definition === "terran-ghost" ? "personnel-cloaking" : definition === "terran-wraith" ? "cloaking-field" : null;
 export const supportsCloak = (definition: string) => cloakResearch(definition) !== null;
-export const supportsEnergy = (definition: string) => definition === "protoss-arbiter" || supportsCloak(definition);
+export const supportsEnergy = (definition: string) => definition === MEDIC || definition === "protoss-arbiter" || supportsCloak(definition);
 export const energyStateSchema = array(object({ entityId: integer(1), amount: integer(0, 250 * ENERGY.scale), frameRemainder: integer(0, 4) }), 0, 2048);
 type Record = Infer<typeof energyStateSchema>[number];
 export type EnergyRecord = { -readonly [K in keyof Record]: Record[K] };

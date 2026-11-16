@@ -1,3 +1,5 @@
+import { MEDIC } from "../abilities/medic-data";
+import { newMedic, clearMedicJob } from "../abilities/medic-state";
 import { initialEnergy } from "../abilities/energy-upgrades";
 import { supportsEnergy } from "../abilities/cloak-state";
 import { detachSpecialEntity } from "../abilities/special-cleanup";
@@ -114,6 +116,7 @@ export function createEntity(
   if (state.economy.enabled && supportsEnergy(input.definitionId)) {
     state.energy ??= []; state.energy.push({ entityId: id, amount: initialEnergy(state,input.owner,input.definitionId), frameRemainder: 0 });
   }
+  if(state.economy.enabled && input.definitionId===MEDIC){state.medics??={records:[]};state.medics.records.push(newMedic(id));}
   return id;
 }
 export function removeEntity(state: SimulationState, id: number): boolean {
@@ -121,6 +124,7 @@ export function removeEntity(state: SimulationState, id: number): boolean {
   for (const passenger of detachSpecialEntity(state, id)) removeEntity(state, passenger);
   const index = state.entities.id.indexOf(id);
   detachEconomyEntity(state, id);
+  if(state.medics){state.medics.records=state.medics.records.filter(r=>r.entityId!==id);for(const r of state.medics.records)if(r.targetId===id||r.healedTargetId===id)clearMedicJob(r);}
   if (state.autocast) state.autocast.records = state.autocast.records.filter(r => r.entityId !== id);
   if (state.spells) { state.spells.stasis = state.spells.stasis.filter(r => r.entityId !== id); state.spells.recalls = state.spells.recalls.filter(r => r.entityId !== id); }
   if (state.lurker) state.lurker.morphs = state.lurker.morphs.filter((j) => j.entityId !== id);

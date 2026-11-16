@@ -1,3 +1,4 @@
+import { clearMedicJob } from "./medic-state";
 import type { EngineRules } from "../core/simulation";
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
@@ -48,6 +49,7 @@ export function resolveRecall(s: SimulationState, map: BattleMap, caster: number
   for (const id of ids) {
     const i = e.id.indexOf(id), point = landing(s,map,i,e.x[a],e.y[a]); if (!point) continue;
     const w = workerOf(s,id); if (w) releaseWork(s,w,false); stop(s,id);
+    for(const r of s.medics?.records??[])if(r.entityId===id||r.targetId===id){clearMedicJob(r);r.manualUntilTick=s.tick+20;r.held=false;}
     // Teleportation breaks incoming tracking and old boarding/unload reservations.
     s.combat!.projectiles = s.combat!.projectiles.filter(p => p.targetId !== id);
     for (const m of s.movement) if (m.targetEntityId === id) stop(s,m.entityId);

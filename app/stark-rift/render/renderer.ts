@@ -347,6 +347,13 @@ export class BattleRenderer {
       g.alpha=alpha;g.position.set(c.x/256,c.y/256);updateMinimapMarker(mini!,0x9ba7ae);mini!.alpha=alpha;mini!.position.set(c.x/256,c.y/256);
     }
     this.combatEffects.clear();
+    for(const e of this.snapshot?.entities??[])if(e.healingTargetId!==undefined){
+      const p=this.snapshot?.entities.find(p=>p.id===e.healingTargetId);if(!p)continue;
+      const x=p.x/256,y=p.y/256;
+      this.combatEffects.moveTo(e.x/256,e.y/256).lineTo(x,y).stroke({color:0x80efba,width:.065,alpha:.85});
+      this.combatEffects.circle(x,y,.48).stroke({color:0xa5f7ce,width:.045,alpha:.8});
+      this.combatEffects.moveTo(x-.18,y-.65).lineTo(x+.18,y-.65).moveTo(x,y-.83).lineTo(x,y-.47).stroke({color:0xa5f7ce,width:.09});
+    }
     for (const e of this.snapshot?.entities ?? []) if (e.owner === this.snapshot!.viewerPlayerId && e.definitionId === ARBITER && !e.stasisTicks && this.selectedIds.has(e.id)) {
       const b = combatProfile(ARBITER)!.bounds, r = ARBITER_RANGE / 256;
       this.combatEffects.roundRect(e.x / 256 - b[0] / 32 - r, e.y / 256 - b[1] / 32 - r, (b[0] + b[2]) / 32 + r * 2, (b[1] + b[3]) / 32 + r * 2, r).fill({ color: 0xa78be8, alpha: .045 }).stroke({ color: 0xc6a1ff, width: .045, alpha: .65 });
