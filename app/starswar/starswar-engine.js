@@ -1308,7 +1308,7 @@ function runCommand(state, side, command) {
       // 공격 목표: 교전 우선(맞으면 반격하고 싸울 수 있는 적부터) 또는 건물 우선(생산·기술 건물부터 깨고 유닛은 무시).
       if (command.mode !== "fight" && command.mode !== "buildings") return fail("알 수 없는 공격 목표입니다");
       record.focus = command.mode;
-      if (side === "player") pushLog(state, side, command.mode === "fight" ? "공격 병력이 싸울 수 있는 적과 방어 건물부터 칩니다." : "공격 병력이 맞아도 생산·기술 건물부터 깹니다.", "order");
+      if (side === "player") pushLog(state, side, command.mode === "fight" ? "교전 우선: 싸울 수 있는 적과 방어 건물부터 칩니다." : "건물 우선: 맞아도 근처 건물부터 깹니다.", "order");
       return { ok: true };
     }
     case "autoWave": {
@@ -2338,14 +2338,17 @@ const RETALIATE_REACH = 9;
  * - 교전 우선: 일반 건물이나 일꾼을 치다가 맞으면 때린 적에게 반격하고, 1초마다 시야 안의 위협을 다시 찾는다.
  * - 건물 우선(공격 병력만): 맞아도 무시하고 근처 건물을 생산·기술 건물부터 깬다. 칠 건물이 없을 때만 유닛과 싸운다.
  */
-function focusTarget(state, unit, target, { isAttack, sight, leashed }) {
+function focusTarget(state, unit, target, { isAttack, sight, leashed, slot = null }) {
   const focus = state.sides[unit.side].focus ?? "fight";
-  if (isAttack && focus === "buildings") {
+  // 건물 우선은 공격 병력과, 지도를 눌러 세워 둔 병력에도 쓴다(그 자리 12칸 안의 건물만). 경비는 자리를 지키므로 따르지 않는다.
+  // 지도 탭이 "누른 곳까지 가서 머물기"가 된 뒤로 세워 둔 병력은 공격 병력이 아니라, 예전 규칙으로는 건물 우선이 듣지 않았다.
+  const standing = !isAttack && slot && !stwIsGuard(unit.squad);
+  if ((isAttack || standing) && focus === "buildings") {
     const rescan = state.time >= (unit.threatScanAt ?? 0);
     if (target?.kind === "building" && !rescan) return target;
     unit.threatScanAt = state.time + 1;
     const building = findSiegeTarget(state, unit, sight + 6);
-    if (!building) return target;
+    if (!building || (standing && distance(building.x, building.y, slot.x, slot.y) - building.radius > RALLY_LEASH)) return target;
     if (target?.kind === "building" && siegeScore(unit, target) <= siegeScore(unit, building) + 2) return target;
     return building;
   }
@@ -2760,7 +2763,7 @@ function stepUnits(state, dt) {
         }
       }
     }
-    if (!intruders.length) target = focusTarget(state, unit, target, { isAttack, sight, leashed });
+    if (!intruders.length) target = focusTarget(state, unit, target, { isAttack, sight, leashed, slot });
     // 싸우기로 한 은폐 유닛은 자기를 드러낸 탐지원부터 깬다.
     if ((unit.commitUntil ?? 0) > state.time && unit.commitTarget !== undefined) {
       const detector = resolve(state, unit.commitTarget, unit);

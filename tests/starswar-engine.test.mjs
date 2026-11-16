@@ -3504,3 +3504,37 @@ test("starswar guards: send only some units of a type to hold a spot; whole-army
   assert.ok(!Object.keys(state.sides.player.squads).some(stwIsGuard));
   assert.ok(guards.every((unit) => unit.squad === undefined));
 });
+
+test("starswar building focus also drives an army standing where the map was tapped (within its 12-cell reach), guards ignore it", () => {
+  const setup = (focus) => {
+    const state = stwCreateScenario({ seed: 11, placement: "home", races: { player: "protoss", enemy: "terran" }, sides: { player: { units: { dragoon: 4 } }, enemy: { units: {}, buildings: { barracks: 1 } } } });
+    const barracks = state.buildings.find((building) => building.side === "enemy" && building.type === "barracks");
+    // 배럭을 적 앞마당 쪽(y 32)에 두고 양옆에 해병 둘(싸울 수 있는 적), 병력은 배럭 앞(y 40)을 눌러 세운다.
+    barracks.x = 20;
+    barracks.y = 32;
+    for (const dx of [-7, 7]) stwSpawnUnitAt(state, "enemy", "marine", barracks.x + dx, barracks.y + 1, "rally");
+    // 해병이 제 집결지로 돌아가지 않고 배럭 곁(세계 y 33)에 서 있게 한다(적 진영 기준 67).
+    state.sides.enemy.rally = 67;
+    stwCommand(state, "player", { type: "focus", mode: focus });
+    stwCommand(state, "player", { type: "move", y: 40, merge: true });
+    return { state, barracks };
+  };
+  // 교전이 시작된 뒤 처음 4초 동안 무엇을 노렸는지 센다(해병이 죽은 뒤에는 어차피 배럭만 남는다).
+  const shotAt = ({ state, barracks }) => {
+    const hits = { building: 0, unit: 0 };
+    let started = null;
+    for (let tick = 0; tick < 400 && (started === null || tick < started + 40); tick += 1) {
+      stepStarswar(state);
+      for (const unit of state.units) {
+        if (unit.side !== "player" || unit.targetId === null) continue;
+        started ??= tick;
+        hits[unit.targetId === barracks.id ? "building" : "unit"] += 1;
+      }
+    }
+    return hits;
+  };
+  const buildings = shotAt(setup("buildings"));
+  const fight = shotAt(setup("fight"));
+  assert.ok(buildings.building > buildings.unit, `건물 우선: 세워 둔 병력도 배럭부터 (${JSON.stringify(buildings)})`);
+  assert.ok(fight.unit > fight.building, `교전 우선: 해병부터 (${JSON.stringify(fight)})`);
+});

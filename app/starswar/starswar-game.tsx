@@ -103,7 +103,7 @@ function writeLearning(data: unknown) {
 }
 const ARMY_IDS = STW_ARMY_UNITS as StwArmyType[];
 /** 고른 부대를 그대로 두는 명령: 부대를 옮기거나 본대로 돌리거나 침투를 거두는 동안에는 같은 부대를 이어서 지휘한다. */
-const SQUAD_KEEP_COMMANDS = new Set<StwCommand["type"]>(["squadMove", "squadRelease", "guardRelease", "dropRecall"]);
+const SQUAD_KEEP_COMMANDS = new Set<StwCommand["type"]>(["squadMove", "squadRelease", "guardRelease", "dropRecall", "focus"]);
 /** 부대 지휘에서 종류마다 보낼 수. 일부만 보내면 그 유닛들은 경비가 된다. */
 const SQUAD_COUNTS = [0, 1, 2, 4] as const;
 const PRODUCER_NAMES: Record<StwProducerType, string> = { gateway: "게이트웨이", robo: "로보틱스", stargate: "스타게이트", barracks: "배럭", factory: "팩토리", starport: "스타포트", hatchery: "해처리", hatch: "해처리" };
@@ -959,6 +959,12 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         <span className="stw-res minerals"><i aria-hidden="true" /><b>{Math.floor(side.minerals)}</b><em>+{income.minerals}</em></span>
         <span className="stw-res gas"><i aria-hidden="true" /><b>{Math.floor(side.gas)}</b><em>+{income.gas}</em></span>
         <span className={supply.used >= supply.cap ? "stw-res supply full" : "stw-res supply"}><i aria-hidden="true" /><b>{supply.used}/{supply.cap}</b></span>
+        {/* 공격 목표: 전투 중에도 한 번에 바꾸도록 자원 줄에 둔다(병력 탭의 같은 선택과 같은 값). */}
+        <div className="stw-focus" role="radiogroup" aria-label="공격 목표">
+          {([["fight", "교전"], ["buildings", "건물"]] as [StwFocus, string][]).map(([mode, label]) => (
+            <button key={mode} type="button" role="radio" aria-checked={(side.focus ?? "fight") === mode} className={(side.focus ?? "fight") === mode ? "active" : ""} onClick={() => issue({ type: "focus", mode })}>{label}</button>
+          ))}
+        </div>
         <div className="stw-speed">
           <button type="button" onClick={() => setPaused((value) => !value)} aria-label={paused ? "계속하기" : "일시정지"}>{paused ? "▶" : "Ⅱ"}</button>
         </div>
@@ -1383,8 +1389,8 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
       </div>
       <h3 className="stw-section">공격 목표</h3>
       <p className="stw-hint">{(side.focus ?? "fight") === "fight"
-        ? "교전 우선: 공격 병력이 맞으면 때린 적과 방어 건물에게 반격하고, 싸울 수 있는 적을 먼저 친 뒤 건물을 깹니다."
-        : "건물 우선: 공격 병력이 맞아도 무시하고 생산·기술 건물부터 깹니다. 근처에 칠 건물이 없을 때만 유닛과 싸웁니다. 메딕·하이템플러 같은 지원 유닛, 시즈 탱크·러커, 수송 작전 병력은 따르지 않습니다."}</p>
+        ? "교전 우선: 맞으면 때린 적과 방어 건물에게 반격하고, 싸울 수 있는 적을 먼저 친 뒤 건물을 깹니다. 맨 위 자원 줄의 교전·건물로도 바로 바꿉니다."
+        : "건물 우선: 맞아도 무시하고 근처 건물부터 깹니다(세워 둔 병력은 그 자리 12칸 안의 건물). 칠 건물이 없을 때만 유닛과 싸웁니다. 메딕·하이템플러 같은 지원 유닛, 시즈 탱크·러커, 경비, 수송 작전 병력은 따르지 않습니다. 맨 위 자원 줄의 교전·건물로도 바로 바꿉니다."}</p>
       <div className="stw-segment two">
         {([["fight", "교전 우선"], ["buildings", "건물 우선"]] as [StwFocus, string][]).map(([mode, label]) => (
           <button key={mode} type="button" className={(side.focus ?? "fight") === mode ? "active" : ""} aria-pressed={(side.focus ?? "fight") === mode} onClick={() => issue({ type: "focus", mode })}>{label}</button>
