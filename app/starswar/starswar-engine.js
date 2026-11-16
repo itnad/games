@@ -2738,6 +2738,12 @@ function stepUnits(state, dt) {
     if (intruders.length) {
       // 자동 수비: 기지에 들어온 적을 거리와 상관없이 쫓아가 잡는다.
       if (!target || !intruders.includes(target)) target = nearestOf(unit, intruders);
+      // 쫓던 침입자가 사거리 밖인데 다른 침입자가 바로 옆(사거리 안)에 있으면 그쪽부터 친다.
+      const reachNow = range + 0.6 + unit.radius * 0.5;
+      if (target && distance(unit.x, unit.y, target.x, target.y) - target.radius > reachNow) {
+        const beside = nearestOf(unit, intruders.filter((enemy) => enemy !== target && enemy.kind === "unit"));
+        if (beside && distance(unit.x, unit.y, beside.x, beside.y) - beside.radius <= reachNow) target = beside;
+      }
     } else {
       if (target) {
         const d = distance(unit.x, unit.y, target.x, target.y) - target.radius;
@@ -2754,13 +2760,29 @@ function stepUnits(state, dt) {
         const outOfReach = dTarget - unit.radius * 0.5 > range + 0.6;
         const receding = unit.lastTargetDistance !== undefined && dTarget > unit.lastTargetDistance + 0.01;
         unit.lastTargetDistance = dTarget;
-        if (outOfReach && receding && target.kind === "unit") {
+        // 근접 유닛은 목표가 멀어지지 않아도 0.5초마다 다시 본다: 둘러싸인 목표(붙은 근접 수 벌점)보다 점수가 1 넘게 좋은 적이
+        // 있으면 바꾼다(앞의 질럿을 지나쳐 뒤의 드라군에게 달려가던 저글링).
+        const melee = def.role === "melee" && state.time >= (unit.rescoreAt ?? 0);
+        if (melee && outOfReach) unit.rescoreAt = state.time + 0.5;
+        if (outOfReach && (receding || melee) && target.kind === "unit") {
           const other = findTarget(state, unit, sight, { unitsOnly: true });
           if (other && other !== target && !leashed(other)) {
             const dOther = distance(unit.x, unit.y, other.x, other.y) - other.radius;
             if (targetScore(state, unit, other, dOther) < targetScore(state, unit, target, dTarget) - 1) target = other;
           }
         }
+      }
+    }
+    // 목표가 사거리 밖인데 다른 적 유닛이 지금 사거리 안에 있으면 그 적부터 친다. 둘러싸인 드라군·질럿에 저글링이 몰려
+    // 바로 옆의 적을 두고 비집고 들어가려다 시간을 버렸다(AI 경기에서 저글링이 목표를 쥔 시간의 5.6%). 다른 유닛도 같은 규칙.
+    // 목표가 유닛일 때만 바꾼다: 벙커·캐논을 노리던 질럿까지 옆의 유닛으로 돌리면 질럿 러시를 막던 AI가 12판 중 9판을 졌다
+    // (벙커·캐논 앞에서 근접 유닛이 유닛부터 치는 규칙은 따로 있다).
+    if (!intruders.length && target && target.kind === "unit") {
+      const dTarget = distance(unit.x, unit.y, target.x, target.y) - target.radius;
+      const reachNow = range + 0.6 + unit.radius * 0.5;
+      if (dTarget > reachNow) {
+        const beside = findTarget(state, unit, reachNow, { unitsOnly: true });
+        if (beside && beside !== target && !leashed(beside) && !isPassive(beside)) target = beside;
       }
     }
     if (!intruders.length) target = focusTarget(state, unit, target, { isAttack, sight, leashed, slot });

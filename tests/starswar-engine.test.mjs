@@ -3538,3 +3538,16 @@ test("starswar building focus also drives an army standing where the map was tap
   assert.ok(buildings.building > buildings.unit, `건물 우선: 세워 둔 병력도 배럭부터 (${JSON.stringify(buildings)})`);
   assert.ok(fight.unit > fight.building, `교전 우선: 해병부터 (${JSON.stringify(fight)})`);
 });
+
+test("starswar units chasing an enemy unit switch to another enemy unit already in reach", () => {
+  const state = quiet();
+  const ling = stwSpawnUnitAt(state, "player", "zergling", 20, 50, "attack");
+  const far = stwSpawnUnitAt(state, "enemy", "marine", 20, 42, "rally");
+  const beside = stwSpawnUnitAt(state, "enemy", "marine", 21.2, 50, "rally");
+  for (const unit of [far, beside]) unit.hp = unit.maxHp = 1e6;
+  ling.targetId = far.id;
+  run(state, 0.3);
+  assert.equal(ling.targetId, beside.id, "바로 옆(사거리 안)의 해병부터 친다");
+  // 목표가 건물(벙커·캐논)이면 이 규칙으로 바꾸지 않는다: 질럿이 방어 건물 대신 옆 유닛을 치게 하면 질럿 러시를 막던 AI가
+  // 12판 중 9판을 졌다(질럿 러시 수비 시험들이 이를 지킨다).
+});
