@@ -145,6 +145,13 @@ const BUILD_ORDERS = {
     { build: "overlord" }, { build: "expand", at: 200 }, { build: "hatch" }, { build: "evo", at: 240 }, { research: "zMelee1" },
     { research: "lair", at: 300 }, { research: "ventral" }, { build: "extractor" }, { research: "zCarapace1" }, { research: "zMelee2" }, { research: "adrenal" }, { build: "hatch" },
   ],
+  // 럴커 저글링: 성큰 하나로 버티며 덴과 레어를 서둘러 럴커 변태를 연구하고, 땅속 럴커와 저글링으로 조인다(히드라는 대공용으로 조금).
+  lurker: [
+    { build: "overlord" }, { build: "pool" }, { build: "extractor" }, { build: "hatch" }, { build: "sunken" }, { build: "den" },
+    { research: "lair", at: 200 }, { build: "extractor" }, { build: "overlord" }, { research: "lurkerAspect" }, { build: "expand", at: 290 },
+    { research: "metabolic" }, { build: "sunken" }, { build: "hatch" }, { build: "evo" }, { research: "zMissile1" }, { build: "extractor" },
+    { research: "zCarapace1" }, { research: "zMelee1" },
+  ],
   hydra: [
     { build: "overlord" }, { build: "pool" }, { build: "extractor" }, { build: "hatch" }, { build: "sunken" }, { build: "den" },
     { build: "extractor" }, { build: "overlord" }, { research: "spines" }, { build: "hatch" }, { build: "expand", at: 300 },
@@ -202,15 +209,15 @@ function lostStep(state, side, order, index, memory) {
 
 const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22], bio: [8, 12, 16, 22], mech: [8, 12, 16, 20],
   tankbio: [10, 14, 20, 26], vulture: [8, 12, 16, 20], ling: [12, 20, 30, 42, 56], hydra: [14, 18, 24, 30], pool: [6, 10, 14, 20, 26], ultra: [12, 18, 24, 30],
-  corsair: [8, 12, 16, 20], wraith: [8, 12, 16, 20], muta: [12, 18, 26, 36], carrier: [8, 12, 16, 20], bc: [8, 12, 16, 20], hive: [14, 18, 24, 30], ghost: [14, 18, 22, 26] };
+  corsair: [8, 12, 16, 20], wraith: [8, 12, 16, 20], muta: [12, 18, 26, 36], carrier: [8, 12, 16, 20], bc: [8, 12, 16, 20], hive: [14, 18, 24, 30], ghost: [14, 18, 22, 26], lurker: [10, 16, 22, 28] };
 const RUSH_WAVES_VS_TERRAN = [8, 10, 12, 14];
 /** 시야 판단: 공격 병력 곁에 보이는 적의 힘에 대해 우리 힘이 이 비율 아래면 맞붙기 전에 물러난다. */
 const SIGHT_RETREAT = 0.6;
-const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, tankbio: 5, vulture: 4, ling: 9, hydra: 3, pool: 3, ultra: 3, corsair: 6, wraith: 4, muta: 7, carrier: 4, bc: 3, hive: 4, ghost: 4 };
+const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, tankbio: 5, vulture: 4, ling: 9, hydra: 3, pool: 3, ultra: 3, corsair: 6, wraith: 4, muta: 7, carrier: 4, bc: 3, hive: 4, ghost: 4, lurker: 4 };
 /** 출격 규모 상한. 저글링 물량만 더 크게 모은다(저글링은 인구 0.5). */
 const WAVE_CAP = { ling: 80 };
 /** 빌드 순서가 끝난 뒤 남는 자원으로 더 짓는 생산 건물. */
-const EXTRA_PRODUCER = { ghost: "barracks", bio: "barracks", mech: "factory", tankbio: "barracks", vulture: "factory", ling: "hatch", hydra: "hatch", pool: "hatch", ultra: "hatch", corsair: "gateway", wraith: "factory", muta: "hatch", carrier: "gateway", bc: "factory", hive: "hatch" };
+const EXTRA_PRODUCER = { lurker: "hatch", ghost: "barracks", bio: "barracks", mech: "factory", tankbio: "barracks", vulture: "factory", ling: "hatch", hydra: "hatch", pool: "hatch", ultra: "hatch", corsair: "gateway", wraith: "factory", muta: "hatch", carrier: "gateway", bc: "factory", hive: "hatch" };
 /** 일꾼을 적게 뽑고 일찍 찌르는 성향: 이 시간(초)까지는 일꾼 수를 제한한다. */
 const EARLY_WORKER_CAP = { pool: { until: 210, cap: 14 } };
 /** 광물이 크게 쌓이면 성향과 상관없이 늘리는 기본 생산 건물. */
@@ -243,9 +250,13 @@ const ALERT_TECH = new Set(["core", "academy", "den", "evo", "shop"]);
  */
 // 캐리어 함대는 가스가 모자라던 때(일꾼당 0.55) 넣었더니 병력이 얇아 평원 승률이 19% → 11%로 떨어져 뺐다가, 가스 0.8에서 다시 넣었다.
 /** 대표 유닛이 가스를 많이 먹는 성향: 일꾼이 18기를 넘으면 남은 간헐천에 가스 건물을 더 짓는다. */
-const GAS_HUNGRY = new Set(["ghost", "templar", "dark", "robo", "carrier", "corsair", "bc", "wraith", "tankbio", "mech", "ultra", "hive", "hydra", "muta"]);
+const GAS_HUNGRY = new Set(["lurker", "ghost", "templar", "dark", "robo", "carrier", "corsair", "bc", "wraith", "tankbio", "mech", "ultra", "hive", "hydra", "muta"]);
 /** 성향의 핵심 연구(순서대로): 건물이 서면 다른 지출보다 먼저 한다. */
-const KEY_RESEARCH = { ghost: ["lockdown", "personnelCloak"] };
+const KEY_RESEARCH = { ghost: ["lockdown", "personnelCloak"], lurker: ["lurkerAspect"] };
+// 럴커 저글링이 모으는 럴커 수와, 첫 출격 전에 기다리는 럴커 수·기다림의 끝(초).
+const LURKER_TARGET = 10;
+const LURKER_FIRST_WAVE = 4;
+const LURKER_HOLD_UNTIL = 600;
 // 고스트 특수전이 갖추는 벙커 수와 늘리기 시작하는 시각(초).
 const GHOST_BUNKERS = 6;
 const GHOST_BUNKER_FROM = 390;
@@ -254,7 +265,7 @@ const GHOST_MARINE_FLOOR = 10;
 // 고스트 특수전이 출격 전에 서는 자리: 앞마당 집결지에서 이만큼 뒤(앞마당 앞줄 벙커 바로 뒤).
 const GHOST_HOLD_BEHIND = 6;
 const TECH_STEPS = {
-  muta: ["lair", "spire"], ultra: ["lair", "cavern"], hive: ["lair", "nest", "hive", "mound"],
+  muta: ["lair", "spire"], ultra: ["lair", "cavern"], hive: ["lair", "nest", "hive", "mound"], lurker: ["den", "lair", "lurkerAspect"],
   bc: ["factory", "starport", "science"], ghost: ["factory", "starport", "science", "lockdown", "personnelCloak"], templar: ["core", "citadel", "archives", "storm"],
   robo: ["core", "robo", "bay"], dark: ["core", "citadel", "archives"], wraith: ["factory", "starport"],
   // 캐리어 함대: 가스 채취량을 올린 뒤에는 가스가 1,000 넘게 쌓이는데 광물을 드라군에 다 써서 스타게이트 8분, 비컨 11분이었다.
@@ -427,7 +438,10 @@ export function stwAiThink(state, side) {
   // 스타게이트 8분, 비컨 11분이었다(테란·저그 상대 캐리어 0기).
   const techBuildings = (TECH_STEPS[persona] ?? []).filter((id) => STW_BUILDINGS[id]);
   // 앞마당이 서기 전(7분 전)에는 하지 않는다: 확장보다 테크 건물을 먼저 사면 로보 운영이 저글링 상대로 7분까지 본진 하나에 묶였다.
-  if (techBuildings.length && record.gas >= 400 && !incomingWave(state, side) && (stwNexus(state, side, "natural") || state.time > 420)) {
+  // 럴커 저글링은 덴(100/50)이 전부라 성큰 둘이 서 있으면 가스 100부터, 압박을 받는 중에도 올린다. 질럿 러시에 저글링만 88기를 뽑으며
+  // 덴 7분 20초, 레어 9분이었다(가스 750이 쌓였다).
+  const lurkerTech = persona === "lurker" && stwOwnBuildings(state, side, "sunken").length >= 2;
+  if (techBuildings.length && (lurkerTech ? record.gas >= 100 : record.gas >= 400 && !incomingWave(state, side) && (stwNexus(state, side, "natural") || state.time > 420))) {
     const nextTech = techBuildings.find((id) => !stwOwnBuildings(state, side, id).length);
     if (nextTech) {
       const check = stwBuildCheck(state, side, nextTech);
@@ -437,11 +451,13 @@ export function stwAiThink(state, side) {
   }
   // 0-0-1. 핵심 연구(KEY_RESEARCH): 연구할 건물이 섰는데 아직 안 했으면, 적이 밀고 오는 중이 아닌 한 그 비용을 반드시 아낀다.
   // 고스트 특수전이 사이언스 퍼실리티를 7분에 올리고도 해병에 광물을 다 써 11분까지 락다운(200/200)을 시작하지 못했다.
-  for (const id of KEY_RESEARCH[persona] ?? []) {
+  // 럴커 저글링의 레어 변태는 덴이 선 뒤부터 핵심 연구로 친다(그 전에는 빌드 순서의 3분 20초를 따른다).
+  const keyResearch = persona === "lurker" && stwHas(state, side, "den") ? ["lair", ...KEY_RESEARCH.lurker] : KEY_RESEARCH[persona] ?? [];
+  for (const id of keyResearch) {
     if (record.research[id]) continue;
     const check = stwResearchCheck(state, side, id);
     if (check.ok) stwCommand(state, side, { type: "research", research: id });
-    else if (/부족/.test(check.reason ?? "") && !incomingWave(state, side)) save(STW_RESEARCH[id].minerals, STW_RESEARCH[id].gas, true);
+    else if (/부족/.test(check.reason ?? "") && (lurkerTech || !incomingWave(state, side))) save(STW_RESEARCH[id].minerals, STW_RESEARCH[id].gas, true);
     break;
   }
   // 0-1. 테크 성향은 일꾼이 18기를 넘으면 남은 간헐천에 가스 건물을 더 짓는다(본진 둘 + 앞마당 하나). 가스 일꾼 3~6기로는
@@ -1003,6 +1019,7 @@ function signatureUnit(state, side, persona) {
   if (stwHas(state, side, "mound") && count("defiler") < 2) return "defiler";
   if ((persona === "muta" || persona === "hive") && stwResearchDone(state, side, "greaterSpire") && count("guardian") < 6) return "guardian";
   if (stwHas(state, side, "cavern") && count("ultra") * (persona === "ultra" ? 4 : 6) < army) return "ultra";
+  if (persona === "lurker") return record.research.lurkerAspect === "done" && count("lurker") < LURKER_TARGET ? "lurker" : null;
   if (record.research.lurkerAspect === "done" && count("lurker") * 3 < count("hydra")) return "lurker";
   return null;
 }
@@ -1013,6 +1030,9 @@ function baseLingShare(state, side, persona) {
   if (persona === "ling") return 1;
   if (persona === "pool") return state.time > 480 ? 0.75 : 1;
   if (persona === "hydra" || persona === "hive") return versusTerran ? 0.5 : 0.33;
+  // 럴커 저글링: 저글링이 몸으로 받고 럴커가 잡는다. 테란 상대로는 파이어뱃·메딕에 저글링이 녹아 히드라를 더 섞는다
+  // (저글링 75%로는 7분의 해병 11·메딕 4·파이어뱃 4에 저글링 34기가 모두 죽었다).
+  if (persona === "lurker") return versusTerran ? 0.34 : 0.75;
   return 0.5;
 }
 
@@ -1047,7 +1067,10 @@ function zergLines(state, side, persona, units, reserve) {
   const hatcheries = state.buildings.filter((building) => building.side === side && (building.type === "hatchery" || building.type === "hatch")).sort((a, b) => a.id - b.id);
   hatcheries.forEach((hatchery, index) => {
     let unit = den && !shareOf(index, hatcheries.length, lingShare) ? "hydra" : "zergling";
-    if (lurkers && count("lurker") * lurkerEvery < hydras) unit = "lurker";
+    // 럴커 저글링: 럴커 변태가 끝나면 해처리 둘 중 하나는 럴커(LURKER_TARGET기까지). 다른 성향은 히드라 몇 기마다 럴커 하나.
+    if (persona === "lurker") {
+      if (lurkers && count("lurker") < LURKER_TARGET && index % 2 === 0) unit = "lurker";
+    } else if (lurkers && count("lurker") * lurkerEvery < hydras) unit = "lurker";
     else if (cavern && count("ultra") * (persona === "ultra" ? 4 : 6) < army) unit = "ultra";
     // 뮤탈 저글링: 스파이어가 서면 해처리 절반은 뮤탈리스크. 적 공중이 보이면 그 수만큼 스커지(2기씩)를 둔다.
     if (spire && persona === "muta" && index % 2 === 0) unit = "mutalisk";
@@ -1124,7 +1147,7 @@ const SWITCH_TO = {
 /** 경계 중 앞마당이 없을 때 병력이 모이는 자리(아군 기준). */
 const HOLD_BACK_Y = 84;
 /** 출격 규모를 셀 때 저글링을 반 기로 치는 성향(저글링이 주력이 아닌 저그 운영). */
-const HALF_LING = new Set(["hydra", "hive", "ultra", "muta"]);
+const HALF_LING = new Set(["hydra", "hive", "ultra", "muta", "lurker"]);
 const BIG_WAVE = { pool: 6, ling: 24, muta: 14, corsair: 12, wraith: 12 };
 const SWITCH_AFTER = { pool: 0, ling: 480, muta: 660, corsair: 660, wraith: 660 };
 
@@ -1502,7 +1525,9 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 고스트 특수전: 락다운을 쓸 수 있는(에너지 100 이상) 고스트가 넷 모일 때까지 방어 건물 곁에서 기다린다. 14분이 지나면 그냥 나간다.
   const ghostHold = persona === "ghost" && !allIn && state.time < 840
     && (!stwResearchDone(state, side, "lockdown") || army.fighters.filter((unit) => unit.type === "ghost" && unit.energy >= STW_SPELLS.lockdown.energy).length < 4);
-  if (fighterCount >= size && !outgunned && !fortified && !lingsIntoBio && !macroHold && !abortHold && !ghostHold && threat < 3) {
+  // 럴커 저글링: 럴커가 넷 모일 때까지 나가지 않는다(저글링만으로 먼저 나가 녹지 않게). 10분이 지나면 그냥 나간다.
+  const lurkerHold = persona === "lurker" && !allIn && state.time < LURKER_HOLD_UNTIL && army.fighters.filter((unit) => unit.type === "lurker").length < LURKER_FIRST_WAVE;
+  if (fighterCount >= size && !outgunned && !fortified && !lingsIntoBio && !macroHold && !abortHold && !ghostHold && !lurkerHold && threat < 3) {
     const value = (type) => STW_UNITS[type].minerals + STW_UNITS[type].gas;
     const total = army.fighters.reduce((sum, unit) => sum + value(unit.type), 0);
     memory.waveLings = total ? army.fighters.reduce((sum, unit) => sum + (unit.type === "zergling" ? value(unit.type) : 0), 0) / total : 0;

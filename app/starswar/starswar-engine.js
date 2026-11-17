@@ -3023,10 +3023,30 @@ function tankSiegeStep(state, unit, retreating, rallySlot) {
   return true;
 }
 
+/** 숨은 럴커가 사거리 밖의 적을 기다려 주는 거리(사거리 + 이만큼)와, 다가온다고 보는 속도(1초에 이만큼 넘게 가까워짐). */
+const LURKER_WAIT_REACH = 4;
+const LURKER_APPROACH_STEP = 0.4;
+
+/**
+ * 숨은 럴커의 사거리 밖 가장 가까운 적 유닛이 다가오는 중인지. 1초마다 거리를 재서 LURKER_APPROACH_STEP 넘게 줄었으면 다가오는 중이다.
+ * 처음 본 1초 동안은 다가오는 것으로 친다(아직 잴 수 없다).
+ */
+function lurkerSeesApproach(state, unit, nearby) {
+  if (!nearby) {
+    unit.burrowWatch = undefined;
+    return false;
+  }
+  const d = distance(unit.x, unit.y, nearby.x, nearby.y) - nearby.radius;
+  const watch = unit.burrowWatch;
+  if (!watch) unit.burrowWatch = { d, at: state.time, closing: true };
+  else if (state.time - watch.at >= 1) unit.burrowWatch = { d, at: state.time, closing: d < watch.d - LURKER_APPROACH_STEP };
+  return unit.burrowWatch.closing;
+}
+
 /**
  * 럴커: 사거리 안에 적이 들어오면 1초 동안 땅속에 숨고(은폐), 숨은 동안만 일직선 가시로 공격한다.
  * 가시는 대상 방향으로 사거리 끝까지 뻗어 그 줄 위의 모든 적 지상 유닛에 같은 피해를 준다.
- * 후퇴 명령이 오거나 2초 넘게 대상이 없으면 1초 동안 땅 위로 나온다. 이 틱을 처리했으면 true.
+ * 후퇴 명령이 오거나, 3초 넘게 대상이 없고 다가오는 적 유닛도 없으면 1초 동안 땅 위로 나온다. 이 틱을 처리했으면 true.
  */
 function lurkerStep(state, unit, retreating) {
   const def = STW_UNITS.lurker;
@@ -3038,10 +3058,14 @@ function lurkerStep(state, unit, retreating) {
     // 사거리 조금 밖에 적 유닛이 다가오는 중이면 계속 숨어 있는다(들락거리며 1초씩 버리지 않도록).
     // 건물은 다가오지 않으므로 세지 않는다: 건물을 부순 뒤 다음 건물이 사거리 바로 밖(6~10칸)에 있으면 영영 땅속에서 기다렸다
     // (적 병력이 없는 후반에 럴커 둘이 적 앞마당 옆에서 10분 가까이 멈춰 경기가 끝나지 않았다).
-    const approaching = !target && findTargetBand(state, unit, 0, range + 4, { unitsOnly: true });
+    // 유닛도 실제로 가까워지는 중일 때만 기다린다: 집결지에 서 있는 적이 사거리 밖 4칸 안에 있기만 해도 기다려,
+    // 적 기지를 치러 간 럴커 8기가 건물 하나를 부순 뒤 해병 16기 앞 10칸에서 240초 넘게 땅속에 멈춰 있었다.
+    const nearby = target ? null : findTargetBand(state, unit, 0, range + LURKER_WAIT_REACH, { unitsOnly: true });
+    const approaching = lurkerSeesApproach(state, unit, nearby);
     if (retreating || (!target && !approaching && state.time - (unit.lastBurrowTargetAt ?? 0) > 3)) {
       unit.burrowed = false;
       unit.burrowUntil = state.time + def.burrow.setup;
+      unit.burrowWatch = undefined;
       unit.targetId = null;
       return true;
     }

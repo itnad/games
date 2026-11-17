@@ -52,6 +52,8 @@ export type StwUnit = {
   stimAt?: number;
   burrowed?: boolean;
   burrowUntil?: number;
+  /** 숨은 럴커가 사거리 밖의 가장 가까운 적 유닛을 지켜본 기록(1초마다 거리를 재서 다가오는지 판단). */
+  burrowWatch?: { d: number; at: number; closing: boolean };
   stunUntil?: number;
   stasisUntil?: number;
   ensnareUntil?: number;

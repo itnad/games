@@ -719,6 +719,7 @@ export const STW_AI_PERSONAS = {
   bc: { id: "bc", race: "terran", name: "배틀크루저", note: "탱크로 버티며 사이언스 퍼실리티를 올려 배틀크루저와 야마토 포로 민다" },
   wraith: { id: "wraith", race: "terran", name: "레이스 메카닉", note: "스타포트 레이스와 골리앗·벌처로 하늘과 땅을 같이 민다" },
   ling: { id: "ling", race: "zerg", name: "저글링 물량", note: "해처리를 늘리고 저글링을 끝까지 업그레이드해 쉬지 않고 밀어붙인다 · 계속 막히면 다른 길을 찾는다" },
+  lurker: { id: "lurker", race: "zerg", name: "럴커 저글링", note: "성큰으로 버티며 레어와 럴커 변태를 서둘러, 땅속 럴커와 저글링으로 조인다 · 공중에는 히드라" },
   hydra: { id: "hydra", race: "zerg", name: "히드라 럴커", note: "히드라로 버티며 럴커와 울트라리스크까지 올린다" },
   pool: { id: "pool", race: "zerg", name: "빠른 저글링", note: "스포닝 풀부터 올리고 드론을 아껴 이른 저글링으로 찌른다" },
   ultra: { id: "ultra", race: "zerg", name: "울트라 운영", note: "앞마당을 빨리 먹고 성큰으로 버티며 울트라리스크와 저글링으로 민다" },

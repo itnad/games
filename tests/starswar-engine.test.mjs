@@ -1652,7 +1652,7 @@ test("starswar zerg AI personas field their signature units and finish a game", 
 test("starswar terran and zerg each have four AI personas and the new ones field their signature units", async () => {
   const { STW_AI_PERSONAS } = await import("../app/starswar/starswar-data.js");
   const byRace = Object.values(STW_AI_PERSONAS).reduce((map, persona) => ((map[persona.race] = (map[persona.race] ?? 0) + 1), map), {});
-  assert.deepEqual(byRace, { protoss: 7, terran: 7, zerg: 6 });
+  assert.deepEqual(byRace, { protoss: 7, terran: 7, zerg: 7 });
   const games = {
     tankbio: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio", enemy: "templar" } }),
     vulture: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "vulture", enemy: "dragoon" } }),
@@ -2132,18 +2132,61 @@ test("starswar ranged units drop a receding target for one in range, and volleys
   assert.ok(volley.sides.player.stats.overkill <= 2, `낭비된 공격은 남는 두 발뿐 (${volley.sides.player.stats.overkill})`);
 });
 
-test("starswar lurkers stay burrowed while enemies keep approaching", () => {
-  const state = zerg("terran");
-  const lurker = stwSpawnUnitAt(state, "player", "lurker", 20, 60, "attack");
-  stwSpawnUnitAt(state, "enemy", "marine", 20, 54, "attack");
-  run(state, 1.2);
-  assert.equal(lurker.burrowed, true);
-  for (const unit of state.units) if (unit.side === "enemy") unit.hp = 0;
-  run(state, 0.2);
-  const next = stwSpawnUnitAt(state, "enemy", "marine", 20, 51, "attack");
-  next.speed = 0;
-  run(state, 3.5);
-  assert.equal(lurker.burrowed, true, "사거리+4 안에 적이 있으면 계속 숨어 있음");
+test("starswar lurkers stay burrowed while enemies keep approaching, but come up for enemies that only stand nearby", () => {
+  const setup = () => {
+    const state = zerg("terran");
+    const lurker = stwSpawnUnitAt(state, "player", "lurker", 20, 60, "attack");
+    stwSpawnUnitAt(state, "enemy", "marine", 20, 54, "attack");
+    run(state, 1.2);
+    assert.equal(lurker.burrowed, true);
+    for (const unit of state.units) if (unit.side === "enemy") unit.hp = 0;
+    run(state, 0.2);
+    return { state, lurker };
+  };
+  // 다가오는 적: 사거리 밖 3칸에서 걸어오는 해병을 땅속에서 기다렸다가 쏜다(한 번도 나오지 않는다).
+  const coming = setup();
+  const walker = stwSpawnUnitAt(coming.state, "enemy", "marine", 20, 51, "attack");
+  for (let tick = 0; tick < 35; tick += 1) {
+    stepStarswar(coming.state);
+    assert.equal(coming.lurker.burrowed, true, "다가오는 적이 있으면 계속 숨어 있음");
+  }
+  assert.ok(walker.hp < walker.maxHp, "다가온 해병을 가시로 맞힘");
+
+  // 서 있기만 하는 적: 사거리 밖 3칸에 멈춰 있는 해병은 기다리지 않고, 땅 위로 나와 다가가서 다시 숨어 쏜다.
+  // 예전에는 사거리 + 4칸 안에 적 유닛이 있기만 하면 영영 숨어 있어, 적 기지를 치러 간 럴커가 서 있는 수비 병력 앞에서 멈췄다.
+  const standing = setup();
+  const guard = stwSpawnUnitAt(standing.state, "enemy", "marine", 20, 51, "attack");
+  let surfaced = false;
+  for (let tick = 0; tick < 150 && guard.hp === guard.maxHp; tick += 1) {
+    guard.x = 20;
+    guard.y = 51;
+    stepStarswar(standing.state);
+    if (!standing.lurker.burrowed) surfaced = true;
+  }
+  assert.equal(surfaced, true, "서 있는 적 앞에서는 땅 위로 나옴");
+  assert.ok(guard.hp < guard.maxHp, "다가가서 다시 숨어 가시로 맞힘");
+  assert.equal(standing.lurker.burrowed, true);
+});
+
+test("starswar lurker strategy: rushes lair and lurker aspect, fields lurkers by 7:00, and waits for four lurkers before attacking", async () => {
+  const { STW_AI_PERSONAS } = await import("../app/starswar/starswar-data.js");
+  assert.equal(STW_AI_PERSONAS.lurker.race, "zerg");
+  const game = createStarswarGame({ seed: 13, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "lurker", enemy: "dragoon" } });
+  let firstLurkerAt = null;
+  let lurkersAtFirstAttack = null;
+  let most = 0;
+  while (game.status === "playing" && game.time < 540) {
+    stepStarswar(game, stwAiThink);
+    const lurkers = game.units.filter((unit) => unit.side === "player" && unit.type === "lurker").length;
+    most = Math.max(most, lurkers);
+    if (firstLurkerAt === null && lurkers) firstLurkerAt = game.time;
+    if (lurkersAtFirstAttack === null && game.sides.player.ai?.attacking) lurkersAtFirstAttack = lurkers;
+  }
+  assert.equal(game.sides.player.research.lurkerAspect, "done");
+  assert.ok(firstLurkerAt !== null && firstLurkerAt <= 420, `첫 럴커 ${firstLurkerAt}`);
+  assert.ok(most >= 4, `럴커 ${most}`);
+  // 출격했다면 럴커 넷을 모은 뒤였다(저글링만으로 먼저 나가지 않는다).
+  assert.ok(lurkersAtFirstAttack === null || lurkersAtFirstAttack >= 4, `첫 출격 때 럴커 ${lurkersAtFirstAttack}`);
 });
 
 test("starswar tanks holding a rally point siege ahead of time and unsiege when the rally moves", () => {

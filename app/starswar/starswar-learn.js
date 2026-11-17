@@ -142,6 +142,7 @@ function basePersona(race, features, tags) {
   if (share("guardian", "defiler") > 0.05) return "hive";
   if (share("mutalisk") > 0.15) return "muta";
   if (share("ultra") > 0.05) return "ultra";
+  if (share("lurker") > 0.12) return "lurker";
   if (share("hydra", "lurker") > 0.3) return "hydra";
   if (tags.includes("rush")) return "pool";
   return "ling";
