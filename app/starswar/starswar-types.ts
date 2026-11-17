@@ -59,6 +59,9 @@ export type StwUnit = {
   /** 마법을 쓸 수 있는데 사거리 안에서 아무것도 못 쓰기 시작한 때, 쓸 대상이 없어 뒤로 물러나 있는 끝 시각. */
   castIdleSince?: number;
   castHoldUntil?: number;
+  /** 다친 유닛의 회피가 끝나는 시각(회피 중일 때만), 다시 회피할 수 있게 되는 시각. */
+  fleeUntil?: number;
+  fleeRestUntil?: number;
   /** 퀸이 더 비싼 브루들링 대상을 기다리기 시작한 때. */
   broodWait?: number;
   stunUntil?: number;

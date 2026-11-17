@@ -2782,6 +2782,8 @@ function stepUnits(state, dt) {
     const retreating = !isAttack && slot && isRetreating(unit, slot);
     if (unit.type === "tank" && tankSiegeStep(state, unit, Boolean(retreating), isAttack ? null : slot)) continue;
     if (unit.type === "lurker" && lurkerStep(state, unit, Boolean(retreating))) continue;
+    // 다친 유닛의 회피: 살 가망이 있을 때만 잠깐 물러났다가 돌아온다(woundedEvade).
+    if (woundedEvade(state, unit, speed, dt)) continue;
     if (retreating) {
       // 후퇴 중: 교전을 끊고 전속력으로 집결지에 돌아온다.
       unit.targetId = null;
@@ -3275,6 +3277,88 @@ function supportFollow(state, unit, plan, speed, dt) {
 
 /** 대기 병력이 집결지에서 이만큼 넘게 떨어진 적은 쫓지 않는다. */
 const RALLY_LEASH = 12;
+/** 다친 유닛의 회피: 체력 비율, 최대 시간, 다시 물러나기까지 쉬는 시간, 안 맞은 지 이만큼이면 끝, 이만큼 회복하면 끝, 메딕을 찾는 거리, 사거리를 벗어나는 데 쓸 수 있는 시간. */
+const EVADE_HP = 0.3;
+const EVADE_MAX = 2.5;
+const EVADE_REST = 8;
+const EVADE_SAFE = 1;
+const EVADE_HEALED = 0.5;
+const EVADE_MEDIC_REACH = 6;
+const EVADE_EXIT_TIME = 1;
+
+/** 치료해 줄 수 있는 가장 가까운 아군 메딕(생체 유닛만, EVADE_MEDIC_REACH칸 안). */
+function medicNear(state, unit) {
+  if (!STW_UNITS[unit.type].bio) return null;
+  let best = null;
+  let bestDistance = EVADE_MEDIC_REACH;
+  for (const ally of state.units) {
+    if (ally.side !== unit.side || ally.type !== "medic" || ally.hp <= 0 || ally.group === "cargo") continue;
+    const d = distance(unit.x, unit.y, ally.x, ally.y);
+    if (d < bestDistance) {
+      best = ally;
+      bestDistance = d;
+    }
+  }
+  return best;
+}
+
+/**
+ * 다친 유닛이 물러나서 살 가망이 있는지.
+ * - 곁에 치료해 줄 메딕이 있다(생체 유닛).
+ * - 때린 적이 근접 유닛이고 내가 더 빠르다.
+ * - 때린 적이 원거리 유닛이고, 나보다 빠르지 않으며, EVADE_EXIT_TIME초 안에 그 사거리를 벗어날 수 있다.
+ * 공중 유닛끼리의 싸움과 방어 건물에 맞는 경우(기지 구역 전체를 쏜다)는 물러나지 않는다(메딕이 있으면 예외).
+ * 조건 없이 물러나게 한 시험에서는 발업 질럿에 쫓기는 해병(14% → 전멸), 뮤탈끼리(남은 적 0% → 60%), 시즈 탱크끼리가 손해였다.
+ */
+function evadeWorthIt(state, unit, speed) {
+  const attacker = state.units.find((item) => item.id === unit.hitBy && item.hp > 0 && item.side !== unit.side) ?? null;
+  if (attacker && isFlying(unit) && isFlying(attacker)) return false;
+  if (medicNear(state, unit)) return true;
+  if (!attacker) return false;
+  const attackerDef = STW_UNITS[attacker.type];
+  if (attackerDef.role === "melee") return speed > unitSpeed(state, attacker) * 1.05;
+  const reach = attacker.sieged ? attackerDef.siege.range : unitRange(state, attacker);
+  const exit = reach + 0.5 - (distance(unit.x, unit.y, attacker.x, attacker.y) - unit.radius);
+  // 더 빠른 원거리 유닛(벌처)에게서는 물러나지 않는다: 따라오며 계속 쏜다. 질럿 8기가 벌처 8기에 비기던 싸움을 크게 졌다(격차 −2%p → −64%p).
+  return exit <= speed * EVADE_EXIT_TIME && speed >= unitSpeed(state, attacker);
+}
+
+/**
+ * 다친 유닛의 회피. 체력(보호막 포함)이 EVADE_HP 아래로 떨어지고 방금 맞았는데 살 가망이 있으면(evadeWorthIt),
+ * 메딕이 있으면 메딕 쪽으로, 없으면 때린 적에게서 멀어지는 쪽으로 물러난다(아군은 통과한다).
+ * 1초 동안 안 맞거나 체력이 절반까지 회복되면, 길어도 EVADE_MAX초 뒤에는 돌아와 다시 싸운다. 그 뒤 EVADE_REST초 동안은 다시 물러나지 않는다.
+ * 무기가 없는 유닛, 자폭 유닛(스커지·감염된 테란), 수명이 있는 유닛(브루들링)은 하지 않는다. 최종 결전 중에도 하지 않는다.
+ * 이 틱을 회피에 썼으면 true.
+ */
+function woundedEvade(state, unit, speed, dt) {
+  const def = STW_UNITS[unit.type];
+  if (!def.damage || def.suicide || def.lifetime || state.finalBattle) return false;
+  const ratio = (unit.hp + unit.shields) / (unit.maxHp + unit.maxShields);
+  if (unit.fleeUntil !== undefined) {
+    const safe = unit.hitAt === undefined || state.time - unit.hitAt >= EVADE_SAFE;
+    if (state.time >= unit.fleeUntil || safe || ratio >= EVADE_HEALED) {
+      unit.fleeUntil = undefined;
+      unit.fleeRestUntil = state.time + EVADE_REST;
+      delete unit.passing;
+      return false;
+    }
+  } else {
+    if (ratio > EVADE_HP || unit.hitAt === undefined || state.time - unit.hitAt > 0.5 || state.time < (unit.fleeRestUntil ?? 0)) return false;
+    if (!evadeWorthIt(state, unit, speed)) return false;
+    unit.fleeUntil = state.time + EVADE_MAX;
+  }
+  const medic = medicNear(state, unit);
+  const attacker = state.units.find((item) => item.id === unit.hitBy && item.hp > 0) ?? state.buildings.find((item) => item.id === unit.hitBy && item.hp > 0);
+  unit.targetId = null;
+  unit.passing = true;
+  if (medic) moveToward(unit, medic.x, medic.y, speed, dt);
+  else if (attacker) {
+    const away = Math.atan2(unit.y - attacker.y, unit.x - attacker.x);
+    moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
+  }
+  return true;
+}
+
 /** 공중 유닛이 물러나기 시작하는 거리: 자기를 쏠 수 있는 적의 사거리 + 이만큼 안. */
 const AIR_KITE_MARGIN = 1;
 
