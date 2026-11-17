@@ -5,7 +5,7 @@ import original from "../data/stim-original.json";
 export const STIM = "stim-packs", MARINE = "terran-marine";
 export const STIM_HEALTH_COST = original.healthCost;
 export const STIM_TICKS = Math.floor((original.statusCycles*original.framesPerCycle*5+3)/6);
-export const STIM_RULES_VERSION = "stim-1-"+checksum({original:JSON.stringify(original),duration:"absolute247-cargo-stasis-elapse",reuse:"pay-again-refresh-no-stack",orders:"preserve",eligibility:"marine-actual-hp-above10-partial"});
+export const STIM_RULES_VERSION = "stim-1-"+checksum({original:JSON.stringify(original),duration:"absolute247-cargo-stasis-elapse",reuse:"pay-again-refresh-no-stack",orders:"preserve",medicApproach:"legal-range-destination-grid-no-formation-padding",eligibility:"marine-actual-hp-above10-partial"});
 export const stimStateSchema=object({records:array(object({entityId:integer(1),appliedTick:integer(),expiresTick:integer()}),0,2048)});
 type Row=Infer<typeof stimStateSchema>["records"][number];
 export type StimState={records:{-readonly[K in keyof Row]:Row[K]}[]};

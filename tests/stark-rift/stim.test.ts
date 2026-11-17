@@ -143,3 +143,8 @@ describe('Marine Stim Packs',()=>{
   const f=fixture('terran','protoss');initializeCombat(f.state,'special-practice');expect(f.state.economy.upgrades.some(u=>u.technologyId===STIM)).toBe(false);expect(f.state.players[0].controlGroups[0].entityIds.map(id=>f.state.entities.health[indexOf(f.state,id)])).toEqual([15,20]);expect(f.state.medics!.records).toHaveLength(2);expect(f.state.stim).toBeUndefined();
  });
 });
+it('heals the second parked patient when ordinary formation clearance would stop the Medic just outside healing range',()=>{
+ const f=fixture('terran','protoss');initializeCombat(f.state,'special-practice');const [p,q]=f.state.players[0].controlGroups[0].entityIds,[m]=f.state.players[0].controlGroups[4].entityIds;
+ const place=(id:number,x:number,y:number,hp:number)=>{const i=indexOf(f.state,id);f.state.entities.x[i]=x*256;f.state.entities.y[i]=y*256;f.state.entities.health[i]=hp;};
+ place(p,17.75,19.75,40);place(q,18.25,20.25,30);place(m,16.75,20.75,60);f.tick(60);expect(actualHealth(f.state,q)).toBe(40*256);expect(parse(simulationStateSchema,f.state).ok).toBe(true);
+});
