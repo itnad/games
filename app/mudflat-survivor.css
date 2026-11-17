@@ -230,10 +230,12 @@
    remains responsible for level-up choices. Keep its status readable but clear
    of the HUD and the bottom skill bar on narrow screens. */
 .ms-supervisor-game canvas{cursor:default}
-.ms-supervisor-status{position:absolute;z-index:8;left:12px;top:145px;width:min(310px,calc(100% - 24px));padding:10px 12px;display:grid;gap:2px;border:1px solid #95e0c04d;border-radius:14px;color:#f2fff8;background:linear-gradient(135deg,#16352fea,#17272bea);box-shadow:0 10px 28px #07121166,inset 0 1px #ffffff14;pointer-events:none;backdrop-filter:blur(8px)}
+.ms-supervisor-status{position:absolute;z-index:8;left:12px;top:145px;width:min(310px,calc(100% - 24px));padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:2px 9px;align-items:center;border:1px solid #95e0c04d;border-radius:14px;color:#f2fff8;background:linear-gradient(135deg,#16352fea,#17272bea);box-shadow:0 10px 28px #07121166,inset 0 1px #ffffff14;pointer-events:auto;backdrop-filter:blur(8px)}
 .ms-supervisor-status small{color:#8fe0c0;font-size:9px;font-weight:950;letter-spacing:.16em}
-.ms-supervisor-status b{font-size:13px;line-height:1.35}
-.ms-supervisor-status span{color:#c5d6cf;font-size:10px;line-height:1.4}
+.ms-supervisor-status b{grid-column:1/2;font-size:13px;line-height:1.35}
+.ms-supervisor-status span{grid-column:1/2;color:#c5d6cf;font-size:10px;line-height:1.4}
+.ms-supervisor-status button{grid-column:2;grid-row:1/4;min-height:32px;padding:7px 9px;border:1px solid #a2e8ca55;border-radius:10px;color:#eafff5;background:#ffffff12;font:800 10px/1.25 inherit;white-space:nowrap}
+.ms-supervisor-status button:active{transform:translateY(1px);background:#ffffff20}
 .ms-supervisor-transition{min-height:100dvh;padding:20px;display:grid;place-items:center;color:#fff9e9;background:radial-gradient(circle at 50% 20%,#2c655744 0 18%,transparent 44%),linear-gradient(155deg,#10191b,#1b302c 58%,#392f29)}
 .ms-supervisor-transition>section{width:min(470px,100%);padding:clamp(25px,6vw,39px);border:1px solid #ffe7bc30;border-radius:28px;text-align:center;background:linear-gradient(150deg,#254f46,#203834 60%,#4b372d);box-shadow:0 28px 85px #050a0b91}
 .ms-supervisor-transition small{color:#8fe0c0;font-size:10px;font-weight:950;letter-spacing:.18em}

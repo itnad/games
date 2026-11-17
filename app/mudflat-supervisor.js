@@ -49,6 +49,55 @@ function targetForState(state) {
   }
 
   const collectible = state.creatures.filter((item) => item.hp > 0 && !item.uncollectible && (item.emergeSeconds ?? 0) <= 0);
+  const workIsSafe = state.creatures.every((item) => {
+    if (item.hp <= 0 || (item.emergeSeconds ?? 0) > 0) return true;
+    const highRisk = item.uncollectible || item.type === "pufferfish" || item.boss;
+    return distance(state.player, item) > item.size + (highRisk ? 170 : 72);
+  });
+  const workPointIsSafe = (point) => state.creatures.every((item) => {
+    if (item.hp <= 0 || (item.emergeSeconds ?? 0) > 0) return true;
+    const highRisk = item.uncollectible || item.type === "pufferfish" || item.boss;
+    return distance(point, item) > item.size + (highRisk ? 190 : 88);
+  });
+  const safeHoles = state.clamHoles.filter(workPointIsSafe);
+  const nearestHole = safeHoles.length > 0
+    ? safeHoles.reduce((nearest, item) => distance(state.player, item) < distance(state.player, nearest) ? item : nearest)
+    : null;
+  const activeHole = state.clamHoles
+    .filter((item) => (item.progress ?? 0) > 0)
+    .sort((left, right) => (right.progress ?? 0) - (left.progress ?? 0))[0] ?? null;
+  const availableRocks = state.rocks.filter((item) => item.id !== undefined && workPointIsSafe(item));
+  const activeRock = state.activeRockId === undefined || state.activeRockId === null
+    ? null
+    : availableRocks.find((item) => item.id === state.activeRockId) ?? null;
+  const nearestRock = availableRocks.length > 0
+    ? availableRocks.reduce((nearest, item) => distance(state.player, item) < distance(state.player, nearest) ? item : nearest)
+    : null;
+  const rockReach = Math.max(60, Number(state.rockReach) || 84);
+  const clamTarget = (hole) => ({
+    kind: "clam", point: hole,
+    intent: hole.kind === "gaebul" ? "개불 숨구멍 채집 중" : "조개구멍 호미질 중",
+    desiredDistance: 20,
+  });
+  const rockTarget = (rock) => ({
+    kind: "rock", point: rock, targetRockId: rock.id,
+    intent: "돌뒤집개로 바위 확인 중",
+    desiredDistance: Math.max(rock.radius + 28, rockReach - 8),
+  });
+
+  // Finish a started field action before selecting fresh work, provided the
+  // surrounding area remains clear. This gives the two-second dig/flip actions
+  // enough uninterrupted time while still yielding immediately to danger.
+  if (workIsSafe && activeRock) return rockTarget(activeRock);
+  if (workIsSafe && activeHole && workPointIsSafe(activeHole)) return clamTarget(activeHole);
+
+  // Rotate ordinary gathering, hoe work and learned rock turning. Without an
+  // explicit work phase, a continuously populated field makes creatures win
+  // every decision and the supervisor never demonstrates the other tools.
+  const workPhase = Math.floor(Math.max(0, state.elapsed) / 7) % 3;
+  if (workIsSafe && workPhase === 0 && nearestHole) return clamTarget(nearestHole);
+  if (workIsSafe && workPhase === 1 && (state.rockerLevel ?? 0) > 0 && nearestRock) return rockTarget(nearestRock);
+
   if (collectible.length > 0) {
     const creature = collectible.reduce((best, item) => {
       const range = distance(state.player, item);
@@ -68,10 +117,8 @@ function targetForState(state) {
     }
   }
 
-  if (state.clamHoles.length > 0) {
-    const hole = state.clamHoles.reduce((nearest, item) => distance(state.player, item) < distance(state.player, nearest) ? item : nearest);
-    return { kind: "clam", point: hole, intent: hole.kind === "gaebul" ? "개불 숨구멍 채집 중" : "조개구멍 채집 중", desiredDistance: 20 };
-  }
+  if (nearestHole) return clamTarget(nearestHole);
+  if ((state.rockerLevel ?? 0) > 0 && nearestRock) return rockTarget(nearestRock);
 
   const angle = state.elapsed * .31 + state.stage * 1.73;
   return {
@@ -85,9 +132,10 @@ function targetForState(state) {
 function hazardPenalty(point, state, target) {
   let penalty = Math.max(0, Number(state.terrainRisk?.(point)) || 0) * 260;
   for (const rock of state.rocks) {
+    const isTarget = target.targetRockId === rock.id;
     const gap = distance(point, rock) - (rock.radius + 24);
     if (gap <= 0) penalty += 12000;
-    else if (gap < 84) penalty += (84 - gap) * 7;
+    else if (!isTarget && gap < 84) penalty += (84 - gap) * 7;
   }
   for (const falling of state.fallingRocks) {
     const progress = Math.max(0, Math.min(1, 1 - falling.life / Math.max(.001, falling.maxLife)));
@@ -106,6 +154,7 @@ function hazardPenalty(point, state, target) {
       penalty += (highRisk ? 15500 : (isTarget ? 2200 : 6800)) + overlapDepth * (highRisk ? 240 : 160);
     }
     else if (highRisk && gap < 90) penalty += (90 - gap) * 6;
+    else if (!isTarget && gap < 96) penalty += (96 - gap) * 6.5;
   }
   return penalty;
 }
@@ -131,6 +180,7 @@ export function decideMudflatSupervisorMove(state) {
   const currentDanger = hazardPenalty(state.player, state, target);
   const canHoldPosition = currentDanger < 1000;
   if (canHoldPosition && ((target.kind === "clam" && targetDistance <= 30)
+    || (target.kind === "rock" && targetDistance <= target.desiredDistance)
     || (target.kind === "pickup" && targetDistance <= 12)
     || (target.kind === "safe-zone" && targetDistance <= 42)
     || (target.kind === "camp" && targetDistance <= 28))) {

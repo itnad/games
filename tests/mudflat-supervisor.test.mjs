@@ -6,6 +6,12 @@ import {
   maintainMudflatSupervisorCampaign,
   mudflatSupervisorCanDig,
 } from "../app/mudflat-supervisor.js";
+import {
+  MUDFLAT_SUPERVISOR_LOG_LIMIT,
+  appendMudflatSupervisorLog,
+  createMudflatSupervisorLog,
+  serializeMudflatSupervisorLog,
+} from "../app/mudflat-supervisor-log.js";
 
 function scene(overrides = {}) {
   return {
@@ -72,7 +78,7 @@ test("감독 AI는 호미질 거리 안에서는 멈춰 채집한다", () => {
   assert.deepEqual(decision, {
     x: 0,
     y: 0,
-    intent: "조개구멍 채집 중",
+    intent: "조개구멍 호미질 중",
     targetKind: "clam",
   });
 });
@@ -114,6 +120,48 @@ test("감독 AI는 조개구멍에 안전하게 정지한 동안에만 호미질
   assert.equal(mudflatSupervisorCanDig({ targetKind: "creature", x: 0, y: 0 }), false);
 });
 
+test("감독 AI는 안전한 작업 차례에 생물보다 조개구멍을 찾아가 호미질한다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 1,
+    creatures: [{ id: 21, x: 260, y: 0, hp: 20, xp: 5, score: 30, size: 13, name: "칠게" }],
+    clamHoles: [{ id: 30, x: 70, y: 10, kind: "clam", progress: 0 }],
+  }));
+
+  assert.equal(decision.targetKind, "clam");
+  assert.equal(decision.intent, "조개구멍 호미질 중");
+  assert.ok(decision.x > .5);
+});
+
+test("감독 AI는 돌뒤집개를 배운 뒤 안전한 작업 차례에 바위를 찾아간다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 8,
+    rockerLevel: 1,
+    rockReach: 84,
+    rocks: [{ id: 41, x: 110, y: 0, radius: 22 }],
+  }));
+
+  assert.equal(decision.targetKind, "rock");
+  assert.equal(decision.intent, "돌뒤집개로 바위 확인 중");
+  assert.ok(decision.x > .5);
+});
+
+test("감독 AI는 시작한 바위 뒤집기를 안전한 동안 끝까지 유지한다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 16,
+    rockerLevel: 1,
+    rockReach: 84,
+    activeRockId: 42,
+    rocks: [{ id: 42, x: 72, y: 0, radius: 22 }],
+  }));
+
+  assert.deepEqual(decision, {
+    x: 0,
+    y: 0,
+    intent: "돌뒤집개로 바위 확인 중",
+    targetKind: "rock",
+  });
+});
+
 test("감독 AI는 추격하는 일반 게와 장시간 집게 거리를 유지한다", () => {
   let player = { x: 0, y: 0 };
   let crab = { id: 13, x: 100, y: 0, hp: 20, xp: 2, score: 15, size: 13, name: "칠게" };
@@ -135,6 +183,35 @@ test("감독 AI는 추격하는 일반 게와 장시간 집게 거리를 유지�
   }
 
   assert.ok(minimumDistance > crab.size + 17, `expected no contact, minimum distance was ${minimumDistance}`);
+});
+
+test("감독 AI는 여러 게가 접근해도 가장 가까운 충돌 경로를 피해 이동한다", () => {
+  let player = { x: 0, y: 0 };
+  let crabs = [
+    { id: 51, x: 115, y: 0 },
+    { id: 52, x: -135, y: 20 },
+    { id: 53, x: 10, y: 145 },
+    { id: 54, x: -30, y: -155 },
+  ].map((item) => ({ ...item, hp: 20, xp: 2, score: 15, size: 13, name: "칠게" }));
+  let minimumDistance = Infinity;
+
+  for (let frame = 0; frame < 240; frame += 1) {
+    const decision = decideMudflatSupervisorMove(scene({
+      elapsed: frame * .16,
+      player,
+      creatures: crabs,
+    }));
+    player = { x: player.x + decision.x * 155 * .16, y: player.y + decision.y * 155 * .16 };
+    crabs = crabs.map((crab) => {
+      const dx = player.x - crab.x;
+      const dy = player.y - crab.y;
+      const range = Math.hypot(dx, dy) || 1;
+      return { ...crab, x: crab.x + dx / range * 38 * .16, y: crab.y + dy / range * 38 * .16 };
+    });
+    minimumDistance = Math.min(minimumDistance, ...crabs.map((crab) => Math.hypot(player.x - crab.x, player.y - crab.y)));
+  }
+
+  assert.ok(minimumDistance > crabs[0].size + 17, `expected no multi-crab contact, minimum distance was ${minimumDistance}`);
 });
 
 test("해산물이 오래 보이지 않으면 조개구멍을 포기하고 들어온 방향으로 되돌아간다", () => {
@@ -168,4 +245,25 @@ test("자동 정비는 원본을 바꾸지 않고 체력 회복과 장비 구매
   assert.equal(maintained.hp, maintained.maxHp);
   assert.ok(Object.keys(maintained.equipment).length >= 2);
   assert.equal(maintained.equipment.mosquitoRepellent, 1);
+});
+
+test("감독모드 로그는 초기 상태와 순번을 보존하며 최대 길이를 제한한다", () => {
+  const log = createMudflatSupervisorLog({
+    buildId: "test-build",
+    startedAt: 0,
+    seed: 123,
+    campaign: { stage: 1, level: 1, hp: 100, maxHp: 100, coins: 0, levels: { tongs: 1 }, equipment: {} },
+  });
+
+  for (let index = 0; index < MUDFLAT_SUPERVISOR_LOG_LIMIT + 5; index += 1) {
+    appendMudflatSupervisorLog(log, { event: "snapshot", detail: String(index) });
+  }
+  const exported = JSON.parse(serializeMudflatSupervisorLog(log, 1000));
+
+  assert.equal(exported.buildId, "test-build");
+  assert.equal(exported.initialCampaign.levels.tongs, 1);
+  assert.equal(exported.entries.length, MUDFLAT_SUPERVISOR_LOG_LIMIT);
+  assert.equal(exported.entries[0].sequence, 6);
+  assert.equal(exported.entries.at(-1).sequence, MUDFLAT_SUPERVISOR_LOG_LIMIT + 5);
+  assert.equal(exported.exportedAt, new Date(1000).toISOString());
 });
