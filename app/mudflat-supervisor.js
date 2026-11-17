@@ -25,6 +25,19 @@ function targetForState(state) {
   if (state.secondsToTide <= 5.2 && state.safeZone) {
     return { kind: "safe-zone", point: state.safeZone, intent: "돌발 물살 대피 중", desiredDistance: 18 };
   }
+  if ((state.emptySeafoodRisk ?? 0) >= 7.5) {
+    let retreat = normalized(state.retreatDirection?.x ?? -state.player.x, state.retreatDirection?.y ?? -state.player.y);
+    if (Math.hypot(retreat.x, retreat.y) < .001) {
+      const angle = state.stage * 1.91 + .7;
+      retreat = { x: Math.cos(angle), y: Math.sin(angle) };
+    }
+    return {
+      kind: "seafood-search",
+      point: { x: state.player.x + retreat.x * 280, y: state.player.y + retreat.y * 280 },
+      intent: "해산물이 보이는 곳으로 되돌아가는 중",
+      desiredDistance: 0,
+    };
+  }
 
   const livePickups = state.pickups.filter((item) => item.xp > 0 && item.phase !== "arrived");
   if (livePickups.length > 0) {
@@ -97,10 +110,12 @@ function hazardPenalty(point, state, target) {
 export function decideMudflatSupervisorMove(state) {
   const target = targetForState(state);
   const targetDistance = distance(state.player, target.point);
-  if ((target.kind === "clam" && targetDistance <= 30)
+  const currentDanger = hazardPenalty(state.player, state, target);
+  const canHoldPosition = currentDanger < 1000;
+  if (canHoldPosition && ((target.kind === "clam" && targetDistance <= 30)
     || (target.kind === "pickup" && targetDistance <= 12)
     || (target.kind === "safe-zone" && targetDistance <= 42)
-    || (target.kind === "camp" && targetDistance <= 28)) {
+    || (target.kind === "camp" && targetDistance <= 28))) {
     return { x: 0, y: 0, intent: target.intent, targetKind: target.kind };
   }
 
@@ -110,7 +125,11 @@ export function decideMudflatSupervisorMove(state) {
     const angle = index / 20 * Math.PI * 2;
     directions.push({ x: Math.cos(angle), y: Math.sin(angle) });
   }
-  const step = 82;
+  // A normal planning step is intentionally small for precise gathering, but
+  // it must clear the full danger radius in one decision when something is
+  // already touching the gatherer. Otherwise "still" can outscore every
+  // candidate that remains inside the same hazard footprint.
+  const step = currentDanger > 1000 ? 164 : 82;
   let best = null;
   for (const direction of directions) {
     const candidate = { x: state.player.x + direction.x * step, y: state.player.y + direction.y * step };
@@ -124,7 +143,6 @@ export function decideMudflatSupervisorMove(state) {
     if (!best || score > best.score) best = { direction, score };
   }
 
-  const currentDanger = hazardPenalty(state.player, state, target);
   const intent = currentDanger > 1000 ? "위험을 피해 이동 중" : target.intent;
   return { ...(best?.direction ?? { x: 0, y: 0 }), intent, targetKind: target.kind };
 }

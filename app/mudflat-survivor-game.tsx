@@ -1740,7 +1740,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const stageEntryRef = useRef<Campaign | null>(null);
   const dailyChallengeRef = useRef<MudflatDailyStart | null>(null);
   const supervisorRef = useRef(false);
-  const supervisorDecisionRef = useRef({ clock: 0, x: 0, y: 0, intent: "해산물을 찾는 중" });
+  const supervisorDecisionRef = useRef({ clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중" });
   const supervisorLastDamageRef = useRef("피해 누적");
   const supervisorDepartureTimerRef = useRef<number | null>(null);
   const defeatArtPreloadRef = useRef<HTMLImageElement | null>(null);
@@ -1994,7 +1994,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     runtime.firstMoveGuide = launch.tutorial ? createFirstMoveGuide() : null;
     const frame = window.requestAnimationFrame(() => {
       supervisorRef.current = supervisor;
-      supervisorDecisionRef.current = { clock: 0, x: 0, y: 0, intent: "해산물을 찾는 중" };
+      supervisorDecisionRef.current = { clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중" };
       supervisorLastDamageRef.current = "피해 누적";
       setSupervisorActive(supervisor);
       setSupervisorIntent("해산물을 찾는 중");
@@ -2168,7 +2168,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         stageEntryRef.current = createStageEntryCheckpoint(entry);
         const nextRuntime = makeRuntime(entry);
         nextRuntime.firstMoveGuide = null;
-        supervisorDecisionRef.current = { clock: 0, x: 0, y: 0, intent: "해산물을 찾는 중" };
+        supervisorDecisionRef.current = { clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중" };
         supervisorLastDamageRef.current = "피해 누적";
         resetMovementInput(); runtimeRef.current = nextRuntime; snapshot(nextRuntime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
       }, 1400);
@@ -2696,12 +2696,18 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             secondsToTide,
             baseCampGuideShown: runtime.baseCampGuideShown,
             baseCamp: runtime.baseCamp,
+            emptySeafoodRisk: runtime.emptySeafoodSeconds / Math.max(.35, stageProfile.coldThresholdMultiplier),
+            retreatDirection: { x: -decisionState.lastTravelX, y: -decisionState.lastTravelY },
             terrainRisk: (point: Point) => deepMudStrengthAtPoint(point, runtime.stage).strength
               + (stageProfile.waterChannels && mudflatInWaterChannel(point.x, point.y, runtime.stage) ? .65 : 0),
           });
           decisionState.clock = MUDFLAT_SUPERVISOR_DECISION_SECONDS;
           decisionState.x = decision.x;
           decisionState.y = decision.y;
+          if (decision.targetKind !== "seafood-search" && Math.hypot(decision.x, decision.y) > .2) {
+            decisionState.lastTravelX = decision.x;
+            decisionState.lastTravelY = decision.y;
+          }
           if (decisionState.intent !== decision.intent) {
             decisionState.intent = decision.intent;
             setSupervisorIntent(decision.intent);

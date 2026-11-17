@@ -366,6 +366,8 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(game, /makeRuntime\(nextCampaign, launch\.seed\)/);
   assert.match(game, /decideMudflatSupervisorMove/);
   assert.match(game, /maintainMudflatSupervisorCampaign/);
+  assert.match(game, /emptySeafoodRisk: runtime\.emptySeafoodSeconds/);
+  assert.match(game, /retreatDirection: \{ x: -decisionState\.lastTravelX, y: -decisionState\.lastTravelY \}/);
   assert.match(game, /SUPERVISOR PAUSED/);
   assert.doesNotMatch(game, /ms-supervisor-entry/);
   assert.doesNotMatch(game, /const beginSupervisor = \(\) =>/);

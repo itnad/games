@@ -20,6 +20,8 @@ function scene(overrides = {}) {
     baseCamp: { x: 700, y: 0 },
     baseCampGuideShown: false,
     secondsToTide: 999,
+    emptySeafoodRisk: 0,
+    retreatDirection: { x: -1, y: 0 },
     terrainRisk: () => 0,
     ...overrides,
   };
@@ -72,6 +74,28 @@ test("감독 AI는 호미질 거리 안에서는 멈춰 채집한다", () => {
     intent: "조개구멍 채집 중",
     targetKind: "clam",
   });
+});
+
+test("감독 AI는 호미질 중 위험이 접근하면 즉시 채집을 중단한다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    clamHoles: [{ x: 18, y: 0, kind: "clam" }],
+    creatures: [{ id: 9, x: 4, y: 0, hp: 20, xp: 0, score: 0, size: 18, name: "게", uncollectible: true }],
+  }));
+
+  assert.equal(decision.intent, "위험을 피해 이동 중");
+  assert.ok(Math.hypot(decision.x, decision.y) > .7, `expected an escape move, got ${JSON.stringify(decision)}`);
+});
+
+test("해산물이 오래 보이지 않으면 조개구멍을 포기하고 들어온 방향으로 되돌아간다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    emptySeafoodRisk: 8,
+    retreatDirection: { x: -1, y: 0 },
+    clamHoles: [{ x: 12, y: 0, kind: "clam" }],
+  }));
+
+  assert.equal(decision.targetKind, "seafood-search");
+  assert.equal(decision.intent, "해산물이 보이는 곳으로 되돌아가는 중");
+  assert.ok(decision.x < -.7, `expected retreat, got ${JSON.stringify(decision)}`);
 });
 
 test("자동 정비는 원본을 바꾸지 않고 체력 회복과 장비 구매를 수행한다", () => {
