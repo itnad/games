@@ -347,6 +347,11 @@ export class BattleRenderer {
       g.alpha=alpha;g.position.set(c.x/256,c.y/256);updateMinimapMarker(mini!,0x9ba7ae);mini!.alpha=alpha;mini!.position.set(c.x/256,c.y/256);
     }
     this.combatEffects.clear();
+    for(const e of this.snapshot?.entities??[])if(e.stimTicks){
+      const x=e.x/256,y=e.y/256,pulse=.05*((this.snapshot!.tick%10)/10);
+      this.combatEffects.ellipse(x,y,.55+pulse,.65+pulse).stroke({color:0xffae68,width:.045,alpha:.55});
+      for(const sign of [-1,1])this.combatEffects.poly([x+sign*.58,y+.15,x+sign*.72,y,x+sign*.58,y-.15]).stroke({color:0xffae68,width:.05,alpha:.8});
+    }
     for(const e of this.snapshot?.entities??[])if(e.healingTargetId!==undefined){
       const p=this.snapshot?.entities.find(p=>p.id===e.healingTargetId);if(!p)continue;
       const x=p.x/256,y=p.y/256;

@@ -1,3 +1,4 @@
+import { stimOf, MARINE, STIM_TICKS } from "../abilities/stim-state";
 import { economyDefinition } from "../data/economy-catalog";
 import { MEDIC, isOrganic } from "../abilities/medic-data";
 import { medicOf } from "../abilities/medic-state";
@@ -56,6 +57,7 @@ export type RenderEntity = {
   stasisTicks?: number;
   recallTicks?: number;
   stasisAutocast?: boolean;
+  stimTicks?: number;
   needsHealing?: boolean;
   healAutocast?: boolean;
   healTargetId?: number;
@@ -130,6 +132,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         stasisTicks: optional(integer(1, 873)),
         recallTicks: optional(integer(1, 18)),
         stasisAutocast: optional(boolean),
+        stimTicks: optional(integer(1,STIM_TICKS)),
         needsHealing: optional(boolean),
         healAutocast: optional(boolean),
         healTargetId: optional(integer(1)),
@@ -169,6 +172,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
   }),
   (snapshot) =>
     snapshot.entities.every(e => e.energy === undefined ? e.maxEnergy === undefined : e.maxEnergy !== undefined && e.energy <= e.maxEnergy && supportsEnergy(e.definitionId)) &&
+    snapshot.entities.every(e=>e.stimTicks===undefined || e.definitionId===MARINE) &&
     snapshot.entities.every(e=>e.needsHealing===undefined || e.owner===snapshot.viewerPlayerId&&e.kind!=="building"&&e.layer==="ground"&&isOrganic(e.definitionId)&&!e.burrowed) &&
     snapshot.entities.every(e=>(e.healAutocast === undefined && e.healTargetId === undefined || e.owner === snapshot.viewerPlayerId && e.definitionId === MEDIC) &&
       (e.healTargetId === undefined || snapshot.entities.some(p=>p.id===e.healTargetId&&p.owner===e.owner)) &&
@@ -309,6 +313,7 @@ export function createRenderSnapshot(
       continue;
     entities.push({
       ...(state.economy.enabled ? { shield: s.shield[i] } : {}),
+      ...(stimOf(state,s.id[i]) ? {stimTicks:stimOf(state,s.id[i])!.expiresTick-state.tick} : {}),
       ...(isBurrowed(state, s.id[i]) ? { burrowed: true } : {}),
       ...(state.economy.enabled ? energyView(state, s.id[i]) : {}),
       ...(stasisOf(state,s.id[i]) ? { stasisTicks: stasisOf(state,s.id[i])!.expiresTick-state.tick } : {}),

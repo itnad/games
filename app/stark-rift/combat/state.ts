@@ -1,3 +1,4 @@
+import { STIM_RULES_VERSION } from "../abilities/stim-state";
 import { MEDIC_RULES_VERSION } from "../abilities/medic-data";
 import { ENERGY_UPGRADE_RULES_VERSION } from "../abilities/energy-upgrades";
 import { SPELLS_RULES_VERSION } from "../abilities/spells-state";
@@ -47,7 +48,8 @@ export const ARBITER_COMBAT_RULES_VERSION = "arbiter-combat-" + checksum({ base:
 export const SPELLS_COMBAT_RULES_VERSION = "spells-combat-" + checksum({ base: ARBITER_COMBAT_RULES_VERSION, spells: SPELLS_RULES_VERSION, vision: VISION_RULES_VERSION });
 export const AUTOCAST_COMBAT_RULES_VERSION = "autocast-combat-" + checksum({ base: SPELLS_COMBAT_RULES_VERSION, autocast: "stasis-visible2-no-friendly-nearest32-pairs-4casters-5ticks-manual20" });
 export const ENERGY_COMBAT_RULES_VERSION = "energy-combat-" + checksum({ base: AUTOCAST_COMBAT_RULES_VERSION, energy: ENERGY_UPGRADE_RULES_VERSION });
-export const COMBAT_RULES_VERSION = "medic-combat-"+checksum({base:ENERGY_COMBAT_RULES_VERSION,medic:MEDIC_RULES_VERSION});
+export const MEDIC_COMBAT_RULES_VERSION = "medic-combat-"+checksum({base:ENERGY_COMBAT_RULES_VERSION,medic:MEDIC_RULES_VERSION});
+export const COMBAT_RULES_VERSION="stim-combat-"+checksum({base:MEDIC_COMBAT_RULES_VERSION,stim:STIM_RULES_VERSION});
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(

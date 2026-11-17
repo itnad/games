@@ -1,3 +1,4 @@
+import { stimulatedSpeed } from "../abilities/stim-state";
 import { spellLocked } from "../abilities/spells-state";
 import { isEmbarked } from "../abilities/special-state";
 import { isSieged, tankLocked } from "../abilities/siege-state";
@@ -445,7 +446,7 @@ function move(
           ),
       );
     m.transitFormation = narrow ? "column" : m.formation;
-    const budget = integrate(s.speed[i], m.remainderX);
+    const budget = integrate(stimulatedSpeed(state,i), m.remainderX);
     m.remainderX = budget.remainder;
     const step = budget.delta;
     if (!step && distance) continue;

@@ -1,3 +1,4 @@
+import { stimulatedCooldown } from "../abilities/stim-state";
 import { isInStasis, spellLocked } from "../abilities/spells-state";
 import { advanceSpines, launchSpines } from "./lurker-waves";
 import { LURKER, LURKER_WEAPON, LURKER_WAVE_RULES } from "../abilities/lurker-state";
@@ -540,7 +541,7 @@ export function createCombatRules(
           if (w.name === LURKER_WEAPON.name && (s.lurker?.waves.length ?? 0) >= LURKER_WAVE_RULES.maximum) continue;
           if (flight && s.combat.projectiles.length >= MAX_COMBAT_PROJECTILES)
             continue;
-          const frames = w.wpnDamageCooldowns * 5 + r.remainder;
+          const frames = stimulatedCooldown(s,e.id[a],w.wpnDamageCooldowns) * 5 + r.remainder;
           r.nextAttackTick = s.tick + Math.max(1, Math.floor(frames / 6));
           r.remainder = frames % 6;
           const miss =
