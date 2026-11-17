@@ -1,0 +1,104 @@
+{
+  "sourceCommit": "41bf013b78a7c5adc4e68321d0dde91de0ba5418",
+  "sourceTree": "af16d2dcb08fb03929f97150aca998af664076ad",
+  "githubUrl": "https://github.com/itnad/games/commit/41bf013b78a7c5adc4e68321d0dde91de0ba5418",
+  "projectId": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b",
+  "checks": {
+    "engine": 575,
+    "stim": 19,
+    "medic": 26,
+    "approachAndWorker": 55,
+    "sharedHtml": 250,
+    "haeru": 36,
+    "baksal": 28,
+    "labBuild": true,
+    "benchmark": true,
+    "factsReproduced": true
+  },
+  "scope": "Stage6K Marine Stim Packs research/health cost/speed and cooldown/Medic recovery/save20 plus range-safe Medic approach; portrait only",
+  "siteVersion": 282,
+  "versionId": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b~appgver_e7298a17d3088191a00767e3f68ee02d",
+  "deploymentId": "appgdep_6afba801fec8819197be3773ffff288b",
+  "siteUrl": "https://games.itnadcom.chatgpt.site",
+  "verifiedAt": "2026-11-17T01:13:39.313044+00:00",
+  "ci": {
+    "id": 43992330452,
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "41bf013b78a7c5adc4e68321d0dde91de0ba5418",
+    "html_url": "https://github.com/itnad/games/actions/runs/43992330452",
+    "updated_at": "2026-11-17T01:05:14Z"
+  },
+  "browserReports": {
+    "fixed-local-360": {
+      "path": "stark-rift-stim/fixed-local-360/stim-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native touch500tick research, moving Marines Stim HP cost, Medic recovery, exact active save/reload, reactivation and real-time247tick expiry. No resource or game-state injection. Chromium SwiftShader is not physical Android/iOS or hardware GPU certification."
+    },
+    "fixed-local-390": {
+      "path": "stark-rift-stim/fixed-local-390/stim-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native touch500tick research, moving Marines Stim HP cost, Medic recovery, exact active save/reload, reactivation and real-time247tick expiry. No resource or game-state injection. Chromium SwiftShader is not physical Android/iOS or hardware GPU certification."
+    },
+    "fixed-local-legacy": {
+      "path": "stark-rift-stim/fixed-local-legacy/legacy-browser.json",
+      "cases": 14,
+      "passed": 14,
+      "scope": "Replay of unmodified saves captured from the previous live version; no new-game resource injection"
+    },
+    "live-360": {
+      "path": "stark-rift-stim/live-360/stim-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native touch500tick research, moving Marines Stim HP cost, Medic recovery, exact active save/reload, reactivation and real-time247tick expiry. No resource or game-state injection. Chromium SwiftShader is not physical Android/iOS or hardware GPU certification."
+    },
+    "live-390": {
+      "path": "stark-rift-stim/live-390/stim-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native touch500tick research, moving Marines Stim HP cost, Medic recovery, exact active save/reload, reactivation and real-time247tick expiry. No resource or game-state injection. Chromium SwiftShader is not physical Android/iOS or hardware GPU certification."
+    },
+    "live-legacy": {
+      "path": "stark-rift-stim/live-legacy/legacy-browser.json",
+      "cases": 14,
+      "passed": 14,
+      "scope": "Replay of unmodified saves captured from the previous live version; no new-game resource injection"
+    },
+    "live-medic": {
+      "path": "stark-rift-stim/live-medic/medic-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native touch/manual target/group slot/long press; paid normal-time production and research; exact paused save recovery. No resource or game-state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "live-autocast": {
+      "path": "stark-rift-stim/live-autocast/autocast-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Actual Worker/Pixi, native mobile touch/long press and normal-time gameplay; no new-game state/resource injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    },
+    "live-manual": {
+      "path": "stark-rift-stim/live-manual/spells-browser.json",
+      "cases": 1,
+      "passed": 1,
+      "scope": "Production Worker/Pixi; real touch casts, native pointer checkpoint pause, normal time;360px waits for the full43.65-second stasis duration. No resource/state injection. Chromium SwiftShader; not physical Android/iOS or hardware GPU certification."
+    }
+  },
+  "browserCases": 35,
+  "sourceArchive": "stark-rift-stim-source-and-qa.zip",
+  "qaArchive": "stark-rift-stim-qa.zip",
+  "remoteVerification": "https://github.com/itnad/games/blob/verification/stark-rift-stage6k-41bf013b/verification/stark-rift-stage6k-release.json",
+  "evidenceNotes": [
+    "Marine Stim research costs100/100 at Academy and completes in500economic ticks. Activation pays exactly10 actual HP only when health is strictly above10, preserves fixed-point HP fractions, uses no energy and never kills an eligible survivor. Per-unit partial execution excludes unsupported, carried or frozen actors.",
+    "Pinned BWAPI/OpenBW extractor reproduces37status cycles times8frames =296frames, rounded247simulation ticks. Movement uses1.5times base speed; original Marine cooldown15 becomes7frames, minimum5. Existing cooldown/remainders and orders are retained; reuse pays again and refreshes without stacking.",
+    "575 game tests pass, including19 Stim/approach tests. Focused Stim,Medic and Worker suites55 pass. Shared250,Haeru36,Baksal28 checks pass. Final canonical-source CI verifies fresh npm ci,full npm test,lab build and benchmark.",
+    "A real390px test found the Medic stopping outside healing range after one patient because ordinary formation padding displaced the next endpoint. A regression fails before and passes after the range-aware endpoint change. Legal half-tile endpoints check body collision, reserved destinations and healing hitboxes while keeping existing A* and movement. The previous stage6J combat-rule hash remains frozen for migration.",
+    "Both portrait widths run actual native-touch paid research, full normal-time500tick completion, attack-move plus Stim, observed HP cost and Medic healing, paused active save/reload with exact timer/job/path/energy state, paid reuse, base-speed preservation and full normal-time247tick expiry. Production repeats both cases on the final build.",
+    "Fourteen untouched production saves from formats12..19 restore locally and on production at their exact saved tick, retaining raw backups, Medic manual jobs and auto preferences, energy including upgrades, resources/RNG/groups, pending commands, cargo/cloak/siege/morphs and paid spells. No new units,resources or Stim research are granted during migration.",
+    "The existing production Medic full flow still passes: manual patient/group targeting, automatic recovery, paid production, normal-time Caduceus research, upgraded production and exact save recovery. Actual manual Recall/Stasis and opt-in automatic Stasis remain functional; the manual case waits for873tick thaw and restored movement.",
+    "All206 deployment files SHA256-match a clean canonical-commit build. Lossless zopfli5 text plus zopfli1 binary gzip members fit32MiB without asset modification. Native Sites saved/deployed the same commit, and public api/version matches its12-character prefix.",
+    "Superseded attempts remain in QA evidence: a drill moved outside the5tile auto-heal search or touched a friendly aircraft, local rebuilds stopped the preview, and one running test process read a newly edited fixture. Final checks use frozen source, explicit attack-move, source-preserving helpers and restarted ready previews.",
+    "Chromium SwiftShader/native touch does not certify physical Android/iOS devices or hardware GPU performance."
+  ]
+}
