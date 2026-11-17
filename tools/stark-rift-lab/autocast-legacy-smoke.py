@@ -14,7 +14,7 @@ with sync_playwright() as p:
   c=browser.new_context(viewport={'width':360,'height':640},is_mobile=True,has_touch=True);page=c.new_page();page.add_init_script(m.OBSERVER);page.add_init_script('localStorage.setItem('+json.dumps(key)+','+json.dumps(raw)+')');errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
   try:
    page.goto(args.url+'/stark-rift-dev',wait_until='networkidle');page.locator('[data-faction="'+race+'"]').tap();page.get_by_role('button',name='특수 연습',exact=True).tap();page.get_by_role('button',name='이어서 하기',exact=True).tap();page.wait_for_function('t=>window.__qa.ui?.phase==="paused"&&window.__qa.snapshot?.tick===t',arg=old['simulation']['tick']);case['checks'].append('actual_previous_live_save_restores_at_exact_tick');m.save(page)
-   upgraded=json.loads(page.evaluate('(k)=>localStorage.getItem(k)',key));s=upgraded['simulation'];assert upgraded['formatVersion']==19
+   upgraded=json.loads(page.evaluate('(k)=>localStorage.getItem(k)',key));s=upgraded['simulation'];assert upgraded['formatVersion']==21
    for field in ['special','rngStreams','players','movement','commandState','economy','siege','lurker','spells','entities']:assert s.get(field)==old['simulation'].get(field),field
    old_energy=old['simulation'].get('energy',[]);assert all(r in s.get('energy',[]) for r in old_energy)
    for i,eid in enumerate(old['simulation']['entities']['id']):

@@ -1,3 +1,6 @@
+import { createMedicSpellRules } from "../abilities/medic-spells-rules";
+import { medicSpellsFitMap } from "../abilities/medic-spells-state";
+import { createStimRules } from "../abilities/stim-rules";
 import { createMedicRules } from "../abilities/medic-rules";
 import { createAutocastRules } from "../abilities/autocast-rules";
 import { createSpellsRules } from "../abilities/spells-rules";
@@ -144,7 +147,7 @@ export class SimulationRuntime {
       map,
       createCombatRules(createEconomyRules(map, defaults), visible, map),
     )))))));
-    const combined = createMedicRules(map,createAutocastRules(map, spellRules));
+    const combined = createMedicSpellRules(map,createStimRules(createMedicRules(map,createAutocastRules(map, spellRules))));
     this.rules = {
       commands: { ...combined.commands, ...this.options.rules?.commands },
       systems: {
@@ -384,7 +387,7 @@ export class SimulationRuntime {
           if (
             !visionFitsMap(saved.simulation, registered.map) ||
             !specialFitsMap(saved.simulation, registered.map) ||
-            !combatFitsMap(saved.simulation, registered.map) || !lurkerFitsMap(saved.simulation, registered.map) || !spellsFitMap(saved.simulation, registered.map) ||
+            !combatFitsMap(saved.simulation, registered.map) || !lurkerFitsMap(saved.simulation, registered.map) || !spellsFitMap(saved.simulation, registered.map) || !medicSpellsFitMap(saved.simulation,registered.map) ||
             !economyFitsMap(saved.simulation, registered.map) ||
             !navigationFitsMap(saved.simulation, registered.map) ||
             saved.simulation.entities.x.some(

@@ -13,7 +13,8 @@ import {
 export const LEGACY_VISION_RULES_VERSION = "fog-1-los-edge-detector11-memory600";
 export const CARGO_VISION_RULES_VERSION = "fog-2-permanent-cloak-cargo-observer11";
 export const ARBITER_VISION_RULES_VERSION = "fog-3-arbiter-passive-field-hitboxes";
-export const VISION_RULES_VERSION = "fog-4-stasis-disabled-field-detector";
+export const STASIS_VISION_RULES_VERSION = "fog-4-stasis-disabled-field-detector";
+export const VISION_RULES_VERSION = "fog-5-blind2-no-detection-restoration";
 export const MEMORY_TICKS = 600;
 export const contactSchema = object({
   entityId: integer(1),

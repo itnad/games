@@ -1,0 +1,31 @@
+{
+  "source": {
+    "bwapiUrl": "https://github.com/bwapi/bwapi/blob/v4.4.0/bwapi/BWAPILIB/Source/TechType.cpp",
+    "openbwCommit": "4b046d5f65302b10cb0a745f0fecd37ec85b20a8",
+    "openbwUrls": [
+      "https://github.com/OpenBW/openbw/blob/4b046d5f65302b10cb0a745f0fecd37ec85b20a8/bwgame.h",
+      "https://github.com/OpenBW/openbw/blob/4b046d5f65302b10cb0a745f0fecd37ec85b20a8/actions.h"
+    ],
+    "sha256": {
+      "tech.cpp": "990bdd17b48c1207dfb7f17352dad022e6ce4f6939d151119fd022e028ccf869",
+      "bwgame.h": "5ee316ca2c008c9252f7fde7444ca5dc7f35440549be2576dc37fa228fb31ae6",
+      "actions.h": "30568ec0737cb6f624f9df730b36ec028258ec08cce9307af3025883e20e9d4e"
+    }
+  },
+  "technology": {
+    "name": "Stim_Packs",
+    "title": "스팀팩",
+    "producer": "terran-academy",
+    "minerals": 100,
+    "gas": 100,
+    "frames": 1200,
+    "energy": 0
+  },
+  "healthCost": 10,
+  "statusCycles": 37,
+  "framesPerCycle": 8,
+  "speedNumerator": 3,
+  "speedDenominator": 2,
+  "cooldownDivisor": 2,
+  "minimumCooldownFrames": 5
+}

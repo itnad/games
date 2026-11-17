@@ -59,8 +59,9 @@ export function InteractiveBattle({
   const [preview, setPreview] = useState<number[]>([]),
     [pending, setPending] = useState<number[] | null>(null),
     [mode, setMode] = useState<
-      "move" | "attackMove" | "patrol" | "rally" | "load" | "unload" | "recall" | "stasis-field" | "healing" | null
+      "move" | "attackMove" | "patrol" | "rally" | "load" | "unload" | "recall" | "stasis-field" | "healing" | "optical-flare" | "restoration" | null
     >(null);
+  const medicSpellActor = useRef<number>(0);
   const healActor = useRef<number>(0);
   const spellActor = useRef<number>(0);
   const transportActors = useRef<number[]>([]);
@@ -235,7 +236,7 @@ export function InteractiveBattle({
       },
       tap: (hit) => {
         const current = latest.current;
-        if (current.mode === "healing") {if(hit.entityId>0){issue({kind:"castAbility",entityIds:[healActor.current],payload:{abilityId:"healing"},target:{kind:"entity",entityId:hit.entityId}});setMode(null);}return;}
+        if (current.mode === "healing"||current.mode==="optical-flare"||current.mode==="restoration") {if(hit.entityId>0){issue({kind:"castAbility",entityIds:[current.mode==="healing"?healActor.current:medicSpellActor.current],payload:{abilityId:current.mode},target:{kind:"entity",entityId:hit.entityId}});setMode(null);}return;}
         if (current.mode === "load") {
           const passenger = current.snapshot.entities.find((e) => e.id === hit.entityId);
           if (passenger?.owner === current.snapshot.viewerPlayerId && passenger.layer === "ground" && passenger.kind !== "building")
@@ -290,10 +291,10 @@ export function InteractiveBattle({
       },
       preview: (hit) =>
         setPreview(
-          hit && latest.current.mode!=="healing" ? selectNearby(latest.current.snapshot, hit.entityId) : [],
+          hit && !["healing","optical-flare","restoration"].includes(latest.current.mode??"") ? selectNearby(latest.current.snapshot, hit.entityId) : [],
         ),
       group: (hit) => {
-        if(latest.current.mode === "healing"){if(hit.entityId>0){issue({kind:"castAbility",entityIds:[healActor.current],payload:{abilityId:"healing"},target:{kind:"entity",entityId:hit.entityId}});setMode(null);}return;}
+        if(latest.current.mode === "healing"||latest.current.mode==="optical-flare"||latest.current.mode==="restoration"){if(hit.entityId>0){issue({kind:"castAbility",entityIds:[latest.current.mode==="healing"?healActor.current:medicSpellActor.current],payload:{abilityId:latest.current.mode},target:{kind:"entity",entityId:hit.entityId}});setMode(null);}return;}
         if (latest.current.mode === "load") {
           const e = latest.current.snapshot.entities.find((e) => e.id === hit.entityId);
           if (e?.owner === latest.current.snapshot.viewerPlayerId && e.layer === "ground" && e.kind !== "building") issue({ kind: "loadTransport", entityIds: transportActors.current, target: { kind: "entity", entityId: e.id } });
@@ -333,7 +334,7 @@ export function InteractiveBattle({
         else setPending(ids);
       },
       swipe: (hit, point, attack) => {
-        if (["load", "unload", "healing"].includes(latest.current.mode ?? "")) return;
+        if (["load", "unload", "healing", "optical-flare", "restoration"].includes(latest.current.mode ?? "")) return;
         if (hit.kind === "building") {
           if (
             latest.current.snapshot.economy &&
@@ -382,7 +383,7 @@ export function InteractiveBattle({
         if (current.mode === "unload") {
           issue({ kind: "unloadTransport", entityIds: transportActors.current, target: target(point) }); setMode(null); return;
         }
-        if (current.mode === "load" || current.mode === "healing") return;
+        if (current.mode === "load" || current.mode === "healing" || current.mode === "optical-flare" || current.mode === "restoration") return;
         if (!current.selected.length) return;
         if (current.build) {
           setBuildPoint(world(point));
@@ -431,10 +432,11 @@ export function InteractiveBattle({
     [],
   );
   const chooseSlot = (slot: number, add = false) => {
-    if(latest.current.mode === "healing"){
-      const s=latest.current.snapshot,ids=latest.current.ui.controlGroups[slot].entityIds;
-      const patient=s.entities.filter(e=>ids.includes(e.id)&&e.owner===s.viewerPlayerId&&e.id!==healActor.current&&e.layer==="ground"&&e.kind!=="building"&&isOrganic(e.definitionId)&&e.needsHealing&&!e.stasisTicks).sort((a,b)=>a.health/(economyDefinition(a.definitionId)?.health??1)-b.health/(economyDefinition(b.definitionId)?.health??1)||a.id-b.id)[0];
-      if(patient){issue({kind:"castAbility",entityIds:[healActor.current],payload:{abilityId:"healing"},target:{kind:"entity",entityId:patient.id}});setMode(null);}return;
+    if(latest.current.mode === "healing"||latest.current.mode === "optical-flare"||latest.current.mode === "restoration"){
+      const ability=latest.current.mode,actor=ability==="healing"?healActor.current:medicSpellActor.current,s=latest.current.snapshot,ids=latest.current.ui.controlGroups[slot].entityIds;
+      const patients=s.entities.filter(e=>ids.includes(e.id)&&e.owner===s.viewerPlayerId&&e.kind!=="building"&&!e.stasisTicks&&(ability!=="healing"||e.id!==actor&&e.layer==="ground"&&isOrganic(e.definitionId)&&e.needsHealing));
+      patients.sort((a,b)=>ability==="restoration"?Number(!!b.blinded)-Number(!!a.blinded)||a.id-b.id:ability==="optical-flare"?Number(!!a.blinded)-Number(!!b.blinded)||a.id-b.id:a.health/(economyDefinition(a.definitionId)?.health??1)-b.health/(economyDefinition(b.definitionId)?.health??1)||a.id-b.id);
+      if(patients[0]){issue({kind:"castAbility",entityIds:[actor],payload:{abilityId:ability},target:{kind:"entity",entityId:patients[0].id}});setMode(null);}return;
     }
     if (latest.current.mode === "load") {
       const s = latest.current.snapshot, ships = s.entities.filter((e) => transportActors.current.includes(e.id));
@@ -491,7 +493,7 @@ export function InteractiveBattle({
         className="sr-groups"
         onPointerMove={(event) => {
           const d = drag.current;
-          if (["load","healing"].includes(latest.current.mode??"") || !d || d.id !== event.pointerId) return;
+          if (["load","healing","optical-flare","restoration"].includes(latest.current.mode??"") || !d || d.id !== event.pointerId) return;
           const dx = event.clientX - d.x,
             dy = event.clientY - d.y;
           const button = document
@@ -591,7 +593,7 @@ export function InteractiveBattle({
       </div>
       <div ref={commandPanel} className="sr-command-space sr-commands">
         {pending && <span>등록할 부대 슬롯을 선택해 주세요.</span>}
-        {mode && <span>{mode === "healing" ? "치료할 부상 아군 또는 부대 슬롯을 터치하세요." : mode === "load" ? "탑승시킬 아군 또는 부대 슬롯을 터치하세요." : mode === "recall" ? "리콜로 불러올 아군 지역을 터치하세요." : mode === "stasis-field" ? "스테이시스 위치를 터치하세요. 아군도 정지됩니다." : "전장 또는 미니맵에서 목적지를 선택하세요."}<button onClick={() => setMode(null)}>지시 취소</button></span>}
+        {mode && <span>{mode === "optical-flare" ? "실명시킬 유닛을 터치하세요. 아군도 대상입니다." : mode === "restoration" ? "복구할 유닛 또는 아군 부대 슬롯을 터치하세요." : mode === "healing" ? "치료할 부상 아군 또는 부대 슬롯을 터치하세요." : mode === "load" ? "탑승시킬 아군 또는 부대 슬롯을 터치하세요." : mode === "recall" ? "리콜로 불러올 아군 지역을 터치하세요." : mode === "stasis-field" ? "스테이시스 위치를 터치하세요. 아군도 정지됩니다." : "전장 또는 미니맵에서 목적지를 선택하세요."}<button onClick={() => setMode(null)}>지시 취소</button></span>}
         {notice && <span role="status">{notice}</span>}
         {snapshot.economy ? (
           <>
@@ -643,6 +645,7 @@ export function InteractiveBattle({
                 issue={issue}
                 openBuildMenu={() => setBuildMenu(true)}
                 selectWorker={selectWorker}
+                medicSpell={(id,ability)=>{medicSpellActor.current=id;setMode(ability);setBuild(null);setBuildMenu(false);}}
                 heal={id=>{healActor.current=id;setMode("healing");setBuild(null);setBuildMenu(false);}}
                 castAbility={(id,ability) => { spellActor.current=id;setMode(ability);setBuild(null);setBuildMenu(false); }}
                 selectEntities={(ids) => { select(ids); setMode(null); }}
@@ -761,7 +764,7 @@ export function InteractiveBattle({
       viewportHint={
         build
           ? `${economyDefinition(build.id)?.name}${build.repeat ? " · 연속 배치" : ""} · ${placement?.reason ?? "건설 위치를 터치하세요"}`
-          : mode === "healing" ? "치료할 부상 아군 또는 부대 슬롯을 터치하세요." : mode === "recall" ? "리콜로 불러올 아군 지역을 터치하세요." : mode === "stasis-field" ? "스테이시스 위치를 터치하세요. 아군도 정지됩니다." : mode === "attackMove"
+          : mode === "optical-flare" ? "실명시킬 유닛을 터치하세요. 아군도 대상입니다." : mode === "restoration" ? "복구할 유닛 또는 아군 부대 슬롯을 터치하세요." : mode === "healing" ? "치료할 부상 아군 또는 부대 슬롯을 터치하세요." : mode === "recall" ? "리콜로 불러올 아군 지역을 터치하세요." : mode === "stasis-field" ? "스테이시스 위치를 터치하세요. 아군도 정지됩니다." : mode === "attackMove"
             ? "공격 이동할 위치를 터치하세요."
             : null
       }
@@ -782,7 +785,7 @@ export function InteractiveBattle({
       }
       placement={placement}
       onMinimapPoint={(point) => {
-        if (latest.current.mode === "healing") return true;
+        if (["healing","optical-flare","restoration"].includes(latest.current.mode??"")) return true;
         if (latest.current.mode === "recall" || latest.current.mode === "stasis-field") { issue({kind:"castAbility",entityIds:[spellActor.current],payload:{abilityId:latest.current.mode},target:{kind:"point",x:Math.round(point.x),y:Math.round(point.y)}});setMode(null);return true; }
         if (latest.current.mode === "unload") { issue({ kind: "unloadTransport", entityIds: transportActors.current, target: { kind: "point", x: Math.round(point.x), y: Math.round(point.y) } }); setMode(null); return true; }
         if (latest.current.mode !== "rally") return false;

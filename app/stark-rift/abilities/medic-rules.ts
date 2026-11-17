@@ -1,5 +1,7 @@
+import { NavigationGrid } from "../pathfinding/navigation";
+import { SpatialHash } from "../pathfinding/spatial-hash";
+import { destinationAvailable } from "../pathfinding/destinations";
 import type { EngineRules } from "../core/simulation";
-import type { GameCommand } from "../core/commands";
 import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import { idleMovement } from "../core/orders";
@@ -19,11 +21,31 @@ export function missingMedicHealth(s:SimulationState,id:number):number {
  const fraction=s.combat?.records.find(r=>r.entityId===id)?.healthFraction??0;
  return Math.max(0,d.health*256-(s.entities.health[i]*256-fraction));
 }
-export function medicInRange(s:SimulationState,a:number,b:number):boolean {
+export function medicInRangeAt(s:SimulationState,a:number,b:number,point:{x:number;y:number}):boolean {
  const e=s.entities,i=e.id.indexOf(a),j=e.id.indexOf(b),p=combatProfile(e.definitionId[i]),q=combatProfile(e.definitionId[j]);
  if(!p||!q)return false;
- const dx=Math.max(0,e.x[j]-q.bounds[0]*8-e.x[i]-p.bounds[2]*8,e.x[i]-p.bounds[0]*8-e.x[j]-q.bounds[2]*8),dy=Math.max(0,e.y[j]-q.bounds[1]*8-e.y[i]-p.bounds[3]*8,e.y[i]-p.bounds[1]*8-e.y[j]-q.bounds[3]*8);
+ const dx=Math.max(0,e.x[j]-q.bounds[0]*8-point.x-p.bounds[2]*8,point.x-p.bounds[0]*8-e.x[j]-q.bounds[2]*8),dy=Math.max(0,e.y[j]-q.bounds[1]*8-point.y-p.bounds[3]*8,point.y-p.bounds[1]*8-e.y[j]-q.bounds[3]*8);
  return dx*dx+dy*dy<=(H.rangePixels*8)**2;
+}
+export function medicInRange(s:SimulationState,a:number,b:number):boolean {
+ const i=s.entities.id.indexOf(a);return i>=0&&medicInRangeAt(s,a,b,{x:s.entities.x[i],y:s.entities.y[i]});
+}
+/** Choose a legal endpoint candidate inside the actual healing range, without formation padding. */
+function approachPoint(s:SimulationState,map:BattleMap,r:MedicRecord):{x:number;y:number}|null {
+ if(r.targetId===null)return null;
+ const e=s.entities,i=e.id.indexOf(r.entityId),j=e.id.indexOf(r.targetId),a=combatProfile(e.definitionId[i]),b=combatProfile(e.definitionId[j]);if(!a||!b)return null;
+ const grid=new NavigationGrid(map,s,new SpatialHash(s),false,true),cx=Math.floor(e.x[j]/128),cy=Math.floor(e.y[j]/128),radius=Math.ceil((H.rangePixels+Math.max(...a.bounds)+Math.max(...b.bounds))*8/128)+1,ideal=goal(s,r.entityId,r.targetId),points:{x:number;y:number}[]=[];
+ for(let y=Math.max(0,cy-radius);y<=Math.min(grid.height-1,cy+radius);y++)for(let x=Math.max(0,cx-radius);x<=Math.min(grid.width-1,cx+radius);x++){
+  const p=grid.point(y*grid.width+x);
+  if(medicInRangeAt(s,r.entityId,r.targetId,p)&&grid.clear(p,e.radius[i],e.layer[i],r.entityId)&&destinationAvailable(s,r.entityId,p,e.radius[i],e.layer[i]))points.push(p);
+ }
+ points.sort((p,q)=>(p.x-e.x[i])**2+(p.y-e.y[i])**2-(q.x-e.x[i])**2-(q.y-e.y[i])**2 || (p.x-ideal.x)**2+(p.y-ideal.y)**2-(q.x-ideal.x)**2-(q.y-ideal.y)**2 || p.y-q.y || p.x-q.x);
+ return points.find(p=>r.manual||medicFrontlineAllows(s,map,r.entityId,p))??null;
+}
+function requestApproach(s:SimulationState,r:MedicRecord,p:{x:number;y:number}) {
+ const i=s.entities.id.indexOf(r.entityId),m=s.movement[i],style={formation:m.formation,stance:m.stance};
+ Object.assign(m,idleMovement(r.entityId),style,{order:"move",origin:{x:s.entities.x[i],y:s.entities.y[i]},target:p,status:"waiting",priority:2,requestTick:s.tick,transitFormation:style.formation,obstacleVersion:s.map.obstacleVersion});
+ s.navigation.jobs=s.navigation.jobs.filter(j=>j.entityId!==r.entityId);
 }
 const loading=(s:SimulationState,id:number)=>s.special?.transports.some(t=>t.loadQueue.includes(id))??false;
 function stopMedic(s:SimulationState,r:MedicRecord) {
@@ -121,9 +143,9 @@ export function createMedicRules(map:BattleMap,base:EngineRules):EngineRules {
     if(medicInRange(s,r.entityId,r.targetId))stopMedic(s,r);
     else if(!r.manual&&!medicFrontlineAllows(s,map,r.entityId,goal(s,r.entityId,r.targetId))){clearMedicJob(r);stopMedic(s,r);}
     else if(!r.held&&move&&s.tick%5===0){
-     const p=goal(s,r.entityId,r.targetId),m=s.movement[i];
-     if(["idle","arrived","blocked"].includes(m.status)||!m.target||(m.target.x-p.x)**2+(m.target.y-p.y)**2>128**2){
-      const command:GameCommand={kind:"move",entityIds:[r.entityId],target:{kind:"point",...p},playerId:e.owner[i],source:"ai",sequence:1,issuedTick:Math.max(0,s.tick-1),executeTick:s.tick};if(move.validate(s,command,r.entityId)===null)move.apply(s,command,[r.entityId]);
+     const m=s.movement[i];
+     if(["idle","arrived","blocked"].includes(m.status)||!m.target||!medicInRangeAt(s,r.entityId,r.targetId,m.target)){
+      const p=approachPoint(s,map,r);if(p)requestApproach(s,r,p);else stopMedic(s,r);
      }
     }
    }
