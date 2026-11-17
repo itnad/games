@@ -182,6 +182,20 @@ export const LAB_PRESETS: LabPreset[] = [
     },
   },
   {
+    id: "carrier-battlecruiser",
+    name: "캐리어 13 대 배틀크루저 13",
+    note: "15분, 양쪽 인구 꽉(일꾼 20) · 캐리어 수용량 대 야마토 포(에너지 가득). 연구를 끄고 켜며 비교",
+    config: {
+      time: 900,
+      placement: "clash",
+      races: { player: "protoss", enemy: "terran" },
+      sides: {
+        player: { ...emptySide("manual"), units: { carrier: 13 }, research: ["carrierCapacity"] },
+        enemy: { ...emptySide("fight"), units: { battlecruiser: 13 }, research: ["yamato"] },
+      },
+    },
+  },
+  {
     id: "depleted-lurker-scout",
     name: "자원 고갈: 럴커 대 스카웃",
     note: "20분, 양쪽 광물 고갈(광물 3,000씩 남음) · 럴커 35와 스카웃 22가 각자 기지에서 대기. 싸움도 생산도 없으면 30초에 예고, 90초에 최종 결전",
@@ -379,7 +393,7 @@ export function LabScreen({ initial, onStart, onBack, theme = "riso", themePicke
         <div><span className="stw-brand">스타드래프트</span><strong>실험실</strong></div>
       </header>
       <section className="stw-menu stw-lab">
-        <p className="stw-hint">종족·전략·건물·유닛·연구·시각을 마음대로 정해 경기를 바로 세웁니다. 필요한 생산·테크 건물과 선행 연구는 자동으로 갖추고, 인구 상한은 {withKoreanDirection(String(SUPPLY_LIMIT))} 채웁니다. 실험 경기는 전적과 이어하기에 남지 않습니다.</p>
+        <p className="stw-hint">종족·전략·건물·유닛·연구·시각을 마음대로 정해 경기를 바로 세웁니다. 필요한 생산·테크 건물과 선행 연구는 자동으로 갖추고, 인구 상한은 {withKoreanDirection(String(SUPPLY_LIMIT))} 채웁니다. 실험 경기는 전적과 이어하기에 남지 않고, 안개 없이 상대 진영까지 전장 전체가 보입니다(은폐 유닛은 탐지해야 보입니다).</p>
         <h3 className="stw-section">불러오기</h3>
         <div className="stw-lab-presets">
           {[...custom, ...LAB_PRESETS].map((preset) => (

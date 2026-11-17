@@ -92,6 +92,14 @@ export async function createStwPixiRenderer(host: HTMLElement, width: number, he
   return new StwPixiRenderer(PIXI, app);
 }
 
+
+/**
+ * 플레이어 화면에 보이는 자리인지. 실험실 경기는 시험용이라 전장 전체를 보여 준다(상대 진영의 병력·건물 배치와 움직임을 그대로 본다).
+ * 그리기에만 쓴다: 엔진의 시야(목표 찾기·AI 판단·정찰 정보)와 은폐·탐지는 바꾸지 않는다.
+ */
+function playerSees(state: StwState, x: number, y: number, pad = 0) {
+  return Boolean(state.lab) || stwVisible(state, "player", x, y, pad);
+}
 export class StwPixiRenderer {
   private readonly PIXI: PixiModule;
   private readonly app: Application;
@@ -350,7 +358,7 @@ export class StwPixiRenderer {
     for (let y = 0; y < STW_LANE_LENGTH; y += FOG_CELL) {
       let runStart = -1;
       for (let x = 0; x <= STW_LANE_WIDTH; x += FOG_CELL) {
-        const hidden = x < STW_LANE_WIDTH && !stwVisible(state, "player", x + FOG_CELL / 2, y + FOG_CELL / 2, 0.5);
+        const hidden = x < STW_LANE_WIDTH && !playerSees(state, x + FOG_CELL / 2, y + FOG_CELL / 2, 0.5);
         if (hidden && runStart < 0) runStart = x;
         if (!hidden && runStart >= 0) {
           g.rect(runStart, y, x - runStart, FOG_CELL);
@@ -359,7 +367,7 @@ export class StwPixiRenderer {
       }
     }
     g.fill({ color: 0x0b0805, alpha: 0.5 });
-    this.visibleCache = new Set(state.units.filter((unit) => unit.side === "player" || stwVisible(state, "player", unit.x, unit.y)).map((unit) => unit.id));
+    this.visibleCache = new Set(state.units.filter((unit) => unit.side === "player" || playerSees(state, unit.x, unit.y)).map((unit) => unit.id));
   }
 
   /* ───────── 건물 ───────── */
@@ -433,7 +441,7 @@ export class StwPixiRenderer {
     for (const building of state.buildings) {
       const own = building.side === "player";
       const remembered = !own && seen[building.id];
-      const visibleNow = own || stwVisible(state, "player", building.x, building.y, building.radius);
+      const visibleNow = own || playerSees(state, building.x, building.y, building.radius);
       if (!own && !visibleNow && !remembered) continue;
       alive.add(building.id);
       if (!own && visibleNow) visibleEnemy.add(building.id);
@@ -540,7 +548,7 @@ export class StwPixiRenderer {
       for (const base of ["main", "natural"] as const) {
         const nexus = stwNexus(state, side, base) as { x: number; y: number; radius: number } | null;
         if (!nexus || !stwDone(nexus as never)) continue;
-        if (side !== "player" && !stwVisible(state, "player", nexus.x, nexus.y, 4)) continue;
+        if (side !== "player" && !playerSees(state, nexus.x, nexus.y, 4)) continue;
         const minerals = stwPoint(side, base === "main" ? this.map.layout.mainMinerals : this.map.layout.naturalMinerals);
         const dir = Math.sign(minerals.y - nexus.y) || 1;
         const threatened = state.units.some((unit) => unit.side !== side && !flags(STW_UNITS[unit.type]).worker && !flags(STW_UNITS[unit.type]).flying && Math.hypot(unit.x - nexus.x, unit.y - nexus.y) < 12);
@@ -592,7 +600,7 @@ export class StwPixiRenderer {
         if (!mainNexus || !stwDone(mainNexus as never)) return;
         const crew = Math.min(STW_ECONOMY.probesPerGas, gasLeft);
         gasLeft -= crew;
-        if (side !== "player" && !stwVisible(state, "player", mainNexus.x, mainNexus.y, 4)) return;
+        if (side !== "player" && !playerSees(state, mainNexus.x, mainNexus.y, 4)) return;
         for (let index = 0; index < crew; index += 1) {
           const view = take(side);
           const dx = assimilator.x - mainNexus.x;
@@ -908,7 +916,7 @@ export class StwPixiRenderer {
   /* ───────── 효과 ───────── */
 
   private visiblePoint(state: StwState, x: number, y: number) {
-    return stwVisible(state, "player", x, y, 1);
+    return playerSees(state, x, y, 1);
   }
 
   private spawnEffects(state: StwState) {
