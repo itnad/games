@@ -2041,6 +2041,36 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   };
   const begin = () => beginAtStage(selectedStage);
   const beginWithTutorial = () => beginAtStage(1, false, true);
+  const beginSupervisor = () => {
+    if (supervisorDepartureTimerRef.current !== null) window.clearTimeout(supervisorDepartureTimerRef.current);
+    supervisorDepartureTimerRef.current = null;
+    defeatRetryRef.current = null;
+    dailyChallengeRef.current = null;
+    const nextCampaign = createCampaign(defaultCharacterId("normal"), "normal", 1);
+    const runtime = makeRuntime(nextCampaign, 20261201);
+    runtime.firstMoveGuide = null;
+    supervisorRef.current = true;
+    supervisorDecisionRef.current = { clock: 0, x: 0, y: 0, intent: "해산물을 찾는 중" };
+    supervisorLastDamageRef.current = "피해 누적";
+    stageEntryRef.current = createStageEntryCheckpoint(nextCampaign);
+    campaignRef.current = nextCampaign;
+    setCampaign(nextCampaign);
+    setSupervisorActive(true);
+    setSupervisorIntent("해산물을 찾는 중");
+    setSupervisorClears(0);
+    setSupervisorDefeatReason("피해 누적");
+    setDailyChallengeActive(false);
+    setMode("normal");
+    setCharacterId(nextCampaign.characterId);
+    setSelectedStage(1);
+    resetMovementInput();
+    runtimeRef.current = runtime;
+    snapshot(runtime);
+    setChoices([]);
+    setSelectedSkillId(null);
+    setScreen("running");
+    setRunId((value) => value + 1);
+  };
   const beginDailyChallenge = (challenge: MudflatDailyStart) => {
     defeatRetryRef.current = null;
     stageEntryRef.current = null;
@@ -4080,6 +4110,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           {selectedStage > 1 ? `${selectedStage === 9 ? "끝없는 물때" : `${selectedStage}단계`} 새 원정 시작` : mode === "normal" ? "새 일반 원정 시작" : "새 어린이 원정 시작"} <span>→</span>
         </button>
         {mode === "normal" && <button className="ms-tutorial-start" type="button" onClick={beginWithTutorial}>튜토리얼부터 <span aria-hidden="true">→</span></button>}
+        <section className="ms-supervisor-entry" aria-label="AI 감독모드">
+          <div><small>AI SUPERVISOR</small><b>감독모드 관전</b><span>AI가 직접 채집하고 위험을 피합니다. 레벨업 기술만 선택하며 기존 저장과 기록은 그대로 유지됩니다.</span></div>
+          <button type="button" onClick={beginSupervisor}>관전 시작 <span aria-hidden="true">→</span></button>
+        </section>
         <button className="ms-seafood-guide-open" type="button" aria-label="해산물 도감 열기" onClick={() => setSeafoodGuideOpen(true)}>해산물 도감 <span aria-hidden="true">↗</span></button>
         <MudflatDailyChallengePanel onStart={beginDailyChallenge} hasActiveRun={Boolean(savedRun)} />
         {savedCampaign && !savedRun && <details className="ms-setup-details ms-saved-expedition">

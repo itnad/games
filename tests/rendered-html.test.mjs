@@ -366,10 +366,15 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(game, /decideMudflatSupervisorMove/);
   assert.match(game, /maintainMudflatSupervisorCampaign/);
   assert.match(game, /SUPERVISOR PAUSED/);
+  assert.match(game, /const beginSupervisor = \(\) =>/);
+  assert.match(game, /aria-label="AI 감독모드"/);
+  assert.match(game, /감독모드 관전/);
+  assert.match(game, /onClick=\{beginSupervisor\}/);
   assert.match(supervisor, /baseCampGuideShown/);
   assert.match(supervisor, /fallingRocks/);
   assert.match(supervisor, /while \(upgradesBought < 2\)/);
   assert.match(styles, /\.ms-supervisor-status/);
+  assert.match(styles, /\.ms-supervisor-entry/);
   assert.match(styles, /\.mudflat-dev-shell/);
 });
 
