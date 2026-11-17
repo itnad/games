@@ -2910,6 +2910,15 @@ function stepUnits(state, dt) {
         // 원거리 지상 유닛은 모두(느려도) 근접 적이 붙으면 재장전 동안 피한다(무빙 공격). 근처에 아군 방어 건물이 있으면
         // 그 뒤쪽(근접 적의 반대편)으로 돌아 들어가, 쫓아오는 근접 유닛이 방어 건물의 사격을 받게 한다.
         // 예전에는 붙은 근접 유닛보다 빠른 유닛(스팀팩 해병, 벌처)만 물러났다.
+        // 공중 유닛의 무빙: 재장전 동안, 자기보다 사거리가 짧은 적 유닛의 사거리 안에 있으면 그 적에게서 물러난다(airKiteThreat).
+        if (isFlying(unit) && unit.cooldown > def.cooldown * KITE_HOLD) {
+          const threat = airKiteThreat(state, unit, range);
+          if (threat) {
+            const away = Math.atan2(unit.y - threat.y, unit.x - threat.x);
+            moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
+            continue;
+          }
+        }
         if ((def.kite || (def.role === "ranged" && !isFlying(unit))) && unit.cooldown > def.cooldown * KITE_HOLD) {
           const melee = nearestMelee(state, unit, KITE_DISTANCE);
           if (melee) {
@@ -3266,6 +3275,35 @@ function supportFollow(state, unit, plan, speed, dt) {
 
 /** 대기 병력이 집결지에서 이만큼 넘게 떨어진 적은 쫓지 않는다. */
 const RALLY_LEASH = 12;
+/** 공중 유닛이 물러나기 시작하는 거리: 자기를 쏠 수 있는 적의 사거리 + 이만큼 안. */
+const AIR_KITE_MARGIN = 1;
+
+/**
+ * 공중 공격 유닛이 재장전 동안 물러날 상대. 자기를 쏠 수 있는 적 유닛의 사거리(+AIR_KITE_MARGIN) 안에 있고,
+ * 그런 적이 모두 자기보다 사거리가 짧을 때만 가장 깊이 들어온 적을 돌려준다(물러나면 그 사거리를 벗어날 수 있다).
+ * 사거리가 같거나 더 긴 적이 하나라도 자기를 쏠 수 있으면 null: 물러나도 계속 맞고 자기 사격만 늦어진다.
+ * - 배틀크루저(8)·캐리어(9)·가디언(9)은 드라군(7)·히드라(6)·해병(6)에게서 물러나며 쏜다. 배틀크루저 4기가 드라군 12기에 지던 싸움을 이긴다.
+ * - 뮤탈리스크(3)·스카웃(4)·레이스(5)는 거의 해당이 없다. 조건 없이 물러나게 했더니 뮤탈 8기 대 커세어 6기에서 남은 적이 37% → 55%로 늘었다.
+ * 방어 건물은 세지 않는다(기지 구역 전체를 쏘므로 한 걸음 물러나서는 벗어나지 못한다).
+ */
+function airKiteThreat(state, unit, range) {
+  if (!STW_UNITS[unit.type].damage) return null;
+  let deepest = null;
+  let depth = 0;
+  for (const other of state.units) {
+    if (other.side === unit.side || other.hp <= 0 || other.group === "cargo" || !STW_UNITS[other.type].damage || !canHit(other, unit)) continue;
+    const reach = unitRange(state, other);
+    const inside = reach + AIR_KITE_MARGIN - (distance(unit.x, unit.y, other.x, other.y) - unit.radius);
+    if (inside <= 0) continue;
+    if (reach >= range) return null;
+    if (inside > depth) {
+      deepest = other;
+      depth = inside;
+    }
+  }
+  return deepest;
+}
+
 /** 공격 웨이브에서 빠른 유닛이 가장 뒤처진 유닛보다 앞서 나갈 수 있는 거리. */
 const WAVE_LEAD = 6;
 /** 물러나며 쏘는 유닛이 재장전 끝 무렵 서서 조준하는 비율. 남은 재장전이 이 비율 아래로 내려가면 더 물러나지 않는다. */

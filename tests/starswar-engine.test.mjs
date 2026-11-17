@@ -2519,6 +2519,43 @@ test("starswar vessels matrix allies, EMP shields and irradiate clumps; yamato h
   assert.ok(carrier.hp + carrier.shields <= 450 - 200, `야마토 포 ${carrier.hp + carrier.shields}`);
 });
 
+test("starswar air units back off while reloading only from enemies they outrange", () => {
+  // 공중 유닛의 무빙: 재장전 동안, 자기보다 사거리가 짧은 적의 사거리 안이면 물러난다. 사거리가 같거나 긴 적 앞에서는 그대로 싸운다.
+  const duel = (races, attackerType, foeType, gap) => {
+    const state = createStarswarGame({ seed: 5, aiSides: [], races });
+    const attacker = stwSpawnUnitAt(state, "player", attackerType, 20, 60, "attack");
+    const foe = stwSpawnUnitAt(state, "enemy", foeType, 20, 60 - gap, "rally");
+    foe.stunUntil = 999;
+    let farthest = 0;
+    let shots = 0;
+    let last = attacker.cooldown;
+    for (let tick = 0; tick < 60; tick += 1) {
+      stepStarswar(state);
+      if (attacker.cooldown > last + 0.1) shots += 1;
+      last = attacker.cooldown;
+      farthest = Math.max(farthest, Math.hypot(attacker.x - foe.x, attacker.y - foe.y));
+    }
+    return { farthest, shots, start: gap };
+  };
+  // 배틀크루저(사거리 8)는 드라군(7)에게서 물러나며 쏜다.
+  const cruiser = duel({ player: "terran", enemy: "protoss" }, "battlecruiser", "dragoon", 7);
+  assert.ok(cruiser.farthest > cruiser.start + 1, `배틀크루저가 물러남: ${cruiser.farthest.toFixed(1)}`);
+  assert.ok(cruiser.shots >= 4, `물러나면서도 쏨: ${cruiser.shots}발`);
+  // 뮤탈리스크(3)는 히드라(4.5) 앞에서 물러나지 않는다(물러나도 계속 맞는다).
+  const muta = duel({ player: "zerg", enemy: "zerg" }, "mutalisk", "hydra", 3);
+  assert.ok(muta.farthest < muta.start + 1, `뮤탈은 그대로 싸움: ${muta.farthest.toFixed(1)}`);
+  // 지상 대공이 없는 상대(질럿)에게서는 물러날 일이 없다.
+  const safe = duel({ player: "protoss", enemy: "protoss" }, "carrier", "zealot", 6);
+  assert.ok(safe.farthest < safe.start + 1);
+
+  // 싸움: 배틀크루저 4기는 드라군 12기를 물러나며 잡는다(예전에는 전멸).
+  const fight = stwCreateScenario({ seed: 1, time: 900, placement: "clash", races: { player: "terran", enemy: "protoss" }, sides: { player: { units: { battlecruiser: 4 } }, enemy: { units: { dragoon: 12 }, research: ["range"] } } });
+  const alive = (side, type) => fight.units.filter((unit) => unit.side === side && unit.type === type && unit.hp > 0).length;
+  for (let tick = 0; tick < 900 && fight.status === "playing" && alive("player", "battlecruiser") && alive("enemy", "dragoon"); tick += 1) stepStarswar(fight);
+  assert.equal(alive("enemy", "dragoon"), 0);
+  assert.ok(alive("player", "battlecruiser") >= 1);
+});
+
 test("starswar air units shoot enemies that can hit them first, and scouts go for air targets", () => {
   // 공중 공격 유닛은 자기를 때릴 수 있는 적부터 친다(때릴 수 없는 적은 5칸 더 먼 것으로 친다). 스카웃은 공중 목표부터(지상은 6칸 더).
   const pick = (races, attackerType, near, nearDistance, far, farDistance) => {
