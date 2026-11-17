@@ -1922,12 +1922,6 @@ function queueHit(state, attacker, target) {
   const def = attacker.kind === "unit" ? STW_UNITS[attacker.type] : STW_BUILDINGS[attacker.type];
   // 다크 스웜 안의 지상 유닛에는 원거리 공격이 통하지 않는다(범위 공격 대상에서도 빠진다).
   if (blockedBySwarm(state, attacker, target)) return;
-  // 캐리어: 둘레를 나는 인터셉터가 공격 일부를 대신 맞는다.
-  const decoy = target.kind === "unit" ? STW_UNITS[target.type].decoy : 0;
-  if (decoy && nextRandom(state) < decoy) {
-    state.effects.push({ kind: "decoy", side: target.side, x1: target.x, y1: target.y, x2: target.x, y2: target.y, ttl: 0.2, max: 0.2 });
-    return;
-  }
   state.pendingHits.push({ attacker, target, hits: stwHitDamage(state, attacker, target) });
   if (def.acid && target.kind === "unit") {
     const stacks = target.acid && state.time < target.acid.until ? target.acid.stacks : 0;

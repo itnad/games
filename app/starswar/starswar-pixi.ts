@@ -1005,9 +1005,6 @@ export class StwPixiRenderer {
       this.flash(effect.x2, effect.y2, radius * 2, 0.3, color);
       for (let i = 0; i < 8; i += 1) this.spark(effect.x2, effect.y2, color, 4 + radius, 0.5);
       if (effect.spell === "emp" || effect.spell === "stasis") this.shake = Math.max(this.shake, 0.25);
-    } else if (effect.kind === "decoy") {
-      // 캐리어 둘레의 인터셉터가 공격을 대신 맞음: 캐리어 둘레에서 작은 불꽃 여럿.
-      for (let i = 0; i < 4; i += 1) this.flash(effect.x2 + (Math.random() - 0.5) * 3, effect.y2 + (Math.random() - 0.5) * 3, 0.7, 0.1, 0xffe7a0);
     } else if (effect.kind === "burst") {
       // 스커지 자폭: 대상 위에서 작은 폭발.
       this.flash(effect.x2, effect.y2, 2.4, 0.16, 0xd8ffb0);

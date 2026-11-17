@@ -112,7 +112,7 @@ export type StwBuilding = {
 };
 
 export type StwEffect = { kind: "slash" | "plasma" | "photon" | "shock" | "scarab" | "warp" | "death" | "collapse" | "bullet" | "flame" | "grenade" | "tankshot" | "shell" | "stim" | "scan" | "bite" | "spine" | "spines" | "tentacle" | "laser" | "neutron" | "glaive" | "flak" | "sporeShot" | "burst"
-    | "interceptor" | "decoy" | "yamato" | "spell"; side: StwSide; x1: number; y1: number; x2: number; y2: number; ttl: number; max: number; radius?: number; attackerId?: number; targetId?: number; spell?: string;
+    | "interceptor" | "yamato" | "spell"; side: StwSide; x1: number; y1: number; x2: number; y2: number; ttl: number; max: number; radius?: number; attackerId?: number; targetId?: number; spell?: string;
     /** 캐리어 공격: 날아가는 인터셉터 수(4, 수용량 연구 뒤 8). */
     count?: number };
 export type StwScan = { id: number; side: StwSide; x: number; y: number; radius: number; ttl: number };

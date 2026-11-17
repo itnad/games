@@ -135,9 +135,9 @@ export const STW_UNITS = {
   },
   carrier: {
     id: "carrier", name: "캐리어", short: "C", minerals: 350, gas: 250, time: 70, supply: 6, from: "stargate", requires: "beacon",
-    hp: 300, shields: 150, armor: 4, size: "large", speed: 2.2, radius: 2.2, sight: 11, flying: true, decoy: 0.4,
+    hp: 300, shields: 150, armor: 4, size: "large", speed: 2.2, radius: 2.2, sight: 11, flying: true,
     damage: 6, hits: 4, damageType: "normal", range: 9, cooldown: 1, weaponStep: 0, role: "air", targets: "both",
-    note: "인터셉터 4기(연구 후 8기)가 6씩 · 사거리 9 · 지상·공중 모두 · 날아다니는 인터셉터가 공격의 40%를 대신 맞음",
+    note: "인터셉터 4기(연구 후 8기)가 6씩 · 사거리 9 · 지상·공중 모두",
   },
   arbiter: {
     id: "arbiter", name: "아비터", short: "B", minerals: 100, gas: 350, time: 80, supply: 4, from: "stargate", requires: "tribunal",
