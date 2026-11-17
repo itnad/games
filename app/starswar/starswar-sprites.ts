@@ -60,21 +60,52 @@ function zealot(PIXI: PixiModule, side: StwSide) {
   return g;
 }
 
+/**
+ * 드라군: 네 다리로 걷는 보행 병기. 예전 그림은 둥근 몸통에 가는 선 넷이라 공처럼 보였다.
+ * 다리를 굵은 윗마디·무릎 관절·끝이 뾰족한 아랫마디로 나눠 바깥으로 벌리고, 몸통은 각진 장갑 선체에 앞으로 뻗은 두 갈래 포신을 달았다.
+ * 가운데의 빛나는 구슬(동력원)은 선체 안에 얹힌 모양으로 남긴다. 텍스처 크기(±30)는 그대로다.
+ */
 function dragoon(PIXI: PixiModule, side: StwSide) {
   const team = STW_TEAM[side];
   const g = new PIXI.Graphics();
   pad(g, 30);
-  for (const [x, y] of [[16, 15], [16, -15], [-14, 17], [-14, -17]]) {
-    g.moveTo(0, 0).lineTo(x * 0.55, y * 0.75).lineTo(x, y).stroke({ width: 3.4, color: GOLD_DARK, cap: "round", join: "round" });
-    g.moveTo(0, 0).lineTo(x * 0.55, y * 0.75).lineTo(x, y).stroke({ width: 1.6, color: GOLD_LIGHT, cap: "round", join: "round" });
-    g.circle(x, y, 2.4).fill(GOLD_DARK);
+  // 앞다리는 앞으로, 뒷다리는 뒤로 벌린다(+x가 앞).
+  const legs: { hip: [number, number]; knee: [number, number]; foot: [number, number] }[] = [];
+  for (const sign of [1, -1]) {
+    legs.push({ hip: [6, 7 * sign], knee: [14, 16 * sign], foot: [26, 19 * sign] });
+    legs.push({ hip: [-6, 7 * sign], knee: [-12, 17 * sign], foot: [-25, 21 * sign] });
   }
-  g.circle(0, 0, 12.5).fill(GOLD).stroke({ width: 2, color: GOLD_DARK });
-  g.circle(-2, -2, 8.5).fill({ color: GOLD_LIGHT, alpha: 0.55 });
-  g.roundRect(8, -4, 9, 8, 3).fill(0x4a3a22).stroke({ width: 1, color: INK });
-  g.circle(2, 0, 6).fill(team.deep).stroke({ width: 1.4, color: INK });
-  g.circle(2, 0, 4).fill(team.glow);
-  g.circle(1, -1.5, 1.5).fill({ color: 0xffffff, alpha: 0.8 });
+  for (const leg of legs) {
+    // 아랫마디: 무릎에서 발끝으로 가늘어지는 뾰족한 다리.
+    const dx = leg.foot[0] - leg.knee[0];
+    const dy = leg.foot[1] - leg.knee[1];
+    const length = Math.hypot(dx, dy);
+    const nx = (-dy / length) * 2.1;
+    const ny = (dx / length) * 2.1;
+    g.poly([leg.knee[0] + nx, leg.knee[1] + ny, leg.foot[0], leg.foot[1], leg.knee[0] - nx, leg.knee[1] - ny]).fill(GOLD_DARK).stroke({ width: 1, color: INK, join: "round" });
+  }
+  for (const leg of legs) {
+    // 윗마디: 굵은 장갑 다리와 무릎 관절.
+    g.moveTo(leg.hip[0], leg.hip[1]).lineTo(leg.knee[0], leg.knee[1]).stroke({ width: 6.4, color: INK, cap: "round" });
+    g.moveTo(leg.hip[0], leg.hip[1]).lineTo(leg.knee[0], leg.knee[1]).stroke({ width: 4.6, color: GOLD, cap: "round" });
+    g.moveTo(leg.hip[0], leg.hip[1]).lineTo(leg.knee[0], leg.knee[1]).stroke({ width: 1.4, color: GOLD_LIGHT, cap: "round" });
+    g.circle(leg.knee[0], leg.knee[1], 3.1).fill(GOLD_LIGHT).stroke({ width: 1.2, color: GOLD_DARK });
+    g.circle(leg.knee[0], leg.knee[1], 1.1).fill(team.deep);
+  }
+  // 두 갈래 포신과 그 사이의 빛.
+  for (const sign of [1, -1]) g.poly([9, 5.4 * sign, 21, 3.8 * sign, 21, 1.9 * sign, 9, 2 * sign]).fill(0x4a3a22).stroke({ width: 1, color: INK, join: "round" });
+  g.circle(19.5, 0, 3.6).fill({ color: team.glow, alpha: 0.3 });
+  g.circle(19.5, 0, 1.9).fill(team.light);
+  // 선체: 앞뒤로 긴 각진 장갑(팔각), 뒤쪽 배기구.
+  g.poly([12, -5.5, 12, 5.5, 6, 10.5, -6, 10.5, -12, 6.5, -14, 0, -12, -6.5, -6, -10.5, 6, -10.5]).fill(GOLD).stroke({ width: 2, color: GOLD_DARK, join: "round" });
+  g.poly([9, -4, 4, -8, -5, -8, -10, -4.5, -5, -3, 4, -3]).fill({ color: GOLD_LIGHT, alpha: 0.6 });
+  g.rect(-14.5, -2.6, 3.4, 5.2).fill(0x4a3a22).stroke({ width: 1, color: INK });
+  g.moveTo(6, -10.5).lineTo(6, -7).moveTo(6, 10.5).lineTo(6, 7).moveTo(-6, -10.5).lineTo(-6, -7).moveTo(-6, 10.5).lineTo(-6, 7).stroke({ width: 1, color: GOLD_DARK });
+  // 가운데 동력 구슬.
+  g.circle(0.5, 0, 7.4).fill(0x4a3a22).stroke({ width: 1.2, color: INK });
+  g.circle(0.5, 0, 5.6).fill(team.deep);
+  g.circle(0.5, 0, 4).fill(team.glow);
+  g.circle(-0.6, -1.5, 1.5).fill({ color: 0xffffff, alpha: 0.8 });
   return g;
 }
 

@@ -977,6 +977,16 @@ export class StwPixiRenderer {
         const y = effect.y1 + Math.sin(angle) * 0.8;
         this.particles.push({ sprite, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.28, max: 0.28, s0: 0.5 / 32, s1: 1.8 / 32, a0: 0.9, rise: 0 });
       }
+    } else if (effect.kind === "sporeShot") {
+      // 스포어 콜로니·디바우러의 포자: 쏘는 콜로니가 움찔하고, 쏜 자리에서 보라·연두 포자 가루가 퍼진다(탄은 drawProjectiles가 그린다).
+      // 예전에는 쏘는 쪽에 아무 표시가 없고 탄도 옅은 점 하나라, 레이스의 레이저와 구별되지 않았다.
+      const colony = effect.attackerId === undefined ? undefined : this.buildingViews.get(effect.attackerId);
+      if (colony) colony.pulse = 1;
+      const angle = Math.atan2(effect.y2 - effect.y1, effect.x2 - effect.x1);
+      const mx = effect.x1 + Math.cos(angle) * 1.3;
+      const my = effect.y1 + Math.sin(angle) * 1.3;
+      this.flash(mx, my, 1.7, 0.1, 0xd9a6f0);
+      for (let i = 0; i < 5; i += 1) this.spark(mx, my, i % 2 ? 0xb6ff8a : 0xc56bff, 3.2, 0.3);
     } else if (effect.kind === "bite") {
       // 저글링·울트라리스크의 물어뜯기.
       const big = (effect.radius ?? 0) > 0;
@@ -1226,6 +1236,8 @@ export class StwPixiRenderer {
       sprite.scale.set((PROJECTILE_SIZE[effect.kind] ?? 1.3) / 32);
       sprite.position.set(x, y);
       used += 1;
+      // 포자는 날아가며 가루를 흘린다.
+      if (effect.kind === "sporeShot" && Math.random() < 0.5) this.spark(x, y, Math.random() < 0.5 ? 0xb6ff8a : 0xc56bff, 0.8, 0.22);
       if (t > (effect.kind === "shell" ? 0.88 : 0.7) && !this.impacted.has(effect)) {
         this.impacted.add(effect);
         if (effect.kind === "yamato") {
@@ -1250,7 +1262,13 @@ export class StwPixiRenderer {
         } else if (effect.kind === "grenade" || effect.kind === "tankshot") {
           this.flash(effect.x2, effect.y2, effect.kind === "tankshot" ? 2.6 : 2, 0.12, 0xffd28a);
           for (let i = 0; i < 4; i += 1) this.spark(effect.x2, effect.y2, 0xffb050, 4, 0.35);
-        } else if (effect.kind === "bullet" || effect.kind === "spine" || effect.kind === "laser" || effect.kind === "neutron" || effect.kind === "glaive" || effect.kind === "flak" || effect.kind === "sporeShot") {
+        } else if (effect.kind === "sporeShot") {
+          // 포자가 터진다: 보라색 고리와 섬광, 보라·연두 가루, 옅은 포자 구름.
+          this.impactRing(effect.x2, effect.y2, 1.8, 0xd9a6f0);
+          this.flash(effect.x2, effect.y2, 1.6, 0.1, 0xe8c8ff);
+          for (let i = 0; i < 6; i += 1) this.spark(effect.x2, effect.y2, i % 2 ? 0xb6ff8a : 0xc56bff, 3.6, 0.35);
+          this.smoke(effect.x2, effect.y2, 0.8, 0.5);
+        } else if (effect.kind === "bullet" || effect.kind === "spine" || effect.kind === "laser" || effect.kind === "neutron" || effect.kind === "glaive" || effect.kind === "flak") {
           this.flash(effect.x2, effect.y2, 0.9, 0.06, 0xffe7a0);
           this.spark(effect.x2, effect.y2, 0xffe7a0, 3, 0.25);
         } else {
@@ -1408,8 +1426,8 @@ export class StwPixiRenderer {
 }
 
 const PROJECTILES = new Set<StwEffect["kind"]>(["plasma", "photon", "scarab", "bullet", "grenade", "tankshot", "shell", "spine", "laser", "neutron", "glaive", "flak", "sporeShot", "yamato"]);
-const PROJECTILE_TINT: Partial<Record<StwEffect["kind"], number>> = { scarab: 0xffb347, bullet: 0xffe7a0, grenade: 0xff9a3c, tankshot: 0xffd28a, shell: 0xffc46b, spine: 0xd8f09a, laser: 0xff6a6a, neutron: 0x9fd8ff, glaive: 0xb6ff8a, flak: 0xffe7a0, sporeShot: 0xc8a0e0, yamato: 0xff8a3c };
-const PROJECTILE_SIZE: Partial<Record<StwEffect["kind"], number>> = { scarab: 2.2, photon: 1.6, bullet: 0.7, grenade: 1.2, tankshot: 1.5, shell: 1.9, spine: 0.9, yamato: 3.2 };
+const PROJECTILE_TINT: Partial<Record<StwEffect["kind"], number>> = { scarab: 0xffb347, bullet: 0xffe7a0, grenade: 0xff9a3c, tankshot: 0xffd28a, shell: 0xffc46b, spine: 0xd8f09a, laser: 0xff6a6a, neutron: 0x9fd8ff, glaive: 0xb6ff8a, flak: 0xffe7a0, sporeShot: 0xc56bff, yamato: 0xff8a3c };
+const PROJECTILE_SIZE: Partial<Record<StwEffect["kind"], number>> = { scarab: 2.2, photon: 1.6, bullet: 0.7, grenade: 1.2, tankshot: 1.5, shell: 1.9, spine: 0.9, sporeShot: 1.9, yamato: 3.2 };
 /** 마법 빛깔. */
 const SPELL_COLOR: Record<string, number> = {
   feedback: 0x6fb8ff, maelstrom: 0xb07dff, stasis: 0x9fe8ff, lockdown: 0x7fd0ff, matrix: 0x6fd0ff, emp: 0x9fd8ff, irradiate: 0x8aff7a,
