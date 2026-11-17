@@ -20,7 +20,7 @@
   "versionId": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b~appgver_e7298a17d3088191a00767e3f68ee02d",
   "deploymentId": "appgdep_6afba801fec8819197be3773ffff288b",
   "siteUrl": "https://games.itnadcom.chatgpt.site",
-  "verifiedAt": "2026-11-17T01:13:39.313044+00:00",
+  "verifiedAt": "2026-11-17T01:13:58.268212+00:00",
   "ci": {
     "id": 43992330452,
     "status": "completed",
@@ -100,5 +100,21 @@
     "All206 deployment files SHA256-match a clean canonical-commit build. Lossless zopfli5 text plus zopfli1 binary gzip members fit32MiB without asset modification. Native Sites saved/deployed the same commit, and public api/version matches its12-character prefix.",
     "Superseded attempts remain in QA evidence: a drill moved outside the5tile auto-heal search or touched a friendly aircraft, local rebuilds stopped the preview, and one running test process read a newly edited fixture. Final checks use frozen source, explicit attack-move, source-preserving helpers and restarted ready previews.",
     "Chromium SwiftShader/native touch does not certify physical Android/iOS devices or hardware GPU performance."
+  ],
+  "localBackupZip": [
+    {
+      "name": "stark-rift-stim-source-and-qa.zip",
+      "bytes": 32913683,
+      "files": 546,
+      "sha256": "f680d543efbbc8302622ca2918c957937e35848c3baf6b72357cfc62466908ac",
+      "crcVerified": true
+    },
+    {
+      "name": "stark-rift-stim-qa.zip",
+      "bytes": 3797226,
+      "files": 244,
+      "sha256": "87d6d46d0f77cc7af258265867904e3316807435fd9b52d964f3e470dd669249",
+      "crcVerified": true
+    }
   ]
 }
