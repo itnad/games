@@ -3,7 +3,7 @@ import type { RenderSnapshot } from "../worker/render-snapshot";
 import type { CommandBody } from "./economy-controls";
 import { MEDIC, HEALING } from "../abilities/medic-data";
 export function MedicControls({snapshot,selected,running,select,heal,issue}:{snapshot:RenderSnapshot;selected:number[];running:boolean;select?:(ids:number[])=>void;heal?:(id:number)=>void;issue:(b:CommandBody)=>void}){
- const owned=snapshot.entities.filter(e=>e.owner===snapshot.viewerPlayerId),all=owned.filter(e=>e.definitionId===MEDIC),actors=all.filter(e=>selected.includes(e.id)),on=actors.length>0&&actors.every(e=>e.healAutocast),ready=actors.find(e=>!e.stasisTicks&&(e.energy??0)>=1);
+ const owned=snapshot.entities.filter(e=>e.owner===snapshot.viewerPlayerId),all=owned.filter(e=>e.definitionId===MEDIC),actors=all.filter(e=>selected.includes(e.id)),on=actors.length>0&&actors.every(e=>e.healAutocast),ready=actors.find(e=>!e.stasisTicks&&!e.medicSpellCooldownTicks&&(e.energy??0)>=1);
  const timer=useRef<ReturnType<typeof setTimeout>|null>(null),long=useRef(false),point=useRef<{x:number;y:number}|null>(null),current=useRef({actors,running});current.current={actors,running};
  const end=()=>{if(timer.current)clearTimeout(timer.current);timer.current=null;point.current=null;};
  useEffect(()=>{end();long.current=false;return end;},[selected.join(','),running]);

@@ -1,3 +1,5 @@
+import { isBlinded } from "../abilities/medic-spells-state";
+import medicSpells from "../data/medic-spells-original.json";
 import { isInStasis } from "../abilities/spells-state";
 import { coveredByArbiter } from "../abilities/arbiter";
 import { permanentCloak } from "../abilities/special-state";
@@ -7,7 +9,7 @@ import type { EngineRules } from "../core/simulation";
 import type { BattleMap } from "../data/maps";
 import { economyDefinition } from "../data/economy-catalog";
 import { MEMORY_TICKS, VISION_RULES_VERSION, type Contact } from "./state";
-// Every mobile detector in the current roster is an Overlord. Content-stage detectors can extend this table.
+// Mobile detector content; blindness and Stasis disable detection independently of shared sight.
 export const DETECTOR_RADIUS_TILES: Record<string, number> = {
   "zerg-overlord": 11,
   "protoss-observer": 11,
@@ -95,7 +97,7 @@ export function visibilityMask(
       if (b && !b.started) continue;
       const cx = Math.floor(e.x[i] / 256),
         cy = Math.floor(e.y[i] / 256),
-        r = economyDefinition(e.definitionId[i])?.sight ?? 7;
+        r = e.kind[i]!=="building"&&isBlinded(s,e.id[i]) ? medicSpells.blindSightTiles : economyDefinition(e.definitionId[i])?.sight ?? 7;
       if (cx < 0 || cy < 0 || cx >= map.widthTiles || cy >= map.heightTiles)
         continue;
       for (const cell of sightCells(map, cx, cy, r, e.layer[i] === "air"))
@@ -160,7 +162,7 @@ export function canSeeEntity(
   if (!coveredByArbiter(s, index) && !permanentCloak(e.definitionId[index]) && !s.vision?.concealed.some((c) => c.entityId === e.id[index])) return true;
   for (let i = 0; i < e.id.length; i++)
     if (e.owner[i] === owner && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
-      if (isInStasis(s,e.id[i])) continue;
+      if (isInStasis(s,e.id[i]) || isBlinded(s,e.id[i])) continue;
       const r = DETECTOR_RADIUS_TILES[e.definitionId[i]];
       if (
         r &&
@@ -187,7 +189,7 @@ export function highGroundSight(
       if (b && !b.started) continue;
       const x = Math.floor(e.x[i] / 256),
         y = Math.floor(e.y[i] / 256),
-        r = economyDefinition(e.definitionId[i])?.sight ?? 7;
+        r = e.kind[i]!=="building"&&isBlinded(s,e.id[i]) ? medicSpells.blindSightTiles : economyDefinition(e.definitionId[i])?.sight ?? 7;
       if (
         (e.layer[i] === "air" ||
           map.height[y * map.widthTiles + x] >= height) &&

@@ -347,6 +347,11 @@ export class BattleRenderer {
       g.alpha=alpha;g.position.set(c.x/256,c.y/256);updateMinimapMarker(mini!,0x9ba7ae);mini!.alpha=alpha;mini!.position.set(c.x/256,c.y/256);
     }
     this.combatEffects.clear();
+    for(const e of this.snapshot?.medicSpellEffects??[]){
+      const age=Math.min(1,Math.max(0,(this.snapshot!.tick-e.tick)/20)),color=e.abilityId==="optical-flare"?0xffd77b:0x8ff4c9,x=e.toX/256,y=e.toY/256;
+      this.combatEffects.moveTo(e.x/256,e.y/256).lineTo(x,y).stroke({color,width:.045,alpha:(1-age)*.8});
+      this.combatEffects.circle(x,y,.35+age*.8).stroke({color,width:.08,alpha:1-age});
+    }
     for(const e of this.snapshot?.entities??[])if(e.stimTicks){
       const x=e.x/256,y=e.y/256,pulse=.05*((this.snapshot!.tick%10)/10);
       this.combatEffects.ellipse(x,y,.55+pulse,.65+pulse).stroke({color:0xffae68,width:.045,alpha:.55});

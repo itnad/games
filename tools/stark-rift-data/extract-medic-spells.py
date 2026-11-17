@@ -1,0 +1,11 @@
+"""Pinned BWAPI4.4.0 and OpenBW Medic spell facts; no weapon damage is applied by these spells."""
+import re,json,hashlib,sys
+from pathlib import Path
+root=Path(sys.argv[1] if len(sys.argv)>1 else 'work/sources');t=(root/'tech.cpp').read_text();w=(root/'weapon.cpp').read_text();e=(root/'bwgame.h').read_text()
+def body(s,n):return re.search(re.escape(n)+r'\[[^\]]+\]\s*=\s*\{(.*?)\};',re.sub(r'//[^\n]*','',s),re.S)[1]
+def nums(s,n):return list(map(int,re.findall(r'\d+',body(s,n))))
+tn=re.findall(r'"([^"]*)"',body(t,'typeNames'));wn=re.findall(r'"([^"]*)"',body(w,'typeNames'));rows=[]
+for name,title in [('Optical_Flare','옵티컬 플레어'),('Restoration','리스토레이션')]:
+ i=tn.index(name);j=wn.index(name);producer=re.findall(r'\b\w+\b',body(t,'whatResearches'))[i];rows.append({'name':name,'id':name.lower().replace('_','-'),'title':title,'producer':producer.lower().replace('_','-'),'minerals':nums(t,'defaultOreCost')[i],'gas':nums(t,'defaultOreCost')[i],'frames':nums(t,'defaultTimeCost')[i],'energy':nums(t,'defaultEnergyCost')[i],'rangePixels':nums(w,'wpnMaxRange')[j],'cooldownFrames':nums(w,'wpnDamageCooldowns')[j]})
+blind=int(re.search(r'if \(!ignore_blindness && u->blinded_by\) return 32 \* (\d+)',e)[1]);assert blind==2 and 'if (u->blinded_by) return false;' in e[e.index('bool unit_can_detect'):e.index('uint32_t unit_calculate_detected_flags')];restore=e[e.index('void restore_unit'):e.index('void emp_shockwave')];assert 'u->blinded_by = 0' in restore and 'stim_timer'not in restore and 'stasis_timer'not in restore;assert [(r['energy'],r['rangePixels'],r['frames'])for r in rows]==[(75,288,1800),(50,192,1200)]
+commit=json.loads((root/'openbw-commit.json').read_text())['sha'];out={'source':{'bwapiTag':'v4.4.0','openbwCommit':commit,'openbwUrl':f'https://github.com/OpenBW/openbw/blob/{commit}/bwgame.h','sha256':{n:hashlib.sha256((root/n).read_bytes()).hexdigest()for n in ['tech.cpp','weapon.cpp','bwgame.h']}},'technologies':rows,'blindSightTiles':blind,'blindDisablesDetection':True,'restorationDoesNotRemove':['stim-packs','stasis-field','cloak'],'impact':'blind_unit/restore_unit; weapon damage fields are not used'};Path('app/stark-rift/data/medic-spells-original.json').write_text(json.dumps(out,ensure_ascii=False,indent=2)+'\n');print(json.dumps(out,ensure_ascii=False))

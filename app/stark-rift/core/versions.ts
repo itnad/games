@@ -1,7 +1,7 @@
-export const STARK_RIFT_ENGINE_VERSION = "0.21.0-stage6k";
-export const STARK_RIFT_SCHEMA_VERSION = 20;
-export const STARK_RIFT_FORMAT_VERSION = 20;
-export const STARK_RIFT_PROTOCOL_VERSION = 21;
+export const STARK_RIFT_ENGINE_VERSION = "0.22.0-stage6l";
+export const STARK_RIFT_SCHEMA_VERSION = 21;
+export const STARK_RIFT_FORMAT_VERSION = 21;
+export const STARK_RIFT_PROTOCOL_VERSION = 22;
 
 // The content data stage replaces this marker with a validated bundle hash.
 export const STARK_RIFT_DATA_VERSION = "stage1-unbuilt";

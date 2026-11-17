@@ -1,0 +1,46 @@
+{
+  "source": {
+    "bwapiTag": "v4.4.0",
+    "openbwCommit": "4b046d5f65302b10cb0a745f0fecd37ec85b20a8",
+    "openbwUrl": "https://github.com/OpenBW/openbw/blob/4b046d5f65302b10cb0a745f0fecd37ec85b20a8/bwgame.h",
+    "sha256": {
+      "tech.cpp": "990bdd17b48c1207dfb7f17352dad022e6ce4f6939d151119fd022e028ccf869",
+      "weapon.cpp": "e5c392a914ce4b452c4cfcfdb7d4ba581eef39aa6f0d1f62409a03cadcdbde67",
+      "bwgame.h": "5ee316ca2c008c9252f7fde7444ca5dc7f35440549be2576dc37fa228fb31ae6"
+    }
+  },
+  "technologies": [
+    {
+      "name": "Optical_Flare",
+      "id": "optical-flare",
+      "title": "옵티컬 플레어",
+      "producer": "terran-academy",
+      "minerals": 100,
+      "gas": 100,
+      "frames": 1800,
+      "energy": 75,
+      "rangePixels": 288,
+      "cooldownFrames": 22
+    },
+    {
+      "name": "Restoration",
+      "id": "restoration",
+      "title": "리스토레이션",
+      "producer": "terran-academy",
+      "minerals": 100,
+      "gas": 100,
+      "frames": 1200,
+      "energy": 50,
+      "rangePixels": 192,
+      "cooldownFrames": 22
+    }
+  ],
+  "blindSightTiles": 2,
+  "blindDisablesDetection": true,
+  "restorationDoesNotRemove": [
+    "stim-packs",
+    "stasis-field",
+    "cloak"
+  ],
+  "impact": "blind_unit/restore_unit; weapon damage fields are not used"
+}

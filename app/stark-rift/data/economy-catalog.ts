@@ -1,3 +1,4 @@
+import medicSpells from "./medic-spells-original.json";
 import stim from "./stim-original.json";
 import medic from "./medic-original.json";
 import energy from "./energy-original.json";
@@ -296,7 +297,8 @@ const lurkerUpgrades = [...siegeUpgrades, { id: "lurker-aspect", name: "러커 �
 const spellsUpgrades = [...lurkerUpgrades, ...spells.technologies.map((t,i) => ({ id: economyId(t.name), name: i === 0 ? "리콜" : "스테이시스 필드", faction: "protoss" as Faction, producer: t.producer, minerals: t.minerals, gas: t.gas, factor: 0, frames: t.frames, ticks: economicTicks(t.frames), timeFactor: 0, maxLevel: 1, availableLevels: 1 }))];
 const energyUpgrades = [...spellsUpgrades, ...energy.upgrades.map(u => ({ id: economyId(u.name), name: u.title, faction: u.unitId.startsWith("terran") ? "terran" as Faction : "protoss" as Faction, producer: u.producer, minerals: u.minerals, gas: u.gas, factor: 0, frames: u.frames, ticks: economicTicks(u.frames), timeFactor: 0, maxLevel: u.maxLevel, availableLevels: 1 }))];
 const medicUpgrades = [...energyUpgrades, {id: economyId(medic.upgrade.name),name:medic.upgrade.title,faction:"terran" as Faction,producer:medic.upgrade.producer,minerals:medic.upgrade.minerals,gas:medic.upgrade.gas,factor:0,frames:medic.upgrade.frames,ticks:economicTicks(medic.upgrade.frames),timeFactor:0,maxLevel:1,availableLevels:1}];
-export const ECONOMY_UPGRADES = [...medicUpgrades,{id:"stim-packs",name:stim.technology.title,faction:"terran" as Faction,producer:stim.technology.producer,minerals:stim.technology.minerals,gas:stim.technology.gas,factor:0,frames:stim.technology.frames,ticks:economicTicks(stim.technology.frames),timeFactor:0,maxLevel:1,availableLevels:1}];
+const stimUpgrades = [...medicUpgrades,{id:"stim-packs",name:stim.technology.title,faction:"terran" as Faction,producer:stim.technology.producer,minerals:stim.technology.minerals,gas:stim.technology.gas,factor:0,frames:stim.technology.frames,ticks:economicTicks(stim.technology.frames),timeFactor:0,maxLevel:1,availableLevels:1}];
+export const ECONOMY_UPGRADES=[...stimUpgrades,...medicSpells.technologies.map(t=>({id:t.id,name:t.title,faction:"terran" as Faction,producer:t.producer,minerals:t.minerals,gas:t.gas,factor:0,frames:t.frames,ticks:economicTicks(t.frames),timeFactor:0,maxLevel:1,availableLevels:1}))];
 export const technologyRequirements = (id: string): string[] => id === "lurker-aspect" ? [lurker.requiredUnit] : [];
 export const ECONOMY_SOURCE = original.source;
 export const ECONOMY_MECHANICS = {
@@ -332,7 +334,8 @@ export const ARBITER_ECONOMY_DATA_VERSION = "arbiter-economy-" + checksum({ base
 export const SPELLS_ECONOMY_DATA_VERSION = "spells-economy-" + checksum({ base: ARBITER_ECONOMY_DATA_VERSION, spells: JSON.stringify(spells), upgrades: spellsUpgrades });
 export const ENERGY_ECONOMY_DATA_VERSION = "energy-economy-" + checksum({ base: SPELLS_ECONOMY_DATA_VERSION, energy: JSON.stringify(energy), upgrades: energyUpgrades });
 export const MEDIC_ECONOMY_DATA_VERSION = "medic-economy-" + checksum({base:ENERGY_ECONOMY_DATA_VERSION,medic:JSON.stringify(medic),definitions:ECONOMY_DEFINITIONS,upgrades:medicUpgrades});
-export const ECONOMY_DATA_VERSION="stim-economy-"+checksum({base:MEDIC_ECONOMY_DATA_VERSION,stim:JSON.stringify(stim),upgrades:ECONOMY_UPGRADES});
+export const STIM_ECONOMY_DATA_VERSION="stim-economy-"+checksum({base:MEDIC_ECONOMY_DATA_VERSION,stim:JSON.stringify(stim),upgrades:stimUpgrades});
+export const ECONOMY_DATA_VERSION="medic-spells-economy-"+checksum({base:STIM_ECONOMY_DATA_VERSION,medicSpells:JSON.stringify(medicSpells),upgrades:ECONOMY_UPGRADES});
 for (const d of ECONOMY_DEFINITIONS) {
   if (
     !lookup.has(d.producer) ||
