@@ -252,6 +252,8 @@ const ALERT_TECH = new Set(["core", "academy", "den", "evo", "shop"]);
 /** 대표 유닛이 가스를 많이 먹는 성향: 일꾼이 18기를 넘으면 남은 간헐천에 가스 건물을 더 짓는다. */
 const GAS_HUNGRY = new Set(["lurker", "ghost", "templar", "dark", "robo", "carrier", "corsair", "bc", "wraith", "tankbio", "mech", "ultra", "hive", "hydra", "muta"]);
 /** 성향의 핵심 연구(순서대로): 건물이 서면 다른 지출보다 먼저 한다. */
+/** 본 적 병력에서 소형 근접 유닛(질럿·다크템플러·저글링)이 이 비율은 넘어야 파이어뱃을 뽑는다. */
+const FIREBAT_MIN_SMALL = 0.2;
 const KEY_RESEARCH = { ghost: ["lockdown", "personnelCloak"], lurker: ["lurkerAspect"] };
 // 럴커 저글링이 모으는 럴커 수와, 첫 출격 전에 기다리는 럴커 수·기다림의 끝(초).
 const LURKER_TARGET = 10;
@@ -934,7 +936,10 @@ function terranLines(state, side, persona, units, reserve) {
   stwOwnBuildings(state, side, "barracks").sort((a, b) => a.id - b.id).forEach((barracks, index) => {
     let unit = "marine";
     // 저그 상대로는 저글링에 강한 파이어뱃을 더 섞는다. 공중이 많으면 파이어뱃 대신 해병.
-    if (academy && bioLike) unit = medics * 4 < marines ? "medic" : !airHeavy && index % (versusZerg || meleeHeavy ? 3 : 4) === (versusZerg || meleeHeavy ? 2 : 3) ? "firebat" : "marine";
+    // 파이어뱃의 화염은 소형(질럿·저글링·해병)에만 제대로 들어간다. 본 적 병력에 소형 근접 유닛이 거의 없으면(FIREBAT_MIN_SMALL 미만) 뽑지 않는다:
+    // 드라군 9 상대로 해병 12·메딕 4·파이어뱃 4는 6판 모두 지고, 같은 값의 해병 18·메딕 4는 6판 모두 이겼다. 아직 못 봤으면 저그·프로토스 상대로만 뽑는다.
+    const firebatWorthIt = mix ? mix.zealot + mix.dark + mix.zergling > FIREBAT_MIN_SMALL : state.sides[stwOpponent(side)].race !== "terran";
+    if (academy && bioLike) unit = medics * 4 < marines ? "medic" : !airHeavy && firebatWorthIt && index % (versusZerg || meleeHeavy ? 3 : 4) === (versusZerg || meleeHeavy ? 2 : 3) ? "firebat" : "marine";
     // 메카닉 성향은 배럭을 광물이 남을 때만 돌린다.
     if ((persona === "mech" || persona === "vulture" || persona === "wraith" || persona === "bc") && units.length > 10 && record.minerals < 300 && !airDominant) unit = null;
     // 바이오닉·탱크 바이오: 락다운을 연구했고 상대에 기계 유닛이 많으면 배럭 하나는 고스트(넷까지). 드라군·리버·캐리어·탱크를 묶는다.

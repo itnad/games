@@ -2236,11 +2236,28 @@ function crowdedBuilding(state, attacker, building) {
   return (meleeFocusOf(state).get(building.id) ?? 0) >= meleeRoom(state, attacker, building);
 }
 
+/** 근접 유닛이 스팀팩을 쓰는 거리: 목표가 사거리 밖 이만큼 안에 들어오면 쓴다. */
+const STIM_CHARGE = 6;
+
 /** 목표 점수: 거리에 일꾼·지원 유닛 벌점, 근접 유닛에는 이미 둘 넘게 붙은 적의 벌점을 더한다. 작을수록 좋다. */
 function targetScore(state, attacker, unit, d) {
   const melee = attacker.kind === "unit" && STW_UNITS[attacker.type].role === "melee";
   const crowd = melee ? Math.max(0, (meleeFocusOf(state).get(unit.id) ?? 0) - 2) * 1.2 : 0;
-  return d + (isPassive(unit) ? 3 : 0) + crowd;
+  return d + (isPassive(unit) ? 3 : 0) + crowd + weakHitPenalty(attacker, unit);
+}
+
+/** 진동형 근접 유닛(파이어뱃)이 피해가 덜 들어가는 목표를 꺼리는 정도: 피해가 다 들어가지 않는 만큼 이 칸 수만큼 먼 것으로 친다. */
+const WEAK_HIT_REACH = 5;
+
+/**
+ * 파이어뱃의 화염은 진동형이라 중형에 50%, 대형에 25%만 들어간다. 가까운 드라군(대형)보다 조금 먼 질럿·저글링(소형)을 먼저 친다:
+ * 대형은 3.75칸, 중형은 2.5칸 더 먼 것으로 친다. 소형이 근처에 없으면 그대로 가까운 적을 친다.
+ * 예전에는 거리만 봐서 질럿 8 + 드라군 6 상대로 화염의 36%를 드라군에 썼다.
+ */
+function weakHitPenalty(attacker, unit) {
+  if (attacker.kind !== "unit" || attacker.type !== "firebat") return 0;
+  const multiplier = STW_SIZE_MULTIPLIER[STW_UNITS.firebat.damageType][STW_UNITS[unit.type].size ?? "large"];
+  return (1 - multiplier) * WEAK_HIT_REACH;
 }
 
 function findTarget(state, attacker, radius, { unitsOnly = false, threatsOnly = false } = {}) {
@@ -2873,6 +2890,14 @@ function stepUnits(state, dt) {
           unit.targetId = next?.id ?? null;
           unit.lastTargetDistance = undefined;
           continue;
+        }
+        // 근접 유닛의 스팀팩(파이어뱃): 붙은 뒤가 아니라 달려드는 동안 쓴다. 적 유닛이 STIM_CHARGE칸 안에 들어오면 써서 그 거리를 1.5배 속도로 좁힌다.
+        // 예전에는 사거리(1.8) 안에 든 뒤에야 써서, 드라군·히드라에게 다가가는 2.9~4.5초를 느린 걸음으로 맞으며 갔다.
+        if (def.stim && def.role === "melee" && target.kind === "unit" && d <= range + STIM_CHARGE && stwResearchDone(state, unit.side, "stim") && unit.hp > 20
+          && (unit.stimAt === undefined || state.time - unit.stimAt > 11)) {
+          unit.stimAt = state.time;
+          unit.hp -= 10;
+          state.effects.push({ kind: "stim", side: unit.side, x1: unit.x, y1: unit.y, x2: unit.x, y2: unit.y, ttl: 0.4, max: 0.4 });
         }
         moveToward(unit, target.x, target.y, speed, dt);
       }

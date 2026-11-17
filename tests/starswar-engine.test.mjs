@@ -2519,6 +2519,34 @@ test("starswar vessels matrix allies, EMP shields and irradiate clumps; yamato h
   assert.ok(carrier.hp + carrier.shields <= 450 - 200, `야마토 포 ${carrier.hp + carrier.shields}`);
 });
 
+test("starswar firebats pick small targets over nearer large ones and stim while charging in", () => {
+  // 화염은 진동형(소형 100%, 중형 50%, 대형 25%)이라, 조금 더 멀어도 질럿·저글링부터 친다. 바로 붙어 있는 적은 그대로 친다.
+  const pick = (enemyRace, near, nearDistance, far, farDistance) => {
+    const state = createStarswarGame({ seed: 5, aiSides: [], races: { player: "terran", enemy: enemyRace } });
+    const firebat = stwSpawnUnitAt(state, "player", "firebat", 20, 60, "attack");
+    const first = stwSpawnUnitAt(state, "enemy", near, 20 - nearDistance, 60, "rally");
+    const second = stwSpawnUnitAt(state, "enemy", far, 20 + farDistance, 60, "rally");
+    for (const unit of [first, second]) unit.stunUntil = 999;
+    run(state, 0.5);
+    return firebat.targetId === first.id ? near : firebat.targetId === second.id ? far : null;
+  };
+  assert.equal(pick("protoss", "dragoon", 5, "zealot", 6), "zealot", "드라군 5칸·질럿 6칸이면 질럿");
+  assert.equal(pick("zerg", "hydra", 5, "zergling", 7), "zergling", "히드라 5칸·저글링 7칸이면 저글링");
+  assert.equal(pick("protoss", "dragoon", 3, "zealot", 6), "dragoon", "바로 붙은 드라군은 그대로 친다");
+  assert.equal(pick("protoss", "dragoon", 4, "dragoon", 7), "dragoon", "같은 크기면 가까운 쪽");
+
+  // 스팀팩: 붙은 뒤가 아니라 달려드는 동안(사거리 밖 6칸 안) 쓴다.
+  const charge = createStarswarGame({ seed: 5, aiSides: [], races: { player: "terran", enemy: "zerg" } });
+  research(charge, "player", "stim");
+  const firebat = stwSpawnUnitAt(charge, "player", "firebat", 20, 60, "attack");
+  const hydra = stwSpawnUnitAt(charge, "enemy", "hydra", 20, 53, "rally");
+  hydra.stunUntil = 999;
+  run(charge, 0.4);
+  assert.ok(firebat.stimAt !== undefined, "달려드는 중에 스팀팩");
+  assert.ok(Math.hypot(firebat.x - hydra.x, firebat.y - hydra.y) > 4, "아직 붙기 전");
+  assert.equal(hydra.hp, hydra.maxHp);
+});
+
 test("starswar detectors: observers avoid enemy anti-air defenses, go to allies hit by hidden enemies, and keep a squad post; vessels watch from above the army", () => {
   const lab = (races, mine, mineResearch, foe, foeResearch, foeBuildings = {}, energy = "full") => {
     const state = stwCreateScenario({ seed: 1, time: 900, placement: "home", races, sides: {
