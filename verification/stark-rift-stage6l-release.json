@@ -18,7 +18,7 @@
   "versionId": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b~appgver_67eb4fdc87a4819186823218e6be32da",
   "deploymentId": "appgdep_6afc47b65edc8191974f5fd4408b226c",
   "siteUrl": "https://games.itnadcom.chatgpt.site",
-  "verifiedAt": "2026-11-17T12:31:57.819514+00:00",
+  "verifiedAt": "2026-11-17T12:32:11.111997+00:00",
   "ci": {
     "id": 44082687227,
     "name": "Stark Rift and Paperoid regression",
@@ -320,5 +320,21 @@
     "Every archive file SHA256-matches a clean canonical build. Lossless concatenated gzip members fit32MiB without asset changes. Sites source push, saved version, native successful deployment and public buildId all match canonical commit.",
     "The initial additional Drone regression used an invalid command payload; it was corrected to the actual point target schema and passed. No application changes were needed to fix that test fixture. The corrected regression and successful rerun are retained.",
     "Chromium SwiftShader/native touch does not certify physical Android/iOS devices or hardware GPU performance. Portrait only remains enforced. Final graphics and strategic opponent AI are outside this stage."
+  ],
+  "backups": [
+    {
+      "path": "/workspace/library-files/stark-rift-medic-spells-source-and-qa.zip",
+      "bytes": 32939847,
+      "files": 556,
+      "sha256": "10daa62af0f4f0d6f8936f87ba856ec510505fd89c17a7b30a587b6246b77986",
+      "crcVerified": true
+    },
+    {
+      "path": "/workspace/library-files/stark-rift-medic-spells-qa.zip",
+      "bytes": 2962891,
+      "files": 186,
+      "sha256": "d657dbde878e3d7bf5d5ae705dab5c47e6680f1b248ebbcfea0caa7794e561d7",
+      "crcVerified": true
+    }
   ]
 }
