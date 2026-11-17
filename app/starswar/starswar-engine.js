@@ -2236,6 +2236,22 @@ function crowdedBuilding(state, attacker, building) {
   return (meleeFocusOf(state).get(building.id) ?? 0) >= meleeRoom(state, attacker, building);
 }
 
+/** 무기를 한 번 쏜다: 재장전을 걸고, 피해를 예약하고, 공격 효과를 남긴다. */
+function fireWeapon(state, unit, def, target) {
+  unit.cooldown = attackCooldown(state, unit, def, target);
+  queueHit(state, unit, target);
+  const kind = ATTACK_EFFECT[unit.type] ?? "plasma";
+  // 캐리어 인터셉터는 날아갔다 돌아오는 데 0.9초(재장전 1초) 동안 그린다.
+  const ttl = kind === "slash" || kind === "bullet" || kind === "bite" ? 0.15 : kind === "flame" ? 0.3 : kind === "scarab" ? 0.6 : kind === "shock" || kind === "spine" ? 0.25 : kind === "burst" ? 0.5 : kind === "interceptor" ? 0.9 : 0.35;
+  const count = kind === "interceptor" ? stwHitDamage(state, unit, target).length : undefined;
+  state.effects.push({ kind, side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl, max: ttl, radius: STW_UNITS[unit.type].splash?.radius, attackerId: unit.id, targetId: target.id, count });
+  // 스커지: 몸을 던져 터진다.
+  if (def.suicide) {
+    unit.hp = 0;
+    unit.shields = 0;
+  }
+}
+
 /** 근접 유닛이 스팀팩을 쓰는 거리: 목표가 사거리 밖 이만큼 안에 들어오면 쓴다. */
 const STIM_CHARGE = 6;
 
@@ -2243,7 +2259,29 @@ const STIM_CHARGE = 6;
 function targetScore(state, attacker, unit, d) {
   const melee = attacker.kind === "unit" && STW_UNITS[attacker.type].role === "melee";
   const crowd = melee ? Math.max(0, (meleeFocusOf(state).get(unit.id) ?? 0) - 2) * 1.2 : 0;
-  return d + (isPassive(unit) ? 3 : 0) + crowd + weakHitPenalty(attacker, unit);
+  return d + (isPassive(unit) ? 3 : 0) + crowd + weakHitPenalty(attacker, unit) + airTargetPenalty(attacker, unit);
+}
+
+/** 공중 공격 유닛이 자기를 때릴 수 없는 적을 이만큼 먼 것으로 친다. 스카웃은 지상 목표를 이만큼 더 먼 것으로 친다. */
+const AIR_HARMLESS_REACH = 5;
+const SCOUT_GROUND_REACH = 6;
+
+/** 이 유닛·건물이 공중 유닛 flyer를 때릴 수 없는지(무기가 없거나 지상만 친다). */
+function harmlessToAir(item, flyer) {
+  const def = item.kind === "unit" ? STW_UNITS[item.type] : STW_BUILDINGS[item.type];
+  return !def.damage || !canHit(item, flyer);
+}
+
+/**
+ * 공중 공격 유닛의 목표 고르기.
+ * - 자기를 때릴 수 있는 적(대공이 되는 유닛)부터 친다: 때릴 수 없는 적은 AIR_HARMLESS_REACH칸 더 먼 것으로 친다.
+ *   예전에는 거리만 봐서, 뮤탈리스크 8기가 질럿 8 + 드라군 5 앞에서 화염의 68%를 공중을 못 때리는 질럿에 쓰다 드라군에 전멸했다.
+ * - 스카웃은 공중 무기(14×2)가 지상 무기(8)의 3.5배라 공중 목표부터 친다: 지상 목표는 SCOUT_GROUND_REACH칸 더 먼 것으로 친다.
+ *   저글링 24 + 뮤탈 4 앞에서 사격의 83%를 저글링에 쓰다 뮤탈에 전멸했다.
+ */
+function airTargetPenalty(attacker, target) {
+  if (attacker.kind !== "unit" || !isFlying(attacker) || !STW_UNITS[attacker.type].damage) return 0;
+  return (harmlessToAir(target, attacker) ? AIR_HARMLESS_REACH : 0) + (attacker.type === "scout" && !isAirborne(target) ? SCOUT_GROUND_REACH : 0);
 }
 
 /** 진동형 근접 유닛(파이어뱃)이 피해가 덜 들어가는 목표를 꺼리는 정도: 피해가 다 들어가지 않는 만큼 이 칸 수만큼 먼 것으로 친다. */
@@ -2311,7 +2349,9 @@ function findTarget(state, attacker, radius, { unitsOnly = false, threatsOnly = 
     if (attacker.kind === "unit" && blockedFrom(state, attacker, building.id)) continue;
     const full = crowdedBuilding(state, attacker, building);
     if (threatsOnly && full) continue;
-    const score = d + (STW_BUILDINGS[building.type].damage ? 1 : 6) + (full ? LAST_RESORT : 0) + exposed(building);
+    // 공중 유닛에게는 공중을 못 쏘는 방어 건물(성큰 콜로니)도 일반 건물과 같다. 스카웃은 건물(지상 무기 8)을 더 뒤로 미룬다.
+    const threatening = STW_BUILDINGS[building.type].damage && !(attacker.kind === "unit" && isFlying(attacker) && harmlessToAir(building, attacker));
+    const score = d + (threatening ? 1 : 6) + (full ? LAST_RESORT : 0) + exposed(building) + (attacker.kind === "unit" && attacker.type === "scout" ? SCOUT_GROUND_REACH : 0);
     if (score < bestScore) {
       best = building;
       bestScore = score;
@@ -2814,6 +2854,17 @@ function stepUnits(state, dt) {
         }
       }
     }
+    // 공중 유닛: 꺼리는 목표(자기를 때릴 수 없는 적, 스카웃의 지상 목표)를 쏘는 중에 더 나은 목표가 시야에 들어오면 그쪽으로 돌린다(0.5초마다 다시 본다).
+    // 목표는 한번 잡으면 죽을 때까지 쥐고 있어, 저글링을 먼저 본 뮤탈리스크가 뒤따라온 히드라에 맞으면서도 저글링만 쐈다.
+    if (!intruders.length && target && target.kind === "unit" && isFlying(unit) && airTargetPenalty(unit, target) > 0 && state.time >= (unit.rescoreAt ?? 0)) {
+      unit.rescoreAt = state.time + 0.5;
+      const other = findTarget(state, unit, sight, { unitsOnly: true });
+      if (other && other !== target && !leashed(other)) {
+        const dOther = distance(unit.x, unit.y, other.x, other.y) - other.radius;
+        const dTarget = distance(unit.x, unit.y, target.x, target.y) - target.radius;
+        if (targetScore(state, unit, other, dOther) < targetScore(state, unit, target, dTarget) - 1) target = other;
+      }
+    }
     // 목표가 사거리 밖인데 다른 적 유닛이 지금 사거리 안에 있으면 그 적부터 친다. 둘러싸인 드라군·질럿에 저글링이 몰려
     // 바로 옆의 적을 두고 비집고 들어가려다 시간을 버렸다(AI 경기에서 저글링이 목표를 쥔 시간의 5.6%). 다른 유닛도 같은 규칙.
     // 목표가 유닛일 때만 바꾼다: 벙커·캐논을 노리던 질럿까지 옆의 유닛으로 돌리면 질럿 러시를 막던 AI가 12판 중 9판을 졌다
@@ -2823,7 +2874,9 @@ function stepUnits(state, dt) {
       const reachNow = range + 0.6 + unit.radius * 0.5;
       if (dTarget > reachNow) {
         const beside = findTarget(state, unit, reachNow, { unitsOnly: true });
-        if (beside && beside !== target && !leashed(beside) && !isPassive(beside)) target = beside;
+        // 공중 유닛은 자기를 때릴 수 있는 목표를 두고, 옆에 있다는 이유만으로 때릴 수 없는 적으로 목표를 바꾸지 않는다(가는 길에 쏘기만 한다: 아래 이동 사격).
+        const distracting = beside && isFlying(unit) && harmlessToAir(beside, unit) && !harmlessToAir(target, unit);
+        if (beside && beside !== target && !leashed(beside) && !isPassive(beside) && !distracting) target = beside;
       }
     }
     if (!intruders.length) target = focusTarget(state, unit, target, { isAttack, sight, leashed, slot });
@@ -2865,21 +2918,14 @@ function stepUnits(state, dt) {
             continue;
           }
         }
-        if (unit.cooldown <= 0) {
-          unit.cooldown = attackCooldown(state, unit, def, target);
-          queueHit(state, unit, target);
-          const kind = ATTACK_EFFECT[unit.type] ?? "plasma";
-          // 캐리어 인터셉터는 날아갔다 돌아오는 데 0.9초(재장전 1초) 동안 그린다.
-          const ttl = kind === "slash" || kind === "bullet" || kind === "bite" ? 0.15 : kind === "flame" ? 0.3 : kind === "scarab" ? 0.6 : kind === "shock" || kind === "spine" ? 0.25 : kind === "burst" ? 0.5 : kind === "interceptor" ? 0.9 : 0.35;
-          const count = kind === "interceptor" ? stwHitDamage(state, unit, target).length : undefined;
-          state.effects.push({ kind, side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl, max: ttl, radius: STW_UNITS[unit.type].splash?.radius, attackerId: unit.id, targetId: target.id, count });
-          // 스커지: 몸을 던져 터진다.
-          if (def.suicide) {
-            unit.hp = 0;
-            unit.shields = 0;
-          }
-        }
+        if (unit.cooldown <= 0) fireWeapon(state, unit, def, target);
       } else {
+        // 공중 유닛의 이동 사격: 자기를 때릴 수 있는 목표로 날아가는 동안, 사거리 안에 든 다른 적은 멈추지 않고 쏘고 지나간다.
+        // 목표를 그 적으로 바꾸지는 않는다(바꾸면 발밑의 질럿만 쏘다 드라군에 죽고, 아예 안 쏘면 가는 길의 화력을 버린다).
+        if (isFlying(unit) && unit.cooldown <= 0 && target.kind === "unit" && !intruders.length) {
+          const passing = findTarget(state, unit, range + 0.6 + unit.radius * 0.5, { unitsOnly: true });
+          if (passing && passing !== target && !leashed(passing) && !isPassive(passing)) fireWeapon(state, unit, def, passing);
+        }
         // 막힘: 1.2초 동안 거의 못 움직였으면(앞을 아군이 막아 둘레에 자리가 없다) 그 목표를 6초 동안 미루고,
         // 시야보다 넓게(STUCK_SEARCH칸 더) 다른 목표를 찾아간다. 없으면 공격 병력은 계속 전진하고, 대기 병력은 집결지로 돌아간다.
         if (stuckOn(state, unit, target, speed)) {

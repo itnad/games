@@ -2519,6 +2519,44 @@ test("starswar vessels matrix allies, EMP shields and irradiate clumps; yamato h
   assert.ok(carrier.hp + carrier.shields <= 450 - 200, `야마토 포 ${carrier.hp + carrier.shields}`);
 });
 
+test("starswar air units shoot enemies that can hit them first, and scouts go for air targets", () => {
+  // 공중 공격 유닛은 자기를 때릴 수 있는 적부터 친다(때릴 수 없는 적은 5칸 더 먼 것으로 친다). 스카웃은 공중 목표부터(지상은 6칸 더).
+  const pick = (races, attackerType, near, nearDistance, far, farDistance) => {
+    const state = createStarswarGame({ seed: 5, aiSides: [], races });
+    const attacker = stwSpawnUnitAt(state, "player", attackerType, 20, 60, "attack");
+    const first = stwSpawnUnitAt(state, "enemy", near, 20 - nearDistance, 60, "rally");
+    const second = stwSpawnUnitAt(state, "enemy", far, 20 + farDistance, 60, "rally");
+    for (const unit of [first, second]) unit.stunUntil = 999;
+    run(state, 0.3);
+    return attacker.targetId === first.id ? near : attacker.targetId === second.id ? far : null;
+  };
+  const zvp = { player: "zerg", enemy: "protoss" };
+  const pvz = { player: "protoss", enemy: "zerg" };
+  assert.equal(pick(zvp, "mutalisk", "zealot", 5, "dragoon", 7), "dragoon", "뮤탈: 질럿 5칸·드라군 7칸이면 드라군");
+  // 이동 사격: 드라군으로 날아가는 길에 사거리 안에 든 질럿은 목표를 바꾸지 않고 쏘고 지나간다.
+  const pass = createStarswarGame({ seed: 5, aiSides: [], races: zvp });
+  const muta = stwSpawnUnitAt(pass, "player", "mutalisk", 20, 60, "attack");
+  const underfoot = stwSpawnUnitAt(pass, "enemy", "zealot", 21, 60, "rally");
+  const threat = stwSpawnUnitAt(pass, "enemy", "dragoon", 26, 60, "rally");
+  for (const unit of [underfoot, threat]) unit.stunUntil = 999;
+  run(pass, 0.5);
+  assert.equal(muta.targetId, threat.id, "목표는 드라군 그대로");
+  assert.ok(underfoot.hp + underfoot.shields < underfoot.maxHp + underfoot.maxShields, "발밑의 질럿은 쏘고 지나감");
+  assert.equal(pick(zvp, "mutalisk", "dragoon", 5, "dragoon", 7), "dragoon");
+  assert.equal(pick(pvz, "scout", "zergling", 5, "mutalisk", 8), "mutalisk", "스카웃: 저글링 5칸·뮤탈 8칸이면 뮤탈");
+  assert.equal(pick(pvz, "scout", "hydra", 5, "guardian", 6), "guardian", "스카웃: 비슷한 거리면 히드라보다 가디언(공중 무기가 3.5배)");
+  assert.equal(pick(pvz, "scout", "hydra", 5, "zergling", 6), "hydra", "스카웃: 지상끼리는 자기를 때릴 수 있는 쪽");
+  // 지상 유닛의 목표 고르기는 그대로(가까운 적).
+  assert.equal(pick(zvp, "hydra", "zealot", 4, "dragoon", 5.5), "zealot");
+
+  // 섞인 병력과의 싸움: 스카웃 6기는 저글링 24 + 뮤탈 6에서 뮤탈을 먼저 잡고 살아남는다(예전에는 저글링을 쏘다 전멸).
+  const fight = stwCreateScenario({ seed: 1, time: 900, placement: "clash", races: pvz, sides: { player: { units: { scout: 6 } }, enemy: { units: { zergling: 24, mutalisk: 6 } } } });
+  const alive = (side, type) => fight.units.filter((unit) => unit.side === side && unit.type === type && unit.hp > 0).length;
+  for (let tick = 0; tick < 900 && fight.status === "playing" && alive("player", "scout") && alive("enemy", "mutalisk"); tick += 1) stepStarswar(fight);
+  assert.equal(alive("enemy", "mutalisk"), 0, "뮤탈을 모두 잡음");
+  assert.ok(alive("player", "scout") >= 3, `스카웃 ${alive("player", "scout")}기 생존`);
+});
+
 test("starswar firebats pick small targets over nearer large ones and stim while charging in", () => {
   // 화염은 진동형(소형 100%, 중형 50%, 대형 25%)이라, 조금 더 멀어도 질럿·저글링부터 친다. 바로 붙어 있는 적은 그대로 친다.
   const pick = (enemyRace, near, nearDistance, far, farDistance) => {
