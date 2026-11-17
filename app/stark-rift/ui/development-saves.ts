@@ -1,3 +1,4 @@
+import { queenFitsMap } from "../abilities/queen-state";
 import { medicSpellsFitMap } from "../abilities/medic-spells-state";
 import { spellsFitMap } from "../abilities/spells-state";
 import { lurkerFitsMap } from "../abilities/lurker-state";
@@ -48,7 +49,7 @@ export class DevelopmentSaveStore {
         s.phase === "paused" ||
         s.phase === "finished") &&
       economyFitsMap(s, map) &&
-      combatFitsMap(s, map) && lurkerFitsMap(s, map) && spellsFitMap(s, map) && medicSpellsFitMap(s,map) &&
+      combatFitsMap(s, map) && lurkerFitsMap(s, map) && spellsFitMap(s, map) && medicSpellsFitMap(s,map) && queenFitsMap(s,map) &&
       visionFitsMap(s, map) &&
       specialFitsMap(s, map) &&
       navigationFitsMap(s, map) &&
@@ -133,6 +134,7 @@ export class DevelopmentSaveStore {
                       : version === 15 ? "stage6f-backup"
                       : version === 16 ? "stage6g-backup"
                       : version === 17 ? "stage6h-backup"
+                      : version === 21 ? "stage6l-backup"
                       : version === 20 ? "stage6k-backup"
                       : version === 19 ? "stage6j-backup"
                       : version === 18 ? "stage6i-backup"

@@ -1,3 +1,4 @@
+import { ensnareOf } from "../abilities/queen-state";
 import { isBlinded } from "../abilities/medic-spells-state";
 import medicSpells from "../data/medic-spells-original.json";
 import { isInStasis } from "../abilities/spells-state";
@@ -159,6 +160,7 @@ export function canSeeEntity(
     })
   )
     return false;
+  if (ensnareOf(s,e.id[index])) return true;
   if (!coveredByArbiter(s, index) && !permanentCloak(e.definitionId[index]) && !s.vision?.concealed.some((c) => c.entityId === e.id[index])) return true;
   for (let i = 0; i < e.id.length; i++)
     if (e.owner[i] === owner && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {

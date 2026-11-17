@@ -1,3 +1,4 @@
+import { QUEEN,ENSNARE_TICKS,QUEEN_CAST_COOLDOWN,ensnareOf,queenCooldown,type QueenState } from "../abilities/queen-state";
 import { isBlinded,medicSpellCooldown,OPTICAL,RESTORATION,MEDIC_SPELL_COOLDOWN,type MedicSpellsState } from "../abilities/medic-spells-state";
 import { stimOf, MARINE, STIM_TICKS } from "../abilities/stim-state";
 import { economyDefinition } from "../data/economy-catalog";
@@ -59,6 +60,8 @@ export type RenderEntity = {
   recallTicks?: number;
   stasisAutocast?: boolean;
   blinded?: boolean;
+  ensnareTicks?:number;
+  queenCooldownTicks?:number;
   medicSpellCooldownTicks?: number;
   stimTicks?: number;
   needsHealing?: boolean;
@@ -101,6 +104,7 @@ export type RenderSnapshot = {
       y: number;
     }[];
   };
+  queenEffects?:QueenState["effects"];
   medicSpellEffects?: Omit<MedicSpellsState["effects"][number],"sourceId"|"targetId">[];
   spellEffects?: { id: number; kind: "recall" | "stasis-field"; owner: number; tick: number; x: number; y: number }[];
   groundWaves?: { id: number; owner: number; x: number; y: number }[];
@@ -137,6 +141,8 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         recallTicks: optional(integer(1, 18)),
         stasisAutocast: optional(boolean),
         blinded: optional(boolean),
+        ensnareTicks:optional(integer(1,ENSNARE_TICKS)),
+        queenCooldownTicks:optional(integer(1,QUEEN_CAST_COOLDOWN)),
         medicSpellCooldownTicks: optional(integer(1,MEDIC_SPELL_COOLDOWN)),
         stimTicks: optional(integer(1,STIM_TICKS)),
         needsHealing: optional(boolean),
@@ -164,6 +170,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         projectiles: array(renderProjectileSchema, 0, 4096),
       }),
     ),
+    queenEffects:optional(array(object({id:integer(1),owner:integer(0,1),tick:integer(),x:integer(),y:integer()}),0,128)),
     medicSpellEffects: optional(array(object({id:integer(1),abilityId:enumeration([OPTICAL,RESTORATION]),owner:integer(0,1),tick:integer(),x:integer(),y:integer(),toX:integer(),toY:integer()}),0,128)),
     spellEffects: optional(array(spellEffectSchema, 0, 128)),
     groundWaves: optional(array(object({ id: integer(1), owner: integer(0, 1), x: integer(), y: integer() }), 0, 128)),
@@ -179,6 +186,9 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
   }),
   (snapshot) =>
     snapshot.entities.every(e => e.energy === undefined ? e.maxEnergy === undefined : e.maxEnergy !== undefined && e.energy <= e.maxEnergy && supportsEnergy(e.definitionId)) &&
+    snapshot.entities.every(e=>(e.ensnareTicks===undefined||e.kind!=="building")&&(e.queenCooldownTicks===undefined||e.owner===snapshot.viewerPlayerId&&e.definitionId===QUEEN)) &&
+    new Set((snapshot.queenEffects??[]).map(e=>e.id)).size===(snapshot.queenEffects??[]).length &&
+    (snapshot.queenEffects??[]).every(e=>e.tick<=snapshot.tick&&snapshot.tick-e.tick<=20&&e.x<snapshot.widthTiles*256&&e.y<snapshot.heightTiles*256&&snapshot.visibility[Math.floor(e.y/256)*snapshot.widthTiles+Math.floor(e.x/256)]===2) &&
     snapshot.entities.every(e=>(e.blinded===undefined||e.kind!=="building")&&(e.medicSpellCooldownTicks===undefined||e.owner===snapshot.viewerPlayerId&&e.definitionId===MEDIC)) &&
     new Set((snapshot.medicSpellEffects??[]).map(e=>e.id)).size===(snapshot.medicSpellEffects??[]).length &&
     (snapshot.medicSpellEffects??[]).every(e=>e.tick<=snapshot.tick&&snapshot.tick-e.tick<=20&&e.x<snapshot.widthTiles*256&&e.toX<snapshot.widthTiles*256&&e.y<snapshot.heightTiles*256&&e.toY<snapshot.heightTiles*256&&snapshot.visibility[Math.floor(e.y/256)*snapshot.widthTiles+Math.floor(e.x/256)]===2&&snapshot.visibility[Math.floor(e.toY/256)*snapshot.widthTiles+Math.floor(e.toX/256)]===2) &&
@@ -323,6 +333,8 @@ export function createRenderSnapshot(
       continue;
     entities.push({
       ...(state.economy.enabled ? { shield: s.shield[i] } : {}),
+      ...(s.kind[i]!=="building"&&ensnareOf(state,s.id[i])?{ensnareTicks:ensnareOf(state,s.id[i])!.expiresTick-state.tick}:{}),
+      ...(s.owner[i]===viewer&&queenCooldown(state,s.id[i])?{queenCooldownTicks:queenCooldown(state,s.id[i])!.expiresTick-state.tick}:{}),
       ...(s.kind[i]!=="building"&&isBlinded(state,s.id[i])?{blinded:true}:{}),
       ...(s.owner[i]===viewer&&medicSpellCooldown(state,s.id[i])?{medicSpellCooldownTicks:medicSpellCooldown(state,s.id[i])!.expiresTick-state.tick}:{}),
       ...(stimOf(state,s.id[i]) ? {stimTicks:stimOf(state,s.id[i])!.expiresTick-state.tick} : {}),
@@ -403,6 +415,7 @@ export function createRenderSnapshot(
         }
       : {}),
     ...(combat ? { combat } : {}),
+    ...(state.queen?{queenEffects:state.queen.effects.filter(e=>seen(e.x,e.y)).map(e=>({...e}))}:{}),
     ...(state.medicSpells?{medicSpellEffects:state.medicSpells.effects.filter(e=>seen(e.x,e.y)&&seen(e.toX,e.toY)&&[e.sourceId,e.targetId].every(id=>{const i=s.id.indexOf(id);return i<0||canSeeEntity(state,map,viewer,i,visibility);})).map(({sourceId,targetId,...e})=>e)}:{}),
     ...(state.spells ? { spellEffects: state.spells.effects.filter(e => seen(e.x,e.y)).map(e => ({...e})) } : {}),
     ...(state.lurker ? { groundWaves: state.lurker.waves.filter((w) => seen(w.x, w.y)).map(({ id, owner, x, y }) => ({ id, owner, x, y })) } : {}),

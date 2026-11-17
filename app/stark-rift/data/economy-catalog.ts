@@ -1,3 +1,4 @@
+import queen from "./queen-original.json";
 import medicSpells from "./medic-spells-original.json";
 import stim from "./stim-original.json";
 import medic from "./medic-original.json";
@@ -169,6 +170,7 @@ const siegeRows: typeof rows = [["Terran_Siege_Tank_Siege_Mode", "시즈 탱크 
 const lurkerRows: typeof rows = [["Zerg_Lurker", "러커", "vehicle", "zerg-hydralisk"], ["Zerg_Lurker_Egg", "러커 알", "cocoon", "zerg-hydralisk"]];
 const arbiterRows: typeof rows = [["Protoss_Arbiter", "아비터", "airCombat", "protoss-stargate", ["protoss-arbiter-tribunal"]], ["Protoss_Stargate", "스타게이트", "military", "protoss-probe", ["protoss-cybernetics-core"]], ["Protoss_Arbiter_Tribunal", "아비터 트리뷰널", "research", "protoss-probe", ["protoss-stargate", "protoss-templar-archives"]]];
 const medicRows: typeof rows = [["Terran_Medic","메딕","infantry","terran-barracks",["terran-academy"]]];
+const queenRows:typeof rows=[["Zerg_Queen","퀸","airCombat","zerg-hatchery",["zerg-queens-nest"]],["Zerg_Queens_Nest","퀸즈 네스트","research","zerg-drone",["zerg-lair"]]];
 export const unitFamily = (id: string) => id === "terran-siege-tank-siege-mode" ? "terran-siege-tank-tank-mode" : ["zerg-lurker", "zerg-lurker-egg"].includes(id) ? "zerg-hydralisk" : id;
 /** A Lair retains Hatchery production, prerequisites, larvae and resource return. */
 export const countsAsDefinition = (actual: string, expected: string) =>
@@ -178,9 +180,9 @@ export const economyLayer = (d: EconomyDefinition): "air" | "ground" =>
   ["airSupply", "transport", "detector", "airCombat"].includes(d.icon) ? "air" : "ground";
 export const economyId = (name: string) =>
   name.toLowerCase().replaceAll("_", "-");
-export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows, ...cloakRows, ...siegeRows, ...lurkerRows, ...arbiterRows, ...medicRows].map(
+export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows, ...cloakRows, ...siegeRows, ...lurkerRows, ...arbiterRows, ...medicRows, ...queenRows].map(
   ([sourceName, name, icon, producer, requires = []]) => {
-    const raw = [...original.units, ...special.units, ...cloak.units, ...siege.units, ...lurker.units, ...arbiter.units, ...medic.units].find((u) => u.name === sourceName);
+    const raw = [...original.units, ...special.units, ...cloak.units, ...siege.units, ...lurker.units, ...arbiter.units, ...medic.units, ...queen.units].find((u) => u.name === sourceName);
     if (!raw) throw new Error("Missing original definition " + sourceName);
     const id = economyId(sourceName),
       faction = id.split("-")[0] as Faction;
@@ -298,7 +300,8 @@ const spellsUpgrades = [...lurkerUpgrades, ...spells.technologies.map((t,i) => (
 const energyUpgrades = [...spellsUpgrades, ...energy.upgrades.map(u => ({ id: economyId(u.name), name: u.title, faction: u.unitId.startsWith("terran") ? "terran" as Faction : "protoss" as Faction, producer: u.producer, minerals: u.minerals, gas: u.gas, factor: 0, frames: u.frames, ticks: economicTicks(u.frames), timeFactor: 0, maxLevel: u.maxLevel, availableLevels: 1 }))];
 const medicUpgrades = [...energyUpgrades, {id: economyId(medic.upgrade.name),name:medic.upgrade.title,faction:"terran" as Faction,producer:medic.upgrade.producer,minerals:medic.upgrade.minerals,gas:medic.upgrade.gas,factor:0,frames:medic.upgrade.frames,ticks:economicTicks(medic.upgrade.frames),timeFactor:0,maxLevel:1,availableLevels:1}];
 const stimUpgrades = [...medicUpgrades,{id:"stim-packs",name:stim.technology.title,faction:"terran" as Faction,producer:stim.technology.producer,minerals:stim.technology.minerals,gas:stim.technology.gas,factor:0,frames:stim.technology.frames,ticks:economicTicks(stim.technology.frames),timeFactor:0,maxLevel:1,availableLevels:1}];
-export const ECONOMY_UPGRADES=[...stimUpgrades,...medicSpells.technologies.map(t=>({id:t.id,name:t.title,faction:"terran" as Faction,producer:t.producer,minerals:t.minerals,gas:t.gas,factor:0,frames:t.frames,ticks:economicTicks(t.frames),timeFactor:0,maxLevel:1,availableLevels:1}))];
+const medicSpellsUpgrades=[...stimUpgrades,...medicSpells.technologies.map(t=>({id:t.id,name:t.title,faction:"terran" as Faction,producer:t.producer,minerals:t.minerals,gas:t.gas,factor:0,frames:t.frames,ticks:economicTicks(t.frames),timeFactor:0,maxLevel:1,availableLevels:1}))];
+export const ECONOMY_UPGRADES=[...medicSpellsUpgrades,...[queen.technology,queen.upgrade].map(t=>({id:t.id,name:t.title,faction:"zerg" as Faction,producer:t.producer,minerals:t.minerals,gas:t.gas,factor:0,frames:t.frames,ticks:economicTicks(t.frames),timeFactor:0,maxLevel:1,availableLevels:1}))];
 export const technologyRequirements = (id: string): string[] => id === "lurker-aspect" ? [lurker.requiredUnit] : [];
 export const ECONOMY_SOURCE = original.source;
 export const ECONOMY_MECHANICS = {
@@ -330,12 +333,13 @@ export const SPECIAL_ECONOMY_DATA_VERSION = "special-economy-" + checksum({
 export const CLOAK_ECONOMY_DATA_VERSION = "cloak-economy-" + checksum({ base: SPECIAL_ECONOMY_DATA_VERSION, cloak: JSON.stringify(cloak), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length), upgrades: cloakUpgrades });
 export const SIEGE_ECONOMY_DATA_VERSION = "siege-economy-" + checksum({ base: CLOAK_ECONOMY_DATA_VERSION, siege: JSON.stringify(siege), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length + siegeRows.length), upgrades: siegeUpgrades });
 export const LURKER_ECONOMY_DATA_VERSION = "lurker-economy-" + checksum({ base: SIEGE_ECONOMY_DATA_VERSION, lurker: JSON.stringify(lurker), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length + siegeRows.length + lurkerRows.length), upgrades: lurkerUpgrades });
-export const ARBITER_ECONOMY_DATA_VERSION = "arbiter-economy-" + checksum({ base: LURKER_ECONOMY_DATA_VERSION, arbiter: JSON.stringify(arbiter), definitions: ECONOMY_DEFINITIONS.slice(0,-medicRows.length) });
+export const ARBITER_ECONOMY_DATA_VERSION = "arbiter-economy-" + checksum({ base: LURKER_ECONOMY_DATA_VERSION, arbiter: JSON.stringify(arbiter), definitions: ECONOMY_DEFINITIONS.slice(0,-medicRows.length-queenRows.length) });
 export const SPELLS_ECONOMY_DATA_VERSION = "spells-economy-" + checksum({ base: ARBITER_ECONOMY_DATA_VERSION, spells: JSON.stringify(spells), upgrades: spellsUpgrades });
 export const ENERGY_ECONOMY_DATA_VERSION = "energy-economy-" + checksum({ base: SPELLS_ECONOMY_DATA_VERSION, energy: JSON.stringify(energy), upgrades: energyUpgrades });
-export const MEDIC_ECONOMY_DATA_VERSION = "medic-economy-" + checksum({base:ENERGY_ECONOMY_DATA_VERSION,medic:JSON.stringify(medic),definitions:ECONOMY_DEFINITIONS,upgrades:medicUpgrades});
+export const MEDIC_ECONOMY_DATA_VERSION = "medic-economy-" + checksum({base:ENERGY_ECONOMY_DATA_VERSION,medic:JSON.stringify(medic),definitions:ECONOMY_DEFINITIONS.slice(0,-queenRows.length),upgrades:medicUpgrades});
 export const STIM_ECONOMY_DATA_VERSION="stim-economy-"+checksum({base:MEDIC_ECONOMY_DATA_VERSION,stim:JSON.stringify(stim),upgrades:stimUpgrades});
-export const ECONOMY_DATA_VERSION="medic-spells-economy-"+checksum({base:STIM_ECONOMY_DATA_VERSION,medicSpells:JSON.stringify(medicSpells),upgrades:ECONOMY_UPGRADES});
+export const MEDIC_SPELLS_ECONOMY_DATA_VERSION="medic-spells-economy-"+checksum({base:STIM_ECONOMY_DATA_VERSION,medicSpells:JSON.stringify(medicSpells),upgrades:medicSpellsUpgrades});
+export const ECONOMY_DATA_VERSION="queen-economy-"+checksum({base:MEDIC_SPELLS_ECONOMY_DATA_VERSION,queen:JSON.stringify(queen),definitions:ECONOMY_DEFINITIONS,upgrades:ECONOMY_UPGRADES});
 for (const d of ECONOMY_DEFINITIONS) {
   if (
     !lookup.has(d.producer) ||

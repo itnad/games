@@ -1,0 +1,10 @@
+import type { RenderSnapshot } from "../worker/render-snapshot";
+import { QUEEN,ENSNARE } from "../abilities/queen-state";
+export function QueenControls({snapshot,selected,running,select,cast}:{snapshot:RenderSnapshot;selected:number[];running:boolean;select?:(ids:number[])=>void;cast?:(id:number,ability:typeof ENSNARE)=>void}){
+ const own=snapshot.entities.filter(e=>e.owner===snapshot.viewerPlayerId),all=own.filter(e=>e.definitionId===QUEEN),actors=all.filter(e=>selected.includes(e.id)),ready=actors.find(e=>!e.stasisTicks&&!e.queenCooldownTicks&&(e.energy??0)>=75),researched=snapshot.economy?.upgrades.some(u=>u.technologyId===ENSNARE),practice=snapshot.combat?.scenario==="special-practice"&&snapshot.economy?.faction==="zerg";
+ if(!all.length&&!practice)return null;
+ return <div className="sr-queen-controls">
+ {practice&&<><div className="sr-action-row"><button data-queen-select disabled={!all.length} onClick={()=>select?.(all.map(e=>e.id))}>퀸 선택</button><button data-queen-nest-select disabled={!own.some(e=>e.definitionId==="zerg-queens-nest")} onClick={()=>select?.(own.filter(e=>e.definitionId==="zerg-queens-nest").map(e=>e.id).slice(0,1))}>퀸즈 네스트 선택</button><button data-queen-hatchery-select onClick={()=>select?.(own.filter(e=>["zerg-hatchery","zerg-lair"].includes(e.definitionId)).map(e=>e.id).slice(0,1))}>퀸 생산 본부 선택</button></div><p className="sr-help">퀸 연습: 퀸 2기(4·5번 부대), 퀸즈 네스트와 추가 미네랄600·가스450. 연구와 퀸 생산 비용은 직접 지불합니다. 퀸은 기본 공격이 없는 공중 마법 유닛이며 탐지기는 아닙니다.</p></>}
+ {actors.length>0&&<><div className="sr-action-row"><button data-cast-ability={ENSNARE} disabled={!running||!ready||!researched} onClick={()=>ready&&cast?.(ready.id,ENSNARE)}>인스네어 · 에너지75</button></div><p className="sr-help">퀸즈 네스트 연구 필요 · 9타일 사거리 · 지점 주변 4×4타일의 유닛 몸체에 적용. 아군도 느려집니다. 이동속도 절반·공격 간격25% 증가·시야 안 은폐 노출, 25초 지속. 스팀팩과 속도 효과가 상쇄됩니다. 리스토레이션으로 해제할 수 있습니다. 건물·잠복·수송 내부·스테이시스와 시전한 퀸은 제외합니다. 사거리 밖은 이동 후 다시 지정하세요.</p>{actors.map(e=><p className="sr-work-status" data-queen-energy={e.id} key={e.id}>퀸 #{e.id} · 에너지 {e.energy??0}/{e.maxEnergy??200}{e.queenCooldownTicks?" · 시전 대기 중":""}</p>)}</>}
+ </div>;
+}

@@ -113,7 +113,7 @@ it('built production Worker morphs Hydralisks and saves paid egg reservations', 
     const ack=await wait(m=>m.kind==='commandAck'&&m.payload.sequence===1);if(ack.kind!=='commandAck')throw Error('ack');expect(ack.payload.accepted).toBe(true);
     await wait(m=>m.kind==='renderSnapshot'&&ids.every(id=>m.payload.entities.some(e=>e.id===id&&e.unitMorph)));
     send('pause',{reason:'morph checkpoint'});await wait(m=>m.kind==='phaseChanged'&&m.payload.phase==='paused');send('saveSnapshot',{requestId:92});const saved=await wait(m=>m.kind==='saveSnapshotReady'&&m.payload.requestId===92);if(saved.kind!=='saveSnapshotReady')throw Error('save');
-    expect(saved.payload.snapshot.simulation.lurker!.morphs).toHaveLength(2);expect(saved.payload.snapshot.simulation.players[0].gas).toBe(0);expect(saved.payload.snapshot.simulation.players[0].supplyUsedHalf).toBe(supply+4);expect(messages.filter(m=>m.kind==='fatalError')).toEqual([]);
+    expect(saved.payload.snapshot.simulation.lurker!.morphs).toHaveLength(2);expect(saved.payload.snapshot.simulation.players[0].gas).toBe(450);expect(saved.payload.snapshot.simulation.players[0].supplyUsedHalf).toBe(supply+4);expect(messages.filter(m=>m.kind==='fatalError')).toEqual([]);
   } finally {send('dispose',{});await worker.terminate();}
 },15000);
 
