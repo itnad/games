@@ -54,6 +54,13 @@ export type StwUnit = {
   burrowUntil?: number;
   /** 숨은 럴커가 사거리 밖의 가장 가까운 적 유닛을 지켜본 기록(1초마다 거리를 재서 다가오는지 판단). */
   burrowWatch?: { d: number; at: number; closing: boolean };
+  /** 범위 마법이 노리는, 사거리 조금 밖의 자리(그 자리가 사거리에 들 때까지 걸어간다). */
+  castWalk?: { x: number; y: number; range: number; at: number };
+  /** 마법을 쓸 수 있는데 사거리 안에서 아무것도 못 쓰기 시작한 때, 쓸 대상이 없어 뒤로 물러나 있는 끝 시각. */
+  castIdleSince?: number;
+  castHoldUntil?: number;
+  /** 퀸이 더 비싼 브루들링 대상을 기다리기 시작한 때. */
+  broodWait?: number;
   stunUntil?: number;
   stasisUntil?: number;
   ensnareUntil?: number;

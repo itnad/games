@@ -3299,16 +3299,73 @@ function spellReady(state, unit) {
 /**
  * 무기 없는 마법 유닛의 이동.
  * - 쓸 수 있는 마법이 없으면(에너지 부족·연구 전) 부대 맨 뒤(가장 뒤처진 아군보다 3칸 뒤)에 서고, 6칸 안의 적에게서 물러난다.
- * - 마법을 쓸 수 있으면 부대 최전방(선두와 같은 줄)으로 나가 시전을 시도한다. 물러나지 않는다.
- * - 집결지에서는 자리를 지키다가, 마법을 쓸 수 있고 14칸 안에 적이 오면 7칸까지 다가간다.
+ * - 마법을 쓸 수 있으면 부대 최전방(선두와 같은 줄)으로 나가고, 14칸 안에 적이 보이면 마법 사거리(casterReach)까지 다가가 시전을 시도한다.
+ *   사거리 안에서도 쓸 대상이 없으면 잠시 뒤로 물러나 있는다(casterApproach).
+ * - 집결지에서는 자리를 지키다가, 마법을 쓸 수 있고 14칸 안에 적이 오면 7칸(사거리가 더 길면 그 거리)까지 다가간다.
  */
+/** 마법을 쓸 수 있는데 사거리 안에서 이만큼(초) 아무것도 못 썼으면 쓸 대상이 없다고 보고, 이만큼(초) 뒤로 물러나 있는다. */
+const CASTER_IDLE = 3;
+const CASTER_HOLD = 3;
+/** 마법 유닛이 다가가는 거리: 가장 짧은 마법 사거리보다 이만큼 안쪽. */
+const CASTER_MARGIN = 1;
+/** 마법 사거리에서 기다리는 동안 적이 이만큼 넘게 파고들면 그만큼 물러나 거리를 지킨다. */
+const CASTER_STANDOFF = 1.5;
+
+/**
+ * 마법을 쓸 수 있는 유닛이 적에게 다가가는 거리(하이템플러는 따로: casterApproach).
+ * 마법 유닛(퀸·디파일러·베슬·다크 아콘)은 쓸 수 있는 마법 중 가장 짧은 사거리보다 CASTER_MARGIN칸 안쪽까지만 간다.
+ * 예전에는 모두 4칸까지 갔다: 사거리 9인 퀸이 해병 3.8칸·질럿 0.4칸 앞까지 들어가 2기 중 1~2기가 죽었다.
+ */
+function casterReach(state, unit) {
+  const ranges = (STW_UNITS[unit.type].spells ?? []).map((id) => STW_SPELLS[id])
+    .filter((spell) => unit.energy >= spell.energy && (!spell.research || stwResearchDone(state, unit.side, spell.research))).map((spell) => spell.range);
+  return ranges.length ? Math.max(4, Math.min(...ranges) - CASTER_MARGIN) : 4;
+}
+
+/**
+ * 마법을 쓸 수 있는 유닛의 전진: 범위 마법이 노리는 깨끗한 자리가 사거리 밖에 있으면 그 자리가 사거리에 들 때까지,
+ * 아니면 가장 가까운 적에게 casterReach까지 간다. 사거리 안에 와서도 CASTER_IDLE초 동안 아무것도 못 썼으면
+ * (브루들링만 배운 퀸 앞에 해병·메딕뿐인 경우처럼 쓸 대상이 없다) CASTER_HOLD초 동안 뒤로 물러나 있는다.
+ */
+function casterApproach(state, unit, foe, speed, dt, minStop = 0) {
+  // 하이템플러는 예전 그대로: 적 4칸(집결지에서는 7칸)까지 들어가 스톰 자리를 찾는다.
+  if (unit.type === "templar") {
+    if (distance(unit.x, unit.y, foe.x, foe.y) > Math.max(minStop, 4)) moveToward(unit, foe.x, foe.y, speed, dt);
+    return;
+  }
+  const walk = unit.castWalk && unit.castWalk.at === state.time ? unit.castWalk : null;
+  if (walk) {
+    unit.castIdleSince = undefined;
+    if (distance(unit.x, unit.y, walk.x, walk.y) > walk.range) moveToward(unit, walk.x, walk.y, speed, dt);
+    return;
+  }
+  const reach = Math.max(minStop, casterReach(state, unit));
+  if (distance(unit.x, unit.y, foe.x, foe.y) > reach) {
+    unit.castIdleSince = undefined;
+    moveToward(unit, foe.x, foe.y, speed, dt);
+    return;
+  }
+  // 적이 다가오면 같은 거리를 지키며 물러난다(마법은 여전히 닿는다). 서서 기다리다 드라군·해병 사거리에 들어가 죽지 않게.
+  const d = distance(unit.x, unit.y, foe.x, foe.y);
+  if (d < reach - CASTER_STANDOFF) {
+    const away = Math.atan2(unit.y - foe.y, unit.x - foe.x);
+    moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
+  }
+  unit.castIdleSince ??= state.time;
+  if (state.time - unit.castIdleSince >= CASTER_IDLE) {
+    unit.castIdleSince = undefined;
+    unit.castHoldUntil = state.time + CASTER_HOLD;
+  }
+}
+
 function casterMove(state, unit, plan, speed, dt) {
   const slot = unit.group === "attack" ? plan.attackSlots.get(unit.id) : plan.rallySlots.get(unit.id);
   if (unit.group !== "attack" && slot && isRetreating(unit, slot)) {
     moveToward(unit, slot.x, slot.y, speed, dt);
     return;
   }
-  const ready = spellReady(state, unit);
+  // 마법을 쓸 수 있어도 방금 "쓸 대상이 없다"고 본 동안은 뒤에 머문다(아래 casterHold).
+  const ready = spellReady(state, unit) && !((unit.castHoldUntil ?? 0) > state.time);
   if (!ready) {
     const nearest = findTarget(state, unit, 6, { unitsOnly: true });
     if (nearest && !isPassive(nearest)) {
@@ -3329,12 +3386,12 @@ function casterMove(state, unit, plan, speed, dt) {
       moveToward(unit, slot ? slot.x : unit.x, plan.goal.y, Math.min(speed, plan.waveSpeed), dt);
       return;
     }
-    // 마법을 쓸 수 있으면 아군 선두가 아니라 적을 보고 나간다: 14칸 안의 적에게 4칸까지 다가간다.
+    // 마법을 쓸 수 있으면 아군 선두가 아니라 적을 보고 나간다: 14칸 안의 적에게 다가간다.
     // 원거리 아군이 근접 적을 피해 무빙하며 물러나도(선두가 흩어져도) 템플러의 전진이 막히지 않게.
     if (ready) {
       const foe = findTarget(state, unit, 14, { unitsOnly: true });
       if (foe && !isPassive(foe)) {
-        if (distance(unit.x, unit.y, foe.x, foe.y) > 4) moveToward(unit, foe.x, foe.y, speed, dt);
+        casterApproach(state, unit, foe, speed, dt);
         return;
       }
     }
@@ -3347,7 +3404,8 @@ function casterMove(state, unit, plan, speed, dt) {
   if (ready) {
     const foe = findTarget(state, unit, 14, { unitsOnly: true });
     if (foe && !isPassive(foe)) {
-      if (distance(unit.x, unit.y, foe.x, foe.y) > 7) moveToward(unit, foe.x, foe.y, speed, dt);
+      // 집결지에서는 예전처럼 7칸보다 가까이 가지 않는다.
+      casterApproach(state, unit, foe, speed, dt, 7);
       return;
     }
   }
@@ -3860,6 +3918,9 @@ function areaSpot(state, caster, { pool, range, radius, minTargets, value, skip,
   let cleanReachable = false;
   let mixed = null;
   let mixedScore = -Infinity;
+  // 사거리 조금 밖의 깨끗한 자리(다가가서 쓸 곳).
+  let away = null;
+  let awayScore = -Infinity;
   const reach = range + SPELL_LOOKAHEAD;
   for (const enemy of pool) {
     if (distance(caster.x, caster.y, enemy.x, enemy.y) > reach) continue;
@@ -3899,6 +3960,9 @@ function areaSpot(state, caster, { pool, range, radius, minTargets, value, skip,
         if (inRange && foeValue > cleanScore) {
           cleanScore = foeValue;
           clean = probe;
+        } else if (!inRange && foeValue > awayScore) {
+          awayScore = foeValue;
+          away = probe;
         }
       } else if (inRange) {
         const score = foeValue - friends.reduce((sum, unit) => sum + value(unit), 0) * 2;
@@ -3910,7 +3974,11 @@ function areaSpot(state, caster, { pool, range, radius, minTargets, value, skip,
     }
   }
   if (clean) return clean;
-  if (cleanReachable) return reportWait ? SPOT_WAIT : null;
+  if (cleanReachable) {
+    // 다가가는 중인 자리를 적어 둔다: 마법 유닛은 그 자리가 사거리에 들 때까지만 걸어간다(casterMove).
+    if (away) caster.castWalk = { x: away.x, y: away.y, range, at: state.time };
+    return reportWait ? SPOT_WAIT : null;
+  }
   return mixed;
 }
 
@@ -3930,6 +3998,10 @@ function foesAround(state, caster, spot, radius) {
 }
 
 const unitValue = (unit) => STW_UNITS[unit.type].minerals + STW_UNITS[unit.type].gas;
+/** 브루들링이 통하지 않는 지상 유닛(일꾼은 따로 뺀다). */
+const BROODLING_IMMUNE = new Set(["reaver", "archon", "darkArchon", "broodling"]);
+/** 더 비싼 브루들링 대상이 사거리에 들어오기를 기다려 주는 시간(초). */
+const BROODLING_WAIT = 2.5;
 
 /** 마법마다 대상을 고르고 효과를 건다. 걸었으면 시전 지점을, 쓸 만한 대상이 없으면 null을 돌려준다. */
 const SPELL_CASTERS = {
@@ -4052,8 +4124,28 @@ const SPELL_CASTERS = {
     return spot;
   },
   broodling(state, caster, spell) {
-    const target = spellFoes(state, caster, spell.range).filter((unit) => !isFlying(unit) && isBiological(unit) && !isPassive(unit) && unitValue(unit) >= 100).sort((a, b) => unitValue(b) - unitValue(a))[0];
-    if (!target) return null;
+    // 지상 유닛이면 기계·사이오닉도 잡는다(시즈 탱크·드라군·하이템플러·디파일러). 일꾼과 리버·아콘·다크 아콘은 안 되고, 값 100 미만(해병·저글링)에는 아낀다.
+    // 예전에는 생체 유닛만 노려, 탱크 6 + 해병 10 앞에서 퀸 셋이 한 번도 못 쓰고 템플러 넷을 두고 질럿에 썼다.
+    const valid = (unit) => !isFlying(unit) && !isWorker(unit) && !BROODLING_IMMUNE.has(unit.type) && unitValue(unit) >= 100;
+    const best = (range) => spellFoes(state, caster, range).filter(valid).sort((a, b) => unitValue(b) - unitValue(a))[0];
+    const target = best(spell.range);
+    if (!target) {
+      caster.broodWait = undefined;
+      return null;
+    }
+    // 훨씬 비싼 대상(값 1.5배 이상)이 사거리 조금 밖에 보이면 BROODLING_WAIT초까지 기다린다. 앞줄 질럿·히드라가 먼저 사거리에 들어와
+    // 퀸 셋이 뒤따라오던 템플러·럴커를 두고 질럿·히드라에 다 썼다.
+    const later = best(spell.range + SPELL_LOOKAHEAD);
+    if (later && unitValue(later) >= unitValue(target) * 1.5) {
+      caster.broodWait ??= state.time;
+      if (state.time - caster.broodWait < BROODLING_WAIT) {
+        // 기다리는 동안 그 대상이 사거리에 들 때까지 다가간다(casterApproach).
+        caster.spellWaiting = true;
+        caster.castWalk = { x: later.x, y: later.y, range: spell.range, at: state.time };
+        return null;
+      }
+    }
+    caster.broodWait = undefined;
     target.hp = 0;
     for (let index = 0; index < 2; index += 1) {
       const brood = spawnUnit(state, caster.side, "broodling", target.x + (index ? 0.8 : -0.8), target.y);
@@ -4124,6 +4216,7 @@ function castSpells(state, unit) {
     }
     unit.energy -= spell.energy;
     unit.castReadyAt = state.time + 1;
+    unit.castIdleSince = undefined;
     unit.heading = Math.atan2(cast.y - unit.y, cast.x - unit.x);
     state.effects.push({ kind: "spell", spell: id, side: unit.side, x1: unit.x, y1: unit.y, x2: cast.x, y2: cast.y, ttl: 1, max: 1, radius: spell.radius ?? 1.4, attackerId: unit.id, targetId: cast.targetId });
     const stats = state.sides[unit.side].stats;

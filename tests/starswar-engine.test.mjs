@@ -2519,6 +2519,60 @@ test("starswar vessels matrix allies, EMP shields and irradiate clumps; yamato h
   assert.ok(carrier.hp + carrier.shields <= 450 - 200, `야마토 포 ${carrier.hp + carrier.shields}`);
 });
 
+test("starswar queens keep to spell range and spawn broodlings on tanks and templars, not reavers or workers", () => {
+  // 브루들링 대상: 기계(시즈 탱크)·사이오닉(하이템플러)도 잡는다. 리버·일꾼만 있으면 쓰지 않는다.
+  const cast = (enemyRace, type) => {
+    const state = zerg(enemyRace);
+    research(state, "player", "broodling");
+    const queen = stwSpawnUnitAt(state, "player", "queen", 20, 66, "rally");
+    queen.energy = 200;
+    const target = stwSpawnUnitAt(state, "enemy", type, 20, 58, "rally");
+    run(state, 1.5);
+    return { dead: target.hp <= 0, broods: state.units.filter((unit) => unit.type === "broodling").length, energy: queen.energy };
+  };
+  for (const [race, type] of [["terran", "tank"], ["protoss", "templar"], ["protoss", "dragoon"]]) {
+    const result = cast(race, type);
+    assert.equal(result.dead, true, `${type}에 브루들링`);
+    assert.equal(result.broods, 2);
+  }
+  for (const [race, type] of [["protoss", "reaver"], ["protoss", "probe"], ["protoss", "archon"], ["terran", "marine"]]) {
+    const result = cast(race, type);
+    assert.equal(result.dead, false, `${type}에는 쓰지 않음`);
+    assert.ok(result.energy >= 200);
+  }
+
+  // 앞줄 질럿이 먼저 사거리에 들어와도, 조금 뒤에 있는 하이템플러(값 두 배)를 기다렸다가 잡는다.
+  const pick = zerg("protoss");
+  research(pick, "player", "broodling");
+  const sniper = stwSpawnUnitAt(pick, "player", "queen", 20, 66, "attack");
+  sniper.energy = 200;
+  stwSpawnUnitAt(pick, "player", "hydra", 20, 70, "attack").stunUntil = 999;
+  const zealot = stwSpawnUnitAt(pick, "enemy", "zealot", 20, 58, "rally");
+  const templar = stwSpawnUnitAt(pick, "enemy", "templar", 20, 54, "rally");
+  for (const unit of [zealot, templar]) unit.stunUntil = 999;
+  run(pick, 3);
+  assert.equal(templar.hp <= 0, true, "하이템플러를 잡음");
+  assert.equal(zealot.hp > 0, true, "질럿에 먼저 쓰지 않음");
+
+  // 거리 지키기: 인스네어를 쓸 수 있는 퀸은 적에게 사거리(9)보다 1칸 안쪽까지만 다가가고, 쓸 대상이 없는(브루들링만 배웠는데
+  // 해병·메딕뿐인) 퀸도 해병 사거리 안으로 들어가지 않는다. 예전에는 4칸까지 들어가 2기 중 1~2기가 죽었다.
+  for (const spells of [["ensnare"], ["broodling"]]) {
+    const battle = stwCreateScenario({ seed: 1, time: 900, placement: "clash", races: { player: "zerg", enemy: "terran" }, sides: {
+      player: { units: { hydra: 20, queen: 2 }, research: [...spells, "spines"] },
+      enemy: { units: { marine: 20, medic: 5 }, research: ["stim", "u238"] },
+    } });
+    const queens = battle.units.filter((unit) => unit.type === "queen");
+    let closest = Infinity;
+    for (let tick = 0; tick < 300 && battle.units.some((unit) => unit.side === "enemy" && unit.type === "marine" && unit.hp > 0); tick += 1) {
+      stepStarswar(battle);
+      const marines = battle.units.filter((unit) => unit.side === "enemy" && unit.type === "marine" && unit.hp > 0);
+      for (const queen of queens) for (const marine of marines) closest = Math.min(closest, Math.hypot(marine.x - queen.x, marine.y - queen.y));
+    }
+    assert.ok(queens.every((queen) => queen.hp > 0), `${spells[0]}: 퀸이 죽지 않음`);
+    assert.ok(closest >= 5, `${spells[0]}: 가장 가까웠던 거리 ${closest.toFixed(1)}`);
+  }
+});
+
 test("starswar queens ensnare and spawn broodlings; defilers swarm and plague", () => {
   const state = zerg("terran");
   research(state, "player", "ensnare", "broodling", "plague");

@@ -296,7 +296,7 @@ export const STW_UNITS = {
     id: "queen", race: "zerg", name: "퀸", short: "Q", minerals: 100, gas: 100, time: 30, supply: 2, from: "hatchery", requires: "nest",
     hp: 120, shields: 0, armor: 0, size: "medium", speed: 4, radius: 1.3, sight: 10, flying: true, role: "caster",
     energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["broodling", "ensnare"],
-    note: "무기 없음 · 인스네어(연구 후, 뭉친 적 이동·공격 느리게) · 브루들링(연구 후, 지상 생체 유닛 즉사)",
+    note: "무기 없음 · 인스네어(연구 후, 뭉친 적 이동·공격 느리게) · 브루들링(연구 후, 값 100 이상 지상 유닛 즉사 · 일꾼·리버·아콘 제외)",
   },
   defiler: {
     id: "defiler", race: "zerg", name: "디파일러", short: "F", minerals: 50, gas: 150, time: 30, supply: 2, from: "hatchery", requires: "mound",
@@ -458,7 +458,7 @@ export const STW_RESEARCH = {
   ventral: { id: "ventral", race: "zerg", name: "복부 주머니", at: "hatchery", minerals: 200, gas: 200, time: 45, requires: ["lair"], note: "오버로드가 지상 병력을 실어 나름(\"본진 침투\")" },
   greaterSpire: { id: "greaterSpire", race: "zerg", name: "그레이터 스파이어", at: "spire", minerals: 100, gas: 150, time: 60, requires: ["hive"], note: "가디언·디바우러 해금" },
   ensnare: { id: "ensnare", race: "zerg", name: "인스네어", at: "nest", minerals: 100, gas: 100, time: 40, note: "퀸이 뭉친 적을 12초 동안 느리게(은폐도 드러남)" },
-  broodling: { id: "broodling", race: "zerg", name: "브루들링", at: "nest", minerals: 100, gas: 100, time: 40, note: "퀸이 지상 생체 유닛을 즉사시키고 브루들링 2기를 낳음" },
+  broodling: { id: "broodling", race: "zerg", name: "브루들링", at: "nest", minerals: 100, gas: 100, time: 40, note: "퀸이 지상 유닛(시즈 탱크·하이템플러 포함, 일꾼·리버·아콘 제외)을 즉사시키고 브루들링 2기를 낳음" },
   plague: { id: "plague", race: "zerg", name: "플레이그", at: "mound", minerals: 200, gas: 200, time: 50, note: "디파일러가 뭉친 적에게 20초 동안 초당 15 피해(체력 1까지)" },
   pneumatized: { id: "pneumatized", race: "zerg", name: "기낭 갑피", at: "hatchery", minerals: 150, gas: 150, time: 40, requires: ["lair"], note: "오버로드 이동 속도 +50%(드랍·동행 모두)" },
   chitin: { id: "chitin", race: "zerg", name: "키틴질 강화", at: "cavern", minerals: 150, gas: 150, time: 45, note: "울트라리스크 방어력 +2" },
