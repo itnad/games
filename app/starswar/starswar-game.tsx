@@ -992,6 +992,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           {renderer === "failed" ? <button type="button" className="stw-map-retry" onClick={() => { setRenderer("loading"); setRendererAttempt((value) => value + 1); }}>지도 다시 불러오기</button> : null}
           {mapAlert ? <p key={mapAlert.id} className="stw-map-alert" role="alert">{mapAlert.text}</p> : null}
           {game.finalBattle && !finished ? <p className="stw-final-banner" role="status">최종 결전 · 전원 출격 · 지휘 불가</p> : null}
+          {game.lab && !game.finalBattle && !finished && !paused ? <button type="button" className="stw-lab-final" onClick={() => issue({ type: "finalBattle" })}>최종 결전</button> : null}
           {toast ? <p key={toast.id} className={`stw-toast tone-${toast.tone}`} role="status">{toast.text}</p> : null}
           {paused && !finished && !confirmExit ? (
             <div className="stw-overlay">

@@ -1057,6 +1057,13 @@ function runCommand(state, side, command) {
       if (side === "player") pushLog(state, side, `${types.map((type) => STW_UNITS[type].name).join("·")} 부대가 본대로 돌아갑니다.`, "order");
       return { ok: true };
     }
+    case "finalBattle": {
+      // 실험실 전용: 자원이 바닥나기를 기다리지 않고 최종 결전을 바로 연다(결전·무승부 처리를 시험한다).
+      if (!state.lab) return fail("실험실 경기에서만 쓸 수 있습니다");
+      if (!STW_SIDES.some((each) => hasAttackers(state, each))) return fail("공격할 수 있는 병력이 없습니다");
+      startFinalBattle(state, { forced: true });
+      return { ok: true };
+    }
     case "guardRelease": {
       // 경비를 풀어 본대로 되돌린다(post가 없으면 모든 경비).
       record.squads ??= {};
@@ -4578,9 +4585,13 @@ function cannotProduce(state, side) {
   return state.sides[side].minerals < 50 && idleEconomy(state, side);
 }
 
-/** 양쪽 광물 수입과 생산이 멈춘 채 싸움이 없으면 이만큼(초) 뒤 최종 결전(결전 중이면 무승부), 그 전에 알리는 때. */
-const FINAL_BATTLE_QUIET = 90;
-const FINAL_BATTLE_WARN = 30;
+/**
+ * 양쪽 광물 수입과 생산이 멈춘 채 싸움이 없으면 FINAL_BATTLE_QUIET초 뒤 최종 결전, 그 전(FINAL_BATTLE_WARN초째)에 알린다.
+ * 결전 중(또는 공격할 병력이 아예 없을 때)의 무승부는 FINAL_DRAW_QUIET초를 기다린다: 느린 유닛이 적진까지 걸어갈 시간이 있어야 한다.
+ */
+const FINAL_BATTLE_QUIET = 30;
+const FINAL_BATTLE_WARN = 5;
+const FINAL_DRAW_QUIET = 90;
 
 /** 양쪽 모두 수입·공격할 수 있는 병력·생산이 없어 더 이상 승부가 날 수 없는 상태인지. 오버로드·수송선·메딕처럼 공격하지 못하는 유닛은 세지 않는다. */
 function exhausted(state, side) {
@@ -4594,18 +4605,18 @@ function checkVictory(state) {
   if (playerMain && enemyMain) {
     // 양쪽 다 자원이 바닥나고 병력도 없으면 30초 뒤 무승부로 끝낸다.
     state.stalemate = exhausted(state, "player") && exhausted(state, "enemy") ? (state.stalemate ?? 0) + STW_TICK : 0;
-    // 양쪽 다 광물 수입도 생산도 멈춘 채 90초 동안 아무것도 맞지 않았으면: 공격할 수 있는 병력이 남아 있으면 최종 결전,
-    // 결전 중에 또 90초 동안 아무것도 맞지 않으면 무승부(병력이 남아도 서로 닿지 않으면 끝나지 않던 문제).
-    // 남은 광물이 있어도 열린다. 더 만들 사람은 그 90초 안에 만들면 되고(만드는 동안은 세지 않는다), 30초째에 미리 알린다.
+    // 양쪽 다 광물 수입도 생산도 멈춘 채 30초 동안 아무것도 맞지 않았으면: 공격할 수 있는 병력이 남아 있으면 최종 결전,
+    // 결전 중에 90초 동안 아무것도 맞지 않으면 무승부(병력이 남아도 서로 닿지 않으면 끝나지 않던 문제).
+    // 남은 광물이 있어도 열린다. 더 만들 사람은 그 30초 안에 만들면 되고(만드는 동안은 세지 않는다), 5초째에 미리 알린다.
     const idle = idleEconomy(state, "player") && idleEconomy(state, "enemy");
     if (!idle) state.idleSince = state.time;
     const quiet = state.time - Math.max(state.idleSince ?? 0, state.lastDamageAt ?? 0);
-    const stuck = idle && quiet >= FINAL_BATTLE_QUIET;
+    const stuck = idle && quiet >= FINAL_DRAW_QUIET;
     const attackers = STW_SIDES.some((side) => hasAttackers(state, side));
-    if (idle && !stuck && !state.finalBattle && attackers && quiet >= FINAL_BATTLE_WARN) {
-      alertOnce(state, "finalBattleSoon", FINAL_BATTLE_QUIET, "player", `양쪽 광물이 바닥났습니다. ${FINAL_BATTLE_QUIET - FINAL_BATTLE_WARN}초 동안 싸움도 생산도 없으면 최종 결전이 열립니다(남은 병력이 모두 출격하고 지휘할 수 없습니다).`, "warn");
+    if (idle && !state.finalBattle && attackers && quiet >= FINAL_BATTLE_WARN && quiet < FINAL_BATTLE_QUIET) {
+      alertOnce(state, "finalBattleSoon", FINAL_DRAW_QUIET, "player", `양쪽 광물이 바닥났습니다. ${FINAL_BATTLE_QUIET - FINAL_BATTLE_WARN}초 동안 싸움도 생산도 없으면 최종 결전이 열립니다(남은 병력이 모두 출격하고 지휘할 수 없습니다).`, "warn");
     }
-    if (stuck && !state.finalBattle && attackers) {
+    if (idle && quiet >= FINAL_BATTLE_QUIET && !state.finalBattle && attackers) {
       startFinalBattle(state);
       return;
     }
@@ -4628,15 +4639,16 @@ function hasAttackers(state, side) {
 }
 
 /**
- * 최종 결전: 양쪽 다 자원이 바닥나 더 만들 수 없고 90초 동안 싸움이 없으면, 남은 병력이 모두 적진으로 나가 끝까지 싸운다.
+ * 최종 결전: 양쪽 다 광물 수입도 생산도 멈추고 30초 동안 싸움이 없으면, 남은 병력이 모두 적진으로 나가 끝까지 싸운다.
+ * 실험실 경기에서는 "finalBattle" 명령으로 기다리지 않고 바로 열 수 있다(forced).
  * 이때부터 사람도 AI도 지휘하지 않는다. 본진이 무너지면 승패가 나고, 다시 90초 동안 아무것도 맞지 않으면 무승부다.
  */
-function startFinalBattle(state) {
+function startFinalBattle(state, { forced = false } = {}) {
   state.finalBattle = { at: state.time };
   state.lastDamageAt = state.time;
   for (const side of STW_SIDES) state.sides[side].squads = {};
   keepFinalBattle(state);
-  pushLog(state, "player", "자원이 모두 바닥났습니다. 최종 결전! 남은 병력이 모두 적진으로 나갑니다(지휘할 수 없습니다).", "danger");
+  pushLog(state, "player", `${forced ? "실험실: 최종 결전을 바로 엽니다." : "자원이 모두 바닥났습니다. 최종 결전!"} 남은 병력이 모두 적진으로 나갑니다(지휘할 수 없습니다).`, "danger");
 }
 
 /** 최종 결전 중: 대기·부대·침투 중인 병력(일꾼·수송선 제외)을 모두 공격 병력으로 둔다. 수송선에 탄 병력은 내리면 합류한다. */

@@ -1752,7 +1752,7 @@ test("starswar warns about depleting minerals and ends an exhausted game as a dr
   stwSpawnUnitAt(alive, "player", "zealot", 20, 80);
   run(alive, 31);
   assert.equal(alive.status, "playing");
-  // 양쪽 다 더 만들 수 없고 90초 동안 아무것도 맞지 않으면 최종 결전: 남은 병력이 모두 적진으로 가고 지휘할 수 없다.
+  // 양쪽 다 더 만들 수 없고 30초 동안 아무것도 맞지 않으면 최종 결전: 남은 병력이 모두 적진으로 가고 지휘할 수 없다.
   // (후반 리포트: 남은 병력이 서로 닿지 않아 30분 가까이 끝나지 않았다.)
   run(alive, 60);
   assert.ok(alive.finalBattle, "최종 결전 시작");
@@ -2401,15 +2401,15 @@ test("starswar final battle opens with minerals left once both incomes and produ
   assert.equal(state.sides.player.probes, 20);
   assert.equal(stwIncome(state, "player").minerals, 0);
   assert.equal(stwIncome(state, "enemy").minerals, 0);
-  const warned = (game) => game.log.some((entry) => /60초 동안 싸움도 생산도 없으면 최종 결전이 열립니다/.test(entry.text));
-  run(state, 29);
+  const warned = (game) => game.log.some((entry) => /25초 동안 싸움도 생산도 없으면 최종 결전이 열립니다/.test(entry.text));
+  run(state, 4);
   assert.equal(warned(state), false);
   run(state, 2);
-  assert.equal(warned(state), true, "30초에 예고");
-  run(state, 58);
-  assert.equal(state.finalBattle, undefined, "89초까지는 열리지 않음");
+  assert.equal(warned(state), true, "5초에 예고");
+  run(state, 23);
+  assert.equal(state.finalBattle, undefined, "29초까지는 열리지 않음");
   run(state, 2);
-  assert.ok(state.finalBattle, "광물이 3,000씩 남아 있어도 90초에 최종 결전");
+  assert.ok(state.finalBattle, "광물이 3,000씩 남아 있어도 30초에 최종 결전");
   assert.ok(state.units.filter((unit) => unit.type === "lurker" || unit.type === "scout").every((unit) => unit.group === "attack"));
   run(state, 300);
   assert.equal(state.status, "over", "결전으로 승부가 나거나 무승부로 끝난다");
@@ -2417,10 +2417,22 @@ test("starswar final battle opens with minerals left once both incomes and produ
   // 남은 광물로 무언가 만드는 동안은 세지 않는다: 드론 하나(12초)를 뽑으면 그만큼 늦게 열린다.
   const busy = setup();
   assert.equal(stwCommand(busy, "player", { type: "probe" }).ok, true);
-  run(busy, 95);
-  assert.equal(busy.finalBattle, undefined, "생산이 끝난 뒤로 90초를 다시 센다");
+  run(busy, 35);
+  assert.equal(busy.finalBattle, undefined, "생산이 끝난 뒤로 30초를 다시 센다");
   run(busy, 12);
   assert.ok(busy.finalBattle);
+
+  // 실험실의 "최종 결전" 버튼: 기다리지 않고 바로 연다. 실험실 경기가 아니면 쓸 수 없다.
+  const forced = setup();
+  run(forced, 1);
+  assert.equal(stwCommand(forced, "player", { type: "finalBattle" }).ok, true);
+  assert.ok(forced.finalBattle);
+  assert.ok(forced.log.some((entry) => /실험실: 최종 결전을 바로 엽니다/.test(entry.text)));
+  assert.match(stwCommand(forced, "player", { type: "finalBattle" }).reason, /최종 결전 중에는 지휘할 수 없습니다/);
+  const real = quiet();
+  stwSpawnUnitAt(real, "player", "zealot", 20, 80);
+  assert.match(stwCommand(real, "player", { type: "finalBattle" }).reason, /실험실 경기에서만/);
+  assert.equal(real.finalBattle, undefined);
 });
 
 test("starswar every unit in the data can be produced or summoned and has a drawing slot", async () => {

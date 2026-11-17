@@ -265,7 +265,9 @@ export type StwCommand =
   | { type: "infiltrate"; units: string[]; base: "main" | "natural" }
   | { type: "squadMove"; units: string[]; y: number; count?: number; guard?: boolean; post?: "home" }
   | { type: "squadRelease"; units?: string[] }
-  | { type: "guardRelease"; post?: string };
+  | { type: "guardRelease"; post?: string }
+  /** 실험실 전용: 최종 결전을 바로 연다. */
+  | { type: "finalBattle" };
 
 export type StwView = { width: number; height: number; scale: number; zoom: number; cx: number; cy: number; ox: number; oy: number };
 export type StwUi = { clock: number; timeScale: number; rally: StwRallyId | number; selected?: string[] };
