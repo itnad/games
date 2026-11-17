@@ -357,6 +357,7 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(tools, /붙여 넣은 저장값 복원/);
   assert.match(tools, /seed: 20261102 \+ preset\.stage \* 101/);
   assert.match(tools, /AI 감독모드 · 1단계부터/);
+  assert.match(tools, /감독모드 관전 시작/);
   assert.match(tools, /supervisor: Boolean\(preset\.supervisor\)/);
   assert.match(tools, /if \(!preset\.supervisor\) \{[\s\S]*?window\.localStorage\.removeItem\(MUDFLAT_ACTIVE_RUN_KEY\);[\s\S]*?\}/);
   assert.match(tools, /window\.location\.assign\("\/haeru"\)/);
@@ -366,15 +367,12 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(game, /decideMudflatSupervisorMove/);
   assert.match(game, /maintainMudflatSupervisorCampaign/);
   assert.match(game, /SUPERVISOR PAUSED/);
-  assert.match(game, /const beginSupervisor = \(\) =>/);
-  assert.match(game, /aria-label="AI 감독모드"/);
-  assert.match(game, /감독모드 관전/);
-  assert.match(game, /onClick=\{beginSupervisor\}/);
+  assert.doesNotMatch(game, /ms-supervisor-entry/);
+  assert.doesNotMatch(game, /const beginSupervisor = \(\) =>/);
   assert.match(supervisor, /baseCampGuideShown/);
   assert.match(supervisor, /fallingRocks/);
   assert.match(supervisor, /while \(upgradesBought < 2\)/);
   assert.match(styles, /\.ms-supervisor-status/);
-  assert.match(styles, /\.ms-supervisor-entry/);
   assert.match(styles, /\.mudflat-dev-shell/);
 });
 
