@@ -154,16 +154,16 @@ export const LAB_PRESETS: LabPreset[] = [
     },
   },
   {
-    id: "cannon-wall",
-    name: "질럿 러시 대 캐논 수비",
-    note: "5분, 질럿 16을 들고 캐논 4·게이트웨이 3 기지에 들어간다. 적 AI는 드라군 운영",
+    id: "zealot-dragoon",
+    name: "질럿 20 대 드라군 20",
+    note: "10분, 질럿 20과 드라군 20이 가운데에서 맞붙는다. 연구 없이 시작하니 발업·사거리 업을 켜며 비교",
     config: {
-      time: 300,
-      placement: "home",
+      time: 600,
+      placement: "clash",
       races: { player: "protoss", enemy: "protoss" },
       sides: {
-        player: { ...emptySide("manual"), natural: false, units: { zealot: 16 }, buildings: { gateway: 4 } },
-        enemy: { ...emptySide("ai"), persona: "dragoon", natural: false, units: { zealot: 4, dragoon: 4 }, buildings: { cannon: 4, gateway: 3 } },
+        player: { ...emptySide("manual"), units: { zealot: 20 } },
+        enemy: { ...emptySide("fight"), units: { dragoon: 20 } },
       },
     },
   },
