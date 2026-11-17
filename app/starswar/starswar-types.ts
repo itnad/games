@@ -228,6 +228,8 @@ export type StwState = {
   stalemate?: number;
   /** 마지막으로 무엇이든 피해를 입은 시각(자원이 바닥난 뒤 싸움이 멈췄는지 판단). */
   lastDamageAt?: number;
+  /** 마지막으로 어느 한쪽이라도 광물 수입이 있거나 무언가 만들던 시각(양쪽 다 멈춘 뒤로 얼마나 지났는지 잰다). */
+  idleSince?: number;
   /** 최종 결전(자원이 바닥나고 90초 동안 싸움이 없을 때 남은 병력이 모두 적진으로 감, 지휘 불가)이 시작된 때. */
   finalBattle?: { at: number };
   effects: StwEffect[];

@@ -2390,6 +2390,39 @@ const research = (state, side, ...ids) => {
   for (const id of ids) state.sides[side].research[id] = "done";
 };
 
+test("starswar final battle opens with minerals left once both incomes and production stop; the lab can start with depleted minerals", () => {
+  // 서로 공격하지 않고 럴커만·스카웃만 모으면 인구가 차서 광물이 남는다. 예전에는 가진 광물이 50 이상이면 최종 결전이 열리지 않아 끝나지 않았다.
+  const setup = () => stwCreateScenario({ seed: 1, time: 1200, placement: "home", races: { player: "zerg", enemy: "protoss" }, sides: {
+    player: { depleted: true, minerals: 3000, gas: 3000, units: { lurker: 6 } },
+    enemy: { depleted: true, minerals: 3000, gas: 3000, units: { scout: 4 } },
+  } });
+  const state = setup();
+  // 실험실의 광물 고갈: 일꾼이 있어도 광물 수입이 0이다.
+  assert.equal(state.sides.player.probes, 20);
+  assert.equal(stwIncome(state, "player").minerals, 0);
+  assert.equal(stwIncome(state, "enemy").minerals, 0);
+  const warned = (game) => game.log.some((entry) => /60초 동안 싸움도 생산도 없으면 최종 결전이 열립니다/.test(entry.text));
+  run(state, 29);
+  assert.equal(warned(state), false);
+  run(state, 2);
+  assert.equal(warned(state), true, "30초에 예고");
+  run(state, 58);
+  assert.equal(state.finalBattle, undefined, "89초까지는 열리지 않음");
+  run(state, 2);
+  assert.ok(state.finalBattle, "광물이 3,000씩 남아 있어도 90초에 최종 결전");
+  assert.ok(state.units.filter((unit) => unit.type === "lurker" || unit.type === "scout").every((unit) => unit.group === "attack"));
+  run(state, 300);
+  assert.equal(state.status, "over", "결전으로 승부가 나거나 무승부로 끝난다");
+
+  // 남은 광물로 무언가 만드는 동안은 세지 않는다: 드론 하나(12초)를 뽑으면 그만큼 늦게 열린다.
+  const busy = setup();
+  assert.equal(stwCommand(busy, "player", { type: "probe" }).ok, true);
+  run(busy, 95);
+  assert.equal(busy.finalBattle, undefined, "생산이 끝난 뒤로 90초를 다시 센다");
+  run(busy, 12);
+  assert.ok(busy.finalBattle);
+});
+
 test("starswar every unit in the data can be produced or summoned and has a drawing slot", async () => {
   const { STW_UNITS, STW_PRODUCER_UNITS, STW_ARMY_UNITS } = await import("../app/starswar/starswar-data.js");
   const producible = new Set(Object.values(STW_PRODUCER_UNITS).flat());

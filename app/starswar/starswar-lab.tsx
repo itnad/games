@@ -16,6 +16,8 @@ export type LabSide = {
   minerals: number;
   gas: number;
   natural: boolean;
+  /** 본진·앞마당 광물이 다 떨어진 상태(광물 수입 0). 자원이 바닥난 뒤의 최종 결전을 시험한다. */
+  depleted: boolean;
   /** 마법 유닛 에너지: 가득(기본) 또는 갓 나온 유닛(시작 에너지 50). */
   energy: "full" | "fresh";
   buildings: Record<string, number>;
@@ -85,7 +87,7 @@ function racePersonas(race: StwRaceId) {
 }
 
 function emptySide(control: LabControl): LabSide {
-  return { control, persona: null, workers: 20, minerals: 500, gas: 300, natural: true, energy: "full", buildings: {}, units: {}, research: [] };
+  return { control, persona: null, workers: 20, minerals: 500, gas: 300, natural: true, depleted: false, energy: "full", buildings: {}, units: {}, research: [] };
 }
 
 /** 옛 설정이나 손상된 설정을 지금 모양으로 맞춘다. */
@@ -96,7 +98,7 @@ export function normalizeLab(raw: unknown): LabConfig | null {
     const given = value.sides![key] as Partial<LabSide>;
     const fallback: LabControl = key === "player" ? "manual" : value.enemyAi === "full" ? "ai" : "fight";
     const control = given.control === "ai" ? "ai" : key === "player" ? "manual" : given.control === "fight" ? "fight" : fallback;
-    return { ...emptySide(control), ...given, control, energy: given.energy === "fresh" ? "fresh" : "full", buildings: given.buildings ?? {}, units: given.units ?? {}, research: given.research ?? [], persona: given.persona ?? null };
+    return { ...emptySide(control), ...given, control, depleted: given.depleted === true, energy: given.energy === "fresh" ? "fresh" : "full", buildings: given.buildings ?? {}, units: given.units ?? {}, research: given.research ?? [], persona: given.persona ?? null };
   };
   const race = (id: unknown): StwRaceId => (RACE_IDS.includes(id as StwRaceId) ? (id as StwRaceId) : "protoss");
   return {
@@ -176,6 +178,20 @@ export const LAB_PRESETS: LabPreset[] = [
       sides: {
         player: { ...emptySide("ai"), persona: "carrier", units: { dragoon: 8, zealot: 6 }, buildings: { gateway: 3, stargate: 2, beacon: 1 } },
         enemy: { ...emptySide("ai"), persona: "hive", units: { hydra: 20 }, buildings: { hatch: 3, nest: 1, sunken: 2 } },
+      },
+    },
+  },
+  {
+    id: "depleted-lurker-scout",
+    name: "자원 고갈: 럴커 대 스카웃",
+    note: "20분, 양쪽 광물 고갈(광물 3,000씩 남음) · 럴커 35와 스카웃 22가 각자 기지에서 대기. 싸움도 생산도 없으면 30초에 예고, 90초에 최종 결전",
+    config: {
+      time: 1200,
+      placement: "home",
+      races: { player: "zerg", enemy: "protoss" },
+      sides: {
+        player: { ...emptySide("manual"), depleted: true, minerals: 3000, gas: 3000, units: { lurker: 35 } },
+        enemy: { ...emptySide("fight"), depleted: true, minerals: 3000, gas: 3000, units: { scout: 22 } },
       },
     },
   },
@@ -279,7 +295,9 @@ function SideEditor({ title, which, race, side, onRace, onChange }: { title: str
         <label>광물<input type="number" min={0} step={100} value={side.minerals} onChange={(event) => onChange({ ...side, minerals: Math.max(0, Number(event.target.value) || 0) })} /></label>
         <label>가스<input type="number" min={0} step={100} value={side.gas} onChange={(event) => onChange({ ...side, gas: Math.max(0, Number(event.target.value) || 0) })} /></label>
         <label className="check"><input type="checkbox" checked={side.natural} onChange={(event) => onChange({ ...side, natural: event.target.checked })} />앞마당</label>
+        <label className="check wide"><input type="checkbox" checked={side.depleted} onChange={(event) => onChange({ ...side, depleted: event.target.checked })} />광물 고갈<small>본진·앞마당 광물이 다 떨어져 광물 수입 0</small></label>
       </div>
+      {side.depleted ? <p className="stw-hint">양쪽 모두 광물 고갈이고 싸움도 생산도 없으면 30초에 예고가 뜨고 90초에 최종 결전이 열립니다(남은 광물이 있어도).</p> : null}
       <details className="stw-lab-group">
         <summary>건물 <small>{pickedBuildings ? `${pickedBuildings}종 지정` : "필요한 것만 자동"}</small></summary>
         <p className="stw-hint">지정한 수만큼 짓습니다(이미 있는 것 포함). 유닛·연구에 필요한 건물은 지정하지 않아도 자동으로 갖춥니다. 자리가 모자라면 시작할 때 알려 줍니다.</p>

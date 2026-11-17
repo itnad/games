@@ -314,6 +314,8 @@
 .stw-lab-economy { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
 .stw-lab-economy label { display:grid; gap:2px; color:var(--stw-muted); font-size:12px; }
 .stw-lab-economy label.check { grid-template-columns:auto 1fr; align-items:center; gap:6px; align-self:end; min-height:38px; color:var(--stw-text); font-size:14px; }
+.stw-lab-economy label.check.wide { grid-column:1 / -1; grid-template-columns:auto auto 1fr; }
+.stw-lab-economy label.check.wide small { color:var(--stw-muted); font-size:12px; }
 .stw-lab input[type="number"] { width:100%; min-height:38px; padding:0 8px; border:1px solid var(--stw-line); border-radius:10px; color:var(--stw-text); background:#0000002e; font:inherit; font-variant-numeric:tabular-nums; }
 .stw-lab-units { margin:0; padding:0; list-style:none; display:grid; gap:4px; }
 .stw-lab-units li { display:grid; grid-template-columns:minmax(0,1fr) 34px 62px 34px; gap:4px; align-items:center; padding:4px 6px; border-radius:10px; }

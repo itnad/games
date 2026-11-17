@@ -1569,6 +1569,7 @@ function labFormation(state, side, units, frontY, group) {
  * - control: 아군은 "manual"(직접 지휘) 또는 "ai", 적은 "fight"(운영하지 않고 주어진 병력으로만 싸움) 또는 "ai"
  * - persona: AI 운영일 때의 전략(그 종족의 성향 id). 없으면 무작위
  * - buildings {건물: 수}, units {유닛: 수}, research [연구 id], workers, minerals, gas, natural(앞마당 있음)
+ * - depleted: 본진·앞마당 광물이 다 떨어진 상태로 시작(광물 수입 0)
  * - energy: 마법 유닛의 에너지. "full"(기본, 최대치) 또는 "fresh"(갓 나온 유닛의 시작 에너지)
  * placement: "clash"(두 병력이 맵 가운데에서 마주 보고 공격 병력으로 시작) 또는 "home"(각자 집결지에서 대기).
  * 옛 설정의 enemyAi("fight" | "full")도 받는다.
@@ -1632,6 +1633,8 @@ export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, r
       building.shields = building.maxShields;
     }
     record.probes = Math.max(0, Math.round(plan.workers ?? 20));
+    // 광물 고갈: 본진·앞마당 광물이 다 떨어진 후반 상황(일꾼이 있어도 광물 수입이 0). 자원이 바닥난 뒤의 최종 결전·무승부를 시험한다.
+    if (plan.depleted) for (const base of Object.values(record.bases)) base.minerals = 0;
     record.minerals = Math.max(0, plan.minerals ?? 500);
     record.gas = Math.max(0, plan.gas ?? 300);
     const army = types.flatMap(([type, count]) => Array(Math.round(count)).fill(type));
@@ -1655,6 +1658,8 @@ export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, r
   state.history = [];
   state.chronicle = [];
   state.replay = { scenario: JSON.parse(JSON.stringify({ difficulty, seed, time, races, placement, enemyAi, sides, ...(state.map !== "plain" ? { map: state.map } : {}) })), commands: [] };
+  // 싸움이 없던 시간은 실험을 시작한 때부터 센다(늦은 시각으로 세워도 최종 결전이 곧바로 열리지 않게).
+  state.lastDamageAt = state.time;
   recordHistory(state);
   const enemyName = STW_RACES[state.sides.enemy.race].name;
   pushLog(state, "player", `실험실: ${stwClock(state.time)} 상황, ${enemyName} 상대로 시작합니다.`, "info");
@@ -4559,12 +4564,23 @@ function autoWaves(state) {
   }
 }
 
-/** 광물 수입이 없고 남은 광물로 아무것도 만들 수 없으며 만드는 중인 것도 없는지(모든 유닛에 광물이 든다. 가스만 남아도 못 만든다). */
-function cannotProduce(state, side) {
-  const record = state.sides[side];
-  if (stwIncome(state, side).minerals > 0 || record.minerals >= 50) return false;
+/**
+ * 광물 수입이 없고 만드는 중인 것도 없는지. 남은 광물은 따지지 않는다: 인구가 차서 광물이 쌓여 있거나, 고집하는 유닛 한 기 값에
+ * 모자란 광물(럴커 125·스카웃 275)이 남아 있으면 예전 조건(광물 50 미만)에 걸리지 않아 서로 공격하지 않는 경기가 끝나지 않았다.
+ */
+function idleEconomy(state, side) {
+  if (stwIncome(state, side).minerals > 0) return false;
   return !state.buildings.some((building) => building.side === side && (building.current || building.queue.length));
 }
+
+/** 광물 수입이 없고 남은 광물로 아무것도 만들 수 없으며 만드는 중인 것도 없는지(모든 유닛에 광물이 든다. 가스만 남아도 못 만든다). */
+function cannotProduce(state, side) {
+  return state.sides[side].minerals < 50 && idleEconomy(state, side);
+}
+
+/** 양쪽 광물 수입과 생산이 멈춘 채 싸움이 없으면 이만큼(초) 뒤 최종 결전(결전 중이면 무승부), 그 전에 알리는 때. */
+const FINAL_BATTLE_QUIET = 90;
+const FINAL_BATTLE_WARN = 30;
 
 /** 양쪽 모두 수입·공격할 수 있는 병력·생산이 없어 더 이상 승부가 날 수 없는 상태인지. 오버로드·수송선·메딕처럼 공격하지 못하는 유닛은 세지 않는다. */
 function exhausted(state, side) {
@@ -4578,10 +4594,18 @@ function checkVictory(state) {
   if (playerMain && enemyMain) {
     // 양쪽 다 자원이 바닥나고 병력도 없으면 30초 뒤 무승부로 끝낸다.
     state.stalemate = exhausted(state, "player") && exhausted(state, "enemy") ? (state.stalemate ?? 0) + STW_TICK : 0;
-    // 양쪽 다 더 만들 수 없는데 90초 동안 아무것도 맞지 않았으면: 공격할 수 있는 병력이 남아 있으면 최종 결전,
+    // 양쪽 다 광물 수입도 생산도 멈춘 채 90초 동안 아무것도 맞지 않았으면: 공격할 수 있는 병력이 남아 있으면 최종 결전,
     // 결전 중에 또 90초 동안 아무것도 맞지 않으면 무승부(병력이 남아도 서로 닿지 않으면 끝나지 않던 문제).
-    const stuck = cannotProduce(state, "player") && cannotProduce(state, "enemy") && state.time - (state.lastDamageAt ?? 0) >= 90;
-    if (stuck && !state.finalBattle && STW_SIDES.some((side) => hasAttackers(state, side))) {
+    // 남은 광물이 있어도 열린다. 더 만들 사람은 그 90초 안에 만들면 되고(만드는 동안은 세지 않는다), 30초째에 미리 알린다.
+    const idle = idleEconomy(state, "player") && idleEconomy(state, "enemy");
+    if (!idle) state.idleSince = state.time;
+    const quiet = state.time - Math.max(state.idleSince ?? 0, state.lastDamageAt ?? 0);
+    const stuck = idle && quiet >= FINAL_BATTLE_QUIET;
+    const attackers = STW_SIDES.some((side) => hasAttackers(state, side));
+    if (idle && !stuck && !state.finalBattle && attackers && quiet >= FINAL_BATTLE_WARN) {
+      alertOnce(state, "finalBattleSoon", FINAL_BATTLE_QUIET, "player", `양쪽 광물이 바닥났습니다. ${FINAL_BATTLE_QUIET - FINAL_BATTLE_WARN}초 동안 싸움도 생산도 없으면 최종 결전이 열립니다(남은 병력이 모두 출격하고 지휘할 수 없습니다).`, "warn");
+    }
+    if (stuck && !state.finalBattle && attackers) {
       startFinalBattle(state);
       return;
     }
