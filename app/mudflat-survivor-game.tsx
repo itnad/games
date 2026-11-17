@@ -17,7 +17,7 @@ import { HARVEST_PULSE_SECONDS, drawHarvestPulse, drawSaltSpirit, saltSpiritPose
 import { EXPERIENCE_FLASH_SECONDS, createExperiencePickup, advanceExperiencePickup } from "./mudflat-experience.js";
 import { createMudflatSeed, nextMudflatRandom, normalizeMudflatSeed } from "./mudflat-rng.js";
 import { deepMudPatchesInView, deepMudStrengthAtPoint, randomDeepMudPointNear, traceDeepMudBlobPath, traceMudflatSurfacePatch, worldHash } from "./mudflat-terrain";
-import { MUDFLAT_SUPERVISOR_DECISION_SECONDS, decideMudflatSupervisorMove, maintainMudflatSupervisorCampaign } from "./mudflat-supervisor.js";
+import { MUDFLAT_SUPERVISOR_DECISION_SECONDS, decideMudflatSupervisorMove, maintainMudflatSupervisorCampaign, mudflatSupervisorCanDig } from "./mudflat-supervisor.js";
 import { roundedRect, wrapCanvasText } from "./mudflat-canvas-utils";
 import type { Campaign, CountMap, CreatureMovement, GameMode, Point, Screen, StageProfile } from "./mudflat-survivor-types";
 import {
@@ -1740,7 +1740,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const stageEntryRef = useRef<Campaign | null>(null);
   const dailyChallengeRef = useRef<MudflatDailyStart | null>(null);
   const supervisorRef = useRef(false);
-  const supervisorDecisionRef = useRef({ clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중" });
+  const supervisorDecisionRef = useRef({ clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중", targetKind: "explore" });
   const supervisorLastDamageRef = useRef("피해 누적");
   const supervisorDepartureTimerRef = useRef<number | null>(null);
   const defeatArtPreloadRef = useRef<HTMLImageElement | null>(null);
@@ -1994,7 +1994,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     runtime.firstMoveGuide = launch.tutorial ? createFirstMoveGuide() : null;
     const frame = window.requestAnimationFrame(() => {
       supervisorRef.current = supervisor;
-      supervisorDecisionRef.current = { clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중" };
+      supervisorDecisionRef.current = { clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중", targetKind: "explore" };
       supervisorLastDamageRef.current = "피해 누적";
       setSupervisorActive(supervisor);
       setSupervisorIntent("해산물을 찾는 중");
@@ -2168,7 +2168,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         stageEntryRef.current = createStageEntryCheckpoint(entry);
         const nextRuntime = makeRuntime(entry);
         nextRuntime.firstMoveGuide = null;
-        supervisorDecisionRef.current = { clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중" };
+        supervisorDecisionRef.current = { clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중", targetKind: "explore" };
         supervisorLastDamageRef.current = "피해 누적";
         resetMovementInput(); runtimeRef.current = nextRuntime; snapshot(nextRuntime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
       }, 1400);
@@ -2704,6 +2704,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           decisionState.clock = MUDFLAT_SUPERVISOR_DECISION_SECONDS;
           decisionState.x = decision.x;
           decisionState.y = decision.y;
+          decisionState.targetKind = decision.targetKind;
           if (decision.targetKind !== "seafood-search" && Math.hypot(decision.x, decision.y) > .2) {
             decisionState.lastTravelX = decision.x;
             decisionState.lastTravelY = decision.y;
@@ -3072,9 +3073,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
       let activeClamHole: ClamHole | null = null;
       let activeClamDistance = Infinity;
+      const supervisorCanDig = !supervisorRef.current || mudflatSupervisorCanDig(supervisorDecisionRef.current);
       for (const hole of runtime.clamHoles) {
         const distance = Math.hypot(hole.x - runtime.player.x, hole.y - runtime.player.y);
-        if (!inBaseCamp && distance <= 48 && distance < activeClamDistance) { activeClamHole = hole; activeClamDistance = distance; }
+        if (!inBaseCamp && supervisorCanDig && distance <= 48 && distance < activeClamDistance) { activeClamHole = hole; activeClamDistance = distance; }
       }
       for (const hole of runtime.clamHoles) {
         if (hole !== activeClamHole) hole.progress = 0;

@@ -101,8 +101,26 @@ function hazardPenalty(point, state, target) {
     const highRisk = creature.uncollectible || creature.type === "pufferfish" || creature.boss;
     const clearance = creature.size + (highRisk ? 104 : 25);
     const gap = distance(point, creature) - clearance;
-    if (gap <= 0) penalty += highRisk ? 15500 : (isTarget ? 2200 : 6800);
+    if (gap <= 0) {
+      const overlapDepth = Math.min(clearance, -gap);
+      penalty += (highRisk ? 15500 : (isTarget ? 2200 : 6800)) + overlapDepth * (highRisk ? 240 : 160);
+    }
     else if (highRisk && gap < 90) penalty += (90 - gap) * 6;
+  }
+  return penalty;
+}
+
+function routeHazardPenalty(start, end, state, target) {
+  let penalty = 0;
+  // The supervisor applies one direction for several rendered frames. Sampling
+  // the route prevents a seemingly safe endpoint on the far side of a crab or
+  // rock from authorising a movement that crosses through the obstacle first.
+  for (let index = 1; index <= 6; index += 1) {
+    const progress = index / 6;
+    penalty += hazardPenalty({
+      x: start.x + (end.x - start.x) * progress,
+      y: start.y + (end.y - start.y) * progress,
+    }, state, target);
   }
   return penalty;
 }
@@ -125,11 +143,13 @@ export function decideMudflatSupervisorMove(state) {
     const angle = index / 20 * Math.PI * 2;
     directions.push({ x: Math.cos(angle), y: Math.sin(angle) });
   }
-  // A normal planning step is intentionally small for precise gathering, but
-  // it must clear the full danger radius in one decision when something is
-  // already touching the gatherer. Otherwise "still" can outscore every
-  // candidate that remains inside the same hazard footprint.
-  const step = currentDanger > 1000 ? 164 : 82;
+  // Match the planning distance to roughly one decision interval of actual
+  // movement. A long projected step can land beyond a nearby crab and make a
+  // route through it look safer than backing away.
+  const step = currentDanger > 1000 ? 88 : 36;
+  const currentGoalError = target.kind === "creature"
+    ? Math.abs(targetDistance - target.desiredDistance)
+    : Math.max(0, targetDistance - target.desiredDistance);
   let best = null;
   for (const direction of directions) {
     const candidate = { x: state.player.x + direction.x * step, y: state.player.y + direction.y * step };
@@ -137,14 +157,24 @@ export function decideMudflatSupervisorMove(state) {
     const goalError = target.kind === "creature"
       ? Math.abs(candidateDistance - target.desiredDistance)
       : Math.max(0, candidateDistance - target.desiredDistance);
-    const progressBonus = (targetDistance - candidateDistance) * (target.kind === "camp" ? 7 : 2.4);
+    // Progress means reducing error from the desired distance, not merely
+    // getting closer. This makes a creature inside the safe tool range push
+    // the supervisor away instead of attracting it into contact damage.
+    const progressBonus = (currentGoalError - goalError) * (target.kind === "camp" ? 7 : 2.4);
     const stillPenalty = direction.x === 0 && direction.y === 0 && goalError > 24 ? 90 : 0;
-    const score = -goalError * 1.7 + progressBonus - hazardPenalty(candidate, state, target) - stillPenalty;
+    const score = -goalError * 1.7 + progressBonus
+      - hazardPenalty(candidate, state, target)
+      - routeHazardPenalty(state.player, candidate, state, target)
+      - stillPenalty;
     if (!best || score > best.score) best = { direction, score };
   }
 
   const intent = currentDanger > 1000 ? "위험을 피해 이동 중" : target.intent;
   return { ...(best?.direction ?? { x: 0, y: 0 }), intent, targetKind: target.kind };
+}
+
+export function mudflatSupervisorCanDig(decision) {
+  return decision?.targetKind === "clam" && Math.hypot(decision.x ?? 0, decision.y ?? 0) <= .05;
 }
 
 export function maintainMudflatSupervisorCampaign(campaign) {
