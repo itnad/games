@@ -2519,6 +2519,67 @@ test("starswar vessels matrix allies, EMP shields and irradiate clumps; yamato h
   assert.ok(carrier.hp + carrier.shields <= 450 - 200, `야마토 포 ${carrier.hp + carrier.shields}`);
 });
 
+test("starswar detectors: observers avoid enemy anti-air defenses, go to allies hit by hidden enemies, and keep a squad post; vessels watch from above the army", () => {
+  const lab = (races, mine, mineResearch, foe, foeResearch, foeBuildings = {}, energy = "full") => {
+    const state = stwCreateScenario({ seed: 1, time: 900, placement: "home", races, sides: {
+      player: { units: mine, research: mineResearch, energy, natural: true },
+      enemy: { units: foe, research: foeResearch, buildings: foeBuildings, natural: true },
+    } });
+    run(state, 2);
+    stwCommand(state, "player", { type: "attack" });
+    return state;
+  };
+  const armed = (state, side) => state.units.filter((unit) => unit.side === side && unit.hp > 0 && STW_UNITS[unit.type].damage && !STW_UNITS[unit.type].worker);
+  const fight = (state) => {
+    for (let tick = 0; tick < 2400 && state.status === "playing" && armed(state, "player").length && armed(state, "enemy").length; tick += 1) stepStarswar(state);
+  };
+
+  // 옵저버: 스포어 콜로니(탐지 + 대공) 구역으로 들어가지 않아 살아남고, 그 덕에 럴커를 드러내 이긴다.
+  // 예전에는 선두를 따라 스포어 앞까지 들어가 16초에 죽고, 그 뒤 럴커를 하나도 못 봐 전멸했다.
+  const spores = lab({ player: "protoss", enemy: "zerg" }, { dragoon: 14, zealot: 6, observer: 1 }, ["range", "charge"], { lurker: 6, hydra: 8 }, ["spines"], { spore: 3 });
+  const observer = spores.units.find((unit) => unit.type === "observer");
+  fight(spores);
+  assert.ok(observer.hp > 0, "옵저버가 스포어에 죽지 않음");
+  assert.equal(armed(spores, "enemy").length, 0, "럴커·히드라를 모두 잡음");
+
+  // 숨은 적에게 맞는 아군에게 간다: 선두는 멀리 앞에 있고, 뒤에 남은 드라군을 다크템플러가 친다.
+  const ambush = createStarswarGame({ seed: 5, aiSides: [], races: { player: "protoss", enemy: "protoss" } });
+  const lead = stwSpawnUnitAt(ambush, "player", "zealot", 20, 40, "attack");
+  lead.stunUntil = 999;
+  const victim = stwSpawnUnitAt(ambush, "player", "dragoon", 20, 64, "attack");
+  victim.stunUntil = 999;
+  const watcher = stwSpawnUnitAt(ambush, "player", "observer", 20, 44, "attack");
+  const dark = stwSpawnUnitAt(ambush, "enemy", "dark", 20, 66, "attack");
+  assert.equal(stwDetected(ambush, dark, "player"), false, "처음에는 옵저버가 선두 곁이라 다크템플러가 안 보임");
+  let revealed = false;
+  for (let tick = 0; tick < 90 && !revealed; tick += 1) {
+    stepStarswar(ambush);
+    revealed = dark.hp > 0 && stwDetected(ambush, dark, "player");
+  }
+  assert.equal(revealed, true, `옵저버가 맞는 아군 쪽으로 와서 다크템플러를 드러냄(옵저버 y ${watcher.y.toFixed(1)}, 다크 y ${dark.y.toFixed(1)})`);
+
+  // 따로 둔 부대의 옵저버는 공격 병력이 나가도 세워 둔 자리를 지킨다.
+  const post = createStarswarGame({ seed: 5, aiSides: [], races: { player: "protoss", enemy: "terran" } });
+  const sentry = stwSpawnUnitAt(post, "player", "observer", 20, 70, "rally");
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(post, "player", "zealot", 14 + index * 4, 76, "rally");
+  assert.ok(stwIssue(post, "player", { type: "squadMove", units: ["observer"], y: 60 }).ok);
+  run(post, 6);
+  stwIssue(post, "player", { type: "attack", keepSquads: true });
+  run(post, 8);
+  assert.ok(Math.abs(sentry.y - 60) < 3, `옵저버 y ${sentry.y.toFixed(1)}`);
+
+  // 사이언스 베슬: 에너지가 없어도 병력 맨 뒤가 아니라 병력 위에서 탐지해, 해병·탱크가 숨은 럴커를 잡고 이긴다.
+  // 예전에는 선두에서 7~9칸 뒤에 떠 있어 럴커를 못 보고 전멸했다.
+  const vessels = lab({ player: "terran", enemy: "zerg" }, { marine: 20, medic: 5, tank: 4, vessel: 1 }, ["stim", "u238", "siege"], { lurker: 6, hydra: 8 }, ["spines"], {}, "fresh");
+  const vessel = vessels.units.find((unit) => unit.type === "vessel");
+  run(vessels, 12);
+  const front = Math.min(...armed(vessels, "player").map((unit) => unit.y));
+  assert.ok(vessel.y - front < 5, `베슬이 선두에서 ${(vessel.y - front).toFixed(1)}칸 뒤`);
+  fight(vessels);
+  assert.equal(armed(vessels, "enemy").length, 0, "럴커·히드라를 모두 잡음");
+  assert.ok(vessel.hp > 0);
+});
+
 test("starswar queens keep to spell range and spawn broodlings on tanks and templars, not reavers or workers", () => {
   // 브루들링 대상: 기계(시즈 탱크)·사이오닉(하이템플러)도 잡는다. 리버·일꾼만 있으면 쓰지 않는다.
   const cast = (enemyRace, type) => {

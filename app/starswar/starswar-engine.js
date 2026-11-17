@@ -2173,11 +2173,9 @@ function applyHits(state) {
     }
     for (const amount of hit.hits) applyDamage(state, hit.target, amount);
     hit.target.lastHit = state.time;
-    // 누구에게 맞았는지 기억해 둔다(교전 우선이면 건물을 치던 유닛이 반격한다).
-    if (hit.target.kind === "unit") {
-      hit.target.hitBy = hit.attacker.id;
-      hit.target.hitAt = state.time;
-    }
+    // 누구에게 맞았는지 기억해 둔다(교전 우선이면 건물을 치던 유닛이 반격한다. 건물도 적어 둬, 숨은 적이 건물을 칠 때 탐지 유닛이 찾아간다).
+    hit.target.hitBy = hit.attacker.id;
+    hit.target.hitAt = state.time;
     // 공중 유닛에게 맞았으면 기억해 둔다(AI가 대공을 갖추고, 플레이어에게 알린다).
     if (hit.attacker.kind === "unit" && isFlying(hit.attacker)) {
       state.sides[hit.target.side].sawAirAt = state.time;
@@ -3246,23 +3244,123 @@ function nearestOf(unit, list) {
   return best;
 }
 
-/** 옵저버: 공격 병력이 있으면 그 중심 바로 뒤를, 없으면 집결지를 따라다니며 탐지와 시야를 제공한다. */
-function observerStep(state, unit, plan, dt) {
+/** 탐지 유닛이 숨은 적에게 맞는 아군을 도우러 가는 거리, 숨은 적에게 다가가 멈추는 거리(탐지 반경보다 이만큼 안쪽). */
+const DETECTOR_RESPONSE = 30;
+const DETECTOR_CLOSE = 2.5;
+
+/**
+ * 그 자리에 가면 적 방어 건물(포톤 캐논·미사일 터렛·스포어 콜로니·벙커)의 대공 사격을 받는지.
+ * 은폐 유닛(옵저버)은 그 자리가 적 탐지에 닿을 때만 위험하다.
+ */
+function staticAirThreat(state, unit, spot) {
+  const foe = stwOpponent(unit.side);
+  const probe = { x: spot.x, y: spot.y, radius: unit.radius };
+  if (isCloaked(unit, state) && !detectionCovers(state, foe, probe)) return false;
+  return state.buildings.some((building) => {
+    const def = STW_BUILDINGS[building.type];
+    if (building.side !== foe || !stwDone(building) || !def.damage || (def.targets ?? "ground") === "ground") return false;
+    return distance(building.x, building.y, spot.x, spot.y) - unit.radius <= def.range + 1 || inBaseZone(state, foe, building.base, probe);
+  });
+}
+
+/** 적 대공 유닛의 사거리 밖으로 이만큼 더 떨어져 선다. */
+const DETECTOR_STANDOFF = 2;
+
+/**
+ * 그 자리에 가면 우리가 보고 있는 적 유닛의 대공 사격을 받는지(사거리 + DETECTOR_STANDOFF 안).
+ * 은폐 유닛(옵저버)은 그 자리가 적 탐지에 닿을 때만 위험하다.
+ */
+function mobileAirThreat(state, unit, spot) {
+  const foe = stwOpponent(unit.side);
+  if (isCloaked(unit, state) && !detectionCovers(state, foe, { x: spot.x, y: spot.y, radius: unit.radius })) return false;
+  return state.units.some((enemy) => enemy.side === foe && enemy.hp > 0 && enemy.group !== "cargo" && STW_UNITS[enemy.type].damage && canHit(enemy, unit)
+    && stwDetected(state, enemy, unit.side) && distance(enemy.x, enemy.y, spot.x, spot.y) - unit.radius <= unitRange(state, enemy) + DETECTOR_STANDOFF);
+}
+
+/**
+ * 가려는 자리가 적 대공 방어 건물에 맞는 곳이면, 우리 진영 쪽으로 물려 안전한 가장 가까운 자리를 고른다.
+ * units: 적 대공 유닛(히드라·드라군·해병 등)의 사거리도 피한다. 병력을 따라다닐 때는 피하고, 숨은 적에게 맞는 아군을 도우러 갈 때는 감수한다.
+ */
+function safeAirSpot(state, unit, goal, { units = false } = {}) {
+  const back = -stwForward(unit.side);
+  for (let step = 0; step <= 20; step += 1) {
+    const spot = { x: goal.x, y: goal.y + back * step };
+    if (!staticAirThreat(state, unit, spot) && !(units && mobileAirThreat(state, unit, spot))) return spot;
+  }
+  return goal;
+}
+
+/**
+ * 탐지 유닛(옵저버·동행 오버로드·사이언스 베슬)의 대응: 아군(유닛·건물)이 방금(2초 안) 우리가 탐지하지 못한 숨은 적에게 맞았으면
+ * 그 적이 탐지 반경에 들 때까지 다가간다. 가장 가까운 것부터, DETECTOR_RESPONSE칸 안에서만. 갈 곳이 없으면 null.
+ * 예전에는 옵저버가 공격 병력의 맨 앞 유닛만 따라가, 깊이 들어간 선두 뒤에서 본대가 다크템플러에 썰리는 동안 13~20칸 앞에 떠 있었다.
+ */
+function hiddenAttackerSpot(state, unit) {
+  const radius = STW_UNITS[unit.type].detector ?? 0;
+  if (!radius) return null;
+  let best = null;
+  let bestDistance = DETECTOR_RESPONSE;
+  for (const ally of [...state.units, ...state.buildings]) {
+    if (ally.side !== unit.side || ally.hp <= 0 || ally.hitAt === undefined || state.time - ally.hitAt > 2) continue;
+    const attacker = state.units.find((item) => item.id === ally.hitBy && item.hp > 0);
+    if (!attacker || attacker.side === unit.side || !isCloaked(attacker, state) || stwDetected(state, attacker, unit.side)) continue;
+    const d = distance(unit.x, unit.y, attacker.x, attacker.y);
+    if (d < bestDistance) {
+      best = attacker;
+      bestDistance = d;
+    }
+  }
+  if (!best) return null;
+  const stop = radius - DETECTOR_CLOSE;
+  if (bestDistance <= stop) return { x: unit.x, y: unit.y };
+  const angle = Math.atan2(unit.y - best.y, unit.x - best.x);
+  return safeAirSpot(state, unit, { x: best.x + Math.cos(angle) * stop, y: best.y + Math.sin(angle) * stop });
+}
+
+/**
+ * 탐지 유닛이 공격 병력을 따라다니는 자리. 세로는 선두와 병력 중심 사이(선두 쪽 40%), 가로는 같은 종류 탐지 유닛끼리 병력 폭에 나눠 선다.
+ * 뭉친 병력에서는 선두 2칸쯤 뒤(탐지 반경 9가 선두 앞 7칸까지 닿는다), 앞뒤로 길게 늘어진 병력에서는 가운데로 물러나 본대를 덮는다.
+ * 공격 병력이 없으면 null.
+ */
+function armyWatchSpot(state, unit) {
+  const escort = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && ally.hp > 0 && !isPassive(ally) && STW_UNITS[ally.type].role !== "caster");
+  if (!escort.length) return null;
   const forward = stwForward(unit.side);
-  const escort = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && !isPassive(ally));
-  let goal;
+  const lead = escort.reduce((best, ally) => (forward < 0 ? Math.min(best, ally.y) : Math.max(best, ally.y)), escort[0].y);
+  const centerY = escort.reduce((sum, ally) => sum + ally.y, 0) / escort.length;
+  const minX = Math.min(...escort.map((ally) => ally.x));
+  const maxX = Math.max(...escort.map((ally) => ally.x));
+  const peers = state.units.filter((ally) => ally.side === unit.side && ally.type === unit.type && ally.hp > 0 && ally.squad === undefined && (ally.type !== "overlord" || (state.sides[ally.side].escort && ally.escort)))
+    .sort((a, b) => a.id - b.id);
+  const index = Math.max(0, peers.indexOf(unit));
+  const x = minX + ((index + 0.5) / Math.max(1, peers.length)) * (maxX - minX);
+  // 은폐하지 않는 탐지 유닛(사이언스 베슬·오버로드)은 적 대공 유닛의 사거리 밖에 선다. 탐지 반경(8~9)이 그 사거리(7 이하)보다 길어 적 앞줄은 여전히 덮는다.
+  // 선두 바로 뒤에 세웠더니 숨은 적이 없는 싸움에서도 히드라·드라군에 맞아 베슬 2기가 모두 죽었다.
+  return safeAirSpot(state, unit, { x, y: lead * 0.4 + centerY * 0.6 }, { units: true });
+}
+
+/**
+ * 옵저버·동행 오버로드: 탐지와 시야를 제공한다.
+ * 따로 둔 부대면 그 자리를 지키고, 아니면 숨은 적에게 맞는 아군 쪽으로 → 공격 병력을 따라 → 집결지 순서로 움직인다.
+ * 적 대공 방어 건물이 쏠 수 있는 자리(옵저버는 적 탐지 안일 때만)로는 들어가지 않는다: 예전에는 선두를 따라 스포어·터렛 앞까지 들어가 14~20초에 죽었다.
+ */
+function observerStep(state, unit, plan, dt) {
+  const speed = unitSpeed(state, unit);
+  const slot = plan.rallySlots.get(unit.id);
   if (unit.type === "overlord" && (!state.sides[unit.side].escort || !unit.escort)) {
     // 동행을 끄면 본진 위로 돌아가 기지를 지킨다.
     const home = stwNexus(state, unit.side, "main") ?? stwNexus(state, unit.side, "natural");
-    goal = home ? { x: home.x + 4, y: home.y - stwForward(unit.side) * 2 } : stwPoint(unit.side, { x: 20, y: 90 });
-  } else if (escort.length) {
-    const cx = escort.reduce((sum, ally) => sum + ally.x, 0) / escort.length;
-    const lead = escort.reduce((best, ally) => (forward < 0 ? Math.min(best, ally.y) : Math.max(best, ally.y)), escort[0].y);
-    goal = { x: cx, y: lead - forward * 2 };
-  } else {
-    goal = plan.rallySlots.get(unit.id) ?? { x: 20, y: stwRallyY(unit.side, state.sides[unit.side].rally, state) };
+    const goal = home ? { x: home.x + 4, y: home.y - stwForward(unit.side) * 2 } : stwPoint(unit.side, { x: 20, y: 90 });
+    moveToward(unit, goal.x, goal.y, speed, dt);
+    return;
   }
-  moveToward(unit, goal.x, goal.y, unitSpeed(state, unit), dt);
+  // 따로 둔 부대(경비 포함)는 지휘관이 세운 자리를 지킨다(공격 병력이 나가도 끌려가지 않는다).
+  if (unit.squad !== undefined && slot) {
+    moveToward(unit, slot.x, slot.y, speed, dt);
+    return;
+  }
+  const goal = hiddenAttackerSpot(state, unit) ?? armyWatchSpot(state, unit) ?? slot ?? { x: 20, y: stwRallyY(unit.side, state.sides[unit.side].rally, state) };
+  moveToward(unit, goal.x, goal.y, speed, dt);
 }
 
 function templarStep(state, unit, plan, dt) {
@@ -3364,6 +3462,15 @@ function casterMove(state, unit, plan, speed, dt) {
     moveToward(unit, slot.x, slot.y, speed, dt);
     return;
   }
+  // 탐지기를 겸하는 마법 유닛(사이언스 베슬)은 숨은 적에게 맞는 아군이 있으면 그쪽부터 간다(따로 둔 부대는 제자리를 지킨다).
+  const detector = Boolean(STW_UNITS[unit.type].detector);
+  if (detector && unit.squad === undefined) {
+    const spot = hiddenAttackerSpot(state, unit);
+    if (spot) {
+      moveToward(unit, spot.x, spot.y, speed, dt);
+      return;
+    }
+  }
   // 마법을 쓸 수 있어도 방금 "쓸 대상이 없다"고 본 동안은 뒤에 머문다(아래 casterHold).
   const ready = spellReady(state, unit) && !((unit.castHoldUntil ?? 0) > state.time);
   if (!ready) {
@@ -3394,6 +3501,13 @@ function casterMove(state, unit, plan, speed, dt) {
         casterApproach(state, unit, foe, speed, dt);
         return;
       }
+    }
+    // 사이언스 베슬은 마법을 못 쓸 때도 병력 맨 뒤로 빠지지 않고 옵저버처럼 병력 위(선두 조금 뒤)에서 탐지한다.
+    // 예전에는 맨 뒤 3칸 뒤(선두에서 7~9칸 뒤)에 떠 있어, 탐지 반경 9가 병력 앞에 닿지 않았다(숨은 럴커·다크템플러를 90~100% 못 봄).
+    const watch = detector ? armyWatchSpot(state, unit) : null;
+    if (watch) {
+      moveToward(unit, watch.x, watch.y, speed, dt);
+      return;
     }
     const lead = army.reduce((best, ally) => (ahead(ally) > ahead(best) ? ally : best), army[0]).y;
     const rear = army.reduce((best, ally) => (ahead(ally) < ahead(best) ? ally : best), army[0]).y;
