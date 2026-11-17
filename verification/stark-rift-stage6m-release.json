@@ -19,7 +19,7 @@
   "versionId": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b~appgver_8aeec5bbb6088191bf9b6a00f6476267",
   "deploymentId": "appgdep_6afc6bf611d88191a1f8705ddbaba0c8",
   "siteUrl": "https://games.itnadcom.chatgpt.site",
-  "verifiedAt": "2026-11-17T15:09:17.066339+00:00",
+  "verifiedAt": "2026-11-17T15:09:34.404516+00:00",
   "ci": {
     "id": 44108763758,
     "name": "Stark Rift and Paperoid regression",
@@ -317,5 +317,21 @@
     "The first production browser launch hit workspace ENOSPC before any interaction. Generated tar/build outputs were moved to the separate temporary volume and original paths retained as symlinks; source,game saves and ZIP backups were preserved. Both production test launches were restarted.",
     "An automation queue initially referenced the previous checkout, causing stale-format test expectations to fail. The queue and evidence helper now use the Queen checkout; final reports are from that exact source. Earlier automation outputs are kept under initial-wrong-harness directories and do not contribute to the passing case count.",
     "Chromium SwiftShader/native touch does not certify physical Android/iOS devices or hardware GPU performance. Portrait-only behavior is preserved. Queen Parasite,Broodlings,Infest and spell autocast,final graphics and strategic AI are later work."
+  ],
+  "backups": [
+    {
+      "path": "/workspace/library-files/stark-rift-queen-source-and-qa.zip",
+      "bytes": 32987062,
+      "files": 563,
+      "sha256": "a268830354457e8ccadb931fb10b7a3ce1dc3ab018230251fc09ab7c458c52d4",
+      "crcVerified": true
+    },
+    {
+      "path": "/workspace/library-files/stark-rift-queen-qa.zip",
+      "bytes": 2927722,
+      "files": 197,
+      "sha256": "f8c54705c19ea5878b70908a9abccdfb0d78a5f94b05b73a00a6c2fe0844d9dd",
+      "crcVerified": true
+    }
   ]
 }
