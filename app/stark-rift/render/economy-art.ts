@@ -33,6 +33,7 @@ export function updateEconomicMarker(
     if (ring !== null) g.ellipse(0, 0.08, r * 1.5, r * 0.8).stroke({ color: ring, width: 0.055 });
     return true;
   }
+  if(d.id==="zerg-broodling"){g.ellipse(0,.05,.29,.19).fill(color).stroke({color:0xe9abc1,width:.04});for(const side of [-1,1]){g.moveTo(side*.18,-.05).lineTo(side*.37,-.3).lineTo(side*.13,-.22).stroke({color:0xe9abc1,width:.06});g.moveTo(side*.12,.13).lineTo(side*.3,.3).stroke({color,width:.06});}if(ring!==null)g.ellipse(0,.02,.43,.3).stroke({color:ring,width:.05});g.rect(-.3,-.48,.6,.06).fill(0x241d29);g.rect(-.3,-.48,.6*e.health/d.health,.06).fill(0x82d96c);return true;}
   if (d.kind === "building") {
     g.ellipse(0.12, 0.22, w * 0.55, h * 0.48).fill({
       color: 0x030911,

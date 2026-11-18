@@ -35,7 +35,7 @@ export function EconomyControls({
   running,
   openBuildMenu,
   selectWorker,
-  scout, loadTransport, unloadTransport, selectEntities, castAbility, heal, medicSpell, parasite,
+  scout, loadTransport, unloadTransport, selectEntities, castAbility, heal, medicSpell, parasite, broodlings,
 }: {
   snapshot: RenderSnapshot;
   selected: number[];
@@ -47,6 +47,7 @@ export function EconomyControls({
   selectWorker: () => void;
   scout: () => void;
   parasite?:(id:number)=>void;
+  broodlings?:(id:number)=>void;
   heal?: (id:number)=>void;
   medicSpell?: (id:number,ability:"optical-flare"|"restoration")=>void;
   castAbility?: (id: number, ability: "recall" | "stasis-field" | "ensnare") => void;
@@ -173,7 +174,7 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
-      <QueenControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={castAbility} parasite={parasite} />
+      <QueenControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={castAbility} parasite={parasite} broodlings={broodlings} />
       <StimControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} issue={issue} />
       <MedicSpellControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={medicSpell} />
       <MedicControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} heal={heal} issue={issue} />
@@ -183,6 +184,7 @@ export function EconomyControls({
       <SiegeControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <CloakControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       {transport}
+      {entities.some(e=>e.broodlingTicks)&&<p className="sr-help" data-broodling-status>브루들링 · 남은 수명 최대 {Math.ceil(Math.max(...entities.map(e=>e.broodlingTicks??0))/20)}초 · 근접 공격 · 보급 사용 없음</p>}
       {entities.some(e=>e.parasited)&&<p className="sr-help" data-parasite-status>패러사이트 감염 · 감염시킨 플레이어에게 시야·탐지 공유 · 리스토레이션으로 제거</p>}
       {entities.some(e=>e.ensnareTicks)&&<p className="sr-help" data-ensnare-status>인스네어 · 최대 {Math.ceil(Math.max(...entities.map(e=>e.ensnareTicks??0))/20)}초 · 이동속도 절반·공격 간격25% 증가·은폐 노출 · 리스토레이션으로 해제</p>}
       {entities.some(e=>e.blinded)&&<p className="sr-help" data-blind-status>실명 · 해당 유닛 시야2타일 · 탐지 중단 · 리스토레이션으로 복구</p>}
@@ -461,8 +463,9 @@ export function EconomyControls({
                   })
                 }
               >
-                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field", "tank-siege-mode", "lurker-aspect", "recall", "stasis-field", "stim-packs", "optical-flare", "restoration", "ensnare", ...ENERGY_UPGRADES.map(u => u.id)].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field", "tank-siege-mode", "lurker-aspect", "recall", "stasis-field", "stim-packs", "optical-flare", "restoration", "ensnare", "spawn-broodlings", ...ENERGY_UPGRADES.map(u => u.id)].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
                 {ENERGY_UPGRADES.some(u => u.id === t.id) && !done && <small>52.1초 · 최대 에너지 200 → 250 · 새 생산 62.5</small>}
+                {t.id === "spawn-broodlings" && !done && <small>25초 · 에너지150 · 지상 유닛 처치·브루들링 최대 2기 생성</small>}
                 {t.id === "ensnare" && !done && <small>25초 · 에너지75 · 범위 감속·은폐 노출</small>}
                 {t.id === "optical-flare" && !done && <small>37.5초 · 에너지75 · 실명·탐지 중단</small>}
                 {t.id === "restoration" && !done && <small>25초 · 에너지50 · 실명·인스네어·패러사이트 해제</small>}

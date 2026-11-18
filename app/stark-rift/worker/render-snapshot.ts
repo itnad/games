@@ -1,3 +1,4 @@
+import {broodlingOf,broodlingsCooldown,BROODLING_TICKS,type BroodlingsState} from "../abilities/broodlings-state";
 import { parasiteOf,parasiteCooldown,type ParasiteState } from "../abilities/parasite-state";
 import { QUEEN,ENSNARE_TICKS,QUEEN_CAST_COOLDOWN,ensnareOf,queenCooldown,type QueenState } from "../abilities/queen-state";
 import { isBlinded,medicSpellCooldown,OPTICAL,RESTORATION,MEDIC_SPELL_COOLDOWN,type MedicSpellsState } from "../abilities/medic-spells-state";
@@ -61,6 +62,7 @@ export type RenderEntity = {
   recallTicks?: number;
   stasisAutocast?: boolean;
   parasited?:boolean;
+  broodlingTicks?:number;
   blinded?: boolean;
   ensnareTicks?:number;
   queenCooldownTicks?:number;
@@ -106,6 +108,7 @@ export type RenderSnapshot = {
       y: number;
     }[];
   };
+  broodlingsEffects?:BroodlingsState["effects"];
   parasiteEffects?:Omit<ParasiteState["effects"][number],"sourceId"|"targetId">[];
   queenEffects?:QueenState["effects"];
   medicSpellEffects?: Omit<MedicSpellsState["effects"][number],"sourceId"|"targetId">[];
@@ -144,6 +147,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         recallTicks: optional(integer(1, 18)),
         stasisAutocast: optional(boolean),
         parasited:optional(boolean),
+        broodlingTicks:optional(integer(1,BROODLING_TICKS)),
         blinded: optional(boolean),
         ensnareTicks:optional(integer(1,ENSNARE_TICKS)),
         queenCooldownTicks:optional(integer(1,QUEEN_CAST_COOLDOWN)),
@@ -174,6 +178,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         projectiles: array(renderProjectileSchema, 0, 4096),
       }),
     ),
+    broodlingsEffects:optional(array(object({id:integer(1),owner:integer(0,1),tick:integer(),x:integer(),y:integer()}),0,128)),
     parasiteEffects:optional(array(object({id:integer(1),owner:integer(0,1),tick:integer(),x:integer(),y:integer(),toX:integer(),toY:integer()}),0,128)),
     queenEffects:optional(array(object({id:integer(1),owner:integer(0,1),tick:integer(),x:integer(),y:integer()}),0,128)),
     medicSpellEffects: optional(array(object({id:integer(1),abilityId:enumeration([OPTICAL,RESTORATION]),owner:integer(0,1),tick:integer(),x:integer(),y:integer(),toX:integer(),toY:integer()}),0,128)),
@@ -191,6 +196,9 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
   }),
   (snapshot) =>
     snapshot.entities.every(e => e.energy === undefined ? e.maxEnergy === undefined : e.maxEnergy !== undefined && e.energy <= e.maxEnergy && supportsEnergy(e.definitionId)) &&
+    snapshot.entities.every(e=>e.broodlingTicks===undefined||e.definitionId==="zerg-broodling"&&e.owner===snapshot.viewerPlayerId) &&
+    new Set((snapshot.broodlingsEffects??[]).map(e=>e.id)).size===(snapshot.broodlingsEffects??[]).length &&
+    (snapshot.broodlingsEffects??[]).every(e=>e.tick<=snapshot.tick&&snapshot.tick-e.tick<=20&&e.x<snapshot.widthTiles*256&&e.y<snapshot.heightTiles*256&&snapshot.visibility[Math.floor(e.y/256)*snapshot.widthTiles+Math.floor(e.x/256)]===2) &&
     snapshot.entities.every(e=>e.parasited===undefined||e.kind!=="building") &&
     new Set((snapshot.parasiteEffects??[]).map(e=>e.id)).size===(snapshot.parasiteEffects??[]).length &&
     (snapshot.parasiteEffects??[]).every(e=>e.tick<=snapshot.tick&&snapshot.tick-e.tick<=20&&e.x<snapshot.widthTiles*256&&e.toX<snapshot.widthTiles*256&&e.y<snapshot.heightTiles*256&&e.toY<snapshot.heightTiles*256&&snapshot.visibility[Math.floor(e.y/256)*snapshot.widthTiles+Math.floor(e.x/256)]===2&&snapshot.visibility[Math.floor(e.toY/256)*snapshot.widthTiles+Math.floor(e.toX/256)]===2) &&
@@ -341,9 +349,10 @@ export function createRenderSnapshot(
       continue;
     entities.push({
       ...(state.economy.enabled ? { shield: s.shield[i] } : {}),
+      ...(s.owner[i]===viewer&&broodlingOf(state,s.id[i])?{broodlingTicks:broodlingOf(state,s.id[i])!.expiresTick-state.tick}:{}),
       ...(s.kind[i]!=="building"&&parasiteOf(state,s.id[i])?{parasited:true}:{}),
       ...(s.kind[i]!=="building"&&ensnareOf(state,s.id[i])?{ensnareTicks:ensnareOf(state,s.id[i])!.expiresTick-state.tick}:{}),
-      ...(s.owner[i]===viewer&&(queenCooldown(state,s.id[i])??parasiteCooldown(state,s.id[i]))?{queenCooldownTicks:(queenCooldown(state,s.id[i])??parasiteCooldown(state,s.id[i]))!.expiresTick-state.tick}:{}),
+      ...(s.owner[i]===viewer&&(queenCooldown(state,s.id[i])??parasiteCooldown(state,s.id[i])??broodlingsCooldown(state,s.id[i]))?{queenCooldownTicks:(queenCooldown(state,s.id[i])??parasiteCooldown(state,s.id[i])??broodlingsCooldown(state,s.id[i]))!.expiresTick-state.tick}:{}),
       ...(s.kind[i]!=="building"&&isBlinded(state,s.id[i])?{blinded:true}:{}),
       ...(s.owner[i]===viewer&&medicSpellCooldown(state,s.id[i])?{medicSpellCooldownTicks:medicSpellCooldown(state,s.id[i])!.expiresTick-state.tick}:{}),
       ...(stimOf(state,s.id[i]) ? {stimTicks:stimOf(state,s.id[i])!.expiresTick-state.tick} : {}),
@@ -424,6 +433,7 @@ export function createRenderSnapshot(
         }
       : {}),
     ...(combat ? { combat } : {}),
+    ...(state.broodlings?{broodlingsEffects:state.broodlings.effects.filter(e=>seen(e.x,e.y))}:{}),
     ...(state.parasites?{parasiteEffects:state.parasites.effects.filter(e=>seen(e.x,e.y)&&seen(e.toX,e.toY)&&[e.sourceId,e.targetId].every(id=>{const i=s.id.indexOf(id);return i<0||canSeeEntity(state,map,viewer,i,visibility);})).map(({sourceId,targetId,...e})=>e)}:{}),
     ...(state.queen?{queenEffects:state.queen.effects.filter(e=>seen(e.x,e.y)).map(e=>({...e}))}:{}),
     ...(state.medicSpells?{medicSpellEffects:state.medicSpells.effects.filter(e=>seen(e.x,e.y)&&seen(e.toX,e.toY)&&[e.sourceId,e.targetId].every(id=>{const i=s.id.indexOf(id);return i<0||canSeeEntity(state,map,viewer,i,visibility);})).map(({sourceId,targetId,...e})=>e)}:{}),
