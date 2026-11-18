@@ -1,3 +1,4 @@
+import { parasiteOf } from "../abilities/parasite-state";
 import { ensnareOf,ENSNARE_TICKS } from "../abilities/queen-state";
 import { isBlinded } from "../abilities/medic-spells-state";
 import { stimOf, MARINE, STIM_TICKS } from "../abilities/stim-state";
@@ -29,7 +30,7 @@ export const economyViewSchema = object({
   creepCells: array(integer(0, 16383), 0, 16384),
   transports: optional(array(object({
     entityId: integer(1), capacity: integer(0, 8), usedSpace: integer(0, 8),
-    passengers: array(refine(object({ id: integer(1), definitionId: text, health: integer(), shield: integer(), blinded: optional(boolean), ensnareTicks:optional(integer(1,ENSNARE_TICKS)), stimTicks: optional(integer(1,STIM_TICKS)), energy: optional(integer(0, 250)), maxEnergy: optional(energyMaximumSchema), space: integer(1, 8) }), p => (p.stimTicks===undefined||p.definitionId===MARINE) && (p.energy === undefined ? p.maxEnergy === undefined : p.maxEnergy !== undefined && p.energy <= p.maxEnergy && supportsEnergy(p.definitionId)), "Invalid passenger energy capacity"), 0, 8),
+    passengers: array(refine(object({ id: integer(1), definitionId: text, health: integer(), shield: integer(), parasited:optional(boolean), blinded: optional(boolean), ensnareTicks:optional(integer(1,ENSNARE_TICKS)), stimTicks: optional(integer(1,STIM_TICKS)), energy: optional(integer(0, 250)), maxEnergy: optional(energyMaximumSchema), space: integer(1, 8) }), p => (p.stimTicks===undefined||p.definitionId===MARINE) && (p.energy === undefined ? p.maxEnergy === undefined : p.maxEnergy !== undefined && p.energy <= p.maxEnergy && supportsEnergy(p.definitionId)), "Invalid passenger energy capacity"), 0, 8),
     loading: array(object({ id: integer(1), definitionId: text }), 0, 8),
     unloadTarget: nullable(point),
   }), 0, 2048)),
@@ -117,7 +118,7 @@ export function createEconomyView(
     transports: s.entities.id.filter((id, i) => own(id) && !!unitTraits(s.entities.definitionId[i])?.spaceProvided && s.entities.health[i] > 0).map((id) => {
       const t = carrierOf(s, id);
       return { entityId: id, capacity: transportCapacity(s, id), usedSpace: t ? occupiedSpace(s, t) : 0,
-        passengers: (t?.passengers ?? []).map((pid) => { const i = indexOf(s, pid); return { ...energyView(s, pid), ...(ensnareOf(s,pid)?{ensnareTicks:ensnareOf(s,pid)!.expiresTick-s.tick}:{}), ...(isBlinded(s,pid)?{blinded:true}:{}), ...(stimOf(s,pid)?{stimTicks:stimOf(s,pid)!.expiresTick-s.tick}:{}), id: pid, definitionId: s.entities.definitionId[i], health: s.entities.health[i], shield: s.entities.shield[i], space: unitTraits(s.entities.definitionId[i])!.spaceRequired }; }),
+        passengers: (t?.passengers ?? []).map((pid) => { const i = indexOf(s, pid); return { ...energyView(s, pid), ...(parasiteOf(s,pid)?{parasited:true}:{}), ...(ensnareOf(s,pid)?{ensnareTicks:ensnareOf(s,pid)!.expiresTick-s.tick}:{}), ...(isBlinded(s,pid)?{blinded:true}:{}), ...(stimOf(s,pid)?{stimTicks:stimOf(s,pid)!.expiresTick-s.tick}:{}), id: pid, definitionId: s.entities.definitionId[i], health: s.entities.health[i], shield: s.entities.shield[i], space: unitTraits(s.entities.definitionId[i])!.spaceRequired }; }),
         loading: (t?.loadQueue ?? []).map((pid) => ({ id: pid, definitionId: s.entities.definitionId[indexOf(s, pid)] })),
         unloadTarget: t?.unloads[0] ? { x: t.unloads[0].x, y: t.unloads[0].y } : null,
       };

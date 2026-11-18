@@ -15,7 +15,8 @@ export const CARGO_VISION_RULES_VERSION = "fog-2-permanent-cloak-cargo-observer1
 export const ARBITER_VISION_RULES_VERSION = "fog-3-arbiter-passive-field-hitboxes";
 export const STASIS_VISION_RULES_VERSION = "fog-4-stasis-disabled-field-detector";
 export const MEDIC_SPELLS_VISION_RULES_VERSION = "fog-5-blind2-no-detection-restoration";
-export const VISION_RULES_VERSION = "fog-6-ensnare-visible-cloak";
+export const QUEEN_VISION_RULES_VERSION = "fog-6-ensnare-visible-cloak";
+export const VISION_RULES_VERSION = "fog-7-parasite-shared-sight-detection";
 export const MEMORY_TICKS = 600;
 export const contactSchema = object({
   entityId: integer(1),

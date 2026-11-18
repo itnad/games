@@ -35,7 +35,7 @@ export function EconomyControls({
   running,
   openBuildMenu,
   selectWorker,
-  scout, loadTransport, unloadTransport, selectEntities, castAbility, heal, medicSpell,
+  scout, loadTransport, unloadTransport, selectEntities, castAbility, heal, medicSpell, parasite,
 }: {
   snapshot: RenderSnapshot;
   selected: number[];
@@ -46,6 +46,7 @@ export function EconomyControls({
   openBuildMenu: () => void;
   selectWorker: () => void;
   scout: () => void;
+  parasite?:(id:number)=>void;
   heal?: (id:number)=>void;
   medicSpell?: (id:number,ability:"optical-flare"|"restoration")=>void;
   castAbility?: (id: number, ability: "recall" | "stasis-field" | "ensnare") => void;
@@ -172,7 +173,7 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
-      <QueenControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={castAbility} />
+      <QueenControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={castAbility} parasite={parasite} />
       <StimControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} issue={issue} />
       <MedicSpellControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={medicSpell} />
       <MedicControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} heal={heal} issue={issue} />
@@ -182,6 +183,7 @@ export function EconomyControls({
       <SiegeControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <CloakControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       {transport}
+      {entities.some(e=>e.parasited)&&<p className="sr-help" data-parasite-status>패러사이트 감염 · 감염시킨 플레이어에게 시야·탐지 공유 · 리스토레이션으로 제거</p>}
       {entities.some(e=>e.ensnareTicks)&&<p className="sr-help" data-ensnare-status>인스네어 · 최대 {Math.ceil(Math.max(...entities.map(e=>e.ensnareTicks??0))/20)}초 · 이동속도 절반·공격 간격25% 증가·은폐 노출 · 리스토레이션으로 해제</p>}
       {entities.some(e=>e.blinded)&&<p className="sr-help" data-blind-status>실명 · 해당 유닛 시야2타일 · 탐지 중단 · 리스토레이션으로 복구</p>}
       {entities.some(e => e.stasisTicks) && <p className="sr-help" data-stasis-status>스테이시스 정지 중 · 최대 {Math.ceil(Math.max(...entities.map(e => e.stasisTicks ?? 0))/20)}초 · 이동·공격·탑승 불가 · 피해 면역</p>}
@@ -463,7 +465,7 @@ export function EconomyControls({
                 {ENERGY_UPGRADES.some(u => u.id === t.id) && !done && <small>52.1초 · 최대 에너지 200 → 250 · 새 생산 62.5</small>}
                 {t.id === "ensnare" && !done && <small>25초 · 에너지75 · 범위 감속·은폐 노출</small>}
                 {t.id === "optical-flare" && !done && <small>37.5초 · 에너지75 · 실명·탐지 중단</small>}
-                {t.id === "restoration" && !done && <small>25초 · 에너지50 · 실명·인스네어 해제</small>}
+                {t.id === "restoration" && !done && <small>25초 · 에너지50 · 실명·인스네어·패러사이트 해제</small>}
                 {t.id === "stim-packs" && !done && <small>25초 · 마린 체력10 소모 · 이동1.5배 · 공격 간격 단축</small>}
                 {t.id === BURROW_RESEARCH && !done && <small>25초 · 드론·저글링·히드라 잠복</small>}
                 {t.id === "ventral-sacs" && !done && <small>50초 · 오버로드 8칸 수송</small>}

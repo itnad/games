@@ -1,0 +1,29 @@
+{
+  "source": {
+    "bwapiTag": "v4.4.0",
+    "openbwCommit": "4b046d5f65302b10cb0a745f0fecd37ec85b20a8",
+    "sha256": {
+      "tech.cpp": "990bdd17b48c1207dfb7f17352dad022e6ce4f6939d151119fd022e028ccf869",
+      "weapon.cpp": "e5c392a914ce4b452c4cfcfdb7d4ba581eef39aa6f0d1f62409a03cadcdbde67",
+      "bwgame.h": "5ee316ca2c008c9252f7fde7444ca5dc7f35440549be2576dc37fa228fb31ae6"
+    }
+  },
+  "ability": {
+    "id": "parasite",
+    "title": "패러사이트",
+    "energy": 75,
+    "rangePixels": 384,
+    "requiresResearch": false,
+    "targetFlags": "TARG_AIR | TARG_GROUND | TARG_NOBUILD"
+  },
+  "status": {
+    "permanent": true,
+    "sourceOwnerMask": true,
+    "sharesCurrentSight": true,
+    "sharesDetection": true,
+    "detectsInfectedCloakedVictim": true,
+    "restorable": true,
+    "cargoSharesSight": false,
+    "buildingCompletionClears": true
+  }
+}

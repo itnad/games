@@ -1,3 +1,4 @@
+import parasite from "./parasite-original.json";
 import queen from "./queen-original.json";
 import medicSpells from "./medic-spells-original.json";
 import stim from "./stim-original.json";
@@ -339,7 +340,8 @@ export const ENERGY_ECONOMY_DATA_VERSION = "energy-economy-" + checksum({ base: 
 export const MEDIC_ECONOMY_DATA_VERSION = "medic-economy-" + checksum({base:ENERGY_ECONOMY_DATA_VERSION,medic:JSON.stringify(medic),definitions:ECONOMY_DEFINITIONS.slice(0,-queenRows.length),upgrades:medicUpgrades});
 export const STIM_ECONOMY_DATA_VERSION="stim-economy-"+checksum({base:MEDIC_ECONOMY_DATA_VERSION,stim:JSON.stringify(stim),upgrades:stimUpgrades});
 export const MEDIC_SPELLS_ECONOMY_DATA_VERSION="medic-spells-economy-"+checksum({base:STIM_ECONOMY_DATA_VERSION,medicSpells:JSON.stringify(medicSpells),upgrades:medicSpellsUpgrades});
-export const ECONOMY_DATA_VERSION="queen-economy-"+checksum({base:MEDIC_SPELLS_ECONOMY_DATA_VERSION,queen:JSON.stringify(queen),definitions:ECONOMY_DEFINITIONS,upgrades:ECONOMY_UPGRADES});
+export const QUEEN_ECONOMY_DATA_VERSION="queen-economy-"+checksum({base:MEDIC_SPELLS_ECONOMY_DATA_VERSION,queen:JSON.stringify(queen),definitions:ECONOMY_DEFINITIONS,upgrades:ECONOMY_UPGRADES});
+export const ECONOMY_DATA_VERSION="parasite-economy-"+checksum({base:QUEEN_ECONOMY_DATA_VERSION,parasite:JSON.stringify(parasite)});
 for (const d of ECONOMY_DEFINITIONS) {
   if (
     !lookup.has(d.producer) ||

@@ -1,3 +1,4 @@
+import { parasiteStateSchema,validParasites,type ParasiteState } from "../abilities/parasite-state";
 import { queenStateSchema,validQueen,type QueenState } from "../abilities/queen-state";
 import { OPTICAL,RESTORATION,medicSpellsSchema,validMedicSpells,type MedicSpellsState } from "../abilities/medic-spells-state";
 import { STIM, stimStateSchema, validStim, type StimState } from "../abilities/stim-state";
@@ -14,8 +15,8 @@ import { specialStateSchema, type SpecialState } from "../abilities/special-stat
 import { validSpecial } from "../abilities/special-validation";
 import { validBurrowState } from "../abilities/burrow";
 import { getRuntimeMap } from "../data/maps";
-import { ECONOMY_DATA_VERSION, MEDIC_SPELLS_ECONOMY_DATA_VERSION, STIM_ECONOMY_DATA_VERSION, MEDIC_ECONOMY_DATA_VERSION, ENERGY_ECONOMY_DATA_VERSION, SPELLS_ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION, BURROW_ECONOMY_DATA_VERSION, SPECIAL_ECONOMY_DATA_VERSION, CLOAK_ECONOMY_DATA_VERSION, SIEGE_ECONOMY_DATA_VERSION, LURKER_ECONOMY_DATA_VERSION, ARBITER_ECONOMY_DATA_VERSION, unitFamily } from "../data/economy-catalog";
-import { LEGACY_VISION_RULES_VERSION, CARGO_VISION_RULES_VERSION, ARBITER_VISION_RULES_VERSION, STASIS_VISION_RULES_VERSION, MEDIC_SPELLS_VISION_RULES_VERSION, VISION_RULES_VERSION, visionStateSchema, type VisionState } from "../vision/state";
+import { ECONOMY_DATA_VERSION, QUEEN_ECONOMY_DATA_VERSION, MEDIC_SPELLS_ECONOMY_DATA_VERSION, STIM_ECONOMY_DATA_VERSION, MEDIC_ECONOMY_DATA_VERSION, ENERGY_ECONOMY_DATA_VERSION, SPELLS_ECONOMY_DATA_VERSION, LEGACY_ECONOMY_DATA_VERSION, BURROW_ECONOMY_DATA_VERSION, SPECIAL_ECONOMY_DATA_VERSION, CLOAK_ECONOMY_DATA_VERSION, SIEGE_ECONOMY_DATA_VERSION, LURKER_ECONOMY_DATA_VERSION, ARBITER_ECONOMY_DATA_VERSION, unitFamily } from "../data/economy-catalog";
+import { LEGACY_VISION_RULES_VERSION, CARGO_VISION_RULES_VERSION, ARBITER_VISION_RULES_VERSION, STASIS_VISION_RULES_VERSION, MEDIC_SPELLS_VISION_RULES_VERSION, QUEEN_VISION_RULES_VERSION, VISION_RULES_VERSION, visionStateSchema, type VisionState } from "../vision/state";
 import {
   combatStateSchema,
   PREVIOUS_COMBAT_RULES_VERSION,
@@ -26,6 +27,7 @@ import {
   MEDIC_COMBAT_RULES_VERSION,
   STIM_COMBAT_RULES_VERSION,
   MEDIC_SPELLS_COMBAT_RULES_VERSION,
+  QUEEN_COMBAT_RULES_VERSION,
   RANGED_COMBAT_RULES_VERSION,
   TERRAIN_COMBAT_RULES_VERSION,
   BURROW_COMBAT_RULES_VERSION,
@@ -159,6 +161,7 @@ export type SimulationState = {
   stim?: StimState;
   medicSpells?: MedicSpellsState;
   queen?:QueenState;
+  parasites?:ParasiteState;
   projectiles: ProjectileStore;
   gameplayEffects: GameplayEffectStore;
   scheduledEvents: ScheduledEventQueue;
@@ -323,6 +326,7 @@ export const simulationStateSchema: Schema<SimulationState> = refine(
     stim: optional(stimStateSchema),
     medicSpells: optional(medicSpellsSchema),
     queen:optional(queenStateSchema),
+    parasites:optional(parasiteStateSchema),
     movement: array(movementStateSchema, 0, 2048),
     entities: entityStoreSchema,
     projectiles: emptyStore,
@@ -332,7 +336,7 @@ export const simulationStateSchema: Schema<SimulationState> = refine(
     outcome: nullable(matchOutcomeSchema),
   }),
   (state) => {
-    if (!validEconomy(state) || !validBurrowState(state) || !validSpecial(state) || !validEnergy(state) || !validSiege(state) || !validLurker(state) || !validSpells(state) || !validAutocast(state) || !validMedics(state) || !validStim(state) || !validMedicSpells(state) || !validQueen(state)) return false;
+    if (!validEconomy(state) || !validBurrowState(state) || !validSpecial(state) || !validEnergy(state) || !validSiege(state) || !validLurker(state) || !validSpells(state) || !validAutocast(state) || !validMedics(state) || !validStim(state) || !validMedicSpells(state) || !validQueen(state) || !validParasites(state)) return false;
     if (state.vision) {
       const v = state.vision;
       if (
@@ -565,10 +569,10 @@ export const validatePersistenceEnvelope = (input: unknown) =>
 export function migrateLegacyEnvelope(input: unknown): unknown {
   if (!input || typeof input !== "object") return input;
   const old = input as PersistenceEnvelope;
-  if (![6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21].includes(old.formatVersion)) return input;
+  if (![6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].includes(old.formatVersion)) return input;
   const source = old.simulation,
     engine = (
-      { 6: "0.7.0-stage4", 7: "0.8.0-stage5a", 8: "0.9.0-stage5b", 9: "0.10.0-stage5c", 10: "0.11.0-stage6a", 11: "0.12.0-stage6b", 12: "0.13.0-stage6c", 13: "0.14.0-stage6d", 14: "0.15.0-stage6e", 15: "0.16.0-stage6f", 16: "0.17.0-stage6g", 17: "0.18.0-stage6h", 18: "0.19.0-stage6i", 19: "0.20.0-stage6j", 20: "0.21.0-stage6k", 21: "0.22.0-stage6l" } as Record<
+      { 6: "0.7.0-stage4", 7: "0.8.0-stage5a", 8: "0.9.0-stage5b", 9: "0.10.0-stage5c", 10: "0.11.0-stage6a", 11: "0.12.0-stage6b", 12: "0.13.0-stage6c", 13: "0.14.0-stage6d", 14: "0.15.0-stage6e", 15: "0.16.0-stage6f", 16: "0.17.0-stage6g", 17: "0.18.0-stage6h", 18: "0.19.0-stage6i", 19: "0.20.0-stage6j", 20: "0.21.0-stage6k", 21: "0.22.0-stage6l", 22: "0.23.0-stage6m" } as Record<
         number,
         string
       >
@@ -586,22 +590,23 @@ export function migrateLegacyEnvelope(input: unknown): unknown {
     (old.formatVersion < 14 && source.lurker !== undefined) ||
     (old.formatVersion < 16 && source.spells !== undefined) ||
     (old.formatVersion < 17 && source.autocast !== undefined) ||
-    source.queen !== undefined ||
-    source.entities.definitionId.some(id=>["zerg-queen","zerg-queens-nest"].includes(id)) ||
-    source.economy.structures.some(b=>b.queue.some(j=>j.definitionId==="zerg-queen")) ||
+    source.parasites !== undefined ||
+    (old.formatVersion<22&&source.queen !== undefined) ||
+    (old.formatVersion<22&&source.entities.definitionId.some(id=>["zerg-queen","zerg-queens-nest"].includes(id))) ||
+    (old.formatVersion<22&&source.economy.structures.some(b=>b.queue.some(j=>j.definitionId==="zerg-queen"))) ||
     (old.formatVersion<21&&source.medicSpells !== undefined) ||
     (old.formatVersion<20&&source.stim !== undefined) ||
     (old.formatVersion<19 && (source.medics !== undefined || source.entities.definitionId.includes(MEDIC) || source.players.some(p=>p.controlGroups.some(g=>g.autocastConfiguredAbilityIds!==undefined)))) ||
-    (source.economy?.upgrades??[]).some(u=>["ensnare","gamete-meiosis"].includes(u.technologyId)||old.formatVersion<21&&[OPTICAL,RESTORATION].includes(u.technologyId)||old.formatVersion<20&&u.technologyId===STIM) ||
-    (source.economy?.structures??[]).some(b=>["ensnare","gamete-meiosis"].includes(b.research?.technologyId??"")||old.formatVersion<21&&[OPTICAL,RESTORATION].includes(b.research?.technologyId??"")||old.formatVersion<20&&b.research?.technologyId===STIM) ||
+    (source.economy?.upgrades??[]).some(u=>old.formatVersion<22&&["ensnare","gamete-meiosis"].includes(u.technologyId)||old.formatVersion<21&&[OPTICAL,RESTORATION].includes(u.technologyId)||old.formatVersion<20&&u.technologyId===STIM) ||
+    (source.economy?.structures??[]).some(b=>old.formatVersion<22&&["ensnare","gamete-meiosis"].includes(b.research?.technologyId??"")||old.formatVersion<21&&[OPTICAL,RESTORATION].includes(b.research?.technologyId??"")||old.formatVersion<20&&b.research?.technologyId===STIM) ||
     (old.formatVersion < 18 && (source.energy ?? []).some(r => r.amount > 200*256)) ||
     (source.economy?.upgrades ?? []).some(u => ENERGY_UPGRADES.some(t => t.id === u.technologyId && (old.formatVersion<18 || old.formatVersion<19&&t.unitId===MEDIC))) ||
     (source.economy?.structures ?? []).some(b => ENERGY_UPGRADES.some(t => t.id === b.research?.technologyId && (old.formatVersion<18 || old.formatVersion<19&&t.unitId===MEDIC))) ||
-    (source.vision !== undefined && (source.vision.rulesVersion as string) !== (old.formatVersion === 21 ? MEDIC_SPELLS_VISION_RULES_VERSION : old.formatVersion >= 16 ? STASIS_VISION_RULES_VERSION : old.formatVersion === 15 ? ARBITER_VISION_RULES_VERSION : old.formatVersion >= 11 ? CARGO_VISION_RULES_VERSION : LEGACY_VISION_RULES_VERSION))
+    (source.vision !== undefined && (source.vision.rulesVersion as string) !== (old.formatVersion === 22 ? QUEEN_VISION_RULES_VERSION : old.formatVersion === 21 ? MEDIC_SPELLS_VISION_RULES_VERSION : old.formatVersion >= 16 ? STASIS_VISION_RULES_VERSION : old.formatVersion === 15 ? ARBITER_VISION_RULES_VERSION : old.formatVersion >= 11 ? CARGO_VISION_RULES_VERSION : LEGACY_VISION_RULES_VERSION))
   )
     throw new TypeError("Invalid legacy save");
   const currentDataVersion = getRuntimeMap("rift-basin").dataVersion,
-    previousDataVersion = currentDataVersion.replace(ECONOMY_DATA_VERSION, old.formatVersion === 21 ? MEDIC_SPELLS_ECONOMY_DATA_VERSION : old.formatVersion === 20 ? STIM_ECONOMY_DATA_VERSION : old.formatVersion === 19 ? MEDIC_ECONOMY_DATA_VERSION : old.formatVersion === 18 ? ENERGY_ECONOMY_DATA_VERSION : old.formatVersion >= 16 ? SPELLS_ECONOMY_DATA_VERSION : old.formatVersion === 15 ? ARBITER_ECONOMY_DATA_VERSION : old.formatVersion === 14 ? LURKER_ECONOMY_DATA_VERSION : old.formatVersion === 13 ? SIEGE_ECONOMY_DATA_VERSION : old.formatVersion === 12 ? CLOAK_ECONOMY_DATA_VERSION : old.formatVersion === 11 ? SPECIAL_ECONOMY_DATA_VERSION : old.formatVersion === 10 ? BURROW_ECONOMY_DATA_VERSION : LEGACY_ECONOMY_DATA_VERSION);
+    previousDataVersion = currentDataVersion.replace(ECONOMY_DATA_VERSION, old.formatVersion === 22 ? QUEEN_ECONOMY_DATA_VERSION : old.formatVersion === 21 ? MEDIC_SPELLS_ECONOMY_DATA_VERSION : old.formatVersion === 20 ? STIM_ECONOMY_DATA_VERSION : old.formatVersion === 19 ? MEDIC_ECONOMY_DATA_VERSION : old.formatVersion === 18 ? ENERGY_ECONOMY_DATA_VERSION : old.formatVersion >= 16 ? SPELLS_ECONOMY_DATA_VERSION : old.formatVersion === 15 ? ARBITER_ECONOMY_DATA_VERSION : old.formatVersion === 14 ? LURKER_ECONOMY_DATA_VERSION : old.formatVersion === 13 ? SIEGE_ECONOMY_DATA_VERSION : old.formatVersion === 12 ? CLOAK_ECONOMY_DATA_VERSION : old.formatVersion === 11 ? SPECIAL_ECONOMY_DATA_VERSION : old.formatVersion === 10 ? BURROW_ECONOMY_DATA_VERSION : LEGACY_ECONOMY_DATA_VERSION);
   if (old.dataVersion !== source.dataVersion || source.map?.definitionId !== "rift-basin" || old.dataVersion !== previousDataVersion)
     throw new TypeError("Unknown legacy data version");
   if (old.formatVersion === 6 && source.combat !== undefined)
@@ -610,7 +615,7 @@ export function migrateLegacyEnvelope(input: unknown): unknown {
     const expected =
       old.formatVersion === 7
         ? PREVIOUS_COMBAT_RULES_VERSION
-        : old.formatVersion === 8 ? RANGED_COMBAT_RULES_VERSION : old.formatVersion === 9 ? TERRAIN_COMBAT_RULES_VERSION : old.formatVersion === 10 ? BURROW_COMBAT_RULES_VERSION : old.formatVersion === 11 ? SPECIAL_COMBAT_RULES_VERSION : old.formatVersion === 12 ? CLOAK_COMBAT_RULES_VERSION : old.formatVersion === 13 ? SIEGE_COMBAT_RULES_VERSION : old.formatVersion === 14 ? LURKER_COMBAT_RULES_VERSION : old.formatVersion === 15 ? ARBITER_COMBAT_RULES_VERSION : old.formatVersion === 16 ? SPELLS_COMBAT_RULES_VERSION : old.formatVersion === 17 ? AUTOCAST_COMBAT_RULES_VERSION : old.formatVersion === 18 ? ENERGY_COMBAT_RULES_VERSION : old.formatVersion === 19 ? MEDIC_COMBAT_RULES_VERSION : old.formatVersion===20 ? STIM_COMBAT_RULES_VERSION : MEDIC_SPELLS_COMBAT_RULES_VERSION;
+        : old.formatVersion === 8 ? RANGED_COMBAT_RULES_VERSION : old.formatVersion === 9 ? TERRAIN_COMBAT_RULES_VERSION : old.formatVersion === 10 ? BURROW_COMBAT_RULES_VERSION : old.formatVersion === 11 ? SPECIAL_COMBAT_RULES_VERSION : old.formatVersion === 12 ? CLOAK_COMBAT_RULES_VERSION : old.formatVersion === 13 ? SIEGE_COMBAT_RULES_VERSION : old.formatVersion === 14 ? LURKER_COMBAT_RULES_VERSION : old.formatVersion === 15 ? ARBITER_COMBAT_RULES_VERSION : old.formatVersion === 16 ? SPELLS_COMBAT_RULES_VERSION : old.formatVersion === 17 ? AUTOCAST_COMBAT_RULES_VERSION : old.formatVersion === 18 ? ENERGY_COMBAT_RULES_VERSION : old.formatVersion === 19 ? MEDIC_COMBAT_RULES_VERSION : old.formatVersion===20 ? STIM_COMBAT_RULES_VERSION : old.formatVersion===21 ? MEDIC_SPELLS_COMBAT_RULES_VERSION : QUEEN_COMBAT_RULES_VERSION;
     if (
       source.combat.rulesVersion !== expected ||
       !(old.formatVersion >= 11 ? ["economy", "combat-practice", "ranged-practice", "siege-practice", "special-practice"] : old.formatVersion >= 9 ? ["economy", "combat-practice", "ranged-practice", "siege-practice"] : ["economy", "combat-practice", "ranged-practice"]).includes(

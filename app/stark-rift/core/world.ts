@@ -124,6 +124,7 @@ export function removeEntity(state: SimulationState, id: number): boolean {
   for (const passenger of detachSpecialEntity(state, id)) removeEntity(state, passenger);
   const index = state.entities.id.indexOf(id);
   detachEconomyEntity(state, id);
+  if(state.parasites){state.parasites.records=state.parasites.records.filter(r=>r.entityId!==id);state.parasites.cooldowns=state.parasites.cooldowns.filter(r=>r.entityId!==id);}
   if(state.queen){state.queen.ensnared=state.queen.ensnared.filter(r=>r.entityId!==id);state.queen.cooldowns=state.queen.cooldowns.filter(r=>r.entityId!==id);}
   if(state.medicSpells){state.medicSpells.blind=state.medicSpells.blind.filter(r=>r.entityId!==id);state.medicSpells.cooldowns=state.medicSpells.cooldowns.filter(r=>r.entityId!==id);}
   if(state.stim)state.stim.records=state.stim.records.filter(r=>r.entityId!==id);
