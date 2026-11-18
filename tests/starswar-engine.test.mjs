@@ -2388,6 +2388,22 @@ test("starswar scourges dive from afar, split by what each target needs, skip po
   assert.ok(waiting.every((unit) => unit.hp === unit.maxHp), "한 대도 맞지 않는다");
   assert.ok(waiting.every((unit) => unit.y > rear), `히드라 꼬리(${rear.toFixed(1)}) 뒤에 선다 ${waiting.map((unit) => unit.y.toFixed(1))}`);
 
+  // 포기: 엄호 때문에 계속 격추되는 목표에는 필요한 수의 두 배 + 2기(수송선이면 6기)까지만 달려든다. 예전에는 남은 스커지가 둘씩 끝없이 들어갔다.
+  const covered = quiet();
+  const swarm = Array.from({ length: 14 }, (_, index) => stwSpawnUnitAt(covered, "player", "scourge", 7 + index * 2, 62, "attack"));
+  const bait = stwSpawnUnitAt(covered, "enemy", "shuttle", 20, 50, "rally");
+  let tries = 0;
+  for (let step = 0; step < 60; step += 1) {
+    // 달려드는 스커지를 닿기 전에 떨어뜨린다(두꺼운 엄호를 흉내 낸다).
+    for (const unit of swarm) if (unit.hp > 0 && unit.targetId === bait.id && Math.hypot(unit.x - bait.x, unit.y - bait.y) < 5) unit.hp = 0;
+    bait.x = 20;
+    bait.y = 50;
+    stepStarswar(covered);
+    tries = Math.max(tries, bait.scourgeTried?.count ?? 0);
+  }
+  assert.equal(tries, 6, "여섯 기까지만 달려든다");
+  assert.equal(swarm.filter((unit) => unit.hp > 0).length, 8, "나머지 여덟 기는 남는다");
+
   // 스커지만 출격해도 적 대공 유닛의 사거리 안으로 들어가지 않는다(다가오는 해병에게서는 물러난다).
   const alone = quiet();
   const scout = stwSpawnUnitAt(alone, "player", "scourge", 20, 62, "attack");

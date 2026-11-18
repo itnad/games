@@ -62,6 +62,8 @@ export type StwUnit = {
   /** 다친 유닛의 회피가 끝나는 시각(회피 중일 때만), 다시 회피할 수 있게 되는 시각. */
   fleeUntil?: number;
   fleeRestUntil?: number;
+  /** 이 유닛에게 달려든 적 스커지 수와 세기 시작한 시각, 포기하는 수(계속 격추되면 스커지가 이 목표를 잠시 포기한다). */
+  scourgeTried?: { count: number; at: number; limit: number };
   /** 퀸이 더 비싼 브루들링 대상을 기다리기 시작한 때. */
   broodWait?: number;
   stunUntil?: number;

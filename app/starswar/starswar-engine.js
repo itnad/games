@@ -3366,6 +3366,8 @@ const SCOURGE_REACH = 12;
 const SCOURGE_BEHIND = 3;
 const SCOURGE_FILL_PULL = 3;
 const SCOURGE_VALUE_PULL = 1.5;
+/** 엄호 속의 목표를 포기하는 시간. */
+const SCOURGE_GIVE_UP = 15;
 
 /** 유닛 값(한 번에 둘 나오는 유닛은 절반). */
 function tradeValue(type) {
@@ -3388,6 +3390,8 @@ function scourgeNeed(state, unit, target, pending) {
  *   먼저 붙은 동료만으로 수가 차면 다른 목표로 간다. 남는 스커지는 대기하다가 동료가 격추되면 그 자리를 메운다.
  *   이번 틱의 다른 피해로 이미 죽을 목표에는 터지지 않는다. 예전에는 가까운 적만 봐서 뮤탈 6기에 12기가 3·1·1·1·1·3으로 몰려 2기만 잡았다.
  *   필요한 수보다 절반 더 붙이는 안은 범위 공격(발키리·커세어)에 뭉쳐 죽어 손해였다(발키리 4기 상대로 잡은 값 1,125 → 750).
+ *   남는 스커지가 격추된 자리를 계속 메우다 보면 해병·골리앗이 엄호하는 레이스 둘에 30기가 둘씩 차례로 들어가 다 죽는다.
+ *   그래서 한 목표에 필요한 수의 두 배 + 2기가 달려들고도 못 잡으면 SCOURGE_GIVE_UP초 동안 그 목표를 포기한다.
  * - 값: 교환이 손해인 목표(오버로드, 적 스커지: 값이 드는 스커지 값 이하)는 다른 목표가 없을 때만 친다. 그 안에서는 값 효율이 좋은 목표를 가깝게 친다.
  * - 대기: 공중 목표가 없으면 공격 병력의 꼬리 뒤 SCOURGE_BEHIND칸에서, 적 대공(건물·유닛) 사거리 밖에 떠 있는다. 스커지만 출격했으면 적 대공 사거리 앞까지만 간다.
  *   예전에는 때릴 것이 없어도 병력과 함께 들어가 해병·터렛·캐논에 전멸했고, 살아남으면 적 본진 위에 떠 있었다.
@@ -3409,6 +3413,9 @@ function scourgeStep(state, unit, { isAttack, slot, intruders }, speed, dt) {
     if (enemy.side === unit.side || enemy.hp <= 0 || !targetable(state, unit, enemy) || !inReach(enemy)) continue;
     const need = scourgeNeed(state, unit, enemy, pending);
     if (!need) continue;
+    // 엄호가 두꺼워 계속 격추되는 목표는 포기한다: 필요한 수의 두 배 + 2기가 달려들고도 살아 있으면 SCOURGE_GIVE_UP초 동안 새로 붙지 않는다.
+    const tried = enemy.scourgeTried;
+    if (tried && unit.targetId !== enemy.id && state.time - tried.at < SCOURGE_GIVE_UP && tried.count >= tried.limit) continue;
     const d = distance(unit.x, unit.y, enemy.x, enemy.y) - enemy.radius;
     // 먼저 붙은 동료(내가 이미 이 목표를 쫓는 중이면 나보다 가까운 동료)만으로 수가 차면 이 목표는 건너뛴다.
     const others = squadmates.filter((ally) => ally.targetId === enemy.id);
@@ -3421,6 +3428,10 @@ function scourgeStep(state, unit, { isAttack, slot, intruders }, speed, dt) {
       best = enemy;
       bestScore = score;
     }
+  }
+  if (best && best.id !== unit.targetId) {
+    if (!best.scourgeTried || state.time - best.scourgeTried.at >= SCOURGE_GIVE_UP) best.scourgeTried = { count: 0, at: state.time, limit: scourgeNeed(state, unit, best, pending) * 2 + 2 };
+    best.scourgeTried.count += 1;
   }
   unit.targetId = best?.id ?? null;
   if (best) {
