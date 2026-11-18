@@ -20,7 +20,7 @@
   "versionId": "appgprj_6a6d3fe03e088191a10d24bc727c3b5b~appgver_5113065750f08191964b34220a8738eb",
   "deploymentId": "appgdep_6afd6151a3248191af5a9c788bc56cf5",
   "siteUrl": "https://games.itnadcom.chatgpt.site",
-  "verifiedAt": "2026-11-18T08:33:23.475712+00:00",
+  "verifiedAt": "2026-11-18T08:34:01.887940+00:00",
   "ci": {
     "id": 44266292191,
     "name": "Stark Rift and Paperoid regression",
@@ -317,5 +317,21 @@
     "A first automation attempt remained in transport loading mode,so no retreat command was issued. Logs identified this; the harness now explicitly cancels loading before retreat. Earlier attempts are preserved separately and excluded from final passing counts. Initial concurrent browser/benchmark load produced a53ms p95; the isolated repeat measured about9.2ms for cross200 and completed all traffic gates.",
     "Sites source had diverged from GitHub with4 pre-existing Haeru/Vite fixes. A true merge preserves both GitHub Parasite/StarDraft work and the actual Sites ancestry,without a force push. The final merge SHA and tree are identical on GitHub main,Sites source,the clean build and native saved/deployed version. All206 artifact files are individually SHA256 verified; lossless gzip packaging preserves all assets.",
     "Chromium SwiftShader/native touch does not certify physical Android/iOS or hardware GPU performance. Queen Broodlings/Infest,autocast,multiplayer alliances,final graphics and strategic AI remain separate work."
+  ],
+  "backups": [
+    {
+      "path": "/workspace/library-files/stark-rift-parasite-source-and-qa.zip",
+      "bytes": 33030601,
+      "files": 573,
+      "sha256": "e2d014dde3d3c60dc99ae26d1bbc8a5f46de8dea04cc7a68ff1b155ca6b1a5a9",
+      "crcVerified": true
+    },
+    {
+      "path": "/workspace/library-files/stark-rift-parasite-qa.zip",
+      "bytes": 3545131,
+      "files": 216,
+      "sha256": "0a0586cb578171dd749ef6b520ed4bdd7e857c11a07d5a0861d0d8c8cbbb0214",
+      "crcVerified": true
+    }
   ]
 }
