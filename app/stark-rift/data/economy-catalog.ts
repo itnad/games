@@ -1,3 +1,4 @@
+import infestation from "./infestation-original.json";
 import broodlings from "./broodlings-original.json";
 import parasite from "./parasite-original.json";
 import queen from "./queen-original.json";
@@ -183,9 +184,10 @@ export const economyLayer = (d: EconomyDefinition): "air" | "ground" =>
 export const economyId = (name: string) =>
   name.toLowerCase().replaceAll("_", "-");
 const broodlingRows:typeof rows=[["Zerg_Broodling","브루들링","infantry","zerg-queen"]];
-export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows, ...cloakRows, ...siegeRows, ...lurkerRows, ...arbiterRows, ...medicRows, ...queenRows,...broodlingRows].map(
+const infestationRows:typeof rows=[["Zerg_Infested_Command_Center","감염된 커맨드 센터","infested","zerg-queen"],["Zerg_Infested_Terran","감염된 테란","infantry","zerg-infested-command-center"]];
+export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows, ...cloakRows, ...siegeRows, ...lurkerRows, ...arbiterRows, ...medicRows, ...queenRows,...broodlingRows,...infestationRows].map(
   ([sourceName, name, icon, producer, requires = []]) => {
-    const raw = [...original.units, ...special.units, ...cloak.units, ...siege.units, ...lurker.units, ...arbiter.units, ...medic.units, ...queen.units,...broodlings.units].find((u) => u.name === sourceName);
+    const raw = [...original.units, ...special.units, ...cloak.units, ...siege.units, ...lurker.units, ...arbiter.units, ...medic.units, ...queen.units,...broodlings.units,...infestation.units].find((u) => u.name === sourceName);
     if (!raw) throw new Error("Missing original definition " + sourceName);
     const id = economyId(sourceName),
       faction = id.split("-")[0] as Faction;
@@ -231,7 +233,7 @@ export const ECONOMY_DEFINITIONS: EconomyDefinition[] = [...rows, ...specialRows
         kind === "building" &&
         faction === "zerg" &&
         !headquarters &&
-        !gasBuilding,
+        !gasBuilding && id!=="zerg-infested-command-center",
       power:
         kind === "building" &&
         faction === "protoss" &&
@@ -337,15 +339,16 @@ export const SPECIAL_ECONOMY_DATA_VERSION = "special-economy-" + checksum({
 export const CLOAK_ECONOMY_DATA_VERSION = "cloak-economy-" + checksum({ base: SPECIAL_ECONOMY_DATA_VERSION, cloak: JSON.stringify(cloak), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length), upgrades: cloakUpgrades });
 export const SIEGE_ECONOMY_DATA_VERSION = "siege-economy-" + checksum({ base: CLOAK_ECONOMY_DATA_VERSION, siege: JSON.stringify(siege), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length + siegeRows.length), upgrades: siegeUpgrades });
 export const LURKER_ECONOMY_DATA_VERSION = "lurker-economy-" + checksum({ base: SIEGE_ECONOMY_DATA_VERSION, lurker: JSON.stringify(lurker), definitions: ECONOMY_DEFINITIONS.slice(0, rows.length + specialRows.length + cloakRows.length + siegeRows.length + lurkerRows.length), upgrades: lurkerUpgrades });
-export const ARBITER_ECONOMY_DATA_VERSION = "arbiter-economy-" + checksum({ base: LURKER_ECONOMY_DATA_VERSION, arbiter: JSON.stringify(arbiter), definitions: ECONOMY_DEFINITIONS.slice(0,-medicRows.length-queenRows.length-broodlingRows.length) });
+export const ARBITER_ECONOMY_DATA_VERSION = "arbiter-economy-" + checksum({ base: LURKER_ECONOMY_DATA_VERSION, arbiter: JSON.stringify(arbiter), definitions: ECONOMY_DEFINITIONS.slice(0,-medicRows.length-queenRows.length-broodlingRows.length-infestationRows.length) });
 export const SPELLS_ECONOMY_DATA_VERSION = "spells-economy-" + checksum({ base: ARBITER_ECONOMY_DATA_VERSION, spells: JSON.stringify(spells), upgrades: spellsUpgrades });
 export const ENERGY_ECONOMY_DATA_VERSION = "energy-economy-" + checksum({ base: SPELLS_ECONOMY_DATA_VERSION, energy: JSON.stringify(energy), upgrades: energyUpgrades });
-export const MEDIC_ECONOMY_DATA_VERSION = "medic-economy-" + checksum({base:ENERGY_ECONOMY_DATA_VERSION,medic:JSON.stringify(medic),definitions:ECONOMY_DEFINITIONS.slice(0,-queenRows.length-broodlingRows.length),upgrades:medicUpgrades});
+export const MEDIC_ECONOMY_DATA_VERSION = "medic-economy-" + checksum({base:ENERGY_ECONOMY_DATA_VERSION,medic:JSON.stringify(medic),definitions:ECONOMY_DEFINITIONS.slice(0,-queenRows.length-broodlingRows.length-infestationRows.length),upgrades:medicUpgrades});
 export const STIM_ECONOMY_DATA_VERSION="stim-economy-"+checksum({base:MEDIC_ECONOMY_DATA_VERSION,stim:JSON.stringify(stim),upgrades:stimUpgrades});
 export const MEDIC_SPELLS_ECONOMY_DATA_VERSION="medic-spells-economy-"+checksum({base:STIM_ECONOMY_DATA_VERSION,medicSpells:JSON.stringify(medicSpells),upgrades:medicSpellsUpgrades});
-export const QUEEN_ECONOMY_DATA_VERSION="queen-economy-"+checksum({base:MEDIC_SPELLS_ECONOMY_DATA_VERSION,queen:JSON.stringify(queen),definitions:ECONOMY_DEFINITIONS.slice(0,-broodlingRows.length),upgrades:queenUpgrades});
+export const QUEEN_ECONOMY_DATA_VERSION="queen-economy-"+checksum({base:MEDIC_SPELLS_ECONOMY_DATA_VERSION,queen:JSON.stringify(queen),definitions:ECONOMY_DEFINITIONS.slice(0,-broodlingRows.length-infestationRows.length),upgrades:queenUpgrades});
 export const PARASITE_ECONOMY_DATA_VERSION="parasite-economy-"+checksum({base:QUEEN_ECONOMY_DATA_VERSION,parasite:JSON.stringify(parasite)});
-export const ECONOMY_DATA_VERSION="broodlings-economy-"+checksum({base:PARASITE_ECONOMY_DATA_VERSION,broodlings:JSON.stringify(broodlings),definitions:ECONOMY_DEFINITIONS.slice(-broodlingRows.length),upgrades:ECONOMY_UPGRADES.slice(queenUpgrades.length)});
+export const BROODLINGS_ECONOMY_DATA_VERSION="broodlings-economy-"+checksum({base:PARASITE_ECONOMY_DATA_VERSION,broodlings:JSON.stringify(broodlings),definitions:ECONOMY_DEFINITIONS.slice(-broodlingRows.length-infestationRows.length,-infestationRows.length),upgrades:ECONOMY_UPGRADES.slice(queenUpgrades.length)});
+export const ECONOMY_DATA_VERSION="infestation-economy-"+checksum({base:BROODLINGS_ECONOMY_DATA_VERSION,infestation:JSON.stringify(infestation),definitions:ECONOMY_DEFINITIONS.slice(-infestationRows.length)});
 for (const d of ECONOMY_DEFINITIONS) {
   if (
     !lookup.has(d.producer) ||

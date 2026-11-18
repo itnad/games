@@ -23,7 +23,7 @@ export function updateEconomicMarker(
   g.alpha = e.cloaked ? 0.48 : started ? 1 : 0.42;
   const w = d.width,
     h = d.height,
-    terr = d.faction === "terran",
+    terr = d.faction === "terran" || d.id==="zerg-infested-command-center",
     zerg = d.faction === "zerg";
   if(e.ensnareTicks){g.circle(0,0,.72).stroke({color:0x89dd5a,width:.07});for(const x of [-.35,0,.35])g.moveTo(x,-.6).lineTo(-x,.6).stroke({color:0x75bd4e,width:.04,alpha:.8});}
   if (e.burrowed) {
@@ -33,6 +33,7 @@ export function updateEconomicMarker(
     if (ring !== null) g.ellipse(0, 0.08, r * 1.5, r * 0.8).stroke({ color: ring, width: 0.055 });
     return true;
   }
+  if(d.id==="zerg-infested-terran"){g.ellipse(0,.03,.34,.43).fill(color).stroke({color:0xdba0c7,width:.05});g.circle(0,.06,.18).fill(0xe4ad63);g.ellipse(0,-.4,.17,.12).fill(0xb9cf8b);for(const a of [-1,1])g.moveTo(a*.2,.3).lineTo(a*.35,.52).stroke({color,width:.11});if(ring!==null)g.circle(0,0,.58).stroke({color:ring,width:.05});g.rect(-.3,-.7,.6,.06).fill(0x241d29);g.rect(-.3,-.7,.6*e.health/d.health,.06).fill(0x82d96c);return true;}
   if(d.id==="zerg-broodling"){g.ellipse(0,.05,.29,.19).fill(color).stroke({color:0xe9abc1,width:.04});for(const side of [-1,1]){g.moveTo(side*.18,-.05).lineTo(side*.37,-.3).lineTo(side*.13,-.22).stroke({color:0xe9abc1,width:.06});g.moveTo(side*.12,.13).lineTo(side*.3,.3).stroke({color,width:.06});}if(ring!==null)g.ellipse(0,.02,.43,.3).stroke({color:ring,width:.05});g.rect(-.3,-.48,.6,.06).fill(0x241d29);g.rect(-.3,-.48,.6*e.health/d.health,.06).fill(0x82d96c);return true;}
   if (d.kind === "building") {
     g.ellipse(0.12, 0.22, w * 0.55, h * 0.48).fill({
@@ -345,6 +346,7 @@ export function updateEconomicMarker(
       0.08,
     ).fill(0x7ebdff);
   }
+  if(d.id==="zerg-infested-command-center"){g.ellipse(-.5,.15,.8,.55).fill({color:0x743f75,alpha:.8}).stroke({color:0xcb8bad,width:.06});for(const sign of [-1,1])g.moveTo(sign*.3,.3).bezierCurveTo(sign*1.4,.9,sign*1.6,-.8,sign*1.7,-.2).stroke({color:0xbc72a0,width:.17});}
   if(e.parasited){g.ellipse(0,-.92,.28,.15).fill(0x222d1a).stroke({color:0xd9e877,width:.05});g.circle(0,-.92,.09).fill(0xd9e877);}
   if(e.blinded){g.ellipse(0,-.72,.25,.12).stroke({color:0xffd77b,width:.05});g.moveTo(-.22,-.96).lineTo(.22,-.48).stroke({color:0xffd77b,width:.07});}
   if(e.stimTicks)g.ellipse(0,0,.48,.6).stroke({color:0xffae68,width:.07,alpha:.9});

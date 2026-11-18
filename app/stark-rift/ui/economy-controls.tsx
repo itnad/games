@@ -1,3 +1,4 @@
+import {InfestationControls} from "./infestation-controls";
 import { QueenControls } from "./queen-controls";
 import { MedicSpellControls } from "./medic-spell-controls";
 import { StimControls } from "./stim-controls";
@@ -35,7 +36,7 @@ export function EconomyControls({
   running,
   openBuildMenu,
   selectWorker,
-  scout, loadTransport, unloadTransport, selectEntities, castAbility, heal, medicSpell, parasite, broodlings,
+  scout, loadTransport, unloadTransport, selectEntities, castAbility, heal, medicSpell, parasite, broodlings, infest,
 }: {
   snapshot: RenderSnapshot;
   selected: number[];
@@ -48,6 +49,7 @@ export function EconomyControls({
   scout: () => void;
   parasite?:(id:number)=>void;
   broodlings?:(id:number)=>void;
+  infest?:(id:number)=>void;
   heal?: (id:number)=>void;
   medicSpell?: (id:number,ability:"optical-flare"|"restoration")=>void;
   castAbility?: (id: number, ability: "recall" | "stasis-field" | "ensnare") => void;
@@ -174,6 +176,7 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
+      <InfestationControls snapshot={snapshot} selected={selected} running={running} begin={infest} select={selectEntities} suicide={ids=>issue({kind:"castAbility",entityIds:ids,payload:{abilityId:"suicide"},target:{kind:"entity",entityId:ids[0]}})} />
       <QueenControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={castAbility} parasite={parasite} broodlings={broodlings} />
       <StimControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} issue={issue} />
       <MedicSpellControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={medicSpell} />

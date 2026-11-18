@@ -60,6 +60,7 @@ export function DevelopmentPreview() {
                 "ranged-practice",
                 "siege-practice",
                 "special-practice",
+                "infestation-practice",
               ] as const
             ).map((mode) => [mode + ":" + f.id, instance.read(f.id, mode)]),
           ),
@@ -165,6 +166,7 @@ export function DevelopmentPreview() {
               본부 공략
             </button>
             <button aria-pressed={scenario === "special-practice"} onClick={() => setScenario("special-practice")}>특수 연습</button>
+            <button aria-pressed={scenario==="infestation-practice"} onClick={()=>{setFaction("zerg");setScenario("infestation-practice");}}>감염 연습</button>
           </div>
           <div className="sr-dev-factions" role="group" aria-label="종족 선택">
             {FACTIONS.map((f) => (
@@ -172,6 +174,7 @@ export function DevelopmentPreview() {
                 key={f.id}
                 type="button"
                 data-faction={f.id}
+                disabled={scenario==="infestation-practice"&&f.id!=="zerg"}
                 aria-pressed={faction === f.id}
                 onClick={() => setFaction(f.id)}
               >
@@ -192,6 +195,7 @@ export function DevelopmentPreview() {
                 : "이어서 하기"}
             </button>
           </div>
+          {scenario === "infestation-practice" && <p className="sr-dev-scope">저그 전용 감염 연습입니다. 퀸·체력600의 적 커맨드 센터·추가 미네랄500/가스200이 제공됩니다. 건물에 접근 → 커맨드 센터 감염 → 건물 터치 → 감염된 센터 선택 → 감염된 테란 생산. 에너지를 소모하지 않습니다. 생산한 유닛은 지상 근접 공격 시 자폭하며 아군도 범위 피해를 받습니다. 기존 특수 연습과 저장 기록을 공유하지 않습니다.</p>}
           {scenario === "special-practice" && <p className="sr-dev-scope">수송선과 병력이 제공됩니다. 탑승 → 부대 슬롯 터치 → 전체 하차 → 지점 선택. 테란은 시즈 탱크·고스트·레이스와 모드/은폐 연구, 메딕 2기(5번 부대)·부상 마린 2기(1번 부대)·배럭·아카데미가, 프로토스는 아비터 2기(3·4번 부대, 연습용 에너지 200)·리콜/스테이시스 연구·영구 은폐 유닛·옵저버가, 저그는 퀸 2기(4·5번 부대)·퀸즈 네스트·추가 자원 ◆ 600 ◉ 450과 러커(3번 부대), 수송·버로우·러커 변태 연구와 추가 자원 ◆ 100 ◉ 200이 제공됩니다. 아비터 선택 후 이동하면 주변 아군의 은폐가 바뀝니다. 패러사이트는 연구 없이 사용할 수 있습니다. 퀸 선택 → 패러사이트 → 보이는 유닛 터치로 시야·탐지를 공유합니다. 퀸즈 네스트에서 인스네어·브루들링 생성·게메이트 마이오시스를 연구하세요. 브루들링 생성은 에너지150으로 지상 대상을 처치하고 수명75초의 근접 유닛을 최대2기 생성합니다. 퀸 선택 → 인스네어 → 지점 터치로 범위 감속과 은폐 노출을 확인할 수 있습니다. 러커 선택 → 버로우로 직선 범위 공격을 확인하세요. 테란·프로토스는 최대 에너지 연구시설과 추가 자원 ◆ 600 ◉ 650도 제공하며 연구는 직접 진행합니다. 아카데미에서 옵티컬 플레어·리스토레이션을 연구해 실명과 복구도 확인할 수 있습니다. 아카데미에서 스팀팩을 연구한 뒤 마린의 체력 소모와 메딕 치료 연계를 확인하세요. 메딕 선택 → 치료 → 1번 부대로 치료를 확인하고, 아카데미에서 카두세우스 반응로를 연구하세요. 연습 기록은 별도로 저장됩니다.</p>}
           {scenario === "combat-practice" && (
             <p className="sr-dev-scope">
