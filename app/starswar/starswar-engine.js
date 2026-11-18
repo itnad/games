@@ -2790,6 +2790,8 @@ function stepUnits(state, dt) {
       moveToward(unit, slot.x, slot.y, speed, dt);
       continue;
     }
+    // 스커지: 멀리서 목표를 잡아 제 속도로 돌진하고, 공중 목표가 없으면 병력 뒤에서 기다린다(scourgeStep).
+    if (def.suicide && def.targets === "air" && scourgeStep(state, unit, { isAttack, slot, intruders: plan.intruders }, speed, dt)) continue;
     // 아군 스톰 안에 있으면(시전 순간 걸쳤거나 밀려 들어감) 싸움을 멈추고 스톰 중심에서 멀어지는 쪽으로 빠져나온다(피해는 없다).
     const ownStorm = !isFlying(unit) && state.storms.find((storm) => storm.side === unit.side && inStorm(unit, storm));
     if (ownStorm) {
@@ -3356,6 +3358,92 @@ function woundedEvade(state, unit, speed, dt) {
     const away = Math.atan2(unit.y - attacker.y, unit.x - attacker.x);
     moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
   }
+  return true;
+}
+
+/** 스커지가 공중 적을 잡는 거리, 목표가 없을 때 아군 병력 꼬리 뒤로 물러서는 거리, 채워 가는 목표를 이만큼 가까운 것으로 치는 정도, 값 효율 1마다 가까운 것으로 치는 칸 수. */
+const SCOURGE_REACH = 12;
+const SCOURGE_BEHIND = 3;
+const SCOURGE_FILL_PULL = 3;
+const SCOURGE_VALUE_PULL = 1.5;
+
+/** 유닛 값(한 번에 둘 나오는 유닛은 절반). */
+function tradeValue(type) {
+  const def = STW_UNITS[type];
+  return (def.pair ? 0.5 : 1) * (def.minerals + def.gas);
+}
+
+/** 그 목표를 잡는 데 더 박아야 하는 스커지 수(이번 틱에 이미 예약된 피해는 뺀다). 0이면 더 박을 필요가 없다. */
+function scourgeNeed(state, unit, target, pending) {
+  const perHit = stwHitDamage(state, unit, target).reduce((sum, amount) => sum + amount, 0);
+  const left = target.hp + target.shields - (pending.get(target.id) ?? 0);
+  return left <= 0 ? 0 : Math.ceil(left / Math.max(1, perHit));
+}
+
+/**
+ * 스커지의 목표 고르기와 움직임. 이 틱을 여기서 처리했으면 true(최종 결전 중에는 보통 유닛처럼 전진하도록 false).
+ * - 돌진: 공중 적을 SCOURGE_REACH칸에서 잡아 제 속도(5.6)로 달려든다. 예전에는 7칸 안에 들어와야 잡았고 그 전에는 대열 속도(3)로 걸어가,
+ *   사거리 8~9인 배틀크루저·캐리어에 10기 중 8기가 닿기 전에 죽었다. 대열 끝의 스커지는 끝까지 목표를 못 잡고 지나갔다.
+ * - 나눠 박기: 목표마다 죽이는 데 필요한 수까지만 붙는다. 이미 스커지가 붙기 시작한 목표를 먼저 채우고(SCOURGE_FILL_PULL칸 가까운 것으로 친다),
+ *   먼저 붙은 동료만으로 수가 차면 다른 목표로 간다. 남는 스커지는 대기하다가 동료가 격추되면 그 자리를 메운다.
+ *   이번 틱의 다른 피해로 이미 죽을 목표에는 터지지 않는다. 예전에는 가까운 적만 봐서 뮤탈 6기에 12기가 3·1·1·1·1·3으로 몰려 2기만 잡았다.
+ *   필요한 수보다 절반 더 붙이는 안은 범위 공격(발키리·커세어)에 뭉쳐 죽어 손해였다(발키리 4기 상대로 잡은 값 1,125 → 750).
+ * - 값: 교환이 손해인 목표(오버로드, 적 스커지: 값이 드는 스커지 값 이하)는 다른 목표가 없을 때만 친다. 그 안에서는 값 효율이 좋은 목표를 가깝게 친다.
+ * - 대기: 공중 목표가 없으면 공격 병력의 꼬리 뒤 SCOURGE_BEHIND칸에서, 적 대공(건물·유닛) 사거리 밖에 떠 있는다. 스커지만 출격했으면 적 대공 사거리 앞까지만 간다.
+ *   예전에는 때릴 것이 없어도 병력과 함께 들어가 해병·터렛·캐논에 전멸했고, 살아남으면 적 본진 위에 떠 있었다.
+ */
+function scourgeStep(state, unit, { isAttack, slot, intruders }, speed, dt) {
+  if (state.finalBattle) return false;
+  const def = STW_UNITS[unit.type];
+  const pending = pendingDamageOf(state);
+  const squadmates = state.units.filter((ally) => ally !== unit && ally.side === unit.side && ally.type === unit.type && ally.hp > 0 && ally.targetId !== null);
+  const inReach = (enemy) => {
+    const d = distance(unit.x, unit.y, enemy.x, enemy.y) - enemy.radius;
+    if (isAttack || !slot) return d <= SCOURGE_REACH;
+    // 대기 중: 기지에 들어온 적은 거리와 상관없이, 그 밖에는 제자리 근처(RALLY_LEASH)의 적만 쫓는다.
+    return intruders.includes(enemy) || (d <= SCOURGE_REACH && distance(enemy.x, enemy.y, slot.x, slot.y) - enemy.radius <= RALLY_LEASH);
+  };
+  let best = null;
+  let bestScore = Infinity;
+  for (const enemy of state.units) {
+    if (enemy.side === unit.side || enemy.hp <= 0 || !targetable(state, unit, enemy) || !inReach(enemy)) continue;
+    const need = scourgeNeed(state, unit, enemy, pending);
+    if (!need) continue;
+    const d = distance(unit.x, unit.y, enemy.x, enemy.y) - enemy.radius;
+    // 먼저 붙은 동료(내가 이미 이 목표를 쫓는 중이면 나보다 가까운 동료)만으로 수가 차면 이 목표는 건너뛴다.
+    const others = squadmates.filter((ally) => ally.targetId === enemy.id);
+    const closer = unit.targetId === enemy.id ? others.filter((ally) => distance(ally.x, ally.y, enemy.x, enemy.y) - enemy.radius < d).length : others.length;
+    if (closer >= need) continue;
+    const efficiency = Math.min(4, tradeValue(enemy.type) / (need * tradeValue(unit.type)));
+    const poor = efficiency <= 1 ? LAST_RESORT : 0;
+    const score = d + poor - efficiency * SCOURGE_VALUE_PULL - (others.length && others.length < need ? SCOURGE_FILL_PULL : 0) - (unit.targetId === enemy.id ? 1 : 0);
+    if (score < bestScore) {
+      best = enemy;
+      bestScore = score;
+    }
+  }
+  unit.targetId = best?.id ?? null;
+  if (best) {
+    const d = distance(unit.x, unit.y, best.x, best.y) - best.radius - unit.radius * 0.5;
+    unit.heading = Math.atan2(best.y - unit.y, best.x - unit.x);
+    if (d <= unitRange(state, unit)) fireWeapon(state, unit, def, best);
+    else moveToward(unit, best.x, best.y, speed, dt);
+    return true;
+  }
+  // 목표가 없다: 대기 병력은 제자리로, 공격 병력은 아군 꼬리 뒤(스커지뿐이면 한 걸음 앞)의 안전한 자리로.
+  if (!isAttack) {
+    if (slot) moveToward(unit, slot.x, slot.y, speed, dt);
+    return true;
+  }
+  const forward = stwForward(unit.side);
+  const escort = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && ally.hp > 0 && !isPassive(ally) && !STW_UNITS[ally.type].suicide);
+  const x = slot ? slot.x : unit.x;
+  const y = escort.length
+    ? escort.reduce((rear, ally) => (ally.y * forward < rear * forward ? ally.y : rear), escort[0].y) - forward * SCOURGE_BEHIND
+    : unit.y + forward * 2;
+  const spot = safeAirSpot(state, unit, { x: unit.x + (x - unit.x) * 0.15, y: Math.min(STW_LANE_LENGTH - 1.5, Math.max(1.5, y)) }, { units: true });
+  // 쫓아오는 적 대공 유닛을 피해 물러나더라도 전장 밖으로 나가지 않는다.
+  moveToward(unit, spot.x, Math.min(STW_LANE_LENGTH - 1.5, Math.max(1.5, spot.y)), speed, dt);
   return true;
 }
 

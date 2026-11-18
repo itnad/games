@@ -2340,6 +2340,68 @@ test("starswar corsairs splash only air, mutalisks bounce, scourges die on impac
   assert.ok(scoutTarget.hp + scoutTarget.shields <= 250 - 110 + 1, `스카웃 피해 ${scoutTarget.hp + scoutTarget.shields}`);
 });
 
+test("starswar scourges dive from afar, split by what each target needs, skip poor trades and wait behind when there is nothing to hit", () => {
+  // 돌진: 예전에는 7칸 안에 들어와야 목표를 잡았다. 11칸 밖의 수송선을 바로 잡아 제 속도(초당 5.6칸)로 달려든다.
+  const dive = quiet();
+  const diver = stwSpawnUnitAt(dive, "player", "scourge", 20, 60, "attack");
+  const far = stwSpawnUnitAt(dive, "enemy", "shuttle", 20, 49, "rally");
+  far.hp = far.maxHp = 9999;
+  run(dive, 1);
+  assert.equal(diver.targetId, far.id, "11칸 밖의 공중 적을 잡는다");
+  assert.ok(60 - diver.y > 4.5, `제 속도로 달려든다 ${60 - diver.y}`);
+
+  // (적 수송선은 제 집결지로 날아가므로 따라잡을 시간을 준다.)
+  // 나눠 박기: 수송선(체력 80 + 보호막 60)은 둘씩 박아야 잡는다. 넷이 모두 가까운 쪽으로 몰리지 않고 둘씩 나뉘어 둘 다 잡는다.
+  const split = quiet();
+  const four = [14, 15.5, 17, 18.5].map((x) => stwSpawnUnitAt(split, "player", "scourge", x, 58, "attack"));
+  const shuttles = [16, 23].map((x) => stwSpawnUnitAt(split, "enemy", "shuttle", x, 50, "rally"));
+  run(split, 12);
+  assert.ok(shuttles.every((shuttle) => shuttle.hp <= 0), `둘 다 잡는다 ${shuttles.map((shuttle) => Math.round(shuttle.hp + shuttle.shields))}`);
+  assert.ok(four.every((unit) => unit.hp <= 0));
+
+  // 남는 스커지는 박지 않는다: 수송선 하나에 넷이 가면 둘만 터지고 둘은 남는다.
+  const spare = quiet();
+  const pack = [17, 19, 21, 23].map((x) => stwSpawnUnitAt(spare, "player", "scourge", x, 58, "attack"));
+  const lone = stwSpawnUnitAt(spare, "enemy", "shuttle", 20, 50, "rally");
+  run(spare, 12);
+  assert.ok(lone.hp <= 0, "수송선을 잡는다");
+  assert.equal(pack.filter((unit) => unit.hp > 0).length, 2, "필요한 둘만 터진다");
+
+  // 값: 오버로드(값 100에 스커지 둘 = 값 100)는 손해 없는 목표가 있으면 건드리지 않는다. 더 멀리 있는 수송선부터 잡는다.
+  const trade = quiet();
+  const pair = [19, 21].map((x) => stwSpawnUnitAt(trade, "player", "scourge", x, 60, "attack"));
+  const overlord = stwSpawnUnitAt(trade, "enemy", "overlord", 20, 55, "rally");
+  const prize = stwSpawnUnitAt(trade, "enemy", "shuttle", 20, 50, "rally");
+  run(trade, 12);
+  assert.ok(prize.hp <= 0, "수송선을 잡는다");
+  assert.equal(overlord.hp, overlord.maxHp, "오버로드는 그대로 둔다");
+  assert.ok(pair.every((unit) => unit.hp <= 0));
+
+  // 대기: 공중 적이 없으면 병력 꼬리 뒤에서 기다린다. 예전에는 히드라와 함께 들어가 해병에게 모두 죽었다.
+  const hold = quiet();
+  const hydras = [0, 1, 2, 3, 4, 5].map((index) => stwSpawnUnitAt(hold, "player", "hydra", 13 + index * 2.6, 58, "attack"));
+  const waiting = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(hold, "player", "scourge", 15 + index * 3, 60, "attack"));
+  const marines = [0, 1, 2, 3, 4, 5].map((index) => stwSpawnUnitAt(hold, "enemy", "marine", 13 + index * 2.6, 46, "rally"));
+  for (const unit of [...hydras, ...marines]) unit.hp = unit.maxHp = 9999;
+  run(hold, 10);
+  const rear = Math.max(...hydras.map((unit) => unit.y));
+  assert.ok(waiting.every((unit) => unit.hp === unit.maxHp), "한 대도 맞지 않는다");
+  assert.ok(waiting.every((unit) => unit.y > rear), `히드라 꼬리(${rear.toFixed(1)}) 뒤에 선다 ${waiting.map((unit) => unit.y.toFixed(1))}`);
+
+  // 스커지만 출격해도 적 대공 유닛의 사거리 안으로 들어가지 않는다(다가오는 해병에게서는 물러난다).
+  const alone = quiet();
+  const scout = stwSpawnUnitAt(alone, "player", "scourge", 20, 62, "attack");
+  const guards = [0, 1, 2].map((index) => stwSpawnUnitAt(alone, "enemy", "marine", 17 + index * 3, 46, "attack"));
+  for (const unit of guards) unit.hp = unit.maxHp = 9999;
+  let nearest = Infinity;
+  for (let step = 0; step < 100; step += 1) {
+    stepStarswar(alone);
+    nearest = Math.min(nearest, ...guards.map((unit) => Math.hypot(unit.x - scout.x, unit.y - scout.y)));
+  }
+  assert.equal(scout.hp, scout.maxHp, "맞지 않는다");
+  assert.ok(nearest > 6.5, `해병 사거리(6) 밖에 머문다 ${nearest}`);
+});
+
 test("starswar air units ride behind the wave and never lead it; wraith cloak needs research", () => {
   const state = quiet();
   const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 70, "attack");
