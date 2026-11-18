@@ -168,6 +168,90 @@ export const LAB_PRESETS: LabPreset[] = [
     },
   },
   {
+    id: "marine-medic-zealot",
+    name: "해병 20 메딕 20 대 질럿 40",
+    note: "10분, 정면 교전 · 연구 없이 시작(스팀팩·발업을 켜며 비교)",
+    config: {
+      time: 600,
+      placement: "clash",
+      races: { player: "terran", enemy: "protoss" },
+      sides: {
+        player: { ...emptySide("manual"), units: { marine: 20, medic: 20 } },
+        enemy: { ...emptySide("fight"), units: { zealot: 40 } },
+      },
+    },
+  },
+  {
+    id: "firebat-medic-zergling",
+    name: "파이어뱃 20 메딕 20 대 저글링 80",
+    note: "10분, 정면 교전 · 연구 없이 시작(스팀팩·저글링 속도를 켜며 비교)",
+    config: {
+      time: 600,
+      placement: "clash",
+      races: { player: "terran", enemy: "zerg" },
+      sides: {
+        player: { ...emptySide("manual"), units: { firebat: 20, medic: 20 } },
+        enemy: { ...emptySide("fight"), units: { zergling: 80 } },
+      },
+    },
+  },
+  {
+    id: "corsair-scout",
+    name: "커세어 20 대 스카웃 20",
+    note: "12분, 공중전 · 커세어의 범위 공격 대 스카웃의 공중 무기",
+    config: {
+      time: 720,
+      placement: "clash",
+      races: { player: "protoss", enemy: "protoss" },
+      sides: {
+        player: { ...emptySide("manual"), units: { corsair: 20 } },
+        enemy: { ...emptySide("fight"), units: { scout: 20 } },
+      },
+    },
+  },
+  {
+    id: "guardian-goliath",
+    name: "가디언 10 대 골리앗 10",
+    note: "15분, 가디언(사거리 9, 지상만) 대 골리앗(사거리 5, 지상·공중)",
+    config: {
+      time: 900,
+      placement: "clash",
+      races: { player: "zerg", enemy: "terran" },
+      sides: {
+        player: { ...emptySide("manual"), units: { guardian: 10 } },
+        enemy: { ...emptySide("fight"), units: { goliath: 10 } },
+      },
+    },
+  },
+  {
+    id: "bio-carrier",
+    name: "해병 50 메딕 30 대 캐리어 13",
+    note: "15분, 아군 인구 꽉 · 캐리어는 인구 100에서 일꾼 20을 빼고 뽑을 수 있는 최대 13기. 연구 없이 시작(캐리어 수용량·U-238을 켜며 비교)",
+    config: {
+      time: 900,
+      placement: "clash",
+      races: { player: "terran", enemy: "protoss" },
+      sides: {
+        player: { ...emptySide("manual"), units: { marine: 50, medic: 30 } },
+        enemy: { ...emptySide("fight"), units: { carrier: 13 } },
+      },
+    },
+  },
+  {
+    id: "bio-hydra",
+    name: "해병 40 메딕 10 대 히드라 40",
+    note: "10분, 정면 교전 · 연구 없이 시작(스팀팩·히드라 사거리·속도를 켜며 비교)",
+    config: {
+      time: 600,
+      placement: "clash",
+      races: { player: "terran", enemy: "zerg" },
+      sides: {
+        player: { ...emptySide("manual"), units: { marine: 40, medic: 10 } },
+        enemy: { ...emptySide("fight"), units: { hydra: 40 } },
+      },
+    },
+  },
+  {
     id: "ai-watch",
     name: "AI 대 AI 관전",
     note: "10분부터 캐리어 함대 대 디파일러 하이브, 양쪽 AI가 운영",
