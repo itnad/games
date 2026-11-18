@@ -84,7 +84,7 @@ function fixture(faction: Faction = "terran") {
 }
 describe("stage 4 deterministic economy", () => {
   it("uses verified costs, nearest 50% timing, supply halves and original movement speed", () => {
-    expect(ECONOMY_DEFINITIONS).toHaveLength(53);
+    expect(ECONOMY_DEFINITIONS).toHaveLength(55);
     expect(economicTicks(75)).toBe(31);
     expect(economicTicks(300)).toBe(125);
     expect(economyDefinition("terran-scv")?.speed).toBe(945);

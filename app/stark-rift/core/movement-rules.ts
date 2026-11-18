@@ -1,4 +1,4 @@
-import { stimulatedSpeed } from "../abilities/stim-state";
+import { statusSpeed as stimulatedSpeed } from "../abilities/queen-state";
 import { spellLocked } from "../abilities/spells-state";
 import { isEmbarked } from "../abilities/special-state";
 import { isSieged, tankLocked } from "../abilities/siege-state";

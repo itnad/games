@@ -11,6 +11,7 @@ const MOSQUITO_REPELLENT_KEY = "mosquitoRepellent";
 const MOSQUITO_REPELLENT_PRICE = 100;
 const FULL_HEAL_PRICE = MUDFLAT_RECOVERY_FOODS.find((item) => item.heal === Infinity)?.price ?? 110;
 const EQUIPMENT_PRIORITY = ["vest", "gloves", "waders", "cooler", "headlamp"];
+const MIN_PICKUP_CHASE_RANGE = 150;
 
 const distance = (left, right) => Math.hypot(left.x - right.x, left.y - right.y);
 const normalized = (x, y) => {
@@ -39,15 +40,6 @@ function targetForState(state) {
     };
   }
 
-  const livePickups = state.pickups.filter((item) => item.xp > 0 && item.phase !== "arrived");
-  if (livePickups.length > 0) {
-    const pickup = livePickups.reduce((best, item) => {
-      const value = item.xp * 36 - distance(state.player, item);
-      return !best || value > best.value ? { item, value } : best;
-    }, null)?.item;
-    if (pickup) return { kind: "pickup", point: pickup, intent: "경험치 회수 중", desiredDistance: 8 };
-  }
-
   const collectible = state.creatures.filter((item) => item.hp > 0 && !item.uncollectible && (item.emergeSeconds ?? 0) <= 0);
   const workIsSafe = state.creatures.every((item) => {
     if (item.hp <= 0 || (item.emergeSeconds ?? 0) > 0) return true;
@@ -59,7 +51,8 @@ function targetForState(state) {
     const highRisk = item.uncollectible || item.type === "pufferfish" || item.boss;
     return distance(point, item) > item.size + (highRisk ? 190 : 88);
   });
-  const safeHoles = state.clamHoles.filter(workPointIsSafe);
+  const holeHasClearApproach = (hole) => state.rocks.every((rock) => distance(hole, rock) > rock.radius + 54);
+  const safeHoles = state.clamHoles.filter((hole) => workPointIsSafe(hole) && holeHasClearApproach(hole));
   const nearestHole = safeHoles.length > 0
     ? safeHoles.reduce((nearest, item) => distance(state.player, item) < distance(state.player, nearest) ? item : nearest)
     : null;
@@ -75,14 +68,29 @@ function targetForState(state) {
     : null;
   const rockReach = Math.max(60, Number(state.rockReach) || 84);
   const clamTarget = (hole) => ({
-    kind: "clam", point: hole,
+    kind: "clam", point: hole, targetId: hole.id,
     intent: hole.kind === "gaebul" ? "개불 숨구멍 채집 중" : "조개구멍 호미질 중",
     desiredDistance: 20,
   });
   const rockTarget = (rock) => ({
-    kind: "rock", point: rock, targetRockId: rock.id,
+    kind: "rock", point: rock, targetId: rock.id, targetRockId: rock.id,
     intent: "돌뒤집개로 바위 확인 중",
     desiredDistance: Math.max(rock.radius + 28, rockReach - 8),
+  });
+  const creatureTarget = (creature) => {
+    const cautious = creature.type === "pufferfish" || creature.boss;
+    return {
+      kind: "creature", point: creature, targetId: creature.id,
+      intent: cautious ? `거리 유지 중 · ${creature.name}` : `${creature.name} 채집 중`,
+      desiredDistance: cautious ? 132 : 76,
+    };
+  };
+  const pickupChaseRange = Math.max(MIN_PICKUP_CHASE_RANGE, (Number(state.pickupRadius) || 50) + 105);
+  const livePickups = state.pickups.filter((item) => item.xp > 0 && item.phase !== "arrived"
+    && distance(state.player, item) <= pickupChaseRange);
+  const pickupTarget = (pickup) => ({
+    kind: "pickup", point: pickup, targetId: pickup.id,
+    intent: "가까운 경험치 회수 중", desiredDistance: 8,
   });
 
   // Finish a started field action before selecting fresh work, provided the
@@ -90,6 +98,39 @@ function targetForState(state) {
   // enough uninterrupted time while still yielding immediately to danger.
   if (workIsSafe && activeRock) return rockTarget(activeRock);
   if (workIsSafe && activeHole && workPointIsSafe(activeHole)) return clamTarget(activeHole);
+
+  // A selected target remains stable for a short action window. Re-evaluating
+  // the nearest entity every 160 ms made the heading alternate between equally
+  // attractive holes and drops, which looked like the gatherer was vibrating.
+  if (state.lockedTargetId !== undefined && state.lockedTargetId !== null) {
+    if (state.lockedTargetKind === "clam" && workIsSafe) {
+      const hole = safeHoles.find((item) => item.id === state.lockedTargetId);
+      if (hole) return clamTarget(hole);
+    }
+    if (state.lockedTargetKind === "rock" && workIsSafe && (state.rockerLevel ?? 0) > 0) {
+      const rock = availableRocks.find((item) => item.id === state.lockedTargetId);
+      if (rock) return rockTarget(rock);
+    }
+    if (state.lockedTargetKind === "pickup") {
+      const pickup = livePickups.find((item) => item.id === state.lockedTargetId);
+      if (pickup) return pickupTarget(pickup);
+    }
+    if (state.lockedTargetKind === "creature") {
+      const creature = collectible.find((item) => item.id === state.lockedTargetId);
+      if (creature) return creatureTarget(creature);
+    }
+  }
+
+  // Only collect drops that are already near the current action. Experience
+  // outside this radius remains in the world instead of pulling the supervisor
+  // across the map and starving hoe/rock work indefinitely.
+  if (livePickups.length > 0) {
+    const pickup = livePickups.reduce((best, item) => {
+      const value = item.xp * 18 - distance(state.player, item);
+      return !best || value > best.value ? { item, value } : best;
+    }, null)?.item;
+    if (pickup) return pickupTarget(pickup);
+  }
 
   // Rotate ordinary gathering, hoe work and learned rock turning. Without an
   // explicit work phase, a continuously populated field makes creatures win
@@ -105,16 +146,7 @@ function targetForState(state) {
       const value = (item.xp ?? 0) * 42 + (item.score ?? 0) * .16 + (item.boss ? 260 : 0) - range - dangerPenalty;
       return !best || value > best.value ? { item, value } : best;
     }, null)?.item;
-    if (creature) {
-      const cautious = creature.type === "pufferfish" || creature.boss;
-      return {
-        kind: "creature",
-        point: creature,
-        targetId: creature.id,
-        intent: cautious ? `거리 유지 중 · ${creature.name}` : `${creature.name} 채집 중`,
-        desiredDistance: cautious ? 132 : 76,
-      };
-    }
+    if (creature) return creatureTarget(creature);
   }
 
   if (nearestHole) return clamTarget(nearestHole);
@@ -182,9 +214,14 @@ export function decideMudflatSupervisorMove(state) {
   if (canHoldPosition && ((target.kind === "clam" && targetDistance <= 30)
     || (target.kind === "rock" && targetDistance <= target.desiredDistance)
     || (target.kind === "pickup" && targetDistance <= 12)
+    || (target.kind === "creature" && Math.abs(targetDistance - target.desiredDistance) <= 7)
     || (target.kind === "safe-zone" && targetDistance <= 42)
     || (target.kind === "camp" && targetDistance <= 28))) {
-    return { x: 0, y: 0, intent: target.intent, targetKind: target.kind };
+    return {
+      x: 0, y: 0, intent: target.intent, targetKind: target.kind,
+      targetId: target.targetId ?? null, targetPoint: target.point,
+      targetDistance, desiredDistance: target.desiredDistance, danger: currentDanger,
+    };
   }
 
   const direct = normalized(target.point.x - state.player.x, target.point.y - state.player.y);
@@ -220,7 +257,23 @@ export function decideMudflatSupervisorMove(state) {
   }
 
   const intent = currentDanger > 1000 ? "위험을 피해 이동 중" : target.intent;
-  return { ...(best?.direction ?? { x: 0, y: 0 }), intent, targetKind: target.kind };
+  const direction = best?.direction ?? { x: 0, y: 0 };
+  const goalError = target.kind === "creature"
+    ? Math.abs(targetDistance - target.desiredDistance)
+    : Math.max(0, targetDistance - target.desiredDistance);
+  const speedScale = currentDanger > 1000 || target.kind === "camp" || target.kind === "safe-zone" || target.kind === "explore"
+    ? 1 : Math.max(.22, Math.min(1, goalError / 82));
+  return {
+    x: direction.x * speedScale,
+    y: direction.y * speedScale,
+    intent,
+    targetKind: target.kind,
+    targetId: target.targetId ?? null,
+    targetPoint: target.point,
+    targetDistance,
+    desiredDistance: target.desiredDistance,
+    danger: currentDanger,
+  };
 }
 
 export function mudflatSupervisorCanDig(decision) {

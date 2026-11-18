@@ -1,3 +1,4 @@
+import { initializeQueenPractice } from "./queen-practice";
 import { initializeMedicPractice } from "./medic-practice";
 import { initializeEnergyPractice } from "./energy-practice";
 import { energyOf, ENERGY } from "./cloak-state";
@@ -62,5 +63,6 @@ export function initializeSpecialPractice(s: SimulationState) {
   }
   initializeEnergyPractice(s);
   initializeMedicPractice(s);
+  initializeQueenPractice(s);
   recomputeSupply(s);
 }

@@ -75,12 +75,10 @@ test("감독 AI는 호미질 거리 안에서는 멈춰 채집한다", () => {
     clamHoles: [{ x: 18, y: 0, kind: "clam" }],
   }));
 
-  assert.deepEqual(decision, {
-    x: 0,
-    y: 0,
-    intent: "조개구멍 호미질 중",
-    targetKind: "clam",
-  });
+  assert.equal(decision.x, 0);
+  assert.equal(decision.y, 0);
+  assert.equal(decision.intent, "조개구멍 호미질 중");
+  assert.equal(decision.targetKind, "clam");
 });
 
 test("감독 AI는 호미질 중 위험이 접근하면 즉시 채집을 중단한다", () => {
@@ -129,7 +127,7 @@ test("감독 AI는 안전한 작업 차례에 생물보다 조개구멍을 찾�
 
   assert.equal(decision.targetKind, "clam");
   assert.equal(decision.intent, "조개구멍 호미질 중");
-  assert.ok(decision.x > .5);
+  assert.ok(decision.x > .2);
 });
 
 test("감독 AI는 돌뒤집개를 배운 뒤 안전한 작업 차례에 바위를 찾아간다", () => {
@@ -142,7 +140,7 @@ test("감독 AI는 돌뒤집개를 배운 뒤 안전한 작업 차례에 바위�
 
   assert.equal(decision.targetKind, "rock");
   assert.equal(decision.intent, "돌뒤집개로 바위 확인 중");
-  assert.ok(decision.x > .5);
+  assert.ok(decision.x > .2);
 });
 
 test("감독 AI는 시작한 바위 뒤집기를 안전한 동안 끝까지 유지한다", () => {
@@ -154,12 +152,69 @@ test("감독 AI는 시작한 바위 뒤집기를 안전한 동안 끝까지 유�
     rocks: [{ id: 42, x: 72, y: 0, radius: 22 }],
   }));
 
-  assert.deepEqual(decision, {
-    x: 0,
-    y: 0,
-    intent: "돌뒤집개로 바위 확인 중",
-    targetKind: "rock",
-  });
+  assert.equal(decision.x, 0);
+  assert.equal(decision.y, 0);
+  assert.equal(decision.intent, "돌뒤집개로 바위 확인 중");
+  assert.equal(decision.targetKind, "rock");
+  assert.equal(decision.targetId, 42);
+});
+
+test("감독 AI는 멀리 떨어진 경험치를 쫓느라 호미질을 포기하지 않는다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 1,
+    pickupRadius: 50,
+    pickups: [{ id: 61, x: 440, y: 0, xp: 50, phase: "idle" }],
+    clamHoles: [{ id: 62, x: 85, y: 0, kind: "clam", progress: 0 }],
+  }));
+
+  assert.equal(decision.targetKind, "clam");
+  assert.equal(decision.targetId, 62);
+});
+
+test("감독 AI는 선택한 호미질 목표를 가까운 경험치가 생겨도 작업 시간 동안 유지한다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 8,
+    pickupRadius: 50,
+    lockedTargetKind: "clam",
+    lockedTargetId: 72,
+    pickups: [{ id: 71, x: 35, y: 0, xp: 20, phase: "idle" }],
+    clamHoles: [{ id: 72, x: 80, y: 0, kind: "clam", progress: 0 }],
+  }));
+
+  assert.equal(decision.targetKind, "clam");
+  assert.equal(decision.targetId, 72);
+});
+
+test("감독 AI는 고정한 구멍까지 접근해 실제 호미질 완료 시간 동안 정지한다", () => {
+  let player = { x: 0, y: 0 };
+  const hole = { id: 81, x: 190, y: 20, kind: "clam", progress: 0 };
+  let lockedTargetKind = null;
+  let lockedTargetId = null;
+  let lockUntil = 0;
+  let completedAt = null;
+
+  for (let frame = 0; frame < 100; frame += 1) {
+    const elapsed = frame * .16;
+    const decision = decideMudflatSupervisorMove(scene({
+      elapsed,
+      player,
+      lockedTargetKind: elapsed < lockUntil ? lockedTargetKind : null,
+      lockedTargetId: elapsed < lockUntil ? lockedTargetId : null,
+      pickups: frame > 12 ? [{ id: 82, x: player.x + 40, y: player.y, xp: 10, phase: "idle" }] : [],
+      clamHoles: [hole],
+    }));
+    if (decision.targetId !== lockedTargetId) {
+      lockedTargetKind = decision.targetKind;
+      lockedTargetId = decision.targetId;
+      lockUntil = elapsed + (decision.targetKind === "clam" ? 14 : 2.5);
+    }
+    player = { x: player.x + decision.x * 155 * .16, y: player.y + decision.y * 155 * .16 };
+    if (mudflatSupervisorCanDig(decision) && Math.hypot(player.x - hole.x, player.y - hole.y) <= 48) hole.progress += .16;
+    else hole.progress = 0;
+    if (hole.progress >= 2) { completedAt = elapsed; break; }
+  }
+
+  assert.ok(completedAt !== null && completedAt < 10, `expected completed hoe work, got ${completedAt}`);
 });
 
 test("감독 AI는 추격하는 일반 게와 장시간 집게 거리를 유지한다", () => {

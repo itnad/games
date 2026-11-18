@@ -59,7 +59,7 @@ export function InteractiveBattle({
   const [preview, setPreview] = useState<number[]>([]),
     [pending, setPending] = useState<number[] | null>(null),
     [mode, setMode] = useState<
-      "move" | "attackMove" | "patrol" | "rally" | "load" | "unload" | "recall" | "stasis-field" | "healing" | "optical-flare" | "restoration" | null
+      "move" | "attackMove" | "patrol" | "rally" | "load" | "unload" | "recall" | "stasis-field" | "ensnare" | "healing" | "optical-flare" | "restoration" | null
     >(null);
   const medicSpellActor = useRef<number>(0);
   const healActor = useRef<number>(0);
@@ -220,7 +220,7 @@ export function InteractiveBattle({
           current.build ||
           current.buildMenu ||
           current.mode === "rally" ||
-          current.mode === "attackMove" || current.mode === "unload" || current.mode === "recall" || current.mode === "stasis-field"
+          current.mode === "attackMove" || current.mode === "unload" || current.mode === "recall" || current.mode === "stasis-field" || current.mode === "ensnare"
         )
           return null;
         const d = size(),
@@ -379,7 +379,7 @@ export function InteractiveBattle({
           setBuildMenu(false);
           return;
         }
-        if (current.mode === "recall" || current.mode === "stasis-field") { issue({kind:"castAbility",entityIds:[spellActor.current],payload:{abilityId:current.mode},target:target(point)});setMode(null);return; }
+        if (current.mode === "recall" || current.mode === "stasis-field" || current.mode === "ensnare") { issue({kind:"castAbility",entityIds:[spellActor.current],payload:{abilityId:current.mode},target:target(point)});setMode(null);return; }
         if (current.mode === "unload") {
           issue({ kind: "unloadTransport", entityIds: transportActors.current, target: target(point) }); setMode(null); return;
         }
@@ -593,7 +593,7 @@ export function InteractiveBattle({
       </div>
       <div ref={commandPanel} className="sr-command-space sr-commands">
         {pending && <span>등록할 부대 슬롯을 선택해 주세요.</span>}
-        {mode && <span>{mode === "optical-flare" ? "실명시킬 유닛을 터치하세요. 아군도 대상입니다." : mode === "restoration" ? "복구할 유닛 또는 아군 부대 슬롯을 터치하세요." : mode === "healing" ? "치료할 부상 아군 또는 부대 슬롯을 터치하세요." : mode === "load" ? "탑승시킬 아군 또는 부대 슬롯을 터치하세요." : mode === "recall" ? "리콜로 불러올 아군 지역을 터치하세요." : mode === "stasis-field" ? "스테이시스 위치를 터치하세요. 아군도 정지됩니다." : "전장 또는 미니맵에서 목적지를 선택하세요."}<button onClick={() => setMode(null)}>지시 취소</button></span>}
+        {mode && <span>{mode === "ensnare" ? "인스네어 위치를 터치하세요. 아군도 느려집니다." : mode === "optical-flare" ? "실명시킬 유닛을 터치하세요. 아군도 대상입니다." : mode === "restoration" ? "복구할 유닛 또는 아군 부대 슬롯을 터치하세요." : mode === "healing" ? "치료할 부상 아군 또는 부대 슬롯을 터치하세요." : mode === "load" ? "탑승시킬 아군 또는 부대 슬롯을 터치하세요." : mode === "recall" ? "리콜로 불러올 아군 지역을 터치하세요." : mode === "stasis-field" ? "스테이시스 위치를 터치하세요. 아군도 정지됩니다." : "전장 또는 미니맵에서 목적지를 선택하세요."}<button onClick={() => setMode(null)}>지시 취소</button></span>}
         {notice && <span role="status">{notice}</span>}
         {snapshot.economy ? (
           <>
@@ -764,7 +764,7 @@ export function InteractiveBattle({
       viewportHint={
         build
           ? `${economyDefinition(build.id)?.name}${build.repeat ? " · 연속 배치" : ""} · ${placement?.reason ?? "건설 위치를 터치하세요"}`
-          : mode === "optical-flare" ? "실명시킬 유닛을 터치하세요. 아군도 대상입니다." : mode === "restoration" ? "복구할 유닛 또는 아군 부대 슬롯을 터치하세요." : mode === "healing" ? "치료할 부상 아군 또는 부대 슬롯을 터치하세요." : mode === "recall" ? "리콜로 불러올 아군 지역을 터치하세요." : mode === "stasis-field" ? "스테이시스 위치를 터치하세요. 아군도 정지됩니다." : mode === "attackMove"
+          : mode === "ensnare" ? "인스네어 위치를 터치하세요. 아군도 느려집니다." : mode === "optical-flare" ? "실명시킬 유닛을 터치하세요. 아군도 대상입니다." : mode === "restoration" ? "복구할 유닛 또는 아군 부대 슬롯을 터치하세요." : mode === "healing" ? "치료할 부상 아군 또는 부대 슬롯을 터치하세요." : mode === "recall" ? "리콜로 불러올 아군 지역을 터치하세요." : mode === "stasis-field" ? "스테이시스 위치를 터치하세요. 아군도 정지됩니다." : mode === "attackMove"
             ? "공격 이동할 위치를 터치하세요."
             : null
       }
@@ -786,7 +786,7 @@ export function InteractiveBattle({
       placement={placement}
       onMinimapPoint={(point) => {
         if (["healing","optical-flare","restoration"].includes(latest.current.mode??"")) return true;
-        if (latest.current.mode === "recall" || latest.current.mode === "stasis-field") { issue({kind:"castAbility",entityIds:[spellActor.current],payload:{abilityId:latest.current.mode},target:{kind:"point",x:Math.round(point.x),y:Math.round(point.y)}});setMode(null);return true; }
+        if (latest.current.mode === "recall" || latest.current.mode === "stasis-field" || latest.current.mode === "ensnare") { issue({kind:"castAbility",entityIds:[spellActor.current],payload:{abilityId:latest.current.mode},target:{kind:"point",x:Math.round(point.x),y:Math.round(point.y)}});setMode(null);return true; }
         if (latest.current.mode === "unload") { issue({ kind: "unloadTransport", entityIds: transportActors.current, target: { kind: "point", x: Math.round(point.x), y: Math.round(point.y) } }); setMode(null); return true; }
         if (latest.current.mode !== "rally") return false;
         issue({

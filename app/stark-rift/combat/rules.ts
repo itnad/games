@@ -1,4 +1,4 @@
-import { stimulatedCooldown } from "../abilities/stim-state";
+import { statusCooldown as stimulatedCooldown } from "../abilities/queen-state";
 import { isInStasis, spellLocked } from "../abilities/spells-state";
 import { advanceSpines, launchSpines } from "./lurker-waves";
 import { LURKER, LURKER_WEAPON, LURKER_WAVE_RULES } from "../abilities/lurker-state";

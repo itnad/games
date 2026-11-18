@@ -1,3 +1,4 @@
+import { QUEEN_RULES_VERSION } from "../abilities/queen-state";
 import { MEDIC_SPELL_RULES_VERSION } from "../abilities/medic-spells-state";
 import { STIM_RULES_VERSION } from "../abilities/stim-state";
 import { MEDIC_RULES_VERSION } from "../abilities/medic-data";
@@ -7,7 +8,7 @@ import arbiter from "../data/arbiter-original.json";
 import { ARBITER_RULES_VERSION } from "../abilities/arbiter";
 import lurker from "../data/lurker-original.json";
 import { LURKER_RULES_VERSION } from "../abilities/lurker-state";
-import { LEGACY_VISION_RULES_VERSION, CARGO_VISION_RULES_VERSION, ARBITER_VISION_RULES_VERSION, STASIS_VISION_RULES_VERSION, VISION_RULES_VERSION } from "../vision/state";
+import { LEGACY_VISION_RULES_VERSION, CARGO_VISION_RULES_VERSION, ARBITER_VISION_RULES_VERSION, STASIS_VISION_RULES_VERSION, MEDIC_SPELLS_VISION_RULES_VERSION, VISION_RULES_VERSION } from "../vision/state";
 import { PROJECTILE_RULES, MAX_COMBAT_PROJECTILES } from "./mechanics";
 import {
   array,
@@ -51,7 +52,8 @@ export const AUTOCAST_COMBAT_RULES_VERSION = "autocast-combat-" + checksum({ bas
 export const ENERGY_COMBAT_RULES_VERSION = "energy-combat-" + checksum({ base: AUTOCAST_COMBAT_RULES_VERSION, energy: ENERGY_UPGRADE_RULES_VERSION });
 export const MEDIC_COMBAT_RULES_VERSION = "medic-combat-"+checksum({base:ENERGY_COMBAT_RULES_VERSION,medic:MEDIC_RULES_VERSION});
 export const STIM_COMBAT_RULES_VERSION="stim-combat-"+checksum({base:MEDIC_COMBAT_RULES_VERSION,stim:STIM_RULES_VERSION});
-export const COMBAT_RULES_VERSION="medic-spells-combat-"+checksum({base:STIM_COMBAT_RULES_VERSION,spells:MEDIC_SPELL_RULES_VERSION,vision:VISION_RULES_VERSION});
+export const MEDIC_SPELLS_COMBAT_RULES_VERSION="medic-spells-combat-"+checksum({base:STIM_COMBAT_RULES_VERSION,spells:MEDIC_SPELL_RULES_VERSION,vision:MEDIC_SPELLS_VISION_RULES_VERSION});
+export const COMBAT_RULES_VERSION="queen-combat-"+checksum({base:MEDIC_SPELLS_COMBAT_RULES_VERSION,queen:QUEEN_RULES_VERSION,vision:VISION_RULES_VERSION});
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(

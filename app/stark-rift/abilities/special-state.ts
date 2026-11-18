@@ -1,3 +1,4 @@
+import queen from "../data/queen-original.json";
 import medic from "../data/medic-original.json";
 import arbiter from "../data/arbiter-original.json";
 import lurker from "../data/lurker-original.json";
@@ -8,7 +9,7 @@ import cloak from "../data/cloak-original.json";
 import original from "../data/special-original.json";
 import { checksum } from "../core/checksum";
 const id = (name: string) => name.toLowerCase().replaceAll("_", "-");
-const traits = new Map([...original.traits, ...cloak.traits, ...siege.traits, ...lurker.traits, ...arbiter.traits, ...medic.traits].map((t) => [id(t.name), t]));
+const traits = new Map([...original.traits, ...cloak.traits, ...siege.traits, ...lurker.traits, ...arbiter.traits, ...medic.traits, ...queen.traits].map((t) => [id(t.name), t]));
 export const unitTraits = (definition: string) => traits.get(definition);
 export const permanentCloak = (definition: string) => unitTraits(definition)?.permanentCloak ?? false;
 export const CARGO_RESEARCH = "ventral-sacs";

@@ -211,6 +211,21 @@ type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: 
 type SavedRun = { version: 1; savedAt: number; campaign: Campaign; stageEntryCampaign: Campaign; runtime: Runtime; choiceIds: string[]; nextSequence: number };
 type MudflatDevLaunch = { version: 1; campaign: Campaign; run?: boolean; tutorial?: boolean; supervisor?: boolean; label?: string; seed?: number };
 type ClamHarvestReward = { id: string; name: string; xp: number; score: number };
+type SupervisorDecisionState = {
+  clock: number; x: number; y: number; rawX: number; rawY: number;
+  lastTravelX: number; lastTravelY: number; intent: string; targetKind: string;
+  targetId: number | null; targetLockUntil: number; targetDistance: number;
+  desiredDistance: number; danger: number; targetPoint: Point | null;
+  flipWindowStarted: number; flipCount: number; lastMovementWarningAt: number;
+};
+
+const createSupervisorDecisionState = (): SupervisorDecisionState => ({
+  clock: 0, x: 0, y: 0, rawX: 0, rawY: 0,
+  lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중", targetKind: "explore",
+  targetId: null, targetLockUntil: 0, targetDistance: Infinity,
+  desiredDistance: 0, danger: 0, targetPoint: null,
+  flipWindowStarted: 0, flipCount: 0, lastMovementWarningAt: -Infinity,
+});
 
 function applyClamHarvestReward(
   runtime: Runtime,
@@ -1742,7 +1757,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const stageEntryRef = useRef<Campaign | null>(null);
   const dailyChallengeRef = useRef<MudflatDailyStart | null>(null);
   const supervisorRef = useRef(false);
-  const supervisorDecisionRef = useRef({ clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중", targetKind: "explore" });
+  const supervisorDecisionRef = useRef<SupervisorDecisionState>(createSupervisorDecisionState());
   const supervisorLastDamageRef = useRef("피해 누적");
   const supervisorLogRef = useRef<ReturnType<typeof createMudflatSupervisorLog> | null>(null);
   const supervisorDepartureTimerRef = useRef<number | null>(null);
@@ -1787,6 +1802,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const decision = supervisorDecisionRef.current;
     const nearbyCreatures = runtime.creatures.filter((creature) => creature.hp > 0
       && Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= 180).length;
+    const livePickups = runtime.pickups.filter((pickup) => pickup.xp > 0 && pickup.phase !== "arrived");
+    const nearestPickupDistance = livePickups.length > 0
+      ? Math.min(...livePickups.map((pickup) => Math.hypot(pickup.x - runtime.player.x, pickup.y - runtime.player.y)))
+      : null;
+    const targetHole = decision.targetKind === "clam" ? runtime.clamHoles.find((hole) => hole.id === decision.targetId) : null;
+    const targetRockEffect = decision.targetKind === "rock" && runtime.rockFlipEffect?.rockId === decision.targetId ? runtime.rockFlipEffect : null;
     appendMudflatSupervisorLog(log, {
       stage: runtime.stage,
       elapsed: Math.round(runtime.elapsed * 100) / 100,
@@ -1798,9 +1819,24 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       caught: runtime.caught,
       position: { x: Math.round(runtime.player.x), y: Math.round(runtime.player.y) },
       targetKind: decision.targetKind,
+      targetId: decision.targetId,
       intent: decision.intent,
+      targetDistance: Number.isFinite(decision.targetDistance) ? Math.round(decision.targetDistance * 10) / 10 : null,
+      desiredDistance: Math.round(decision.desiredDistance * 10) / 10,
+      targetPoint: decision.targetPoint ? { x: Math.round(decision.targetPoint.x), y: Math.round(decision.targetPoint.y) } : null,
+      move: {
+        x: Math.round(decision.x * 100) / 100,
+        y: Math.round(decision.y * 100) / 100,
+        rawX: Math.round(decision.rawX * 100) / 100,
+        rawY: Math.round(decision.rawY * 100) / 100,
+      },
+      danger: Math.round(decision.danger),
+      actionProgress: targetHole ? Math.round(targetHole.progress * 100) / 100
+        : targetRockEffect ? Math.round((1 - targetRockEffect.life / Math.max(.001, targetRockEffect.maxLife)) * 100) / 100 : null,
       nearbyCreatures,
       creatureCount: runtime.creatures.filter((creature) => creature.hp > 0).length,
+      pickupCount: livePickups.length,
+      nearestPickupDistance: nearestPickupDistance === null ? null : Math.round(nearestPickupDistance),
       clamHoleCount: runtime.clamHoles.length,
       rockCount: runtime.rocks.length,
     });
@@ -2051,7 +2087,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         campaign: nextCampaign,
         seed: runtime.seed,
       }) : null;
-      supervisorDecisionRef.current = { clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중", targetKind: "explore" };
+      supervisorDecisionRef.current = createSupervisorDecisionState();
       supervisorLastDamageRef.current = "피해 누적";
       setSupervisorActive(supervisor);
       setSupervisorIntent("해산물을 찾는 중");
@@ -2229,7 +2265,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         stageEntryRef.current = createStageEntryCheckpoint(entry);
         const nextRuntime = makeRuntime(entry);
         nextRuntime.firstMoveGuide = null;
-        supervisorDecisionRef.current = { clock: 0, x: 0, y: 0, lastTravelX: 1, lastTravelY: 0, intent: "해산물을 찾는 중", targetKind: "explore" };
+        supervisorDecisionRef.current = createSupervisorDecisionState();
         supervisorLastDamageRef.current = "피해 누적";
         resetMovementInput(); runtimeRef.current = nextRuntime;
         appendSupervisorEvent("stage-start", `${nextRuntime.stage}단계 진입 · 체력 ${Math.floor(nextRuntime.player.hp)} / ${Math.floor(nextRuntime.player.maxHp)}`, nextRuntime);
@@ -2260,6 +2296,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     let previous = performance.now();
     let hudClock = 0;
     let supervisorTelemetryClock = 0;
+    let supervisorMotionClock = 2;
+    let supervisorMotionPoint = { x: runtime.player.x, y: runtime.player.y };
     let mounted = true;
     const stageStats = mudflatStageStats(runtime.stage);
     const stageProfile = mudflatStageProfile(runtime.stage) as StageProfile;
@@ -2752,14 +2790,18 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             player: runtime.player,
             stage: runtime.stage,
             elapsed: runtime.elapsed,
-            creatures: runtime.creatures.filter(isCreatureRevealed),
+            creatures: runtime.creatures.filter((creature) => isCreatureRevealed(creature)
+              && Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= 720),
             pickups: runtime.pickups,
             rocks: runtime.rocks,
             fallingRocks: runtime.fallingRocks,
             clamHoles: runtime.clamHoles,
+            pickupRadius: 50 + (runtime.levels.basket ?? 0) * 24 + (runtime.equipment.cooler ?? 0) * 12,
             rockerLevel: runtime.levels.rocker ?? 0,
             rockReach: mudflatTongStats(runtime.levels.tongs ?? 1).reach,
             activeRockId: runtime.rockFlipEffect?.rockId,
+            lockedTargetKind: runtime.elapsed < decisionState.targetLockUntil ? decisionState.targetKind : null,
+            lockedTargetId: runtime.elapsed < decisionState.targetLockUntil ? decisionState.targetId : null,
             safeZone: stageProfile.safeZone !== "none" ? runtime.safeZone : null,
             secondsToTide,
             baseCampGuideShown: runtime.baseCampGuideShown,
@@ -2771,10 +2813,58 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           });
           const previousIntent = decisionState.intent;
           const previousTargetKind = decisionState.targetKind;
+          const previousTargetId = decisionState.targetId;
+          const previousRawMagnitude = Math.hypot(decisionState.rawX, decisionState.rawY);
+          const rawMagnitude = Math.hypot(decision.x, decision.y);
+          const sameTarget = previousTargetKind === decision.targetKind && previousTargetId === decision.targetId;
+          if (sameTarget && previousRawMagnitude > .35 && rawMagnitude > .35) {
+            const headingDot = (decisionState.rawX * decision.x + decisionState.rawY * decision.y) / (previousRawMagnitude * rawMagnitude);
+            if (headingDot < -.25) {
+              if (runtime.elapsed - decisionState.flipWindowStarted > 1.2) {
+                decisionState.flipWindowStarted = runtime.elapsed;
+                decisionState.flipCount = 0;
+              }
+              decisionState.flipCount += 1;
+              if (decisionState.flipCount >= 3 && runtime.elapsed - decisionState.lastMovementWarningAt > 2) {
+                decisionState.lastMovementWarningAt = runtime.elapsed;
+                appendSupervisorEvent("movement-warning", `동일 목표에서 방향 급반전 ${decisionState.flipCount}회`, runtime);
+              }
+            }
+          } else if (!sameTarget) {
+            decisionState.flipWindowStarted = runtime.elapsed;
+            decisionState.flipCount = 0;
+          }
           decisionState.clock = MUDFLAT_SUPERVISOR_DECISION_SECONDS;
-          decisionState.x = decision.x;
-          decisionState.y = decision.y;
+          decisionState.rawX = decision.x;
+          decisionState.rawY = decision.y;
+          const stopForAction = rawMagnitude <= .05;
+          const emergencyMove = decision.danger > 1000 || ["camp", "safe-zone", "seafood-search"].includes(decision.targetKind);
+          if (stopForAction || emergencyMove) {
+            decisionState.x = decision.x;
+            decisionState.y = decision.y;
+          } else {
+            const blend = .38;
+            decisionState.x = decisionState.x * (1 - blend) + decision.x * blend;
+            decisionState.y = decisionState.y * (1 - blend) + decision.y * blend;
+            const blendedMagnitude = Math.hypot(decisionState.x, decisionState.y);
+            if (blendedMagnitude > 1) {
+              decisionState.x /= blendedMagnitude;
+              decisionState.y /= blendedMagnitude;
+            }
+          }
           decisionState.targetKind = decision.targetKind;
+          decisionState.targetId = decision.targetId;
+          decisionState.targetDistance = decision.targetDistance;
+          decisionState.desiredDistance = decision.desiredDistance;
+          decisionState.danger = decision.danger;
+          decisionState.targetPoint = decision.targetPoint;
+          if (!sameTarget) {
+            const lockSeconds = decision.targetKind === "clam" ? 14
+              : decision.targetKind === "rock" ? 10
+                : decision.targetKind === "creature" ? 4
+                  : decision.targetKind === "pickup" ? 2.5 : 0;
+            decisionState.targetLockUntil = runtime.elapsed + lockSeconds;
+          }
           if (decision.targetKind !== "seafood-search" && Math.hypot(decision.x, decision.y) > .2) {
             decisionState.lastTravelX = decision.x;
             decisionState.lastTravelY = decision.y;
@@ -2783,7 +2873,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             decisionState.intent = decision.intent;
             setSupervisorIntent(decision.intent);
           }
-          if (previousIntent !== decision.intent || previousTargetKind !== decision.targetKind) {
+          if (previousIntent !== decision.intent || previousTargetKind !== decision.targetKind || previousTargetId !== decision.targetId) {
             appendSupervisorEvent("decision", `${decision.targetKind} · ${decision.intent}`, runtime);
           }
         }
@@ -3374,6 +3464,18 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (supervisorTelemetryClock <= 0) {
           appendSupervisorEvent("snapshot", "5초 상태 기록", runtime);
           supervisorTelemetryClock += 5;
+        }
+        supervisorMotionClock -= dt;
+        if (supervisorMotionClock <= 0) {
+          const decisionState = supervisorDecisionRef.current;
+          const displacement = Math.hypot(runtime.player.x - supervisorMotionPoint.x, runtime.player.y - supervisorMotionPoint.y);
+          if (Math.hypot(decisionState.x, decisionState.y) > .35 && displacement < 10
+            && runtime.elapsed - decisionState.lastMovementWarningAt > 2) {
+            decisionState.lastMovementWarningAt = runtime.elapsed;
+            appendSupervisorEvent("movement-warning", `이동 명령 중 정체 · 2초 이동 ${Math.round(displacement)}px`, runtime);
+          }
+          supervisorMotionPoint = { x: runtime.player.x, y: runtime.player.y };
+          supervisorMotionClock += 2;
         }
       }
 
@@ -4392,6 +4494,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       <GameObjectiveGuide gameId="mudflat-survivor" inline />
       <div className="ms-pause-actions">
         <button className="ms-primary" onClick={resume}>계속 채집하기</button>
+        {supervisorActive && <button type="button" className="ms-pause-guide-button" onClick={copySupervisorLog}>{supervisorLogCopyStatus || "감독 플레이 로그 복사"}</button>}
         <button type="button" className="ms-pause-guide-button" onClick={() => setSeafoodGuideOpen(true)}>해산물 도감 보기</button>
         <button className="ms-quit" onClick={openExitDialog}>저장하고 나가기</button>
       </div>

@@ -1,3 +1,4 @@
+import { QueenControls } from "./queen-controls";
 import { MedicSpellControls } from "./medic-spell-controls";
 import { StimControls } from "./stim-controls";
 import { MedicControls } from "./medic-controls";
@@ -47,7 +48,7 @@ export function EconomyControls({
   scout: () => void;
   heal?: (id:number)=>void;
   medicSpell?: (id:number,ability:"optical-flare"|"restoration")=>void;
-  castAbility?: (id: number, ability: "recall" | "stasis-field") => void;
+  castAbility?: (id: number, ability: "recall" | "stasis-field" | "ensnare") => void;
   loadTransport?: (ids: number[]) => void; unloadTransport?: (ids: number[]) => void; selectEntities?: (ids: number[]) => void;
 }) {
   const economy = snapshot.economy!,
@@ -171,6 +172,7 @@ export function EconomyControls({
           {def.shield ? ` · 보호막 ${first.shield ?? 0}` : ""}
         </span>
       </div>
+      <QueenControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={castAbility} />
       <StimControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} issue={issue} />
       <MedicSpellControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={medicSpell} />
       <MedicControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} heal={heal} issue={issue} />
@@ -180,6 +182,7 @@ export function EconomyControls({
       <SiegeControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       <CloakControls snapshot={snapshot} selected={selected} running={running} issue={issue} select={selectEntities} />
       {transport}
+      {entities.some(e=>e.ensnareTicks)&&<p className="sr-help" data-ensnare-status>인스네어 · 최대 {Math.ceil(Math.max(...entities.map(e=>e.ensnareTicks??0))/20)}초 · 이동속도 절반·공격 간격25% 증가·은폐 노출 · 리스토레이션으로 해제</p>}
       {entities.some(e=>e.blinded)&&<p className="sr-help" data-blind-status>실명 · 해당 유닛 시야2타일 · 탐지 중단 · 리스토레이션으로 복구</p>}
       {entities.some(e => e.stasisTicks) && <p className="sr-help" data-stasis-status>스테이시스 정지 중 · 최대 {Math.ceil(Math.max(...entities.map(e => e.stasisTicks ?? 0))/20)}초 · 이동·공격·탑승 불가 · 피해 면역</p>}
       {permanentCloak(def.id) && <p className="sr-help">영구 은폐 · {def.id === "protoss-observer" ? "비무장 탐지기 · 탐지 범위 11타일" : "지상 근접 공격 · 적 탐지기에 노출되면 공격받습니다."}</p>}
@@ -456,10 +459,11 @@ export function EconomyControls({
                   })
                 }
               >
-                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field", "tank-siege-mode", "lurker-aspect", "recall", "stasis-field", "stim-packs", "optical-flare", "restoration", ...ENERGY_UPGRADES.map(u => u.id)].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
+                {t.name} {[BURROW_RESEARCH, "ventral-sacs", "personnel-cloaking", "cloaking-field", "tank-siege-mode", "lurker-aspect", "recall", "stasis-field", "stim-packs", "optical-flare", "restoration", "ensnare", ...ENERGY_UPGRADES.map(u => u.id)].includes(t.id) ? "연구" : "1단계"} {done ? "완료" : cost(t.minerals, t.gas)}
                 {ENERGY_UPGRADES.some(u => u.id === t.id) && !done && <small>52.1초 · 최대 에너지 200 → 250 · 새 생산 62.5</small>}
+                {t.id === "ensnare" && !done && <small>25초 · 에너지75 · 범위 감속·은폐 노출</small>}
                 {t.id === "optical-flare" && !done && <small>37.5초 · 에너지75 · 실명·탐지 중단</small>}
-                {t.id === "restoration" && !done && <small>25초 · 에너지50 · 실명 해제</small>}
+                {t.id === "restoration" && !done && <small>25초 · 에너지50 · 실명·인스네어 해제</small>}
                 {t.id === "stim-packs" && !done && <small>25초 · 마린 체력10 소모 · 이동1.5배 · 공격 간격 단축</small>}
                 {t.id === BURROW_RESEARCH && !done && <small>25초 · 드론·저글링·히드라 잠복</small>}
                 {t.id === "ventral-sacs" && !done && <small>50초 · 오버로드 8칸 수송</small>}

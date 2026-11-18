@@ -16,7 +16,7 @@ export function updateEconomicMarker(
   const hp = Math.floor((e.health / d.health) * 10),
     sp = Math.floor(((e.shield ?? 0) / Math.max(1, d.shield)) * 10),
     p = progress === null ? -1 : Math.floor(progress * 20),
-    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, e.auraCloaked, !!e.stasisTicks, !!e.recallTicks, !!e.stimTicks, !!e.blinded, e.unitMorph ? Math.floor(20 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks)) : -1, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
+    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, e.auraCloaked, !!e.stasisTicks, !!e.recallTicks, !!e.stimTicks, !!e.blinded, !!e.ensnareTicks, e.unitMorph ? Math.floor(20 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks)) : -1, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
   if (keys.get(g) === key) return true;
   keys.set(g, key);
   g.clear();
@@ -25,6 +25,7 @@ export function updateEconomicMarker(
     h = d.height,
     terr = d.faction === "terran",
     zerg = d.faction === "zerg";
+  if(e.ensnareTicks){g.circle(0,0,.72).stroke({color:0x89dd5a,width:.07});for(const x of [-.35,0,.35])g.moveTo(x,-.6).lineTo(-x,.6).stroke({color:0x75bd4e,width:.04,alpha:.8});}
   if (e.burrowed) {
     const r = Math.max(0.3, e.radius / 256);
     g.ellipse(0, 0.08, r * 1.2, r * 0.55).fill(0x362a38).stroke({ color: 0xae876e, width: 0.05 });
@@ -268,6 +269,8 @@ export function updateEconomicMarker(
       g.poly([-.95, .3, -.45, -.2, -.2, -.65, 0, -.45, .2, -.65, .45, -.2, .95, .3, .45, .16, .2, .45, -.2, .45, -.45, .16]).fill(0xd1bc78).stroke({ color: 0xf1dfab, width: .06 });
       g.ellipse(0, -.04, .23, .4).fill(0x7757ab).stroke({ color, width: .05 });
       g.circle(0, -.08, .11).fill(0xc5b9ff);
+    } else if (d.id === "zerg-queen") {
+      g.poly([-.95,.1,-.45,-.65,-.2,-.12,0,-.55,.2,-.12,.45,-.65,.95,.1,.42,.35,-.42,.35]).fill(0x94738b).stroke({color:0xd4b5b0,width:.05});g.ellipse(0,.05,.27,.48).fill(color);g.circle(0,-.35,.12).fill(0xd8b6a6);
     } else if (d.id === "zerg-lurker-egg") {
       g.ellipse(0, 0, .43, .58).fill(0x8d627e).stroke({ color: 0xd6b494, width: .06 });
       for (const y of [-.3, -.05, .2]) g.ellipse(0, y, .35, .13).stroke({ color, width: .07 });
