@@ -12,6 +12,7 @@ const MOSQUITO_REPELLENT_PRICE = 100;
 const FULL_HEAL_PRICE = MUDFLAT_RECOVERY_FOODS.find((item) => item.heal === Infinity)?.price ?? 110;
 const EQUIPMENT_PRIORITY = ["vest", "gloves", "waders", "cooler", "headlamp"];
 const MIN_PICKUP_CHASE_RANGE = 150;
+export const MUDFLAT_SUPERVISOR_CLAM_SEARCH_RANGE = 720;
 
 const distance = (left, right) => Math.hypot(left.x - right.x, left.y - right.y);
 const normalized = (x, y) => {
@@ -52,7 +53,8 @@ function targetForState(state) {
     return distance(point, item) > item.size + (highRisk ? 190 : 88);
   });
   const holeHasClearApproach = (hole) => state.rocks.every((rock) => distance(hole, rock) > rock.radius + 54);
-  const safeHoles = state.clamHoles.filter((hole) => workPointIsSafe(hole) && holeHasClearApproach(hole));
+  const safeHoles = state.clamHoles.filter((hole) => distance(state.player, hole) <= MUDFLAT_SUPERVISOR_CLAM_SEARCH_RANGE
+    && workPointIsSafe(hole) && holeHasClearApproach(hole));
   const nearestHole = safeHoles.length > 0
     ? safeHoles.reduce((nearest, item) => distance(state.player, item) < distance(state.player, nearest) ? item : nearest)
     : null;
@@ -96,7 +98,6 @@ function targetForState(state) {
   // Finish a started field action before selecting fresh work, provided the
   // surrounding area remains clear. This gives the two-second dig/flip actions
   // enough uninterrupted time while still yielding immediately to danger.
-  if (workIsSafe && activeRock) return rockTarget(activeRock);
   if (workIsSafe && activeHole && workPointIsSafe(activeHole)) return clamTarget(activeHole);
 
   // A selected target remains stable for a short action window. Re-evaluating
@@ -121,6 +122,15 @@ function targetForState(state) {
     }
   }
 
+  // Rock turning may run at the same time as hoe work. It becomes the movement
+  // target only when there is no active or locked hoe commitment to preserve.
+  if (workIsSafe && activeRock) return rockTarget(activeRock);
+
+  // Hoe work is the supervisor's default safe activity. Keeping the nearest
+  // local hole ahead of drops, creatures and fresh rock work prevents combat
+  // rewards from repeatedly stealing the two-second digging window.
+  if (workIsSafe && nearestHole) return clamTarget(nearestHole);
+
   // Only collect drops that are already near the current action. Experience
   // outside this radius remains in the world instead of pulling the supervisor
   // across the map and starving hoe/rock work indefinitely.
@@ -132,11 +142,9 @@ function targetForState(state) {
     if (pickup) return pickupTarget(pickup);
   }
 
-  // Rotate ordinary gathering, hoe work and learned rock turning. Without an
-  // explicit work phase, a continuously populated field makes creatures win
-  // every decision and the supervisor never demonstrates the other tools.
+  // Rotate ordinary gathering and learned rock turning after all safe nearby
+  // hoe work has been exhausted.
   const workPhase = Math.floor(Math.max(0, state.elapsed) / 7) % 3;
-  if (workIsSafe && workPhase === 0 && nearestHole) return clamTarget(nearestHole);
   if (workIsSafe && workPhase === 1 && (state.rockerLevel ?? 0) > 0 && nearestRock) return rockTarget(nearestRock);
 
   if (collectible.length > 0) {
