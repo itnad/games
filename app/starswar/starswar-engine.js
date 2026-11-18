@@ -2757,7 +2757,7 @@ function stepUnits(state, dt) {
     }
     // 고스트(지상의 무기 + 마법 유닛)는 연구한 마법을 쓸 에너지가 아직 없으면 공격 병력의 맨 뒤를 따라가며(대기 중이면 제자리를 지키며), 사거리 안에 들어온 적만 쏜다.
     // 대기 중에도 먼저 나가 싸우지 않는다: 사거리(7)가 길어 집결지에서 가장 먼저 적에게 다가가다 시즈 탱크에 맞아 죽었다.
-    // 에너지 50으로 태어나 락다운(100)까지 약 62초가 걸리는데, 예전에는 곧장 앞줄에 서서 AI 경기의 고스트 7기가 20~40초 만에
+    // 락다운(100)까지 에너지가 차는 데 시간이 걸리는데(지금 시작 75·초당 1.2로 약 21초, 처음에는 시작 50·초당 0.8로 약 62초), 예전에는 곧장 앞줄에 서서 AI 경기의 고스트 7기가 20~40초 만에
     // 락다운을 한 번도 못 쓰고 죽었다. 에너지가 차면 보통 원거리 유닛처럼 나가 싸우며 락다운을 쓴다.
     if (def.spells && def.damage && !isFlying(unit) && (unit.group === "attack" || unit.group === "rally") && unit.raid === undefined && unit.bomb === undefined && chargingSpell(state, unit)
       && !findTarget(state, unit, range + unit.radius * 0.5, { unitsOnly: true })) {

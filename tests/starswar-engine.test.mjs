@@ -1046,9 +1046,14 @@ test("starswar lab casters start with full energy so their spells fire right awa
   const queen = cast({ races: { player: "zerg", enemy: "zerg" }, sides: { player: { units: { queen: 4, hydra: 12 }, research: ["ensnare", "broodling"] }, enemy: { units: { ultra: 4, hydra: 20 } } } });
   // 퀸은 브루들링(150)부터 쓰므로 10초 안에는 남은 에너지(50)로 인스네어(75)까지는 못 쓴다.
   assert.ok(queen.spells.broodling > 0, `브루들링 ${JSON.stringify(queen.spells)}`);
-  // "새로 나온 유닛"으로 두면 시작 에너지(50)라 스톰(75)을 바로 못 쓴다.
+  // "새로 나온 유닛"으로 두면 시작 에너지(75)다: 스톰(75)은 바로 쓰고, 브루들링(150)은 10초 안에 못 쓴다.
+  // (예전 시작 에너지는 50이라 스톰도 31초를 기다려야 했다. 마법 유닛이 경기 끝 무렵에 나와 한 번도 못 쓰고 죽는 일이 많아 올렸다.)
   const fresh = cast({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { energy: "fresh", units: { templar: 6, zealot: 10 }, research: ["storm"] }, enemy: { units: { zergling: 80 } } } });
-  assert.equal(fresh.state.sides.player.stats.storms, 0);
+  assert.ok(fresh.state.sides.player.stats.storms > 0, "새로 나온 템플러도 스톰을 바로 쓴다");
+  const freshQueen = cast({ races: { player: "zerg", enemy: "zerg" }, sides: { player: { energy: "fresh", units: { queen: 4, hydra: 12 }, research: ["broodling"] }, enemy: { units: { ultra: 4, hydra: 20 } } } });
+  assert.equal(freshQueen.spells.broodling ?? 0, 0, "새로 나온 퀸은 브루들링 에너지가 모자란다");
+  // 에너지는 초당 1.2씩 찬다(디파일러 1.65): 75에서 브루들링 150까지 62.5초.
+  assert.deepEqual([STW_UNITS.queen.energy, STW_UNITS.queen.energyRegen, STW_UNITS.templar.energy, STW_UNITS.templar.energyRegen, STW_UNITS.defiler.energyRegen], [75, 1.2, 75, 1.2, 1.65]);
 });
 
 test("starswar storms spare allies, allies still step out of them, and templar aim past our own front line", () => {
@@ -4368,7 +4373,7 @@ test("starswar ghosts hang back while charging lockdown, then step up and lock t
     state.sides.enemy.rally = 56;
     return { state, marines, ghost, foes };
   };
-  // 에너지 50(락다운 100 미만): 해병 줄보다 뒤에 머문다. 사거리 안의 적은 쏜다.
+  // 에너지가 락다운(100)에 못 미치는 동안: 해병 줄보다 뒤에 머문다. 사거리 안의 적은 쏜다.
   const charging = setup(50, ["goliath", "tank"]);
   run(charging.state, 12);
   const rear = Math.max(...charging.marines.map((unit) => unit.y));

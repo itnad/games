@@ -688,7 +688,7 @@ export function stwAiThink(state, side) {
 
   // 3-2. 하이템플러가 넷 이상 쌓이면 에너지가 적은 둘을 아콘으로 합친다.
   // 스톰 연구가 끝났으면 스톰을 써서 에너지가 바닥난(40 미만) 템플러만 합친다. 합치기는 에너지가 적은 둘부터라, 예전에는 갓 나온
-  // 템플러(에너지 50, 스톰은 75)가 스톰을 써 보기도 전에 합쳐져 템플러를 7~17기 뽑은 6판에서 스톰이 2번뿐이었다.
+  // 템플러(그때 시작 에너지 50, 스톰은 75)가 스톰을 써 보기도 전에 합쳐져 템플러를 7~17기 뽑은 6판에서 스톰이 2번뿐이었다.
   const templarsNow = units.filter((unit) => unit.type === "templar");
   const spentTemplars = templarsNow.filter((unit) => unit.energy < 40).length;
   if (race.id === "protoss" && templarsNow.length >= 4 && (!stwResearchDone(state, side, "storm") || spentTemplars >= 2)) stwCommand(state, side, { type: "merge" });

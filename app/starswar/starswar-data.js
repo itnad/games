@@ -87,7 +87,7 @@ export const STW_UNITS = {
   templar: {
     id: "templar", name: "하이템플러", short: "H", minerals: 50, gas: 150, time: 26, supply: 2, from: "gateway", requires: "archives",
     hp: 40, shields: 40, armor: 0, size: "small", speed: 2.2, radius: 1.05, sight: 10, role: "caster",
-    energy: 50, maxEnergy: 200, energyRegen: 0.8,
+    energy: 75, maxEnergy: 200, energyRegen: 1.2,
     note: "무기 없음 · 사이오닉 스톰(3초 동안 총 105)으로 뭉친 적을 녹임",
   },
   dark: {
@@ -125,7 +125,7 @@ export const STW_UNITS = {
   darkArchon: {
     id: "darkArchon", name: "다크 아콘", short: "Y", minerals: 250, gas: 200, time: 0, supply: 4, from: "darkMerge",
     hp: 25, shields: 200, armor: 1, size: "large", speed: 2.6, radius: 1.8, sight: 10, role: "caster",
-    energy: 50, maxEnergy: 250, energyRegen: 0.8, spells: ["feedback", "maelstrom"],
+    energy: 75, maxEnergy: 250, energyRegen: 1.2, spells: ["feedback", "maelstrom"],
     note: "다크템플러 2기 합체 · 무기 없음 · 피드백(적 에너지만큼 피해) · 마엘스트롬(생체 유닛 6초 정지)",
   },
   shuttle: {
@@ -143,7 +143,7 @@ export const STW_UNITS = {
     id: "arbiter", name: "아비터", short: "B", minerals: 100, gas: 350, time: 80, supply: 4, from: "stargate", requires: "tribunal",
     hp: 200, shields: 150, armor: 1, size: "large", speed: 3, radius: 1.6, sight: 9, flying: true,
     damage: 10, hits: 1, damageType: "explosive", range: 5, cooldown: 2.2, weaponStep: 0, role: "air", targets: "both",
-    energy: 50, maxEnergy: 250, energyRegen: 0.8, cloakField: 5, spells: ["stasis"],
+    energy: 75, maxEnergy: 250, energyRegen: 1.2, cloakField: 5, spells: ["stasis"],
     note: "주변 5칸의 아군을 은폐 · 스테이시스 필드(연구 후, 뭉친 적 15초 동결)",
   },
   reaver: {
@@ -182,7 +182,7 @@ export const STW_UNITS = {
     id: "ghost", race: "terran", name: "고스트", short: "H", minerals: 25, gas: 75, time: 25, supply: 1, from: "barracks", requires: "science",
     hp: 45, shields: 0, armor: 0, size: "small", speed: 2.6, radius: 0.9, sight: 9,
     damage: 10, hits: 1, damageType: "concussive", range: 7, cooldown: 1.1, weaponStep: 1, role: "ranged", bio: true, targets: "both", cloakResearch: "personnelCloak",
-    energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["lockdown"],
+    energy: 75, maxEnergy: 200, energyRegen: 1.2, spells: ["lockdown"],
     note: "사거리 7 진동형 · 은폐 장치 연구 뒤 은폐 · 락다운(연구 후, 기계 유닛 15초 정지)",
   },
   vulture: {
@@ -206,7 +206,7 @@ export const STW_UNITS = {
   vessel: {
     id: "vessel", race: "terran", name: "사이언스 베슬", short: "E", minerals: 100, gas: 225, time: 50, supply: 2, from: "starport", requires: "science",
     hp: 200, shields: 0, armor: 1, size: "large", speed: 3.3, radius: 1.6, sight: 10, flying: true, role: "caster", detector: 9,
-    energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["emp", "irradiate", "matrix"],
+    energy: 75, maxEnergy: 200, energyRegen: 1.2, spells: ["emp", "irradiate", "matrix"],
     note: "탐지기 · 디펜시브 매트릭스(아군 250 흡수) · EMP(연구 후, 보호막·에너지 제거) · 이레디에이트(연구 후, 생체 유닛 지속 피해)",
   },
   valkyrie: {
@@ -220,7 +220,7 @@ export const STW_UNITS = {
     id: "battlecruiser", race: "terran", name: "배틀크루저", short: "B", minerals: 400, gas: 300, time: 80, supply: 6, from: "starport", requires: "science",
     hp: 650, shields: 0, armor: 3, size: "large", speed: 2.3, radius: 2.4, sight: 11, flying: true,
     damage: 25, hits: 1, damageType: "normal", range: 8, cooldown: 1, weaponStep: 0, role: "air", targets: "both",
-    energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["yamato"],
+    energy: 75, maxEnergy: 200, energyRegen: 1.2, spells: ["yamato"],
     note: "체력 650 전함 · 사거리 8 · 지상·공중 25 · 야마토 포(연구 후, 260 한 방, 사거리 10)",
   },
   wraith: {
@@ -295,13 +295,13 @@ export const STW_UNITS = {
   queen: {
     id: "queen", race: "zerg", name: "퀸", short: "Q", minerals: 100, gas: 100, time: 30, supply: 2, from: "hatchery", requires: "nest",
     hp: 120, shields: 0, armor: 0, size: "medium", speed: 4, radius: 1.3, sight: 10, flying: true, role: "caster",
-    energy: 50, maxEnergy: 200, energyRegen: 0.8, spells: ["broodling", "ensnare"],
+    energy: 75, maxEnergy: 200, energyRegen: 1.2, spells: ["broodling", "ensnare"],
     note: "무기 없음 · 인스네어(연구 후, 뭉친 적 이동·공격 느리게) · 브루들링(연구 후, 값 100 이상 지상 유닛 즉사 · 일꾼·리버·아콘 제외)",
   },
   defiler: {
     id: "defiler", race: "zerg", name: "디파일러", short: "F", minerals: 50, gas: 150, time: 30, supply: 2, from: "hatchery", requires: "mound",
     hp: 80, shields: 0, armor: 1, size: "medium", speed: 2.6, radius: 1.1, sight: 10, role: "caster",
-    energy: 50, maxEnergy: 200, energyRegen: 1.1, spells: ["darkSwarm", "plague"],
+    energy: 75, maxEnergy: 200, energyRegen: 1.65, spells: ["darkSwarm", "plague"],
     note: "무기 없음 · 다크 스웜(안의 지상 유닛에 원거리 공격이 안 통함) · 플레이그(연구 후, 체력 1까지 지속 피해)",
   },
   infested: {

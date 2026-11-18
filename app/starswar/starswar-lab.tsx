@@ -18,7 +18,7 @@ export type LabSide = {
   natural: boolean;
   /** 본진·앞마당 광물이 다 떨어진 상태(광물 수입 0). 자원이 바닥난 뒤의 최종 결전을 시험한다. */
   depleted: boolean;
-  /** 마법 유닛 에너지: 가득(기본) 또는 갓 나온 유닛(시작 에너지 50). */
+  /** 마법 유닛 에너지: 가득(기본) 또는 갓 나온 유닛(시작 에너지 75). */
   energy: "full" | "fresh";
   buildings: Record<string, number>;
   units: Record<string, number>;
@@ -415,7 +415,7 @@ function SideEditor({ title, which, race, side, onRace, onChange }: { title: str
         <>
           <div className="stw-segment two" role="radiogroup" aria-label={`${title} 마법 에너지`}>
             <button type="button" role="radio" aria-checked={side.energy === "full"} className={side.energy === "full" ? "active" : ""} onClick={() => onChange({ ...side, energy: "full" })}>마법 에너지 가득</button>
-            <button type="button" role="radio" aria-checked={side.energy === "fresh"} className={side.energy === "fresh" ? "active" : ""} onClick={() => onChange({ ...side, energy: "fresh" })}>새로 나온 유닛(50)</button>
+            <button type="button" role="radio" aria-checked={side.energy === "fresh"} className={side.energy === "fresh" ? "active" : ""} onClick={() => onChange({ ...side, energy: "fresh" })}>새로 나온 유닛(75)</button>
           </div>
           {idleCasters(side).length ? <p className="stw-hint stw-hold">연구가 꺼져 있어 마법을 쓰지 않습니다 — {idleCasters(side).join(", ")}. 연구·업그레이드에서 켜세요.</p> : null}
         </>
