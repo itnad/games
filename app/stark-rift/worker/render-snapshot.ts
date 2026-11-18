@@ -1,3 +1,4 @@
+import {queenAutocastOf,QUEEN_AUTO_ABILITIES,type QueenAutoAbility} from "../abilities/queen-autocast-state";
 import type {InfestationState} from "../abilities/infestation-state";
 import {broodlingOf,broodlingsCooldown,BROODLING_TICKS,type BroodlingsState} from "../abilities/broodlings-state";
 import { parasiteOf,parasiteCooldown,type ParasiteState } from "../abilities/parasite-state";
@@ -36,6 +37,7 @@ import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import {
   array,
+  unique,
   boolean,
   integer,
   object,
@@ -67,6 +69,7 @@ export type RenderEntity = {
   blinded?: boolean;
   ensnareTicks?:number;
   queenCooldownTicks?:number;
+  queenAutocastIds?:QueenAutoAbility[];
   medicSpellCooldownTicks?: number;
   stimTicks?: number;
   needsHealing?: boolean;
@@ -153,6 +156,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         blinded: optional(boolean),
         ensnareTicks:optional(integer(1,ENSNARE_TICKS)),
         queenCooldownTicks:optional(integer(1,QUEEN_CAST_COOLDOWN)),
+        queenAutocastIds:optional(unique(array(enumeration(QUEEN_AUTO_ABILITIES),0,4))),
         medicSpellCooldownTicks: optional(integer(1,MEDIC_SPELL_COOLDOWN)),
         stimTicks: optional(integer(1,STIM_TICKS)),
         needsHealing: optional(boolean),
@@ -199,6 +203,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
   }),
   (snapshot) =>
     snapshot.entities.every(e => e.energy === undefined ? e.maxEnergy === undefined : e.maxEnergy !== undefined && e.energy <= e.maxEnergy && supportsEnergy(e.definitionId)) &&
+    snapshot.entities.every(e=>e.queenAutocastIds===undefined||e.owner===snapshot.viewerPlayerId&&e.definitionId==="zerg-queen") &&
     snapshot.entities.every(e=>e.broodlingTicks===undefined||e.definitionId==="zerg-broodling"&&e.owner===snapshot.viewerPlayerId) &&
     new Set((snapshot.infestationEffects??[]).map(e=>e.id)).size===(snapshot.infestationEffects??[]).length &&
     (snapshot.infestationEffects??[]).every(e=>e.tick<=snapshot.tick&&snapshot.tick-e.tick<=20&&e.x<snapshot.widthTiles*256&&e.y<snapshot.heightTiles*256&&snapshot.visibility[Math.floor(e.y/256)*snapshot.widthTiles+Math.floor(e.x/256)]===2) &&
@@ -354,6 +359,7 @@ export function createRenderSnapshot(
       continue;
     entities.push({
       ...(state.economy.enabled ? { shield: s.shield[i] } : {}),
+      ...(s.owner[i]===viewer&&s.definitionId[i]==="zerg-queen"?{queenAutocastIds:[...(queenAutocastOf(state,s.id[i])?.abilityIds??[])]}:{}),
       ...(s.owner[i]===viewer&&broodlingOf(state,s.id[i])?{broodlingTicks:broodlingOf(state,s.id[i])!.expiresTick-state.tick}:{}),
       ...(s.kind[i]!=="building"&&parasiteOf(state,s.id[i])?{parasited:true}:{}),
       ...(s.kind[i]!=="building"&&ensnareOf(state,s.id[i])?{ensnareTicks:ensnareOf(state,s.id[i])!.expiresTick-state.tick}:{}),

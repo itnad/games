@@ -137,6 +137,7 @@ export class DevelopmentSaveStore {
                       : version === 15 ? "stage6f-backup"
                       : version === 16 ? "stage6g-backup"
                       : version === 17 ? "stage6h-backup"
+                      : version === 25 ? "stage6p-backup"
                       : version === 24 ? "stage6o-backup"
                       : version === 23 ? "stage6n-backup"
                       : version === 22 ? "stage6m-backup"

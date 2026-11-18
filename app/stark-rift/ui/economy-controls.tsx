@@ -177,7 +177,7 @@ export function EconomyControls({
         </span>
       </div>
       <InfestationControls snapshot={snapshot} selected={selected} running={running} begin={infest} select={selectEntities} suicide={ids=>issue({kind:"castAbility",entityIds:ids,payload:{abilityId:"suicide"},target:{kind:"entity",entityId:ids[0]}})} />
-      <QueenControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={castAbility} parasite={parasite} broodlings={broodlings} />
+      <QueenControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={castAbility} parasite={parasite} broodlings={broodlings} toggleAuto={(ids,abilityId,enabled)=>issue({kind:"toggleAutocast",entityIds:ids,payload:{abilityId,enabled}})} />
       <StimControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} issue={issue} />
       <MedicSpellControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} cast={medicSpell} />
       <MedicControls snapshot={snapshot} selected={selected} running={running} select={selectEntities} heal={heal} issue={issue} />

@@ -1,3 +1,4 @@
+import {createQueenAutocastRules} from "../abilities/queen-autocast-rules";
 import {createInfestationRules} from "../abilities/infestation-rules";
 import {infestationFitsMap} from "../abilities/infestation-state";
 import { createBroodlingsRules } from "../abilities/broodlings-rules";
@@ -155,11 +156,12 @@ export class SimulationRuntime {
       map,
       createCombatRules(createEconomyRules(map, defaults), visible, map),
     )))))));
-    const combined = createInfestationRules(map,createBroodlingsRules(map,createParasiteRules(map,createQueenRules(map,createMedicSpellRules(map,createStimRules(createMedicRules(map,createAutocastRules(map, spellRules))))))));
+    const combined = createQueenAutocastRules(map,createInfestationRules(map,createBroodlingsRules(map,createParasiteRules(map,createQueenRules(map,createMedicSpellRules(map,createStimRules(createMedicRules(map,createAutocastRules(map, spellRules)))))))));
     this.rules = {
       commands: { ...combined.commands, ...this.options.rules?.commands },
       systems: {
         ...combined.systems,
+        targeting:s=>{combined.systems?.targeting?.(s);if(s.queenAutocast?.records.length)masks.clear();},
         pathfinding: (s) => {
           masks.clear();
           combined.systems?.pathfinding?.(s);

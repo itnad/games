@@ -17,7 +17,7 @@ with sync_playwright() as pw:
   def check(name):case['checks'].append(name);print(f'{width}: {name}',flush=True)
   def tap(loc):loc.tap()
   def save(label):
-   m.save(page);raw=page.evaluate('(k)=>localStorage.getItem(k)',KEY);saved=json.loads(raw);assert saved['formatVersion']==25;(args.output/f'{width}-{label}-save.json').write_text(raw);return saved
+   m.save(page);raw=page.evaluate('(k)=>localStorage.getItem(k)',KEY);saved=json.loads(raw);assert saved['formatVersion']==26;(args.output/f'{width}-{label}-save.json').write_text(raw);return saved
   def reopen(saved):
    tap(page.get_by_role('button',name='저장하고 나가기',exact=True));page.reload(wait_until='networkidle');tap(page.locator('[data-faction="zerg"]'));tap(page.get_by_role('button',name='특수 연습',exact=True));tap(page.get_by_role('button',name='이어서 하기',exact=True));page.wait_for_function('t=>window.__qa.ui?.phase==="paused"&&window.__qa.snapshot?.tick===t',arg=saved['simulation']['tick'])
   def pause():
