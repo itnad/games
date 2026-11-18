@@ -40,10 +40,10 @@ export function SimulationSession({
   const initialSession = (): SessionState => ({
     camera: {
       centerX:
-        (scenario === "special-practice" && faction === "zerg" ? 24 : scenario === "special-practice" && faction === "protoss" ? 22 : scenario !== "economy" ? 18 : registered.map.spawnPoints[0].x) * 256,
+        (scenario === "infestation-practice" ? 26 : scenario === "special-practice" && faction === "zerg" ? 24 : scenario === "special-practice" && faction === "protoss" ? 22 : scenario !== "economy" ? 18 : registered.map.spawnPoints[0].x) * 256,
       centerY:
         (scenario !== "economy"
-          ? ["ranged-practice", "special-practice"].includes(scenario)
+          ? scenario==="infestation-practice" ? 24 : ["ranged-practice", "special-practice"].includes(scenario)
             ? 20
             : 18
           : registered.map.spawnPoints[0].y) * 256,
@@ -143,7 +143,7 @@ export function SimulationSession({
                   (e) =>
                     e.owner === 0 &&
                     e.kind === "combat" &&
-                    (scenario === "special-practice" ? !!unitTraits(e.definitionId)?.spaceProvided && message.payload.combat?.scenario === "special-practice" : hasBasicWeapon(e.definitionId)),
+                    (scenario === "infestation-practice" ? e.definitionId==="zerg-queen" : scenario === "special-practice" ? !!unitTraits(e.definitionId)?.spaceProvided && message.payload.combat?.scenario === "special-practice" : hasBasicWeapon(e.definitionId)),
                 )
                 .map((e) => e.id),
               controlGroupIds:
@@ -217,7 +217,7 @@ export function SimulationSession({
           { id: 0, faction, controller: "human" },
           {
             id: 1,
-            faction: scenario === "special-practice" ? "protoss" : scenario === "siege-practice" ? "terran" : "zerg",
+            faction: scenario === "infestation-practice" ? "terran" : scenario === "special-practice" ? "protoss" : scenario === "siege-practice" ? "terran" : "zerg",
             controller: "ai",
           },
         ],
@@ -335,7 +335,7 @@ export function SimulationSession({
         </header>
         {snapshot?.combat && snapshot.combat.scenario !== "economy" && (
           <div className="sr-practice-status" role="status">
-            {snapshot.combat.scenario === "special-practice" ? "특수 연습" : snapshot.combat.scenario === "ranged-practice"
+            {snapshot.combat.scenario === "infestation-practice" ? "감염 연습" : snapshot.combat.scenario === "special-practice" ? "특수 연습" : snapshot.combat.scenario === "ranged-practice"
               ? "원거리 연습"
               : snapshot.combat.scenario === "siege-practice"
                 ? "본부 공략"

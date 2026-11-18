@@ -1,3 +1,4 @@
+import infestation from "../data/infestation-original.json";
 import broodlings from "../data/broodlings-original.json";
 import queen from "../data/queen-original.json";
 import medic from "../data/medic-original.json";
@@ -10,7 +11,7 @@ import cloak from "../data/cloak-original.json";
 import original from "../data/special-original.json";
 import { checksum } from "../core/checksum";
 const id = (name: string) => name.toLowerCase().replaceAll("_", "-");
-const traits = new Map([...original.traits, ...cloak.traits, ...siege.traits, ...lurker.traits, ...arbiter.traits, ...medic.traits, ...queen.traits,...broodlings.traits].map((t) => [id(t.name), t]));
+const traits = new Map([...original.traits, ...cloak.traits, ...siege.traits, ...lurker.traits, ...arbiter.traits, ...medic.traits, ...queen.traits,...broodlings.traits,...infestation.traits].map((t) => [id(t.name), t]));
 export const unitTraits = (definition: string) => traits.get(definition);
 export const permanentCloak = (definition: string) => unitTraits(definition)?.permanentCloak ?? false;
 export const CARGO_RESEARCH = "ventral-sacs";
