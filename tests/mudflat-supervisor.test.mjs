@@ -132,6 +132,45 @@ test("감독 AI는 안전한 작업 차례에 생물보다 조개구멍을 찾�
   assert.ok(decision.x > .2);
 });
 
+test("감독 AI는 안전하면 작업 차례와 관계없이 가까운 구멍을 최우선으로 선택한다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 9,
+    rockerLevel: 1,
+    pickupRadius: 50,
+    pickups: [{ id: 31, x: 45, y: 0, xp: 20, phase: "idle" }],
+    creatures: [{ id: 32, x: 210, y: 0, hp: 20, xp: 30, score: 100, size: 13, name: "칠게" }],
+    rocks: [{ id: 33, x: 70, y: 100, radius: 22 }],
+    clamHoles: [{ id: 34, x: 90, y: 0, kind: "clam", progress: 0 }],
+  }));
+
+  assert.equal(decision.targetKind, "clam");
+  assert.equal(decision.targetId, 34);
+});
+
+test("감독 AI는 너무 먼 구멍을 쫓지 않는다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 1,
+    clamHoles: [{ id: 35, x: 900, y: 0, kind: "clam", progress: 0 }],
+  }));
+
+  assert.equal(decision.targetKind, "explore");
+});
+
+test("감독 AI는 호미질과 돌뒤집기가 겹쳐도 진행 중인 호미 목표를 유지한다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 2,
+    rockerLevel: 1,
+    rockReach: 84,
+    activeRockId: 36,
+    rocks: [{ id: 36, x: 60, y: 20, radius: 22 }],
+    clamHoles: [{ id: 37, x: 18, y: 0, kind: "clam", progress: .8 }],
+  }));
+
+  assert.equal(decision.targetKind, "clam");
+  assert.equal(decision.targetId, 37);
+  assert.deepEqual({ x: decision.x, y: decision.y }, { x: 0, y: 0 });
+});
+
 test("감독 AI는 돌뒤집개를 배운 뒤 안전한 작업 차례에 바위를 찾아간다", () => {
   const decision = decideMudflatSupervisorMove(scene({
     elapsed: 8,

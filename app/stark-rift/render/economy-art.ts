@@ -16,7 +16,7 @@ export function updateEconomicMarker(
   const hp = Math.floor((e.health / d.health) * 10),
     sp = Math.floor(((e.shield ?? 0) / Math.max(1, d.shield)) * 10),
     p = progress === null ? -1 : Math.floor(progress * 20),
-    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, e.auraCloaked, !!e.stasisTicks, !!e.recallTicks, !!e.stimTicks, !!e.blinded, !!e.ensnareTicks, e.unitMorph ? Math.floor(20 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks)) : -1, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
+    key = [d.id, color, ring, hp, sp, p, started, e.burrowed, e.cloaked, e.auraCloaked, !!e.stasisTicks, !!e.recallTicks, !!e.stimTicks, !!e.parasited, !!e.blinded, !!e.ensnareTicks, e.unitMorph ? Math.floor(20 * (1 - e.unitMorph.remainingTicks / e.unitMorph.totalTicks)) : -1, Math.floor((e.energy ?? 0) / 10), e.siegeTransition ? Math.floor(20 * (1 - e.siegeTransition.remainingTicks / e.siegeTransition.totalTicks)) : -1].join(":");
   if (keys.get(g) === key) return true;
   keys.set(g, key);
   g.clear();
@@ -33,6 +33,7 @@ export function updateEconomicMarker(
     if (ring !== null) g.ellipse(0, 0.08, r * 1.5, r * 0.8).stroke({ color: ring, width: 0.055 });
     return true;
   }
+  if(d.id==="zerg-broodling"){g.ellipse(0,.05,.29,.19).fill(color).stroke({color:0xe9abc1,width:.04});for(const side of [-1,1]){g.moveTo(side*.18,-.05).lineTo(side*.37,-.3).lineTo(side*.13,-.22).stroke({color:0xe9abc1,width:.06});g.moveTo(side*.12,.13).lineTo(side*.3,.3).stroke({color,width:.06});}if(ring!==null)g.ellipse(0,.02,.43,.3).stroke({color:ring,width:.05});g.rect(-.3,-.48,.6,.06).fill(0x241d29);g.rect(-.3,-.48,.6*e.health/d.health,.06).fill(0x82d96c);return true;}
   if (d.kind === "building") {
     g.ellipse(0.12, 0.22, w * 0.55, h * 0.48).fill({
       color: 0x030911,
@@ -344,6 +345,7 @@ export function updateEconomicMarker(
       0.08,
     ).fill(0x7ebdff);
   }
+  if(e.parasited){g.ellipse(0,-.92,.28,.15).fill(0x222d1a).stroke({color:0xd9e877,width:.05});g.circle(0,-.92,.09).fill(0xd9e877);}
   if(e.blinded){g.ellipse(0,-.72,.25,.12).stroke({color:0xffd77b,width:.05});g.moveTo(-.22,-.96).lineTo(.22,-.48).stroke({color:0xffd77b,width:.07});}
   if(e.stimTicks)g.ellipse(0,0,.48,.6).stroke({color:0xffae68,width:.07,alpha:.9});
   if (e.stasisTicks) g.poly([-.65, -.2, -.3, -.95, .38, -.85, .7, -.1, .42, .75, -.45, .7]).fill({ color: 0x8dc9f4, alpha: .65 }).stroke({ color: 0xd8f5ff, width: .08 });

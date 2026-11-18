@@ -347,6 +347,8 @@ export class BattleRenderer {
       g.alpha=alpha;g.position.set(c.x/256,c.y/256);updateMinimapMarker(mini!,0x9ba7ae);mini!.alpha=alpha;mini!.position.set(c.x/256,c.y/256);
     }
     this.combatEffects.clear();
+    for(const e of this.snapshot?.broodlingsEffects??[]){const age=Math.min(1,Math.max(0,(this.snapshot!.tick-e.tick)/20));this.combatEffects.ellipse(e.x/256,e.y/256,.2+age*.65,.15+age*.4).stroke({color:0xd36e94,width:.1,alpha:1-age});}
+    for(const e of this.snapshot?.parasiteEffects??[]){const age=Math.min(1,Math.max(0,(this.snapshot!.tick-e.tick)/20)),x=e.toX/256,y=e.toY/256;this.combatEffects.moveTo(e.x/256,e.y/256).lineTo(x,y).stroke({color:0xd9e877,width:.045,alpha:1-age});this.combatEffects.ellipse(x,y,.3+age*.4,.16+age*.25).stroke({color:0xd9e877,width:.08,alpha:1-age});}
     for(const e of this.snapshot?.queenEffects??[]){const age=Math.min(1,Math.max(0,(this.snapshot!.tick-e.tick)/20)),x=e.x/256,y=e.y/256;this.combatEffects.rect(x-2,y-2,4,4).fill({color:0x7bc856,alpha:(1-age)*.2}).stroke({color:0xa8ed70,width:.05,alpha:1-age});}
     for(const e of this.snapshot?.medicSpellEffects??[]){
       const age=Math.min(1,Math.max(0,(this.snapshot!.tick-e.tick)/20)),color=e.abilityId==="optical-flare"?0xffd77b:0x8ff4c9,x=e.toX/256,y=e.toY/256;

@@ -56,7 +56,7 @@ export function productionFailure(
   if (
     !b ||
     !producer ||
-    d.kind === "building" ||
+    d.kind === "building" || d.id === "zerg-broodling" ||
     d.faction !== s.players[owner].faction ||
     !countsAsDefinition(producer.id, d.producer)
   )

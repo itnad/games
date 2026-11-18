@@ -18,7 +18,14 @@ import { HARVEST_PULSE_SECONDS, drawHarvestPulse, drawSaltSpirit, saltSpiritPose
 import { EXPERIENCE_FLASH_SECONDS, createExperiencePickup, advanceExperiencePickup } from "./mudflat-experience.js";
 import { createMudflatSeed, nextMudflatRandom, normalizeMudflatSeed } from "./mudflat-rng.js";
 import { deepMudPatchesInView, deepMudStrengthAtPoint, randomDeepMudPointNear, traceDeepMudBlobPath, traceMudflatSurfacePatch, worldHash } from "./mudflat-terrain";
-import { MUDFLAT_SUPERVISOR_DECISION_SECONDS, createMudflatSupervisorMemory, decideMudflatSupervisorMove, maintainMudflatSupervisorCampaign, mudflatSupervisorCanDig } from "./mudflat-supervisor.js";
+import {
+  MUDFLAT_SUPERVISOR_CLAM_SEARCH_RANGE,
+  MUDFLAT_SUPERVISOR_DECISION_SECONDS,
+  createMudflatSupervisorMemory,
+  decideMudflatSupervisorMove,
+  maintainMudflatSupervisorCampaign,
+  mudflatSupervisorCanDig,
+} from "./mudflat-supervisor.js";
 import { MUDFLAT_SUPERVISOR_LOG_KEY, appendMudflatSupervisorLog, createMudflatSupervisorLog, serializeMudflatSupervisorLog } from "./mudflat-supervisor-log.js";
 import { roundedRect, wrapCanvasText } from "./mudflat-canvas-utils";
 import type { Campaign, CountMap, CreatureMovement, GameMode, Point, Screen, StageProfile } from "./mudflat-survivor-types";
@@ -3134,7 +3141,25 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (!runtime.bossSpawned && runtime.elapsed >= 200) { runtime.bossSpawned = true; spawnCreature(width, height, true); }
         if (runtime.elapsed < .08 && runtime.clamHoles.length === 0) for (let index = 0; index < 12; index += 1) spawnClamHole(width, height);
         runtime.clamSpawnClock -= dt;
-        if (runtime.clamSpawnClock <= 0 && runtime.clamHoles.length < 18) { spawnClamHole(width, height); runtime.clamSpawnClock = 4.8; }
+        const nearbySupervisorHoleCount = supervisorRef.current
+          ? runtime.clamHoles.filter((hole) => Math.hypot(hole.x - runtime.player.x, hole.y - runtime.player.y) <= MUDFLAT_SUPERVISOR_CLAM_SEARCH_RANGE).length
+          : 0;
+        const needsSupervisorHoles = supervisorRef.current && nearbySupervisorHoleCount < 3;
+        if (runtime.clamSpawnClock <= 0 && (runtime.clamHoles.length < 18 || needsSupervisorHoles)) {
+          spawnClamHole(width, height);
+          if (supervisorRef.current && runtime.clamHoles.length > 24) {
+            const protectedHoleId = supervisorDecisionRef.current.targetKind === "clam" ? supervisorDecisionRef.current.targetId : null;
+            runtime.clamHoles = runtime.clamHoles
+              .sort((left, right) => {
+                if (left.id === protectedHoleId) return -1;
+                if (right.id === protectedHoleId) return 1;
+                return Math.hypot(left.x - runtime.player.x, left.y - runtime.player.y)
+                  - Math.hypot(right.x - runtime.player.x, right.y - runtime.player.y);
+              })
+              .slice(0, 24);
+          }
+          runtime.clamSpawnClock = 4.8;
+        }
         if (runtime.mode === "normal") {
           if (runtime.elapsed < .08 && runtime.rocks.length === 0) for (let index = 0; index < 12; index += 1) spawnRock(width, height);
           runtime.rockSpawnClock -= dt;

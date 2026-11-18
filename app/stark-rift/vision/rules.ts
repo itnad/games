@@ -1,3 +1,4 @@
+import { parasitedBy } from "../abilities/parasite-state";
 import { ensnareOf } from "../abilities/queen-state";
 import { isBlinded } from "../abilities/medic-spells-state";
 import medicSpells from "../data/medic-spells-original.json";
@@ -93,7 +94,7 @@ export function visibilityMask(
     e = s.entities;
   for (const cell of s.vision?.players[owner].explored ?? []) mask[cell] = 1;
   for (let i = 0; i < e.id.length; i++)
-    if (e.owner[i] === owner && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
+    if ((e.owner[i] === owner || parasitedBy(s,e.id[i],owner)) && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
       const b = s.economy.structures.find((b) => b.entityId === e.id[i]);
       if (b && !b.started) continue;
       const cx = Math.floor(e.x[i] / 256),
@@ -160,10 +161,11 @@ export function canSeeEntity(
     })
   )
     return false;
+  if (parasitedBy(s,e.id[index],owner)) return true;
   if (ensnareOf(s,e.id[index])) return true;
   if (!coveredByArbiter(s, index) && !permanentCloak(e.definitionId[index]) && !s.vision?.concealed.some((c) => c.entityId === e.id[index])) return true;
   for (let i = 0; i < e.id.length; i++)
-    if (e.owner[i] === owner && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
+    if ((e.owner[i] === owner || parasitedBy(s,e.id[i],owner)) && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
       if (isInStasis(s,e.id[i]) || isBlinded(s,e.id[i])) continue;
       const r = DETECTOR_RADIUS_TILES[e.definitionId[i]];
       if (
@@ -186,7 +188,7 @@ export function highGroundSight(
     ty = Math.floor(e.y[target] / 256),
     height = map.height[ty * map.widthTiles + tx];
   for (let i = 0; i < e.id.length; i++)
-    if (e.owner[i] === owner && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
+    if ((e.owner[i] === owner || parasitedBy(s,e.id[i],owner)) && e.health[i] > 0 && !isEmbarked(s, e.id[i])) {
       const b = s.economy.structures.find((b) => b.entityId === e.id[i]);
       if (b && !b.started) continue;
       const x = Math.floor(e.x[i] / 256),

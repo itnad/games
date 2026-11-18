@@ -1,3 +1,4 @@
+import {BROODLING,BROODLING_TICKS,emptyBroodlings} from "../abilities/broodlings-state";
 import { MEDIC } from "../abilities/medic-data";
 import { newMedic, clearMedicJob } from "../abilities/medic-state";
 import { initialEnergy } from "../abilities/energy-upgrades";
@@ -117,6 +118,7 @@ export function createEntity(
     state.energy ??= []; state.energy.push({ entityId: id, amount: initialEnergy(state,input.owner,input.definitionId), frameRemainder: 0 });
   }
   if(state.economy.enabled && input.definitionId===MEDIC){state.medics??={records:[]};state.medics.records.push(newMedic(id));}
+  if(state.economy.enabled&&input.definitionId===BROODLING){state.broodlings??=emptyBroodlings();state.broodlings.records.push({entityId:id,appliedTick:state.tick,expiresTick:state.tick+BROODLING_TICKS});}
   return id;
 }
 export function removeEntity(state: SimulationState, id: number): boolean {
@@ -124,6 +126,8 @@ export function removeEntity(state: SimulationState, id: number): boolean {
   for (const passenger of detachSpecialEntity(state, id)) removeEntity(state, passenger);
   const index = state.entities.id.indexOf(id);
   detachEconomyEntity(state, id);
+  if(state.broodlings){state.broodlings.records=state.broodlings.records.filter(r=>r.entityId!==id);state.broodlings.cooldowns=state.broodlings.cooldowns.filter(r=>r.entityId!==id);}
+  if(state.parasites){state.parasites.records=state.parasites.records.filter(r=>r.entityId!==id);state.parasites.cooldowns=state.parasites.cooldowns.filter(r=>r.entityId!==id);}
   if(state.queen){state.queen.ensnared=state.queen.ensnared.filter(r=>r.entityId!==id);state.queen.cooldowns=state.queen.cooldowns.filter(r=>r.entityId!==id);}
   if(state.medicSpells){state.medicSpells.blind=state.medicSpells.blind.filter(r=>r.entityId!==id);state.medicSpells.cooldowns=state.medicSpells.cooldowns.filter(r=>r.entityId!==id);}
   if(state.stim)state.stim.records=state.stim.records.filter(r=>r.entityId!==id);

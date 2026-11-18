@@ -1,0 +1,154 @@
+{
+  "source": {
+    "bwapiTag": "v4.4.0",
+    "openbwCommit": "4b046d5f65302b10cb0a745f0fecd37ec85b20a8",
+    "sha256": {
+      "unit.cpp": "7f16832dac82b8a739a07616ec0e61bc2c68a34b873f779cca8742de4832c76b",
+      "tech.cpp": "990bdd17b48c1207dfb7f17352dad022e6ce4f6939d151119fd022e028ccf869",
+      "weapon.cpp": "e5c392a914ce4b452c4cfcfdb7d4ba581eef39aa6f0d1f62409a03cadcdbde67",
+      "bwgame.h": "5ee316ca2c008c9252f7fde7444ca5dc7f35440549be2576dc37fa228fb31ae6"
+    }
+  },
+  "units": [
+    {
+      "name": "Zerg_Broodling",
+      "bwapiId": 40,
+      "defaultOreCost": 1,
+      "defaultGasCost": 1,
+      "defaultTimeCost": 1,
+      "defaultMaxHP": 30,
+      "defaultMaxSP": 0,
+      "defaultArmorAmount": 0,
+      "unitSupplyProvided": 0,
+      "unitSupplyRequired": 0,
+      "unitTopSpeeds": 6,
+      "sightRangeTiles": 5,
+      "dimensions": [
+        1,
+        1,
+        9,
+        9,
+        9,
+        9
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "name": "Zerg_Broodling",
+      "size": "small",
+      "bounds": [
+        9,
+        9,
+        9,
+        9
+      ],
+      "groundWeapon": "Toxic_Spores",
+      "airWeapon": "None",
+      "hits": 1
+    }
+  ],
+  "weapons": [
+    {
+      "name": "Toxic_Spores",
+      "bwapiId": 42,
+      "defaultWpnDamageAmt": 4,
+      "defaultWpnDamageBonus": 1,
+      "wpnDamageCooldowns": 15,
+      "wpnDamageFactor": 1,
+      "wpnMinRange": 0,
+      "wpnMaxRange": 2,
+      "damageType": "Normal",
+      "upgrade": "Zerg_Melee_Attacks"
+    }
+  ],
+  "traits": [
+    {
+      "name": "Zerg_Broodling",
+      "spaceRequired": 1,
+      "spaceProvided": 0,
+      "flyer": false,
+      "detector": false,
+      "permanentCloak": false
+    }
+  ],
+  "technology": {
+    "name": "Spawn_Broodlings",
+    "id": "spawn-broodlings",
+    "title": "브루들링 생성",
+    "producer": "zerg-queens-nest",
+    "minerals": 100,
+    "gas": 100,
+    "frames": 1200,
+    "energy": 150,
+    "rangePixels": 288,
+    "targetFlags": [
+      "TARG_GROUND",
+      "TARG_NOBUILD",
+      "TARG_NOROBOT",
+      "TARG_ORGMECH"
+    ]
+  },
+  "lifetimeFrames": 1800,
+  "count": 2,
+  "targetableUnits": [
+    "Terran_Marine",
+    "Terran_Ghost",
+    "Terran_Vulture",
+    "Terran_Goliath",
+    "Terran_Siege_Tank_Tank_Mode",
+    "Terran_SCV",
+    "Hero_Gui_Montag",
+    "Terran_Civilian",
+    "Hero_Sarah_Kerrigan",
+    "Hero_Alan_Schezar",
+    "Hero_Jim_Raynor_Vulture",
+    "Hero_Jim_Raynor_Marine",
+    "Hero_Edmund_Duke_Tank_Mode",
+    "Hero_Edmund_Duke_Siege_Mode",
+    "Terran_Siege_Tank_Siege_Mode",
+    "Terran_Firebat",
+    "Terran_Medic",
+    "Zerg_Larva",
+    "Zerg_Egg",
+    "Zerg_Zergling",
+    "Zerg_Hydralisk",
+    "Zerg_Ultralisk",
+    "Zerg_Broodling",
+    "Zerg_Drone",
+    "Zerg_Defiler",
+    "Hero_Torrasque",
+    "Zerg_Infested_Terran",
+    "Hero_Infested_Kerrigan",
+    "Hero_Unclean_One",
+    "Hero_Hunter_Killer",
+    "Hero_Devouring_One",
+    "Protoss_Dark_Templar",
+    "Protoss_Zealot",
+    "Protoss_Dragoon",
+    "Protoss_High_Templar",
+    "Hero_Dark_Templar",
+    "Hero_Zeratul",
+    "Hero_Fenix_Zealot",
+    "Hero_Fenix_Dragoon",
+    "Hero_Tassadar",
+    "Protoss_Scarab",
+    "Hero_Aldaris",
+    "Critter_Rhynadon",
+    "Critter_Bengalaas",
+    "Critter_Scantid",
+    "Critter_Ragnasaur",
+    "Critter_Ursadon",
+    "Zerg_Lurker_Egg",
+    "Hero_Samir_Duran",
+    "Hero_Alexei_Stukov",
+    "Zerg_Lurker",
+    "Hero_Infested_Duran",
+    "Special_Floor_Missile_Trap",
+    "Special_Floor_Gun_Trap",
+    "Special_Wall_Missile_Trap",
+    "Special_Wall_Flame_Trap",
+    "Special_Right_Wall_Missile_Trap",
+    "Special_Right_Wall_Flame_Trap"
+  ]
+}

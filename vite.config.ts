@@ -1,6 +1,7 @@
 import vinext from "vinext";
 import { defineConfig, type Plugin } from "vite";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
 
@@ -9,6 +10,19 @@ const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
 const LOCAL_GIT_SHA = (() => {
   try { return execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim(); }
   catch { return "development"; }
+})();
+const LOCAL_GIT_DIRTY_HASH = (() => {
+  try {
+    const status = execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" });
+    if (!status.trim()) return "";
+    const diff = execFileSync("git", ["diff", "--binary", "HEAD"], {
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    return createHash("sha256").update(status).update(diff).digest("hex").slice(0, 8);
+  } catch {
+    return "dirty";
+  }
 })();
 // 빌드한 커밋(리포트의 재현용). 작업 트리가 커밋과 다르면 "+수정"을 붙인다.
 const PAPEROID_GIT_SHA = (() => {
@@ -23,7 +37,7 @@ const PAPEROID_BUILD_ID =
   process.env.OAI_SITE_VERSION ??
   process.env.CF_PAGES_COMMIT_SHA ??
   process.env.GITHUB_SHA ??
-  LOCAL_GIT_SHA;
+  `${LOCAL_GIT_SHA}${LOCAL_GIT_DIRTY_HASH ? `-${LOCAL_GIT_DIRTY_HASH}` : ""}`;
 
 const { d1, r2 } = hostingConfig;
 
