@@ -2545,6 +2545,129 @@ test("starswar siege tanks do not double up on a dying target, vessels irradiate
   assert.ok(caster.hp <= 0, "에너지만큼 피해를 입혀 잡는다");
 });
 
+test("starswar casters without a ready spell stay out of enemy reach and back off when hit", () => {
+  // 퀸(에너지 60, 브루들링 150에 못 미침)을 U-238 해병 앞의 부대 자리로 보낸다. 예전에는 6칸 안의 적만 피해서, 7칸에서 쏘는 해병 앞에 떠 있다 죽었다.
+  const state = quiet();
+  state.sides.player.research.broodling = "done";
+  state.sides.enemy.research.u238 = "done";
+  const queen = stwSpawnUnitAt(state, "player", "queen", 20, 60, "rally");
+  queen.energy = 60;
+  const marines = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "enemy", "marine", 15 + index * 3.3, 34, "rally"));
+  for (const marine of marines) marine.hp = marine.maxHp = 9999;
+  stwCommand(state, "player", { type: "squadMove", units: ["queen"], y: 36 });
+  let nearest = Infinity;
+  for (let step = 0; step < 200; step += 1) {
+    marines.forEach((marine, index) => Object.assign(marine, { x: 15 + index * 3.3, y: 34 }));
+    stepStarswar(state);
+    nearest = Math.min(nearest, ...marines.map((marine) => Math.hypot(marine.x - queen.x, marine.y - queen.y)));
+  }
+  assert.equal(queen.hp, queen.maxHp, "한 대도 맞지 않는다");
+  assert.ok(nearest > 8, `해병 사거리(6) + 2칸 밖에 머문다 ${nearest}`);
+  assert.ok(queen.y < 50, `그래도 부대 자리 쪽으로는 나아가 있다 ${queen.y}`);
+
+  // 맞으면(보이지 않는 적에게 맞는 경우 포함) 우리 진영 쪽으로 물러난다.
+  const hurt = quiet();
+  hurt.sides.player.research.broodling = "done";
+  const struck = stwSpawnUnitAt(hurt, "player", "queen", 20, 50, "rally");
+  struck.energy = 60;
+  stwCommand(hurt, "player", { type: "squadMove", units: ["queen"], y: 50 });
+  run(hurt, 3);
+  const before = struck.y;
+  for (let step = 0; step < 20; step += 1) {
+    struck.hitAt = hurt.time;
+    stepStarswar(hurt);
+  }
+  assert.ok(struck.y - before > 4, `물러난 거리 ${struck.y - before}`);
+
+  // 무기 없는 다른 마법 유닛도 같다: 디파일러는 시즈 모드 탱크(사거리 12)의 사거리 밖에 선다.
+  const ground = quiet();
+  ground.sides.player.research.plague = "done";
+  ground.sides.enemy.research.siege = "done";
+  const defiler = stwSpawnUnitAt(ground, "player", "defiler", 20, 62, "rally");
+  defiler.energy = 40;
+  const tank = stwSpawnUnitAt(ground, "enemy", "tank", 20, 34, "rally");
+  tank.hp = tank.maxHp = 9999;
+  tank.sieged = true;
+  stwCommand(ground, "player", { type: "squadMove", units: ["defiler"], y: 40 });
+  let closest = Infinity;
+  for (let step = 0; step < 200; step += 1) {
+    Object.assign(tank, { x: 20, y: 34, sieged: true });
+    stepStarswar(ground);
+    closest = Math.min(closest, Math.hypot(tank.x - defiler.x, tank.y - defiler.y));
+  }
+  assert.equal(defiler.hp, defiler.maxHp, "탱크에 맞지 않는다");
+  assert.ok(closest > 13.5, `시즈 사거리(12) + 2칸 밖 ${closest}`);
+});
+
+test("starswar lurkers pre-burrow at a held spot, aim at armed units, dig in closer after surfacing and leave plain buildings to keep up", () => {
+  // 따로 세워 둔 럴커는 자리에 닿으면 적이 없어도 미리 잠복한다.
+  const post = quiet();
+  const sentry = stwSpawnUnitAt(post, "player", "lurker", 20, 60, "rally");
+  stwCommand(post, "player", { type: "squadMove", units: ["lurker"], y: 52 });
+  run(post, 8);
+  assert.ok(sentry.burrowed, `자리에서 미리 잠복한다 (y ${sentry.y.toFixed(1)})`);
+  assert.ok(Math.abs(sentry.y - 52) < 4, `부대 자리 근처 ${sentry.y}`);
+  // 자리를 옮기면 일어나 따라간다.
+  stwCommand(post, "player", { type: "squadMove", units: ["lurker"], y: 40 });
+  run(post, 12);
+  assert.ok(sentry.burrowed && Math.abs(sentry.y - 40) < 4, `새 자리에서 다시 잠복한다 ${sentry.y} ${sentry.burrowed}`);
+
+  // 조준: 가장 가까운 것이 메딕이어도 무기 있는 해병을 겨눈다.
+  const aim = quiet();
+  const digger = stwSpawnUnitAt(aim, "player", "lurker", 20, 60, "attack");
+  digger.burrowed = true;
+  digger.hp = digger.maxHp = 9999;
+  const medic = stwSpawnUnitAt(aim, "enemy", "medic", 20, 57.5, "attack");
+  const marine = stwSpawnUnitAt(aim, "enemy", "marine", 23, 56, "attack");
+  for (const unit of [medic, marine]) unit.hp = unit.maxHp = 9999;
+  for (let step = 0; step < 5; step += 1) {
+    Object.assign(medic, { x: 20, y: 57.5 });
+    Object.assign(marine, { x: 23, y: 56 });
+    stepStarswar(aim);
+  }
+  assert.equal(digger.targetId, marine.id, "해병을 겨눈다");
+
+  // 방금 일어난 럴커는 사거리 끝에 서 있는 적 앞에서 바로 다시 잠복하지 않고 1.5칸 더 다가가서 잠복한다.
+  const redig = quiet();
+  redig.sides.enemy.research.u238 = "done";
+  const lurker = stwSpawnUnitAt(redig, "player", "lurker", 20, 60, "attack");
+  lurker.hp = lurker.maxHp = 9999;
+  lurker.unburrowedAt = redig.time;
+  const standing = stwSpawnUnitAt(redig, "enemy", "marine", 20, 53.3, "attack");
+  standing.hp = standing.maxHp = 9999;
+  let burrowedAt = null;
+  for (let step = 0; step < 60 && burrowedAt === null; step += 1) {
+    Object.assign(standing, { x: 20, y: 53.3 });
+    stepStarswar(redig);
+    if (step === 1) assert.ok(!lurker.burrowed, "바로 잠복하지 않는다");
+    if (lurker.burrowed) burrowedAt = Math.hypot(standing.x - lurker.x, standing.y - lurker.y);
+  }
+  // 중심 거리 6.7칸(사거리 안)에서 시작해, 사거리보다 1.5칸 안쪽(중심 거리 6칸 안)까지 다가간 뒤 잠복한다.
+  assert.ok(burrowedAt !== null && burrowedAt < 6, `더 다가가서 잠복한다 ${burrowedAt}`);
+  // 더 다가와야 때릴 수 있는 적(질럿) 앞에서는 바로 잠복한다.
+  const closing = quiet();
+  const waiting = stwSpawnUnitAt(closing, "player", "lurker", 20, 60, "attack");
+  waiting.unburrowedAt = closing.time;
+  stwSpawnUnitAt(closing, "enemy", "zealot", 20, 54, "attack");
+  run(closing, 0.3);
+  assert.ok(waiting.burrowed, "들어올 적은 바로 잠복해 맞는다");
+
+  // 건물만 사거리에 있고 본대가 5칸 넘게 앞서갔으면 잠복하지 않고 따라간다. 따라잡으면 잠복해 건물을 친다.
+  const follow = quiet();
+  const nexus = follow.buildings.find((building) => building.side === "enemy");
+  nexus.hp = nexus.maxHp = 1e6;
+  const straggler = stwSpawnUnitAt(follow, "player", "lurker", nexus.x, nexus.y + nexus.radius + 5.5, "attack");
+  const startY = straggler.y;
+  const lead = stwSpawnUnitAt(follow, "player", "hydra", nexus.x + 8, nexus.y + 1, "attack");
+  lead.hp = lead.maxHp = 9999;
+  run(follow, 0.6);
+  assert.ok(!straggler.burrowed, "건물만 보고 잠복하지 않는다");
+  assert.ok(straggler.y < startY - 0.5, `본대 쪽으로 나아간다 ${startY} → ${straggler.y}`);
+  for (let step = 0; step < 80 && !straggler.burrowed; step += 1) stepStarswar(follow);
+  assert.ok(straggler.burrowed, "본대를 따라잡으면 잠복한다");
+  assert.ok((lead.y - straggler.y) * -1 <= 5.5, `본대와의 간격 ${(straggler.y - lead.y).toFixed(1)}`);
+});
+
 test("starswar air units ride behind the wave and never lead it; wraith cloak needs research", () => {
   const state = quiet();
   const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 70, "attack");

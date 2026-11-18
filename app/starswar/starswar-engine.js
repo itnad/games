@@ -2798,7 +2798,7 @@ function stepUnits(state, dt) {
     const sight = range + (isAttack ? 6 : 7);
     const retreating = !isAttack && slot && isRetreating(unit, slot);
     if (unit.type === "tank" && tankSiegeStep(state, unit, Boolean(retreating), isAttack ? null : slot)) continue;
-    if (unit.type === "lurker" && lurkerStep(state, unit, Boolean(retreating))) continue;
+    if (unit.type === "lurker" && lurkerStep(state, unit, Boolean(retreating), { isAttack, slot, plan, speed, dt })) continue;
     // 다친 유닛의 회피: 살 가망이 있을 때만 잠깐 물러났다가 돌아온다(woundedEvade).
     if (woundedEvade(state, unit, speed, dt)) continue;
     if (retreating) {
@@ -3076,7 +3076,7 @@ function nearestMelee(state, unit, radius) {
 }
 
 /** 사거리 안이면서 최소 사거리 밖에 있는 가장 가까운 적(유닛 우선). */
-function findTargetBand(state, attacker, minRange, maxRange, { unitsOnly = false } = {}) {
+function findTargetBand(state, attacker, minRange, maxRange, { unitsOnly = false, armedFirst = false } = {}) {
   let best = null;
   let bestScore = Infinity;
   const consider = (item, bias) => {
@@ -3089,7 +3089,8 @@ function findTargetBand(state, attacker, minRange, maxRange, { unitsOnly = false
       bestScore = d + bias;
     }
   };
-  for (const unit of state.units) consider(unit, isWorker(unit) ? 3 : 0);
+  // armedFirst: 무기 없는 유닛(메딕·마법 유닛)은 3칸 더 먼 것으로 친다. 럴커 3기가 해병을 두고 가장 가까운 메딕을 조준했다.
+  for (const unit of state.units) consider(unit, isWorker(unit) || (armedFirst && !STW_UNITS[unit.type].damage) ? 3 : 0);
   if (!unitsOnly) for (const building of state.buildings) consider(building, 6);
   return best;
 }
@@ -3187,12 +3188,21 @@ function lurkerSeesApproach(state, unit, nearby) {
  * 가시는 대상 방향으로 사거리 끝까지 뻗어 그 줄 위의 모든 적 지상 유닛에 같은 피해를 준다.
  * 후퇴 명령이 오거나, 3초 넘게 대상이 없고 다가오는 적 유닛도 없으면 1초 동안 땅 위로 나온다. 이 틱을 처리했으면 true.
  */
-function lurkerStep(state, unit, retreating) {
+function lurkerStep(state, unit, retreating, { isAttack = false, slot = null, plan = null, speed = 0, dt = 0 } = {}) {
   const def = STW_UNITS.lurker;
   const range = unitRange(state, unit);
   if (unit.burrowUntil !== undefined && state.time < unit.burrowUntil) return true;
+  // 제자리를 지키는 럴커(집결지·따로 둔 부대 자리 2.5칸 안)는 적이 오기 전에 미리 잠복해 둔다(탱크의 미리 시즈와 같다).
+  // 예전에는 적이 사거리에 들어온 뒤에야 1초 걸려 잠복했다. AI는 기지에 들어온 적이 따로 있으면 풀고 잡으러 간다.
+  const holding = !isAttack && slot && distance(unit.x, unit.y, slot.x, slot.y) < 2.5 && !(plan?.intruders.length);
+  // 공격 중이고 사거리 안에 건물만 있으면(적 유닛도 방어 건물도 없다) 잠복하지 않고 앞서간 본대를 따라간다.
+  const inRange = range + unit.radius * 0.5;
+  const fighter = () => findTargetBand(state, unit, 0, inRange, { unitsOnly: true, armedFirst: true })
+    ?? state.buildings.find((building) => building.side !== unit.side && building.hp > 0 && STW_BUILDINGS[building.type].damage
+      && distance(unit.x, unit.y, building.x, building.y) - building.radius <= inRange) ?? null;
+  const leftBehind = () => isAttack && plan && lurkerArmyAhead(state, unit) > LURKER_FOLLOW_GAP;
   if (unit.burrowed) {
-    const target = findTargetBand(state, unit, 0, range + unit.radius * 0.5);
+    const target = findTargetBand(state, unit, 0, inRange, { armedFirst: true });
     if (target) unit.lastBurrowTargetAt = state.time;
     // 사거리 조금 밖에 적 유닛이 다가오는 중이면 계속 숨어 있는다(들락거리며 1초씩 버리지 않도록).
     // 건물은 다가오지 않으므로 세지 않는다: 건물을 부순 뒤 다음 건물이 사거리 바로 밖(6~10칸)에 있으면 영영 땅속에서 기다렸다
@@ -3201,11 +3211,16 @@ function lurkerStep(state, unit, retreating) {
     // 적 기지를 치러 간 럴커 8기가 건물 하나를 부순 뒤 해병 16기 앞 10칸에서 240초 넘게 땅속에 멈춰 있었다.
     const nearby = target ? null : findTargetBand(state, unit, 0, range + LURKER_WAIT_REACH, { unitsOnly: true });
     const approaching = lurkerSeesApproach(state, unit, nearby);
-    if (retreating || (!target && !approaching && state.time - (unit.lastBurrowTargetAt ?? 0) > 3)) {
+    const idle = !target && !approaching && !holding && state.time - (unit.lastBurrowTargetAt ?? 0) > 3;
+    // 건물만 쏘고 있는데 본대가 앞서갔으면 일어나 따라간다. 예전에는 기지 가장자리에서 건물을 하나씩 최대 사거리로 쏘느라,
+    // 럴커 2기가 66초 동안 4칸만 나아가고 그동안 히드라·저글링은 11~15칸 앞에서 싸웠다.
+    const onlyBuilding = target && target.kind === "building" && !STW_BUILDINGS[target.type].damage && !fighter() && leftBehind();
+    if (retreating || idle || onlyBuilding) {
       unit.burrowed = false;
       unit.burrowUntil = state.time + def.burrow.setup;
       unit.burrowWatch = undefined;
       unit.targetId = null;
+      unit.unburrowedAt = state.time;
       return true;
     }
     unit.targetId = target?.id ?? null;
@@ -3226,14 +3241,52 @@ function lurkerStep(state, unit, retreating) {
     return true;
   }
   if (retreating) return false;
-  const threat = findTargetBand(state, unit, 0, range + unit.radius * 0.5);
-  if (!threat) return false;
-  unit.burrowed = true;
-  unit.lastBurrowTargetAt = state.time;
-  unit.burrowUntil = state.time + def.burrow.setup;
-  unit.heading = Math.atan2(threat.y - unit.y, threat.x - unit.x);
-  unit.targetId = null;
-  return true;
+  const burrow = (facing) => {
+    unit.burrowed = true;
+    unit.lastBurrowTargetAt = state.time;
+    unit.burrowUntil = state.time + def.burrow.setup;
+    if (facing) unit.heading = Math.atan2(facing.y - unit.y, facing.x - unit.x);
+    unit.targetId = null;
+    return true;
+  };
+  const threat = findTargetBand(state, unit, 0, inRange, { armedFirst: true });
+  if (!threat) return holding ? burrow(null) : false;
+  if (threat.kind === "building" && !STW_BUILDINGS[threat.type].damage && !fighter() && leftBehind()) {
+    // 건물만 있다: 잠복하지 않고 본대 쪽으로 걸어간다(공격 병력의 전진과 같은 걸음).
+    unit.targetId = null;
+    const x = slot ? slot.x : unit.x;
+    moveToward(unit, unit.x + (x - unit.x) * 0.15, plan.goal.y, speed, dt);
+    return true;
+  }
+  // 방금(LURKER_REDIG초 안) 일어난 럴커는 사거리 끝에서 맴도는 적 유닛 앞에서 바로 다시 잠복하지 않고, LURKER_DIG_IN칸 더 다가가서 잠복한다.
+  // 해병이 사거리 끝(6.5~7.5칸)에서 맴돌 때 18초 동안 잠복과 해제만 세 번 되풀이하고 한 번도 못 쐈다.
+  // 더 다가와야 때릴 수 있는 적(근접 유닛, 사거리가 더 짧은 유닛)은 어차피 들어오므로 바로 잠복해 맞는다.
+  if (threat.kind === "unit" && !holding && unit.unburrowedAt !== undefined && state.time - unit.unburrowedAt < LURKER_REDIG) {
+    const d = distance(unit.x, unit.y, threat.x, threat.y) - threat.radius;
+    const willClose = Boolean(STW_UNITS[threat.type].damage) && unitRange(state, threat) + 0.5 < d;
+    if (d > inRange - LURKER_DIG_IN && !willClose) {
+      unit.targetId = threat.id;
+      moveToward(unit, threat.x, threat.y, speed, dt);
+      return true;
+    }
+  }
+  return burrow(threat);
+}
+
+/** 럴커가 본대에서 이만큼(칸) 넘게 뒤처지면 건물을 두고 따라간다. 다시 잠복할 때 더 다가가는 거리와 그 규칙이 적용되는 시간(초). */
+const LURKER_FOLLOW_GAP = 5;
+const LURKER_DIG_IN = 1.5;
+const LURKER_REDIG = 8;
+
+/** 럴커보다 적 쪽으로 가장 앞선 아군 공격 병력(럴커와 무기 없는 유닛 제외)이 몇 칸 앞에 있는지. 없으면 0. */
+function lurkerArmyAhead(state, unit) {
+  const forward = stwForward(unit.side);
+  let ahead = 0;
+  for (const ally of state.units) {
+    if (ally.side !== unit.side || ally.hp <= 0 || ally.group !== "attack" || ally.type === "lurker" || isPassive(ally) || !STW_UNITS[ally.type].damage) continue;
+    ahead = Math.max(ahead, (ally.y - unit.y) * forward);
+  }
+  return ahead;
 }
 
 /** 점과 선분 사이 거리. */
@@ -3830,7 +3883,23 @@ function casterMove(state, unit, plan, speed, dt) {
   }
   // 마법을 쓸 수 있어도 방금 "쓸 대상이 없다"고 본 동안은 뒤에 머문다(아래 casterHold).
   const ready = spellReady(state, unit) && !((unit.castHoldUntil ?? 0) > state.time);
-  if (!ready) {
+  // 무기 없는 마법 유닛(퀸·디파일러·하이템플러·다크 아콘·사이언스 베슬)은 마법을 못 쓰는 동안 자기를 때릴 수 있는 적의 사거리 밖에 머문다.
+  const unarmed = !STW_UNITS[unit.type].damage;
+  if (!ready && unarmed) {
+    // 맞고 있으면(보이지 않는 적에게 맞는 경우 포함) 우리 진영 쪽으로 물러난다.
+    if (unit.hitAt !== undefined && state.time - unit.hitAt < CASTER_HIT_RETREAT) {
+      moveToward(unit, unit.x, unit.y - stwForward(unit.side) * 3, speed, dt);
+      return;
+    }
+    // 적의 실제 사거리 + CASTER_KEEP_OUT칸 안이면 그 적에게서 멀어진다. 예전에는 6칸 안의 적만 피해서, 7칸에서 쏘는 U-238 해병 앞에
+    // 에너지가 모자란 퀸 3기가 6.5~7.8칸 거리로 12초 동안 떠 있다 모두 죽었다.
+    const threat = casterThreat(state, unit, unit);
+    if (threat) {
+      const away = Math.atan2(unit.y - threat.y, unit.x - threat.x);
+      moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
+      return;
+    }
+  } else if (!ready) {
     const nearest = findTarget(state, unit, 6, { unitsOnly: true });
     if (nearest && !isPassive(nearest)) {
       // 무기가 없으므로 적과 거리를 벌린다.
@@ -3839,6 +3908,8 @@ function casterMove(state, unit, plan, speed, dt) {
       return;
     }
   }
+  // 마법을 못 쓰는 동안에는 가려는 자리(부대 자리·집결지·병력 뒤)가 적 사거리 안이면 그 앞의 안전한 자리까지만 간다.
+  const safe = (spot) => (!ready && unarmed ? casterSafeSpot(state, unit, spot) : spot);
   if (unit.group === "attack") {
     // 에너지를 모으며 뒤따르는 고스트는 줄의 앞뒤를 재는 데서 뺀다(자기 자신이나 서로를 "맨 뒤"로 보고 끝없이 물러나지 않게).
     const army = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && ally !== unit && !isPassive(ally) && STW_UNITS[ally.type].role !== "caster"
@@ -3869,7 +3940,8 @@ function casterMove(state, unit, plan, speed, dt) {
     const lead = army.reduce((best, ally) => (ahead(ally) > ahead(best) ? ally : best), army[0]).y;
     const rear = army.reduce((best, ally) => (ahead(ally) < ahead(best) ? ally : best), army[0]).y;
     const goalY = ready ? lead : rear - forward * 3;
-    moveToward(unit, slot ? slot.x : unit.x, goalY, speed, dt);
+    const spot = safe({ x: slot ? slot.x : unit.x, y: goalY });
+    moveToward(unit, spot.x, spot.y, speed, dt);
     return;
   }
   if (ready) {
@@ -3880,7 +3952,56 @@ function casterMove(state, unit, plan, speed, dt) {
       return;
     }
   }
-  if (slot) moveToward(unit, slot.x, slot.y, speed, dt);
+  if (slot) {
+    const spot = safe(slot);
+    moveToward(unit, spot.x, spot.y, speed, dt);
+  }
+}
+
+/** 마법을 못 쓰는 마법 유닛이 적의 사거리 밖으로 더 두는 여유(칸), 맞은 뒤 물러나는 시간(초). */
+const CASTER_KEEP_OUT = 2;
+const CASTER_HIT_RETREAT = 1.5;
+
+/**
+ * 그 자리에 서면 이 유닛을 때릴 수 있는 적(우리가 보고 있는 유닛, 다 지은 방어 건물) 가운데 가장 가까운 것. 없으면 null.
+ * 유닛은 실제 사거리(시즈 모드는 시즈 사거리) + CASTER_KEEP_OUT칸, 방어 건물은 사거리 + 1칸 또는 그 기지 구역 전체를 위험으로 본다.
+ */
+function casterThreat(state, unit, spot) {
+  const foe = stwOpponent(unit.side);
+  const probe = { x: spot.x, y: spot.y, radius: unit.radius };
+  let best = null;
+  let bestDistance = Infinity;
+  for (const enemy of state.units) {
+    if (enemy.side !== foe || enemy.hp <= 0 || enemy.group === "cargo" || !STW_UNITS[enemy.type].damage || !canHit(enemy, unit) || !stwDetected(state, enemy, unit.side)) continue;
+    const reach = (enemy.sieged ? STW_UNITS[enemy.type].siege.range : unitRange(state, enemy)) + CASTER_KEEP_OUT;
+    const d = distance(enemy.x, enemy.y, spot.x, spot.y) - unit.radius;
+    if (d <= reach && d < bestDistance) {
+      best = enemy;
+      bestDistance = d;
+    }
+  }
+  for (const building of state.buildings) {
+    const def = STW_BUILDINGS[building.type];
+    if (building.side !== foe || !stwDone(building) || !def.damage || !canHit(building, unit)) continue;
+    const d = distance(building.x, building.y, spot.x, spot.y) - unit.radius;
+    if ((d <= def.range + 1 || inBaseZone(state, foe, building.base, probe)) && d < bestDistance) {
+      best = building;
+      bestDistance = d;
+    }
+  }
+  return best;
+}
+
+/** 가려는 자리가 적 사거리 안이면 우리 진영 쪽으로 한 칸씩 물려, 안전한 가장 가까운 자리를 고른다(전장 밖으로는 나가지 않는다). */
+function casterSafeSpot(state, unit, goal) {
+  const back = -stwForward(unit.side);
+  for (let step = 0; step <= 24; step += 1) {
+    const y = goal.y + back * step;
+    if (y < 1.5 || y > STW_LANE_LENGTH - 1.5) break;
+    const spot = { x: goal.x, y };
+    if (!casterThreat(state, unit, spot)) return spot;
+  }
+  return { x: goal.x, y: Math.min(STW_LANE_LENGTH - 1.5, Math.max(1.5, goal.y + back * 24)) };
 }
 
 /* ───────── 수송 ───────── */
