@@ -456,6 +456,10 @@ export function LabScreen({ initial, onStart, onBack, theme = "riso", themePicke
   // 종족을 바꾸면 그 쪽의 건물·병력·연구·전략을 비운다(다른 종족 것은 쓸 수 없다).
   const setRace = (key: "player" | "enemy", race: StwRaceId) => setConfig((current) => ({ ...current, races: { ...current.races, [key]: race }, sides: { ...current.sides, [key]: { ...current.sides[key], persona: null, buildings: {}, units: {}, research: [] } } }));
   const over = (["player", "enemy"] as const).filter((key) => labSupply(config.sides[key]) > SUPPLY_LIMIT);
+  // 지금 설정과 똑같은 저장 상황(누른 직후의 상황). 아래에서 값을 고치면 풀린다. 눌러도 화면 아래의 설정만 바뀌어 반응이 안 보이던 것을 고친다.
+  const signature = JSON.stringify(config);
+  const presets = [...custom, ...LAB_PRESETS];
+  const loaded = presets.find((preset) => JSON.stringify(normalizeLab(preset.config) ?? preset.config) === signature) ?? null;
   const saveCurrent = () => {
     const summary = summarize(config);
     const entry: LabPreset = { id: `custom-${custom.length + 1}-${Math.round(config.time)}-${summary.length}`, name: name.trim() || summary, note: summary, config: structuredClone(config), custom: true };
@@ -480,11 +484,12 @@ export function LabScreen({ initial, onStart, onBack, theme = "riso", themePicke
         <p className="stw-hint">종족·전략·건물·유닛·연구·시각을 마음대로 정해 경기를 바로 세웁니다. 필요한 생산·테크 건물과 선행 연구는 자동으로 갖추고, 인구 상한은 {withKoreanDirection(String(SUPPLY_LIMIT))} 채웁니다. 실험 경기는 전적과 이어하기에 남지 않고, 안개 없이 상대 진영까지 전장 전체가 보입니다(은폐 유닛은 탐지해야 보입니다). 지도 왼쪽 위의 “최종 결전” 버튼은 남은 병력을 모두 적진으로 내보내 승부를 바로 냅니다.</p>
         <h3 className="stw-section">불러오기</h3>
         <div className="stw-lab-presets">
-          {[...custom, ...LAB_PRESETS].map((preset) => (
-            <div key={preset.id} className={preset.custom ? "custom" : undefined}>
-              <button type="button" onClick={() => setConfig(structuredClone(normalizeLab(preset.config) ?? preset.config))}>
+          {presets.map((preset) => (
+            <div key={preset.id} className={[preset.custom ? "custom" : "", loaded?.id === preset.id ? "loaded" : ""].filter(Boolean).join(" ") || undefined}>
+              <button type="button" aria-pressed={loaded?.id === preset.id} onClick={() => setConfig(structuredClone(normalizeLab(preset.config) ?? preset.config))}>
                 <b>{preset.name}</b>
                 <span>{preset.custom ? `내 설정 · ${preset.note}` : preset.note}</span>
+                {loaded?.id === preset.id ? <em>불러옴</em> : null}
               </button>
               {preset.custom ? <button type="button" className="remove" aria-label={`${preset.name} 지우기`} onClick={() => removeCustom(preset.id)}>×</button> : null}
             </div>
@@ -515,6 +520,15 @@ export function LabScreen({ initial, onStart, onBack, theme = "riso", themePicke
         <div className="stw-lab-save">
           <input type="text" value={name} maxLength={40} placeholder="이름(비우면 내용으로)" aria-label="저장할 이름" onChange={(event) => setName(event.target.value)} />
           <button type="button" className="stw-secondary" onClick={saveCurrent}>지금 설정 저장</button>
+        </div>
+        {/* 불러온 상황은 화면 아래에 붙여 알린다(목록이 길어 설정과 시작 버튼이 화면 밖에 있다). */}
+        <div className="stw-lab-loaded" role="status" aria-live="polite">
+          {loaded ? (
+            <>
+              <span><b>불러옴</b>{loaded.name}</span>
+              <button type="button" onClick={() => onStart(config)}>바로 시작</button>
+            </>
+          ) : null}
         </div>
         <button type="button" className="stw-start" onClick={() => onStart(config)}>이 상황으로 시작</button>
         {/* 화면 테마는 실험실에서만 바꾼다(기본 리소 인쇄). */}

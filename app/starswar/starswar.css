@@ -306,6 +306,18 @@
 .stw-lab-presets > div > button:first-child { padding:10px 12px; display:grid; align-content:start; gap:3px; text-align:left; border:1px solid var(--stw-line); border-radius:14px; background:color-mix(in srgb,var(--stw-veil) 3%,transparent); word-break:keep-all; }
 .stw-lab-presets > div.custom > button:first-child { padding-right:34px; border-color:#57c6ff55; background:#57c6ff0d; }
 .stw-lab-presets .remove { position:absolute; top:6px; right:6px; width:26px; height:26px; border:0; border-radius:50%; color:var(--stw-muted); background:color-mix(in srgb,var(--stw-veil) 7%,transparent); font-size:16px; line-height:1; }
+.stw-lab-presets > div > button:first-child { transition:transform .08s ease, background-color .15s ease, border-color .15s ease; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+.stw-lab-presets > div > button:first-child:active { transform:scale(.97); background:color-mix(in srgb,var(--stw-gold) 22%,transparent); border-color:var(--stw-gold); }
+.stw-lab-presets > div.loaded > button:first-child { border-color:var(--stw-gold); background:color-mix(in srgb,var(--stw-gold) 14%,transparent); box-shadow:0 0 0 1px var(--stw-gold) inset; animation:stw-lab-picked .35s ease; }
+.stw-lab-presets em { justify-self:start; margin-top:2px; padding:1px 8px; border-radius:999px; color:var(--stw-on-gold); background:var(--stw-gold); font-size:11px; font-style:normal; font-weight:900; }
+@keyframes stw-lab-picked { 0% { transform:scale(.96); } 60% { transform:scale(1.02); } 100% { transform:scale(1); } }
+.stw-lab-loaded { position:sticky; bottom:10px; z-index:6; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:center; }
+.stw-lab-loaded:empty { display:none; }
+.stw-lab-loaded span { display:flex; gap:8px; align-items:center; min-width:0; padding:10px 12px; border:1px solid var(--stw-gold); border-radius:14px; background:var(--stw-panel, #101626); box-shadow:0 8px 24px #0006; font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.stw-lab-loaded span b { flex:none; padding:1px 8px; border-radius:999px; color:var(--stw-on-gold); background:var(--stw-gold); font-size:11px; font-weight:900; }
+.stw-lab-loaded button { min-height:44px; padding:0 16px; border:0; border-radius:14px; color:var(--stw-on-gold); background:var(--stw-gold); font-weight:900; box-shadow:0 8px 24px #0006; touch-action:manipulation; }
+.stw-lab-loaded button:active { transform:scale(.97); }
+@media (prefers-reduced-motion: reduce) { .stw-lab-presets > div.loaded > button:first-child { animation:none; } .stw-lab-presets > div > button:first-child { transition:none; } }
 .stw-lab-presets b { font-size:15px; }
 .stw-lab-presets span { color:var(--stw-muted); font-size:12px; line-height:1.35; }
 .stw-lab-side { display:grid; gap:8px; padding:12px; border:1px solid var(--stw-line); border-radius:16px; background:color-mix(in srgb,var(--stw-veil) 2%,transparent); }
