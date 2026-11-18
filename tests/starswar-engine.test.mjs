@@ -2418,6 +2418,131 @@ test("starswar scourges dive from afar, split by what each target needs, skip po
   assert.ok(nearest > 6.5, `해병 사거리(6) 밖에 머문다 ${nearest}`);
 });
 
+test("starswar air-only units wait behind the wave when there is no air to hit; cloaked units stop dodging when dodging does not help", () => {
+  // 발키리(공중만 때림): 공중 적이 없으면 해병 꼬리 뒤, 드라군 사거리 밖에서 기다린다. 예전에는 함께 들어가 한 발도 못 쏘고 죽었다.
+  const wait = quiet();
+  const marines = [0, 1, 2, 3, 4, 5].map((index) => stwSpawnUnitAt(wait, "player", "marine", 13 + index * 2.6, 58, "attack"));
+  const valkyries = [0, 1].map((index) => stwSpawnUnitAt(wait, "player", "valkyrie", 17 + index * 6, 60, "attack"));
+  const dragoons = [0, 1, 2, 3, 4, 5].map((index) => stwSpawnUnitAt(wait, "enemy", "dragoon", 13 + index * 2.6, 46, "rally"));
+  for (const unit of [...marines, ...dragoons]) unit.hp = unit.maxHp = 9999;
+  run(wait, 10);
+  const rear = Math.max(...marines.map((unit) => unit.y));
+  assert.ok(valkyries.every((unit) => unit.hp === unit.maxHp), "한 대도 맞지 않는다");
+  assert.ok(valkyries.every((unit) => unit.y > rear), `해병 꼬리(${rear.toFixed(1)}) 뒤에 선다 ${valkyries.map((unit) => unit.y.toFixed(1))}`);
+
+  // 다크템플러: 옵저버가 계속 따라다니면(비켜도 탐지 안) 한 번 비킨 뒤로는 비키지 않고 싸운다.
+  const hunted = quiet();
+  const dark = stwSpawnUnitAt(hunted, "player", "dark", 20, 56, "attack");
+  dark.hp = dark.maxHp = 9999;
+  const goon = stwSpawnUnitAt(hunted, "enemy", "dragoon", 20, 50, "attack");
+  goon.hp = goon.maxHp = 9999;
+  const eye = stwSpawnUnitAt(hunted, "enemy", "observer", 20, 53, "attack");
+  let dodges = 0;
+  let dodging = false;
+  for (let step = 0; step < 300; step += 1) {
+    eye.x = dark.x;
+    eye.y = dark.y;
+    stepStarswar(hunted);
+    const now = dark.evadeTo !== undefined;
+    if (now && !dodging) dodges += 1;
+    dodging = now;
+  }
+  assert.equal(dodges, 1, "한 번만 비킨다");
+  assert.ok(9999 - (goon.hp + goon.shields - goon.maxShields) >= 200, `그 뒤로는 드라군을 친다 ${goon.hp}`);
+});
+
+test("starswar siege tanks shell what a shot hurts most, vessels irradiate sturdy carriers, yamato waits for a pricier target, ghosts walk up to lock down", () => {
+  // 시즈 포격: 가까운 질럿(폭발형 50%)이 아니라 사거리 안의 드라군(100%)을 쏜다.
+  const aim = quiet();
+  aim.sides.player.research.siege = "done";
+  const tank = stwSpawnUnitAt(aim, "player", "tank", 20, 60, "attack");
+  tank.sieged = true;
+  const nearZealot = stwSpawnUnitAt(aim, "enemy", "zealot", 20, 55, "attack");
+  const farGoon = stwSpawnUnitAt(aim, "enemy", "dragoon", 20, 51, "attack");
+  for (const unit of [nearZealot, farGoon]) unit.hp = unit.maxHp = 9999;
+  let shell = null;
+  for (let step = 0; step < 40 && !shell; step += 1) {
+    stepStarswar(aim);
+    shell = aim.effects.find((effect) => effect.kind === "shell" && effect.attackerId === tank.id) ?? null;
+  }
+  assert.equal(shell?.targetId, farGoon.id, "드라군을 쏜다");
+
+  // 같은 틱에 쏘는 탱크 둘은 한 발에 죽는 목표를 겹쳐 쏘지 않는다.
+  const spread = quiet();
+  spread.sides.player.research.siege = "done";
+  const tanks = [18, 22].map((x) => stwSpawnUnitAt(spread, "player", "tank", x, 60, "attack"));
+  for (const unit of tanks) unit.sieged = true;
+  const lings = [16, 24].map((x) => stwSpawnUnitAt(spread, "enemy", "zergling", x, 53, "attack"));
+  for (let step = 0; step < 40 && !spread.effects.some((effect) => effect.kind === "shell"); step += 1) {
+    for (const [index, ling] of lings.entries()) if (ling.hp > 0) Object.assign(ling, { x: 16 + index * 8, y: 53 });
+    stepStarswar(spread);
+  }
+  assert.ok(lings.every((ling) => ling.hp <= 0), `첫 포격에 둘 다 잡는다 ${lings.map((ling) => ling.hp)}`);
+
+  // 이레디에이트: 뭉친 저글링(체력 35)이 아니라 히드라(체력 80)에 건다.
+  const rad = quiet();
+  rad.sides.player.research.irradiate = "done";
+  const vessel = stwSpawnUnitAt(rad, "player", "vessel", 20, 60, "rally");
+  vessel.energy = 80;
+  const clump = [0, 1, 2, 3, 4].map((index) => stwSpawnUnitAt(rad, "enemy", "zergling", 19 + (index % 3), 54 + Math.floor(index / 3) * 0.8, "attack"));
+  const hydra = stwSpawnUnitAt(rad, "enemy", "hydra", 25, 54, "attack");
+  for (let step = 0; step < 30 && vessel.energy >= 75; step += 1) stepStarswar(rad);
+  assert.ok((hydra.irradiateUntil ?? 0) > rad.time, "히드라에 건다");
+  assert.ok(clump.every((ling) => ling.irradiateUntil === undefined), "저글링에는 걸지 않는다");
+
+  // 야마토: 질럿이 먼저 사거리에 들어와도, 뒤따라오는 캐리어(값 6배)를 2.5초까지 기다렸다가 캐리어에 쏜다.
+  const gun = quiet();
+  gun.sides.player.research.yamato = "done";
+  const cruiser = stwSpawnUnitAt(gun, "player", "battlecruiser", 20, 62, "rally");
+  cruiser.energy = 200;
+  const front = stwSpawnUnitAt(gun, "enemy", "zealot", 20, 54, "attack");
+  const prize = stwSpawnUnitAt(gun, "enemy", "carrier", 20, 49, "attack");
+  for (let step = 0; step < 40 && cruiser.energy >= 150; step += 1) {
+    // 배틀크루저와 질럿은 제자리에 두고 캐리어만 다가오게 한다.
+    Object.assign(cruiser, { x: 20, y: 62 });
+    Object.assign(front, { x: 20, y: 54 });
+    stepStarswar(gun);
+  }
+  assert.ok(prize.yamatoAt !== undefined, "캐리어에 쏜다");
+  assert.equal(front.yamatoAt, undefined, "질럿에는 쏘지 않는다");
+
+  // 고스트: 사거리 안의 질럿을 쏘고만 있지 않고, 락다운이 닿을 때까지 캐리어 쪽으로 다가가 건다.
+  const sneak = quiet();
+  sneak.sides.player.research.lockdown = "done";
+  const ghost = stwSpawnUnitAt(sneak, "player", "ghost", 20, 60, "attack");
+  ghost.energy = 200;
+  ghost.hp = ghost.maxHp = 9999;
+  const blocker = stwSpawnUnitAt(sneak, "enemy", "zealot", 26, 55, "attack");
+  blocker.hp = blocker.maxHp = 9999;
+  const mothership = stwSpawnUnitAt(sneak, "enemy", "carrier", 20, 48, "attack");
+  mothership.hp = mothership.maxHp = 9999;
+  let locked = false;
+  for (let step = 0; step < 60 && !locked; step += 1) {
+    Object.assign(blocker, { x: 26, y: 55 });
+    Object.assign(mothership, { x: 20, y: 48 });
+    stepStarswar(sneak);
+    locked = (mothership.stunUntil ?? 0) > sneak.time;
+  }
+  assert.ok(locked, "캐리어에 락다운을 건다");
+
+  // 다크 아콘: 에너지가 찬 하이템플러가 사거리 조금 밖에 보이면 마엘스트롬에 에너지를 다 쓰지 않고 다가가 피드백을 쓴다.
+  const mind = quiet();
+  mind.sides.player.research.maelstrom = "done";
+  const archon = stwSpawnUnitAt(mind, "player", "darkArchon", 20, 62, "attack");
+  archon.energy = 100;
+  archon.shields = archon.maxShields = 9999;
+  const crowd = [18, 20, 22].map((x) => stwSpawnUnitAt(mind, "enemy", "zealot", x, 55, "attack"));
+  const caster = stwSpawnUnitAt(mind, "enemy", "templar", 20, 49, "attack");
+  caster.energy = 200;
+  for (let step = 0; step < 80 && caster.energy > 0; step += 1) {
+    crowd.forEach((unit, index) => Object.assign(unit, { x: 18 + index * 2, y: 55 }));
+    Object.assign(caster, { x: 20, y: 49 });
+    stepStarswar(mind);
+  }
+  assert.equal(caster.energy, 0, "하이템플러에 피드백을 쓴다");
+  assert.ok(caster.hp <= 0, "에너지만큼 피해를 입혀 잡는다");
+});
+
 test("starswar air units ride behind the wave and never lead it; wraith cloak needs research", () => {
   const state = quiet();
   const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 70, "attack");

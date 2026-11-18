@@ -2050,6 +2050,8 @@ const CLOAK_FIGHT_WITH_DETECTOR = 1.2;
 const CLOAK_FIGHT_ANYWAY = 1.6;
 /** 한 번 싸우기로 하면 이만큼(초) 다시 따지지 않는다(비켰다 들어갔다를 되풀이하지 않게). */
 const CLOAK_COMMIT = 6;
+/** 비킨 뒤 이만큼(초) 안에 또 탐지된 채 맞으면 다시 비키지 않고 싸운다. */
+const CLOAK_REPEAT = 30;
 
 /**
  * 탐지된 은폐 유닛이 비킬지, 맞더라도 싸울지.
@@ -2107,6 +2109,14 @@ function cloakEvade(state, unit, speed, dt) {
     if (fight.detector) unit.targetId = fight.detector.id;
     return false;
   }
+  // 비킨 지 얼마 안 돼 또 탐지된 채 맞았으면 비켜도 소용없는 것이다(탐지 유닛이 적 병력을 따라다니거나, 공격하러 가는 곳이 탐지 건물 구역이다).
+  // 그때는 비키지 않고 싸운다. 예전에는 비키고 경계하기를 되풀이해, 다크템플러 7기가 옵저버 2기 낀 질럿 8·드라군 4에 한 기도 못 잡고 6기를 잃었다.
+  if (unit.lastEvadeAt !== undefined && state.time - unit.lastEvadeAt < CLOAK_REPEAT) {
+    unit.commitUntil = state.time + CLOAK_COMMIT;
+    unit.commitTarget = undefined;
+    unit.waryUntil = 0;
+    return false;
+  }
   const hitter = resolve(state, unit.hitBy);
   let best = null;
   let bestScore = Infinity;
@@ -2127,6 +2137,7 @@ function cloakEvade(state, unit, speed, dt) {
   }
   if (!best) return false;
   unit.evadeTo = { x: best.x, y: best.y };
+  unit.lastEvadeAt = state.time;
   unit.evadeUntil = state.time + 5;
   unit.waryUntil = state.time + 5 + CLOAK_WARY;
   unit.targetId = null;
@@ -2738,6 +2749,12 @@ function stepUnits(state, dt) {
     }
     // 무기와 마법을 함께 가진 유닛(고스트, 배틀크루저, 아비터)은 마법이 먼저다.
     if (def.spells && castSpells(state, unit)) continue;
+    // 고스트: 락다운을 걸 만한 비싼 기계 유닛이 사거리 조금 밖에 있으면 닿을 때까지 다가간다(lockdown의 castWalk).
+    if (unit.type === "ghost" && unit.castWalk && unit.castWalk.at === state.time && distance(unit.x, unit.y, unit.castWalk.x, unit.castWalk.y) > unit.castWalk.range) {
+      unit.targetId = null;
+      moveToward(unit, unit.castWalk.x, unit.castWalk.y, speed, dt);
+      continue;
+    }
     // 고스트(지상의 무기 + 마법 유닛)는 연구한 마법을 쓸 에너지가 아직 없으면 공격 병력의 맨 뒤를 따라가며(대기 중이면 제자리를 지키며), 사거리 안에 들어온 적만 쏜다.
     // 대기 중에도 먼저 나가 싸우지 않는다: 사거리(7)가 길어 집결지에서 가장 먼저 적에게 다가가다 시즈 탱크에 맞아 죽었다.
     // 에너지 50으로 태어나 락다운(100)까지 약 62초가 걸리는데, 예전에는 곧장 앞줄에 서서 AI 경기의 고스트 7기가 20~40초 만에
@@ -2962,7 +2979,13 @@ function stepUnits(state, dt) {
       }
       continue;
     }
-    if (isAttack) {
+    if (isAttack && def.targets === "air" && !state.finalBattle
+      && !state.units.some((enemy) => enemy.side !== unit.side && enemy.hp > 0 && targetable(state, unit, enemy) && distance(enemy.x, enemy.y, unit.x, unit.y) <= AIR_ONLY_ALERT)) {
+      // 공중만 때리는 유닛은 공중 목표가 없으면 병력 뒤, 적 대공 사거리 밖에서 기다린다(airOnlyWaitSpot).
+      // 때릴 수 있는 적이 AIR_ONLY_ALERT칸 안에 보이면 예전처럼 병력과 나란히 나아간다(뒤에서 따라가면 공중전에 늦게 닿아 뮤탈이 먼저 죽었다).
+      const spot = airOnlyWaitSpot(state, unit, slot);
+      moveToward(unit, spot.x, spot.y, speed, dt);
+    } else if (isAttack) {
       // 공격 병력은 함께 전진해 적 본진까지 간다. 빠른 유닛(발업 질럿, 벌처, 저글링)은 꼬리에서 WAVE_LEAD칸까지 앞서 달리고, 그 너머에서는 가장 느린 유닛 속도로 맞춘다.
       const x = slot ? slot.x : unit.x;
       // 물러나며 쏘는 유닛(해병·벌처)은 앞서 나가지 않는다. 먼저 닿아 혼자 카이팅하면 너무 유리하다.
@@ -3072,6 +3095,43 @@ function findTargetBand(state, attacker, minRange, maxRange, { unitsOnly = false
 }
 
 /**
+ * 시즈 포격의 목표: 사거리(최소 사거리 밖) 안의 적 지상 유닛 가운데, 한 발이 주는 피해의 합이 가장 큰 유닛. 없으면 null(가까운 건물을 쏜다).
+ * 피해의 합 = 목표와 범위 안 다른 적에게 실제로 들어갈 피해(크기 배율·범위 50% 반영)이고, 각 유닛의 남은 체력(이번 틱에 이미 예약된 피해를 뺀 값)을 넘지 않는다.
+ * 그래서 피해가 절반만 들어가는 소형 유닛보다 대형 유닛이나 뭉친 무리를 쏘고, 다른 탱크가 이번 틱에 이미 죽인 목표는 건너뛴다. 합이 같으면 가까운 쪽.
+ * 예전에는 가장 가까운 적만 쏴서 포격의 55~67%가 사거리 안의 드라군·히드라·울트라를 두고 질럿·저글링에 갔고,
+ * 탱크 6대끼리의 싸움에서는 26발 중 11발이 같은 틱에 이미 죽은 목표에 들어갔다.
+ */
+function siegeShotTarget(state, unit, siege) {
+  const pending = pendingDamageOf(state);
+  const foes = state.units.filter((enemy) => enemy.side !== unit.side && enemy.hp > 0 && !isFlying(enemy) && enemy.group !== "cargo");
+  const dealt = (enemy, factor) => {
+    const left = enemy.hp + enemy.shields - (pending.get(enemy.id) ?? 0);
+    if (left <= 0) return 0;
+    return Math.min(left, stwHitDamage(state, unit, enemy).reduce((sum, amount) => sum + amount, 0) * factor);
+  };
+  let best = null;
+  let bestTotal = 0;
+  let bestDistance = Infinity;
+  for (const enemy of foes) {
+    if (!targetable(state, unit, enemy)) continue;
+    const d = distance(unit.x, unit.y, enemy.x, enemy.y) - enemy.radius;
+    if (d > siege.range || d < siege.minRange) continue;
+    let total = dealt(enemy, 1) * (isWorker(enemy) ? 0.5 : 1);
+    if (total <= 0) continue;
+    for (const other of foes) {
+      if (other === enemy || distance(other.x, other.y, enemy.x, enemy.y) > siege.splash.radius + other.radius * 0.5 || blockedBySwarm(state, unit, other)) continue;
+      total += dealt(other, siege.splash.factor);
+    }
+    if (total > bestTotal + 0.5 || (total > bestTotal - 0.5 && d < bestDistance)) {
+      best = enemy;
+      bestTotal = total;
+      bestDistance = d;
+    }
+  }
+  return best;
+}
+
+/**
  * 시즈 탱크: 시즈 모드 연구 후 사거리 12 안에 적이 들어오면 자동으로 시즈한다(2초).
  * 시즈 중에는 움직이지 않고 범위 포격을 하며, 적이 2초 넘게 없거나 후퇴 명령이 오면 시즈를 푼다(2초).
  * 이 틱을 처리했으면 true.
@@ -3094,10 +3154,13 @@ function tankSiegeStep(state, unit, retreating, rallySlot) {
     }
     unit.targetId = target?.id ?? null;
     if (target && unit.cooldown <= 0) {
-      unit.heading = Math.atan2(target.y - unit.y, target.x - unit.x);
+      // 쏠 때는 가장 가까운 적이 아니라 포격 한 발이 가장 많은 피해를 주는 유닛을 고른다(siegeShotTarget).
+      const aim = siegeShotTarget(state, unit, siege) ?? target;
+      unit.targetId = aim.id;
+      unit.heading = Math.atan2(aim.y - unit.y, aim.x - unit.x);
       unit.cooldown = siege.cooldown;
-      queueHit(state, unit, target);
-      state.effects.push({ kind: "shell", side: unit.side, x1: unit.x, y1: unit.y, x2: target.x, y2: target.y, ttl: 0.55, max: 0.55, radius: siege.splash.radius, attackerId: unit.id, targetId: target.id });
+      queueHit(state, unit, aim);
+      state.effects.push({ kind: "shell", side: unit.side, x1: unit.x, y1: unit.y, x2: aim.x, y2: aim.y, ttl: 0.55, max: 0.55, radius: siege.splash.radius, attackerId: unit.id, targetId: aim.id });
     }
     return true;
   }
@@ -3446,16 +3509,30 @@ function scourgeStep(state, unit, { isAttack, slot, intruders }, speed, dt) {
     if (slot) moveToward(unit, slot.x, slot.y, speed, dt);
     return true;
   }
+  const spot = airOnlyWaitSpot(state, unit, slot);
+  moveToward(unit, spot.x, spot.y, speed, dt);
+  return true;
+}
+
+/** 공중만 때리는 유닛이 병력 뒤에서 기다리지 않고 함께 나아가는 거리: 때릴 수 있는 적이 이 안에 있을 때. */
+const AIR_ONLY_ALERT = 25;
+
+/**
+ * 공중만 때리는 공격 유닛(스커지·커세어·발키리·디바우러)이 공중 목표가 없을 때 기다리는 자리.
+ * 지상을 때릴 수 있는 아군 공격 병력의 꼬리 뒤 SCOURGE_BEHIND칸, 적 대공 건물·유닛의 사거리 밖(safeAirSpot)이다.
+ * 그런 병력이 없으면(공중 전용 유닛만 출격) 한 걸음씩 나아가되 적 대공 사거리 앞에서 멈춘다.
+ * 예전에는 때릴 것이 없어도 병력과 함께 적진까지 들어가, 발키리 4기가 드라군 12기·히드라 20기 앞에서 한 발도 못 쏘고 모두 죽었다.
+ */
+function airOnlyWaitSpot(state, unit, slot) {
   const forward = stwForward(unit.side);
-  const escort = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && ally.hp > 0 && !isPassive(ally) && !STW_UNITS[ally.type].suicide);
+  const escort = state.units.filter((ally) => ally.side === unit.side && ally.group === "attack" && ally.hp > 0 && !isPassive(ally) && (STW_UNITS[ally.type].targets ?? "ground") !== "air");
   const x = slot ? slot.x : unit.x;
   const y = escort.length
     ? escort.reduce((rear, ally) => (ally.y * forward < rear * forward ? ally.y : rear), escort[0].y) - forward * SCOURGE_BEHIND
     : unit.y + forward * 2;
   const spot = safeAirSpot(state, unit, { x: unit.x + (x - unit.x) * 0.15, y: Math.min(STW_LANE_LENGTH - 1.5, Math.max(1.5, y)) }, { units: true });
   // 쫓아오는 적 대공 유닛을 피해 물러나더라도 전장 밖으로 나가지 않는다.
-  moveToward(unit, spot.x, Math.min(STW_LANE_LENGTH - 1.5, Math.max(1.5, spot.y)), speed, dt);
-  return true;
+  return { x: spot.x, y: Math.min(STW_LANE_LENGTH - 1.5, Math.max(1.5, spot.y)) };
 }
 
 /** 공중 유닛이 물러나기 시작하는 거리: 자기를 쏠 수 있는 적의 사거리 + 이만큼 안. */
@@ -4412,8 +4489,18 @@ const BROODLING_WAIT = 2.5;
 /** 마법마다 대상을 고르고 효과를 건다. 걸었으면 시전 지점을, 쓸 만한 대상이 없으면 null을 돌려준다. */
 const SPELL_CASTERS = {
   feedback(state, caster, spell) {
-    const target = spellFoes(state, caster, spell.range).filter((unit) => unit.energy >= 50 && STW_UNITS[unit.type].energyRegen).sort((a, b) => b.energy - a.energy)[0];
-    if (!target) return null;
+    const worth = (unit) => unit.energy >= 50 && STW_UNITS[unit.type].energyRegen;
+    const target = spellFoes(state, caster, spell.range).filter(worth).sort((a, b) => b.energy - a.energy)[0];
+    if (!target) {
+      // 에너지가 찬 적 마법 유닛이 사거리 조금 밖에 보이면 피드백 에너지(50)를 남겨 두고 닿을 때까지 다가간다.
+      // 예전에는 마엘스트롬에 에너지를 다 써서, 디파일러 2·퀸 2가 낀 상대에게 피드백을 한 번도 못 썼다.
+      const later = spellFoes(state, caster, spell.range + SPELL_LOOKAHEAD).filter(worth).sort((a, b) => b.energy - a.energy)[0];
+      if (later) {
+        caster.spellWaiting = true;
+        caster.castWalk = { x: later.x, y: later.y, range: spell.range, at: state.time };
+      }
+      return null;
+    }
     applyDamage(state, target, target.energy, { ignoreArmor: true });
     target.energy = 0;
     target.lastHit = state.time;
@@ -4442,7 +4529,15 @@ const SPELL_CASTERS = {
     const target = spellFoes(state, caster, spell.range)
       .filter((unit) => STW_UNITS[unit.type].mech && !isPassive(unit) && !stunned(state, unit) && unit.hp + unit.shields >= 40 && unitValue(unit) >= (full ? 75 : 150))
       .sort((a, b) => unitValue(b) - unitValue(a))[0];
-    if (!target) return null;
+    if (!target) {
+      // 값 LOCKDOWN_CHASE_VALUE 이상인 기계 유닛(캐리어·배틀크루저·시즈 탱크 등)이 사거리 조금 밖에 있으면 락다운이 닿을 때까지 다가간다.
+      // 사거리 9인 캐리어는 락다운 사거리(8) 밖에서 쏘기 때문에, 고스트 4기가 캐리어 2기 앞에서 한 번도 못 쓰고 죽었다.
+      const prize = spellFoes(state, caster, spell.range + SPELL_LOOKAHEAD)
+        .filter((unit) => STW_UNITS[unit.type].mech && !isPassive(unit) && !stunned(state, unit) && unit.hp + unit.shields >= 40 && unitValue(unit) >= LOCKDOWN_CHASE_VALUE)
+        .sort((a, b) => unitValue(b) - unitValue(a))[0];
+      if (prize) caster.castWalk = { x: prize.x, y: prize.y, range: spell.range, at: state.time };
+      return null;
+    }
     target.stunUntil = state.time + spell.duration;
     target.targetId = null;
     return { x: target.x, y: target.y, targetId: target.id };
@@ -4483,7 +4578,10 @@ const SPELL_CASTERS = {
     for (const unit of spellFoes(state, caster, spell.range + SPELL_LOOKAHEAD)) {
       if (!isBiological(unit) || isPassive(unit) || (unit.irradiateUntil ?? 0) > state.time) continue;
       const near = state.units.filter((other) => other.side === unit.side && other.hp > 0 && isBiological(other) && distance(other.x, other.y, unit.x, unit.y) <= spell.radius).length;
-      const score = near + (unit.hp + unit.shields >= 80 ? 1 : 0) + (unitValue(unit) >= 150 ? 2 : 0);
+      // 체력 80 미만(저글링·해병·메딕)인 대상은 몇 초 만에 죽어 구름이 따라 사라지므로, 생체 유닛이 IRRADIATE_FRAGILE_MIN기 넘게 뭉쳐 있을 때만,
+      // 그것도 다른 대상이 없을 때만 고른다. 예전에는 뭉친 수만 세어 히드라·뮤탈·디파일러·퀸을 두고 12번을 모두 저글링에 썼다.
+      const fragile = unit.hp + unit.shields < 80;
+      const score = fragile ? (near >= IRRADIATE_FRAGILE_MIN ? 1.6 : 0) : near + 1 + (unitValue(unit) >= 150 ? 2 : 0);
       if (score <= 1.5) continue;
       const inRange = distance(caster.x, caster.y, unit.x, unit.y) <= spell.range + unit.radius;
       if (!allies.some((ally) => inArea(ally, unit, spell.radius + 1))) {
@@ -4509,11 +4607,22 @@ const SPELL_CASTERS = {
     // 체력(보호막 포함) 100 이상인 목표만 노린다(저글링·히드라 같은 작은 유닛에는 아낀다). 순서: 싸우는 유닛 → 공격하는 방어 건물 → 싸우지 않는 유닛(오버로드·수송선 등) → 그 밖의 건물.
     // 예전에는 싸우지 않는 유닛과 일반 건물은 노리지 않아, 저글링·히드라·뮤탈만 상대하는 동안 배틀크루저가 8분 넘게 한 번도 쏘지 못했다.
     const sturdy = (item) => item.hp + item.shields >= YAMATO_MIN_HP && !((item.yamatoAt ?? -99) > state.time - 2);
+    // 싸우는 유닛은 값이 비싼 것부터(같으면 체력이 많은 것), 건물과 싸우지 않는 유닛은 체력이 많은 것부터 고른다.
     const toughest = (list) => list.sort((a, b) => b.hp + b.shields - (a.hp + a.shields))[0];
+    const priciest = (list) => list.sort((a, b) => unitValue(b) - unitValue(a) || b.hp + b.shields - (a.hp + a.shields))[0];
     const foes = spellFoes(state, caster, spell.range).filter(sturdy);
+    // 훨씬 비싼 대상(값 1.5배 이상)이 사거리 조금 밖에 보이면 YAMATO_WAIT초까지 기다린다. 앞줄 질럿이 먼저 사거리에 들어와,
+    // 캐리어 2기가 뒤따라오는 싸움에서 배틀크루저 셋이 야마토 3발을 모두 질럿에 썼다.
+    const fighter = priciest(foes.filter((unit) => !isPassive(unit)));
+    const later = priciest(spellFoes(state, caster, spell.range + SPELL_LOOKAHEAD).filter((unit) => sturdy(unit) && !isPassive(unit)));
+    if (fighter && later && unitValue(later) >= unitValue(fighter) * 1.5) {
+      caster.yamatoWait ??= state.time;
+      if (state.time - caster.yamatoWait < YAMATO_WAIT) return null;
+    }
+    caster.yamatoWait = undefined;
     const buildings = state.buildings.filter((building) => building.side !== caster.side && building.hp > 0 && sturdy(building)
       && distance(caster.x, caster.y, building.x, building.y) - building.radius <= spell.range);
-    const target = toughest(foes.filter((unit) => !isPassive(unit)))
+    const target = fighter
       ?? toughest(buildings.filter((building) => STW_BUILDINGS[building.type].damage))
       ?? toughest(foes.filter((unit) => isPassive(unit)))
       ?? toughest(buildings.filter((building) => !STW_BUILDINGS[building.type].damage));
@@ -4601,6 +4710,12 @@ const SPELL_CASTERS = {
 
 /** 야마토 포가 노리는 목표의 최소 체력(보호막 포함). 뮤탈리스크(120)·레이스(120)·드라군(180)까지 노리고, 히드라(80)·해병(45)·저글링(35)에는 아낀다. */
 const YAMATO_MIN_HP = 100;
+/** 고스트가 락다운을 걸러 사거리 밖까지 다가가는 대상의 값. */
+const LOCKDOWN_CHASE_VALUE = 250;
+/** 더 비싼 야마토 대상이 사거리에 들어오기를 기다려 주는 시간(초). */
+const YAMATO_WAIT = 2.5;
+/** 체력 80 미만인 유닛에 이레디에이트를 쓰려면 반경 안에 생체 유닛이 이만큼은 뭉쳐 있어야 한다. */
+const IRRADIATE_FRAGILE_MIN = 6;
 
 /** 쓸 수 있는 마법을 하나 쓴다(데이터의 spells 순서대로 확인). 썼으면 true. */
 function castSpells(state, unit) {
