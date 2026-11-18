@@ -224,6 +224,8 @@ type SupervisorDecisionState = {
   targetId: number | null; targetLockUntil: number; targetDistance: number;
   desiredDistance: number; danger: number; targetPoint: Point | null;
   flipWindowStarted: number; flipCount: number; lastMovementWarningAt: number;
+  // 직전 프레임에 실제로 적용된 이동 속도(px/s): 쫓아오는 목표와 후퇴 속도를 맞추는 데 쓴다.
+  playerSpeed: number;
   // 감독 AI의 판단 사이 기억(계획한 경로, 진전 기록, 잠시 포기한 목표, 추격 중인 게의 체력 기록).
   memory: ReturnType<typeof createMudflatSupervisorMemory>;
 };
@@ -234,6 +236,7 @@ const createSupervisorDecisionState = (): SupervisorDecisionState => ({
   targetId: null, targetLockUntil: 0, targetDistance: Infinity,
   desiredDistance: 0, danger: 0, targetPoint: null,
   flipWindowStarted: 0, flipCount: 0, lastMovementWarningAt: -Infinity,
+  playerSpeed: 0,
   memory: createMudflatSupervisorMemory(),
 });
 
@@ -2812,6 +2815,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             // 일반 게는 지금 집게가 실제로 닿는 거리 구간에서 잡는다(집게가 없는 모드는 0: 예전 고정 거리).
             tongReach: runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).reach : 0,
             tongRotationSpeed: mudflatTongStats(runtime.levels.tongs ?? 1).rotationSpeed,
+            playerSpeed: decisionState.playerSpeed > 0 ? decisionState.playerSpeed : runtime.player.speed * (1 + (runtime.levels.boots ?? 0) * .09),
             memory: decisionState.memory,
             activeRockId: runtime.rockFlipEffect?.rockId,
             lockedTargetKind: runtime.elapsed < decisionState.targetLockUntil ? decisionState.targetKind : null,
@@ -2930,6 +2934,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const tide = mudflatTideStats(runtime.elapsed, runtime.player.maxHp);
       const regularSpeed = runtime.player.speed * (1 + (runtime.levels.boots ?? 0) * .09) * terrainSpeed;
       const speed = (tide.active ? runtime.player.speed * tide.speedMultiplier : regularSpeed) * deepMudSlow * stuckSlow;
+      if (supervisorRef.current) supervisorDecisionRef.current.playerSpeed = speed;
       runtime.player.x += inputX * speed * dt; runtime.player.y += inputY * speed * dt;
       if (stageProfile.wind > 0) {
         const windAngle = Math.sin(runtime.elapsed / 8 + runtime.stage) * .7 + runtime.stage * .31;

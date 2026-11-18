@@ -315,7 +315,7 @@ test("감독 AI는 여러 게가 접근해도 가장 가까운 충돌 경로를 
  * 매 프레임(1/60초) 초당 155px로 움직인다. 목표 고정(구멍 14초, 바위 10초, 생물 4초, 경험치 2.5초)도 게임과 같다.
  * onFrame(world, dt)가 true를 돌려주면 멈춘다.
  */
-function simulateSupervisor({ seconds, player, build, onFrame }) {
+function simulateSupervisor({ seconds, player, build, onFrame, speed = 155 }) {
   const memory = createMudflatSupervisorMemory();
   const world = { player: { ...player }, elapsed: 0, decision: { x: 0, y: 0, targetKind: "explore", targetId: null }, input: { x: 0, y: 0 }, flips: 0, released: [], moving: true };
   let clock = 0;
@@ -357,18 +357,20 @@ function simulateSupervisor({ seconds, player, build, onFrame }) {
       world.decision = decision;
       clock = .16;
     }
-    if (world.moving) world.player = { x: world.player.x + world.input.x * 155 * dt, y: world.player.y + world.input.y * 155 * dt };
+    const pace = typeof speed === "function" ? speed(world) : speed;
+    if (world.moving) world.player = { x: world.player.x + world.input.x * pace * dt, y: world.player.y + world.input.y * pace * dt };
     if (onFrame(world, dt)) break;
   }
   return world;
 }
 
-test("감독 AI는 추격해 오는 게를 집게가 닿는 거리에 세워 두고 실제로 때려 잡는다", () => {
+test("감독 AI는 추격해 오는 게와 속도를 맞춰 물러나며 집게가 닿는 거리에서 실제로 때려 잡는다", () => {
   // 집게 끝은 몸에서 84px 떨어진 원을 초당 1.55rad로 돌고, 끝이 게 크기 + 10 안에 들면 5.5 피해를 준다(실제 원정 규칙).
   const crab = { id: 91, x: 190, y: 30, hp: 20, xp: 2, score: 15, size: 13, name: "칠게", saltHit: 0 };
   let hits = 0;
   let minimumDistance = Infinity;
-  let heldStill = 0;
+  let inBand = 0;
+  let fullSpeed = 0;
   const world = simulateSupervisor({
     seconds: 60,
     player: { x: 0, y: 0 },
@@ -381,7 +383,8 @@ test("감독 AI는 추격해 오는 게를 집게가 닿는 거리에 세워 두
       crab.y += dy / range * 38 * dt;
       minimumDistance = Math.min(minimumDistance, Math.hypot(state.player.x - crab.x, state.player.y - crab.y));
       const band = mudflatSupervisorAttackBand(crab, 84);
-      if (range >= band.inner && range <= band.outer && Math.hypot(state.input.x, state.input.y) <= .05) heldStill += dt;
+      if (range >= band.inner && range <= band.outer) inBand += dt;
+      if (Math.hypot(state.input.x, state.input.y) > .9) fullSpeed += dt;
       const angle = state.elapsed * 1.55;
       const tip = { x: state.player.x + Math.cos(angle) * 84, y: state.player.y + Math.sin(angle) * 84 };
       crab.saltHit = Math.max(0, crab.saltHit - dt);
@@ -397,7 +400,10 @@ test("감독 AI는 추격해 오는 게를 집게가 닿는 거리에 세워 두
   assert.ok(crab.hp <= 0, `게를 잡지 못했다: 체력 ${crab.hp}, 타격 ${hits}회, ${world.elapsed.toFixed(1)}초`);
   assert.ok(hits >= 4, `타격 ${hits}회`);
   assert.ok(minimumDistance > crab.size + 17, `접촉 피해 거리 안으로 들어갔다: ${minimumDistance}`);
-  assert.ok(heldStill > 1, `공격 거리에서 서 있던 시간 ${heldStill.toFixed(2)}초`);
+  // 예전에는 구간에 서 있다가 게가 다가오면 최대 속도로 달아나 구간을 벗어났다. 이제는 게 속도(38px/s)만큼만 물러나 구간에 머문다.
+  assert.ok(inBand > world.elapsed * .6, `집게 구간에 머문 시간 ${inBand.toFixed(1)}초 / ${world.elapsed.toFixed(1)}초`);
+  assert.ok(fullSpeed < 1, `최대 속도로 달아난 시간 ${fullSpeed.toFixed(2)}초`);
+  assert.ok(Math.hypot(world.player.x, world.player.y) < 420, `끌려간 거리 ${Math.hypot(world.player.x, world.player.y).toFixed(0)}`);
   assert.deepEqual(world.released, [], "잡는 동안 목표를 포기하지 않는다");
 });
 
@@ -453,6 +459,181 @@ test("감독 AI는 체력이 줄지 않는 게와 너무 멀리 끌고 가는 �
   });
   assert.deepEqual(dragged.released, [{ kind: "creature", id: 17, reason: "chase-too-far" }]);
   assert.ok(Math.hypot(dragged.player.x, dragged.player.y) < 560, `끌려간 거리 ${Math.hypot(dragged.player.x, dragged.player.y)}`);
+});
+
+// 돌진 복어(실제 원정 4단계 수치): 크기 17.6, 체력 201, 초당 128px로 끝까지 쫓아온다. 플레이어는 초당 169px.
+function chasePuffer(overrides = {}) {
+  return { id: 60, x: 420, y: 40, hp: 201, xp: 7, score: 68, size: 17.6, name: "복어", type: "pufferfish", eventKind: "puffer-rush", movement: "chase", speed: 128, saltHit: 0, ...overrides };
+}
+
+function runChase({ creatures, seconds, playerSpeed = 169, extra = () => ({}), onStep = () => false }) {
+  const stats = { hits: 0, contacts: 0, minimumGap: Infinity, intents: new Set(), targetChanges: 0, lastTarget: null };
+  const world = simulateSupervisor({
+    seconds, player: { x: 0, y: 0 }, speed: playerSpeed,
+    build: (state) => ({ creatures: creatures.filter((item) => item.hp > 0), tongReach: 84, tongRotationSpeed: 1.55, playerSpeed: typeof playerSpeed === "function" ? playerSpeed(state) : playerSpeed, ...extra(state) }),
+    onFrame: (state, dt) => {
+      stats.intents.add(state.decision.intent);
+      if (state.decision.targetId !== stats.lastTarget) { stats.targetChanges += 1; stats.lastTarget = state.decision.targetId; }
+      const angle = state.elapsed * 1.55;
+      const tip = { x: state.player.x + Math.cos(angle) * 84, y: state.player.y + Math.sin(angle) * 84 };
+      for (const creature of creatures) {
+        if (creature.hp <= 0) continue;
+        const dx = state.player.x - creature.x;
+        const dy = state.player.y - creature.y;
+        const range = Math.hypot(dx, dy) || 1;
+        creature.x += dx / range * creature.speed * dt;
+        creature.y += dy / range * creature.speed * dt;
+        const gap = Math.hypot(state.player.x - creature.x, state.player.y - creature.y);
+        stats.minimumGap = Math.min(stats.minimumGap, gap);
+        if (gap < creature.size + 17) stats.contacts += 1;
+        creature.saltHit = Math.max(0, creature.saltHit - dt);
+        if (creature.saltHit <= 0 && Math.hypot(creature.x - tip.x, creature.y - tip.y) < creature.size + 10) {
+          creature.hp -= 5.5;
+          creature.saltHit = .22;
+          stats.hits += 1;
+        }
+      }
+      return onStep(state, stats) || creatures.every((item) => item.hp <= 0);
+    },
+  });
+  return { world, stats };
+}
+
+test("감독 AI는 쫓아오는 복어를 위험 벽 밖에서 기다리지 않고, 물러나며 집게로 잡는다", () => {
+  const puffer = chasePuffer();
+  const { world, stats } = runChase({ creatures: [puffer], seconds: 120 });
+  // 예전: 132px에 섰다가 복어가 오면 달아나기를 되풀이해 집게(닿는 거리 111px)가 닿지 않았다. 240초에 5타, 처치 불가.
+  assert.ok(puffer.hp <= 0, `복어를 잡지 못했다: 체력 ${puffer.hp.toFixed(0)}, 타격 ${stats.hits}회`);
+  assert.ok(world.elapsed < 95, `처치까지 ${world.elapsed.toFixed(1)}초`);
+  assert.equal(stats.contacts, 0, "접촉 피해를 입지 않는다");
+  assert.ok(stats.minimumGap > puffer.size + 17 + 30, `가장 가까웠던 거리 ${stats.minimumGap.toFixed(1)}`);
+  assert.deepEqual(world.released, []);
+  // 서다 가다를 되풀이하지 않는다: 의도가 바뀌지 않아 감독 로그에 판단이 쌓이지 않는다.
+  assert.ok(stats.intents.size <= 3, `의도 ${[...stats.intents].join(" / ")}`);
+  assert.equal(world.flips, 0);
+});
+
+test("감독 AI는 복어가 곧 닿을 거리면 호미질보다 먼저 상대하고, 멀리 있으면 호미질을 계속한다", () => {
+  const hole = { id: 61, x: 60, y: 0, kind: "clam", progress: 0 };
+  const memory = createMudflatSupervisorMemory();
+  // 멀리(700px)서 오는 복어: 닿기까지 5초가 넘으므로 가까운 구멍으로 간다.
+  const far = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 700, y: 0 })], clamHoles: [hole], memory, tongReach: 84 }));
+  assert.equal(far.targetKind, "clam");
+  // 300px: 2.8초 안에 닿는다. 진행 중인 호미질이 있어도 복어를 먼저 상대한다.
+  const digging = { ...hole, x: 10, progress: .6 };
+  const near = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 300, y: 0 })], clamHoles: [digging], memory: createMudflatSupervisorMemory(), tongReach: 84 }));
+  assert.equal(near.targetKind, "creature");
+  assert.equal(near.targetId, 60);
+  assert.match(near.intent, /복어 물러나며 채집 중/);
+  // 지킬 거리는 집게가 닿는 구간 안이고 접촉 반경(크기 + 17)보다 훨씬 바깥이다.
+  assert.ok(near.desiredDistance < 84 + 17.6 + 10 && near.desiredDistance > 17.6 + 17 + 40, `지킬 거리 ${near.desiredDistance}`);
+  // 집게가 없는 모드에서는 예전처럼 위험 생물로만 다룬다.
+  const noTongs = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 300, y: 0 })], clamHoles: [], memory: createMudflatSupervisorMemory(), tongReach: 0 }));
+  assert.equal(noTongs.desiredDistance, 132);
+});
+
+test("감독 AI는 다가오지 않는 복어에게는 예전처럼 132px 거리를 지킨다", () => {
+  // 타원으로 돌며 물러나는 보통 복어: 접근 속도가 없으므로 물러나며 잡는 대상이 아니다.
+  const idle = { id: 62, x: 132, y: 0, hp: 80, xp: 9, score: 90, size: 20, name: "복어", type: "pufferfish", movement: "oval", speed: 108 };
+  const memory = createMudflatSupervisorMemory();
+  decideMudflatSupervisorMove(scene({ creatures: [idle], memory, elapsed: 12 }));
+  const hold = decideMudflatSupervisorMove(scene({ creatures: [idle], memory, elapsed: 12.16 }));
+  assert.equal(hold.desiredDistance, 132);
+  assert.deepEqual({ x: hold.x, y: hold.y }, { x: 0, y: 0 });
+});
+
+test("감독 AI는 복어보다 느려지거나 접촉 직전이면 거리 맞추기를 그만두고 최대 속도로 벌린다", () => {
+  // 물골처럼 느린 지형: 내 속도(115)가 복어(128)보다 느리다.
+  const slow = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 96, y: 0 })], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 115 }));
+  assert.ok(Math.hypot(slow.x, slow.y) > .99 && slow.x < -.5 && slow.urgent, JSON.stringify(slow));
+  assert.match(slow.intent, /거리를 벌리는 중 · 복어/);
+  // 접촉 반경(34.6px)까지 14px도 남지 않았다.
+  const touching = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 44, y: 0 })], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  assert.ok(Math.hypot(touching.x, touching.y) > .99 && touching.x < -.5 && touching.urgent, JSON.stringify(touching));
+  // 정상 속도에 지킬 거리면 복어 속도(128/169)만큼만 물러난다.
+  const matched = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 95.6, y: 0 })], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  assert.ok(Math.abs(Math.hypot(matched.x, matched.y) - 128 / 169) < .05 && matched.x < 0, JSON.stringify(matched));
+});
+
+test("감독 AI는 복어 두 마리가 양쪽에서 와도 접촉 없이 한쪽으로 빠져 둘을 뒤에 두고 잡는다", () => {
+  const left = chasePuffer({ id: 63, x: -380, y: 10 });
+  const right = chasePuffer({ id: 64, x: 380, y: -10 });
+  const { world, stats } = runChase({ creatures: [left, right], seconds: 180 });
+  assert.equal(stats.contacts, 0, `접촉 ${stats.contacts}프레임, 가장 가까웠던 거리 ${stats.minimumGap.toFixed(1)}`);
+  assert.ok(left.hp <= 0 && right.hp <= 0, `남은 체력 ${left.hp.toFixed(0)} / ${right.hp.toFixed(0)} (${world.elapsed.toFixed(1)}초)`);
+});
+
+test("감독 AI는 복어가 바로 옆에서 쫓아와도 달아나지 않고 베이스캠프로 돌아간다", () => {
+  // 복어가 108px 옆(예전 위험 벽 122px 안)에 있다. 예전에는 벽을 피하느라 캠프 반대쪽으로 달아나 귀환에 실패했다.
+  const puffer = chasePuffer({ x: 90, y: 60 });
+  const camp = { x: 620, y: 0 };
+  let contacts = 0;
+  const world = simulateSupervisor({
+    seconds: 9, player: { x: 0, y: 0 }, speed: 169,
+    build: () => ({ creatures: [puffer], baseCampGuideShown: true, baseCamp: camp, tongReach: 84, playerSpeed: 169 }),
+    onFrame: (state, dt) => {
+      const dx = state.player.x - puffer.x;
+      const dy = state.player.y - puffer.y;
+      const range = Math.hypot(dx, dy) || 1;
+      puffer.x += dx / range * puffer.speed * dt;
+      puffer.y += dy / range * puffer.speed * dt;
+      if (Math.hypot(state.player.x - puffer.x, state.player.y - puffer.y) < puffer.size + 17) contacts += 1;
+      return Math.hypot(state.player.x - camp.x, state.player.y - camp.y) <= 28;
+    },
+  });
+  assert.ok(Math.hypot(world.player.x - camp.x, world.player.y - camp.y) <= 28, `캠프까지 남은 거리 ${Math.hypot(world.player.x - camp.x, world.player.y - camp.y).toFixed(0)}`);
+  assert.ok(world.elapsed < 5.5, `귀환 시간 ${world.elapsed.toFixed(1)}초`);
+  assert.equal(contacts, 0);
+});
+
+// 남북으로 끝없이 뻗은 폭 64px 물골(3단계 물골과 같은 폭). 안에서는 이동 속도가 0.68배가 된다.
+const channelAt = (center) => (point) => Math.abs(point.x - center) < 32 ? .65 : 0;
+
+test("감독 AI는 베이스캠프가 물골 건너편에 있어도 물골을 건너 돌아간다", () => {
+  // 예전에는 물골 한 걸음의 벌점이 귀환 진전 점수보다 커서, 물골을 따라 위아래로 가다 캠프에서 멀어져 귀환에 실패했다.
+  const terrainRisk = channelAt(300);
+  const camp = { x: 650, y: 0 };
+  const world = simulateSupervisor({
+    seconds: 10, player: { x: 0, y: 0 },
+    speed: (state) => 149 * (terrainRisk(state.player) > 0 ? .68 : 1),
+    build: () => ({ baseCampGuideShown: true, baseCamp: camp, terrainRisk, stage: 3 }),
+    onFrame: (state) => Math.hypot(state.player.x - camp.x, state.player.y - camp.y) <= 28,
+  });
+  assert.ok(Math.hypot(world.player.x - camp.x, world.player.y - camp.y) <= 28, `캠프까지 남은 거리 ${Math.hypot(world.player.x - camp.x, world.player.y - camp.y).toFixed(0)}`);
+  assert.ok(world.elapsed < 6, `귀환 시간 ${world.elapsed.toFixed(1)}초`);
+});
+
+test("감독 AI는 복어에게서 물러나는 길에 물골이 있으면 들어가지 않고 물골을 따라 비켜 간다", () => {
+  // 복어는 서쪽에서 오고, 물러날 동쪽 150px에 물골이 있다. 들어가면 속도(101)가 복어(125)보다 느려져 따라잡힌다.
+  const terrainRisk = channelAt(150);
+  const puffer = chasePuffer({ x: -330, y: 0, speed: 125 });
+  let slowed = 0;
+  const pace = (state) => 149 * (terrainRisk(state.player) > 0 ? .68 : 1);
+  const { world, stats } = runChase({
+    creatures: [puffer], seconds: 60, playerSpeed: pace,
+    extra: (state) => ({ terrainRisk, stage: 3, playerSpeed: pace(state) }),
+    onStep: (state) => { if (terrainRisk(state.player) > 0) slowed += 1 / 60; return false; },
+  });
+  assert.equal(stats.contacts, 0, `접촉 ${stats.contacts}프레임, 가장 가까웠던 거리 ${stats.minimumGap.toFixed(1)}`);
+  assert.ok(slowed < 1, `물골 안에 있던 시간 ${slowed.toFixed(2)}초`);
+  assert.ok(stats.hits >= 15, `타격 ${stats.hits}회 (${world.elapsed.toFixed(0)}초)`);
+});
+
+test("감독 AI는 다음 복어가 닿기 전에 주울 수 있으면 방금 잡은 경험치를 먼저 줍는다", () => {
+  // 복어는 330px 밖(2.3초 거리), 경험치는 반대쪽 60px.
+  const reward = { id: 70, x: -60, y: 0, xp: 7, phase: "idle" };
+  const grab = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 330, y: 0 })], pickups: [reward], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  assert.equal(grab.targetKind, "pickup");
+  assert.equal(grab.intent, "잡은 경험치 회수 중");
+  assert.ok(grab.x < -.95 && grab.urgent, JSON.stringify(grab));
+  // 경험치가 복어 쪽에 있어 주우러 가면 닿을 거리면 복어를 먼저 상대한다.
+  const risky = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 260, y: 0 })], pickups: [{ ...reward, x: 120 }], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  assert.equal(risky.targetKind, "creature");
+  // 작은 경험치(5 미만)와 이미 끌려오는 경험치는 복어보다 먼저 줍지 않는다.
+  const small = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 330, y: 0 })], pickups: [{ ...reward, xp: 3 }], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  assert.equal(small.targetKind, "creature");
+  const pulled = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 330, y: 0 })], pickups: [{ ...reward, phase: "pull" }], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  assert.equal(pulled.targetKind, "creature");
 });
 
 test("감독 AI는 바위 벽을 돌아 조개구멍에 닿아 호미질을 끝낸다(방향을 뒤집거나 서지 않는다)", () => {
@@ -570,6 +751,24 @@ test("자동 정비는 원본을 바꾸지 않고 체력 회복과 장비 구매
   assert.equal(maintained.hp, maintained.maxHp);
   assert.ok(Object.keys(maintained.equipment).length >= 2);
   assert.equal(maintained.equipment.mosquitoRepellent, 1);
+});
+
+test("자동 정비는 회복 값을 남기고 집게 훈련을 장비보다 먼저 3레벨까지 산다", () => {
+  const campaign = { stage: 4, mode: "normal", coins: 5500, hp: 100, maxHp: 100, baseMaxHp: 100, equipment: {}, levels: { tongs: 1, digging: 1 } };
+  const original = structuredClone(campaign);
+  const maintained = maintainMudflatSupervisorCampaign(campaign);
+  assert.deepEqual(campaign, original);
+  // Lv.2 2,000코인 + Lv.3 3,000코인.
+  assert.equal(maintained.levels.tongs, 3);
+  assert.equal(maintained.levels.digging, 1);
+  assert.ok(maintained.coins <= 500);
+
+  // 코인이 모자라면(Lv.2 값 + 회복 값) 훈련하지 않고 예전처럼 장비만 산다.
+  const poor = maintainMudflatSupervisorCampaign({ ...campaign, coins: 2050 });
+  assert.equal(poor.levels.tongs, 1);
+  // 아이 모드에는 집게 훈련이 없다.
+  const kids = maintainMudflatSupervisorCampaign({ ...campaign, mode: "kids" });
+  assert.equal(kids.levels.tongs, 1);
 });
 
 test("감독모드 로그는 초기 상태와 순번을 보존하며 최대 길이를 제한한다", () => {

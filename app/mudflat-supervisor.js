@@ -1,8 +1,11 @@
 import {
+  MUDFLAT_GENERAL_UPGRADES,
   MUDFLAT_RECOVERY_FOODS,
   MUDFLAT_SHOP_EQUIPMENT,
+  mudflatAdvancedSkillUnlocks,
   mudflatEquipmentPrice,
   mudflatEquipmentStats,
+  mudflatTrainingPrice,
 } from "./mudflat-survivor-engine.js";
 
 export const MUDFLAT_SUPERVISOR_DECISION_SECONDS = .16;
@@ -33,6 +36,23 @@ const HP_STALL_BLOCK_SECONDS = 14;
 const CHASE_BLOCK_SECONDS = 10;
 const CHASE_LIMIT = 520;
 const HEADING_HYSTERESIS = 16;
+// 쫓아오는 목표: 상대가 다가오는 속도에 맞춰 물러나며 집게가 닿는 거리를 지킨다.
+const KITE_MIN_APPROACH = 10;        // 초당 이만큼 넘게 다가오면 "쫓아온다"고 본다(px/s)
+const KITE_GAIN = 3;                 // 지킬 거리에서 벗어난 1px마다 더하는 후퇴 속도(px/s)
+const KITE_ENGAGE_SECONDS = 2.8;     // 복어·보스가 이 시간 안에 닿을 거리면 하던 일을 두고 먼저 상대한다(호미질 2초 + 여유)
+const KITE_BREAK_GAP = 14;           // 접촉 반경까지 남은 거리가 이보다 작으면 거리 맞추기를 그만두고 최대 속도로 벌린다
+const KITE_SPEED_MARGIN = 1.04;      // 내 속도가 상대 접근 속도의 이 배수에 못 미치면(느린 지형) 최대 속도로 벌린다
+const KITE_CAUTIOUS_INSET = 10;      // 복어·보스는 구간 바깥 끝에서 이만큼 안쪽을 지킨다(접촉 여유를 크게)
+const KITE_CONTACT_PAD = 10;         // 상대하는 복어·보스의 접촉 반경 바깥에 두는 금지 여유
+const KITE_ANGLES = [0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75];
+const KITE_ESCAPE_ANGLES = [...KITE_ANGLES, 95, -95, 115, -115];
+const KITE_HORIZON = .6;             // 물러날 방향을 고를 때 내다보는 시간(초)
+const KITE_SLOW_AHEAD_PENALTY = 900; // 그 너머가 느린 지형이면 들어가지 않게 하는 벌점
+const RETURN_TERRAIN_WEIGHT = 20;    // 귀환·대피 때의 느린 지형 벌점(평소 260)
+const DEFAULT_PLAYER_SPEED = 155;
+const TONG_TRAINING_TARGET_LEVEL = 3;
+const KITE_GRAB_MIN_XP = 5;          // 복어를 상대하는 사이에도 먼저 주울 만한 경험치(복어 7, 큰 게 6~10)
+const KITE_GRAB_GAP = 45;            // 주우러 간 자리에서 다음 추격자의 접촉 반경까지 남아야 하는 거리
 
 const distance = (left, right) => Math.hypot(left.x - right.x, left.y - right.y);
 const normalized = (x, y) => {
@@ -45,13 +65,43 @@ const normalized = (x, y) => {
  * 게임은 원정마다 하나를 만들어 매 판단에 넘긴다. 넘기지 않으면 판단마다 새로 만들어 예전처럼 기억 없이 움직인다.
  */
 export function createMudflatSupervisorMemory() {
-  return { blocked: new Map(), route: null, progress: null, chase: null, heading: { x: 0, y: 0 }, headingKey: null };
+  return { blocked: new Map(), route: null, progress: null, chase: null, heading: { x: 0, y: 0 }, headingKey: null, tracks: new Map() };
 }
 
 const targetKey = (kind, item) => `${kind}:${item.id ?? `${Math.round(item.x)},${Math.round(item.y)}`}`;
 const isCautious = (creature) => creature.type === "pufferfish" || Boolean(creature.boss);
 const isHighRisk = (creature) => Boolean(creature.uncollectible) || isCautious(creature);
 const liveCreature = (creature) => creature.hp > 0 && (creature.emergeSeconds ?? 0) <= 0;
+
+/** 판단 사이에 생물이 움직인 거리로 "플레이어 쪽으로 다가오는 속도"(px/s)를 잰다. 처음 본 생물은 아직 값이 없다. */
+function updateCreatureTracks(state, memory, elapsed) {
+  const tracks = memory.tracks ?? (memory.tracks = new Map());
+  const seen = new Set();
+  for (const creature of state.creatures) {
+    if (creature.id === undefined || !liveCreature(creature)) continue;
+    seen.add(creature.id);
+    const previous = tracks.get(creature.id);
+    const seconds = previous ? elapsed - previous.at : -1;
+    // 같은 순간에 다시 판단할 때(목표를 풀고 재판단)는 기록을 그대로 둔다.
+    if (previous && seconds >= 0 && seconds < .04) continue;
+    let approach;
+    if (previous && seconds > 0 && seconds < 1.5) {
+      const toward = normalized(state.player.x - creature.x, state.player.y - creature.y);
+      const measured = ((creature.x - previous.x) * toward.x + (creature.y - previous.y) * toward.y) / seconds;
+      approach = previous.approach === undefined ? measured : previous.approach * .45 + measured * .55;
+    }
+    tracks.set(creature.id, { x: creature.x, y: creature.y, at: elapsed, approach });
+  }
+  for (const id of tracks.keys()) if (!seen.has(id)) tracks.delete(id);
+}
+
+/** 생물이 플레이어 쪽으로 다가오는 속도. 아직 재지 못했으면 움직임 종류로 짐작한다(돌진 복어와 쫓는 게는 제 속도로 온다). */
+function approachSpeed(memory, creature) {
+  const measured = memory.tracks?.get(creature.id)?.approach;
+  if (measured !== undefined) return measured;
+  const chases = creature.eventKind === "puffer-rush" || (creature.type !== "pufferfish" && creature.movement === "chase");
+  return chases ? Math.max(0, Number(creature.speed) || 0) : 0;
+}
 
 /**
  * 일반 게를 집게로 잡는 거리 구간. 집게 끝은 몸에서 reach만큼 떨어진 원을 돌고, 끝이 생물 크기 + 10 안에 들어야 맞는다.
@@ -67,11 +117,16 @@ export function mudflatSupervisorAttackBand(creature, tongReach) {
 }
 
 function targetForState(state, memory) {
+  // 쫓아오는 위험 생물(복어·보스·채집 불가): 귀환·대피 때는 이들의 넓은 위험 벽을 접촉 반경 바로 바깥으로 줄인다.
+  // 벽을 그대로 두면 뒤에서 쫓아오는 복어를 피하느라 캠프 반대쪽으로 달아나 귀환에 실패한다.
+  const pursuerIds = new Set(state.creatures
+    .filter((item) => liveCreature(item) && isHighRisk(item) && approachSpeed(memory, item) >= KITE_MIN_APPROACH)
+    .map((item) => item.id));
   if (state.baseCampGuideShown) {
-    return { kind: "camp", point: state.baseCamp, intent: "베이스캠프로 귀환 중", desiredDistance: 0 };
+    return { kind: "camp", point: state.baseCamp, intent: "베이스캠프로 귀환 중", desiredDistance: 0, kiteIds: pursuerIds, terrainWeight: RETURN_TERRAIN_WEIGHT };
   }
   if (state.secondsToTide <= 5.2 && state.safeZone) {
-    return { kind: "safe-zone", point: state.safeZone, intent: "돌발 물살 대피 중", desiredDistance: 18 };
+    return { kind: "safe-zone", point: state.safeZone, intent: "돌발 물살 대피 중", desiredDistance: 18, kiteIds: pursuerIds, terrainWeight: RETURN_TERRAIN_WEIGHT };
   }
   if ((state.emptySeafoodRisk ?? 0) >= 7.5) {
     let retreat = normalized(state.retreatDirection?.x ?? -state.player.x, state.retreatDirection?.y ?? -state.player.y);
@@ -129,16 +184,52 @@ function targetForState(state, memory) {
     desiredDistance: Math.max(rock.radius + 28, rockReach - 8),
   });
   const tongReach = state.tongReach === undefined ? DEFAULT_TONG_REACH : Math.max(0, Number(state.tongReach) || 0);
+  // 쫓아오는 복어·보스: 위험 벽 대신 집게가 닿는 거리에서 물러나며 상대한다(집게가 있을 때만).
+  const chasers = tongReach > 0
+    ? collectible.filter((item) => isCautious(item) && approachSpeed(memory, item) >= KITE_MIN_APPROACH)
+    : [];
+  const kiteIds = new Set(chasers.map((item) => item.id));
   const creatureTarget = (creature) => {
     const cautious = isCautious(creature);
-    // 복어와 보스는 예전처럼 한 거리(132)를 지키고, 일반 게는 지금 집게가 실제로 닿는 거리 구간에 머문다.
-    const band = cautious ? null : mudflatSupervisorAttackBand(creature, tongReach);
+    const approach = approachSpeed(memory, creature);
+    const kite = tongReach > 0 && approach >= KITE_MIN_APPROACH;
+    // 다가오지 않는 복어와 보스는 예전처럼 한 거리(132)를 지키고, 그 밖에는 지금 집게가 실제로 닿는 거리 구간에 머문다.
+    const band = cautious && !kite ? null : mudflatSupervisorAttackBand(creature, tongReach);
     return {
       kind: "creature", point: creature, targetId: creature.id, key: targetKey("creature", creature), creature, band,
-      intent: cautious ? `거리 유지 중 · ${creature.name}` : `${creature.name} 채집 중`,
-      desiredDistance: cautious ? 132 : band.center,
+      kite, approach, kiteIds, cautious,
+      // 물러나는 걸음은 지형 감속을 예상 간격 계산에 직접 넣으므로 벌점으로는 다시 세지 않는다.
+      ...(kite ? { terrainWeight: 0 } : {}),
+      intent: kite ? `${creature.name} 물러나며 채집 중` : cautious ? `거리 유지 중 · ${creature.name}` : `${creature.name} 채집 중`,
+      desiredDistance: !band ? 132 : cautious ? Math.max(band.inner + 4, band.outer - KITE_CAUTIOUS_INSET) : band.center,
     };
   };
+  // 돌진해 오는 복어·보스가 곧 닿을 거리면 호미질·바위·경험치보다 먼저 상대한다. 멀리 있을 때는 하던 일을 계속한다.
+  const threat = chasers
+    .map((item) => ({ item, eta: (distance(state.player, item) - (item.size + CONTACT_MARGIN)) / approachSpeed(memory, item) }))
+    .filter((entry) => entry.eta < KITE_ENGAGE_SECONDS)
+    .sort((left, right) => left.eta - right.eta)[0];
+  // 방금 잡은 복어·큰 게의 경험치: 다음 추격자가 닿기 전에 주울 수 있으면 먼저 줍는다(물러나기만 하면 잡은 보상을 뒤에 두고 간다).
+  if (chasers.length > 0) {
+    const playerSpeed = Math.max(40, Number(state.playerSpeed) || Number(state.player.speed) || DEFAULT_PLAYER_SPEED);
+    const pickupRadius = Number(state.pickupRadius) || 50;
+    const grab = state.pickups
+      .filter((item) => item.xp >= KITE_GRAB_MIN_XP && (item.phase ?? "idle") === "idle" && allowed("pickup", item)
+        && distance(state.player, item) <= Math.max(MIN_PICKUP_CHASE_RANGE, pickupRadius + 105))
+      .filter((item) => {
+        const seconds = Math.max(0, distance(state.player, item) - pickupRadius) / playerSpeed + .25;
+        return chasers.every((chaser) => distance(item, chaser) - (chaser.size + CONTACT_MARGIN)
+          - approachSpeed(memory, chaser) * seconds > KITE_GRAB_GAP);
+      })
+      .sort((left, right) => distance(state.player, left) - distance(state.player, right))[0];
+    if (grab) {
+      return {
+        kind: "pickup", point: grab, targetId: grab.id, key: targetKey("pickup", grab),
+        intent: "잡은 경험치 회수 중", desiredDistance: 8, kiteIds, hurry: true,
+      };
+    }
+  }
+  if (threat) return creatureTarget(threat.item);
   const pickupChaseRange = Math.max(MIN_PICKUP_CHASE_RANGE, (Number(state.pickupRadius) || 50) + 105);
   const livePickups = state.pickups.filter((item) => item.xp > 0 && item.phase !== "arrived"
     && distance(state.player, item) <= pickupChaseRange && allowed("pickup", item));
@@ -223,7 +314,9 @@ function targetForState(state, memory) {
 }
 
 function hazardPenalty(point, state, target, routed = false) {
-  let penalty = Math.max(0, Number(state.terrainRisk?.(point)) || 0) * 260;
+  // 느린 지형(물골·깊은 펄) 벌점. 귀환·대피는 물골 건너편에 있어도 반드시 가야 하므로 작게 준다: 크게 주면 폭 64px 물골을
+  // 건너는 한 걸음의 벌점(약 1,180)이 귀환 진전 점수(약 310)를 넘어, 물골을 따라 캠프 반대쪽으로 올라가다 귀환에 실패했다.
+  let penalty = Math.max(0, Number(state.terrainRisk?.(point)) || 0) * (target.terrainWeight ?? 260);
   // 경로를 미리 계획한 목표는 경로가 바위와의 간격을 이미 지킨다. 넓은 여유(84)를 그대로 두면 바위 근처의 구멍으로
   // 다가가는 걸음마다 벌점이 진전 점수를 넘어, 제자리에 서거나 좌우로 방향만 뒤집었다.
   const rockMargin = routed ? 26 : 84;
@@ -242,13 +335,16 @@ function hazardPenalty(point, state, target, routed = false) {
   for (const creature of state.creatures) {
     if (creature.hp <= 0 || (creature.emergeSeconds ?? 0) > 0) continue;
     const isTarget = target.targetId === creature.id;
-    const highRisk = creature.uncollectible || creature.type === "pufferfish" || creature.boss;
-    const clearance = creature.size + (highRisk ? 104 : 25);
+    // 물러나며 상대하는 복어·보스(와 귀환·대피 때 쫓아오는 위험 생물)는 넓은 위험 벽 대신 접촉 반경 바로 바깥만 막는다.
+    const kited = Boolean(target.kiteIds?.has(creature.id));
+    const highRisk = !kited && (creature.uncollectible || creature.type === "pufferfish" || creature.boss);
+    const clearance = creature.size + (kited ? CONTACT_MARGIN + KITE_CONTACT_PAD : highRisk ? 104 : 25);
     const gap = distance(point, creature) - clearance;
     if (gap <= 0) {
       const overlapDepth = Math.min(clearance, -gap);
-      penalty += (highRisk ? 15500 : (isTarget ? 2200 : 6800)) + overlapDepth * (highRisk ? 240 : 160);
+      penalty += (kited ? 9000 : highRisk ? 15500 : (isTarget ? 2200 : 6800)) + overlapDepth * (highRisk || kited ? 240 : 160);
     }
+    else if (kited) { if (gap < 36) penalty += (36 - gap) * 6; }
     else if (highRisk && gap < 90) penalty += (90 - gap) * 6;
     else if (!isTarget && gap < 96) penalty += (96 - gap) * 6.5;
   }
@@ -285,8 +381,9 @@ function planRoute(state, target, goalRadius) {
   const cols = Math.ceil((Math.max(start.x, goal.x) + ROUTE_MARGIN - minX) / cell) + 1;
   const rows = Math.ceil((Math.max(start.y, goal.y) + ROUTE_MARGIN - minY) / cell) + 1;
   const rocks = state.rocks.map((rock) => ({ x: rock.x, y: rock.y, clear: rock.radius + (target.targetRockId === rock.id ? 17 : ROUTE_ROCK_CLEARANCE) }));
+  // 상대하는 추격자는 계속 움직이므로 넓게 막지 않고 접촉 반경 둘레만 막는다.
   const risky = state.creatures.filter((creature) => liveCreature(creature) && isHighRisk(creature) && creature.id !== target.targetId)
-    .map((creature) => ({ x: creature.x, y: creature.y, clear: creature.size + 70 }));
+    .map((creature) => ({ x: creature.x, y: creature.y, clear: creature.size + (target.kiteIds?.has(creature.id) ? CONTACT_MARGIN + KITE_CONTACT_PAD : 70) }));
   const blockedAt = (point) => rocks.some((rock) => distance(point, rock) < rock.clear) || risky.some((creature) => distance(point, creature) < creature.clear);
   const center = (col, row) => ({ x: minX + col * cell, y: minY + row * cell });
   const size = cols * rows;
@@ -418,6 +515,7 @@ export function decideMudflatSupervisorMove(state) {
   const memory = state.memory ?? createMudflatSupervisorMemory();
   const elapsed = Number(state.elapsed) || 0;
   for (const [key, until] of memory.blocked) if (until <= elapsed) memory.blocked.delete(key);
+  updateCreatureTracks(state, memory, elapsed);
   // 무진전으로 목표를 풀고 다시 판단할 때는 앞에서 푼 기록을 이어받는다.
   const released = state.releasedSoFar ?? [];
   const release = (target, seconds, reason) => {
@@ -441,7 +539,9 @@ export function decideMudflatSupervisorMove(state) {
       const rotation = Math.max(.2, Number(state.tongRotationSpeed) || DEFAULT_TONG_ROTATION_SPEED);
       const stallSeconds = Math.max(9, (Math.PI * 2 / rotation) * 2.5);
       if (elapsed - memory.chase.hpAt > stallSeconds) { release(target, HP_STALL_BLOCK_SECONDS, "hp-stall"); continue; }
-      if (Math.hypot(state.player.x - memory.chase.originX, state.player.y - memory.chase.originY) > CHASE_LIMIT) { release(target, CHASE_BLOCK_SECONDS, "chase-too-far"); continue; }
+      // 쫓아오는 목표는 물러나며 잡으므로 끌려간 거리로 포기하지 않는다(달아나는 게를 따라갈 때만 센다).
+      if (target.kite) { memory.chase.originX = state.player.x; memory.chase.originY = state.player.y; }
+      else if (Math.hypot(state.player.x - memory.chase.originX, state.player.y - memory.chase.originY) > CHASE_LIMIT) { release(target, CHASE_BLOCK_SECONDS, "chase-too-far"); continue; }
     } else if (target.kind !== "creature") memory.chase = null;
     if (!ROUTED_KINDS.has(target.kind) || target.hold) break;
     // 전체 경로의 도달 가능성: 경로가 없으면 그 목표를 잠시 포기하고 다른 목표를 고른다(귀환·대피는 포기하지 않고 직진으로 돌아간다).
@@ -471,6 +571,91 @@ export function decideMudflatSupervisorMove(state) {
     targetId: target.targetId ?? null, targetPoint: target.point,
     targetDistance, desiredDistance: target.desiredDistance, danger: currentDanger, urgent: false, released, ...extra,
   });
+
+  // 쫓아오는 목표: 서 있다가 최대 속도로 달아나는 대신, 상대가 다가오는 속도에 맞춰 물러나며 집게 구간을 지킨다.
+  // 일반 게가 아직 구간 바깥에 있으면 아래의 접근 판단이 먼저 구간까지 데려간다.
+  if (target.kind === "creature" && target.kite && (target.cautious || targetDistance <= band.outer)) {
+    const creature = target.creature;
+    const playerSpeed = Math.max(40, Number(state.playerSpeed) || Number(state.player.speed) || DEFAULT_PLAYER_SPEED);
+    const approach = Math.max(0, target.approach);
+    const contactGap = targetDistance - (creature.size + CONTACT_MARGIN);
+    const wanted = approach + KITE_GAIN * (target.desiredDistance - targetDistance);
+    // 이탈: 접촉 여유가 줄었거나, 느린 지형이라 상대보다 빠르지 않거나, 다른 위험 안에 서 있으면 최대 속도로 벌린다.
+    const escaping = contactGap < KITE_BREAK_GAP || playerSpeed < approach * KITE_SPEED_MARGIN || currentDanger > 1000;
+    memory.progress = null;
+    if (!escaping && wanted <= playerSpeed * .04) {
+      memory.headingKey = target.key;
+      return stay({ urgent: true });
+    }
+    // 물러날 방향: 가까운 추격자들에게서 멀어지는 쪽(둘이 양쪽에서 오면 옆으로 빠진다).
+    let awayX = (state.player.x - creature.x) / Math.max(1, targetDistance);
+    let awayY = (state.player.y - creature.y) / Math.max(1, targetDistance);
+    for (const other of state.creatures) {
+      if (other.id === creature.id || !target.kiteIds.has(other.id) || !liveCreature(other)) continue;
+      const range = distance(state.player, other);
+      if (range > 260) continue;
+      const weight = Math.min(1.5, (contactGap + 30) / Math.max(10, range - (other.size + CONTACT_MARGIN) + 30));
+      awayX += (state.player.x - other.x) / Math.max(1, range) * weight;
+      awayY += (state.player.y - other.y) / Math.max(1, range) * weight;
+    }
+    const away = normalized(awayX, awayY);
+    const radial = normalized(state.player.x - creature.x, state.player.y - creature.y);
+    const base = Math.hypot(away.x, away.y) > .5 ? away : radial;
+    const steadyKite = memory.headingKey === target.key && Math.hypot(memory.heading.x, memory.heading.y) > .5;
+    // 지형 감속: 물골(위험도 .65)은 0.68배, 깊은 펄은 깊이에 따라 0.4배까지. 지금 속도에서 감속을 걷어낸 값이 평지 속도다.
+    const slowAt = (point) => 1 - Math.min(.6, Math.max(0, Number(state.terrainRisk?.(point)) || 0) * .5);
+    const openSpeed = playerSpeed / slowAt(state.player);
+    const contactRadius = creature.size + CONTACT_MARGIN;
+    const holdGap = target.desiredDistance - contactRadius;
+    let chosen = null;
+    for (const degrees of escaping ? KITE_ESCAPE_ANGLES : KITE_ANGLES) {
+      const angle = degrees * Math.PI / 180;
+      const direction = {
+        x: base.x * Math.cos(angle) - base.y * Math.sin(angle),
+        y: base.x * Math.sin(angle) + base.y * Math.cos(angle),
+      };
+      // 목표에서 멀어지는 성분만 거리 유지에 쓰인다. 비스듬히 갈수록 같은 후퇴 속도를 내려면 더 빨리 움직여야 한다.
+      const outward = direction.x * radial.x + direction.y * radial.y;
+      if (!escaping && outward < .2) continue;
+      const magnitude = escaping ? 1 : Math.max(0, Math.min(1, wanted / (playerSpeed * Math.max(.2, outward))));
+      // 이 방향으로 KITE_HORIZON초 간 자리(지형 감속 반영)와, 그동안 따라온 추격자와의 간격을 내다본다.
+      let ahead = { x: state.player.x, y: state.player.y };
+      for (let index = 0; index < 4; index += 1) {
+        const stride = openSpeed * magnitude * slowAt(ahead) * KITE_HORIZON / 4;
+        ahead = { x: ahead.x + direction.x * stride, y: ahead.y + direction.y * stride };
+      }
+      const chase = normalized(ahead.x - creature.x, ahead.y - creature.y);
+      const gap = Math.hypot(ahead.x - creature.x - chase.x * approach * KITE_HORIZON, ahead.y - creature.y - chase.y * approach * KITE_HORIZON) - contactRadius;
+      // 거리 맞추기: 지킬 간격에 가까울수록 좋다. 이탈: 간격이 클수록 좋다.
+      const gapScore = escaping ? Math.min(gap, holdGap + 60) * 12 : -Math.abs(gap - holdGap) * 6;
+      // 그 너머가 물골·깊은 펄이면 들어가지 않는다(들어가면 복어보다 느려져 따라잡힌다).
+      let slowAhead = 0;
+      for (const further of [50, 110]) slowAhead += 1 - slowAt({ x: ahead.x + direction.x * further, y: ahead.y + direction.y * further });
+      const turn = steadyKite ? (1 - (direction.x * memory.heading.x + direction.y * memory.heading.y)) * HEADING_HYSTERESIS : 0;
+      const score = gapScore - slowAhead * KITE_SLOW_AHEAD_PENALTY
+        - hazardPenalty(ahead, state, target, false) - routeHazardPenalty(state.player, ahead, state, target, false)
+        - Math.abs(degrees) * .8 - turn;
+      if (!chosen || score > chosen.score) chosen = { direction, magnitude, score };
+    }
+    const direction = chosen?.direction ?? radial;
+    const magnitude = chosen?.magnitude ?? 1;
+    memory.headingKey = target.key;
+    memory.heading = { x: direction.x, y: direction.y };
+    return {
+      x: direction.x * magnitude,
+      y: direction.y * magnitude,
+      intent: escaping ? `거리를 벌리는 중 · ${creature.name}` : target.intent,
+      targetKind: target.kind,
+      targetId: target.targetId ?? null,
+      targetPoint: target.point,
+      targetDistance,
+      desiredDistance: target.desiredDistance,
+      danger: currentDanger,
+      // 섞지 않고 그대로 적용해야 후퇴 속도가 상대 속도와 맞는다.
+      urgent: true,
+      released,
+    };
+  }
   if (canHoldPosition && ((target.kind === "clam" && (targetDistance <= 30 || target.hold))
     || (target.kind === "rock" && targetDistance <= target.desiredDistance)
     || (target.kind === "pickup" && targetDistance <= 12)
@@ -549,7 +734,7 @@ export function decideMudflatSupervisorMove(state) {
   const direction = best?.direction ?? { x: 0, y: 0 };
   // 일반 게가 집게 거리보다 가까이 들어오면 최대 속도로 물러난다(예전에는 거리 오차에 비례해 천천히 물러나 따라잡혔다).
   const tooClose = Boolean(band && targetDistance < band.inner);
-  const speedScale = currentDanger > 1000 || tooClose || target.kind === "camp" || target.kind === "safe-zone" || target.kind === "explore"
+  const speedScale = currentDanger > 1000 || tooClose || target.hurry || target.kind === "camp" || target.kind === "safe-zone" || target.kind === "explore"
     ? 1 : Math.max(.22, Math.min(1, currentGoalError / 82));
   memory.headingKey = progressKey;
   memory.heading = Math.hypot(direction.x, direction.y) > .5 ? { x: direction.x, y: direction.y } : memory.heading;
@@ -563,7 +748,7 @@ export function decideMudflatSupervisorMove(state) {
     targetDistance,
     desiredDistance: target.desiredDistance,
     danger: currentDanger,
-    urgent: tooClose,
+    urgent: tooClose || Boolean(target.hurry),
     released,
   };
 }
@@ -578,10 +763,25 @@ export function maintainMudflatSupervisorCampaign(campaign) {
   let hp = Math.max(1, Number(campaign.hp ?? 1));
   let maxHp = Math.max(1, Number(campaign.maxHp ?? 1));
   const equipment = { ...(campaign.equipment ?? {}) };
+  let levels = campaign.levels;
+  let pendingSkillDiscovery = campaign.pendingSkillDiscovery;
 
   if (hp < maxHp * .72 && coins >= FULL_HEAL_PRICE) {
     coins -= FULL_HEAL_PRICE;
     hp = maxHp;
+  }
+
+  // 집게 훈련을 장비보다 먼저 산다: 쫓아오는 복어를 물러나며 잡는 속도가 집게 레벨에 달려 있다(회복 값은 남긴다).
+  if (campaign.mode === "normal" && levels) {
+    const tongs = MUDFLAT_GENERAL_UPGRADES.find((item) => item.id === "tongs");
+    const cap = Math.min(tongs?.max ?? 0, TONG_TRAINING_TARGET_LEVEL);
+    while ((levels.tongs ?? 0) > 0 && levels.tongs < cap && coins >= mudflatTrainingPrice(levels.tongs) + FULL_HEAL_PRICE) {
+      const before = mudflatAdvancedSkillUnlocks(levels);
+      coins -= mudflatTrainingPrice(levels.tongs);
+      levels = { ...levels, tongs: levels.tongs + 1 };
+      const after = mudflatAdvancedSkillUnlocks(levels);
+      if ((!before.electric && after.electric) || (!before.castNet && after.castNet)) pendingSkillDiscovery = true;
+    }
   }
 
   let upgradesBought = 0;
@@ -606,7 +806,7 @@ export function maintainMudflatSupervisorCampaign(campaign) {
     coins -= MOSQUITO_REPELLENT_PRICE;
   }
 
-  const stats = mudflatEquipmentStats(equipment, campaign.baseMaxHp, campaign.mode === "normal" ? campaign.levels?.snack : 0);
+  const stats = mudflatEquipmentStats(equipment, campaign.baseMaxHp, campaign.mode === "normal" ? levels?.snack : 0);
   if (stats.maxHp > maxHp) hp += stats.maxHp - maxHp;
   maxHp = stats.maxHp;
   if (hp < maxHp && coins >= FULL_HEAL_PRICE) {
@@ -614,5 +814,8 @@ export function maintainMudflatSupervisorCampaign(campaign) {
     hp = maxHp;
   }
 
-  return { ...campaign, coins, hp: Math.min(maxHp, hp), maxHp, equipment };
+  return {
+    ...campaign, coins, hp: Math.min(maxHp, hp), maxHp, equipment,
+    ...(levels === campaign.levels ? {} : { levels, pendingSkillDiscovery }),
+  };
 }
