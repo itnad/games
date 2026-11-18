@@ -18,7 +18,7 @@ import { HARVEST_PULSE_SECONDS, drawHarvestPulse, drawSaltSpirit, saltSpiritPose
 import { EXPERIENCE_FLASH_SECONDS, createExperiencePickup, advanceExperiencePickup } from "./mudflat-experience.js";
 import { createMudflatSeed, nextMudflatRandom, normalizeMudflatSeed } from "./mudflat-rng.js";
 import { deepMudPatchesInView, deepMudStrengthAtPoint, randomDeepMudPointNear, traceDeepMudBlobPath, traceMudflatSurfacePatch, worldHash } from "./mudflat-terrain";
-import { MUDFLAT_SUPERVISOR_DECISION_SECONDS, decideMudflatSupervisorMove, maintainMudflatSupervisorCampaign, mudflatSupervisorCanDig } from "./mudflat-supervisor.js";
+import { MUDFLAT_SUPERVISOR_DECISION_SECONDS, createMudflatSupervisorMemory, decideMudflatSupervisorMove, maintainMudflatSupervisorCampaign, mudflatSupervisorCanDig } from "./mudflat-supervisor.js";
 import { MUDFLAT_SUPERVISOR_LOG_KEY, appendMudflatSupervisorLog, createMudflatSupervisorLog, serializeMudflatSupervisorLog } from "./mudflat-supervisor-log.js";
 import { roundedRect, wrapCanvasText } from "./mudflat-canvas-utils";
 import type { Campaign, CountMap, CreatureMovement, GameMode, Point, Screen, StageProfile } from "./mudflat-survivor-types";
@@ -217,6 +217,8 @@ type SupervisorDecisionState = {
   targetId: number | null; targetLockUntil: number; targetDistance: number;
   desiredDistance: number; danger: number; targetPoint: Point | null;
   flipWindowStarted: number; flipCount: number; lastMovementWarningAt: number;
+  // 감독 AI의 판단 사이 기억(계획한 경로, 진전 기록, 잠시 포기한 목표, 추격 중인 게의 체력 기록).
+  memory: ReturnType<typeof createMudflatSupervisorMemory>;
 };
 
 const createSupervisorDecisionState = (): SupervisorDecisionState => ({
@@ -225,6 +227,7 @@ const createSupervisorDecisionState = (): SupervisorDecisionState => ({
   targetId: null, targetLockUntil: 0, targetDistance: Infinity,
   desiredDistance: 0, danger: 0, targetPoint: null,
   flipWindowStarted: 0, flipCount: 0, lastMovementWarningAt: -Infinity,
+  memory: createMudflatSupervisorMemory(),
 });
 
 function applyClamHarvestReward(
@@ -2799,6 +2802,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             pickupRadius: 50 + (runtime.levels.basket ?? 0) * 24 + (runtime.equipment.cooler ?? 0) * 12,
             rockerLevel: runtime.levels.rocker ?? 0,
             rockReach: mudflatTongStats(runtime.levels.tongs ?? 1).reach,
+            // 일반 게는 지금 집게가 실제로 닿는 거리 구간에서 잡는다(집게가 없는 모드는 0: 예전 고정 거리).
+            tongReach: runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).reach : 0,
+            tongRotationSpeed: mudflatTongStats(runtime.levels.tongs ?? 1).rotationSpeed,
+            memory: decisionState.memory,
             activeRockId: runtime.rockFlipEffect?.rockId,
             lockedTargetKind: runtime.elapsed < decisionState.targetLockUntil ? decisionState.targetKind : null,
             lockedTargetId: runtime.elapsed < decisionState.targetLockUntil ? decisionState.targetId : null,
@@ -2811,6 +2818,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             terrainRisk: (point: Point) => deepMudStrengthAtPoint(point, runtime.stage).strength
               + (stageProfile.waterChannels && mudflatInWaterChannel(point.x, point.y, runtime.stage) ? .65 : 0),
           });
+          for (const item of decision.released ?? []) {
+            const reason = item.reason === "unreachable" ? "도달 경로 없음"
+              : item.reason === "no-progress" ? "진전 없음"
+                : item.reason === "hp-stall" ? "체력이 줄지 않음" : "추격 거리 초과";
+            appendSupervisorEvent("target-released", `${item.kind} ${item.id ?? "-"} · ${reason}`, runtime);
+          }
           const previousIntent = decisionState.intent;
           const previousTargetKind = decisionState.targetKind;
           const previousTargetId = decisionState.targetId;
@@ -2838,7 +2851,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           decisionState.rawX = decision.x;
           decisionState.rawY = decision.y;
           const stopForAction = rawMagnitude <= .05;
-          const emergencyMove = decision.danger > 1000 || ["camp", "safe-zone", "seafood-search"].includes(decision.targetKind);
+          // 게가 집게 거리보다 가까이 들어와 물러날 때도 섞지 않고 바로 최대 속도로 움직인다.
+          const emergencyMove = decision.danger > 1000 || Boolean(decision.urgent) || ["camp", "safe-zone", "seafood-search"].includes(decision.targetKind);
           if (stopForAction || emergencyMove) {
             decisionState.x = decision.x;
             decisionState.y = decision.y;

@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createMudflatSupervisorMemory,
   decideMudflatSupervisorMove,
   maintainMudflatSupervisorCampaign,
+  mudflatSupervisorAttackBand,
   mudflatSupervisorCanDig,
 } from "../app/mudflat-supervisor.js";
 import {
@@ -267,6 +269,235 @@ test("감독 AI는 여러 게가 접근해도 가장 가까운 충돌 경로를 
   }
 
   assert.ok(minimumDistance > crabs[0].size + 17, `expected no multi-crab contact, minimum distance was ${minimumDistance}`);
+});
+
+/**
+ * 실제 원정의 프레임 흐름을 흉내 낸다: 0.16초마다 판단하고, 급한 이동·정지는 바로, 그 밖에는 38%씩 섞어 입력에 반영하며,
+ * 매 프레임(1/60초) 초당 155px로 움직인다. 목표 고정(구멍 14초, 바위 10초, 생물 4초, 경험치 2.5초)도 게임과 같다.
+ * onFrame(world, dt)가 true를 돌려주면 멈춘다.
+ */
+function simulateSupervisor({ seconds, player, build, onFrame }) {
+  const memory = createMudflatSupervisorMemory();
+  const world = { player: { ...player }, elapsed: 0, decision: { x: 0, y: 0, targetKind: "explore", targetId: null }, input: { x: 0, y: 0 }, flips: 0, released: [], moving: true };
+  let clock = 0;
+  let lockKind = null;
+  let lockId = null;
+  let lockUntil = 0;
+  let raw = { x: 0, y: 0 };
+  const dt = 1 / 60;
+  for (let frame = 0; frame < seconds * 60; frame += 1) {
+    world.elapsed = frame * dt;
+    clock -= dt;
+    if (clock <= 0) {
+      const locked = world.elapsed < lockUntil;
+      const decision = decideMudflatSupervisorMove(scene({
+        ...build(world),
+        elapsed: world.elapsed,
+        player: world.player,
+        memory,
+        lockedTargetKind: locked ? lockKind : null,
+        lockedTargetId: locked ? lockId : null,
+      }));
+      const same = decision.targetKind === world.decision.targetKind && decision.targetId === world.decision.targetId;
+      const before = Math.hypot(raw.x, raw.y);
+      const after = Math.hypot(decision.x, decision.y);
+      if (same && before > .35 && after > .35 && (raw.x * decision.x + raw.y * decision.y) / (before * after) < -.25) world.flips += 1;
+      raw = { x: decision.x, y: decision.y };
+      if (after <= .05 || decision.urgent || decision.danger > 1000) world.input = { x: decision.x, y: decision.y };
+      else {
+        world.input = { x: world.input.x * .62 + decision.x * .38, y: world.input.y * .62 + decision.y * .38 };
+        const length = Math.hypot(world.input.x, world.input.y);
+        if (length > 1) world.input = { x: world.input.x / length, y: world.input.y / length };
+      }
+      if (!same) {
+        lockKind = decision.targetKind;
+        lockId = decision.targetId;
+        lockUntil = world.elapsed + ({ clam: 14, rock: 10, creature: 4, pickup: 2.5 }[decision.targetKind] ?? 0);
+      }
+      world.released.push(...(decision.released ?? []));
+      world.decision = decision;
+      clock = .16;
+    }
+    if (world.moving) world.player = { x: world.player.x + world.input.x * 155 * dt, y: world.player.y + world.input.y * 155 * dt };
+    if (onFrame(world, dt)) break;
+  }
+  return world;
+}
+
+test("감독 AI는 추격해 오는 게를 집게가 닿는 거리에 세워 두고 실제로 때려 잡는다", () => {
+  // 집게 끝은 몸에서 84px 떨어진 원을 초당 1.55rad로 돌고, 끝이 게 크기 + 10 안에 들면 5.5 피해를 준다(실제 원정 규칙).
+  const crab = { id: 91, x: 190, y: 30, hp: 20, xp: 2, score: 15, size: 13, name: "칠게", saltHit: 0 };
+  let hits = 0;
+  let minimumDistance = Infinity;
+  let heldStill = 0;
+  const world = simulateSupervisor({
+    seconds: 60,
+    player: { x: 0, y: 0 },
+    build: () => ({ creatures: crab.hp > 0 ? [crab] : [], tongReach: 84, tongRotationSpeed: 1.55 }),
+    onFrame: (state, dt) => {
+      const dx = state.player.x - crab.x;
+      const dy = state.player.y - crab.y;
+      const range = Math.hypot(dx, dy) || 1;
+      crab.x += dx / range * 38 * dt;
+      crab.y += dy / range * 38 * dt;
+      minimumDistance = Math.min(minimumDistance, Math.hypot(state.player.x - crab.x, state.player.y - crab.y));
+      const band = mudflatSupervisorAttackBand(crab, 84);
+      if (range >= band.inner && range <= band.outer && Math.hypot(state.input.x, state.input.y) <= .05) heldStill += dt;
+      const angle = state.elapsed * 1.55;
+      const tip = { x: state.player.x + Math.cos(angle) * 84, y: state.player.y + Math.sin(angle) * 84 };
+      crab.saltHit = Math.max(0, crab.saltHit - dt);
+      if (crab.saltHit <= 0 && Math.hypot(crab.x - tip.x, crab.y - tip.y) < crab.size + 10) {
+        crab.hp -= 5.5;
+        crab.saltHit = .22;
+        hits += 1;
+      }
+      return crab.hp <= 0;
+    },
+  });
+
+  assert.ok(crab.hp <= 0, `게를 잡지 못했다: 체력 ${crab.hp}, 타격 ${hits}회, ${world.elapsed.toFixed(1)}초`);
+  assert.ok(hits >= 4, `타격 ${hits}회`);
+  assert.ok(minimumDistance > crab.size + 17, `접촉 피해 거리 안으로 들어갔다: ${minimumDistance}`);
+  assert.ok(heldStill > 1, `공격 거리에서 서 있던 시간 ${heldStill.toFixed(2)}초`);
+  assert.deepEqual(world.released, [], "잡는 동안 목표를 포기하지 않는다");
+});
+
+test("감독 AI는 게가 집게 거리보다 가까이 오면 최대 속도로 물러나고, 집게가 닿는 구간에서는 선다", () => {
+  const band = mudflatSupervisorAttackBand({ size: 13 }, 84);
+  assert.ok(band.inner > 13 + 17 && band.inner >= 84 - 23 && band.outer <= 84 + 23, JSON.stringify(band));
+  for (const range of [band.inner + 1, 84, band.outer - 1]) {
+    const hold = decideMudflatSupervisorMove(scene({ creatures: [{ id: 14, x: range, y: 0, hp: 20, xp: 2, score: 15, size: 13, name: "칠게" }] }));
+    assert.deepEqual({ x: hold.x, y: hold.y }, { x: 0, y: 0 }, `${range}px에서 서야 한다`);
+  }
+  const retreat = decideMudflatSupervisorMove(scene({ creatures: [{ id: 14, x: band.inner - 8, y: 0, hp: 20, xp: 2, score: 15, size: 13, name: "칠게" }] }));
+  assert.ok(retreat.x < -.95 && retreat.urgent, `최대 속도로 물러나야 한다 ${JSON.stringify(retreat)}`);
+  // 큰 게는 접촉 반경이 커서 구간 안쪽 끝도 그만큼 바깥이다.
+  const big = mudflatSupervisorAttackBand({ size: 40 }, 84);
+  assert.ok(big.inner >= 40 + 17 + 16 && big.outer > big.inner, JSON.stringify(big));
+});
+
+test("감독 AI는 복어와 보스에게는 예전처럼 132px 거리를 지킨다", () => {
+  for (const creature of [{ type: "pufferfish", name: "복어" }, { boss: true, name: "대왕게" }]) {
+    const base = { id: 15, y: 0, hp: 80, xp: 9, score: 90, size: 20, ...creature };
+    const hold = decideMudflatSupervisorMove(scene({ creatures: [{ ...base, x: 132 }] }));
+    assert.equal(hold.desiredDistance, 132);
+    assert.deepEqual({ x: hold.x, y: hold.y }, { x: 0, y: 0 });
+    const close = decideMudflatSupervisorMove(scene({ creatures: [{ ...base, x: 90 }] }));
+    assert.ok(close.x < 0, `가까우면 물러난다 ${JSON.stringify(close)}`);
+    const far = decideMudflatSupervisorMove(scene({ creatures: [{ ...base, x: 240 }] }));
+    assert.ok(far.x > 0, `멀면 다가간다 ${JSON.stringify(far)}`);
+  }
+});
+
+test("감독 AI는 체력이 줄지 않는 게와 너무 멀리 끌고 가는 게를 포기하고 잠시 고르지 않는다", () => {
+  // 맞지 않는 게: 집게가 두 바퀴 반 도는 동안(10초 남짓) 체력이 그대로면 포기한다.
+  const tough = { id: 16, x: 84, y: 0, hp: 20, xp: 2, score: 15, size: 13, name: "칠게" };
+  const stalled = simulateSupervisor({
+    seconds: 14, player: { x: 0, y: 0 },
+    build: () => ({ creatures: [tough], tongReach: 84, tongRotationSpeed: 1.55 }),
+    onFrame: (state) => state.released.length > 0,
+  });
+  assert.deepEqual(stalled.released, [{ kind: "creature", id: 16, reason: "hp-stall" }]);
+  assert.ok(stalled.elapsed > 9 && stalled.elapsed < 12, `포기한 때 ${stalled.elapsed}`);
+  assert.notEqual(stalled.decision.targetId, 16, "포기한 게를 바로 다시 고르지 않는다");
+
+  // 달아나는 게: 처음 자리에서 520px 넘게 끌려가면 포기한다.
+  const runner = { id: 17, x: 120, y: 0, hp: 20, xp: 2, score: 15, size: 13, name: "칠게" };
+  const dragged = simulateSupervisor({
+    seconds: 30, player: { x: 0, y: 0 },
+    build: () => ({ creatures: [runner], tongReach: 84, tongRotationSpeed: 1.55 }),
+    onFrame: (state, dt) => {
+      runner.x += 150 * dt;
+      runner.hp -= dt * .2;
+      return state.released.length > 0;
+    },
+  });
+  assert.deepEqual(dragged.released, [{ kind: "creature", id: 17, reason: "chase-too-far" }]);
+  assert.ok(Math.hypot(dragged.player.x, dragged.player.y) < 560, `끌려간 거리 ${Math.hypot(dragged.player.x, dragged.player.y)}`);
+});
+
+test("감독 AI는 바위 벽을 돌아 조개구멍에 닿아 호미질을 끝낸다(방향을 뒤집거나 서지 않는다)", () => {
+  // 플레이어와 구멍 사이를 바위 다섯이 가로막는다. 곧장 가면 바위에 부딪히므로 위나 아래로 돌아가야 한다.
+  const rocks = [-80, -40, 0, 40, 80].map((y, index) => ({ id: 200 + index, x: 150, y, radius: 24 }));
+  const hole = { id: 210, x: 300, y: 0, kind: "clam", progress: 0 };
+  let touchedRock = false;
+  let stalledSeconds = 0;
+  let finishedAt = null;
+  const world = simulateSupervisor({
+    seconds: 30, player: { x: 0, y: 0 },
+    build: () => ({ rocks, clamHoles: [hole], elapsed: 0 }),
+    onFrame: (state, dt) => {
+      if (rocks.some((rock) => Math.hypot(rock.x - state.player.x, rock.y - state.player.y) < rock.radius + 16)) touchedRock = true;
+      const range = Math.hypot(state.player.x - hole.x, state.player.y - hole.y);
+      const still = Math.hypot(state.input.x, state.input.y) <= .05;
+      if (still && range > 48) stalledSeconds += dt;
+      if (mudflatSupervisorCanDig({ targetKind: state.decision.targetKind, x: state.input.x, y: state.input.y }) && range <= 48) hole.progress += dt;
+      else hole.progress = 0;
+      if (hole.progress >= 2) { finishedAt = state.elapsed; return true; }
+      return false;
+    },
+  });
+
+  assert.ok(finishedAt !== null, `호미질을 끝내지 못했다: 위치 ${JSON.stringify(world.player)}, 목표 ${world.decision.targetKind}`);
+  assert.ok(finishedAt < 12, `걸린 시간 ${finishedAt}`);
+  assert.equal(touchedRock, false, "바위에 닿지 않는다");
+  assert.ok(world.flips <= 1, `같은 목표에서 방향 급반전 ${world.flips}회`);
+  assert.ok(stalledSeconds < .5, `가는 길에 멈춰 있던 시간 ${stalledSeconds.toFixed(2)}초`);
+  assert.deepEqual(world.released, []);
+});
+
+test("감독 AI는 바위에 둘러싸여 닿을 수 없는 구멍을 잠시 블랙리스트에 올리고 다른 구멍으로 간다", () => {
+  // 구멍 A는 반지름 88px의 바위 고리 안에 있어 들어갈 틈이 없다. 구멍 B는 열려 있다.
+  const ring = Array.from({ length: 12 }, (_, index) => ({ id: 300 + index, x: 260 + Math.cos(index / 12 * Math.PI * 2) * 88, y: Math.sin(index / 12 * Math.PI * 2) * 88, radius: 24 }));
+  const closed = { id: 320, x: 260, y: 0, kind: "clam", progress: 0 };
+  const open = { id: 321, x: -40, y: 330, kind: "clam", progress: 0 };
+  const memory = createMudflatSupervisorMemory();
+  const decision = decideMudflatSupervisorMove(scene({ elapsed: 1, memory, rocks: ring, clamHoles: [closed, open] }));
+
+  assert.deepEqual(decision.released, [{ kind: "clam", id: 320, reason: "unreachable" }]);
+  assert.equal(decision.targetKind, "clam");
+  assert.equal(decision.targetId, 321);
+  // 블랙리스트는 20초 뒤에 풀린다(그때 다시 도달 가능성을 따진다).
+  const later = decideMudflatSupervisorMove(scene({ elapsed: 5, memory, rocks: ring, clamHoles: [closed] }));
+  assert.notEqual(later.targetId, 320, "풀리기 전에는 고르지 않는다");
+  assert.deepEqual(later.released, []);
+  const retry = decideMudflatSupervisorMove(scene({ elapsed: 22, memory, rocks: ring, clamHoles: [closed] }));
+  assert.deepEqual(retry.released, [{ kind: "clam", id: 320, reason: "unreachable" }], "풀린 뒤 다시 따져 보고 또 올린다");
+});
+
+test("감독 AI는 이동 명령을 내도 목표에 가까워지지 않으면 그 목표를 풀고 블랙리스트에 올린다", () => {
+  const hole = { id: 330, x: 220, y: 0, kind: "clam", progress: 0 };
+  const other = { id: 331, x: -260, y: 60, kind: "clam", progress: 0 };
+  const world = simulateSupervisor({
+    seconds: 10, player: { x: 0, y: 0 },
+    build: () => ({ clamHoles: [hole, other], elapsed: 0 }),
+    // 플레이어가 어디에 걸려 움직이지 못하는 상황을 만든다.
+    onFrame: (state) => { state.moving = state.released.length > 0; return state.released.length > 0 && state.elapsed > 6; },
+  });
+
+  assert.deepEqual(world.released, [{ kind: "clam", id: 330, reason: "no-progress" }]);
+  assert.equal(world.decision.targetId, 331, "다른 구멍으로 목표를 바꾼다");
+});
+
+test("감독 AI는 호미질과 바위 뒤집기가 함께 진행되는 동안 제자리에 서서 둘 다 막지 않는다", () => {
+  const state = scene({
+    elapsed: 16,
+    rockerLevel: 1,
+    rockReach: 84,
+    activeRockId: 42,
+    rocks: [{ id: 42, x: 86, y: 0, radius: 22 }],
+    clamHoles: [{ id: 43, x: 0, y: 40, kind: "clam", progress: .8 }],
+  });
+  const decision = decideMudflatSupervisorMove(state);
+
+  assert.deepEqual({ x: decision.x, y: decision.y }, { x: 0, y: 0 }, "구멍에서 40px 떨어져 있어도 진행 중이면 움직이지 않는다");
+  assert.equal(decision.targetKind, "clam");
+  assert.equal(mudflatSupervisorCanDig(decision), true);
+  // 바위만 뒤집는 동안에도 서 있으면 호미질을 막지 않는다.
+  const flipping = decideMudflatSupervisorMove(scene({ elapsed: 16, rockerLevel: 1, rockReach: 84, activeRockId: 42, rocks: [{ id: 42, x: 72, y: 0, radius: 22 }] }));
+  assert.equal(flipping.targetKind, "rock");
+  assert.equal(mudflatSupervisorCanDig(flipping), true);
+  assert.equal(mudflatSupervisorCanDig({ targetKind: "rock", x: .6, y: 0 }), false);
 });
 
 test("해산물이 오래 보이지 않으면 조개구멍을 포기하고 들어온 방향으로 되돌아간다", () => {
