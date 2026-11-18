@@ -254,7 +254,7 @@ const GAS_HUNGRY = new Set(["lurker", "ghost", "templar", "dark", "robo", "carri
 /** 성향의 핵심 연구(순서대로): 건물이 서면 다른 지출보다 먼저 한다. */
 /** 본 적 병력에서 소형 근접 유닛(질럿·다크템플러·저글링)이 이 비율은 넘어야 파이어뱃을 뽑는다. */
 const FIREBAT_MIN_SMALL = 0.2;
-const KEY_RESEARCH = { ghost: ["lockdown", "personnelCloak"], lurker: ["lurkerAspect"] };
+const KEY_RESEARCH = { ghost: ["lockdown", "personnelCloak"], lurker: ["lurkerAspect"], templar: ["storm"] };
 // 럴커 저글링이 모으는 럴커 수와, 첫 출격 전에 기다리는 럴커 수·기다림의 끝(초).
 const LURKER_TARGET = 10;
 const LURKER_FIRST_WAVE = 4;
@@ -356,6 +356,8 @@ export function stwAiThink(state, side) {
   trackFoe(state, side, memory);
   // 지금 따르는 성향: 프로토스·저그의 테크 성향은 수비가 안정될 때까지 기본 빌드(드라군·히드라 운영)로 시작한다.
   const persona = openingPersona(state, side, memory, race, alert);
+  // 하이템플러 운영: 아카이브를 짓기 시작했는데 스톰 연구를 아직 시작하지 못한 동안(다른 연구와 템플러 생산을 미룬다).
+  const stormPending = persona === "templar" && stwOwnBuildings(state, side, "archives").length > 0 && !record.research.storm;
   // 리포트용 기록: 경계 상태로 보낸 시간과 처음 경계에 들어간 시각(판단에는 쓰지 않는다).
   if (alert) {
     memory.alertSeconds = Math.round(((memory.alertSeconds ?? 0) + settings.thinkEvery) * 10) / 10;
@@ -553,6 +555,12 @@ export function stwAiThink(state, side) {
       blocked += 1;
       continue;
     }
+    // 하이템플러 운영은 아카이브를 짓기 시작한 뒤로는 스톰 연구를 시작할 때까지 다른 연구를 미룬다.
+    // 예전에는 아카이브가 서기 직전에 발업과 지상 공격 1단계를 먼저 연구해, 아카이브가 섰을 때 가스가 88뿐이었다.
+    if (step.research && step.research !== "storm" && stormPending) {
+      blocked += 1;
+      continue;
+    }
     const check = step.build ? stwBuildCheck(state, side, step.build) : stwResearchCheck(state, side, step.research);
     // 본진 간헐천이 다 찼고 앞마당 간헐천은 앞마당을 기다리는 가스 단계는, 막힌 단계로 세지도 끝내지도 않고 앞마당이 서면 짓는다.
     if (/앞마당 기지가 서면/.test(check.reason ?? "")) continue;
@@ -608,7 +616,7 @@ export function stwAiThink(state, side) {
     // 마지막 자리는 아머리 몫이다.
   } else if (floating && stwOwnBuildings(state, side, extra).length < GATEWAY_CAP[persona]) stwCommand(state, side, { type: "build", building: extra });
   else if (FALLBACK_PRODUCER[race.id] && record.minerals > 700 && stwOwnBuildings(state, side, FALLBACK_PRODUCER[race.id]).length < FALLBACK_CAP[race.id]) stwCommand(state, side, { type: "build", building: FALLBACK_PRODUCER[race.id] });
-  if (memory.step >= order.length) {
+  if (memory.step >= order.length && !stormPending) {
     for (const research of LATE_UPGRADES[race.id]) {
       if (STW_RESEARCH[research] && stwResearchCheck(state, side, research).ok && record.gas > 200) stwCommand(state, side, { type: "research", research });
     }
@@ -775,7 +783,8 @@ export function stwAiThink(state, side) {
     // 저그 상대로는 저글링에 강한 질럿을 더 섞는다.
     if (persona === "dragoon" && stwHas(state, side, "core")) unit = index % (versusZerg ? 3 : 4) === (versusZerg ? 2 : 3) ? "zealot" : "dragoon";
     if (persona === "templar") {
-      if (stwHas(state, side, "archives")) unit = index % 3 === 0 ? "templar" : "zealot";
+      // 스톰 연구를 시작하기 전에는 템플러를 뽑지 않는다(가스 150씩 들어 스톰 값 200/200을 끝내 못 모았고, 스톰 없는 템플러는 쓸모가 없다).
+      if (stwHas(state, side, "archives") && record.research.storm) unit = index % 3 === 0 ? "templar" : "zealot";
       else if (stwHas(state, side, "core")) unit = index % 2 ? "dragoon" : "zealot";
     }
     if (persona === "rush" && stwHas(state, side, "core") && state.time > 360) unit = index % 2 ? "dragoon" : "zealot";
@@ -789,10 +798,15 @@ export function stwAiThink(state, side) {
     // 상대 병력 구성에 맞춘 대응(다크템플러·하이템플러 라인은 건드리지 않는다).
     if (counter && stwHas(state, side, "core") && (unit === "zealot" || unit === "dragoon")) {
       unit = shareOf(index, gatewayList.length, counter.zealotShare) ? "zealot" : "dragoon";
-      if (counter.storm && stwHas(state, side, "archives") && index % 4 === 3) unit = "templar";
+      if (counter.storm && stwHas(state, side, "archives") && (persona !== "templar" || record.research.storm) && index % 4 === 3) unit = "templar";
     }
     // 가스가 남고 광물이 모자라면 가스를 많이 쓰는 유닛으로.
-    if (unit === "zealot" && record.gas > 300 && record.minerals < 150 && stwHas(state, side, "core")) unit = stwHas(state, side, "archives") && persona !== "dark" ? "templar" : "dragoon";
+    // 스톰 연구를 기다리는 동안에는 드라군(광물 125)으로 바꾸지 않는다: 광물이 더 모자라 연구 값(광물 200)을 못 모았다.
+    // 가스가 스톰 값(200)을 내고도 남을 만큼(350 이상) 쌓였을 때만 광물이 적게 드는 템플러(50/150)로 바꾼다.
+    if (unit === "zealot" && record.gas > 300 && record.minerals < 150 && stwHas(state, side, "core")) {
+      if (stormPending) unit = stwHas(state, side, "archives") && record.gas >= 350 ? "templar" : "zealot";
+      else unit = stwHas(state, side, "archives") && persona !== "dark" ? "templar" : "dragoon";
+    }
     // 가스를 아끼는 중이면 가스 유닛 대신 질럿. 광물이 250 넘을 때만 바꾸면, 드라군·커세어가 가스를 계속 먹어
     // 사거리 연구(가스 100)가 13분 동안 한 번도 안 끝나고 그 뒤의 확장까지 막혔다. 30초 넘게 막힌 단계면 광물과 상관없이 바꾼다.
     const gasStarved = reserve.gas > 0 && memory.headSince !== undefined && state.time - memory.headSince > 30;

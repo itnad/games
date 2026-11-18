@@ -2673,6 +2673,24 @@ test("starswar lurkers pre-burrow at a held spot, aim at armed units, dig in clo
   assert.ok((lead.y - straggler.y) * -1 <= 5.5, `본대와의 간격 ${(straggler.y - lead.y).toFixed(1)}`);
 });
 
+test("starswar templar AI starts storm research as soon as the archives stand and builds no templar before that", () => {
+  // 예전에는 아카이브가 서기 직전에 발업·지상 공격을 먼저 연구하고 스톰 없이 템플러(가스 150)부터 뽑아,
+  // 이 경기에서는 끝까지(11분) 스톰 연구 값을 모으지 못했다.
+  const state = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "templar", enemy: "bio" } });
+  let archivesAt = null;
+  let stormAt = null;
+  let templarBeforeStorm = false;
+  while (state.status === "playing" && state.time < 560 && stormAt === null) {
+    stepStarswar(state, stwAiThink);
+    if (archivesAt === null && stwOwnBuildings(state, "player", "archives").some((building) => stwDone(building))) archivesAt = state.time;
+    if (state.sides.player.research.storm) stormAt = state.time;
+    else if (state.units.some((unit) => unit.side === "player" && unit.type === "templar")) templarBeforeStorm = true;
+  }
+  assert.ok(archivesAt !== null, "아카이브를 짓는다");
+  assert.ok(stormAt !== null && stormAt - archivesAt < 30, `아카이브가 선 뒤 30초 안에 스톰 연구를 시작한다 (아카이브 ${archivesAt}, 스톰 ${stormAt})`);
+  assert.equal(templarBeforeStorm, false, "스톰 연구 전에는 템플러를 뽑지 않는다");
+});
+
 test("starswar air units ride behind the wave and never lead it; wraith cloak needs research", () => {
   const state = quiet();
   const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 70, "attack");
