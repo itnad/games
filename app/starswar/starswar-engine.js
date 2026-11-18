@@ -3095,36 +3095,24 @@ function findTargetBand(state, attacker, minRange, maxRange, { unitsOnly = false
 }
 
 /**
- * 시즈 포격의 목표: 사거리(최소 사거리 밖) 안의 적 지상 유닛 가운데, 한 발이 주는 피해의 합이 가장 큰 유닛. 없으면 null(가까운 건물을 쏜다).
- * 피해의 합 = 목표와 범위 안 다른 적에게 실제로 들어갈 피해(크기 배율·범위 50% 반영)이고, 각 유닛의 남은 체력(이번 틱에 이미 예약된 피해를 뺀 값)을 넘지 않는다.
- * 그래서 피해가 절반만 들어가는 소형 유닛보다 대형 유닛이나 뭉친 무리를 쏘고, 다른 탱크가 이번 틱에 이미 죽인 목표는 건너뛴다. 합이 같으면 가까운 쪽.
- * 예전에는 가장 가까운 적만 쏴서 포격의 55~67%가 사거리 안의 드라군·히드라·울트라를 두고 질럿·저글링에 갔고,
- * 탱크 6대끼리의 싸움에서는 26발 중 11발이 같은 틱에 이미 죽은 목표에 들어갔다.
+ * 시즈 포격의 목표: 사거리(최소 사거리 밖) 안의 가장 가까운 적 지상 유닛. 다만 같은 틱에 다른 탱크의 포격으로 이미 죽게 된 유닛은 건너뛴다.
+ * 없으면 null(가까운 건물을 쏜다).
+ * 예전에는 건너뛰지 않아, 같은 순간에 쏘는 탱크들이 같은 적을 골라 탱크 6대끼리의 싸움에서 26발 중 11발이 이미 죽은 목표에 들어갔다.
+ * 한 발이 주는 피해의 합(크기 배율·범위 반영)이 가장 큰 유닛을 고르게도 해 봤다. 소형 유닛을 두고 드라군·히드라를 쏘게 되어
+ * 탱크 6 + 해병 12가 질럿 8·드라군 6에 전멸하던 싸움을 67% 남기고 이겼지만, AI 대전에서 테란이 너무 강해져(54판 중 5판이 테란 쪽으로,
+ * 테란 승률 75% → 89%) 가까운 적을 쏘는 방식으로 되돌렸다. 건너뛰기만 남긴 지금은 54판 승패가 그 전과 같다.
  */
 function siegeShotTarget(state, unit, siege) {
   const pending = pendingDamageOf(state);
-  const foes = state.units.filter((enemy) => enemy.side !== unit.side && enemy.hp > 0 && !isFlying(enemy) && enemy.group !== "cargo");
-  const dealt = (enemy, factor) => {
-    const left = enemy.hp + enemy.shields - (pending.get(enemy.id) ?? 0);
-    if (left <= 0) return 0;
-    return Math.min(left, stwHitDamage(state, unit, enemy).reduce((sum, amount) => sum + amount, 0) * factor);
-  };
   let best = null;
-  let bestTotal = 0;
   let bestDistance = Infinity;
-  for (const enemy of foes) {
-    if (!targetable(state, unit, enemy)) continue;
-    const d = distance(unit.x, unit.y, enemy.x, enemy.y) - enemy.radius;
-    if (d > siege.range || d < siege.minRange) continue;
-    let total = dealt(enemy, 1) * (isWorker(enemy) ? 0.5 : 1);
-    if (total <= 0) continue;
-    for (const other of foes) {
-      if (other === enemy || distance(other.x, other.y, enemy.x, enemy.y) > siege.splash.radius + other.radius * 0.5 || blockedBySwarm(state, unit, other)) continue;
-      total += dealt(other, siege.splash.factor);
-    }
-    if (total > bestTotal + 0.5 || (total > bestTotal - 0.5 && d < bestDistance)) {
+  for (const enemy of state.units) {
+    if (enemy.side === unit.side || enemy.hp <= 0 || isFlying(enemy) || enemy.group === "cargo" || !targetable(state, unit, enemy)) continue;
+    if (enemy.hp + enemy.shields <= (pending.get(enemy.id) ?? 0)) continue;
+    const d = distance(unit.x, unit.y, enemy.x, enemy.y) - enemy.radius + (isWorker(enemy) ? 3 : 0);
+    if (d > siege.range + (isWorker(enemy) ? 3 : 0) || d < siege.minRange) continue;
+    if (d < bestDistance) {
       best = enemy;
-      bestTotal = total;
       bestDistance = d;
     }
   }
@@ -3154,7 +3142,7 @@ function tankSiegeStep(state, unit, retreating, rallySlot) {
     }
     unit.targetId = target?.id ?? null;
     if (target && unit.cooldown <= 0) {
-      // 쏠 때는 가장 가까운 적이 아니라 포격 한 발이 가장 많은 피해를 주는 유닛을 고른다(siegeShotTarget).
+      // 같은 틱에 다른 탱크가 이미 죽인 유닛은 건너뛰고 그다음 가까운 유닛을 쏜다(siegeShotTarget).
       const aim = siegeShotTarget(state, unit, siege) ?? target;
       unit.targetId = aim.id;
       unit.heading = Math.atan2(aim.y - unit.y, aim.x - unit.x);

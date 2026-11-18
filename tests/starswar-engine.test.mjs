@@ -2451,8 +2451,8 @@ test("starswar air-only units wait behind the wave when there is no air to hit; 
   assert.ok(9999 - (goon.hp + goon.shields - goon.maxShields) >= 200, `그 뒤로는 드라군을 친다 ${goon.hp}`);
 });
 
-test("starswar siege tanks shell what a shot hurts most, vessels irradiate sturdy carriers, yamato waits for a pricier target, ghosts walk up to lock down", () => {
-  // 시즈 포격: 가까운 질럿(폭발형 50%)이 아니라 사거리 안의 드라군(100%)을 쏜다.
+test("starswar siege tanks do not double up on a dying target, vessels irradiate sturdy carriers, yamato waits for a pricier target, ghosts walk up to lock down", () => {
+  // 시즈 포격: 가장 가까운 적을 쏜다(피해가 더 들어가는 드라군을 고르게 했더니 AI 대전에서 테란이 너무 강해져 되돌렸다).
   const aim = quiet();
   aim.sides.player.research.siege = "done";
   const tank = stwSpawnUnitAt(aim, "player", "tank", 20, 60, "attack");
@@ -2462,19 +2462,21 @@ test("starswar siege tanks shell what a shot hurts most, vessels irradiate sturd
   for (const unit of [nearZealot, farGoon]) unit.hp = unit.maxHp = 9999;
   let shell = null;
   for (let step = 0; step < 40 && !shell; step += 1) {
+    Object.assign(nearZealot, { x: 20, y: 55 });
+    Object.assign(farGoon, { x: 20, y: 51 });
     stepStarswar(aim);
     shell = aim.effects.find((effect) => effect.kind === "shell" && effect.attackerId === tank.id) ?? null;
   }
-  assert.equal(shell?.targetId, farGoon.id, "드라군을 쏜다");
+  assert.equal(shell?.targetId, nearZealot.id, "가까운 질럿을 쏜다");
 
-  // 같은 틱에 쏘는 탱크 둘은 한 발에 죽는 목표를 겹쳐 쏘지 않는다.
+  // 같은 틱에 쏘는 탱크 둘은 한 발에 죽는 목표를 겹쳐 쏘지 않는다: 둘 다 앞의 저글링이 가장 가깝지만, 둘째 탱크는 뒤의 저글링을 쏜다.
   const spread = quiet();
   spread.sides.player.research.siege = "done";
-  const tanks = [18, 22].map((x) => stwSpawnUnitAt(spread, "player", "tank", x, 60, "attack"));
+  const tanks = [19, 21].map((x) => stwSpawnUnitAt(spread, "player", "tank", x, 60, "attack"));
   for (const unit of tanks) unit.sieged = true;
-  const lings = [16, 24].map((x) => stwSpawnUnitAt(spread, "enemy", "zergling", x, 53, "attack"));
+  const lings = [54, 49].map((y) => stwSpawnUnitAt(spread, "enemy", "zergling", 20, y, "attack"));
   for (let step = 0; step < 40 && !spread.effects.some((effect) => effect.kind === "shell"); step += 1) {
-    for (const [index, ling] of lings.entries()) if (ling.hp > 0) Object.assign(ling, { x: 16 + index * 8, y: 53 });
+    for (const [index, ling] of lings.entries()) if (ling.hp > 0) Object.assign(ling, { x: 20, y: index ? 49 : 54 });
     stepStarswar(spread);
   }
   assert.ok(lings.every((ling) => ling.hp <= 0), `첫 포격에 둘 다 잡는다 ${lings.map((ling) => ling.hp)}`);
