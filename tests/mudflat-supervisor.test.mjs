@@ -586,6 +586,21 @@ test("감독 AI는 복어가 바로 옆에서 쫓아와도 달아나지 않고 �
   assert.equal(contacts, 0);
 });
 
+test("감독 AI는 추격자가 없어도 가까운 큰 경험치를 호미질보다 먼저 줍고, 진행 중인 호미질은 끝낸다", () => {
+  const hole = { id: 73, x: 300, y: 0, kind: "clam", progress: 0 };
+  const reward = { id: 74, x: -120, y: 0, xp: 7, phase: "idle" };
+  // 예전에는 안전하면 구멍이 먼저여서, 방금 잡은 복어의 경험치를 두고 먼 구멍으로 갔다.
+  const fetch = decideMudflatSupervisorMove(scene({ pickups: [reward], clamHoles: [hole] }));
+  assert.equal(fetch.targetKind, "pickup");
+  assert.equal(fetch.intent, "잡은 경험치 회수 중");
+  // 작은 경험치(5 미만)와 240px보다 먼 경험치는 예전처럼 구멍이 먼저다.
+  assert.equal(decideMudflatSupervisorMove(scene({ pickups: [{ ...reward, xp: 3 }], clamHoles: [hole] })).targetKind, "clam");
+  assert.equal(decideMudflatSupervisorMove(scene({ pickups: [{ ...reward, x: -260 }], clamHoles: [hole] })).targetKind, "clam");
+  // 호미질이 진행 중이면 끝낸 뒤에 줍는다.
+  const digging = decideMudflatSupervisorMove(scene({ pickups: [reward], clamHoles: [{ ...hole, x: 20, progress: .8 }] }));
+  assert.equal(digging.targetKind, "clam");
+});
+
 // 남북으로 끝없이 뻗은 폭 64px 물골(3단계 물골과 같은 폭). 안에서는 이동 속도가 0.68배가 된다.
 const channelAt = (center) => (point) => Math.abs(point.x - center) < 32 ? .65 : 0;
 
@@ -627,9 +642,16 @@ test("감독 AI는 다음 복어가 닿기 전에 주울 수 있으면 방금 �
   assert.equal(grab.intent, "잡은 경험치 회수 중");
   assert.ok(grab.x < -.95 && grab.urgent, JSON.stringify(grab));
   // 경험치가 복어 쪽에 있어 주우러 가면 닿을 거리면 복어를 먼저 상대한다.
-  const risky = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 260, y: 0 })], pickups: [{ ...reward, x: 120 }], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  // (반경에 닿는 자리 76px까지 0.45초, 그동안 복어가 58px 다가와 접촉 반경까지 22px만 남는다. 35px은 남아야 한다.)
+  const risky = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 190, y: 0 })], pickups: [{ ...reward, x: 120 }], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
   assert.equal(risky.targetKind, "creature");
-  // 작은 경험치(5 미만)와 이미 끌려오는 경험치는 복어보다 먼저 줍지 않는다.
+  // 같은 경험치라도 복어가 260px 밖이면 다녀올 수 있다(섰을 때 접촉 반경까지 92px).
+  const reachable = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 260, y: 0 })], pickups: [{ ...reward, x: 120 }], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  assert.equal(reachable.targetKind, "pickup");
+  // 막 떨어져 솟아오르는 경험치도 미리 주우러 간다.
+  const rising = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 330, y: 0 })], pickups: [{ ...reward, phase: "spawn" }], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  assert.equal(rising.targetKind, "pickup");
+  // 작은 경험치(5 미만)는 주우러 가지 않는다: 게 무리 속에 남아 있어 들어가면 물러날 길이 막힌다.
   const small = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 330, y: 0 })], pickups: [{ ...reward, xp: 3 }], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
   assert.equal(small.targetKind, "creature");
   const pulled = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 330, y: 0 })], pickups: [{ ...reward, phase: "pull" }], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));

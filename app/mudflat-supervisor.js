@@ -52,7 +52,8 @@ const RETURN_TERRAIN_WEIGHT = 20;    // 귀환·대피 때의 느린 지형 벌�
 const DEFAULT_PLAYER_SPEED = 155;
 const TONG_TRAINING_TARGET_LEVEL = 3;
 const KITE_GRAB_MIN_XP = 5;          // 복어를 상대하는 사이에도 먼저 주울 만한 경험치(복어 7, 큰 게 6~10)
-const KITE_GRAB_GAP = 45;            // 주우러 간 자리에서 다음 추격자의 접촉 반경까지 남아야 하는 거리
+const KITE_GRAB_GAP = 35;            // 주우러 간 자리에서 추격자의 접촉 반경까지 남아야 하는 거리
+const KITE_GRAB_RANGE = 240;         // 큰 경험치를 주우러 가는 최대 거리
 
 const distance = (left, right) => Math.hypot(left.x - right.x, left.y - right.y);
 const normalized = (x, y) => {
@@ -209,17 +210,29 @@ function targetForState(state, memory) {
     .map((item) => ({ item, eta: (distance(state.player, item) - (item.size + CONTACT_MARGIN)) / approachSpeed(memory, item) }))
     .filter((entry) => entry.eta < KITE_ENGAGE_SECONDS)
     .sort((left, right) => left.eta - right.eta)[0];
-  // 방금 잡은 복어·큰 게의 경험치: 다음 추격자가 닿기 전에 주울 수 있으면 먼저 줍는다(물러나기만 하면 잡은 보상을 뒤에 두고 간다).
-  if (chasers.length > 0) {
+  // 큰 경험치(복어·큰 게를 잡은 보상) 먼저 줍기. 경험치는 사라지지 않고, 줍는 반경에 한 번 들어가면 끌려오기 시작해
+  // 바로 돌아서도 따라 들어온다. 그래서 반경에 닿는 자리까지만 다녀오면 되고, 그 자리에 섰을 때 모든 추격자의 접촉 반경까지
+  // KITE_GRAB_GAP 넘게 남으면 안전하다. 추격자가 없을 때도 호미질보다 먼저 줍는다(진행 중인 호미질은 끝낸다).
+  // 작은 경험치는 여기서 줍지 않는다: 게가 죽은 자리, 곧 게 무리 한가운데에 남아 있어 주우러 들어가면 복어가 왔을 때 물러날
+  // 길이 막힌다(실제 원정에서 3단계 복어 접촉이 늘었다).
+  const digging = activeHole && distance(state.player, activeHole) <= 48;
+  if (chasers.length > 0 || !digging) {
     const playerSpeed = Math.max(40, Number(state.playerSpeed) || Number(state.player.speed) || DEFAULT_PLAYER_SPEED);
     const pickupRadius = Number(state.pickupRadius) || 50;
+    const grabRange = Math.max(MIN_PICKUP_CHASE_RANGE, pickupRadius + 105, KITE_GRAB_RANGE);
     const grab = state.pickups
-      .filter((item) => item.xp >= KITE_GRAB_MIN_XP && (item.phase ?? "idle") === "idle" && allowed("pickup", item)
-        && distance(state.player, item) <= Math.max(MIN_PICKUP_CHASE_RANGE, pickupRadius + 105))
+      .filter((item) => item.xp >= KITE_GRAB_MIN_XP && ["idle", "spawn"].includes(item.phase ?? "idle") && allowed("pickup", item)
+        && distance(state.player, item) <= grabRange)
       .filter((item) => {
-        const seconds = Math.max(0, distance(state.player, item) - pickupRadius) / playerSpeed + .25;
-        return chasers.every((chaser) => distance(item, chaser) - (chaser.size + CONTACT_MARGIN)
-          - approachSpeed(memory, chaser) * seconds > KITE_GRAB_GAP);
+        const range = distance(state.player, item);
+        // 이미 줍는 반경 안이면 저절로 끌려오므로 목표로 삼지 않는다.
+        if (range < pickupRadius) return false;
+        const walk = Math.max(0, range - (pickupRadius - 6));
+        const stand = { x: state.player.x + (item.x - state.player.x) / Math.max(1, range) * walk, y: state.player.y + (item.y - state.player.y) / Math.max(1, range) * walk };
+        // 막 떨어진 경험치는 솟아오르는 동안(0.1초) 주울 수 없다.
+        const seconds = walk / playerSpeed + (item.phase === "spawn" ? .1 : 0);
+        return chasers.every((chaser) => distance(stand, chaser) - approachSpeed(memory, chaser) * seconds
+          - (chaser.size + CONTACT_MARGIN) > KITE_GRAB_GAP);
       })
       .sort((left, right) => distance(state.player, left) - distance(state.player, right))[0];
     if (grab) {
