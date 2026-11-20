@@ -2267,8 +2267,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     };
     if (supervisorRef.current) {
       const boss = runtime.creatures.find((creature) => creature.boss && creature.hp > 0);
-      const bossNote = runtime.bossCaught ? "포획" : boss ? `놓침(남은 체력 ${Math.round(boss.hp / Math.max(1, boss.maxHp) * 100)}%)` : "놓침";
-      appendSupervisorEvent("stage-clear", `${runtime.stage}단계 완료 · 채집 ${settlement.catchCount} · 잔여 체력 ${Math.floor(runtime.player.hp)} · 대왕 박하지 ${bossNote}`, runtime);
+      const bossNote = runtime.bossCaught ? "포획" : boss ? `놓침, 남은 체력 ${Math.round(boss.hp / Math.max(1, boss.maxHp) * 100)}%` : runtime.bossSpawned ? "잡았으나 수납 한도 초과" : "놓침";
+      appendSupervisorEvent("stage-clear", `${runtime.stage}단계 완료 · 채집 ${settlement.catchCount} · 잔여 체력 ${Math.floor(runtime.player.hp)} (대왕 박하지 ${bossNote})`, runtime);
       const maintained = maintainMudflatSupervisorCampaign(next) as Campaign;
       campaignRef.current = maintained;
       setCampaign(maintained);

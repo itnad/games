@@ -994,21 +994,32 @@ test("감독 AI는 집게 회전에 맞춰 대왕 박하지 둘레를 돌아 귀
   assert.ok(hopeless.hp > 2000, `그만둔 뒤에는 때리지 않는다 ${hopeless.hp}`);
 });
 
-test("감독 AI는 귀환 알림 뒤에는 돌아갈 시간이 남고 곧 끝낼 수 있을 때만 대왕 박하지를 마저 잡는다", () => {
-  const fight = (hp) => {
-    const memory = createMudflatSupervisorMemory();
-    memory.boss = { id: 90, hp, engaged: 20, at: 230.84, startHp: 483 };
-    return memory;
-  };
-  const late = (overrides) => scene({ elapsed: 231, baseCampGuideShown: true, baseCamp: { x: -600, y: 0 }, tongReach: 84, playerSpeed: 155, ...overrides });
-  // 초당 23씩 깎아 왔고 체력 20이 남았다. 캠프까지 600px(넉넉히 6.7초): 233.3초까지는 남을 수 있다.
-  assert.equal(decideMudflatSupervisorMove(late({ creatures: [bossAt(84, 0, { hp: 20 })], memory: fight(20) })).targetId, 90);
-  // 체력이 많이 남았으면 바로 돌아간다.
-  assert.equal(decideMudflatSupervisorMove(late({ creatures: [bossAt(84, 0, { hp: 200 })], memory: fight(200) })).targetKind, "camp");
-  // 캠프가 멀면(1,200px) 남지 않는다.
-  assert.equal(decideMudflatSupervisorMove(late({ creatures: [bossAt(84, 0, { hp: 20 })], memory: fight(20), baseCamp: { x: -1200, y: 0 } })).targetKind, "camp");
-  // 상대해 본 적이 없는 보스 때문에 귀환을 미루지 않는다.
-  assert.equal(decideMudflatSupervisorMove(late({ creatures: [bossAt(84, 0, { hp: 20 })], memory: createMudflatSupervisorMemory() })).targetKind, "camp");
+test("감독 AI는 귀환 알림이 뜨면 거의 다 잡은 대왕 박하지도 두고 돌아간다", () => {
+  // 알림 뒤에 마저 잡게 했을 때는, 보스 곁에 몰린 게 수십 마리를 돌아 나오느라 240초를 넘겨 밀물에 쓰러졌다.
+  const memory = createMudflatSupervisorMemory();
+  memory.boss = { id: 90, hp: 20, engaged: 20, at: 229.84, startHp: 483 };
+  const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 230.1, baseCampGuideShown: true, baseCamp: { x: -600, y: 0 }, tongReach: 84, playerSpeed: 155,
+    creatures: [bossAt(84, 0, { hp: 20 })], memory,
+  }));
+  assert.equal(decision.targetKind, "camp");
+  assert.ok(decision.x < -.9, JSON.stringify(decision));
+});
+
+test("감독 AI는 귀환 시간이 빠듯하면 게 무리를 돌아가지 않고 접촉 반경만 피해 곧장 캠프로 간다", () => {
+  // 캠프는 서쪽 320px, 그 사이에 게 두 마리가 90px 간격으로 서 있다(사이 통로는 접촉 반경 바깥).
+  const wall = [chaseCrab({ id: 370, x: -70, y: 45, speed: 0, movement: "wander" }), chaseCrab({ id: 371, x: -70, y: -45, speed: 0, movement: "wander" })];
+  const back = (elapsed) => decideMudflatSupervisorMove(scene({ elapsed, baseCampGuideShown: true, baseCamp: { x: -320, y: 0 }, creatures: wall, playerSpeed: 155 }));
+  // 여유가 넉넉하면(231초: 9초 남고 2초 거리) 무리 벌점 때문에 사이로 지나가지 않는다.
+  const calm = back(231);
+  assert.equal(calm.targetKind, "camp");
+  assert.ok(calm.x > -.95, `넉넉할 때는 돌아간다 ${JSON.stringify(calm)}`);
+  // 빠듯하면(236초: 4초 남고 2초 거리, 여유 3초 미만) 사이로 곧장 간다.
+  const rushed = back(236);
+  assert.ok(rushed.x < -.95 && Math.abs(rushed.y) < .2, `빠듯할 때는 곧장 간다 ${JSON.stringify(rushed)}`);
+  // 그래도 접촉 반경 안으로는 들어가지 않는다: 게가 길 한가운데 있으면 비켜 간다.
+  const blocked = decideMudflatSupervisorMove(scene({ elapsed: 236, baseCampGuideShown: true, baseCamp: { x: -320, y: 0 }, creatures: [chaseCrab({ id: 372, x: -45, y: 0, speed: 0, movement: "wander" })], playerSpeed: 155 }));
+  assert.ok(Math.abs(blocked.y) > .25, JSON.stringify(blocked));
 });
 
 test("자동 정비는 원본을 바꾸지 않고 체력 회복과 장비 구매를 수행한다", () => {

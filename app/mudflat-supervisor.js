@@ -69,8 +69,8 @@ const BOSS_SYNC_GAIN = 2.5;          // 집게가 보스 위에 있을 때, 중�
 const BOSS_GIVE_UP_SECONDS = 9;      // 이만큼 상대해 본 뒤, 돌아가야 할 때까지 잡을 속도가 안 나오면 그만둔다
 const BOSS_GIVE_UP_RATIO = 1.8;      // 남은 체력이 "지금 속도 × 남은 시간"의 이 배수를 넘으면 가망 없음
 const BOSS_MIN_HP_RATIO = .3;        // 내 체력이 이 비율 아래면 대왕 박하지를 상대하지 않는다
-const BOSS_RETURN_PACE = 1.35;       // 귀환에 드는 시간은 직선 거리 ÷ 속도의 이 배수로 넉넉히 잡는다
-const BOSS_RETURN_SPARE = 1.5;       // 거기에 더 남겨 두는 시간(초)
+const BOSS_DEADLINE = MUDFLAT_RUN_SECONDS - MUDFLAT_RETURN_GUIDE_SECONDS; // 귀환 알림이 뜨면 대왕 박하지를 두고 돌아간다
+const CAMP_RUSH_SLACK = 3;           // 밀물까지 남은 시간에서 직선 귀환 시간을 뺀 여유가 이보다 적으면 게를 스치며 곧장 간다
 
 const distance = (left, right) => Math.hypot(left.x - right.x, left.y - right.y);
 const normalized = (x, y) => {
@@ -140,22 +140,19 @@ function targetForState(state, memory) {
   const pursuerIds = new Set(state.creatures
     .filter((item) => liveCreature(item) && isHighRisk(item) && approachSpeed(memory, item) >= KITE_MIN_APPROACH)
     .map((item) => item.id));
-  // 대왕 박하지를 상대할 수 있는 마지막 시각: 귀환 알림(230초) 뒤에도, 캠프까지 넉넉히 돌아갈 시간이 남는 동안은 마저 잡는다.
-  // 캠프 자리는 알림이 뜰 때 정해지므로 그 전에는 보통 거리(약 740px)로 어림한다. 밀물(240초)이 시작되면 이동 속도가 0.2배가 된다.
-  const returnSpeed = Math.max(40, Number(state.playerSpeed) || Number(state.player.speed) || DEFAULT_PLAYER_SPEED);
-  const bossDeadline = state.baseCampGuideShown && state.baseCamp
-    ? MUDFLAT_RUN_SECONDS - (distance(state.player, state.baseCamp) / returnSpeed * BOSS_RETURN_PACE + BOSS_RETURN_SPARE)
-    : MUDFLAT_RUN_SECONDS - MUDFLAT_RETURN_GUIDE_SECONDS + 1.5;
-  const finishingBoss = () => {
-    const fight = memory.boss;
-    const boss = fight ? state.creatures.find((item) => item.id === fight.id && liveCreature(item)) : null;
-    if (!boss || !(fight.engaged >= 3) || memory.blocked.has(targetKey("creature", boss))) return false;
-    // 지금까지 잰 속도로 남은 시간 안에 끝낼 수 있을 때만 남는다.
-    const rate = Math.max(0, fight.startHp - boss.hp) / fight.engaged;
-    return boss.hp <= rate * (bossDeadline - state.elapsed);
-  };
-  const campTarget = { kind: "camp", point: state.baseCamp, intent: "베이스캠프로 귀환 중", desiredDistance: 0, kiteIds: pursuerIds, terrainWeight: RETURN_TERRAIN_WEIGHT };
-  if (state.baseCampGuideShown && !finishingBoss()) return campTarget;
+  // 귀환: 알림이 뜨면 하던 일(대왕 박하지 포함)을 두고 돌아간다. 알림 뒤에 보스를 마저 잡게 했을 때는, 보스 곁에 몰린 게
+  // 수십 마리를 돌아 나오느라 240초를 넘겨 밀물에 쓰러졌다(밀물이 시작되면 이동 속도가 0.2배가 된다).
+  if (state.baseCampGuideShown) {
+    const returnSpeed = Math.max(40, Number(state.playerSpeed) || Number(state.player.speed) || DEFAULT_PLAYER_SPEED);
+    const slack = MUDFLAT_RUN_SECONDS - state.elapsed - distance(state.player, state.baseCamp) / returnSpeed;
+    // 여유가 줄면 서두른다: 일반 게는 접촉 반경 바로 바깥만 피하고(무리 벌점과 우회 경로 비용을 걷어낸다) 곧장 캠프로 간다.
+    // 게에 한두 번 닿는 피해보다 밀물을 맞는 피해가 훨씬 크다.
+    const rush = slack < CAMP_RUSH_SLACK;
+    return {
+      kind: "camp", point: state.baseCamp, intent: "베이스캠프로 귀환 중", desiredDistance: 0, kiteIds: pursuerIds, terrainWeight: RETURN_TERRAIN_WEIGHT,
+      ...(rush ? { rush: true, crowdSoft: { range: 10, weight: 4 } } : {}),
+    };
+  }
   if (state.secondsToTide <= 5.2 && state.safeZone) {
     return { kind: "safe-zone", point: state.safeZone, intent: "돌발 물살 대피 중", desiredDistance: 18, kiteIds: pursuerIds, terrainWeight: RETURN_TERRAIN_WEIGHT };
   }
@@ -273,21 +270,19 @@ function targetForState(state, memory) {
   // 가만히 서서 맞히면 집게가 한 바퀴에 잠깐만 닿아 240초 안에 잡을 수 없다. 돌진 복어가 닿을 거리면 복어부터 상대한다.
   const boss = tongReach > 0 ? collectible.find((item) => item.boss) : null;
   const playerHpRatio = (Number(state.player.hp) || 0) > 0 && (Number(state.player.maxHp) || 0) > 0 ? state.player.hp / state.player.maxHp : 1;
-  if (boss && !(threat && !threat.item.boss) && state.elapsed < bossDeadline && playerHpRatio >= BOSS_MIN_HP_RATIO) {
+  if (boss && !(threat && !threat.item.boss) && state.elapsed < BOSS_DEADLINE && playerHpRatio >= BOSS_MIN_HP_RATIO) {
     const fight = memory.boss?.id === boss.id ? memory.boss : (memory.boss = { id: boss.id, hp: boss.hp, engaged: 0, at: state.elapsed, startHp: null });
     const band = mudflatSupervisorAttackBand(boss, tongReach);
     return {
       kind: "creature", point: boss, targetId: boss.id, key: targetKey("creature", boss), creature: boss, band,
       kite: true, approach: Math.max(0, approachSpeed(memory, boss)), kiteIds: new Set([...kiteIds, boss.id]), cautious: true,
-      bossFight: fight, bossDeadline, terrainWeight: 0, crowdSoft: { range: 34, weight: 5 },
+      bossFight: fight, terrainWeight: 0, crowdSoft: { range: 34, weight: 5 },
       intent: `${boss.name} 둘레를 돌며 채집 중`,
       // 집게 끝이 보스 한가운데를 지나는 거리(가장 오래 닿는다). 접촉 반경(크기 + 17)보다는 넉넉히 바깥이다.
       desiredDistance: Math.max(tongReach, band.inner + 4),
     };
   }
   if (!boss) memory.boss = null;
-  // 귀환 알림 뒤에 남는 이유는 대왕 박하지뿐이다. 상대할 수 없게 됐으면(복어가 닿을 거리 등) 바로 돌아간다.
-  if (state.baseCampGuideShown) return campTarget;
 
   // 경험치 줍기. 경험치는 사라지지 않고, 줍는 반경에 한 번 들어가면 끌려오기 시작해 바로 돌아서도 따라 들어온다.
   // 그래서 반경에 닿는 자리까지만 다녀오면 된다. 그 자리에 닿을 때까지 어떤 생물도 접촉 반경 가까이 오지 못해야 고른다:
@@ -477,11 +472,11 @@ function hazardPenalty(point, state, target, routed = false) {
     // 물러나며 상대하는 복어·보스(와 귀환·대피 때 쫓아오는 위험 생물)는 넓은 위험 벽 대신 접촉 반경 바로 바깥만 막는다.
     const kited = Boolean(target.kiteIds?.has(creature.id));
     const highRisk = !kited && (creature.uncollectible || creature.type === "pufferfish" || creature.boss);
-    const clearance = creature.size + (kited ? CONTACT_MARGIN + KITE_CONTACT_PAD : highRisk ? 104 : 25);
+    const clearance = creature.size + (kited ? CONTACT_MARGIN + KITE_CONTACT_PAD : highRisk ? 104 : target.rush ? CONTACT_MARGIN + 3 : 25);
     const gap = distance(point, creature) - clearance;
     if (gap <= 0) {
       const overlapDepth = Math.min(clearance, -gap);
-      penalty += (kited ? 9000 : highRisk ? 15500 : (isTarget ? 2200 : 6800)) + overlapDepth * (highRisk || kited ? 240 : 160);
+      penalty += (kited ? 9000 : highRisk ? 15500 : target.rush ? 1200 : (isTarget ? 2200 : 6800)) + overlapDepth * (highRisk || kited ? 240 : target.rush ? 60 : 160);
     }
     else if (kited) { if (gap < 36 && !(isTarget && target.bossFight)) penalty += (36 - gap) * 6; }
     else if (highRisk && gap < 90) penalty += (90 - gap) * 6;
@@ -550,7 +545,7 @@ function planRoute(state, target, goalRadius) {
   // 이동 중인 일반 게는 지나갈 수 있는 칸으로 두되, 가까이 스치는 경로에는 비용을 더한다.
   const crowd = new Float32Array(size);
   for (const creature of state.creatures) {
-    if (!liveCreature(creature) || isHighRisk(creature)) continue;
+    if (target.rush || !liveCreature(creature) || isHighRisk(creature)) continue;
     const reach = creature.size + 100;
     const first = toCell({ x: creature.x - reach, y: creature.y - reach });
     const last = toCell({ x: creature.x + reach, y: creature.y + reach });
@@ -775,7 +770,7 @@ export function decideMudflatSupervisorMove(state) {
     // 가망 없음: 닿는 거리에서 충분히 상대해 봤는데, 지금 속도로는 귀환 알림 전에 못 잡는다.
     if (fight.engaged >= BOSS_GIVE_UP_SECONDS) {
       const rate = Math.max(0, fight.startHp - creature.hp) / fight.engaged;
-      if (creature.hp > rate * Math.max(0, target.bossDeadline - elapsed) * BOSS_GIVE_UP_RATIO) {
+      if (creature.hp > rate * Math.max(0, BOSS_DEADLINE - elapsed) * BOSS_GIVE_UP_RATIO) {
         release(target, 90, "boss-out-of-time");
         return decideMudflatSupervisorMove({ ...state, memory, lockedTargetKind: null, lockedTargetId: null, releasedSoFar: released });
       }
@@ -789,7 +784,9 @@ export function decideMudflatSupervisorMove(state) {
     const cosine = (reach * reach + targetDistance * targetDistance - hitHalf * hitHalf) / (2 * reach * Math.max(1, targetDistance));
     const arc = Math.abs(targetDistance - reach) < hitHalf && cosine < 1 ? Math.acos(Math.max(-1, cosine)) : 0;
     let wantedSide = null;
-    if (arc > 0 && Number.isFinite(state.tongAngle) && targetDistance <= hold + 34) {
+    // 집게가 닿는 거리(끝이 보스 가장자리에 걸치는 137px까지)면 어디서든 회전을 맞춘다: 게들이 보스 곁에 몰려
+    // 84px까지 들어갈 수 없을 때도, 바깥 둘레에서 계속 때린다(실제 원정에서 마지막 6초를 다가가려다 놓쳤다).
+    if (arc > 0 && Number.isFinite(state.tongAngle)) {
       const turn = Math.PI * 2;
       const offset = ((state.tongAngle - Math.atan2(toBoss.y, toBoss.x)) % turn + turn + Math.PI) % turn - Math.PI;
       const orbit = playerSpeed / Math.max(1, targetDistance);
@@ -822,7 +819,7 @@ export function decideMudflatSupervisorMove(state) {
       let score = -Math.abs(range - hold) * 7 - (gap < 12 ? (12 - gap) * 300 : 0);
       // 닿지 않는 거리에서 서 있지 않는다: 게들이 보스 곁에 몰려 다가갈 길이 막히면, 서서 기다리는 사이 둘러싸인다.
       // 둘레를 계속 돌며 열린 쪽을 찾는다.
-      if (magnitude < 1 && targetDistance > hold + 20) score -= 220;
+      if (magnitude < 1 && !(arc > 0)) score -= 220;
       if (wantedSide !== null) score -= Math.abs((direction.x * side.x + direction.y * side.y) * speed - wantedSide) * .45;
       if (magnitude > 0) {
         score -= (1 - slowAt({ x: ahead.x + direction.x * 60, y: ahead.y + direction.y * 60 })) * KITE_SLOW_AHEAD_PENALTY;
@@ -844,7 +841,7 @@ export function decideMudflatSupervisorMove(state) {
     return {
       x: chosen.direction.x * chosen.magnitude,
       y: chosen.direction.y * chosen.magnitude,
-      intent: targetDistance > hold + 34 ? `${creature.name}에게 다가가는 중` : target.intent,
+      intent: arc > 0 ? target.intent : `${creature.name}에게 다가가는 중`,
       targetKind: target.kind,
       targetId: target.targetId ?? null,
       targetPoint: target.point,
