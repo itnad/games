@@ -1930,7 +1930,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(engineSource, /requiresHeadlamp: true/);
   assert.match(source, /function drawClamHole\(/);
   assert.match(source, /function drawClamDigging\(/);
-  assert.match(source, /GAEBUL_DIG_SECONDS = 3\.1/);
+  // 호미질 시간 상수는 감독 AI와 함께 쓰도록 mudflat-supervisor.js로 옮겨졌다(값은 그대로 3.1초). 게임은 그 값을 가져다 쓴다.
+  assert.match(await readFile(new URL("../app/mudflat-supervisor.js", import.meta.url), "utf8"), /export const GAEBUL_DIG_SECONDS = 3\.1;/);
+  assert.match(source, /import \{[^}]*\bGAEBUL_DIG_SECONDS,[^}]*\} from "\.\/mudflat-supervisor\.js";/);
+  assert.match(source, /kind === "gaebul" \? GAEBUL_DIG_SECONDS : CLAM_DIG_SECONDS/);
   assert.match(source, /kind === "gaebul" \? MUDFLAT_GAEBUL/);
   assert.match(source, /두 개의 숨구멍을 깊게 파는 중/);
   assert.match(source, /function deepMudStrengthAtPoint\(/);
