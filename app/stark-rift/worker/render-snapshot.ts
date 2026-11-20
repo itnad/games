@@ -1,3 +1,5 @@
+import {queenAutocastOf,QUEEN_AUTO_ABILITIES,type QueenAutoAbility} from "../abilities/queen-autocast-state";
+import type {InfestationState} from "../abilities/infestation-state";
 import {broodlingOf,broodlingsCooldown,BROODLING_TICKS,type BroodlingsState} from "../abilities/broodlings-state";
 import { parasiteOf,parasiteCooldown,type ParasiteState } from "../abilities/parasite-state";
 import { QUEEN,ENSNARE_TICKS,QUEEN_CAST_COOLDOWN,ensnareOf,queenCooldown,type QueenState } from "../abilities/queen-state";
@@ -35,6 +37,7 @@ import type { SimulationState } from "../core/state";
 import type { BattleMap } from "../data/maps";
 import {
   array,
+  unique,
   boolean,
   integer,
   object,
@@ -66,6 +69,7 @@ export type RenderEntity = {
   blinded?: boolean;
   ensnareTicks?:number;
   queenCooldownTicks?:number;
+  queenAutocastIds?:QueenAutoAbility[];
   medicSpellCooldownTicks?: number;
   stimTicks?: number;
   needsHealing?: boolean;
@@ -108,6 +112,7 @@ export type RenderSnapshot = {
       y: number;
     }[];
   };
+  infestationEffects?:InfestationState["effects"];
   broodlingsEffects?:BroodlingsState["effects"];
   parasiteEffects?:Omit<ParasiteState["effects"][number],"sourceId"|"targetId">[];
   queenEffects?:QueenState["effects"];
@@ -151,6 +156,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         blinded: optional(boolean),
         ensnareTicks:optional(integer(1,ENSNARE_TICKS)),
         queenCooldownTicks:optional(integer(1,QUEEN_CAST_COOLDOWN)),
+        queenAutocastIds:optional(unique(array(enumeration(QUEEN_AUTO_ABILITIES),0,4))),
         medicSpellCooldownTicks: optional(integer(1,MEDIC_SPELL_COOLDOWN)),
         stimTicks: optional(integer(1,STIM_TICKS)),
         needsHealing: optional(boolean),
@@ -178,6 +184,7 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
         projectiles: array(renderProjectileSchema, 0, 4096),
       }),
     ),
+    infestationEffects:optional(array(object({id:integer(1),owner:integer(0,1),tick:integer(),x:integer(),y:integer()}),0,128)),
     broodlingsEffects:optional(array(object({id:integer(1),owner:integer(0,1),tick:integer(),x:integer(),y:integer()}),0,128)),
     parasiteEffects:optional(array(object({id:integer(1),owner:integer(0,1),tick:integer(),x:integer(),y:integer(),toX:integer(),toY:integer()}),0,128)),
     queenEffects:optional(array(object({id:integer(1),owner:integer(0,1),tick:integer(),x:integer(),y:integer()}),0,128)),
@@ -196,7 +203,10 @@ export const renderSnapshotSchema: Schema<RenderSnapshot> = refine(
   }),
   (snapshot) =>
     snapshot.entities.every(e => e.energy === undefined ? e.maxEnergy === undefined : e.maxEnergy !== undefined && e.energy <= e.maxEnergy && supportsEnergy(e.definitionId)) &&
+    snapshot.entities.every(e=>e.queenAutocastIds===undefined||e.owner===snapshot.viewerPlayerId&&e.definitionId==="zerg-queen") &&
     snapshot.entities.every(e=>e.broodlingTicks===undefined||e.definitionId==="zerg-broodling"&&e.owner===snapshot.viewerPlayerId) &&
+    new Set((snapshot.infestationEffects??[]).map(e=>e.id)).size===(snapshot.infestationEffects??[]).length &&
+    (snapshot.infestationEffects??[]).every(e=>e.tick<=snapshot.tick&&snapshot.tick-e.tick<=20&&e.x<snapshot.widthTiles*256&&e.y<snapshot.heightTiles*256&&snapshot.visibility[Math.floor(e.y/256)*snapshot.widthTiles+Math.floor(e.x/256)]===2) &&
     new Set((snapshot.broodlingsEffects??[]).map(e=>e.id)).size===(snapshot.broodlingsEffects??[]).length &&
     (snapshot.broodlingsEffects??[]).every(e=>e.tick<=snapshot.tick&&snapshot.tick-e.tick<=20&&e.x<snapshot.widthTiles*256&&e.y<snapshot.heightTiles*256&&snapshot.visibility[Math.floor(e.y/256)*snapshot.widthTiles+Math.floor(e.x/256)]===2) &&
     snapshot.entities.every(e=>e.parasited===undefined||e.kind!=="building") &&
@@ -349,6 +359,7 @@ export function createRenderSnapshot(
       continue;
     entities.push({
       ...(state.economy.enabled ? { shield: s.shield[i] } : {}),
+      ...(s.owner[i]===viewer&&s.definitionId[i]==="zerg-queen"?{queenAutocastIds:[...(queenAutocastOf(state,s.id[i])?.abilityIds??[])]}:{}),
       ...(s.owner[i]===viewer&&broodlingOf(state,s.id[i])?{broodlingTicks:broodlingOf(state,s.id[i])!.expiresTick-state.tick}:{}),
       ...(s.kind[i]!=="building"&&parasiteOf(state,s.id[i])?{parasited:true}:{}),
       ...(s.kind[i]!=="building"&&ensnareOf(state,s.id[i])?{ensnareTicks:ensnareOf(state,s.id[i])!.expiresTick-state.tick}:{}),
@@ -393,10 +404,10 @@ export function createRenderSnapshot(
     ? {
         scenario: state.combat.scenario,
         friendlyRemaining: state.combat.friendlyIds.filter((id) =>
-          s.id.includes(id),
+          s.id.includes(id)&&s.owner[s.id.indexOf(id)]===0,
         ).length,
         targetsRemaining: state.combat.targetIds.filter((id) =>
-          s.id.includes(id),
+          s.id.includes(id)&&s.owner[s.id.indexOf(id)]===1,
         ).length,
         totalTargets: state.combat.targetIds.length,
         projectiles: state.combat.projectiles
@@ -433,6 +444,7 @@ export function createRenderSnapshot(
         }
       : {}),
     ...(combat ? { combat } : {}),
+    ...(state.infestation?{infestationEffects:state.infestation.effects.filter(e=>seen(e.x,e.y))}:{}),
     ...(state.broodlings?{broodlingsEffects:state.broodlings.effects.filter(e=>seen(e.x,e.y))}:{}),
     ...(state.parasites?{parasiteEffects:state.parasites.effects.filter(e=>seen(e.x,e.y)&&seen(e.toX,e.toY)&&[e.sourceId,e.targetId].every(id=>{const i=s.id.indexOf(id);return i<0||canSeeEntity(state,map,viewer,i,visibility);})).map(({sourceId,targetId,...e})=>e)}:{}),
     ...(state.queen?{queenEffects:state.queen.effects.filter(e=>seen(e.x,e.y)).map(e=>({...e}))}:{}),

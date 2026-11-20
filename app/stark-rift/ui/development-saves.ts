@@ -1,3 +1,4 @@
+import {infestationFitsMap} from "../abilities/infestation-state";
 import { parasitesFitMap } from "../abilities/parasite-state";
 import { queenFitsMap } from "../abilities/queen-state";
 import { medicSpellsFitMap } from "../abilities/medic-spells-state";
@@ -42,6 +43,7 @@ export class DevelopmentSaveStore {
       p.x < map.widthTiles * 256 &&
       p.y < map.heightTiles * 256;
     return (
+      infestationFitsMap(s,map) &&
       saved.dataVersion === dataVersion &&
       s.map.definitionId === map.id &&
       s.economy.enabled &&
@@ -68,7 +70,7 @@ export class DevelopmentSaveStore {
     try {
       serialized = this.storage.getItem(
         DEVELOPMENT_SAVE_PREFIX +
-          (scenario === "combat-practice"
+          (scenario === "infestation-practice" ? "infestation." : scenario === "combat-practice"
             ? "combat."
             : scenario === "ranged-practice"
               ? "ranged."
@@ -100,7 +102,7 @@ export class DevelopmentSaveStore {
     try {
       const key =
         DEVELOPMENT_SAVE_PREFIX +
-        (snapshot.simulation.combat?.scenario === "combat-practice"
+        (snapshot.simulation.combat?.scenario === "infestation-practice" ? "infestation." : snapshot.simulation.combat?.scenario === "combat-practice"
           ? "combat."
           : snapshot.simulation.combat?.scenario === "ranged-practice"
             ? "ranged."
@@ -135,6 +137,8 @@ export class DevelopmentSaveStore {
                       : version === 15 ? "stage6f-backup"
                       : version === 16 ? "stage6g-backup"
                       : version === 17 ? "stage6h-backup"
+                      : version === 25 ? "stage6p-backup"
+                      : version === 24 ? "stage6o-backup"
                       : version === 23 ? "stage6n-backup"
                       : version === 22 ? "stage6m-backup"
                       : version === 21 ? "stage6l-backup"

@@ -19,7 +19,7 @@ with sync_playwright() as pw:
    def tap(locator):
     locator.evaluate('(e)=>e.scrollIntoView({block:"end",inline:"nearest"})');box=locator.bounding_box();assert box and box['y']>=0 and box['y']+box['height']<=height,(box,height);assert locator.evaluate('(e)=>{const b=e.getBoundingClientRect();return e.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2));}');locator.tap()
    def save(label):
-    m.save(page);raw=page.evaluate('(k)=>localStorage.getItem(k)',key);saved=json.loads(raw);assert saved['formatVersion']==24;(args.output/f'{race}-{width}-{label}-save.json').write_text(raw);return saved
+    m.save(page);raw=page.evaluate('(k)=>localStorage.getItem(k)',key);saved=json.loads(raw);assert saved['formatVersion']==26;(args.output/f'{race}-{width}-{label}-save.json').write_text(raw);return saved
    def reopen(saved):
     tap(page.get_by_role('button',name='저장하고 나가기',exact=True));page.reload(wait_until='networkidle');tap(page.locator('[data-faction="'+race+'"]'));tap(page.get_by_role('button',name='특수 연습',exact=True));tap(page.get_by_role('button',name='이어서 하기',exact=True));page.wait_for_function('t=>window.__qa.ui?.phase==="paused"&&window.__qa.snapshot?.tick===t',arg=saved['simulation']['tick'])
    try:

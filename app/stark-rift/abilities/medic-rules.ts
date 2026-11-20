@@ -98,7 +98,7 @@ export function createMedicRules(map:BattleMap,base:EngineRules):EngineRules {
      const enabled=g.autocastConfiguredAbilityIds?.includes(HEALING)?g.autocastAbilityIds.includes(HEALING):true;
      for(const id of ids){const r=medicOf(s,id)!;r.autocast=enabled;if(!enabled&&!r.manual&&r.targetId!==null){clearMedicJob(r);stopMedic(s,r);}}
      g.autocastConfiguredAbilityIds=[...new Set([...(g.autocastConfiguredAbilityIds??[]),HEALING])];g.autocastAbilityIds=g.autocastAbilityIds.filter(a=>a!==HEALING);if(enabled)g.autocastAbilityIds.push(HEALING);
-    }else{g.autocastConfiguredAbilityIds=g.autocastConfiguredAbilityIds?.filter(a=>a!==HEALING);g.autocastAbilityIds=g.autocastAbilityIds.filter(a=>a!==HEALING);}
+    }else{if(g.autocastConfiguredAbilityIds)g.autocastConfiguredAbilityIds=g.autocastConfiguredAbilityIds.filter(a=>a!==HEALING);g.autocastAbilityIds=g.autocastAbilityIds.filter(a=>a!==HEALING);}
    }
   }};
  }

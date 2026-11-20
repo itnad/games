@@ -1,3 +1,6 @@
+import {QUEEN_AUTOCAST_RULES_VERSION} from "../abilities/queen-autocast-state";
+import {INFESTATION_RULES_VERSION} from "../abilities/infestation-state";
+import infestation from "../data/infestation-original.json";
 import { BROODLINGS_RULES_VERSION } from "../abilities/broodlings-state";
 import broodlings from "../data/broodlings-original.json";
 import { PARASITE_RULES_VERSION } from "../abilities/parasite-state";
@@ -58,7 +61,9 @@ export const STIM_COMBAT_RULES_VERSION="stim-combat-"+checksum({base:MEDIC_COMBA
 export const MEDIC_SPELLS_COMBAT_RULES_VERSION="medic-spells-combat-"+checksum({base:STIM_COMBAT_RULES_VERSION,spells:MEDIC_SPELL_RULES_VERSION,vision:MEDIC_SPELLS_VISION_RULES_VERSION});
 export const QUEEN_COMBAT_RULES_VERSION="queen-combat-"+checksum({base:MEDIC_SPELLS_COMBAT_RULES_VERSION,queen:QUEEN_RULES_VERSION,vision:QUEEN_VISION_RULES_VERSION});
 export const PARASITE_COMBAT_RULES_VERSION="parasite-combat-"+checksum({base:QUEEN_COMBAT_RULES_VERSION,parasite:PARASITE_RULES_VERSION,vision:VISION_RULES_VERSION});
-export const COMBAT_RULES_VERSION="broodlings-combat-"+checksum({base:PARASITE_COMBAT_RULES_VERSION,broodlings:BROODLINGS_RULES_VERSION});
+export const BROODLINGS_COMBAT_RULES_VERSION="broodlings-combat-"+checksum({base:PARASITE_COMBAT_RULES_VERSION,broodlings:BROODLINGS_RULES_VERSION});
+export const INFESTATION_COMBAT_RULES_VERSION="infestation-combat-"+checksum({base:BROODLINGS_COMBAT_RULES_VERSION,infestation:INFESTATION_RULES_VERSION});
+export const COMBAT_RULES_VERSION="queen-autocast-combat-"+checksum({base:INFESTATION_COMBAT_RULES_VERSION,autocast:QUEEN_AUTOCAST_RULES_VERSION});
 export const PREVIOUS_COMBAT_RULES_VERSION =
   "basic-1-" +
   checksum(
@@ -79,7 +84,7 @@ export const combatRecordSchema = object({
 });
 const effectFields = {
   id: integer(1), tick: integer(),
-  weaponId: optional(enumeration([...original.weapons, ...special.weapons, ...cloak.weapons, ...siege.weapons, ...lurker.weapons, ...arbiter.weapons,...broodlings.weapons].map((w) => w.name))),
+  weaponId: optional(enumeration([...original.weapons, ...special.weapons, ...cloak.weapons, ...siege.weapons, ...lurker.weapons, ...arbiter.weapons,...broodlings.weapons,...infestation.weapons].map((w) => w.name))),
   owner: integer(0, 1), x: integer(), y: integer(), toX: integer(), toY: integer(),
 };
 export const combatEffectSchema = object({ ...effectFields,
@@ -118,6 +123,7 @@ export const SCENARIOS = [
   "ranged-practice",
   "siege-practice",
   "special-practice",
+  "infestation-practice",
 ] as const;
 export const combatStateSchema = object({
   rulesVersion: literal(COMBAT_RULES_VERSION),

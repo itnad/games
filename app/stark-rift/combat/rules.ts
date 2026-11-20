@@ -1,3 +1,6 @@
+import {INFESTED_TERRAN} from "../abilities/infestation-state";
+import {initializeInfestationPractice} from "../abilities/infestation-practice";
+import {infestedSplashTargets,INFESTED_BLAST} from "./infested-splash";
 import { statusCooldown as stimulatedCooldown } from "../abilities/queen-state";
 import { isInStasis, spellLocked } from "../abilities/spells-state";
 import { advanceSpines, launchSpines } from "./lurker-waves";
@@ -65,6 +68,7 @@ export function initializeCombat(
     friendlyIds: [],
     targetIds: [],
   };
+  if(scenario==="infestation-practice"){initializeInfestationPractice(s);synchronizeCombat(s);return;}
   if (scenario === "special-practice") { initializeSpecialPractice(s); synchronizeCombat(s); return; }
   if (scenario !== "economy") {
     const race = s.players[0].faction,
@@ -470,6 +474,7 @@ export function createCombatRules(
             type: string;
             weaponId?: string;
           }[] = [];
+        const suicides:number[]=[];
         shots.push(...advanceSpines(s));
         const flying: typeof s.combat.projectiles = [];
         for (const bullet of s.combat.projectiles) {
@@ -528,6 +533,10 @@ export function createCombatRules(
           )
             continue;
           const b = targetFor(s, a, visible);
+          if(e.definitionId[a]===INFESTED_TERRAN&&(b>=0||s.infestation?.detonations.includes(e.id[a]))&&!spellLocked(s,e.id[a])&&!isEmbarked(s,e.id[a])&&!isBurrowed(s,e.id[a])){
+            for(const hit of infestedSplashTargets(s,a,e.x[a],e.y[a]))shots.push({a,b:hit.index,damage:INFESTED_BLAST.defaultWpnDamageAmt*256/hit.divisor,hits:1,type:INFESTED_BLAST.damageType,weaponId:INFESTED_BLAST.name});
+            effect(s,"impact",a,a,INFESTED_BLAST.name);suicides.push(a);continue;
+          }
           if (b < 0) continue;
           const w = weaponFor(e.definitionId[a], e.layer[b])!,
             p = combatProfile(e.definitionId[a])!;
@@ -591,9 +600,12 @@ export function createCombatRules(
             if (miss) effect(s, "miss", a, b, w.name);
           }
         }
+        for(const a of suicides)e.health[a]=0;
+        if(s.infestation)s.infestation.detonations=[];
         // Every shot is collected before damage: simultaneous lethal attacks both resolve.
         for (const shot of shots) {
           if (isInStasis(s,e.id[shot.b])) continue;
+          if(e.definitionId[shot.b]===INFESTED_TERRAN&&e.health[shot.b]===0)continue;
           const r = s.combat.records[shot.b],
             d = economyDefinition(e.definitionId[shot.b])!,
             p = combatProfile(d.id)!;

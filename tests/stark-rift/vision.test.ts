@@ -568,7 +568,7 @@ import { STARK_RIFT_PROTOCOL_VERSION } from "../../app/stark-rift/core/versions"
 import type { WorkerToMainMessage } from "../../app/stark-rift/worker/messages";
 describe("production protocol supports every selectable scenario", () => {
   for (const scenario of SCENARIOS)
-    it.each(["terran", "zerg", "protoss"] as const)(
+    it.each(scenario==="infestation-practice"?["zerg"] as const:["terran", "zerg", "protoss"] as const)(
       scenario + " %s publishes a checked initial snapshot",
       (race) => {
         const messages: WorkerToMainMessage[] = [],
@@ -587,7 +587,7 @@ describe("production protocol supports every selectable scenario", () => {
               { id: 0, faction: race, controller: "human" },
               {
                 id: 1,
-                faction: scenario === "siege-practice" ? "terran" : "zerg",
+                faction: scenario === "infestation-practice" || scenario === "siege-practice" ? "terran" : "zerg",
                 controller: "ai",
               },
             ],

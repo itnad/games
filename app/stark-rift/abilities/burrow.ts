@@ -3,7 +3,7 @@ import original from "../data/burrow-original.json";
 
 export const BURROW_ABILITY = "burrow";
 export const BURROW_RESEARCH = "burrowing";
-export const supportsBurrow = (definitionId: string) => definitionId === "zerg-lurker" || original.units.includes(definitionId);
+export const supportsBurrow = (definitionId: string) => definitionId === "zerg-lurker" || definitionId === "zerg-infested-terran" || original.units.includes(definitionId);
 export const isBurrowed = (s: SimulationState, id: number): boolean =>
   s.vision?.concealed.some((c) => c.entityId === id && c.kind === "burrow") ?? false;
 export const hasBurrowResearch = (s: SimulationState, owner: number): boolean =>
