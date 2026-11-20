@@ -19,6 +19,8 @@ import { EXPERIENCE_FLASH_SECONDS, createExperiencePickup, advanceExperiencePick
 import { createMudflatSeed, nextMudflatRandom, normalizeMudflatSeed } from "./mudflat-rng.js";
 import { deepMudPatchesInView, deepMudStrengthAtPoint, randomDeepMudPointNear, traceDeepMudBlobPath, traceMudflatSurfacePatch, worldHash } from "./mudflat-terrain";
 import {
+  CLAM_DIG_SECONDS,
+  GAEBUL_DIG_SECONDS,
   MUDFLAT_SUPERVISOR_CLAM_SEARCH_RANGE,
   MUDFLAT_SUPERVISOR_DECISION_SECONDS,
   createMudflatSupervisorMemory,
@@ -179,8 +181,6 @@ const HEADLAMP_MIN_CONE_HALF_ANGLE = Math.PI / 18;
 const HEADLAMP_MAX_CONE_HALF_ANGLE = Math.PI / 4;
 const HEADLAMP_MIN_VISUAL_RANGE = 34;
 const HEADLAMP_MAX_VISUAL_RANGE = 155;
-const GAEBUL_DIG_SECONDS = 3.1;
-const CLAM_DIG_SECONDS = 2;
 const GAEBUL_SPAWN_CHANCE = .24;
 const DEEP_MUD_GAUGE_RISE = .42;
 const DEEP_MUD_GAUGE_DECAY = .36;
