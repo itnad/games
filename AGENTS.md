@@ -11,6 +11,7 @@
 - After completing and validating any user-requested source modification in this repository, publish the latest saved version to the existing Sites project in the same turn.
 - Do not publish for read-only analysis, explanations, or status checks that make no source changes.
 - Skip publishing when the user explicitly asks to keep a change local, save only, or not publish.
+- After completing and validating a user-requested source modification, also push it to `main` in the same turn without waiting to be asked: merge `origin/main` first if it has moved, rerun the tests, then push. Skip this for read-only work, and when the user asks to keep a change local or off `main`.
 
 ## Haerujilot source-of-truth synchronization
 
