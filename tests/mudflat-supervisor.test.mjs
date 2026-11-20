@@ -128,7 +128,7 @@ test("감독 AI는 안전한 작업 차례에 생물보다 조개구멍을 찾�
   }));
 
   assert.equal(decision.targetKind, "clam");
-  assert.equal(decision.intent, "조개구멍 호미질 중");
+  assert.equal(decision.intent, "구멍으로 이동 중");
   assert.ok(decision.x > .2);
 });
 
@@ -154,6 +154,63 @@ test("감독 AI는 너무 먼 구멍을 쫓지 않는다", () => {
   }));
 
   assert.equal(decision.targetKind, "explore");
+});
+
+test("일반 게 무리 옆의 구멍까지 우회해 접촉 없이 호미질을 끝낸다", () => {
+  const hole = { id: 9, x: 405, y: 0, kind: "clam", progress: 0 };
+  const creatures = [-76, -38, 0, 38, 76].map((y, i) => ({
+    id: 310 + i, x: 200, y, size: 12, hp: 20, name: "칠게",
+  }));
+  const world = simulateSupervisor({
+    seconds: 11, player: { x: 0, y: 0 },
+    build: () => ({ creatures, clamHoles: [hole] }),
+    onFrame: ({ player, decision }, dt) => {
+      assert.ok(creatures.every((crab) => Math.hypot(crab.x - player.x, crab.y - player.y) > crab.size + 17));
+      hole.progress = mudflatSupervisorCanDig(decision) && Math.hypot(player.x - hole.x, player.y) <= 48 ? hole.progress + dt : 0;
+      return hole.progress >= 2;
+    },
+  });
+  assert.ok(hole.progress >= 2, JSON.stringify(world.decision));
+  assert.deepEqual(world.released, []);
+});
+
+test("작업을 끝내기 전에 게가 닿으면 피하고 바로 같은 구멍을 다시 파지 않는다", () => {
+  const memory = createMudflatSupervisorMemory();
+  const hole = { id: 417, x: 10, y: 0, kind: "gaebul", progress: .4 };
+  const crab = { id: 12, x: 150, y: 0, hp: 20, size: 13, movement: "chase", speed: 80 };
+  const decide = (elapsed, creatures) => decideMudflatSupervisorMove(scene({ elapsed, memory, creatures, clamHoles: [hole] }));
+  assert.equal(decide(1, [crab]).targetKind, "creature");
+  hole.progress = 0;
+  assert.notEqual(decide(1.17, []).targetKind, "clam");
+  assert.equal(decide(2.5, []).targetId, 417);
+  hole.progress = 3;
+  assert.equal(decide(3, [crab]).targetKind, "clam");
+});
+
+test("경험치 목표가 끼어들어도 같은 게의 무타격 시간이 누적된다", () => {
+  const memory = createMudflatSupervisorMemory();
+  const crab = { id: 333, x: 86, y: 0, size: 13, hp: 20 };
+  const drop = { id: 370, x: -60, y: 0, xp: 7, phase: "idle" };
+  let released = false;
+  for (let tick = 0; tick < 100; tick++) {
+    const decision = decideMudflatSupervisorMove(scene({ elapsed: tick * .16, memory, creatures: [crab], pickups: tick % 8 === 7 ? [drop] : [] }));
+    if (decision.released.some((item) => item.id === 333 && item.reason === "hp-stall")) { released = true; break; }
+  }
+  assert.ok(released);
+});
+
+test("끌려오는 경험치와 반경 안의 경험치를 건너뛰고 가까운 묶음의 흡수 거리까지 이동한다", () => {
+  const pickups = [
+    { id: 1, x: 20, y: 0, phase: "idle", xp: 4 },
+    { id: 2, x: 55, y: 0, phase: "pull", xp: 20 },
+    { id: 3, x: 75, y: 0, phase: "idle", xp: 3 },
+    { id: 4, x: -88, y: 0, phase: "idle", xp: 3 },
+    { id: 5, x: -97, y: 0, phase: "idle", xp: 3 },
+  ];
+  const decision = decideMudflatSupervisorMove(scene({ pickups, pickupRadius: 50 }));
+  assert.equal(decision.targetId, 4);
+  assert.equal(decision.desiredDistance, 44);
+  assert.equal(decideMudflatSupervisorMove(scene({ pickups: pickups.slice(0, 2) })).targetKind, "explore");
 });
 
 test("감독 AI는 호미질과 돌뒤집기가 겹쳐도 진행 중인 호미 목표를 유지한다", () => {
