@@ -1829,6 +1829,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       hp: Math.round(runtime.player.hp * 100) / 100,
       maxHp: runtime.player.maxHp,
       level: runtime.level,
+      xp: runtime.xp,
+      nextXp: runtime.nextXp,
       caught: runtime.caught,
       position: { x: Math.round(runtime.player.x), y: Math.round(runtime.player.y) },
       targetKind: decision.targetKind,
@@ -1849,6 +1851,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       nearbyCreatures,
       creatureCount: runtime.creatures.filter((creature) => creature.hp > 0).length,
       pickupCount: livePickups.length,
+      pickupXp: livePickups.reduce((sum, pickup) => sum + pickup.xp, 0),
       nearestPickupDistance: nearestPickupDistance === null ? null : Math.round(nearestPickupDistance),
       clamHoleCount: runtime.clamHoles.length,
       rockCount: runtime.rocks.length,
@@ -2263,7 +2266,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       lastObjectiveLabel: objective.label, lastObjectiveComplete: objective.complete, lastObjectiveBonus: objective.bonus,
     };
     if (supervisorRef.current) {
-      appendSupervisorEvent("stage-clear", `${runtime.stage}단계 완료 · 채집 ${settlement.catchCount} · 잔여 체력 ${Math.floor(runtime.player.hp)}`, runtime);
+      const boss = runtime.creatures.find((creature) => creature.boss && creature.hp > 0);
+      const bossNote = runtime.bossCaught ? "포획" : boss ? `놓침(남은 체력 ${Math.round(boss.hp / Math.max(1, boss.maxHp) * 100)}%)` : "놓침";
+      appendSupervisorEvent("stage-clear", `${runtime.stage}단계 완료 · 채집 ${settlement.catchCount} · 잔여 체력 ${Math.floor(runtime.player.hp)} · 대왕 박하지 ${bossNote}`, runtime);
       const maintained = maintainMudflatSupervisorCampaign(next) as Campaign;
       campaignRef.current = maintained;
       setCampaign(maintained);
@@ -2732,7 +2737,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           if (runtime.caught < catchCapacity) {
             runtime.caught += 1; runtime.catchScore += item.score;
             runtime.basket[item.type] = (runtime.basket[item.type] ?? 0) + 1;
-            if (item.boss) runtime.bossCaught = true;
+            if (item.boss) {
+              runtime.bossCaught = true;
+              if (supervisorRef.current) appendSupervisorEvent("boss-caught", "대왕 박하지 포획", runtime);
+            }
           } else showCatchFullMessage();
           if (item.requiresHeadlamp) runtime.headlampSpawnClock = Math.max(runtime.headlampSpawnClock, 4.8);
           // A full container prevents selling the catch, not learning from it.
@@ -2815,6 +2823,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             // 일반 게는 지금 집게가 실제로 닿는 거리 구간에서 잡는다(집게가 없는 모드는 0: 예전 고정 거리).
             tongReach: runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).reach : 0,
             tongRotationSpeed: mudflatTongStats(runtime.levels.tongs ?? 1).rotationSpeed,
+            // 집게 끝이 지금 가리키는 방향(대왕 박하지 둘레를 집게 회전에 맞춰 돌 때 쓴다). 루미는 몸짓에 따라 달라 넘기지 않는다.
+            tongAngle: characterId === "lumi" ? undefined : actionTime * mudflatTongStats(runtime.levels.tongs ?? 1).rotationSpeed,
             playerSpeed: decisionState.playerSpeed > 0 ? decisionState.playerSpeed : runtime.player.speed * (1 + (runtime.levels.boots ?? 0) * .09),
             memory: decisionState.memory,
             activeRockId: runtime.rockFlipEffect?.rockId,
@@ -2832,7 +2842,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           for (const item of decision.released ?? []) {
             const reason = item.reason === "unreachable" ? "도달 경로 없음"
               : item.reason === "no-progress" ? "진전 없음"
-                : item.reason === "hp-stall" ? "체력이 줄지 않음" : "추격 거리 초과";
+                : item.reason === "hp-stall" ? "체력이 줄지 않음"
+                  : item.reason === "boss-out-of-time" ? "제시간에 잡기 어려움" : "추격 거리 초과";
             appendSupervisorEvent("target-released", `${item.kind} ${item.id ?? "-"} · ${reason}`, runtime);
           }
           const previousIntent = decisionState.intent;
@@ -3143,7 +3154,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             runtime.swarmClock = mudflatSeafoodSwarmInterval(runtime.stage, runtimeRandom(runtime), runtimeRandom(runtime));
           }
         }
-        if (!runtime.bossSpawned && runtime.elapsed >= 200) { runtime.bossSpawned = true; spawnCreature(width, height, true); }
+        if (!runtime.bossSpawned && runtime.elapsed >= 200) {
+          runtime.bossSpawned = true; spawnCreature(width, height, true);
+          if (supervisorRef.current) appendSupervisorEvent("boss-spawned", "대왕 박하지 등장", runtime);
+        }
         if (runtime.elapsed < .08 && runtime.clamHoles.length === 0) for (let index = 0; index < 12; index += 1) spawnClamHole(width, height);
         runtime.clamSpawnClock -= dt;
         const nearbySupervisorHoleCount = supervisorRef.current
