@@ -358,6 +358,13 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(tools, /seed: 20261102 \+ preset\.stage \* 101/);
   assert.match(tools, /AI 감독모드 · 1단계부터/);
   assert.match(tools, /감독모드 관전 시작/);
+  // AI 감독모드 시작 영역은 프리셋 목록 안이 아니라 페이지 맨 위(소개 바로 아래, 안내문·저장 상태보다 먼저)에 있다.
+  const supervisorSection = tools.indexOf('className="mudflat-dev-supervisor"');
+  assert.ok(supervisorSection > tools.indexOf('className="mudflat-dev-hero"'));
+  assert.ok(supervisorSection < tools.indexOf('className="mudflat-dev-warning"'));
+  assert.ok(supervisorSection < tools.indexOf('className="mudflat-dev-grid"'));
+  assert.match(tools, /testPresets = DEV_PRESETS\.filter\(\(preset\) => !preset\.supervisor\)/);
+  assert.match(styles, /\.mudflat-dev-supervisor\{/);
   assert.match(tools, /supervisor: Boolean\(preset\.supervisor\)/);
   assert.match(tools, /if \(!preset\.supervisor\) \{[\s\S]*?window\.localStorage\.removeItem\(MUDFLAT_ACTIVE_RUN_KEY\);[\s\S]*?\}/);
   assert.match(tools, /window\.location\.assign\("\/haeru"\)/);

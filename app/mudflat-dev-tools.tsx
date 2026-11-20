@@ -342,6 +342,9 @@ export function MudflatDevTools() {
     }
   };
 
+  const supervisorPreset = DEV_PRESETS.find((preset) => preset.supervisor);
+  const testPresets = DEV_PRESETS.filter((preset) => !preset.supervisor);
+
   return (
     <main className="mudflat-dev-shell">
       <section className="mudflat-dev-hero">
@@ -351,6 +354,17 @@ export function MudflatDevTools() {
         <p>직접 주소로만 접근하는 테스트 화면입니다. 서버 데이터나 비밀값을 바꾸지 않고, 현재 브라우저의 해루질럿 저장값과 테스트 진입만 다룹니다.</p>
         <div className="mudflat-dev-build"><span>빌드</span><b>{PAPEROID_BUILD_ID}</b></div>
       </section>
+
+      {supervisorPreset && (
+        <section className="mudflat-dev-supervisor">
+          <div>
+            <small>AI SUPERVISOR</small>
+            <h2>{supervisorPreset.title}</h2>
+            <p>{supervisorPreset.description}</p>
+          </div>
+          <button type="button" onClick={() => startPreset(supervisorPreset)}>감독모드 관전 시작</button>
+        </section>
+      )}
 
       <section className="mudflat-dev-warning">
         <b>공개 메뉴에는 노출되지 않는 테스트 도구입니다.</b>
@@ -407,17 +421,17 @@ export function MudflatDevTools() {
         <header>
           <small>ONE TAP PRESETS</small>
           <h2>테스트 프리셋</h2>
-          <p>일반 바로 실행은 현재 진행 중 저장을 지웁니다. 감독모드는 기존 저장과 순위에 영향을 주지 않습니다. “정비 저장만”은 다음에 해루질럿 메인에서 이어서 확인할 때 사용합니다.</p>
+          <p>바로 실행은 현재 진행 중 저장을 지웁니다. “정비 저장만”은 다음에 해루질럿 메인에서 이어서 확인할 때 사용합니다.</p>
         </header>
         <div>
-          {DEV_PRESETS.map((preset) => (
+          {testPresets.map((preset) => (
             <article key={preset.id}>
               <small>{preset.stage}단계</small>
               <h3>{preset.title}</h3>
               <p>{preset.description}</p>
               <div>
-                <button type="button" onClick={() => startPreset(preset)}>{preset.supervisor ? "감독모드 관전 시작" : "바로 실행"}</button>
-                {!preset.supervisor && <button type="button" onClick={() => savePresetOnly(preset)}>정비 저장만</button>}
+                <button type="button" onClick={() => startPreset(preset)}>바로 실행</button>
+                <button type="button" onClick={() => savePresetOnly(preset)}>정비 저장만</button>
               </div>
             </article>
           ))}
