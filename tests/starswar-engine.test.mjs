@@ -4471,3 +4471,30 @@ test("starswar ghost strategy: defends with bunkers and tanks, researches lockdo
   assert.equal(mechGhosts, 0);
   assert.equal(mech.sides.player.research.lockdown, undefined);
 });
+
+test("AI 대 AI 관전 경기는 일반 규칙 그대로 양쪽 AI가 처음부터 운영하고 재현 정보에 표시가 남는다", () => {
+  const watch = createStarswarGame({ seed: 31, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "zerg" }, spectate: true });
+  const plain = createStarswarGame({ seed: 31, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "zerg" } });
+  assert.equal(watch.spectate, true);
+  assert.equal(plain.spectate, undefined);
+  assert.equal(watch.replay.setup.spectate, true);
+  assert.equal("spectate" in plain.replay.setup, false);
+  assert.deepEqual(watch.aiSides, ["player", "enemy"]);
+  // 시작 상태는 일반 경기와 같다: 실험실처럼 인구를 그냥 주지 않고, 양쪽 모두 전략이 정해진다.
+  for (const side of ["player", "enemy"]) {
+    assert.equal(watch.sides[side].probes, plain.sides[side].probes);
+    assert.equal(watch.sides[side].minerals, plain.sides[side].minerals);
+    assert.equal(watch.sides[side].bonusSupply ?? 0, 0);
+    assert.ok(watch.sides[side].persona);
+  }
+  // 관전 표시는 화면용이다: 같은 시드의 일반 AI 대전과 경기 진행이 똑같다.
+  for (let index = 0; index < 20 * 120; index += 1) {
+    stepStarswar(watch, stwAiThink);
+    stepStarswar(plain, stwAiThink);
+  }
+  assert.equal(watch.units.length, plain.units.length);
+  assert.equal(watch.buildings.length, plain.buildings.length);
+  assert.equal(watch.sides.player.minerals, plain.sides.player.minerals);
+  assert.equal(watch.sides.enemy.minerals, plain.sides.enemy.minerals);
+  assert.match(stwBugReport(watch), /AI 대 AI 관전 경기/);
+});

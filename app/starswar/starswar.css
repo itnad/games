@@ -301,6 +301,26 @@
 /* 실험실 */
 .stw-lab-entry { min-height:52px; display:grid; gap:2px; place-items:center; border-radius:16px; font-weight:900; }
 .stw-lab-entry small { color:var(--stw-muted); font-weight:600; font-size:12px; }
+/* AI 대 AI 관전: 조작 탭 대신 양쪽 진영 현황(파랑 = 아래, 빨강 = 위). */
+.stw-watch-chip i { border-radius:50%; }
+.stw-watch-chip.player i, .stw-watch-side.player h3 i { background:#4fc3ff; }
+.stw-watch-chip.enemy i, .stw-watch-side.enemy h3 i { background:#ff6a4d; }
+.stw-watch-chip b { font-size:15px; white-space:nowrap; }
+.stw-watch-body { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; align-content:start; }
+.stw-watch-side { min-width:0; padding:9px 10px; display:grid; gap:6px; align-content:start; border:1px solid var(--stw-line); border-radius:12px; background:color-mix(in srgb,var(--stw-veil) 4%,transparent); }
+.stw-watch-side.player { border-top:3px solid #4fc3ff; }
+.stw-watch-side.enemy { border-top:3px solid #ff6a4d; }
+.stw-watch-side h3 { margin:0; display:flex; align-items:center; gap:6px; font-size:15px; font-weight:900; }
+.stw-watch-side h3 i { width:10px; height:10px; flex:0 0 auto; border-radius:50%; }
+.stw-watch-side p { margin:0; color:var(--stw-soft); font-size:12.5px !important; line-height:1.4 !important; overflow-wrap:anywhere; }
+.stw-watch-side .stw-watch-plan { color:var(--stw-text); font-weight:700; }
+.stw-watch-side dl { margin:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px 10px; }
+.stw-watch-side dl div { min-width:0; display:flex; justify-content:space-between; gap:6px; font-size:13px; }
+.stw-watch-side dl div.wide { grid-column:1 / -1; }
+.stw-watch-side dt { flex:0 0 auto; color:var(--stw-muted); white-space:nowrap; }
+.stw-watch-side dd { margin:0; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.stw-watch-side dd em { color:#a9d79a; font-size:11.5px; font-style:normal; }
+.stw-watch-side .stw-watch-army b { color:var(--stw-text); }
 .stw-lab-presets { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
 .stw-lab-presets > div { position:relative; display:grid; }
 .stw-lab-presets > div > button:first-child { padding:10px 12px; display:grid; align-content:start; gap:3px; text-align:left; border:1px solid var(--stw-line); border-radius:14px; background:color-mix(in srgb,var(--stw-veil) 3%,transparent); word-break:keep-all; }

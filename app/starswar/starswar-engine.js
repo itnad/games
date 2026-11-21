@@ -225,7 +225,7 @@ function createSide(id, persona, race, map) {
 /**
  * learned: 최상급 경기에서 AI가 쓸 학습 묶음(stwLearnSnapshot). 재현 정보에 함께 남아 같은 경기가 다시 돌아간다.
  */
-export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {}, races = {}, hiddenEnemyRace = false, learned = null, map = "plain" } = {}) {
+export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {}, races = {}, hiddenEnemyRace = false, learned = null, map = "plain", spectate = false } = {}) {
   const mapData = stwMapData(map);
   const state = {
     version: 1,
@@ -255,10 +255,13 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
     aiSides: [...aiSides],
     history: [],
     // 재현 정보: 경기를 만든 설정과 사람이 내린 명령(틱, 명령). 같은 코드에서 그대로 다시 돌리면 같은 경기가 된다.
-    replay: { setup: { difficulty, seed, aiSides: [...aiSides], personas: { ...personas }, races: { ...races }, hiddenEnemyRace, ...(mapData.id !== "plain" ? { map: mapData.id } : {}), ...(learned ? { learned } : {}) }, commands: [] },
+    replay: { setup: { difficulty, seed, aiSides: [...aiSides], personas: { ...personas }, races: { ...races }, hiddenEnemyRace, ...(mapData.id !== "plain" ? { map: mapData.id } : {}), ...(learned ? { learned } : {}), ...(spectate ? { spectate: true } : {}) }, commands: [] },
     // 양쪽이 성공한 명령의 시간순 기록(빌드 순서·연구·공격 시점). 결과 화면의 리포트에 쓴다.
     chronicle: [],
   };
+  // AI 대 AI 관전: 양쪽 모두 AI가 운영하고 사람은 지켜보기만 한다(화면이 조작을 막고 전장 전체를 보여 준다).
+  // 엔진 규칙은 일반 경기와 같다(시야·은폐·탐지·인구 그대로, 난이도 보정은 사람 상대일 때만 붙으므로 없다).
+  if (spectate) state.spectate = true;
   const master = Boolean(STW_DIFFICULTIES[state.difficulty].master);
   if (master) state.learned = learned ? JSON.parse(JSON.stringify(learned)) : { v: 1, plans: [], stats: {}, tagStats: {}, foeTags: {} };
   for (const side of STW_SIDES) {

@@ -226,6 +226,8 @@ export type StwState = {
   chronicle?: [number, StwSide, StwCommand & { at?: string }][];
   /** 실험실에서 세운 경기(저장·전적 제외). */
   lab?: { placement: "clash" | "home"; control: { player: "manual" | "ai"; enemy: "fight" | "ai" } };
+  /** AI 대 AI 관전 경기(양쪽 AI 운영, 사람은 조작하지 않고 전장 전체를 본다). */
+  spectate?: boolean;
   hiddenEnemyRace?: boolean;
   difficulty: StwDifficulty;
   status: "playing" | "over";
