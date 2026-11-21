@@ -15,6 +15,7 @@ import {
   createCampaign,
 } from "./mudflat-survivor-model";
 import { MUDFLAT_REGULAR_STAGES, mudflatStageProfile } from "./mudflat-survivor-engine.js";
+import { createMudflatSeed } from "./mudflat-rng.js";
 
 type DevPreset = {
   id: string;
@@ -249,6 +250,7 @@ export function MudflatDevTools() {
   const [snapshot, setSnapshot] = useState<LocalSnapshot>(() => ({ highest: "-", lastMode: "-", best: "-", campaign: "-", activeRun: "-" }));
   const [exportText, setExportText] = useState("");
   const [importText, setImportText] = useState("");
+  const [supervisorSeed, setSupervisorSeed] = useState("20261203");
   const [status, setStatus] = useState("개발 프리셋을 선택하면 해루질럿으로 이동해 바로 시작합니다.");
 
   useEffect(() => {
@@ -266,7 +268,7 @@ export function MudflatDevTools() {
     setStatus("현재 브라우저 저장값을 다시 읽었습니다.");
   };
 
-  const startPreset = (preset: DevPreset) => {
+  const startPreset = (preset: DevPreset, explicitSeed?: number) => {
     try {
       const campaign = makePresetCampaign(preset);
       if (!preset.supervisor) {
@@ -276,7 +278,7 @@ export function MudflatDevTools() {
       }
       window.sessionStorage.setItem(MUDFLAT_DEV_LAUNCH_KEY, JSON.stringify({
         version: 1,
-        seed: 20261102 + preset.stage * 101,
+        seed: explicitSeed ?? (preset.supervisor ? createMudflatSeed() : 20261102 + preset.stage * 101),
         label: preset.title,
         campaign,
         run: true,
@@ -287,6 +289,19 @@ export function MudflatDevTools() {
     } catch {
       setStatus("개발 프리셋을 적용하지 못했습니다. 브라우저 저장소 설정을 확인해 주세요.");
     }
+  };
+
+  const startRandomSupervisor = (preset: DevPreset) => {
+    startPreset(preset, createMudflatSeed());
+  };
+
+  const replaySupervisorSeed = (preset: DevPreset) => {
+    const seed = Number(supervisorSeed);
+    if (!Number.isInteger(seed) || seed < 1 || seed > 0xffffffff) {
+      setStatus("재현 시드는 1부터 4294967295 사이의 정수로 입력해 주세요.");
+      return;
+    }
+    startPreset(preset, seed);
   };
 
   const savePresetOnly = (preset: DevPreset) => {
@@ -362,7 +377,20 @@ export function MudflatDevTools() {
             <h2>{supervisorPreset.title}</h2>
             <p>{supervisorPreset.description}</p>
           </div>
-          <button type="button" onClick={() => startPreset(supervisorPreset)}>감독모드 관전 시작</button>
+          <div className="mudflat-dev-supervisor-controls">
+            <button type="button" onClick={() => startRandomSupervisor(supervisorPreset)}>무작위 시드 관전 시작</button>
+            <label>
+              <span>재현 시드</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                aria-label="감독모드 재현 시드"
+                value={supervisorSeed}
+                onChange={(event) => setSupervisorSeed(event.target.value.replace(/\D/g, "").slice(0, 10))}
+              />
+            </label>
+            <button type="button" className="secondary" onClick={() => replaySupervisorSeed(supervisorPreset)}>입력 시드로 재현</button>
+          </div>
         </section>
       )}
 

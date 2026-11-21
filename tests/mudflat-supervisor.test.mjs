@@ -5,6 +5,7 @@ import {
   createMudflatSupervisorMemory,
   decideMudflatSupervisorMove,
   maintainMudflatSupervisorCampaign,
+  planMudflatSupervisorMaintenance,
   mudflatSupervisorAttackBand,
   mudflatSupervisorCanDig,
 } from "../app/mudflat-supervisor.js";
@@ -38,6 +39,7 @@ function scene(overrides = {}) {
 
 test("감독 AI는 복귀 알림이 뜨면 다른 목표보다 캠프를 우선한다", () => {
   const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 238,
     baseCampGuideShown: true,
     baseCamp: { x: 420, y: 0 },
     pickups: [{ x: -90, y: 0, xp: 30, phase: "idle" }],
@@ -45,8 +47,22 @@ test("감독 AI는 복귀 알림이 뜨면 다른 목표보다 캠프를 우선�
   }));
 
   assert.equal(decision.targetKind, "camp");
-  assert.equal(decision.intent, "베이스캠프로 귀환 중");
+  assert.equal(decision.intent, "밀물 전에 베이스캠프로 서둘러 귀환 중");
   assert.ok(decision.x > .7);
+});
+
+test("감독 AI는 귀환 여유가 있으면 안전한 경험치를 챙긴 뒤 캠프로 간다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 230,
+    playerSpeed: 155,
+    baseCampGuideShown: true,
+    baseCamp: { x: 420, y: 0 },
+    pickups: [{ id: 7, x: 70, y: 0, xp: 8, phase: "idle" }],
+  }));
+
+  assert.equal(decision.targetKind, "pickup");
+  assert.equal(decision.targetId, 7);
+  assert.equal(decision.intent, "귀환 전 경험치 회수 중");
 });
 
 test("감독 AI는 돌발 물살 직전 언덕배기를 우선한다", () => {
@@ -60,6 +76,18 @@ test("감독 AI는 돌발 물살 직전 언덕배기를 우선한다", () => {
   assert.equal(decision.targetKind, "safe-zone");
   assert.equal(decision.intent, "돌발 물살 대피 중");
   assert.ok(decision.x > .7);
+});
+
+test("감독 AI는 느리거나 언덕배기가 멀면 고정 5초보다 일찍 대피를 시작한다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    stage: 2,
+    playerSpeed: 55,
+    secondsToTide: 7.4,
+    safeZone: { x: 260, y: 0 },
+  }));
+
+  assert.equal(decision.targetKind, "safe-zone");
+  assert.equal(decision.intent, "돌발 물살 대피 중");
 });
 
 test("감독 AI는 떨어지는 바위의 충돌 지점에서 벗어난다", () => {
@@ -1022,7 +1050,7 @@ test("감독 AI는 귀환 시간이 빠듯하면 게 무리를 돌아가지 않�
   assert.ok(Math.abs(blocked.y) > .25, JSON.stringify(blocked));
 });
 
-test("자동 정비는 원본을 바꾸지 않고 체력 회복과 장비 구매를 수행한다", () => {
+test("감독 정비는 원본을 바꾸지 않고 구매 선택을 순서대로 기록한다", () => {
   const campaign = {
     stage: 5,
     mode: "normal",
@@ -1034,24 +1062,32 @@ test("자동 정비는 원본을 바꾸지 않고 체력 회복과 장비 구매
     levels: { snack: 0 },
   };
   const original = structuredClone(campaign);
-  const maintained = maintainMudflatSupervisorCampaign(campaign);
+  const plan = planMudflatSupervisorMaintenance(campaign);
+  const maintained = plan.campaign;
 
   assert.deepEqual(campaign, original);
   assert.ok(maintained.coins < campaign.coins);
   assert.equal(maintained.hp, maintained.maxHp);
   assert.ok(Object.keys(maintained.equipment).length >= 2);
   assert.equal(maintained.equipment.mosquitoRepellent, 1);
+  assert.equal(plan.actions[0].kind, "recovery");
+  assert.deepEqual(plan.actions.filter((action) => action.kind === "equipment").map((action) => action.id), ["vest", "vest"]);
+  assert.ok(plan.actions.some((action) => action.kind === "supply" && action.id === "mosquitoRepellent"));
+  assert.ok(plan.actions.every((action) => action.detail.includes("잔액")));
+  assert.deepEqual(maintainMudflatSupervisorCampaign(campaign), maintained);
 });
 
-test("자동 정비는 회복 값을 남기고 집게 훈련을 장비보다 먼저 3레벨까지 산다", () => {
+test("감독 정비는 회복 값을 남기고 집게 훈련을 장비보다 먼저 3레벨까지 선택한다", () => {
   const campaign = { stage: 4, mode: "normal", coins: 5500, hp: 100, maxHp: 100, baseMaxHp: 100, equipment: {}, levels: { tongs: 1, digging: 1 } };
   const original = structuredClone(campaign);
-  const maintained = maintainMudflatSupervisorCampaign(campaign);
+  const plan = planMudflatSupervisorMaintenance(campaign);
+  const maintained = plan.campaign;
   assert.deepEqual(campaign, original);
   // Lv.2 2,000코인 + Lv.3 3,000코인.
   assert.equal(maintained.levels.tongs, 3);
   assert.equal(maintained.levels.digging, 1);
   assert.ok(maintained.coins <= 500);
+  assert.deepEqual(plan.actions.slice(0, 2).map((action) => `${action.kind}:${action.id}`), ["training:tongs", "training:tongs"]);
 
   // 코인이 모자라면(Lv.2 값 + 회복 값) 훈련하지 않고 예전처럼 장비만 산다.
   const poor = maintainMudflatSupervisorCampaign({ ...campaign, coins: 2050 });
@@ -1061,11 +1097,19 @@ test("자동 정비는 회복 값을 남기고 집게 훈련을 장비보다 먼
   assert.equal(kids.levels.tongs, 1);
 });
 
+test("감독 정비는 살 수 있는 항목이 없으면 구매 없이 출정한다", () => {
+  const campaign = { stage: 2, mode: "normal", coins: 0, hp: 100, maxHp: 100, baseMaxHp: 100, equipment: {}, levels: { tongs: 1, digging: 1 } };
+  const plan = planMudflatSupervisorMaintenance(campaign);
+  assert.equal(plan.actions.length, 0);
+  assert.deepEqual(plan.campaign, campaign);
+});
+
 test("감독모드 로그는 초기 상태와 순번을 보존하며 최대 길이를 제한한다", () => {
   const log = createMudflatSupervisorLog({
     buildId: "test-build",
     startedAt: 0,
     seed: 123,
+    viewport: { windowWidth: 1280, windowHeight: 720, devicePixelRatio: 2 },
     campaign: { stage: 1, level: 1, hp: 100, maxHp: 100, coins: 0, levels: { tongs: 1 }, equipment: {} },
   });
 
@@ -1076,6 +1120,7 @@ test("감독모드 로그는 초기 상태와 순번을 보존하며 최대 길�
 
   assert.equal(exported.buildId, "test-build");
   assert.equal(exported.initialCampaign.levels.tongs, 1);
+  assert.deepEqual(exported.viewport, { windowWidth: 1280, windowHeight: 720, devicePixelRatio: 2 });
   assert.equal(exported.entries.length, MUDFLAT_SUPERVISOR_LOG_LIMIT);
   assert.equal(exported.entries[0].sequence, 6);
   assert.equal(exported.entries.at(-1).sequence, MUDFLAT_SUPERVISOR_LOG_LIMIT + 5);

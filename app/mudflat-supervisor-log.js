@@ -1,12 +1,13 @@
 export const MUDFLAT_SUPERVISOR_LOG_KEY = "paperoid-mudflat-supervisor-log-v1";
 export const MUDFLAT_SUPERVISOR_LOG_LIMIT = 800;
 
-export function createMudflatSupervisorLog({ buildId, startedAt, campaign, seed }) {
+export function createMudflatSupervisorLog({ buildId, startedAt, campaign, seed, viewport }) {
   return {
     formatVersion: 1,
     buildId,
     startedAt: new Date(startedAt).toISOString(),
     seed,
+    ...(viewport ? { viewport: { ...viewport } } : {}),
     initialCampaign: {
       stage: campaign.stage,
       level: campaign.level,

@@ -71,6 +71,11 @@ const BOSS_GIVE_UP_RATIO = 1.8;      // 남은 체력이 "지금 속도 × 남�
 const BOSS_MIN_HP_RATIO = .3;        // 내 체력이 이 비율 아래면 대왕 박하지를 상대하지 않는다
 const BOSS_DEADLINE = MUDFLAT_RUN_SECONDS - MUDFLAT_RETURN_GUIDE_SECONDS; // 귀환 알림이 뜨면 대왕 박하지를 두고 돌아간다
 const CAMP_RUSH_SLACK = 3;           // 밀물까지 남은 시간에서 직선 귀환 시간을 뺀 여유가 이보다 적으면 게를 스치며 곧장 간다
+const CAMP_OPTION_SAFETY_SECONDS = 1.6;
+const CAMP_OPTION_TRAVEL_FACTOR = 1.35;
+const HILL_MIN_LEAD_SECONDS = 8;
+const HILL_ROUTE_FACTOR = 1.45;
+const HILL_SETTLE_SECONDS = 3.4;
 
 const distance = (left, right) => Math.hypot(left.x - right.x, left.y - right.y);
 const normalized = (x, y) => {
@@ -135,26 +140,34 @@ export function mudflatSupervisorAttackBand(creature, tongReach) {
 }
 
 function targetForState(state, memory) {
+  const playerSpeed = Math.max(40, Number(state.playerSpeed) || Number(state.player.speed) || DEFAULT_PLAYER_SPEED);
   // 쫓아오는 위험 생물(복어·보스·채집 불가): 귀환·대피 때는 이들의 넓은 위험 벽을 접촉 반경 바로 바깥으로 줄인다.
   // 벽을 그대로 두면 뒤에서 쫓아오는 복어를 피하느라 캠프 반대쪽으로 달아나 귀환에 실패한다.
   const pursuerIds = new Set(state.creatures
     .filter((item) => liveCreature(item) && isHighRisk(item) && approachSpeed(memory, item) >= KITE_MIN_APPROACH)
     .map((item) => item.id));
-  // 귀환: 알림이 뜨면 하던 일(대왕 박하지 포함)을 두고 돌아간다. 알림 뒤에 보스를 마저 잡게 했을 때는, 보스 곁에 몰린 게
-  // 수십 마리를 돌아 나오느라 240초를 넘겨 밀물에 쓰러졌다(밀물이 시작되면 이동 속도가 0.2배가 된다).
+  const campTarget = (rush = false) => ({
+    kind: "camp", point: state.baseCamp, intent: rush ? "밀물 전에 베이스캠프로 서둘러 귀환 중" : "베이스캠프로 귀환 중",
+    desiredDistance: 0, kiteIds: pursuerIds, terrainWeight: RETURN_TERRAIN_WEIGHT,
+    ...(rush ? { rush: true, crowdSoft: { range: 10, weight: 4 } } : {}),
+  });
+  let returnPlan = null;
+  // 귀환: 캠프가 보였다고 즉시 들어가 기다리지 않는다. 남은 시간에서 우회·감속 여유를 뺀 뒤 안전하게 끝낼 수 있는
+  // 경험치 회수나 호미질만 한 번 더 하고, 여유가 3초 아래면 게를 스치더라도 곧장 캠프로 간다.
   if (state.baseCampGuideShown) {
-    const returnSpeed = Math.max(40, Number(state.playerSpeed) || Number(state.player.speed) || DEFAULT_PLAYER_SPEED);
-    const slack = MUDFLAT_RUN_SECONDS - state.elapsed - distance(state.player, state.baseCamp) / returnSpeed;
-    // 여유가 줄면 서두른다: 일반 게는 접촉 반경 바로 바깥만 피하고(무리 벌점과 우회 경로 비용을 걷어낸다) 곧장 캠프로 간다.
-    // 게에 한두 번 닿는 피해보다 밀물을 맞는 피해가 훨씬 크다.
+    const secondsLeft = Math.max(0, MUDFLAT_RUN_SECONDS - state.elapsed);
+    const directTravel = distance(state.player, state.baseCamp) / playerSpeed * CAMP_OPTION_TRAVEL_FACTOR;
+    const slack = secondsLeft - directTravel;
+    returnPlan = { secondsLeft };
     const rush = slack < CAMP_RUSH_SLACK;
-    return {
-      kind: "camp", point: state.baseCamp, intent: "베이스캠프로 귀환 중", desiredDistance: 0, kiteIds: pursuerIds, terrainWeight: RETURN_TERRAIN_WEIGHT,
-      ...(rush ? { rush: true, crowdSoft: { range: 10, weight: 4 } } : {}),
-    };
+    if (rush) return campTarget(true);
   }
-  if (state.secondsToTide <= 5.2 && state.safeZone) {
-    return { kind: "safe-zone", point: state.safeZone, intent: "돌발 물살 대피 중", desiredDistance: 18, kiteIds: pursuerIds, terrainWeight: RETURN_TERRAIN_WEIGHT };
+  if (state.safeZone) {
+    const safeTravel = Math.max(0, distance(state.player, state.safeZone) - 42) / playerSpeed * HILL_ROUTE_FACTOR;
+    const lead = Math.max(HILL_MIN_LEAD_SECONDS, safeTravel + HILL_SETTLE_SECONDS);
+    if (state.secondsToTide <= lead) {
+      return { kind: "safe-zone", point: state.safeZone, intent: "돌발 물살 대피 중", desiredDistance: 18, kiteIds: pursuerIds, terrainWeight: RETURN_TERRAIN_WEIGHT };
+    }
   }
   if ((state.emptySeafoodRisk ?? 0) >= 7.5) {
     let retreat = normalized(state.retreatDirection?.x ?? -state.player.x, state.retreatDirection?.y ?? -state.player.y);
@@ -184,7 +197,9 @@ function targetForState(state, memory) {
     return distance(point, item) > item.size + (highRisk ? 190 : 88);
   });
   const holeHasClearApproach = (hole) => state.rocks.every((rock) => distance(hole, rock) > rock.radius + 54);
-  const playerSpeed = Math.max(40, Number(state.playerSpeed) || Number(state.player.speed) || DEFAULT_PLAYER_SPEED);
+  const returnOpportunityFits = (point, workSeconds = 0) => !returnPlan
+    || ((distance(state.player, point) + distance(point, state.baseCamp)) / playerSpeed * CAMP_OPTION_TRAVEL_FACTOR
+      + workSeconds + CAMP_OPTION_SAFETY_SECONDS <= returnPlan.secondsLeft);
   // 호미질 안전 판정: 구멍 앞까지 걸어가는 시간 + 남은 호미질 시간 동안 어떤 생물도 그 자리에 닿지 못해야 한다.
   // 예전에는 게가 72px(구멍은 88px) 안에 있으면 무조건 멈춰, 0.5초 남은 호미질을 버리거나 가던 구멍을 자꾸 바꿨다.
   const holeIsWorkable = (hole, margin) => {
@@ -193,7 +208,8 @@ function targetForState(state, memory) {
     const stand = range <= 30 ? state.player
       : { x: hole.x + (state.player.x - hole.x) / range * 24, y: hole.y + (state.player.y - hole.y) / range * 24 };
     const seconds = walk / playerSpeed + Math.max(0, (hole.kind === "gaebul" ? GAEBUL_DIG_SECONDS : CLAM_DIG_SECONDS) - (hole.progress || 0)) + margin;
-    return state.creatures.every((item) => {
+    return returnOpportunityFits(stand, Math.max(0, (hole.kind === "gaebul" ? GAEBUL_DIG_SECONDS : CLAM_DIG_SECONDS) - (hole.progress || 0)))
+      && state.creatures.every((item) => {
       if (!liveCreature(item)) return true;
       const approach = Math.max(0, approachSpeed(memory, item));
       const gap = distance(stand, item) - item.size - CONTACT_MARGIN;
@@ -302,7 +318,7 @@ function targetForState(state, memory) {
     const seconds = walk / playerSpeed + (item.phase === "spawn" ? .1 : 0) + .2;
     // 이미 주우러 가는 중이면 여유를 조금 줄여, 안전 판정이 경계에서 오락가락하며 목표를 뒤집지 않게 한다.
     const ease = item.id === lockedPickupId ? 8 : 0;
-    return state.creatures.every((creature) => {
+    return returnOpportunityFits(stand, .35) && state.creatures.every((creature) => {
       if (!liveCreature(creature)) return true;
       const approach = Math.max(0, approachSpeed(memory, creature));
       const gap = distance(stand, creature) - approach * seconds - (creature.size + CONTACT_MARGIN);
@@ -311,6 +327,20 @@ function targetForState(state, memory) {
       return kiteIds.has(creature.id) ? gap > KITE_GRAB_GAP : distance(stand, creature) > creature.size + 112;
     });
   };
+  if (returnPlan) {
+    if (activeHole && holeIsWorkable(activeHole, DIG_KEEP_MARGIN)) return clamTarget(activeHole, distance(state.player, activeHole) <= 48);
+    const returnPickup = state.pickups
+      .filter((item) => needsCollection(item) && safeToCollect(item))
+      .sort((left, right) => (right.xp - left.xp) * 24 + distance(state.player, left) - distance(state.player, right))[0];
+    if (returnPickup) {
+      return {
+        kind: "pickup", point: returnPickup, targetId: returnPickup.id, key: targetKey("pickup", returnPickup),
+        intent: "귀환 전 경험치 회수 중", desiredDistance: pickupGoal, kiteIds, hurry: true,
+      };
+    }
+    if (nearestHole) return clamTarget(nearestHole);
+    return campTarget(false);
+  }
   if (!digging) {
     // 큰 경험치(복어·큰 게를 잡은 보상)는 복어를 상대하는 사이에도, 호미질보다도 먼저 줍는다(진행 중인 호미질은 끝낸다).
     const grabRange = Math.max(MIN_PICKUP_CHASE_RANGE, pickupRadius + 105, KITE_GRAB_RANGE);
@@ -1061,17 +1091,38 @@ export function mudflatSupervisorCanDig(decision) {
   return (decision?.targetKind === "clam" || decision?.targetKind === "rock") && Math.hypot(decision.x ?? 0, decision.y ?? 0) <= .05;
 }
 
-export function maintainMudflatSupervisorCampaign(campaign) {
+export function planMudflatSupervisorMaintenance(campaign) {
   let coins = Math.max(0, Math.floor(campaign.coins ?? 0));
   let hp = Math.max(1, Number(campaign.hp ?? 1));
   let maxHp = Math.max(1, Number(campaign.maxHp ?? 1));
   const equipment = { ...(campaign.equipment ?? {}) };
-  let levels = campaign.levels;
+  let levels = { ...(campaign.levels ?? {}) };
   let pendingSkillDiscovery = campaign.pendingSkillDiscovery;
+  const actions = [];
+  const snapshot = (kind, id, label, cost) => {
+    const next = {
+      ...campaign,
+      coins,
+      hp: Math.min(maxHp, hp),
+      maxHp,
+      equipment: { ...equipment },
+      levels: { ...levels },
+      pendingSkillDiscovery,
+    };
+    actions.push({
+      kind,
+      id,
+      label,
+      cost,
+      detail: `${label} · ${cost.toLocaleString()}코인 사용 · 잔액 ${coins.toLocaleString()}코인`,
+      campaign: next,
+    });
+  };
 
   if (hp < maxHp * .72 && coins >= FULL_HEAL_PRICE) {
     coins -= FULL_HEAL_PRICE;
     hp = maxHp;
+    snapshot("recovery", "porridge", "해물죽으로 체력 전부 회복", FULL_HEAL_PRICE);
   }
 
   // 집게 훈련을 장비보다 먼저 산다: 쫓아오는 복어를 물러나며 잡는 속도가 집게 레벨에 달려 있다(회복 값은 남긴다).
@@ -1084,6 +1135,7 @@ export function maintainMudflatSupervisorCampaign(campaign) {
       levels = { ...levels, tongs: levels.tongs + 1 };
       const after = mudflatAdvancedSkillUnlocks(levels);
       if ((!before.electric && after.electric) || (!before.castNet && after.castNet)) pendingSkillDiscovery = true;
+      snapshot("training", "tongs", `집게 숙련도 Lv.${levels.tongs} 훈련`, mudflatTrainingPrice(levels.tongs - 1));
     }
   }
 
@@ -1100,6 +1152,12 @@ export function maintainMudflatSupervisorCampaign(campaign) {
     if (!affordable) break;
     equipment[affordable.id] = affordable.level + 1;
     coins -= affordable.price;
+    const previousMaxHp = maxHp;
+    const stats = mudflatEquipmentStats(equipment, campaign.baseMaxHp, campaign.mode === "normal" ? levels?.snack : 0);
+    maxHp = stats.maxHp;
+    if (maxHp > previousMaxHp) hp += maxHp - previousMaxHp;
+    const item = MUDFLAT_SHOP_EQUIPMENT.find((entry) => entry.id === affordable.id);
+    snapshot("equipment", affordable.id, `${item?.name ?? affordable.id} Lv.${equipment[affordable.id]} 구매`, affordable.price);
     upgradesBought += 1;
   }
 
@@ -1107,6 +1165,7 @@ export function maintainMudflatSupervisorCampaign(campaign) {
     && coins >= MOSQUITO_REPELLENT_PRICE + FULL_HEAL_PRICE) {
     equipment[MOSQUITO_REPELLENT_KEY] = 1;
     coins -= MOSQUITO_REPELLENT_PRICE;
+    snapshot("supply", MOSQUITO_REPELLENT_KEY, "해충기피제 준비", MOSQUITO_REPELLENT_PRICE);
   }
 
   const stats = mudflatEquipmentStats(equipment, campaign.baseMaxHp, campaign.mode === "normal" ? levels?.snack : 0);
@@ -1115,10 +1174,17 @@ export function maintainMudflatSupervisorCampaign(campaign) {
   if (hp < maxHp && coins >= FULL_HEAL_PRICE) {
     coins -= FULL_HEAL_PRICE;
     hp = maxHp;
+    snapshot("recovery", "porridge", "해물죽으로 추가 체력 회복", FULL_HEAL_PRICE);
   }
 
-  return {
+  const maintained = {
     ...campaign, coins, hp: Math.min(maxHp, hp), maxHp, equipment,
-    ...(levels === campaign.levels ? {} : { levels, pendingSkillDiscovery }),
+    levels,
+    ...(pendingSkillDiscovery !== undefined || Object.prototype.hasOwnProperty.call(campaign, "pendingSkillDiscovery") ? { pendingSkillDiscovery } : {}),
   };
+  return { campaign: maintained, actions };
+}
+
+export function maintainMudflatSupervisorCampaign(campaign) {
+  return planMudflatSupervisorMaintenance(campaign).campaign;
 }

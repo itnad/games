@@ -340,7 +340,15 @@ export function mudflatPufferEventInterval(stage = 1, roll = 0) {
 export function mudflatCrabRushRows(stage = 1) {
   const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
   if (safeStage < 4) return 0;
-  return Math.min(4, safeStage - 3);
+  return Math.min(5, safeStage - 2);
+}
+
+export function mudflatCrabRushCrabsPerRow(stage = 1, elapsed = 0) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < 4) return 0;
+  const safeElapsed = Math.max(0, Number(elapsed) || 0);
+  const laterWaveBonus = Math.floor(safeElapsed / 45) * 3;
+  return Math.min(20, 8 + (safeStage - 4) * 2 + laterWaveBonus);
 }
 
 export function mudflatCrabRushInterval(stage = 1, roll = 0) {
