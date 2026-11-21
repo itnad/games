@@ -158,6 +158,7 @@ import {
   mudflatOpeningCreatureSpeedMultiplier,
   mudflatOpeningWaveCount,
   mudflatPufferEventInterval,
+  mudflatCrabRushCrabsPerRow,
   mudflatCrabRushRows,
   mudflatCrabRushInterval,
   mudflatMudZombieCount,
@@ -1264,7 +1265,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatOpeningCreatureSpeedMultiplier(8, 0, "pufferfish"), 1);
   assert.equal(mudflatPufferEventInterval(2, .5), Infinity);
   assert.ok(mudflatPufferEventInterval(3, 0) >= 25);
-  assert.deepEqual([3, 4, 5, 6, 7, 10].map(mudflatCrabRushRows), [0, 1, 2, 3, 4, 4]);
+  assert.deepEqual([3, 4, 5, 6, 7, 10].map(mudflatCrabRushRows), [0, 2, 3, 4, 5, 5]);
+  assert.deepEqual([26, 70, 110, 150, 190].map((elapsed) => mudflatCrabRushCrabsPerRow(4, elapsed)), [8, 11, 14, 17, 20]);
+  assert.equal(mudflatCrabRushCrabsPerRow(5, 26), 10);
+  assert.equal(mudflatCrabRushCrabsPerRow(8, 26), 16);
+  assert.equal(mudflatCrabRushCrabsPerRow(3, 240), 0);
   assert.equal(mudflatCrabRushInterval(3, .5), Infinity);
   assert.ok(mudflatCrabRushInterval(8, .5) > 30);
   assert.deepEqual([5, 6, 7, 8, 10].map(mudflatMudZombieCount), [0, 20, 30, 40, 40]);
@@ -1957,6 +1962,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /mudflatOpeningCreatureSpeedMultiplier\(runtime\.stage, runtime\.elapsed, template\.id, runtime\.mode\)/);
   assert.match(source, /const spawnPufferEvent =/);
   assert.match(source, /const spawnCrabRush =/);
+  assert.match(source, /const crabsPerRow = mudflatCrabRushCrabsPerRow\(runtime\.stage, runtime\.elapsed\)/);
+  assert.match(source, /for \(let row = 0; row < rows; row \+= 1\)[\s\S]*?for \(let column = 0; column < crabsPerRow; column \+= 1\)/);
   assert.match(source, /const spawnMudZombieEvent =/);
   assert.match(source, /const spawnJellyfish =/);
   assert.match(source, /const spawnSeafoodSwarm =/);

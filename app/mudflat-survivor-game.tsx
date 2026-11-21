@@ -107,6 +107,7 @@ import {
   mudflatOpeningCreatureSpeedMultiplier,
   mudflatOpeningWaveCount,
   mudflatPufferEventInterval,
+  mudflatCrabRushCrabsPerRow,
   mudflatCrabRushRows,
   mudflatCrabRushInterval,
   mudflatMudZombieCount,
@@ -2473,14 +2474,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const spawnCrabRush = (width: number, height: number) => {
       const template = MUDFLAT_CREATURES.find((item) => item.id === "small-crab");
       const rows = mudflatCrabRushRows(runtime.stage);
-      if (!template || rows <= 0) return;
+      const crabsPerRow = mudflatCrabRushCrabsPerRow(runtime.stage, runtime.elapsed);
+      if (!template || rows <= 0 || crabsPerRow <= 0) return;
       const sourceAngle = runtimeRandom(runtime) * Math.PI * 2;
       const forwardX = -Math.cos(sourceAngle);
       const forwardY = -Math.sin(sourceAngle);
       const sideX = -forwardY;
       const sideY = forwardX;
       const edgeDistance = Math.hypot(width, height) * .6 + 80;
-      const crabsPerRow = 7;
       for (let row = 0; row < rows; row += 1) {
         for (let column = 0; column < crabsPerRow; column += 1) {
           const lateral = (column - (crabsPerRow - 1) / 2) * 38;
