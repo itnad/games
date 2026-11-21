@@ -377,7 +377,9 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(game, /windowWidth: window\.innerWidth/);
   assert.match(game, /logViewport\.canvasWidth = width/);
   assert.match(game, /decideMudflatSupervisorMove/);
-  assert.match(game, /maintainMudflatSupervisorCampaign/);
+  assert.match(game, /planMudflatSupervisorMaintenance/);
+  assert.match(game, /maintenance-purchase/);
+  assert.match(game, /is-supervisor-choice/);
   assert.match(game, /emptySeafoodRisk: runtime\.emptySeafoodSeconds/);
   assert.match(game, /retreatDirection: \{ x: -decisionState\.lastTravelX, y: -decisionState\.lastTravelY \}/);
   assert.match(game, /SUPERVISOR PAUSED/);

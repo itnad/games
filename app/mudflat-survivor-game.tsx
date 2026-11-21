@@ -25,7 +25,7 @@ import {
   MUDFLAT_SUPERVISOR_DECISION_SECONDS,
   createMudflatSupervisorMemory,
   decideMudflatSupervisorMove,
-  maintainMudflatSupervisorCampaign,
+  planMudflatSupervisorMaintenance,
   mudflatSupervisorCanDig,
 } from "./mudflat-supervisor.js";
 import { MUDFLAT_SUPERVISOR_LOG_KEY, appendMudflatSupervisorLog, createMudflatSupervisorLog, serializeMudflatSupervisorLog } from "./mudflat-supervisor-log.js";
@@ -1809,6 +1809,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [supervisorClears, setSupervisorClears] = useState(0);
   const [supervisorDefeatReason, setSupervisorDefeatReason] = useState("피해 누적");
   const [supervisorLogCopyStatus, setSupervisorLogCopyStatus] = useState("");
+  const [supervisorMaintenanceChoice, setSupervisorMaintenanceChoice] = useState("");
 
   const appendSupervisorEvent = useCallback((event: string, detail = "", runtime = runtimeRef.current) => {
     const log = supervisorLogRef.current;
@@ -2275,17 +2276,23 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const boss = runtime.creatures.find((creature) => creature.boss && creature.hp > 0);
       const bossNote = runtime.bossCaught ? "포획" : boss ? `놓침, 남은 체력 ${Math.round(boss.hp / Math.max(1, boss.maxHp) * 100)}%` : runtime.bossSpawned ? "잡았으나 수납 한도 초과" : "놓침";
       appendSupervisorEvent("stage-clear", `${runtime.stage}단계 완료 · 채집 ${settlement.catchCount} · 잔여 체력 ${Math.floor(runtime.player.hp)} (대왕 박하지 ${bossNote})`, runtime);
-      const maintained = maintainMudflatSupervisorCampaign(next) as Campaign;
-      campaignRef.current = maintained;
-      setCampaign(maintained);
+      const maintenance = planMudflatSupervisorMaintenance(next) as {
+        campaign: Campaign;
+        actions: Array<{ kind: string; id: string; label: string; detail: string; campaign: Campaign }>;
+      };
+      campaignRef.current = next;
+      setCampaign(next);
       setSupervisorClears((value) => value + 1);
-      setCampNotice(`${runtime.stage}단계 자동 정산 완료 · ${settlement.catchCount}마리 판매 · 회복과 장비 정비 후 다음 갯벌로 이동합니다.`);
+      setSupervisorIntent("정비 구매를 판단하는 중");
+      setSupervisorMaintenanceChoice("");
+      setCampNotice(`${runtime.stage}단계 자동 정산 완료 · ${settlement.catchCount}마리 판매 · 감독이 다음 단계에 필요한 구매를 살펴봅니다.`);
       setScreen("camp");
       if (supervisorDepartureTimerRef.current !== null) window.clearTimeout(supervisorDepartureTimerRef.current);
-      supervisorDepartureTimerRef.current = window.setTimeout(() => {
-        supervisorDepartureTimerRef.current = null;
+      let actionIndex = 0;
+      const depart = () => {
         const entry = campaignRef.current;
         if (!supervisorRef.current || !entry) return;
+        setSupervisorMaintenanceChoice("");
         stageEntryRef.current = createStageEntryCheckpoint(entry);
         const nextRuntime = makeRuntime(entry);
         nextRuntime.firstMoveGuide = null;
@@ -2294,7 +2301,33 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         resetMovementInput(); runtimeRef.current = nextRuntime;
         appendSupervisorEvent("stage-start", `${nextRuntime.stage}단계 진입 · 체력 ${Math.floor(nextRuntime.player.hp)} / ${Math.floor(nextRuntime.player.maxHp)}`, nextRuntime);
         snapshot(nextRuntime); setChoices([]); setScreen("running"); setRunId((value) => value + 1);
-      }, 1400);
+      };
+      const selectNextPurchase = () => {
+        if (!supervisorRef.current) return;
+        const action = maintenance.actions[actionIndex];
+        if (action) {
+          actionIndex += 1;
+          campaignRef.current = action.campaign;
+          setCampaign(action.campaign);
+          setSupervisorMaintenanceChoice(`${action.kind}:${action.id}`);
+          setSupervisorIntent(action.label);
+          setCampNotice(`감독 선택 · ${action.detail}`);
+          appendSupervisorEvent("maintenance-purchase", action.detail, runtime);
+          supervisorDepartureTimerRef.current = window.setTimeout(selectNextPurchase, 650);
+          return;
+        }
+        campaignRef.current = maintenance.campaign;
+        setCampaign(maintenance.campaign);
+        setSupervisorMaintenanceChoice("");
+        setSupervisorIntent("정비 완료 · 다음 갯벌 준비");
+        const summary = maintenance.actions.length > 0
+          ? `감독이 ${maintenance.actions.length}건의 구매를 마쳤습니다.`
+          : "감독이 코인을 아끼고 구매 없이 출정하기로 했습니다.";
+        setCampNotice(`${summary} 다음 갯벌로 이동합니다.`);
+        appendSupervisorEvent("maintenance-complete", `${summary} 잔액 ${maintenance.campaign.coins.toLocaleString()}코인`, runtime);
+        supervisorDepartureTimerRef.current = window.setTimeout(depart, 800);
+      };
+      supervisorDepartureTimerRef.current = window.setTimeout(selectNextPurchase, 650);
       return;
     }
     const newlyUnlockedStage = Math.min(9, runtime.stage + 1);
@@ -4405,7 +4438,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const soldItems = MUDFLAT_SEAFOOD_MARKET.filter((item) => (campaign.lastHaul[item.type] ?? 0) > 0);
     const campHpPercent = Math.max(0, Math.min(100, campaign.hp / Math.max(1, campaign.maxHp) * 100));
     const campXpPercent = Math.max(0, Math.min(100, campaign.xp / Math.max(1, campaign.nextXp) * 100));
-    return <main className="ms-shell ms-camp" style={{ "--ms-departure-space": `${departureSpace}px` } as CSSProperties}>
+    return <main className={`ms-shell ms-camp${supervisorActive ? " ms-supervisor-camp" : ""}`} style={{ "--ms-departure-space": `${departureSpace}px` } as CSSProperties}>
       <MudflatTopbar onExit={onExit} />
       <section className="ms-camp-hero">
         <div><small>STAGE {campaign.stage - 1} CLEAR</small><h1>무사히 돌아왔습니다</h1><p>{campNotice}</p></div>
@@ -4444,10 +4477,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           </div>
         </article>
         <div className="ms-shop-stack">
-          <article className="ms-shop"><header><small>EQUIPMENT SHOP</small><h2>장비 물품</h2></header><div>{MUDFLAT_SHOP_EQUIPMENT.map((item) => { const level = campaign.equipment[item.id] ?? 0; const price = mudflatEquipmentPrice(item.id, level); const effectLevel = Math.max(1, Math.min(item.max, level >= item.max ? level : level + 1)); const effectDescription = `Lv.${effectLevel} 효과 · ${mudflatEquipmentDescription(item.id, effectLevel)}`; return <button type="button" key={item.id} disabled={level >= item.max || campaign.coins < price} onClick={() => buyEquipment(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{effectDescription}</small></span><em>{level >= item.max ? "최고 단계" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
-          <article className="ms-shop"><header><small>FIELD SUPPLY</small><h2>소모품</h2></header><div><button type="button" disabled={mosquitoRepellentReady || campaign.coins < MOSQUITO_REPELLENT_PRICE} onClick={buyMosquitoRepellent}><i>✹</i><span><b>해충기피제</b><small>언제 나타날지 모를 모기떼에 대비합니다. 다음 갯벌 1회 동안 피해를 막습니다.</small></span><em>{mosquitoRepellentReady ? "준비 완료" : `${MOSQUITO_REPELLENT_PRICE}코인`}</em></button></div></article>
-          <article className="ms-shop"><header><small>RECOVERY FOOD</small><h2>체력 회복 음식</h2></header><div>{MUDFLAT_RECOVERY_FOODS.map((food) => <button type="button" key={food.id} disabled={campaign.hp >= campaign.maxHp || campaign.coins < food.price} onClick={() => buyFood(food.id)}><i>{food.icon}</i><span><b>{food.name}</b><small>{food.description} 구매 즉시 먹습니다.</small></span><em>{food.price}코인</em></button>)}</div></article>
-          <article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const level = campaign.levels[skill.id] ?? 0; const price = mudflatTrainingPrice(level); return <button type="button" key={skill.id} disabled={level >= skill.max || campaign.coins < price} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{level >= skill.max ? "최고 레벨" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
+          <article className="ms-shop"><header><small>EQUIPMENT SHOP</small><h2>장비 물품</h2></header><div>{MUDFLAT_SHOP_EQUIPMENT.map((item) => { const level = campaign.equipment[item.id] ?? 0; const price = mudflatEquipmentPrice(item.id, level); const selected = supervisorMaintenanceChoice === `equipment:${item.id}`; const effectLevel = Math.max(1, Math.min(item.max, selected ? level : level >= item.max ? level : level + 1)); const effectDescription = `Lv.${effectLevel} 효과 · ${mudflatEquipmentDescription(item.id, effectLevel)}`; return <button type="button" key={item.id} className={selected ? "is-supervisor-choice" : undefined} disabled={supervisorActive || level >= item.max || campaign.coins < price} onClick={() => buyEquipment(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{effectDescription}</small></span><em>{selected ? "감독 선택" : level >= item.max ? "최고 단계" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
+          <article className="ms-shop"><header><small>FIELD SUPPLY</small><h2>소모품</h2></header><div><button type="button" className={supervisorMaintenanceChoice === `supply:${MOSQUITO_REPELLENT_KEY}` ? "is-supervisor-choice" : undefined} disabled={supervisorActive || mosquitoRepellentReady || campaign.coins < MOSQUITO_REPELLENT_PRICE} onClick={buyMosquitoRepellent}><i>✹</i><span><b>해충기피제</b><small>언제 나타날지 모를 모기떼에 대비합니다. 다음 갯벌 1회 동안 피해를 막습니다.</small></span><em>{supervisorMaintenanceChoice === `supply:${MOSQUITO_REPELLENT_KEY}` ? "감독 선택" : mosquitoRepellentReady ? "준비 완료" : `${MOSQUITO_REPELLENT_PRICE}코인`}</em></button></div></article>
+          <article className="ms-shop"><header><small>RECOVERY FOOD</small><h2>체력 회복 음식</h2></header><div>{MUDFLAT_RECOVERY_FOODS.map((food) => { const selected = supervisorMaintenanceChoice === `recovery:${food.id}`; return <button type="button" key={food.id} className={selected ? "is-supervisor-choice" : undefined} disabled={supervisorActive || campaign.hp >= campaign.maxHp || campaign.coins < food.price} onClick={() => buyFood(food.id)}><i>{food.icon}</i><span><b>{food.name}</b><small>{food.description} 구매 즉시 먹습니다.</small></span><em>{selected ? "감독 선택" : `${food.price}코인`}</em></button>; })}</div></article>
+          <article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const level = campaign.levels[skill.id] ?? 0; const price = mudflatTrainingPrice(level); const selected = supervisorMaintenanceChoice === `training:${skill.id}`; return <button type="button" key={skill.id} className={selected ? "is-supervisor-choice" : undefined} disabled={supervisorActive || level >= skill.max || campaign.coins < price} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{selected ? "감독 선택" : level >= skill.max ? "최고 레벨" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
         </div>
       </section>
       <section className={`ms-departure${departureCollapsed ? " is-collapsed" : ""}`} ref={departureRef} aria-label="다음 갯벌 출정 패널">

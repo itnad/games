@@ -5,6 +5,7 @@ import {
   createMudflatSupervisorMemory,
   decideMudflatSupervisorMove,
   maintainMudflatSupervisorCampaign,
+  planMudflatSupervisorMaintenance,
   mudflatSupervisorAttackBand,
   mudflatSupervisorCanDig,
 } from "../app/mudflat-supervisor.js";
@@ -1049,7 +1050,7 @@ test("감독 AI는 귀환 시간이 빠듯하면 게 무리를 돌아가지 않�
   assert.ok(Math.abs(blocked.y) > .25, JSON.stringify(blocked));
 });
 
-test("자동 정비는 원본을 바꾸지 않고 체력 회복과 장비 구매를 수행한다", () => {
+test("감독 정비는 원본을 바꾸지 않고 구매 선택을 순서대로 기록한다", () => {
   const campaign = {
     stage: 5,
     mode: "normal",
@@ -1061,24 +1062,32 @@ test("자동 정비는 원본을 바꾸지 않고 체력 회복과 장비 구매
     levels: { snack: 0 },
   };
   const original = structuredClone(campaign);
-  const maintained = maintainMudflatSupervisorCampaign(campaign);
+  const plan = planMudflatSupervisorMaintenance(campaign);
+  const maintained = plan.campaign;
 
   assert.deepEqual(campaign, original);
   assert.ok(maintained.coins < campaign.coins);
   assert.equal(maintained.hp, maintained.maxHp);
   assert.ok(Object.keys(maintained.equipment).length >= 2);
   assert.equal(maintained.equipment.mosquitoRepellent, 1);
+  assert.equal(plan.actions[0].kind, "recovery");
+  assert.deepEqual(plan.actions.filter((action) => action.kind === "equipment").map((action) => action.id), ["vest", "vest"]);
+  assert.ok(plan.actions.some((action) => action.kind === "supply" && action.id === "mosquitoRepellent"));
+  assert.ok(plan.actions.every((action) => action.detail.includes("잔액")));
+  assert.deepEqual(maintainMudflatSupervisorCampaign(campaign), maintained);
 });
 
-test("자동 정비는 회복 값을 남기고 집게 훈련을 장비보다 먼저 3레벨까지 산다", () => {
+test("감독 정비는 회복 값을 남기고 집게 훈련을 장비보다 먼저 3레벨까지 선택한다", () => {
   const campaign = { stage: 4, mode: "normal", coins: 5500, hp: 100, maxHp: 100, baseMaxHp: 100, equipment: {}, levels: { tongs: 1, digging: 1 } };
   const original = structuredClone(campaign);
-  const maintained = maintainMudflatSupervisorCampaign(campaign);
+  const plan = planMudflatSupervisorMaintenance(campaign);
+  const maintained = plan.campaign;
   assert.deepEqual(campaign, original);
   // Lv.2 2,000코인 + Lv.3 3,000코인.
   assert.equal(maintained.levels.tongs, 3);
   assert.equal(maintained.levels.digging, 1);
   assert.ok(maintained.coins <= 500);
+  assert.deepEqual(plan.actions.slice(0, 2).map((action) => `${action.kind}:${action.id}`), ["training:tongs", "training:tongs"]);
 
   // 코인이 모자라면(Lv.2 값 + 회복 값) 훈련하지 않고 예전처럼 장비만 산다.
   const poor = maintainMudflatSupervisorCampaign({ ...campaign, coins: 2050 });
@@ -1086,6 +1095,13 @@ test("자동 정비는 회복 값을 남기고 집게 훈련을 장비보다 먼
   // 아이 모드에는 집게 훈련이 없다.
   const kids = maintainMudflatSupervisorCampaign({ ...campaign, mode: "kids" });
   assert.equal(kids.levels.tongs, 1);
+});
+
+test("감독 정비는 살 수 있는 항목이 없으면 구매 없이 출정한다", () => {
+  const campaign = { stage: 2, mode: "normal", coins: 0, hp: 100, maxHp: 100, baseMaxHp: 100, equipment: {}, levels: { tongs: 1, digging: 1 } };
+  const plan = planMudflatSupervisorMaintenance(campaign);
+  assert.equal(plan.actions.length, 0);
+  assert.deepEqual(plan.campaign, campaign);
 });
 
 test("감독모드 로그는 초기 상태와 순번을 보존하며 최대 길이를 제한한다", () => {
