@@ -38,6 +38,7 @@ function scene(overrides = {}) {
 
 test("감독 AI는 복귀 알림이 뜨면 다른 목표보다 캠프를 우선한다", () => {
   const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 238,
     baseCampGuideShown: true,
     baseCamp: { x: 420, y: 0 },
     pickups: [{ x: -90, y: 0, xp: 30, phase: "idle" }],
@@ -45,8 +46,22 @@ test("감독 AI는 복귀 알림이 뜨면 다른 목표보다 캠프를 우선�
   }));
 
   assert.equal(decision.targetKind, "camp");
-  assert.equal(decision.intent, "베이스캠프로 귀환 중");
+  assert.equal(decision.intent, "밀물 전에 베이스캠프로 서둘러 귀환 중");
   assert.ok(decision.x > .7);
+});
+
+test("감독 AI는 귀환 여유가 있으면 안전한 경험치를 챙긴 뒤 캠프로 간다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    elapsed: 230,
+    playerSpeed: 155,
+    baseCampGuideShown: true,
+    baseCamp: { x: 420, y: 0 },
+    pickups: [{ id: 7, x: 70, y: 0, xp: 8, phase: "idle" }],
+  }));
+
+  assert.equal(decision.targetKind, "pickup");
+  assert.equal(decision.targetId, 7);
+  assert.equal(decision.intent, "귀환 전 경험치 회수 중");
 });
 
 test("감독 AI는 돌발 물살 직전 언덕배기를 우선한다", () => {
@@ -60,6 +75,18 @@ test("감독 AI는 돌발 물살 직전 언덕배기를 우선한다", () => {
   assert.equal(decision.targetKind, "safe-zone");
   assert.equal(decision.intent, "돌발 물살 대피 중");
   assert.ok(decision.x > .7);
+});
+
+test("감독 AI는 느리거나 언덕배기가 멀면 고정 5초보다 일찍 대피를 시작한다", () => {
+  const decision = decideMudflatSupervisorMove(scene({
+    stage: 2,
+    playerSpeed: 55,
+    secondsToTide: 7.4,
+    safeZone: { x: 260, y: 0 },
+  }));
+
+  assert.equal(decision.targetKind, "safe-zone");
+  assert.equal(decision.intent, "돌발 물살 대피 중");
 });
 
 test("감독 AI는 떨어지는 바위의 충돌 지점에서 벗어난다", () => {
@@ -1066,6 +1093,7 @@ test("감독모드 로그는 초기 상태와 순번을 보존하며 최대 길�
     buildId: "test-build",
     startedAt: 0,
     seed: 123,
+    viewport: { windowWidth: 1280, windowHeight: 720, devicePixelRatio: 2 },
     campaign: { stage: 1, level: 1, hp: 100, maxHp: 100, coins: 0, levels: { tongs: 1 }, equipment: {} },
   });
 
@@ -1076,6 +1104,7 @@ test("감독모드 로그는 초기 상태와 순번을 보존하며 최대 길�
 
   assert.equal(exported.buildId, "test-build");
   assert.equal(exported.initialCampaign.levels.tongs, 1);
+  assert.deepEqual(exported.viewport, { windowWidth: 1280, windowHeight: 720, devicePixelRatio: 2 });
   assert.equal(exported.entries.length, MUDFLAT_SUPERVISOR_LOG_LIMIT);
   assert.equal(exported.entries[0].sequence, 6);
   assert.equal(exported.entries.at(-1).sequence, MUDFLAT_SUPERVISOR_LOG_LIMIT + 5);

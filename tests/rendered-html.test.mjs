@@ -355,9 +355,11 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(tools, /parseRestorePayload/);
   assert.match(tools, /현재 해루질럿 저장값을 붙여 넣은 데이터로 교체할까요/);
   assert.match(tools, /붙여 넣은 저장값 복원/);
-  assert.match(tools, /seed: 20261102 \+ preset\.stage \* 101/);
+  assert.match(tools, /preset\.supervisor \? createMudflatSeed\(\) : 20261102 \+ preset\.stage \* 101/);
   assert.match(tools, /AI 감독모드 · 1단계부터/);
-  assert.match(tools, /감독모드 관전 시작/);
+  assert.match(tools, /무작위 시드 관전 시작/);
+  assert.match(tools, /입력 시드로 재현/);
+  assert.match(tools, /seed < 1 \|\| seed > 0xffffffff/);
   // AI 감독모드 시작 영역은 프리셋 목록 안이 아니라 페이지 맨 위(소개 바로 아래, 안내문·저장 상태보다 먼저)에 있다.
   const supervisorSection = tools.indexOf('className="mudflat-dev-supervisor"');
   assert.ok(supervisorSection > tools.indexOf('className="mudflat-dev-hero"'));
@@ -371,6 +373,8 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(game, /JSON\.parse\(window\.sessionStorage\.getItem\(MUDFLAT_DEV_LAUNCH_KEY\)/);
   assert.match(game, /setScreen\(launch\.run \? "running" : "setup"\)/);
   assert.match(game, /makeRuntime\(nextCampaign, launch\.seed\)/);
+  assert.match(game, /windowWidth: window\.innerWidth/);
+  assert.match(game, /logViewport\.canvasWidth = width/);
   assert.match(game, /decideMudflatSupervisorMove/);
   assert.match(game, /maintainMudflatSupervisorCampaign/);
   assert.match(game, /emptySeafoodRisk: runtime\.emptySeafoodSeconds/);
@@ -3776,7 +3780,8 @@ test("keeps experience flights above gameplay art and explains checkpoint rescue
   const source = await readMudflatSourceBundle();
   const styles = await readFile(new URL("../app/mudflat-survivor.css", import.meta.url), "utf8");
   assert.equal((source.match(/runtime\.pickups\.push\(createExperiencePickup\(/g) ?? []).length, 2, "both creature and clam rewards use the animation");
-  assert.match(source, /advanceExperiencePickup\(pickup, runtime\.player, pickupRadius, dt, inBaseCamp\)/);
+  assert.match(source, /advanceExperiencePickup\(pickup, runtime\.player, pickupRadius, dt\)/);
+  assert.doesNotMatch(source, /runtime\.xpCollectLife = inBaseCamp \? 0/);
   assert.doesNotMatch(source, /if \(distance < 22\).*runtime\.xp/);
   const gathererDraw = source.indexOf('if (characterId !== "lumi") drawGatherer');
   assert.ok(gathererDraw > 0 && source.indexOf("// Active rewards sit above") > gathererDraw);

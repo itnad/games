@@ -2102,6 +2102,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         startedAt: Date.now(),
         campaign: nextCampaign,
         seed: runtime.seed,
+        viewport: {
+          windowWidth: window.innerWidth,
+          windowHeight: window.innerHeight,
+          devicePixelRatio: window.devicePixelRatio || 1,
+        },
       }) : null;
       supervisorDecisionRef.current = createSupervisorDecisionState();
       supervisorLastDamageRef.current = "피해 누적";
@@ -2345,6 +2350,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const height = Math.max(420, canvas.clientHeight);
       if (canvas.width !== Math.floor(width * ratio) || canvas.height !== Math.floor(height * ratio)) {
         canvas.width = Math.floor(width * ratio); canvas.height = Math.floor(height * ratio);
+      }
+      const logViewport = supervisorLogRef.current?.viewport;
+      if (logViewport && logViewport.canvasWidth === undefined) {
+        logViewport.canvasWidth = width;
+        logViewport.canvasHeight = height;
       }
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       return { width, height };
@@ -3564,11 +3574,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
 
       const pickupRadius = 50 + (runtime.levels.basket ?? 0) * 24 + (runtime.equipment.cooler ?? 0) * 12;
-      runtime.xpCollectLife = inBaseCamp ? 0 : Math.max(0, runtime.xpCollectLife - dt);
+      runtime.xpCollectLife = Math.max(0, runtime.xpCollectLife - dt);
       let earnedExperience = 0;
       for (const pickup of runtime.pickups) {
-        // Camp entry freezes pending rewards without granting or deleting them.
-        earnedExperience += advanceExperiencePickup(pickup, runtime.player, pickupRadius, dt, inBaseCamp);
+        // 베이스캠프에서는 채집 도구만 멈춘다. 캠프 안에 먼저 떨어진 경험치는 그대로 끌어와 획득한다.
+        earnedExperience += advanceExperiencePickup(pickup, runtime.player, pickupRadius, dt);
       }
       runtime.xp += earnedExperience;
       if (earnedExperience > 0) runtime.xpCollectLife = EXPERIENCE_FLASH_SECONDS;
