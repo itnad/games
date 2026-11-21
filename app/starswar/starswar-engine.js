@@ -444,6 +444,23 @@ export function stwArmy(state, side) {
   return army;
 }
 
+/**
+ * 지도 화면이 볼 만한 곳(전선): 출격 병력이 있으면 그 선두, 없으면 교전이 벌어진 높이의 가운데, 둘 다 없으면 null.
+ * 교전은 3초 안에 맞았거나 무언가를 노리는 병력(일꾼·수송선에 탄 병력 제외)과 3초 안에 맞은 건물로 본다.
+ * 화면은 이 값을 "전선 따라가기"와, 따라가기를 끈 뒤의 "교전 보기" 버튼에 쓴다.
+ */
+export function stwBattleFocus(state, side = "player") {
+  const attack = stwArmy(state, side).attack;
+  if (attack.length) return { kind: "attack", y: attack.reduce((best, unit) => Math.min(best, unit.y), Infinity) };
+  const ys = [];
+  for (const unit of state.units) {
+    if (unit.side !== side || unit.hp <= 0 || unit.group === "cargo" || isWorker(unit)) continue;
+    if (state.time - unit.lastHit < 3 || unit.targetId !== null) ys.push(unit.y);
+  }
+  for (const building of state.buildings) if (building.side === side && building.hp > 0 && state.time - building.lastHit < 3) ys.push(building.y);
+  return ys.length ? { kind: "fight", y: ys.reduce((sum, y) => sum + y, 0) / ys.length } : null;
+}
+
 export function stwResearchDone(state, side, id) {
   return state.sides[side].research[id] === "done";
 }

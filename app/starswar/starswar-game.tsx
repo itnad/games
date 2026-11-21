@@ -26,6 +26,7 @@ import {
   stwRestore,
   stwSerialize,
   stwArmy,
+  stwBattleFocus,
   stwBuildCheck,
   stwClock,
   stwIsGuard,
@@ -377,6 +378,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [theme, setTheme] = useState<ThemeId>(() => (typeof window === "undefined" ? DEFAULT_THEME : readTheme()));
   const [game, setGame] = useState<StwState | null>(null);
   const [, setFrame] = useState(0);
+  /** 따라가기를 끈 동안 화면 밖 전선을 알리는 버튼("종류:방향"). 카메라(cameraRef)가 정하고 화면 갱신 때 옮겨 온다. */
+  const [battleCue, setBattleCue] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [tab, setTab] = useState<Tab>("build");
   // 방어 건물을 지을 쪽(전방·후방). 경기 중 탭을 옮겨도 그대로 둔다.
@@ -404,8 +407,11 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [selected, setSelected] = useState<string[]>([]);
   const selectedRef = useRef<string[]>([]);
   // follow: 전선 따라가기(공격 병력 선두나 집결지를 화면 가운데로). 지도를 끌거나 벌리면 멈추고, 마지막으로 만진 뒤 8초가 지나면 다시 따라간다.
+  // follow: 전선 따라가기. 경기마다 켠 채로 시작하고, 지도를 직접 옮기거나 확대하면 그 경기에서는 꺼진다.
   // fightY·fightUntil: 마지막으로 본 교전 높이와 그 높이를 붙잡아 둘 경기 시각(교전이 잠깐 끊겨도 화면이 튀지 않게).
-  const cameraRef = useRef({ zoom: 1, cx: 20, cy: 94, ready: false, follow: true, touchedAt: 0, fightY: 0, fightUntil: -1 });
+  // focusY: 지금 볼 만한 전선의 높이(없으면 null). glide: "전선 보기"를 눌러 한 번 옮겨 가는 중인 목표 높이.
+  // cue: 따라가기를 끈 동안 화면 밖에서 전선이 생겼을 때 띄울 버튼("fight:up" 같은 종류:방향). cueY: 그 버튼이 가리키는 높이.
+  const cameraRef = useRef({ zoom: 1, cx: 20, cy: 94, ready: false, follow: true, fightY: 0, fightUntil: -1, focusY: null as number | null, glide: null as number | null, cue: null as string | null, cueY: 0 });
   const pausedRef = useRef(false);
   const recordedRef = useRef(false);
   const savedAtRef = useRef(0);
@@ -452,8 +458,10 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     setGame(next);
     savedAtRef.current = next.time;
     recordedRef.current = false;
-    cameraRef.current.ready = false;
-    cameraRef.current.follow = true;
+    // 카메라는 경기마다 처음부터: 따라가기를 다시 켜고, 지난 경기의 교전 기억을 지운다
+    // (지우지 않으면 새 경기 시각이 지난 경기의 fightUntil보다 작은 동안 지난 경기의 교전 자리로 화면이 끌려간다).
+    Object.assign(cameraRef.current, { ready: false, follow: true, fightY: 0, fightUntil: -1, focusY: null, glide: null, cue: null });
+    setBattleCue(null);
     setRenderer("loading");
     setTab("build");
     setSelected([]);
@@ -524,38 +532,39 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       camera.cy = STW_LANE_LENGTH;
       camera.ready = true;
     }
-    // 지도를 마지막으로 만진 뒤 8초가 지나면 다시 전선을 따라간다(따라가기 버튼을 없앴다).
-    if (!camera.follow && clock * 1000 - camera.touchedAt > 8000) camera.follow = true;
-    if (camera.follow) {
-      // 전선 따라가기: 공격 병력이 있으면 그 선두를 화면 가운데로, 아니면 교전이 벌어진 곳(집결지·앞마당 수비, 따로 둔 부대, 드랍),
-      // 교전도 없으면 기본 구도(지도 맨 아래, 아군 광물 줄까지 다 보이게).
-      // 예전에는 출격 병력이 없으면 늘 맨 아래로 가서, 집결지나 앞마당에서 싸우는 중에도 화면이 갑자기 아래로 내려갔다.
-      const army = stwArmy(current, "player");
-      const front = army.attack.reduce((best, unit) => Math.min(best, unit.y), STW_LANE_LENGTH);
-      // 교전: 3초 안에 맞았거나 무언가를 노리는 아군 병력(일꾼 제외), 3초 안에 맞은 아군 건물. 그 높이의 가운데를 4초 동안 붙잡아 둔다.
-      const fightYs: number[] = [];
-      for (const unit of current.units) {
-        if (unit.side !== "player" || unit.hp <= 0 || unit.group === "cargo" || (STW_UNITS[unit.type as keyof typeof STW_UNITS] as { worker?: boolean }).worker) continue;
-        if (current.time - unit.lastHit < 3 || unit.targetId !== null) fightYs.push(unit.y);
+    // 볼 만한 전선: 출격 병력이 있으면 그 선두(6칸 뒤를 가운데로), 없으면 교전이 벌어진 곳(집결지·앞마당 수비, 따로 둔 부대, 드랍).
+    // 교전 높이는 4초 동안 붙잡아 둔다(교전이 잠깐 끊겨도 화면이 튀지 않게).
+    const live = stwBattleFocus(current, "player") as { kind: "attack" | "fight"; y: number } | null;
+    if (live?.kind === "fight") {
+      camera.fightY = live.y;
+      camera.fightUntil = current.time + 4;
+    }
+    const focusY = live?.kind === "attack" ? live.y + 6 : current.time <= camera.fightUntil ? camera.fightY : null;
+    camera.focusY = focusY;
+    // 전선 따라가기: 전선이 있으면 그곳을, 없으면 기본 구도(지도 맨 아래, 아군 광물 줄까지 다 보이게)를 화면 가운데로.
+    // 지도를 직접 옮기거나 확대하면 그 경기에서는 따라가지 않는다. 예전에는 8초 뒤 다시 따라가서, 본진을 보며 건설·생산을 누르는 중에도
+    // 앞에 세워 둔 병력이 무언가를 노릴 때마다 화면이 적 쪽으로 끌려갔다. 이제는 "전선 보기"를 눌렀을 때만 한 번 옮겨 간다(glide).
+    const aim = camera.follow ? focusY ?? STW_LANE_LENGTH : camera.glide;
+    if (aim !== null) {
+      // 목표를 뷰포트 한계(지도 양 끝)에 맞춰 잘라, 끝에 닿으면 바로 멈춘다.
+      const target = stwViewport(width, height, { ...camera, cy: aim }).cy;
+      camera.cy += (target - camera.cy) * (camera.follow ? 0.06 : 0.14);
+      if (Math.abs(target - camera.cy) < 0.02) {
+        camera.cy = target;
+        camera.glide = null;
       }
-      for (const building of current.buildings) if (building.side === "player" && building.hp > 0 && current.time - building.lastHit < 3) fightYs.push(building.y);
-      if (fightYs.length) {
-        camera.fightY = fightYs.reduce((sum, y) => sum + y, 0) / fightYs.length;
-        camera.fightUntil = current.time + 4;
-      }
-      const fighting = current.time <= camera.fightUntil;
-      const focus = army.attack.length ? front + 6 : fighting ? camera.fightY : STW_LANE_LENGTH;
-      // 맨 아래를 노릴 때는 뷰포트 한계(지도 끝)까지 바로 붙도록 지금 보이는 한계에서 출발한다.
-      const limit = stwViewport(width, height, { ...camera, cy: STW_LANE_LENGTH }).cy;
-      const target = Math.min(focus, limit);
-      camera.cy += (target - camera.cy) * 0.06;
-      if (Math.abs(target - camera.cy) < 0.02) camera.cy = target;
     }
     const view = stwViewport(width, height, camera) as StwView;
     camera.zoom = view.zoom;
     camera.cx = view.cx;
     camera.cy = view.cy;
     viewRef.current = view;
+    // 따라가기를 끈 동안 전선이 화면 밖(가장자리 3칸 안쪽 포함)에 있으면 "전선 보기" 버튼을 띄운다.
+    const reach = focusY === null ? 0 : Math.abs(stwViewport(width, height, { ...camera, cy: focusY }).cy - view.cy);
+    camera.cue = !camera.follow && camera.glide === null && focusY !== null && reach > 1 && Math.abs(focusY - view.cy) > height / view.scale / 2 - 3
+      ? `${live?.kind === "attack" ? "attack" : "fight"}:${focusY < view.cy ? "up" : "down"}`
+      : null;
+    if (camera.cue && focusY !== null) camera.cueY = focusY;
     pixi.render(current, view, { clock, timeScale: pausedRef.current ? 0 : 1, rally: current.sides.player.rally, selected: selectedRef.current });
   }, []);
 
@@ -631,6 +640,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       if (uiTimer >= 0.25) {
         uiTimer = 0;
         setFrame((value) => value + 1);
+        setBattleCue(cameraRef.current.cue);
       }
       frame = window.requestAnimationFrame(loop);
     };
@@ -750,7 +760,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       const distance = Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y));
       zoomAround(mid, gesture.anchor, gesture.zoom * (distance / gesture.distance));
       cameraRef.current.follow = false;
-      cameraRef.current.touchedAt = event.timeStamp;
+      cameraRef.current.glide = null;
       return;
     }
     const dx = points[0].x - gesture.x;
@@ -758,7 +768,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     if (!gesture.moved && Math.hypot(dx, dy) < 8) return;
     gesture.moved = true;
     cameraRef.current.follow = false;
-    cameraRef.current.touchedAt = event.timeStamp;
+    cameraRef.current.glide = null;
     const scale = viewRef.current.scale;
     cameraRef.current.cx = gesture.cx - dx / scale;
     cameraRef.current.cy = gesture.cy - dy / scale;
@@ -790,9 +800,20 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     }
   };
 
+  /** "전선 보기": 지금 전선으로 화면을 한 번 옮긴다(따라가기는 꺼진 채로 둔다). */
+  const showBattle = () => {
+    const camera = cameraRef.current;
+    // 버튼이 뜬 뒤 누르기 직전에 교전이 끝났어도, 버튼이 가리키던 곳으로 간다.
+    camera.glide = camera.focusY ?? camera.cueY;
+    camera.cue = null;
+    setBattleCue(null);
+  };
+
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     const point = localPoint(event);
     zoomAround(point, stwScreenToMap(viewRef.current, point.x, point.y), cameraRef.current.zoom * Math.exp(-event.deltaY * 0.0015));
+    cameraRef.current.follow = false;
+    cameraRef.current.glide = null;
   };
 
   const pickRace = (next: Partial<{ player: EnemyRace; enemy: EnemyRace }>) => setRaces((current) => ({ ...current, ...next }));
@@ -1022,6 +1043,11 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           {mapAlert ? <p key={mapAlert.id} className="stw-map-alert" role="alert">{logText(mapAlert)}</p> : null}
           {game.finalBattle && !finished ? <p className="stw-final-banner" role="status">최종 결전 · 전원 출격 · 지휘 불가</p> : null}
           {game.lab && !game.finalBattle && !finished && !paused ? <button type="button" className="stw-lab-final" onClick={() => issue({ type: "finalBattle" })}>최종 결전</button> : null}
+          {battleCue && !finished && !paused && renderer === "ready" ? (
+            <button type="button" className={`stw-battle-cue ${battleCue.endsWith("up") ? "up" : "down"}`} onClick={showBattle}>
+              <i aria-hidden="true">{battleCue.endsWith("up") ? "▲" : "▼"}</i>{battleCue.startsWith("attack") ? "출격 병력 보기" : "교전 중 · 보기"}
+            </button>
+          ) : null}
           {toast ? <p key={toast.id} className={`stw-toast tone-${toast.tone}`} role="status">{toast.text}</p> : null}
           {paused && !finished && !confirmExit ? (
             <div className="stw-overlay">

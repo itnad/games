@@ -5,6 +5,7 @@ import {
   createStarswarGame,
   stwCreateScenario,
   stwArmy,
+  stwBattleFocus,
   stwBuildCheck,
   stwCommand,
   stwDetected,
@@ -4497,4 +4498,37 @@ test("AI 대 AI 관전 경기는 일반 규칙 그대로 양쪽 AI가 처음부�
   assert.equal(watch.sides.player.minerals, plain.sides.player.minerals);
   assert.equal(watch.sides.enemy.minerals, plain.sides.enemy.minerals);
   assert.match(stwBugReport(watch), /AI 대 AI 관전 경기/);
+});
+
+test("지도 화면이 볼 전선: 출격 병력의 선두, 없으면 교전 높이의 가운데, 둘 다 없으면 없음", () => {
+  const state = createStarswarGame({ seed: 5, aiSides: [] });
+  // 병력이 없으면(일꾼뿐이면) 볼 전선이 없다: 화면은 기본 구도(본진)에 머문다.
+  assert.equal(stwBattleFocus(state, "player"), null);
+  // 세워 둔 병력은 가만히 있으면 전선이 아니다.
+  const a = stwSpawnUnitAt(state, "player", "zealot", 20, 40);
+  const b = stwSpawnUnitAt(state, "player", "zealot", 22, 30);
+  assert.equal(stwBattleFocus(state, "player"), null);
+  // 무언가를 노리거나 3초 안에 맞으면 그 높이의 가운데가 전선이다.
+  a.targetId = 999;
+  assert.deepEqual(stwBattleFocus(state, "player"), { kind: "fight", y: 40 });
+  b.lastHit = state.time;
+  assert.deepEqual(stwBattleFocus(state, "player"), { kind: "fight", y: 35 });
+  // 일꾼(정찰 일꾼)과 수송선에 탄 병력은 세지 않는다.
+  const scout = stwSpawnUnitAt(state, "player", "probe", 20, 5, "scout");
+  scout.lastHit = state.time;
+  const cargo = stwSpawnUnitAt(state, "player", "zealot", 20, 10, "cargo");
+  cargo.lastHit = state.time;
+  assert.deepEqual(stwBattleFocus(state, "player"), { kind: "fight", y: 35 });
+  // 맞고 있는 건물도 전선이다.
+  const base = state.buildings.find((building) => building.side === "player");
+  a.targetId = null;
+  b.lastHit = -99;
+  base.lastHit = state.time;
+  assert.deepEqual(stwBattleFocus(state, "player"), { kind: "fight", y: base.y });
+  // 출격 병력이 있으면 교전보다 그 선두(가장 앞선 유닛)가 먼저다.
+  stwSpawnUnitAt(state, "player", "dragoon", 20, 55, "attack");
+  stwSpawnUnitAt(state, "player", "dragoon", 20, 48, "attack");
+  assert.deepEqual(stwBattleFocus(state, "player"), { kind: "attack", y: 48 });
+  // 상대 쪽 전선은 따로 센다.
+  assert.equal(stwBattleFocus(state, "enemy"), null);
 });

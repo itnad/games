@@ -545,6 +545,11 @@
 .stw-status-more li.tone-danger { border-left-color:var(--stw-red); color:var(--stw-red); }
 .stw-status-more time { margin-right:6px; color:var(--stw-muted); font-variant-numeric:tabular-nums; }
 .stw-map-alert { position:absolute; left:8px; right:8px; top:52px; z-index:4; width:max-content; max-width:calc(100% - 16px); margin:0; padding:6px 11px; overflow:hidden; border-radius:9px; color:#fff; background:color-mix(in srgb,var(--stw-red) 88%,#000); font-size:13px !important; font-weight:800; line-height:1.35 !important; text-overflow:ellipsis; white-space:nowrap; pointer-events:none; animation:stw-alert-fade 6s ease-out forwards; }
+.stw-battle-cue { position:absolute; left:50%; z-index:5; transform:translateX(-50%); min-height:36px; padding:0 14px; display:flex; align-items:center; gap:6px; border:1px solid #ffffff55; border-radius:18px; color:#fff; background:color-mix(in srgb,var(--stw-red) 86%,#000); box-shadow:0 3px 10px #0006; font-size:13px !important; font-weight:900; white-space:nowrap; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+.stw-battle-cue.up { top:8px; }
+.stw-battle-cue.down { bottom:8px; }
+.stw-battle-cue i { font-style:normal; font-size:11px; }
+.stw-battle-cue:active { transform:translateX(-50%) scale(.96); }
 @keyframes stw-alert-fade { 0%, 75% { opacity:1; } 100% { opacity:0; } }
 
 /* 결과 창 나가기 버튼: 스크롤해도 창 아래에 붙어 늘 보인다(예전에는 통계·팁을 끝까지 내려야 보였다). */
