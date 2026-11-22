@@ -4639,8 +4639,88 @@ test("정찰 대응 모드: AI가 맡은 진영만 켜지고, 읽은 전략과 �
 test("스타드래프트의 브라우저 저장 키는 모두 paperoid-stardraft- 로 시작하고 예전 이름을 옮기는 처리는 없다", async () => {
   const storage = await import("../app/stardraft/stardraft-storage.js");
   assert.deepEqual(Object.values(storage.STW_STORAGE_KEYS).sort(), [
-    "paperoid-stardraft-lab", "paperoid-stardraft-lab-presets", "paperoid-stardraft-learning", "paperoid-stardraft-record",
+    "paperoid-stardraft-history", "paperoid-stardraft-lab", "paperoid-stardraft-lab-presets", "paperoid-stardraft-learning", "paperoid-stardraft-record",
     "paperoid-stardraft-save", "paperoid-stardraft-theme-v2", "paperoid-stardraft-tips-seen",
   ]);
   assert.deepEqual(Object.keys(storage), ["STW_STORAGE_KEYS"]);
+});
+
+test("다시 보기 재생기는 조금씩 나아가도 한 번에 돌린 재현과 똑같이 끝난다", async () => {
+  const { stwReplayPlayer } = await import("../app/stardraft/stardraft-replay.js");
+  // 사람이 명령을 낸 경기를 하나 만든다(일꾼 생산 네 번, 적 AI가 이긴다).
+  const game = createStardraftGame({ difficulty: "normal", seed: 4242, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" } });
+  const script = [5, 130, 260, 400];
+  while (game.status === "playing" && game.time < 3600) {
+    if (script.includes(Math.round(game.time * 10))) stwIssue(game, "player", { type: "probe" });
+    stepStardraft(game, stwAiThink);
+  }
+  assert.equal(game.status, "over");
+  const code = JSON.parse(JSON.stringify(stwReplayCode(game, "test")));
+  assert.equal(code.commands.length, 4);
+  const whole = stwReplay(code);
+  assert.ok(stwReplayMatches(code, whole));
+  // 재생기: 0.37초, 1초, 0.05초씩 섞어 넘겨도 같은 끝에 닿는다.
+  const player = stwReplayPlayer(code);
+  assert.equal(player.done, false);
+  const slices = [0.37, 1, 0.05, 0.6];
+  for (let index = 0; !player.done && index < 200000; index += 1) player.advance(slices[index % slices.length]);
+  assert.ok(player.done);
+  assert.deepEqual(stwFingerprint(player.state), stwFingerprint(whole));
+  assert.ok(stwReplayMatches(code, player.state));
+  // 끝난 뒤에는 더 나아가지 않는다.
+  assert.equal(player.advance(1), 0);
+  // 한 번에 1초(10틱)까지만 나아간다(화면이 1초씩 끊어 넘긴다).
+  const fresh = stwReplayPlayer(code);
+  assert.equal(fresh.advance(5), 10);
+  assert.ok(Math.abs(fresh.state.time - 1) < 1e-6);
+  assert.throws(() => stwReplayPlayer({ v: 99 }), /재현 코드 형식/);
+  assert.throws(() => stwReplayPlayer(null), /재현 코드 형식/);
+});
+
+test("최근 경기: 끝난 사람 대 AI 경기만 재현 코드와 함께 남기고, 목록은 새 것부터 정해진 수만 둔다", async () => {
+  const { STW_HISTORY_LIMIT, stwHistoryAdd, stwHistoryEntry, stwHistoryNormalize, stwHistorySummary } = await import("../app/stardraft/stardraft-history.js");
+  const { stwReplayPlayer } = await import("../app/stardraft/stardraft-replay.js");
+  const finish = (options) => {
+    const game = createStardraftGame({ difficulty: "easy", seed: 9, races: { player: "zerg", enemy: "protoss" }, map: "canyon", ...options });
+    while (game.status === "playing" && game.time < 3600) stepStardraft(game, stwAiThink);
+    return game;
+  };
+  const lost = finish({});
+  const entry = stwHistoryEntry(lost, { build: "판 A", at: 1000 });
+  assert.equal(entry.result, lost.winner === "player" ? "won" : lost.winner === "enemy" ? "lost" : "draw");
+  assert.equal(entry.time, Math.round(lost.time));
+  assert.deepEqual([entry.difficulty, entry.map, entry.races.player, entry.races.enemy, entry.build, entry.at], ["easy", "canyon", "zerg", "protoss", "판 A", 1000]);
+  assert.equal(entry.persona, lost.sides.enemy.persona);
+  // 남긴 재현 코드로 같은 경기가 다시 돌아간다(저장소를 거친 것처럼 JSON으로 옮긴 뒤).
+  const stored = JSON.parse(JSON.stringify(entry));
+  const player = stwReplayPlayer(stored.replay);
+  for (let index = 0; !player.done && index < 100000; index += 1) player.advance(1);
+  assert.ok(stwReplayMatches(stored.replay, player.state));
+  // 기록하지 않는 경기: 진행 중, 실험실, AI 대 AI 관전, 다시 보기(관전 표시가 붙는다).
+  assert.equal(stwHistoryEntry(createStardraftGame({ seed: 1 })), null);
+  assert.equal(stwHistoryEntry({ ...lost, lab: { placement: "clash" } }), null);
+  assert.equal(stwHistoryEntry({ ...lost, spectate: true }), null);
+  assert.equal(stwHistoryEntry({ ...lost, aiSides: ["player", "enemy"] }), null);
+  assert.equal(stwHistoryEntry(null), null);
+  // 목록: 새 것이 맨 앞, 같은 id는 한 번, 한도까지만.
+  let list = [];
+  for (let index = 0; index < STW_HISTORY_LIMIT + 3; index += 1) list = stwHistoryAdd(list, { ...stored, id: `g${index}`, at: index, result: index % 3 === 0 ? "won" : "lost" });
+  assert.equal(list.length, STW_HISTORY_LIMIT);
+  assert.equal(list[0].id, `g${STW_HISTORY_LIMIT + 2}`);
+  assert.equal(stwHistoryAdd(list, list[3]).length, STW_HISTORY_LIMIT);
+  assert.equal(stwHistoryAdd(list, list[3])[0].id, list[3].id);
+  assert.deepEqual(stwHistoryAdd(list, null), list);
+  // 읽을 때: 모양이 틀린 줄은 버리고, 지금 형식이 아닌 재현 코드는 떼어 내 기록만 남긴다.
+  const cleaned = stwHistoryNormalize([stored, null, { id: 3 }, { ...stored, id: "bad-race", races: { player: "elf", enemy: "zerg" } }, { ...stored, id: "old", replay: { v: 0, setup: {} } }, { ...stored, id: "strange", persona: "없는전략", map: 7 }]);
+  assert.deepEqual(cleaned.map((item) => item.id), [stored.id, "old", "strange"]);
+  assert.equal(cleaned[1].replay, undefined);
+  assert.deepEqual([cleaned[2].persona, cleaned[2].map], [null, "plain"]);
+  assert.deepEqual(stwHistoryNormalize("깨진 값"), []);
+  // 요약: 전체와 내 종족별 승패.
+  const summary = stwHistorySummary([
+    { ...stored, id: "a", result: "won", races: { player: "terran", enemy: "zerg" } },
+    { ...stored, id: "b", result: "lost", races: { player: "terran", enemy: "protoss" } },
+    { ...stored, id: "c", result: "draw", races: { player: "zerg", enemy: "protoss" } },
+  ]);
+  assert.deepEqual(summary, { total: 3, wins: 1, losses: 1, draws: 1, byRace: { terran: { wins: 1, losses: 1, draws: 0 }, zerg: { wins: 0, losses: 0, draws: 1 } } });
 });

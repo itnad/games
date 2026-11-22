@@ -1,5 +1,6 @@
 // 스타드래프트 경기 재현. 엔진은 결정적이므로 경기를 만든 설정과 사람이 내린 명령(틱, 명령)만 있으면
 // 같은 코드에서 같은 경기를 처음부터 다시 돌릴 수 있다. 결과 화면의 리포트에 이 재현 코드를 넣는다.
+import { STW_TICK } from "./stardraft-data.js";
 import { createStardraftGame, stepStardraft, stwCreateScenario, stwIssue } from "./stardraft-engine.js";
 import { stwAiThink } from "./stardraft-ai.js";
 
@@ -54,6 +55,48 @@ export function stwReplay(code, { until = code?.end?.status === "playing" ? code
     onTick?.(state);
   }
   return state;
+}
+
+/**
+ * 재현 코드를 화면에서 보며 돌리는 재생기("다시 보기"). stwReplay와 같은 순서(그 틱까지의 사람 명령 → 한 틱 진행)로 돌리되,
+ * advance(seconds)로 준 시간만큼만 나아간다. state는 화면이 그대로 그리는 경기 상태다.
+ * 경기가 끝났거나 재현 한도(1시간)에 닿으면 더 나아가지 않는다. 진행한 틱 수를 돌려준다.
+ */
+export function stwReplayPlayer(code) {
+  if (!code || code.v !== STW_REPLAY_VERSION) throw new Error("재현 코드 형식이 맞지 않습니다");
+  const state = code.scenario ? stwCreateScenario(code.scenario) : createStardraftGame(code.setup);
+  const commands = code.commands ?? [];
+  const limitTick = Math.round(REPLAY_TIME_LIMIT * 10);
+  let next = 0;
+  let carry = 0;
+  const issueDue = () => {
+    const tick = Math.round(state.time * 10);
+    while (next < commands.length && commands[next][0] <= tick) {
+      const [, side, command] = commands[next];
+      stwIssue(state, side, command);
+      next += 1;
+    }
+    return tick;
+  };
+  issueDue();
+  return {
+    state,
+    get done() {
+      return state.status !== "playing" || Math.round(state.time * 10) >= limitTick;
+    },
+    advance(seconds) {
+      carry += Math.max(0, Math.min(Number(seconds) || 0, 1));
+      let steps = 0;
+      while (carry >= STW_TICK && steps < 40 && state.status === "playing" && Math.round(state.time * 10) < limitTick) {
+        carry -= STW_TICK;
+        stepStardraft(state, stwAiThink);
+        issueDue();
+        steps += 1;
+      }
+      if (state.status !== "playing") carry = 0;
+      return steps;
+    },
+  };
 }
 
 /** 재현 결과가 코드에 적힌 끝 상태와 같은지. 다르면 다른 판의 코드이거나 비결정적인 곳이 있다는 뜻이다. */

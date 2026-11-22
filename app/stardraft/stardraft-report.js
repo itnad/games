@@ -179,7 +179,8 @@ function headerLines(state, env) {
     `- 적: ${sideLabel(state, "enemy")}${state.hiddenEnemyRace ? " (무작위 종족)" : ""}`,
   ];
   if (state.lab) lines.push(`- 실험실 경기: 배치 ${state.lab.placement === "home" ? "각자 집결지" : "맵 가운데 대치"} · 아군 ${state.lab.control.player === "ai" ? "AI 운영" : "직접 지휘"} · 적 ${state.lab.control.enemy === "ai" ? "AI 운영" : "교전만"}`);
-  if (state.spectate) lines.push("- AI 대 AI 관전 경기: 양쪽 모두 AI 운영 · 사람 조작 없음 · 나 = 파랑(아래), 적 = 빨강(위)");
+  if (state.replayView) lines.push("- 다시 보기로 재생한 경기: 최근 경기 목록의 재현 코드를 다시 돌린 것");
+  else if (state.spectate) lines.push("- AI 대 AI 관전 경기: 양쪽 모두 AI 운영 · 사람 조작 없음 · 나 = 파랑(아래), 적 = 빨강(위)");
   if (state.scoutReact?.length) {
     lines.push("- 정찰 대응 모드: AI가 정찰로 상대 전략을 읽고 맞대응 전략으로 갈아탄다");
     const personaName = (id) => STW_AI_PERSONAS[id]?.name ?? id;
