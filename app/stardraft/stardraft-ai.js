@@ -1,8 +1,8 @@
 // 스타드래프트 AI. 플레이어와 같은 stwCommand만 쓴다.
 // 성향마다 빌드 순서와 출격 규모가 다르다. 프로토스·테란·저그가 같은 틀을 쓴다.
-import { STW_AI_PERSONAS, STW_BUILDINGS, STW_DEFENSE_REACH, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./starswar-data.js";
-import { STW_SCOUT_COUNTERS } from "./starswar-counters.js";
-import { stwIntelTag, stwLearnSwitch } from "./starswar-learn.js";
+import { STW_AI_PERSONAS, STW_BUILDINGS, STW_DEFENSE_REACH, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./stardraft-data.js";
+import { STW_SCOUT_COUNTERS } from "./stardraft-counters.js";
+import { stwIntelTag, stwLearnSwitch } from "./stardraft-learn.js";
 import {
   stwArmy,
   stwBuildCheck,
@@ -20,7 +20,7 @@ import {
   stwResearchDone,
   stwSupply,
   stwVisible,
-} from "./starswar-engine.js";
+} from "./stardraft-engine.js";
 
 /** 빌드 순서. at: 이 시간(초) 전에는 시도하지 않음. */
 const BUILD_ORDERS = {

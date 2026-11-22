@@ -3,7 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import "./mudflat-cast-net.test.mjs";
 import "./mudflat-run-save.test.mjs";
-import "./starswar-engine.test.mjs";
+import "./stardraft-engine.test.mjs";
 import { installGameRefreshGuard } from "../app/game-refresh.js";
 import { GAME_OBJECTIVES } from "../app/game-objectives.js";
 import { advanceLumiMotion, clearLumiAtlasMatte, createLumiMotion, lumiPose, lumiTongPose } from "../app/mudflat-lumi-animation.js";
@@ -481,7 +481,7 @@ test("hides unverified games by default and reveals them from the footer phrase"
     "winners-circle",
     "paper-dungeon",
     "tetris",
-    "starswar",
+    "stardraft",
     "baksal",
   ];
 
@@ -536,7 +536,7 @@ test("folds the mudflat departure panel and keeps its guide out of the active HU
   assert.match(styles, /@media\(max-width:720px\)\{\.ms-departure:not\(\.is-collapsed\)\{padding:20px 12px 10px\}/);
   assert.match(styles, /\.ms-departure:not\(\.is-collapsed\) \.ms-departure-toggle\{right:12px;top:12px;width:40px;min-height:34px\}/);
   assert.match(styles, /\.ms-departure:not\(\.is-collapsed\) \.ms-departure-copy\{padding-right:52px!important\}/);
-  assert.match(page, /const INLINE_GUIDE_GAMES = new Set<GameId>\(\["mudflat-survivor", "starswar"\]\)/);
+  assert.match(page, /const INLINE_GUIDE_GAMES = new Set<GameId>\(\["mudflat-survivor", "stardraft"\]\)/);
   assert.match(page, /!INLINE_GUIDE_GAMES\.has\(gameId\) && <GameObjectiveGuide gameId=\{gameId\}/);
   assert.match(source, /const pauseLayer = screen === "paused" \?[\s\S]*?<GameObjectiveGuide gameId="mudflat-survivor" inline \/>/);
   assert.match(source, /className="ms-pause-dashboard" aria-label="현재 원정 정보"/);
@@ -639,7 +639,7 @@ test("provides a complete objective and victory guide for every game", async () 
     "ten-seconds",
     "mudflat-survivor",
     "tetris",
-    "starswar",
+    "stardraft",
     "baksal",
   ];
 
@@ -738,7 +738,7 @@ test("loads every playable game through an independent lazy module", async () =>
   assert.match(pageSource, /lazy\(\(\) => import\("\.\/mudflat-survivor-game"\)/);
   assert.match(pageSource, /lazy\(\(\) => import\("\.\/gomoku-game"\)/);
   assert.match(pageSource, /lazy\(\(\) => import\("\.\/memory-game"\)/);
-  assert.match(pageSource, /lazy\(\(\) => import\("\.\/starswar\/starswar-game"\)/);
+  assert.match(pageSource, /lazy\(\(\) => import\("\.\/stardraft\/stardraft-game"\)/);
   assert.match(pageSource, /<Suspense fallback=\{<GameLoadingScreen gameId=\{gameId\} \/>\}>/);
   assert.doesNotMatch(pageSource, /from "\.\/mudflat-survivor-game"/);
   assert.doesNotMatch(pageSource, /from "\.\/more-games"/);
@@ -881,55 +881,66 @@ test("publishes Mudflat Maniac in a front-loaded mobile category", async () => {
   assert.doesNotMatch(hiddenSet, /"mudflat-survivor"/);
 });
 
-test("keeps StarDraft in its own app/starswar folder as a public mobile game at /stardraft", async () => {
+test("keeps StarDraft in its own app/stardraft folder as a public mobile game at /stardraft", async () => {
   const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const viteConfig = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
   const hiddenSet = pageSource.match(/const DEFAULT_HIDDEN_GAME_IDS[\s\S]*?\]\);/)?.[0] ?? "";
-  const folder = (await readdir(new URL("../app/starswar/", import.meta.url))).sort();
+  const folder = (await readdir(new URL("../app/stardraft/", import.meta.url))).sort();
 
   assert.deepEqual(folder, [
-    "starswar-ai.js",
-    "starswar-camera.js",
-    "starswar-counters.js",
-    "starswar-data.js",
-    "starswar-engine.js",
-    "starswar-game.tsx",
-    "starswar-lab.tsx",
-    "starswar-learn.js",
-    "starswar-pixi.ts",
-    "starswar-replay.js",
-    "starswar-report.js",
-    "starswar-sprites.ts",
-    "starswar-theme.tsx",
-    "starswar-tips.js",
-    "starswar-types.ts",
-    "starswar-watch.tsx",
-    "starswar.css",
+    "stardraft-ai.js",
+    "stardraft-camera.js",
+    "stardraft-counters.js",
+    "stardraft-data.js",
+    "stardraft-engine.js",
+    "stardraft-game.tsx",
+    "stardraft-lab.tsx",
+    "stardraft-learn.js",
+    "stardraft-pixi.ts",
+    "stardraft-replay.js",
+    "stardraft-report.js",
+    "stardraft-sprites.ts",
+    "stardraft-storage.js",
+    "stardraft-theme.tsx",
+    "stardraft-tips.js",
+    "stardraft-types.ts",
+    "stardraft-watch.tsx",
+    "stardraft.css",
   ]);
-  assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^(starswar|frontline)/.test(file) && file !== "starswar"), false);
-  assert.match(pageSource, /const StarswarGame = lazy\(\(\) => import\("\.\/starswar\/starswar-game"\)/);
-  assert.match(layoutSource, /import "\.\/starswar\/starswar\.css";/);
+  assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^(stardraft|frontline)/.test(file) && file !== "stardraft"), false);
+  assert.match(pageSource, /const StardraftGame = lazy\(\(\) => import\("\.\/stardraft\/stardraft-game"\)/);
+  assert.match(layoutSource, /import "\.\/stardraft\/stardraft\.css";/);
   // 게임 설명은 떠 있는 버튼 대신 메뉴 위쪽 줄과 일시정지 창 안에 둔다. 배속 버튼은 없앴다.
-  const starswarSource = await readFile(new URL("../app/starswar/starswar-game.tsx", import.meta.url), "utf8");
-  assert.equal(starswarSource.match(/<GameObjectiveGuide gameId="starswar" inline \/>/g)?.length, 2);
-  assert.doesNotMatch(starswarSource, /게임 속도 전환/);
-  assert.match(starswarSource, /<h1>간단한 조작\. 명작의 즐거움\.<\/h1>/);
-  assert.doesNotMatch(starswarSource, /전략은 당신이|전투는 병력이/);
-  assert.match(pageSource, /id: "starswar",[\s\S]*?title: "스타드래프트",[\s\S]*?category: "모바일"/);
+  const stardraftSource = await readFile(new URL("../app/stardraft/stardraft-game.tsx", import.meta.url), "utf8");
+  assert.equal(stardraftSource.match(/<GameObjectiveGuide gameId="stardraft" inline \/>/g)?.length, 2);
+  assert.doesNotMatch(stardraftSource, /게임 속도 전환/);
+  assert.match(stardraftSource, /<h1>간단한 조작\. 명작의 즐거움\.<\/h1>/);
+  assert.doesNotMatch(stardraftSource, /전략은 당신이|전투는 병력이/);
+  assert.match(pageSource, /id: "stardraft",[\s\S]*?title: "스타드래프트",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
   // 2026-11 공개: 홈 목록에 보인다.
-  assert.doesNotMatch(hiddenSet, /"starswar"/);
-  // 주소는 제목을 따라 /stardraft(내부 ID는 starswar 그대로).
-  assert.match(pageSource, /stardraft: "starswar"/);
-  assert.match(pageSource, /if \(gameId === "starswar"\) return "\/stardraft"/);
+  assert.doesNotMatch(hiddenSet, /"stardraft"/);
+  // 내부 ID·폴더·주소가 모두 stardraft다. 예전 이름(starswar)은 옛 주소와 즐겨찾기·최근 목록을 이어 주는 자리에만 남는다.
+  assert.match(pageSource, /starswar: "stardraft",\n\};/);
+  assert.match(pageSource, /const LEGACY_GAME_IDS: Readonly<Record<string, GameId>> = \{ starswar: "stardraft" \};/);
+  assert.match(pageSource, /saved\.map\(\(id\) => LEGACY_GAME_IDS\[id\] \?\? id\)/);
+  assert.equal((pageSource.match(/starswar/g) ?? []).length, 3, "page.tsx에 남은 예전 이름은 옛 주소·옛 목록용 세 곳뿐이다");
+  for (const file of folder) {
+    if (file === "stardraft-storage.js") continue;
+    const text = await readFile(new URL(`../app/stardraft/${file}`, import.meta.url), "utf8");
+    assert.equal((text.match(/starswar/gi) ?? []).length, file === "stardraft-game.tsx" ? 1 : 0, `${file}에 예전 이름이 남아 있지 않다(게임 파일의 옮김 설명 한 줄 제외)`);
+  }
+  // 내부 ID가 곧 주소라 따로 바꿔 주는 줄이 없다(/stardraft).
+  assert.doesNotMatch(pageSource, /if \(gameId === "stardraft"\)/);
+  assert.match(pageSource, /return gameId \? `\/\$\{gameId\}` : "\/";/);
 
-  const pixiSource = await readFile(new URL("../app/starswar/starswar-pixi.ts", import.meta.url), "utf8");
+  const pixiSource = await readFile(new URL("../app/stardraft/stardraft-pixi.ts", import.meta.url), "utf8");
   assert.match(pixiSource, /import\("pixi\.js"\)/, "PixiJS는 브라우저에서만 동적으로 불러온다");
   assert.match(pixiSource, /pixi\.js\/unsafe-eval/);
   assert.match(viteConfig, /consumer === "server"/, "서버 번들에서는 PixiJS를 뺀다");
 
-  const gameSource = await readFile(new URL("../app/starswar/starswar-game.tsx", import.meta.url), "utf8");
+  const gameSource = await readFile(new URL("../app/stardraft/stardraft-game.tsx", import.meta.url), "utf8");
   for (const label of ["경제·건설", "생산", "연구", "병력", "출격", "후퇴", "집결지", "자동 출격", "정찰", "모든 \\{mainName\\}", "내 종족", "상대 종족", "무작위", "전투 시작"]) assert.match(gameSource, new RegExp(label));
   assert.match(gameSource, /data-game-menu="true"/);
   assert.match(gameSource, /preloadStwPixiRenderer\(\)\.catch/);
@@ -939,7 +950,7 @@ test("keeps StarDraft in its own app/starswar folder as a public mobile game at 
   assert.match(gameSource, /지도 다시 불러오기/);
   // 메인 화면은 늘 종족 둘 다 무작위·평원·보통으로 시작하고(선택을 저장하지 않는다), 고른 난이도 카드는 어떤 테마에서도 강조색으로 채워 "✓ 선택"을 붙인다.
   assert.match(gameSource, /MENU_DEFAULTS = \{ races: \{ player: "random", enemy: "random" \}[^\n]*map: "plain"[^\n]*difficulty: "normal"/);
-  assert.doesNotMatch(gameSource, /paperoid-starswar-(difficulty|race|map)"/);
+  assert.doesNotMatch(gameSource, /paperoid-stardraft-(difficulty|race|map)"/);
   assert.match(gameSource, /DIFFICULTY_IDS: StwDifficulty\[\] = \["beginner", "easy", "normal", "hard"/);
   // 전적 옆 경기 기록 초기화: 한 번 더 눌러야 전적과 최단 승리를 지운다.
   assert.match(gameSource, /경기 기록 초기화/);
@@ -956,15 +967,15 @@ test("keeps StarDraft in its own app/starswar folder as a public mobile game at 
   assert.doesNotMatch(gameSource, /className="stw-attack"|이 부대 출격/);
   assert.match(gameSource, /const empty: BattleRecord = \{ wins: 0, losses: 0, best: \{\} \};\s*writeRecord\(empty\)/);
   assert.match(gameSource, /onClick=\{\(\) => pickDifficulty\(id\)\}/);
-  const starswarCss = await readFile(new URL("../app/starswar/starswar.css", import.meta.url), "utf8");
-  const activeRule = starswarCss.lastIndexOf(".stw-shell .stw-difficulty button.active {");
-  assert.ok(activeRule > starswarCss.lastIndexOf('[data-theme="swiss"]') && activeRule > starswarCss.lastIndexOf('[data-theme="board"]'), "선택 표시 규칙이 테마 규칙 뒤에 온다");
-  assert.match(starswarCss.slice(activeRule), /background:var\(--stw-gold\) !important/);
-  assert.match(starswarCss, /\.stw-difficulty button\.active::after \{ content:"✓ 선택"/);
+  const stardraftCss = await readFile(new URL("../app/stardraft/stardraft.css", import.meta.url), "utf8");
+  const activeRule = stardraftCss.lastIndexOf(".stw-shell .stw-difficulty button.active {");
+  assert.ok(activeRule > stardraftCss.lastIndexOf('[data-theme="swiss"]') && activeRule > stardraftCss.lastIndexOf('[data-theme="board"]'), "선택 표시 규칙이 테마 규칙 뒤에 온다");
+  assert.match(stardraftCss.slice(activeRule), /background:var\(--stw-gold\) !important/);
+  assert.match(stardraftCss, /\.stw-difficulty button\.active::after \{ content:"✓ 선택"/);
   assert.match(pixiSource, /let stwPixiModulePromise: Promise<PixiModule> \| null = null/);
   assert.match(pixiSource, /return loadStwPixiModule\(\)/);
-  const brief = await readFile(new URL("../docs/starswar-design.md", import.meta.url), "utf8");
-  assert.match(brief, /app\/starswar\//);
+  const brief = await readFile(new URL("../docs/stardraft-design.md", import.meta.url), "utf8");
+  assert.match(brief, /app\/stardraft\//);
 });
 
 test("detects published site updates and refreshes only through safe user actions", async () => {

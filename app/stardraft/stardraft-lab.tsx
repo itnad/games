@@ -3,9 +3,10 @@
 // 스타드래프트 실험실: 종족·전략·건물·유닛·연구·시각을 마음대로 정해 경기를 바로 세우고 시험하는 테스트용 메뉴.
 import { useState, type ReactNode } from "react";
 import { withKoreanDirection, withKoreanObject } from "../korean-particles.js";
-import { STW_AI_PERSONAS, STW_BUILDINGS, STW_ECONOMY, STW_MAPS, STW_MAP_IDS, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./starswar-data.js";
-import type { StwMapId, StwRaceId } from "./starswar-types";
-import { ThemeFonts, themeProps, type ThemeId } from "./starswar-theme";
+import { STW_AI_PERSONAS, STW_BUILDINGS, STW_ECONOMY, STW_MAPS, STW_MAP_IDS, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./stardraft-data.js";
+import type { StwMapId, StwRaceId } from "./stardraft-types";
+import { ThemeFonts, themeProps, type ThemeId } from "./stardraft-theme";
+import { STW_STORAGE_KEYS } from "./stardraft-storage.js";
 
 /** 아군은 직접 지휘 또는 AI 운영, 적은 교전만(운영하지 않음) 또는 AI 운영. */
 export type LabControl = "manual" | "fight" | "ai";
@@ -39,7 +40,7 @@ const RACE_IDS: StwRaceId[] = ["protoss", "terran", "zerg"];
 const TIMES = [0, 5, 10, 15, 20];
 const SUPPLY_LIMIT = STW_ECONOMY.supplyLimit as number;
 /** 내가 저장한 실험 설정. */
-const CUSTOM_KEY = "paperoid-starswar-lab-presets";
+const CUSTOM_KEY = STW_STORAGE_KEYS.labPresets;
 
 type UnitDef = { id: string; name: string; supply: number; race?: string; worker?: boolean; spells?: string[]; maxEnergy?: number };
 type SpellDef = { name: string; energy: number; research?: string };

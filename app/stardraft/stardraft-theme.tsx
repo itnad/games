@@ -1,4 +1,4 @@
-/** 스타드래프트 화면 테마 시안(기본 황금 · 전술 단말기 · 종족 색 · 작전 지도 · 보드게임 · 스위스 · 리소 인쇄). 색과 모양은 starswar.css의 data-theme 규칙에 있다. */
+/** 스타드래프트 화면 테마 시안(기본 황금 · 전술 단말기 · 종족 색 · 작전 지도 · 보드게임 · 스위스 · 리소 인쇄). 색과 모양은 stardraft.css의 data-theme 규칙에 있다. */
 /* 화면 테마 시안: 기본(황금) 외에 세 방향을 골라 비교해 본다. 지도(Pixi)는 그대로 두고 화면 틀만 바꾼다. */
 export type ThemeId = "gold" | "hud" | "race" | "paper" | "board" | "swiss" | "riso";
 export const THEMES: { id: ThemeId; name: string; note: string; light?: boolean }[] = [

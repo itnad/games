@@ -40,7 +40,7 @@ const PaperDungeonGame = lazy(() => import("./paper-dungeon-game").then((module)
 const TenSecondsGame = lazy(() => import("./ten-seconds-game").then((module) => ({ default: module.TenSecondsGame })));
 const MudflatSurvivorGame = lazy(() => import("./mudflat-survivor-game").then((module) => ({ default: module.MudflatSurvivorGame })));
 const TetrisGame = lazy(() => import("./tetris-game").then((module) => ({ default: module.TetrisGame })));
-const StarswarGame = lazy(() => import("./starswar/starswar-game").then((module) => ({ default: module.StarswarGame })));
+const StardraftGame = lazy(() => import("./stardraft/stardraft-game").then((module) => ({ default: module.StardraftGame })));
 const BaksalPrototype = lazy(() => import("./baksal/baksal-prototype").then((module) => ({ default: module.BaksalPrototype })));
 const ChessGame = lazy(() => import("./chess-game").then((module) => ({ default: module.ChessGame })));
 const NineMensMorrisGame = lazy(() => import("./classic-games").then((module) => ({ default: module.NineMensMorrisGame })));
@@ -93,7 +93,7 @@ type GameId =
   | "ten-seconds"
   | "mudflat-survivor"
   | "tetris"
-  | "starswar"
+  | "stardraft"
   | "baksal";
 type Category = "전체" | "전략" | "모바일" | "카드" | "고전게임" | "기억력" | "추리" | "퍼즐" | "주사위" | "경주" | "터치류" | "RPG";
 
@@ -446,7 +446,7 @@ const GAMES: GameDefinition[] = [
     tone: "violet",
   },
   {
-    id: "starswar",
+    id: "stardraft",
     title: "스타드래프트",
     subtitle: "테크와 생산만 고르면 병력이 웨이브로 진격합니다",
     category: "모바일",
@@ -489,7 +489,7 @@ const DEFAULT_HIDDEN_GAME_IDS = new Set<GameId>([
 
 const DEFAULT_POPULAR_RECOMMENDATION_GAME_IDS: readonly GameId[] = [
   "mudflat-survivor",
-  "starswar",
+  "stardraft",
   "incan-gold",
   "gomoku",
   "janggi",
@@ -505,8 +505,11 @@ const HOME_CATEGORY_PREVIEW_LIMIT = 6;
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const PUBLIC_GAME_PATH_ALIASES: Readonly<Record<string, GameId>> = {
   haeru: "mudflat-survivor",
-  stardraft: "starswar",
+  // 예전 내부 이름으로 된 주소(/starswar)도 스타드래프트로 연다.
+  starswar: "stardraft",
 };
+/** 내부 이름이 바뀐 게임: 즐겨찾기·최근 목록에 남은 예전 이름을 새 이름으로 읽는다. */
+const LEGACY_GAME_IDS: Readonly<Record<string, GameId>> = { starswar: "stardraft" };
 
 function publicGameIdFromPath(value: string | null | undefined): GameId | null {
   const resolvedPath = value ? (PUBLIC_GAME_PATH_ALIASES[value] ?? value) : null;
@@ -517,7 +520,6 @@ function publicGameIdFromPath(value: string | null | undefined): GameId | null {
 
 function gamePath(gameId: GameId | null) {
   if (gameId === "mudflat-survivor") return "/haeru";
-  if (gameId === "starswar") return "/stardraft";
   return gameId ? `/${gameId}` : "/";
 }
 
@@ -539,7 +541,7 @@ function BrandMark() {
 }
 
 /** 게임 설명 버튼을 화면에 띄우지 않고 게임 안(일시정지 창 등)에 직접 넣는 게임. 떠 있는 버튼이 게임 상단 표시를 가렸다. */
-const INLINE_GUIDE_GAMES = new Set<GameId>(["mudflat-survivor", "starswar"]);
+const INLINE_GUIDE_GAMES = new Set<GameId>(["mudflat-survivor", "stardraft"]);
 
 function GameLoadingScreen({ gameId }: { gameId: GameId }) {
   const title = GAMES.find((game) => game.id === gameId)?.title ?? "게임";
@@ -929,9 +931,9 @@ function GameArtwork({ game }: { game: GameDefinition }) {
     return <div className="card-art casual-card-art mudflat" aria-hidden="true"><img src="/mudflat-illustrations/haeru-card.jpg" alt="" /><i /><span className="float-chip">2 MODES</span></div>;
   }
 
-  if (game.id === "starswar") {
-    // 썸네일: 게임 렌더러로 그린 교전 장면(public/starswar/card.jpg). 아군 질럿·다크템플러·캐리어·옵저버 대 적 벌처·시즈 탱크·해병·메딕·레이스.
-    return <div className="card-art casual-card-art starswar" aria-hidden="true"><img src="/starswar/card.jpg" alt="" /><i /><span className="float-chip">WARP · WAVE</span></div>;
+  if (game.id === "stardraft") {
+    // 썸네일: 게임 렌더러로 그린 교전 장면(public/stardraft/card.jpg). 아군 질럿·다크템플러·캐리어·옵저버 대 적 벌처·시즈 탱크·해병·메딕·레이스.
+    return <div className="card-art casual-card-art stardraft" aria-hidden="true"><img src="/stardraft/card.jpg" alt="" /><i /><span className="float-chip">WARP · WAVE</span></div>;
   }
 
   if (game.id === "baksal") {
@@ -1340,7 +1342,7 @@ function HomeContent({
     const readGameIds = (key: string) => {
       try {
         const saved = JSON.parse(window.localStorage.getItem(key) ?? "[]") as string[];
-        return saved.filter((id): id is GameId => knownIds.has(id as GameId));
+        return [...new Set(saved.map((id) => LEGACY_GAME_IDS[id] ?? id))].filter((id): id is GameId => knownIds.has(id as GameId));
       } catch {
         return [];
       }
@@ -1677,8 +1679,8 @@ function HomeContent({
   if (activeGame === "baksal") {
     return <GuidedGame gameId={activeGame}><BaksalPrototype onExit={exitGame} /></GuidedGame>;
   }
-  if (activeGame === "starswar") {
-    return <GuidedGame gameId={activeGame}><StarswarGame onExit={exitGame} /></GuidedGame>;
+  if (activeGame === "stardraft") {
+    return <GuidedGame gameId={activeGame}><StardraftGame onExit={exitGame} /></GuidedGame>;
   }
 
   return (

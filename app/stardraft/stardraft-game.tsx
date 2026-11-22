@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import { withKoreanDirection, withKoreanObject, withKoreanSubject } from "../korean-particles.js";
-import { stwResultTips, stwTipQueue } from "./starswar-tips.js";
+import { stwResultTips, stwTipQueue } from "./stardraft-tips.js";
 import {
   STW_AI_PERSONAS,
   STW_ARMY_UNITS,
@@ -18,10 +18,10 @@ import {
   STW_RACES,
   STW_RESEARCH,
   STW_UNITS,
-} from "./starswar-data.js";
+} from "./stardraft-data.js";
 import {
-  advanceStarswar,
-  createStarswarGame,
+  advanceStardraft,
+  createStardraftGame,
   stwCreateScenario,
   stwRestore,
   stwSerialize,
@@ -46,23 +46,27 @@ import {
   stwUnitUnlocked,
   stwWorkerSplit,
   intelSummary,
-} from "./starswar-engine.js";
-import { stwAiThink } from "./starswar-ai.js";
-import { stwAiReport, stwBugReport, stwLosingAiSides } from "./starswar-report.js";
-import { stwLearnAdd, stwLearnEmpty, stwLearnNormalize, stwLearnSnapshot } from "./starswar-learn.js";
-import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./starswar-camera.js";
-import { createStwPixiRenderer, preloadStwPixiRenderer, type StwPixiRenderer } from "./starswar-pixi";
-import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./starswar-lab";
-import { DEFAULT_WATCH, WatchScreen, type WatchConfig } from "./starswar-watch";
-import { THEMES, ThemeFonts, themeProps, type ThemeId } from "./starswar-theme";
+} from "./stardraft-engine.js";
+import { stwAiThink } from "./stardraft-ai.js";
+import { stwAiReport, stwBugReport, stwLosingAiSides } from "./stardraft-report.js";
+import { stwLearnAdd, stwLearnEmpty, stwLearnNormalize, stwLearnSnapshot } from "./stardraft-learn.js";
+import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./stardraft-camera.js";
+import { createStwPixiRenderer, preloadStwPixiRenderer, type StwPixiRenderer } from "./stardraft-pixi";
+import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./stardraft-lab";
+import { STW_STORAGE_KEYS, stwMigrateLegacyStorage } from "./stardraft-storage.js";
+import { DEFAULT_WATCH, WatchScreen, type WatchConfig } from "./stardraft-watch";
+import { THEMES, ThemeFonts, themeProps, type ThemeId } from "./stardraft-theme";
 import { PAPEROID_BUILD_ID, PAPEROID_GIT_SHA } from "../app-version";
 import { GameObjectiveGuide } from "../game-objective-guide";
-import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwMapData, StwMapId, StwOp, StwBuildingType, StwCheck, StwCommand, StwDefenseSpot, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./starswar-types";
+import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwMapData, StwMapId, StwOp, StwBuildingType, StwCheck, StwCommand, StwDefenseSpot, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./stardraft-types";
 
 type Screen = "menu" | "play" | "lab" | "watch";
 
+// 예전 이름(starswar)으로 저장한 이어하기·전적·학습 자료·설정을 새 키로 한 번 옮긴다. 저장소를 읽기 전에 해야 하므로 모듈을 불러올 때 한다.
+if (typeof window !== "undefined") stwMigrateLegacyStorage(window.localStorage);
+
 /** 마지막으로 쓴 실험실 설정. */
-const LAB_KEY = "paperoid-starswar-lab";
+const LAB_KEY = STW_STORAGE_KEYS.lab;
 
 function readLab(): LabConfig {
   try {
@@ -77,7 +81,7 @@ type Tab = "build" | "produce" | "research" | "army";
 type Toast = { id: number; text: string; tone: "good" | "warn" };
 type BattleRecord = { wins: number; losses: number; best: Partial<Record<StwDifficulty, number>> };
 
-const RECORD_KEY = "paperoid-starswar-record";
+const RECORD_KEY = STW_STORAGE_KEYS.record;
 const TABS: { id: Tab; label: string }[] = [
   { id: "build", label: "경제·건설" },
   { id: "produce", label: "생산" },
@@ -86,7 +90,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 const DIFFICULTY_IDS: StwDifficulty[] = ["beginner", "easy", "normal", "hard", "master", "pro"];
 /** 최상급 AI가 쓰는 지난 경기 분석(사람 대 AI 경기마다 갱신). 화면에는 드러내지 않는다. */
-const LEARN_KEY = "paperoid-starswar-learning";
+const LEARN_KEY = STW_STORAGE_KEYS.learning;
 
 function readLearning() {
   try {
@@ -154,7 +158,7 @@ function mapOf(game: StwState) {
 // 메인 화면에 들어올 때마다 종족은 둘 다 무작위, 맵은 평원, 난이도는 보통으로 시작한다(선택은 저장하지 않는다).
 const MENU_DEFAULTS = { races: { player: "random", enemy: "random" } as { player: EnemyRace; enemy: EnemyRace }, map: "plain" as MapChoice, difficulty: "normal" as StwDifficulty };
 
-const THEME_KEY = "paperoid-starswar-theme-v2";
+const THEME_KEY = STW_STORAGE_KEYS.theme;
 const DEFAULT_THEME: ThemeId = "riso";
 function readTheme(): ThemeId {
   try {
@@ -274,7 +278,7 @@ function writeRecord(record: BattleRecord) {
 }
 
 /** 진행 중인 경기 저장(이어하기). 경기가 끝나거나 새 경기를 시작하면 지운다. */
-const TIPS_KEY = "paperoid-starswar-tips-seen";
+const TIPS_KEY = STW_STORAGE_KEYS.tipsSeen;
 
 function readSeenTips(): string[] {
   try {
@@ -325,7 +329,7 @@ function TipLine({ race, rotate, className }: { race: string; rotate?: number; c
   );
 }
 
-const SAVE_KEY = "paperoid-starswar-save";
+const SAVE_KEY = STW_STORAGE_KEYS.save;
 /** 자동 저장 간격(경기 시간, 초). */
 const SAVE_EVERY = 5;
 
@@ -371,7 +375,7 @@ function cost(minerals: number, gas: number) {
   return gas ? `${minerals} · 가스 ${gas}` : `${minerals}`;
 }
 
-export function StarswarGame({ onExit }: { onExit: () => void }) {
+export function StardraftGame({ onExit }: { onExit: () => void }) {
   const [screen, setScreen] = useState<Screen>("menu");
   const [difficulty, setDifficulty] = useState<StwDifficulty>(MENU_DEFAULTS.difficulty);
   const [races, setRaces] = useState<{ player: EnemyRace; enemy: EnemyRace }>(MENU_DEFAULTS.races);
@@ -514,7 +518,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     const learned = ((STW_DIFFICULTIES[difficulty] as { master?: boolean }).master ? stwLearnSnapshot(readLearning()) : null) as never;
     const player = races.player === "random" ? RACE_IDS[Math.floor(Math.random() * RACE_IDS.length)] : races.player;
     const map = mapChoice === "random" ? MAP_IDS[Math.floor(Math.random() * MAP_IDS.length)] : mapChoice;
-    const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), races: { player, enemy }, hiddenEnemyRace: races.enemy === "random", learned, map }) as unknown as StwState;
+    const next = createStardraftGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), races: { player, enemy }, hiddenEnemyRace: races.enemy === "random", learned, map }) as unknown as StwState;
     clearSave();
     enterBattle(next);
   };
@@ -545,7 +549,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     const enemy = side("enemy");
     const map = config.map === "random" ? MAP_IDS[Math.floor(Math.random() * MAP_IDS.length)] : config.map;
     const personas = { ...(player.persona ? { player: player.persona } : {}), ...(enemy.persona ? { enemy: enemy.persona } : {}) };
-    const next = createStarswarGame({ difficulty: "hard", seed: Math.floor(Math.random() * 2 ** 31), aiSides: ["player", "enemy"], races: { player: player.race, enemy: enemy.race }, personas, map, spectate: true, scoutReact: config.mode === "react" }) as unknown as StwState;
+    const next = createStardraftGame({ difficulty: "hard", seed: Math.floor(Math.random() * 2 ** 31), aiSides: ["player", "enemy"], races: { player: player.race, enemy: enemy.race }, personas, map, spectate: true, scoutReact: config.mode === "react" }) as unknown as StwState;
     enterBattle(next);
   };
   /** 관전 경기에서 나갈 때: AI vs AI 설정 화면으로 돌아간다. */
@@ -637,7 +641,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             setIcons(pixi.exportIcons());
           } catch (error) {
             // 아이콘을 못 뽑으면 글자 칩으로 보여 준다.
-            console.error("starswar icons", error);
+            console.error("stardraft icons", error);
           }
         }, 50);
       })
@@ -671,7 +675,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         const budgetEnd = performance.now() + 40;
         while (left > 1e-6 && current.status === "playing") {
           const slice = Math.min(left, 1);
-          advanceStarswar(current, slice, stwAiThink);
+          advanceStardraft(current, slice, stwAiThink);
           left -= slice;
           if (performance.now() > budgetEnd) break;
         }
@@ -919,7 +923,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         <header className="stw-topbar">
           <button type="button" onClick={onExit} aria-label="게임 목록으로">←</button>
           <div><span className="stw-brand">paperoid</span><strong>스타드래프트</strong></div>
-          <GameObjectiveGuide gameId="starswar" inline />
+          <GameObjectiveGuide gameId="stardraft" inline />
         </header>
         <section className="stw-menu">
           <div className="stw-menu-hero">
@@ -1108,7 +1112,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
                 <button type="button" className="stw-primary" onClick={() => setPaused(false)}>계속하기</button>
                 <PauseReportButton game={game} />
                 <button type="button" className="stw-secondary" onClick={() => setConfirmExit(true)}>나가기</button>
-                <GameObjectiveGuide gameId="starswar" inline />
+                <GameObjectiveGuide gameId="stardraft" inline />
                 <TipLine race={game.sides.player.race} className="stw-tip-pause" />
               </section>
             </div>

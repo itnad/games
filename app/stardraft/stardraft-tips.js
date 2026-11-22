@@ -2,7 +2,7 @@
  * 스타드래프트 게임 팁: 메뉴·일시정지·결과 화면에 한 줄씩 보여 준다.
  * 화면 표시용이라 엔진·리플레이에는 영향이 없다. 문장은 모두 고정 문구다(런타임 값에 조사를 붙이지 않는다).
  */
-import { STW_UNITS } from "./starswar-data.js";
+import { STW_UNITS } from "./stardraft-data.js";
 
 /** @typedef {{ id: string, text: string, race?: "protoss" | "terran" | "zerg", first?: boolean }} StwTip */
 // first: 새로 넣은 규칙처럼 꼭 먼저 알려 줄 팁. 아직 안 봤으면 다른 안 본 팁보다 앞에 둔다.
@@ -92,7 +92,7 @@ const CLOAK_ANSWER = {
 
 /**
  * 결과 화면용 "다음 판 팁": 이 경기에서 드러난 약점에 맞는 문장(최대 2개). 없으면 일반 팁 하나.
- * @param {import("./starswar-types").StwState} game
+ * @param {import("./stardraft-types").StwState} game
  * @returns {string[]}
  */
 export function stwResultTips(game) {

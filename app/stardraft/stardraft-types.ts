@@ -165,7 +165,7 @@ export type StwSideState = {
   /** 공격 목표: 교전 우선(기본) 또는 건물 우선. */
   focus?: StwFocus;
   persona: "rush" | "dragoon" | "templar" | "dark" | "robo" | "bio" | "mech" | "tankbio" | "vulture" | "ling" | "hydra" | "pool" | "ultra" | null;
-  /** 최상급 AI가 밟는 따라 하기 계획(starswar-learn.js의 stwLearnPlan). */
+  /** 최상급 AI가 밟는 따라 하기 계획(stardraft-learn.js의 stwLearnPlan). */
   plan?: { id: string; race: StwRaceId; base: string; tag: string; order: unknown[]; waves: number[] };
   sawCloakAt?: number;
   sawAirAt?: number;
@@ -198,7 +198,7 @@ export type StwMapId = "plain" | "canyon" | "gold";
 
 type StwSpot = { x: number; y: number };
 
-/** 맵 묶음(starswar-data.js의 STW_MAPS). 좌표는 아군 기준. */
+/** 맵 묶음(stardraft-data.js의 STW_MAPS). 좌표는 아군 기준. */
 export type StwMapData = {
   id: StwMapId;
   name: string;

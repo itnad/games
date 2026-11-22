@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 // 스타드래프트 AI 전략 대진표: 종족 쌍마다 모든 전략 쌍을 AI 대 AI로 돌려 승패를 모은다.
-// 정찰 대응 모드의 맞대응 표(starswar-ai.js의 SCOUT_COUNTERS)를 이 결과로 만든다.
+// 정찰 대응 모드의 맞대응 표(stardraft-ai.js의 SCOUT_COUNTERS)를 이 결과로 만든다.
 //
-//   node scripts/starswar-matrix.mjs --seeds 4 --out matrix.json           전략 고정 대진표
-//   node scripts/starswar-matrix.mjs --seeds 4 --react player --out r.json  아래쪽(player)만 정찰 대응
-//   node scripts/starswar-matrix.mjs --counters matrix.json [--write]       대진표에서 맞대응 표를 뽑아 출력(--write: starswar-counters.js를 다시 쓴다)
+//   node scripts/stardraft-matrix.mjs --seeds 4 --out matrix.json           전략 고정 대진표
+//   node scripts/stardraft-matrix.mjs --seeds 4 --react player --out r.json  아래쪽(player)만 정찰 대응
+//   node scripts/stardraft-matrix.mjs --counters matrix.json [--write]       대진표에서 맞대응 표를 뽑아 출력(--write: stardraft-counters.js를 다시 쓴다)
 import fs from "node:fs";
 import os from "node:os";
 import { Worker, isMainThread, parentPort, workerData } from "node:worker_threads";
-import { createStarswarGame, advanceStarswar } from "../app/starswar/starswar-engine.js";
-import { stwAiThink } from "../app/starswar/starswar-ai.js";
-import { STW_AI_PERSONAS } from "../app/starswar/starswar-data.js";
+import { createStardraftGame, advanceStardraft } from "../app/stardraft/stardraft-engine.js";
+import { stwAiThink } from "../app/stardraft/stardraft-ai.js";
+import { STW_AI_PERSONAS } from "../app/stardraft/stardraft-data.js";
 
 const RACES = ["protoss", "terran", "zerg"];
 const personasOf = (race) => Object.values(STW_AI_PERSONAS).filter((persona) => persona.race === race).map((persona) => persona.id);
 
 function play(job) {
-  const game = createStarswarGame({ difficulty: "hard", seed: job.seed, aiSides: ["player", "enemy"], races: { player: job.races[0], enemy: job.races[1] }, personas: { player: job.personas[0], enemy: job.personas[1] }, ...(job.react ? { scoutReact: job.react } : {}) });
-  while (game.status === "playing" && game.time < 2400) advanceStarswar(game, 1, stwAiThink);
+  const game = createStardraftGame({ difficulty: "hard", seed: job.seed, aiSides: ["player", "enemy"], races: { player: job.races[0], enemy: job.races[1] }, personas: { player: job.personas[0], enemy: job.personas[1] }, ...(job.react ? { scoutReact: job.react } : {}) });
+  while (game.status === "playing" && game.time < 2400) advanceStardraft(game, 1, stwAiThink);
   const side = (id) => ({ final: game.sides[id].persona, reads: game.sides[id].ai?.reads ?? [], reacts: game.sides[id].ai?.reacts ?? [] });
   return { ...job, winner: game.status === "playing" ? null : game.winner, time: Math.round(game.time), player: side("player"), enemy: side("enemy") };
 }
@@ -32,15 +32,15 @@ if (!isMainThread) {
     const table = counters(games);
     if (args.includes("--write")) {
       // 맞대응 표 모듈을 다시 쓴다: [내 종족][상대 전략][내 전략] = 승률(%).
-      const lines = ["// 스타드래프트 정찰 대응 모드의 맞대응 표: [내 종족][상대 전략][내 전략] = 전략 고정 AI 대 AI 대진표의 승률(%).", `// scripts/starswar-matrix.mjs 로 만든다(${games.length}판, 칸마다 ${Object.values(Object.values(table)[0])[0][0][2]}판). 손으로 고치지 않는다.`, "export const STW_SCOUT_COUNTERS = {"];
+      const lines = ["// 스타드래프트 정찰 대응 모드의 맞대응 표: [내 종족][상대 전략][내 전략] = 전략 고정 AI 대 AI 대진표의 승률(%).", `// scripts/stardraft-matrix.mjs 로 만든다(${games.length}판, 칸마다 ${Object.values(Object.values(table)[0])[0][0][2]}판). 손으로 고치지 않는다.`, "export const STW_SCOUT_COUNTERS = {"];
       for (const [race, rows] of Object.entries(table)) {
         lines.push(`  ${race}: {`);
         for (const [foe, list] of Object.entries(rows)) lines.push(`    ${foe}: { ${list.map(([persona, rate]) => `${persona}: ${rate}`).join(", ")} },`);
         lines.push("  },");
       }
       lines.push("};", "");
-      fs.writeFileSync(new URL("../app/starswar/starswar-counters.js", import.meta.url), lines.join("\n"));
-      console.error("app/starswar/starswar-counters.js 를 다시 썼습니다.");
+      fs.writeFileSync(new URL("../app/stardraft/stardraft-counters.js", import.meta.url), lines.join("\n"));
+      console.error("app/stardraft/stardraft-counters.js 를 다시 썼습니다.");
     } else console.log(JSON.stringify(table, null, 1));
   } else {
     const seeds = Number(option("seeds", 2));
@@ -68,7 +68,7 @@ if (!isMainThread) {
       worker.on("exit", () => {
         running -= 1;
         if (running) return;
-        fs.writeFileSync(option("out", "starswar-matrix.json"), JSON.stringify(results));
+        fs.writeFileSync(option("out", "stardraft-matrix.json"), JSON.stringify(results));
         console.error(`끝: ${results.length}판 · ${Math.round((Date.now() - started) / 1000)}초`);
       });
     }

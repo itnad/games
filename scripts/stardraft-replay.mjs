@@ -1,16 +1,16 @@
 // 스타드래프트 리포트의 재현 코드로 경기를 다시 돌린다(개발용).
-//   node scripts/starswar-replay.mjs 리포트.txt            → 끝까지 돌리고 원래 경기와 같은지 확인
-//   node scripts/starswar-replay.mjs 리포트.txt --at 7:30  → 그 시각의 양쪽 병력·건물·자원을 보여 준다
-//   node scripts/starswar-replay.mjs 리포트.txt --dump 7:30 > state.json → 그 시각의 엔진 상태 전체
+//   node scripts/stardraft-replay.mjs 리포트.txt            → 끝까지 돌리고 원래 경기와 같은지 확인
+//   node scripts/stardraft-replay.mjs 리포트.txt --at 7:30  → 그 시각의 양쪽 병력·건물·자원을 보여 준다
+//   node scripts/stardraft-replay.mjs 리포트.txt --dump 7:30 > state.json → 그 시각의 엔진 상태 전체
 // 리포트 글 전체를 넣어도 되고, 재현 코드(JSON)만 넣어도 된다. 파일 대신 "-"를 주면 표준 입력에서 읽는다.
 import { readFileSync } from "node:fs";
-import { stwClock } from "../app/starswar/starswar-engine.js";
-import { stwBugReport } from "../app/starswar/starswar-report.js";
-import { stwFingerprint, stwReplay, stwReplayMatches } from "../app/starswar/starswar-replay.js";
+import { stwClock } from "../app/stardraft/stardraft-engine.js";
+import { stwBugReport } from "../app/stardraft/stardraft-report.js";
+import { stwFingerprint, stwReplay, stwReplayMatches } from "../app/stardraft/stardraft-replay.js";
 
 const [file, ...rest] = process.argv.slice(2);
 if (!file) {
-  console.error("사용법: node scripts/starswar-replay.mjs <리포트 파일|-> [--at m:ss | --dump m:ss]");
+  console.error("사용법: node scripts/stardraft-replay.mjs <리포트 파일|-> [--at m:ss | --dump m:ss]");
   process.exit(1);
 }
 const text = readFileSync(file === "-" ? 0 : file, "utf8");

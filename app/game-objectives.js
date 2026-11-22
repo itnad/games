@@ -388,7 +388,7 @@ export const GAME_OBJECTIVES = {
       { title: "부적과 도감", body: "방 사이 2마디 안에 부적을 고릅니다. 발동형 부적은 왼손 버튼 하나에만 장착됩니다. 정화한 악귀는 도감에 기록되고 숙련이 오르면 약점이 표시됩니다." },
     ],
   },
-  starswar: {
+  stardraft: {
     title: "스타드래프트",
     icon: "◆",
     accent: "#c99a3a",

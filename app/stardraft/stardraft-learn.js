@@ -2,7 +2,7 @@
 // 1) 경기가 끝나면 사람 쪽 운영을 분석해(전략 꼬리표·빌드·출격) 기록하고, AI가 고른 전략의 승패를 센다.
 // 2) 새 최상급 경기를 만들 때 그 기록을 작은 묶음(snapshot)으로 넘긴다. 묶음은 재현 정보에 함께 남아 같은 경기가 다시 돌아간다.
 // 3) AI는 묶음으로 전략을 고르고(이긴 사람의 운영을 따라 한 계획 포함), 정찰로 상대 전략을 짐작해 맞받는다.
-import { STW_AI_PERSONAS, STW_BUILDINGS, STW_RACES, STW_UNITS } from "./starswar-data.js";
+import { STW_AI_PERSONAS, STW_BUILDINGS, STW_RACES, STW_UNITS } from "./stardraft-data.js";
 
 export const STW_LEARN_VERSION = 1;
 /** 보관하는 기록 수와, 종족마다 들고 다니는 따라 하기 계획 수. */

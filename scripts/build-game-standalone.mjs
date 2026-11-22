@@ -1,6 +1,6 @@
 // 스타드래프트를 HTML 파일 하나로 묶는다.
-//   node scripts/build-game-standalone.mjs            → dist-standalone/starswar.html (React·PixiJS 포함, 오프라인 실행)
-//   node scripts/build-game-standalone.mjs --artifact → dist-standalone/starswar-artifact.html (React는 cdnjs, PixiJS는 jsDelivr에서 로드)
+//   node scripts/build-game-standalone.mjs            → dist-standalone/stardraft.html (React·PixiJS 포함, 오프라인 실행)
+//   node scripts/build-game-standalone.mjs --artifact → dist-standalone/stardraft-artifact.html (React는 cdnjs, PixiJS는 jsDelivr에서 로드)
 import { execSync } from "node:child_process";
 import { build } from "esbuild";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -93,6 +93,6 @@ ${body}
 `;
 
 await mkdir(outDir, { recursive: true });
-const file = `${outDir}${artifact ? "starswar-artifact.html" : "starswar.html"}`;
+const file = `${outDir}${artifact ? "stardraft-artifact.html" : "stardraft.html"}`;
 await writeFile(file, html);
 console.log(`${file} (${Math.round(Buffer.byteLength(html) / 1024)}KB)`);
