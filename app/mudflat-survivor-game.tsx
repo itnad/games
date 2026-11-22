@@ -1803,8 +1803,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [dailyChallengeActive, setDailyChallengeActive] = useState(false);
   const [pearlCelebration, setPearlCelebration] = useState<number | null>(null);
   const [supervisorSessionActive, setSupervisorActive] = useState(false);
-  // 플레이·레벨업·일시정지 화면은 일반모드와 완전히 같은 JSX 분기를 쓴다.
-  // 감독 전용 표시는 종료 결과에서 로그를 내보낼 때만 연다.
+  // 플레이·레벨업·정비 화면은 일반모드와 같은 JSX 분기를 쓴다.
+  // 감독 전용 표시는 일시정지의 로그 내보내기와 종료 결과에만 둔다.
   const supervisorActive = screen === "defeat" && supervisorSessionActive;
   const supervisorIntent = "";
   const [supervisorClears, setSupervisorClears] = useState(0);
@@ -4556,7 +4556,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       <GameObjectiveGuide gameId="mudflat-survivor" inline />
       <div className="ms-pause-actions">
         <button className="ms-primary" onClick={resume}>계속 채집하기</button>
-        {supervisorActive && <button type="button" className="ms-pause-guide-button" onClick={copySupervisorLog}>{supervisorLogCopyStatus || "감독 플레이 로그 복사"}</button>}
+        {supervisorSessionActive && <button type="button" className="ms-pause-guide-button" onClick={copySupervisorLog}>{supervisorLogCopyStatus || "AI 리포트용 로그 복사"}</button>}
         <button type="button" className="ms-pause-guide-button" onClick={() => setSeafoodGuideOpen(true)}>해산물 도감 보기</button>
         <button className="ms-quit" onClick={openExitDialog}>저장하고 나가기</button>
       </div>

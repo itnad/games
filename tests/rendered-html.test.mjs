@@ -385,6 +385,7 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.doesNotMatch(game, /planMudflatSupervisorMaintenance/);
   assert.match(game, /\[supervisorSessionActive, setSupervisorActive\] = useState\(false\)/);
   assert.match(game, /const supervisorActive = screen === "defeat" && supervisorSessionActive/);
+  assert.match(game, /supervisorSessionActive && <button[^>]+onClick=\{copySupervisorLog\}>\{supervisorLogCopyStatus \|\| "AI 리포트용 로그 복사"\}/);
   assert.doesNotMatch(game, /ms-supervisor-transition/);
   assert.match(game, /emptySeafoodRisk: runtime\.emptySeafoodSeconds/);
   assert.match(game, /retreatDirection: \{ x: -decisionState\.lastTravelX, y: -decisionState\.lastTravelY \}/);
