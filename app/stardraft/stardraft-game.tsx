@@ -53,7 +53,7 @@ import { stwLearnAdd, stwLearnEmpty, stwLearnNormalize, stwLearnSnapshot } from 
 import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } from "./stardraft-camera.js";
 import { createStwPixiRenderer, preloadStwPixiRenderer, type StwPixiRenderer } from "./stardraft-pixi";
 import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./stardraft-lab";
-import { STW_STORAGE_KEYS, stwMigrateLegacyStorage } from "./stardraft-storage.js";
+import { STW_STORAGE_KEYS } from "./stardraft-storage.js";
 import { DEFAULT_WATCH, WatchScreen, type WatchConfig } from "./stardraft-watch";
 import { THEMES, ThemeFonts, themeProps, type ThemeId } from "./stardraft-theme";
 import { PAPEROID_BUILD_ID, PAPEROID_GIT_SHA } from "../app-version";
@@ -61,9 +61,6 @@ import { GameObjectiveGuide } from "../game-objective-guide";
 import type { StwArmyType, StwBuildChoice, StwDropMission, StwDropTarget, StwFocus, StwMapData, StwMapId, StwOp, StwBuildingType, StwCheck, StwCommand, StwDefenseSpot, StwDifficulty, StwProducerType, StwRaceId, StwResearchId, StwState, StwView } from "./stardraft-types";
 
 type Screen = "menu" | "play" | "lab" | "watch";
-
-// 예전 이름(starswar)으로 저장한 이어하기·전적·학습 자료·설정을 새 키로 한 번 옮긴다. 저장소를 읽기 전에 해야 하므로 모듈을 불러올 때 한다.
-if (typeof window !== "undefined") stwMigrateLegacyStorage(window.localStorage);
 
 /** 마지막으로 쓴 실험실 설정. */
 const LAB_KEY = STW_STORAGE_KEYS.lab;
