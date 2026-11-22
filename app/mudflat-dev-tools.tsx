@@ -14,7 +14,7 @@ import {
   MUDFLAT_DEV_LAUNCH_KEY,
   createCampaign,
 } from "./mudflat-survivor-model";
-import { MUDFLAT_REGULAR_STAGES, mudflatStageProfile } from "./mudflat-survivor-engine.js";
+import { MUDFLAT_REGULAR_STAGES, mudflatNormalizeActiveSkills, mudflatStageProfile } from "./mudflat-survivor-engine.js";
 import { createMudflatSeed } from "./mudflat-rng.js";
 
 type DevPreset = {
@@ -176,6 +176,7 @@ function makePresetCampaign(preset: DevPreset) {
     xp: preset.xp ?? campaign.xp,
     nextXp: preset.nextXp ?? campaign.nextXp,
     levels,
+    activeSkills: mudflatNormalizeActiveSkills(levels, undefined, mode),
     equipment,
     pendingSkillDiscovery: false,
   };

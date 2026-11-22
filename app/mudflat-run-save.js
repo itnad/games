@@ -13,8 +13,9 @@ const campaignShape = (value) => record(value) && value.version === 1 && ["norma
   && typeof value.characterId === "string" && Number.isInteger(value.stage) && value.stage >= 1
   && numericFields(value, "coins hp maxHp baseMaxHp level xp nextXp lastSaleValue totalScore")
   && value.coins >= 0 && positive(value.hp) && positive(value.maxHp) && value.hp <= value.maxHp
-  && [value.levels, value.equipment, value.inventory, value.lastHaul].every(countMap);
-const copyCampaign = (campaign) => ({ ...campaign, levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, inventory: { ...campaign.inventory }, lastHaul: { ...campaign.lastHaul } });
+  && [value.levels, value.equipment, value.inventory, value.lastHaul].every(countMap)
+  && (value.activeSkills === undefined || (Array.isArray(value.activeSkills) && value.activeSkills.every((id) => typeof id === "string")));
+const copyCampaign = (campaign) => ({ ...campaign, levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, inventory: { ...campaign.inventory }, lastHaul: { ...campaign.lastHaul }, ...(Array.isArray(campaign.activeSkills) ? { activeSkills: [...campaign.activeSkills] } : {}) });
 const ENTITY_FIELDS = {
   creatures: "hp maxHp speed size xp score saltHit hitFlash phase age movementAngle movementClock",
   pickups: "xp age visualX visualY fromX fromY pullTime pullDuration", projectiles: "vx vy damage life",
@@ -46,7 +47,10 @@ export function encodeMudflatRun(campaign, runtime, choiceIds = [], nextSequence
     ...campaign, mode: runtime.mode, stage: runtime.stage,
     hp: runtime.player.hp, maxHp: runtime.player.maxHp, baseMaxHp: runtime.player.baseMaxHp,
     level: runtime.level, xp: runtime.xp, nextXp: runtime.nextXp,
-    levels: runtime.levels, equipment: runtime.equipment,
+    // The campaign keeps the whole skill inventory; runtime.levels holds only
+    // the active skills that affect the live expedition.
+    levels: runtime.skillInventory ?? runtime.levels, equipment: runtime.equipment,
+    ...(Array.isArray(runtime.activeSkills) ? { activeSkills: [...runtime.activeSkills] } : {}),
   };
   return JSON.stringify({
     version: 1, savedAt, campaign: currentCampaign, stageEntryCampaign: copyCampaign(stageEntryCampaign), choiceIds, nextSequence,
@@ -88,6 +92,10 @@ export function decodeMudflatRun(serialized, makeRuntime) {
       if (!finite(runtime[key])) runtime[key] = runtimeTemplate[key];
     }
     if (typeof runtime.mudZombieTriggered !== "boolean") runtime.mudZombieTriggered = runtimeTemplate.mudZombieTriggered;
+    // Saves made before the skill inventory kept only the active levels. Treat
+    // them as the whole inventory and derive the active list the old way.
+    if (!countMap(runtime.skillInventory)) runtime.skillInventory = { ...runtime.levels };
+    if (!Array.isArray(runtime.activeSkills)) runtime.activeSkills = [...runtimeTemplate.activeSkills];
     // Older active-run autosaves did not know about stage-five deep-mud
     // visuals/state. They are cosmetic or transient, so backfill defaults
     // instead of discarding an otherwise valid expedition.
@@ -97,7 +105,8 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     }
     if (!matchesShape(runtime, runtimeTemplate) || !positive(runtime.player.hp)
       || runtime.player.hp > runtime.player.maxHp || runtime.elapsed < 0 || runtime.tutorialElapsed < 0
-      || ![runtime.levels, runtime.equipment, runtime.basket].every(countMap)) return null;
+      || ![runtime.levels, runtime.skillInventory, runtime.equipment, runtime.basket].every(countMap)
+      || !runtime.activeSkills.every((id) => typeof id === "string")) return null;
     if (runtime.firstMoveGuide !== null) {
       if (!record(runtime.firstMoveGuide) || !["move", "catch", "dig", "avoid", "done"].includes(runtime.firstMoveGuide.step)
         || !numericFields(runtime.firstMoveGuide, "stepClock catchCreatureId digHoleId avoidRockId")

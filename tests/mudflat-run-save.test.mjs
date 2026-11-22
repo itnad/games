@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { MUDFLAT_ACTIVE_RUN_KEY, encodeMudflatRun, decodeMudflatRun, writeMudflatRun, readMudflatRun, clearMudflatRun } from "../app/mudflat-run-save.js";
-import { mudflatEquipmentStats, mudflatCastNetStats, mudflatJellyfishInterval, mudflatMosquitoRunEnabled, mudflatOpeningWaveCount } from "../app/mudflat-survivor-engine.js";
+import { mudflatEquipmentStats, mudflatCastNetStats, mudflatJellyfishInterval, mudflatMosquitoRunEnabled, mudflatOpeningWaveCount, mudflatNormalizeActiveSkills, mudflatActiveLevels } from "../app/mudflat-survivor-engine.js";
 import { createLumiMotion } from "../app/mudflat-lumi-animation.js";
 import { createCastNet } from "../app/mudflat-cast-net.js";
 import { createExperiencePickup, advanceExperiencePickup } from "../app/mudflat-experience.js";
@@ -14,12 +14,13 @@ const game = readFileSync(new URL("../app/mudflat-survivor-game.tsx", import.met
 const initializer = game.match(/function makeRuntime\(campaign: Campaign, seed = createMudflatSeed\(\)\): Runtime \{[\s\S]*?\n\}/)[0];
 const makeRuntime = new Function("mudflatEquipmentStats", "createLumiMotion", "GENERAL_CHARACTER", "BASE_CAMP", "mudflatHiddenRockStage",
   "createMudflatSeed", "normalizeMudflatSeed", "nextMudflatRandom", "mudflatMosquitoRunEnabled", "mudflatOpeningWaveCount", "mudflatJellyfishInterval",
+  "mudflatNormalizeActiveSkills", "mudflatActiveLevels",
   ts.transpileModule(initializer, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText + "\nreturn makeRuntime;")
   (mudflatEquipmentStats, createLumiMotion, { levels: { tongs: 1, digging: 1 } }, { x: 0, y: 250 }, (stage) => stage === 3 || stage === 4,
     createMudflatSeed, normalizeMudflatSeed, (seed) => {
       const state = normalizeMudflatSeed(seed + 0x9e3779b9);
       return { state, value: state / 0x100000000 };
-    }, mudflatMosquitoRunEnabled, mudflatOpeningWaveCount, mudflatJellyfishInterval);
+    }, mudflatMosquitoRunEnabled, mudflatOpeningWaveCount, mudflatJellyfishInterval, mudflatNormalizeActiveSkills, mudflatActiveLevels);
 
 function fixture(mode = "normal") {
   const campaign = { version: 1, mode, characterId: "lumi", stage: 4, coins: 1380,
@@ -70,6 +71,36 @@ test("live save round trip preserves actual world, time, stats, drops, equipment
     restored.runtime.levels.basket = 1;
     assert.equal(runtime.levels.basket, 5); // Snapshot is detached.
   }
+});
+
+test("live save carries the skill inventory and active list, and backfills older saves", () => {
+  const { campaign, runtime } = fixture("normal");
+  // 보관 기술은 인벤토리에만 남고 runtime.levels에는 기본 기술과 활성 기술만 있다.
+  runtime.skillInventory = { ...runtime.skillInventory, harpoon: 2, net: 1, rocker: 1, boots: 1, snack: 1 };
+  runtime.activeSkills = ["basket", "electric", "cast-net", "harpoon", "net", "rocker"];
+  runtime.levels = mudflatActiveLevels(runtime.skillInventory, runtime.activeSkills, "normal");
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  assert.deepEqual(restored.runtime.skillInventory, runtime.skillInventory);
+  assert.deepEqual(restored.runtime.activeSkills, runtime.activeSkills);
+  assert.deepEqual(restored.runtime.levels, runtime.levels);
+  assert.equal(restored.runtime.levels.boots, undefined);
+  assert.equal(restored.campaign.levels.boots, 1); // The campaign keeps the whole inventory.
+  assert.deepEqual(restored.campaign.activeSkills, runtime.activeSkills);
+  assert.deepEqual(restored.stageEntryCampaign.activeSkills, campaign.activeSkills);
+  restored.runtime.activeSkills.push("snack");
+  assert.equal(runtime.activeSkills.length, 6); // Snapshot is detached.
+  // Saves from before the inventory had only levels: treat them as the inventory and derive the active list.
+  const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
+  delete legacy.runtime.skillInventory; delete legacy.runtime.activeSkills; delete legacy.campaign.activeSkills;
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.deepEqual(legacyRestored.runtime.skillInventory, legacyRestored.runtime.levels);
+  assert.deepEqual(legacyRestored.runtime.activeSkills, ["basket", "electric", "cast-net"]);
+  // A corrupted active list is rejected.
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.runtime.activeSkills = [3];
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
 });
 
 test("live save keeps a detached stage-entry checkpoint for rescue retries", () => {

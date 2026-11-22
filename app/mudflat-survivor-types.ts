@@ -50,7 +50,10 @@ export type Campaign = {
   level: number;
   xp: number;
   nextXp: number;
+  /** 기술 인벤토리: 보관 중인 기술도 레벨을 유지한다. */
   levels: CountMap;
+  /** 원정에서 작동하는 선택 기술(최대 6개). 집게·호미질은 항상 작동한다. */
+  activeSkills: string[];
   equipment: CountMap;
   inventory: CountMap;
   lastHaul: CountMap;
