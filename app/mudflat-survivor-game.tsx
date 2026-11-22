@@ -110,6 +110,9 @@ import {
   mudflatCrabRushCrabsPerRow,
   mudflatCrabRushRows,
   mudflatCrabRushInterval,
+  mudflatFarCreatureStep,
+  MUDFLAT_CREATURE_LIMIT,
+  MUDFLAT_SWARM_CREATURE_LIMIT,
   mudflatMudZombieCount,
   mudflatJellyfishInterval,
   mudflatJellyfishPoisonDamage,
@@ -148,7 +151,7 @@ import {
 
 type ExitProps = { onExit: () => void };
 type CreatureEventKind = "puffer-rush" | "crab-line" | "mud-zombie" | "jellyfish";
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; movementAngle: number; movementClock: number; facing?: 1 | -1; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; movementAngle: number; movementClock: number; facing?: 1 | -1; returnSeconds?: number; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
 type Pickup = ReturnType<typeof createExperiencePickup>;
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
@@ -2456,6 +2459,19 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }));
     };
 
+    // 되돌아오는 생물이 들어올 자리: 새 생물과 같은 화면 가장자리 바깥(플레이어 둘레의 무작위 방향). 귀환 단계에는 베이스캠프 안을 피한다.
+    const creatureReturnPoint = (width: number, height: number, size: number): Point => {
+      let angle = runtimeRandom(runtime) * Math.PI * 2;
+      let distance = Math.hypot(width, height) * .58 + 70 + runtimeRandom(runtime) * 80;
+      let point = { x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance };
+      for (let attempt = 0; runtime.baseCampGuideShown && attempt < 8 && isInsideBaseCamp(point, runtime.baseCamp, runtime.stage, size + 12); attempt += 1) {
+        angle = runtimeRandom(runtime) * Math.PI * 2;
+        distance += 56 + runtimeRandom(runtime) * 44;
+        point = { x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance };
+      }
+      return point;
+    };
+
     const spawnCrabRush = (width: number, height: number) => {
       const template = MUDFLAT_CREATURES.find((item) => item.id === "small-crab");
       const rows = mudflatCrabRushRows(runtime.stage);
@@ -3109,7 +3125,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           runtime.spawnClock = mudflatStageSpawnInterval(runtime.stage, runtime.mode, regularInterval);
         }
         runtime.spawnClock -= dt;
-        if (runtime.spawnClock <= 0 && runtime.creatures.length < 180) {
+        if (runtime.spawnClock <= 0 && runtime.creatures.length < MUDFLAT_CREATURE_LIMIT) {
           spawnCreature(width, height);
           const regularInterval = mudflatSpawnInterval(runtime.elapsed, runtime.mode) * stageStats.spawnIntervalMultiplier;
           runtime.spawnClock = mudflatStageSpawnInterval(runtime.stage, runtime.mode, regularInterval);
@@ -3144,7 +3160,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
         if (runtime.stage >= 6) {
           runtime.swarmClock -= dt;
-          if (runtime.swarmClock <= 0 && runtime.creatures.length < 165) {
+          if (runtime.swarmClock <= 0 && runtime.creatures.length < MUDFLAT_SWARM_CREATURE_LIMIT) {
             spawnSeafoodSwarm(width, height);
             runtime.swarmClock = mudflatSeafoodSwarmInterval(runtime.stage, runtimeRandom(runtime), runtimeRandom(runtime));
           }
@@ -3240,6 +3256,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const localY = Math.cos(creature.movementAngle) * orbitSpeed * .58 * direction;
           creature.x += (-dx / distance * retreatSpeed + Math.cos(creature.phase) * localX - Math.sin(creature.phase) * localY) * dt;
           creature.y += (-dy / distance * retreatSpeed + Math.sin(creature.phase) * localX + Math.cos(creature.phase) * localY) * dt;
+        }
+        // 먼 생물 되돌리기: 1,000px 넘게 멀어진 채 5초가 지나면 새 생물이 나오는 자리(화면 가장자리 바깥)에서 다시 들어온다.
+        const farStep = mudflatFarCreatureStep(creature, distance, dt, { blocked: tutorialActiveAtFrame || castNetMovementMultiplier(creature, runtime.castNets) === 0 });
+        if (farStep.returnSeconds === undefined) delete creature.returnSeconds; else creature.returnSeconds = farStep.returnSeconds;
+        if (farStep.returnNow) {
+          const entry = creatureReturnPoint(width, height, creature.size);
+          creature.x = entry.x; creature.y = entry.y;
         }
         if (runtime.baseCampGuideShown) keepCreatureOutsideBaseCamp(creature, runtime.baseCamp, runtime.stage);
         if (Math.abs(creature.x - previousX) > .001) creature.facing = creature.x > previousX ? 1 : -1;
