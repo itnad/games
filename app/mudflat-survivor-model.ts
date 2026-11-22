@@ -106,8 +106,8 @@ export function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[numb
   if (skill.id === "guard-basket") {
     const current = mudflatGuardBasketStats(safeLevel); const next = mudflatGuardBasketStats(nextLevel);
     const radius = (stats: ReturnType<typeof mudflatGuardBasketStats>) => stats.pullRadius >= 1200 ? "화면 전체" : `반경 ${stats.pullRadius}px`;
-    const extras = `${next.bleedStop && !current.bleedStop ? " · 막을 때 출혈 정지" : ""}${next.invulnerableSeconds > 0 && !current.invulnerableSeconds ? " · 막은 뒤 0.8초 무적" : ""}${next.charges > current.charges ? " · 비축 2회" : ""}`;
-    return { current: `${current.pullInterval}초마다 ${radius(current)} 보석 흡입 · 물살·운석·접촉 피해 1회 방어, 재충전 ${current.rechargeSeconds}초${current.charges > 1 ? " · 비축 2회" : ""}`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.pullInterval}초마다 ${radius(next)} · 재충전 ${next.rechargeSeconds}초${extras}` };
+    const extras = `${next.bleedStop && !current.bleedStop ? " · 막을 때 출혈 정지" : ""}${next.invulnerableSeconds > current.invulnerableSeconds ? ` · 막은 뒤 ${next.invulnerableSeconds}초 무적` : ""}`;
+    return { current: `${current.pullInterval}초마다 ${radius(current)} 보석 흡입 · 물살·운석·접촉 피해 1회 방어, 재충전 ${current.rechargeSeconds}초${current.bleedStop ? " · 막을 때 출혈 정지" : ""}${current.invulnerableSeconds > 0 ? ` · 막은 뒤 ${current.invulnerableSeconds}초 무적` : ""}`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.pullInterval}초마다 ${radius(next)} · 재충전 ${next.rechargeSeconds}초${extras}` };
   }
   if (skill.id === "boots") return { current: `이동속도와 진흙 저항 완화가 Lv.${safeLevel} 단계로 강화되었습니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 이동속도와 깊은 펄 저항이 한 단계 더 좋아집니다.` };
   if (skill.id === "snack") return { current: `기본 최대 체력의 ${safeLevel * 20}%만큼 증가합니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 기본 최대 체력 +${nextLevel * 20}%` };
