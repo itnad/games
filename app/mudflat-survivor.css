@@ -227,30 +227,6 @@
 .ms-pearl-celebration{position:fixed;z-index:70;inset:64px 0 74px;display:grid;place-items:center;overflow:hidden;pointer-events:none;background:radial-gradient(circle at 50% 48%,rgba(255,239,161,.16),rgba(15,20,22,.2) 36%,rgba(7,12,15,.58) 76%);animation:ms-pearl-backdrop 2.7s ease both}.ms-pearl-rays{position:absolute;width:min(74vw,380px);aspect-ratio:1;border-radius:50%;background:repeating-conic-gradient(from 8deg,rgba(255,242,174,0) 0 8deg,rgba(255,242,174,.18) 9deg 12deg,rgba(255,242,174,0) 13deg 23deg);filter:blur(.3px);animation:ms-pearl-rays 2.7s cubic-bezier(.18,.75,.22,1) both}.ms-pearl-treasure{position:relative;width:min(340px,calc(100vw - 44px));padding:19px 22px 21px;display:grid;justify-items:center;border:1px solid rgba(255,230,164,.58);border-radius:27px;color:#fff9e9;text-align:center;background:linear-gradient(155deg,rgba(26,63,57,.95),rgba(33,39,39,.96) 58%,rgba(83,55,39,.96));box-shadow:0 24px 70px #05090abf,inset 0 1px #fff4cd55;animation:ms-pearl-card 2.7s cubic-bezier(.2,.8,.2,1) both}.ms-pearl-treasure>small{color:#ffd888;font-size:10px;font-weight:950;letter-spacing:.2em}.ms-pearl-treasure>strong{margin-top:5px;font:700 clamp(22px,6vw,29px)/1.2 Georgia,"Noto Serif KR",serif;letter-spacing:-.04em}.ms-pearl-treasure>span{margin-top:7px;color:#f3dcae;font-size:12px;font-weight:850}.ms-pearl-gem{width:102px;height:96px;margin:3px 0 0;display:grid;place-items:center;position:relative}.ms-pearl-gem::before,.ms-pearl-gem::after{content:"";position:absolute;border:1px solid rgba(255,244,202,.5);border-radius:50%;animation:ms-pearl-ring 1.45s ease-out infinite}.ms-pearl-gem::before{inset:11px}.ms-pearl-gem::after{inset:1px;animation-delay:.22s}.ms-pearl-gem img{width:88px;height:88px;object-fit:contain;filter:drop-shadow(0 0 10px #fff7ce) drop-shadow(0 10px 15px #160f0a88);animation:ms-pearl-gem 2.7s ease both}@keyframes ms-pearl-backdrop{0%,100%{opacity:0}10%,78%{opacity:1}}@keyframes ms-pearl-rays{0%{opacity:0;scale:.35;rotate:-24deg}18%{opacity:1}100%{opacity:0;scale:1.28;rotate:18deg}}@keyframes ms-pearl-card{0%{opacity:0;transform:translateY(22px) scale(.78)}14%{opacity:1;transform:translateY(0) scale(1.03)}23%,76%{opacity:1;transform:scale(1)}100%{opacity:0;transform:translateY(-12px) scale(.96)}}@keyframes ms-pearl-gem{0%{opacity:0;transform:scale(.35) rotate(-18deg)}18%{opacity:1;transform:scale(1.12) rotate(4deg)}29%,100%{opacity:1;transform:scale(1) rotate(0)}}@keyframes ms-pearl-ring{0%{opacity:.85;transform:scale(.6)}100%{opacity:0;transform:scale(1.25)}}
 @media(max-width:600px){.ms-pearl-celebration{inset:64px 0 74px}.ms-pearl-treasure{padding:15px 18px 18px;border-radius:23px}.ms-pearl-gem{width:88px;height:82px}.ms-pearl-gem img{width:76px;height:76px}}
 
-/* Developer-only supervisor mode: the AI drives the live runtime while the user
-   remains responsible for level-up choices. Keep its status readable but clear
-   of the HUD and the bottom skill bar on narrow screens. */
-.ms-supervisor-game canvas{cursor:default}
-.ms-supervisor-status{position:absolute;z-index:8;left:10px;top:126px;max-width:min(218px,calc(100% - 20px));min-height:30px;padding:6px 10px;display:flex;align-items:center;gap:7px;border:1px solid #95e0c045;border-radius:999px;color:#f2fff8;background:linear-gradient(135deg,#16352fd9,#17272bd9);box-shadow:0 6px 18px #0712114d,inset 0 1px #ffffff12;pointer-events:none;backdrop-filter:blur(7px)}
-.ms-supervisor-status::before{content:"AI";flex:none;padding:3px 5px;border-radius:999px;color:#102c27;background:#8fe0c0;font-size:8px;font-weight:950;letter-spacing:.08em}
-.ms-supervisor-status small,.ms-supervisor-status span,.ms-supervisor-status button{display:none}
-.ms-supervisor-status b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;line-height:1.2}
-.ms-supervisor-transition{min-height:100dvh;padding:20px;display:grid;place-items:center;color:#fff9e9;background:radial-gradient(circle at 50% 20%,#2c655744 0 18%,transparent 44%),linear-gradient(155deg,#10191b,#1b302c 58%,#392f29)}
-.ms-supervisor-transition>section{width:min(470px,100%);padding:clamp(25px,6vw,39px);border:1px solid #ffe7bc30;border-radius:28px;text-align:center;background:linear-gradient(150deg,#254f46,#203834 60%,#4b372d);box-shadow:0 28px 85px #050a0b91}
-.ms-supervisor-transition small{color:#8fe0c0;font-size:10px;font-weight:950;letter-spacing:.18em}
-.ms-supervisor-transition h1{margin:10px 0 8px;font:700 clamp(29px,7vw,44px)/1.08 Georgia,"Noto Serif KR",serif;letter-spacing:-.045em}
-.ms-supervisor-transition p{margin:0;color:#ded4c4;font-size:13px;line-height:1.6}
-.ms-supervisor-transition div{margin-top:20px;display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
-.ms-supervisor-transition span{padding:11px 6px;border-radius:14px;background:#0d1e1d59}
-.ms-supervisor-transition span small{display:block;color:#b7c9c2;font-size:9px;letter-spacing:0}
-.ms-supervisor-transition span b{display:block;margin-top:4px;color:#ffd282;font-size:15px}
-.ms-supervisor-transition em{display:block;margin-top:16px;color:#d9c197;font-size:11px;font-style:normal}
+/* The live supervisor run shares the normal game UI. Only its final diagnostic
+   result needs a small type adjustment for the longer failure description. */
 .ms-supervisor-result .ms-result-grid span:last-child b{font-size:clamp(12px,3.4vw,16px);line-height:1.3}
-@media(max-width:600px){.ms-supervisor-status{left:8px;top:122px;max-width:min(205px,calc(100% - 16px));min-height:28px;padding:5px 8px}.ms-supervisor-status b{font-size:9px}.ms-supervisor-transition{padding:12px}.ms-supervisor-transition>section{padding:25px 17px;border-radius:23px}}
-
-/* 감독모드 정비: 선택한 구매를 하나씩 보여 주고, 관전 중에는 직접 구매를 잠근다. */
-.ms-supervisor-camp .ms-shop button:disabled{opacity:.72}
-.ms-supervisor-camp .ms-shop button.is-supervisor-choice{opacity:1;border-color:#2f897e;background:linear-gradient(135deg,#effff8,#fff8df);box-shadow:0 0 0 3px #65c7a93d,0 10px 24px #245d5424;animation:ms-supervisor-choice .65s ease both}
-.ms-supervisor-camp .ms-shop button.is-supervisor-choice>i{background:#be6a38}
-.ms-supervisor-camp .ms-shop button.is-supervisor-choice em{color:#1f6a59}
-@keyframes ms-supervisor-choice{0%{transform:scale(.98)}55%{transform:scale(1.015)}100%{transform:scale(1)}}

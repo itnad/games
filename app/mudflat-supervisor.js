@@ -1,23 +1,12 @@
 import {
-  MUDFLAT_GENERAL_UPGRADES,
-  MUDFLAT_RECOVERY_FOODS,
   MUDFLAT_RETURN_GUIDE_SECONDS,
   MUDFLAT_RUN_SECONDS,
-  MUDFLAT_SHOP_EQUIPMENT,
-  mudflatAdvancedSkillUnlocks,
-  mudflatEquipmentPrice,
-  mudflatEquipmentStats,
-  mudflatTrainingPrice,
 } from "./mudflat-survivor-engine.js";
 
 export const MUDFLAT_SUPERVISOR_DECISION_SECONDS = .16;
 export const CLAM_DIG_SECONDS = 2;
 export const GAEBUL_DIG_SECONDS = 3.1;
 
-const MOSQUITO_REPELLENT_KEY = "mosquitoRepellent";
-const MOSQUITO_REPELLENT_PRICE = 100;
-const FULL_HEAL_PRICE = MUDFLAT_RECOVERY_FOODS.find((item) => item.heal === Infinity)?.price ?? 110;
-const EQUIPMENT_PRIORITY = ["vest", "gloves", "waders", "cooler", "headlamp"];
 const MIN_PICKUP_CHASE_RANGE = 150;
 export const MUDFLAT_SUPERVISOR_CLAM_SEARCH_RANGE = 720;
 
@@ -54,7 +43,6 @@ const KITE_HORIZON = .6;             // 물러날 방향을 고를 때 내다보
 const KITE_SLOW_AHEAD_PENALTY = 900; // 그 너머가 느린 지형이면 들어가지 않게 하는 벌점
 const RETURN_TERRAIN_WEIGHT = 20;    // 귀환·대피 때의 느린 지형 벌점(평소 260)
 const DEFAULT_PLAYER_SPEED = 155;
-const TONG_TRAINING_TARGET_LEVEL = 3;
 const KITE_GRAB_MIN_XP = 5;          // 복어를 상대하는 사이에도 먼저 주울 만한 경험치(복어 7, 큰 게 6~10)
 const KITE_GRAB_GAP = 35;            // 주우러 간 자리에서 추격자의 접촉 반경까지 남아야 하는 거리
 const KITE_GRAB_RANGE = 240;         // 큰 경험치를 주우러 가는 최대 거리
@@ -1089,102 +1077,4 @@ export function decideMudflatSupervisorMove(state) {
 /** 정지해 있는 동안의 호미질 허용: 조개구멍을 목표로 섰을 때와, 바위를 뒤집느라 서 있을 때(둘은 함께 진행된다). */
 export function mudflatSupervisorCanDig(decision) {
   return (decision?.targetKind === "clam" || decision?.targetKind === "rock") && Math.hypot(decision.x ?? 0, decision.y ?? 0) <= .05;
-}
-
-export function planMudflatSupervisorMaintenance(campaign) {
-  let coins = Math.max(0, Math.floor(campaign.coins ?? 0));
-  let hp = Math.max(1, Number(campaign.hp ?? 1));
-  let maxHp = Math.max(1, Number(campaign.maxHp ?? 1));
-  const equipment = { ...(campaign.equipment ?? {}) };
-  let levels = { ...(campaign.levels ?? {}) };
-  let pendingSkillDiscovery = campaign.pendingSkillDiscovery;
-  const actions = [];
-  const snapshot = (kind, id, label, cost) => {
-    const next = {
-      ...campaign,
-      coins,
-      hp: Math.min(maxHp, hp),
-      maxHp,
-      equipment: { ...equipment },
-      levels: { ...levels },
-      pendingSkillDiscovery,
-    };
-    actions.push({
-      kind,
-      id,
-      label,
-      cost,
-      detail: `${label} · ${cost.toLocaleString()}코인 사용 · 잔액 ${coins.toLocaleString()}코인`,
-      campaign: next,
-    });
-  };
-
-  if (hp < maxHp * .72 && coins >= FULL_HEAL_PRICE) {
-    coins -= FULL_HEAL_PRICE;
-    hp = maxHp;
-    snapshot("recovery", "porridge", "해물죽으로 체력 전부 회복", FULL_HEAL_PRICE);
-  }
-
-  // 집게 훈련을 장비보다 먼저 산다: 쫓아오는 복어를 물러나며 잡는 속도가 집게 레벨에 달려 있다(회복 값은 남긴다).
-  if (campaign.mode === "normal" && levels) {
-    const tongs = MUDFLAT_GENERAL_UPGRADES.find((item) => item.id === "tongs");
-    const cap = Math.min(tongs?.max ?? 0, TONG_TRAINING_TARGET_LEVEL);
-    while ((levels.tongs ?? 0) > 0 && levels.tongs < cap && coins >= mudflatTrainingPrice(levels.tongs) + FULL_HEAL_PRICE) {
-      const before = mudflatAdvancedSkillUnlocks(levels);
-      coins -= mudflatTrainingPrice(levels.tongs);
-      levels = { ...levels, tongs: levels.tongs + 1 };
-      const after = mudflatAdvancedSkillUnlocks(levels);
-      if ((!before.electric && after.electric) || (!before.castNet && after.castNet)) pendingSkillDiscovery = true;
-      snapshot("training", "tongs", `집게 숙련도 Lv.${levels.tongs} 훈련`, mudflatTrainingPrice(levels.tongs - 1));
-    }
-  }
-
-  let upgradesBought = 0;
-  while (upgradesBought < 2) {
-    const affordable = EQUIPMENT_PRIORITY
-      .map((id) => {
-        const item = MUDFLAT_SHOP_EQUIPMENT.find((entry) => entry.id === id);
-        const level = Math.max(0, Math.floor(equipment[id] ?? 0));
-        return item && level < item.max ? { id, level, price: mudflatEquipmentPrice(id, level) } : null;
-      })
-      .filter(Boolean)
-      .find((item) => item.price <= Math.max(0, coins - FULL_HEAL_PRICE));
-    if (!affordable) break;
-    equipment[affordable.id] = affordable.level + 1;
-    coins -= affordable.price;
-    const previousMaxHp = maxHp;
-    const stats = mudflatEquipmentStats(equipment, campaign.baseMaxHp, campaign.mode === "normal" ? levels?.snack : 0);
-    maxHp = stats.maxHp;
-    if (maxHp > previousMaxHp) hp += maxHp - previousMaxHp;
-    const item = MUDFLAT_SHOP_EQUIPMENT.find((entry) => entry.id === affordable.id);
-    snapshot("equipment", affordable.id, `${item?.name ?? affordable.id} Lv.${equipment[affordable.id]} 구매`, affordable.price);
-    upgradesBought += 1;
-  }
-
-  if (campaign.stage >= 2 && (equipment[MOSQUITO_REPELLENT_KEY] ?? 0) <= 0
-    && coins >= MOSQUITO_REPELLENT_PRICE + FULL_HEAL_PRICE) {
-    equipment[MOSQUITO_REPELLENT_KEY] = 1;
-    coins -= MOSQUITO_REPELLENT_PRICE;
-    snapshot("supply", MOSQUITO_REPELLENT_KEY, "해충기피제 준비", MOSQUITO_REPELLENT_PRICE);
-  }
-
-  const stats = mudflatEquipmentStats(equipment, campaign.baseMaxHp, campaign.mode === "normal" ? levels?.snack : 0);
-  if (stats.maxHp > maxHp) hp += stats.maxHp - maxHp;
-  maxHp = stats.maxHp;
-  if (hp < maxHp && coins >= FULL_HEAL_PRICE) {
-    coins -= FULL_HEAL_PRICE;
-    hp = maxHp;
-    snapshot("recovery", "porridge", "해물죽으로 추가 체력 회복", FULL_HEAL_PRICE);
-  }
-
-  const maintained = {
-    ...campaign, coins, hp: Math.min(maxHp, hp), maxHp, equipment,
-    levels,
-    ...(pendingSkillDiscovery !== undefined || Object.prototype.hasOwnProperty.call(campaign, "pendingSkillDiscovery") ? { pendingSkillDiscovery } : {}),
-  };
-  return { campaign: maintained, actions };
-}
-
-export function maintainMudflatSupervisorCampaign(campaign) {
-  return planMudflatSupervisorMaintenance(campaign).campaign;
 }
