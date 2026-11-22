@@ -505,8 +505,6 @@ const HOME_CATEGORY_PREVIEW_LIMIT = 6;
 const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const PUBLIC_GAME_PATH_ALIASES: Readonly<Record<string, GameId>> = {
   haeru: "mudflat-survivor",
-  // 예전 내부 이름으로 된 주소(/starswar)도 스타드래프트로 연다.
-  starswar: "stardraft",
 };
 /** 내부 이름이 바뀐 게임: 즐겨찾기·최근 목록에 남은 예전 이름을 새 이름으로 읽는다. */
 const LEGACY_GAME_IDS: Readonly<Record<string, GameId>> = { starswar: "stardraft" };
