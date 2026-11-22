@@ -921,16 +921,11 @@ test("keeps StarDraft in its own app/stardraft folder as a public mobile game at
   assert.doesNotMatch(pageSource, /frontline/i);
   // 2026-11 공개: 홈 목록에 보인다.
   assert.doesNotMatch(hiddenSet, /"stardraft"/);
-  // 내부 ID·폴더·주소가 모두 stardraft다. 예전 주소(/starswar)는 이어 주지 않고, 예전 이름은 즐겨찾기·최근 목록을 읽는 자리에만 남는다.
-  assert.doesNotMatch(pageSource, /starswar: "stardraft",\n\};/);
-  assert.doesNotMatch(pageSource.match(/const PUBLIC_GAME_PATH_ALIASES[\s\S]*?\n\};/)?.[0] ?? "starswar", /starswar/);
-  assert.match(pageSource, /const LEGACY_GAME_IDS: Readonly<Record<string, GameId>> = \{ starswar: "stardraft" \};/);
-  assert.match(pageSource, /saved\.map\(\(id\) => LEGACY_GAME_IDS\[id\] \?\? id\)/);
-  assert.equal((pageSource.match(/starswar/g) ?? []).length, 1, "page.tsx에 남은 예전 이름은 옛 목록을 읽는 한 곳뿐이다");
+  // 내부 ID·폴더·주소·저장 키가 모두 stardraft다. 예전 이름(starswar)은 주소·즐겨찾기·저장 데이터 어디에서도 이어 주지 않는다.
+  assert.doesNotMatch(pageSource, /starswar/i);
   for (const file of folder) {
-    if (file === "stardraft-storage.js") continue;
     const text = await readFile(new URL(`../app/stardraft/${file}`, import.meta.url), "utf8");
-    assert.equal((text.match(/starswar/gi) ?? []).length, file === "stardraft-game.tsx" ? 1 : 0, `${file}에 예전 이름이 남아 있지 않다(게임 파일의 옮김 설명 한 줄 제외)`);
+    assert.doesNotMatch(text, /starswar/i, `${file}에 예전 이름이 남아 있지 않다`);
   }
   // 내부 ID가 곧 주소라 따로 바꿔 주는 줄이 없다(/stardraft).
   assert.doesNotMatch(pageSource, /if \(gameId === "stardraft"\)/);

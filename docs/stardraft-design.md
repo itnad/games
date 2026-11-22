@@ -7,10 +7,7 @@
 - 코드 접두어: 함수 `stw…`, 상수 `STW_…`, 타입 `Stw…`, CSS 클래스 `stw-` (`sw-`는 7대 문명이 쓰고 있어 피한다)
 
 - 주소: `/stardraft` (내부 ID·폴더·파일 이름도 `stardraft`)
-- **이름 정리 (2026-11)**: 내부 이름 `starswar`를 `stardraft`로 바꿨다(폴더 `app/stardraft/`, 파일 `stardraft-*`, 함수 `createStardraftGame`·`advanceStardraft`·`stepStardraft`, 컴포넌트 `StardraftGame`, 게임 ID, 저장 키 `paperoid-stardraft-*`, 단독 실행 파일 `dist-standalone/stardraft.html`). 줄임 접두어 `stw`·`STW_`·`Stw`·`stw-`는 그대로 둔다. 예전 이름은 두 군데에서만 이어 준다
-  - 예전 주소 `/starswar`는 이어 주지 않는다. 들어오면 게임이 열리지 않고 홈 화면이 나온다
-  - 즐겨찾기·최근 목록에 남은 예전 ID는 새 ID로 읽는다(`LEGACY_GAME_IDS`)
-  - 예전 저장 키(`paperoid-starswar-*`: 이어하기, 전적, 학습 자료, 실험실 설정·내 설정, 테마, 본 팁)의 값은 게임을 처음 열 때 새 키로 한 번 옮기고 예전 키를 지운다(`stardraft-storage.js`의 `stwMigrateLegacyStorage`). 새 키에 이미 값이 있으면 그 값을 둔다
+- **이름 정리 (2026-11)**: 내부 이름 `starswar`를 `stardraft`로 바꿨다(폴더 `app/stardraft/`, 파일 `stardraft-*`, 함수 `createStardraftGame`·`advanceStardraft`·`stepStardraft`, 컴포넌트 `StardraftGame`, 게임 ID, 저장 키 `paperoid-stardraft-*`, 단독 실행 파일 `dist-standalone/stardraft.html`). 줄임 접두어 `stw`·`STW_`·`Stw`·`stw-`는 그대로 둔다. 예전 이름은 어디에서도 이어 주지 않는다: 예전 주소 `/starswar`는 게임을 열지 않고 홈 화면을 보여 주며, 즐겨찾기·최근 목록의 예전 ID와 예전 저장 키(`paperoid-starswar-*`)의 이어하기·전적·학습 자료·설정은 읽지 않는다(저장 키는 `stardraft-storage.js`의 `STW_STORAGE_KEYS`)
 - **공개 (2026-11)**: 사이트 홈 목록에 보이고 주소로 바로 들어갈 수 있다(`app/page.tsx`의 `DEFAULT_HIDDEN_GAME_IDS`에서 뺐다). 유닛·건물 이름은 아직 원작 그대로다
 - 소스 폴더: `app/stardraft/`
 - 테스트: `tests/stardraft-engine.test.mjs`

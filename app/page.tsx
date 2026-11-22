@@ -506,8 +506,6 @@ const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const PUBLIC_GAME_PATH_ALIASES: Readonly<Record<string, GameId>> = {
   haeru: "mudflat-survivor",
 };
-/** 내부 이름이 바뀐 게임: 즐겨찾기·최근 목록에 남은 예전 이름을 새 이름으로 읽는다. */
-const LEGACY_GAME_IDS: Readonly<Record<string, GameId>> = { starswar: "stardraft" };
 
 function publicGameIdFromPath(value: string | null | undefined): GameId | null {
   const resolvedPath = value ? (PUBLIC_GAME_PATH_ALIASES[value] ?? value) : null;
@@ -1340,7 +1338,7 @@ function HomeContent({
     const readGameIds = (key: string) => {
       try {
         const saved = JSON.parse(window.localStorage.getItem(key) ?? "[]") as string[];
-        return [...new Set(saved.map((id) => LEGACY_GAME_IDS[id] ?? id))].filter((id): id is GameId => knownIds.has(id as GameId));
+        return saved.filter((id): id is GameId => knownIds.has(id as GameId));
       } catch {
         return [];
       }

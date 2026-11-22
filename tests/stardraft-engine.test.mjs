@@ -4636,36 +4636,11 @@ test("정찰 대응 모드: AI가 맡은 진영만 켜지고, 읽은 전략과 �
   assert.deepEqual(stwFingerprint(again), stwFingerprint(check));
 });
 
-test("예전 이름(starswar)으로 저장한 값은 새 키로 한 번 옮기고, 이미 새 값이 있으면 건드리지 않는다", async () => {
-  const { STW_STORAGE_KEYS, stwMigrateLegacyStorage } = await import("../app/stardraft/stardraft-storage.js");
-  const memory = () => {
-    const map = new Map();
-    return { map, getItem: (key) => (map.has(key) ? map.get(key) : null), setItem: (key, value) => map.set(key, String(value)), removeItem: (key) => map.delete(key) };
-  };
-  assert.deepEqual(Object.values(STW_STORAGE_KEYS).sort(), [
+test("스타드래프트의 브라우저 저장 키는 모두 paperoid-stardraft- 로 시작하고 예전 이름을 옮기는 처리는 없다", async () => {
+  const storage = await import("../app/stardraft/stardraft-storage.js");
+  assert.deepEqual(Object.values(storage.STW_STORAGE_KEYS).sort(), [
     "paperoid-stardraft-lab", "paperoid-stardraft-lab-presets", "paperoid-stardraft-learning", "paperoid-stardraft-record",
     "paperoid-stardraft-save", "paperoid-stardraft-theme-v2", "paperoid-stardraft-tips-seen",
   ]);
-  // 예전 키 일곱 개가 모두 옮겨지고 예전 키는 사라진다.
-  const old = memory();
-  for (const key of Object.values(STW_STORAGE_KEYS)) old.setItem(key.replace("paperoid-stardraft-", "paperoid-starswar-"), `값:${key}`);
-  old.setItem("paperoid-favorites", "[\"starswar\"]");
-  assert.equal(stwMigrateLegacyStorage(old), 7);
-  for (const key of Object.values(STW_STORAGE_KEYS)) assert.equal(old.getItem(key), `값:${key}`);
-  assert.equal([...old.map.keys()].filter((key) => key.startsWith("paperoid-starswar-")).length, 0);
-  assert.equal(old.getItem("paperoid-favorites"), "[\"starswar\"]", "다른 키는 건드리지 않는다");
-  // 다시 불러도 아무 일도 없다.
-  assert.equal(stwMigrateLegacyStorage(old), 0);
-  // 새 키에 이미 값이 있으면 그 값을 두고 예전 키만 지운다.
-  const both = memory();
-  both.setItem("paperoid-stardraft-record", "새 전적");
-  both.setItem("paperoid-starswar-record", "옛 전적");
-  both.setItem("paperoid-starswar-save", "옛 이어하기");
-  assert.equal(stwMigrateLegacyStorage(both), 1);
-  assert.equal(both.getItem("paperoid-stardraft-record"), "새 전적");
-  assert.equal(both.getItem("paperoid-stardraft-save"), "옛 이어하기");
-  assert.equal(both.getItem("paperoid-starswar-record"), null);
-  // 저장소가 막혀 있어도 던지지 않는다.
-  assert.equal(stwMigrateLegacyStorage({ getItem() { throw new Error("blocked"); }, setItem() {}, removeItem() {} }), 0);
-  assert.equal(stwMigrateLegacyStorage(null), 0);
+  assert.deepEqual(Object.keys(storage), ["STW_STORAGE_KEYS"]);
 });
