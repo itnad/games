@@ -3889,7 +3889,17 @@ test("all rock, hole, and falling-rock spawn paths respect the camp exclusion", 
   assert.match(source, /const fall = progress \* progress/);
   assert.match(source, /drawFallingRockBody\(context, screenPoint\(falling\), falling, height\)/);
   assert.match(source, /const FALLING_ROCK_DAMAGE = 100/);
-  assert.match(source, /damagePlayer\(FALLING_ROCK_DAMAGE, "#d69d68", "낙석 충돌"\)/);
+  assert.match(source, /damagePlayer\(FALLING_ROCK_DAMAGE, "#d69d68", "운석 충돌"\)/);
+  // 운석: 예고부터 낙하까지의 시간은 엔진 상수 하나로 정하고(예전 낙석 2.1초의 4배 속도), 화면에는 "낙석"이라는 말을 쓰지 않는다.
+  assert.match(source, /life: MUDFLAT_METEOR_FALL_SECONDS, maxLife: MUDFLAT_METEOR_FALL_SECONDS, radius: 29/);
+  assert.match(source, /context\.fillText\("운석", 0, -falling\.radius - 12\)/);
+  assert.doesNotMatch(source, /낙석/);
+  const engine = await import("../app/mudflat-survivor-engine.js");
+  assert.equal(engine.MUDFLAT_METEOR_FALL_SECONDS, 2.1 / 4);
+  assert.ok(engine.mudflatStageProfile(8).fallingRocks > 0, "8단계에는 운석이 떨어진다");
+  // 일시정지 화면: 계속 채집하기는 제목 바로 아래(정보 카드 위)에 하나만 둔다. 카드 아래에 있으면 작은 화면에서 끌어내려야 보인다.
+  assert.match(source, /모두 멈춰 있습니다\.<\/p>[\s\S]{0,160}<button className="ms-primary ms-pause-resume" onClick=\{resume\}>계속 채집하기<\/button>\s*<div className="ms-pause-dashboard"/);
+  assert.equal((source.match(/>계속 채집하기</g) ?? []).length, 1);
   for (const collection of ["rocks", "clamHoles", "fallingRocks"]) {
     assert.ok(source.includes(`runtime.${collection} = runtime.${collection}.filter((`), `existing ${collection} are cleared when camp appears`);
   }

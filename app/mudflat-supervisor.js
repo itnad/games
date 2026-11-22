@@ -753,7 +753,7 @@ export function decideMudflatSupervisorMove(state) {
   const waypoint = routed ? routeWaypoint(state.player, route) : { point: target.point, rest: 0, last: true };
   const currentDanger = hazardPenalty(state.player, state, target, routed);
   // 호미질 자리는 "끝낼 때까지 아무도 닿지 못한다"는 판정을 이미 통과했다. 멀리 있는 게들의 무리 벌점 합으로 다시 막지 않고,
-  // 바위·낙석·접촉 반경 안으로 들어온 생물만 본다.
+  // 바위·운석·접촉 반경 안으로 들어온 생물만 본다.
   const digSpot = target.kind === "clam" && targetDistance <= 48;
   const canHoldPosition = (digSpot ? hazardPenalty(state.player, state, { ...target, crowdSoft: { range: 0, weight: 0 } }, routed) : currentDanger) < 1000;
   if (!canHoldPosition && digSpot) {

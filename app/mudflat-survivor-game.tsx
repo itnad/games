@@ -78,6 +78,7 @@ import {
   MUDFLAT_REGULAR_STAGES,
   MUDFLAT_TIDE_MESSAGE_INTERVAL,
   MUDFLAT_TIDE_FILL_SECONDS as TIDE_FILL_SECONDS,
+  MUDFLAT_METEOR_FALL_SECONDS,
   MUDFLAT_RUN_SECONDS,
   MUDFLAT_SEAFOOD_MARKET,
   MUDFLAT_SHOP_EQUIPMENT,
@@ -1387,7 +1388,7 @@ function drawFallingRockTarget(context: CanvasRenderingContext2D, point: Point, 
   context.textAlign = "center";
   context.shadowColor = "rgba(20,12,10,.85)";
   context.shadowBlur = 5;
-  context.fillText("낙석", 0, -falling.radius - 12);
+  context.fillText("운석", 0, -falling.radius - 12);
   context.restore();
 }
 
@@ -3068,7 +3069,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (runtime.fallClock <= 0) {
           const angle = runtimeRandom(runtime) * Math.PI * 2;
           const distance = 45 + runtimeRandom(runtime) * 230;
-          const falling = { id: sequenceRef.current++, x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance, life: 2.1, maxLife: 2.1, radius: 29 };
+          const falling = { id: sequenceRef.current++, x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance, life: MUDFLAT_METEOR_FALL_SECONDS, maxLife: MUDFLAT_METEOR_FALL_SECONDS, radius: 29 };
           if (campObstacleAllowed(falling, falling.radius + 20)) runtime.fallingRocks.push(falling);
           runtime.fallClock = stageProfile.fallingRocks * (.72 + runtimeRandom(runtime) * .48);
         }
@@ -3076,7 +3077,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const previousLife = falling.life;
           falling.life -= dt;
           if (previousLife > 0 && falling.life <= 0 && campObstacleAllowed(falling, falling.radius + 20)) {
-            if (Math.hypot(falling.x - runtime.player.x, falling.y - runtime.player.y) <= falling.radius + 16) damagePlayer(FALLING_ROCK_DAMAGE, "#d69d68", "낙석 충돌");
+            if (Math.hypot(falling.x - runtime.player.x, falling.y - runtime.player.y) <= falling.radius + 16) damagePlayer(FALLING_ROCK_DAMAGE, "#d69d68", "운석 충돌");
             addRock({ id: sequenceRef.current++, x: falling.x, y: falling.y, radius: 18 + runtimeRandom(runtime) * 7, tone: runtimeRandom(runtime) });
             runtime.bursts.push({ id: sequenceRef.current++, x: falling.x, y: falling.y, life: .55, maxLife: .55, color: "#c99564", size: 36 });
           }
@@ -4518,6 +4519,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     <div className="ms-layer pause"><section className="ms-pause-panel">
       <small>PAUSED</small><h2>잠시 쉬어갈까요?</h2>
       <p>게임 시간과 해산물 움직임이 모두 멈춰 있습니다.</p>
+      {/* 계속 채집하기는 맨 위에 둔다: 아래 정보 카드가 길어 작은 화면에서는 끌어내려야 보였다. */}
+      <button className="ms-primary ms-pause-resume" onClick={resume}>계속 채집하기</button>
       <div className="ms-pause-dashboard" aria-label="현재 원정 정보">
         <article className="ms-pause-card ms-pause-stage">
           <small>STAGE INFO</small>
@@ -4555,7 +4558,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       </div>
       <GameObjectiveGuide gameId="mudflat-survivor" inline />
       <div className="ms-pause-actions">
-        <button className="ms-primary" onClick={resume}>계속 채집하기</button>
         {supervisorSessionActive && <button type="button" className="ms-pause-guide-button" onClick={copySupervisorLog}>{supervisorLogCopyStatus || "AI 리포트용 로그 복사"}</button>}
         <button type="button" className="ms-pause-guide-button" onClick={() => setSeafoodGuideOpen(true)}>해산물 도감 보기</button>
         <button className="ms-quit" onClick={openExitDialog}>저장하고 나가기</button>

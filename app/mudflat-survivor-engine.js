@@ -2,6 +2,8 @@ export const MUDFLAT_RUN_SECONDS = 240;
 export const MUDFLAT_TIDE_FILL_SECONDS = 1;
 export const MUDFLAT_JOYSTICK_RADIUS = 72;
 export const MUDFLAT_RETURN_GUIDE_SECONDS = 10;
+// 운석: 떨어질 자리가 표시된 뒤 실제로 떨어지기까지의 시간(초). 예전 2.1초의 4배 속도다.
+export const MUDFLAT_METEOR_FALL_SECONDS = .525;
 export const MUDFLAT_TIDE_SPEED_MULTIPLIER = .2;
 export const MUDFLAT_TIDE_DAMAGE_RATIO_PER_SECOND = .05;
 export const MUDFLAT_TIDE_MESSAGE_INTERVAL = 15;
@@ -578,7 +580,7 @@ export const MUDFLAT_REGULAR_STAGES = [
 const MUDFLAT_ENDLESS_MODIFIERS = [
   { id: "channels", name: "깊은 물골", patch: { waterChannels: true, mudSlow: .9 } },
   { id: "dark", name: "짙은 어둠", patch: { darkness: .7 } },
-  { id: "rocks", name: "낙석 지대", patch: { rockMultiplier: 1.5, fallingRocks: 18 } },
+  { id: "rocks", name: "운석 지대", patch: { rockMultiplier: 1.5, fallingRocks: 18 } },
   { id: "wind", name: "거센 돌풍", patch: { wind: 38 } },
   { id: "tide", name: "거센 돌발 물살", patch: { tideInterval: 25, safeZone: "moving" } },
   { id: "swarm", name: "해산물 대이동", patch: { swarms: true, seafoodSpawnMultiplier: .78 } },

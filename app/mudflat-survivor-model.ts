@@ -118,7 +118,7 @@ export function mudflatStageHazardNotes(profile: StageProfile) {
   if (profile.stage >= 6) notes.push("해산물 무리 · 불규칙한 방향·간격·구성으로 추가 출현");
   if (profile.waterChannels) notes.push("물골 · 지나갈 때 이동 감속");
   if (mudflatHiddenRockStage(profile.stage)) notes.push("숨은 돌 · 가까운 곳에 갑자기 등장");
-  if (profile.fallingRocks > 0) notes.push("낙석 · 충돌 피해와 바위 생성");
+  if (profile.fallingRocks > 0) notes.push("운석 · 충돌 피해와 바위 생성");
   if (profile.darkness >= DARK_STAGE_VISION_DARKNESS) notes.push("어둠 · 시야 제한");
   if (profile.stage === GAEBUL_STAGE) notes.push("깊은 펄 · 감속과 발 빠짐");
   if (profile.mosquitoes) {
