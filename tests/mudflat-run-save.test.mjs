@@ -103,6 +103,28 @@ test("live save carries the skill inventory and active list, and backfills older
   assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
 });
 
+test("live save carries the gem count and guard basket state, and backfills older saves", () => {
+  const { campaign, runtime } = fixture("normal");
+  Object.assign(runtime, { gemsCollected: 87, guardBasketPullClock: 4.2, guardBasketCharges: 0, guardBasketRechargeClock: 31.5, guardBasketFlashLife: .2, guardBasketInvulnerable: .3 });
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  assert.equal(restored.runtime.gemsCollected, 87);
+  assert.equal(restored.campaign.gemsCollected, 87);
+  assert.equal(restored.runtime.guardBasketCharges, 0);
+  assert.equal(restored.runtime.guardBasketRechargeClock, 31.5);
+  const legacy = JSON.parse(encodeMudflatRun({ ...campaign, gemsCollected: 12 }, fixture("normal").runtime));
+  delete legacy.campaign.gemsCollected;
+  for (const key of ["gemsCollected", "guardBasketPullClock", "guardBasketCharges", "guardBasketRechargeClock", "guardBasketFlashLife", "guardBasketInvulnerable"]) delete legacy.runtime[key];
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.equal(legacyRestored.runtime.gemsCollected, 0);
+  assert.equal(legacyRestored.runtime.guardBasketCharges, 1);
+  assert.equal(legacyRestored.runtime.guardBasketPullClock, 0);
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.campaign.gemsCollected = -1;
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
+});
+
 test("live save keeps a detached stage-entry checkpoint for rescue retries", () => {
   const { campaign, runtime } = fixture();
   const stageEntryCampaign = {

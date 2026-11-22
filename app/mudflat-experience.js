@@ -11,6 +11,19 @@ export function createExperiencePickup(id, x, y, xp) {
 
 const smoothstep = (value) => value * value * (3 - 2 * value);
 
+// 소쿠리의 달인 흡입: 바닥에 놓인 보석만 플레이어 쪽으로 날리기 시작한다. 먼
+// 보석일수록 비행이 길어지되 0.9초를 넘지 않는다. 경험치 양은 그대로다.
+export function startExperiencePull(pickup, player) {
+  if (pickup.phase !== "idle" || pickup.xp <= 0) return false;
+  const distance = Math.hypot(player.x - pickup.x, player.y - pickup.y);
+  pickup.phase = "pull";
+  pickup.fromX = pickup.visualX;
+  pickup.fromY = pickup.visualY;
+  pickup.pullTime = 0;
+  pickup.pullDuration = Math.min(.9, .24 + .06 * Math.min(1, distance / 200) + Math.max(0, distance - 200) / 900);
+  return true;
+}
+
 // Returns the reward once, only after the visible flight reaches the player.
 export function advanceExperiencePickup(pickup, player, radius, dt, blocked = false) {
   if (blocked || pickup.xp <= 0 || dt <= 0) return 0;

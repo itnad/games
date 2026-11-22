@@ -15,7 +15,7 @@ import { MudflatExitDialog } from "./mudflat-exit-dialog";
 import { MudflatSeafoodGuide } from "./mudflat-seafood-guide";
 import { MUDFLAT_AUTOSAVE_MS, clearMudflatRun, readMudflatRun, writeMudflatRun } from "./mudflat-run-save.js";
 import { HARVEST_PULSE_SECONDS, drawHarvestPulse, drawSaltSpirit, saltSpiritPose } from "./mudflat-kids-effects.js";
-import { EXPERIENCE_FLASH_SECONDS, createExperiencePickup, advanceExperiencePickup } from "./mudflat-experience.js";
+import { EXPERIENCE_FLASH_SECONDS, createExperiencePickup, advanceExperiencePickup, startExperiencePull } from "./mudflat-experience.js";
 import { createMudflatSeed, nextMudflatRandom, normalizeMudflatSeed } from "./mudflat-rng.js";
 import { deepMudPatchesInView, deepMudStrengthAtPoint, randomDeepMudPointNear, traceDeepMudBlobPath, traceMudflatSurfacePatch, worldHash } from "./mudflat-terrain";
 import {
@@ -145,6 +145,9 @@ import {
   mudflatCampObstacleAllowed,
   mudflatStopHarvestInCamp,
   mudflatReturnCampPosition,
+  mudflatGuardBasketStats,
+  mudflatSkillUnlockProgress,
+  MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
   mudflatActiveLevels,
   mudflatNormalizeActiveSkills,
   mudflatSelectableSkillIds,
@@ -217,7 +220,7 @@ type Runtime = {
   bursts: Burst[]; floatTexts: FloatText[];
   xpCollectLife: number;
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
-  bossSpawned: boolean; openingWaveRemaining: number; spawnClock: number; pufferEventClock: number; crabRushClock: number; mudZombieClock: number; mudZombieTriggered: boolean; jellyfishClock: number; jellyPoisonSeconds: number; jellyPoisonTickClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
+  bossSpawned: boolean; openingWaveRemaining: number; spawnClock: number; gemsCollected: number; guardBasketPullClock: number; guardBasketCharges: number; guardBasketRechargeClock: number; guardBasketFlashLife: number; guardBasketInvulnerable: number; pufferEventClock: number; crabRushClock: number; mudZombieClock: number; mudZombieTriggered: boolean; jellyfishClock: number; jellyPoisonSeconds: number; jellyPoisonTickClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
   deepMudGauge: number; deepMudLock: number; deepMudStepClock: number;
   safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; mosquitoClock: number; mosquitoRunEnabled: boolean; rocksFlipped: number;
   paused: boolean; ended: boolean;
@@ -335,7 +338,7 @@ function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
     xpCollectLife: 0,
     elapsed: 0, tutorialElapsed: 0, firstMoveGuide, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
     creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: activeLevels, skillInventory, activeSkills, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
-    caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
+    caught: 0, catchScore: 0, bossCaught: false, gemsCollected: Math.max(0, Math.floor(campaign.gemsCollected ?? 0)), guardBasketPullClock: 0, guardBasketCharges: 1, guardBasketRechargeClock: 0, guardBasketFlashLife: 0, guardBasketInvulnerable: 0, bossSpawned: false, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
     pufferEventClock: campaign.stage >= 3 ? 18 : -1, crabRushClock: campaign.stage >= 4 ? 26 : -1,
     mudZombieClock: campaign.stage >= 6 ? 52 : -1, mudZombieTriggered: false,
     jellyfishClock: campaign.stage >= 8 ? mudflatJellyfishInterval(campaign.stage) : -1,
@@ -370,7 +373,7 @@ function readSavedCampaign(): Campaign | null {
       version: 1, mode: value.mode, characterId: String(value.characterId ?? "digger"), stage: Math.max(1, Math.floor(value.stage ?? 1)),
       coins: Math.max(0, Math.floor(value.coins ?? 0)), hp: Math.max(1, Number(value.hp ?? 1)), maxHp: Math.max(1, Number(value.maxHp ?? 1)), baseMaxHp: Math.max(1, Number(value.baseMaxHp ?? (value.mode === "normal" ? 100 : (CHARACTERS.find((item) => item.id === value.characterId)?.hp ?? 100)))),
       level: Math.max(1, Math.floor(value.level ?? 1)), xp: Math.max(0, Math.floor(value.xp ?? 0)), nextXp: Math.max(1, Math.floor(value.nextXp ?? 8)),
-      levels: { ...value.levels }, activeSkills: mudflatNormalizeActiveSkills(value.levels, value.activeSkills, value.mode), equipment: { ...value.equipment }, inventory: { ...value.inventory }, lastHaul: { ...(value.lastHaul ?? {}) }, lastSaleValue: Math.max(0, Math.floor(value.lastSaleValue ?? 0)), totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught),
+      levels: { ...value.levels }, activeSkills: mudflatNormalizeActiveSkills(value.levels, value.activeSkills, value.mode), equipment: { ...value.equipment }, inventory: { ...value.inventory }, lastHaul: { ...(value.lastHaul ?? {}) }, lastSaleValue: Math.max(0, Math.floor(value.lastSaleValue ?? 0)), totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught), gemsCollected: Math.max(0, Math.floor(value.gemsCollected ?? 0)),
       lastObjectiveLabel: String(value.lastObjectiveLabel ?? ""), lastObjectiveComplete: Boolean(value.lastObjectiveComplete), lastObjectiveBonus: Math.max(0, Math.floor(value.lastObjectiveBonus ?? 0)), pendingSkillDiscovery: Boolean(value.pendingSkillDiscovery),
     };
     restored.maxHp = derivedMaxHp(restored.baseMaxHp, restored.equipment, restored.levels, restored.mode);
@@ -455,6 +458,30 @@ function drawWaterChannelArrows(
     context.moveTo(-11, -7); context.lineTo(0, 0); context.lineTo(-11, 7);
     context.stroke();
     context.restore();
+  }
+  context.restore();
+}
+
+// 소쿠리의 달인 충전 고리. 충전된 고리는 꽉 찬 황토색, 재충전 중인 고리는 시계
+// 방향으로 채워지고, 막거나 완충되면 한 번 퍼지는 테두리를 그린다.
+function drawGuardBasketRing(context: CanvasRenderingContext2D, x: number, y: number, charges: number, maxCharges: number, progress: number, flash: number) {
+  context.save();
+  const baseRadius = 34;
+  for (let index = 0; index < maxCharges; index += 1) {
+    const radius = baseRadius + index * 6;
+    const charged = index < charges;
+    const fill = charged ? 1 : index === charges ? Math.max(0, Math.min(1, progress)) : 0;
+    context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2);
+    context.strokeStyle = "#f3d38a33"; context.lineWidth = 3; context.stroke();
+    if (fill > 0) {
+      context.beginPath(); context.arc(x, y, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * fill);
+      context.strokeStyle = charged ? "#f3d38a" : "#f3d38a99"; context.lineWidth = charged ? 3.5 : 3; context.stroke();
+    }
+  }
+  if (flash > 0) {
+    context.globalAlpha = Math.min(1, flash * 1.6);
+    context.beginPath(); context.arc(x, y, baseRadius + 10 + (.6 - flash) * 24, 0, Math.PI * 2);
+    context.strokeStyle = "#fff1c2"; context.lineWidth = 2; context.stroke();
   }
   context.restore();
 }
@@ -2281,7 +2308,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       coins: current.coins + autoSale.value + objective.bonus,
       level: runtime.level, xp: runtime.xp, nextXp: runtime.nextXp, levels: { ...runtime.skillInventory }, activeSkills: [...runtime.activeSkills], inventory: {}, lastHaul: autoSale.haul as CountMap, lastSaleValue: autoSale.value,
       equipment: withoutMosquitoRepellent(runtime.equipment),
-      totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught,
+      totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught, gemsCollected: runtime.gemsCollected,
       lastObjectiveLabel: objective.label, lastObjectiveComplete: objective.complete, lastObjectiveBonus: objective.bonus,
     };
     if (supervisorRef.current) {
@@ -2623,9 +2650,27 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       });
     };
 
-    const damagePlayer = (damage: number, color = PLAYER_DAMAGE_TEXT_COLOR, reason = "피해 누적") => {
+    // 소쿠리의 달인: 충전된 소쿠리가 단발 피해 하나를 막는다. 모기떼·전기 스파크
+    // 자기 피해·밀물·출혈·깊은 구역 지속 피해는 호출 쪽에서 blockable=false로 제외한다.
+    const tryGuardBasketBlock = (reason: string) => {
+      const level = runtime.mode === "normal" ? (runtime.levels["guard-basket"] ?? 0) : 0;
+      if (level <= 0) return false;
+      if (runtime.guardBasketInvulnerable > 0) return true;
+      if (runtime.guardBasketCharges <= 0) return false;
+      const guard = mudflatGuardBasketStats(level);
+      runtime.guardBasketCharges -= 1; runtime.guardBasketFlashLife = .6;
+      if (guard.bleedStop) runtime.bleedSeconds = 0;
+      if (guard.invulnerableSeconds > 0) runtime.guardBasketInvulnerable = guard.invulnerableSeconds;
+      runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, life: .4, maxLife: .4, color: "#f3d38a", size: 32 });
+      runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .8, text: "막음", color: "#f3d38a", kind: "playerDamage" });
+      runtime.playerMessage = "소쿠리가 막아냈다!"; runtime.playerMessageLife = 1.6; runtime.playerMessageOpacity = 1;
+      if (supervisorRef.current) appendSupervisorEvent("guard-blocked", `${reason} · 소쿠리 방어`, runtime);
+      return true;
+    };
+    const damagePlayer = (damage: number, color = PLAYER_DAMAGE_TEXT_COLOR, reason = "피해 누적", blockable = true) => {
       const safeDamage = Math.max(0, Math.round((Number(damage) || 0) * 100) / 100);
       if (!safeDamage) return;
+      if (blockable && tryGuardBasketBlock(reason)) return;
       if (supervisorRef.current) supervisorLastDamageRef.current = reason;
       runtime.player.hp = Math.max(0, runtime.player.hp - safeDamage);
       if (supervisorRef.current) appendSupervisorEvent("damage", `${reason} · -${safeDamage}`, runtime);
@@ -2642,7 +2687,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
     const showTutorialDamageAndReset = (message: string, safePoint: Point) => {
       if (runtime.player.damageCooldown > 0) return;
-      damagePlayer(1, "#ff7868");
+      damagePlayer(1, "#ff7868", "피해 누적", false);
       runtime.player.hp = runtime.player.maxHp;
       runtime.player.damageCooldown = .62;
       runtime.player.x = safePoint.x;
@@ -2783,7 +2828,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const bleed = mudflatPufferBleedStep(runtime.bleedSeconds, runtime.bleedTickClock, dt);
         runtime.bleedSeconds = bleed.seconds; runtime.bleedTickClock = bleed.tickClock;
         for (let tick = 0; tick < bleed.ticks; tick += 1) {
-          damagePlayer(mudflatBleedDamage(runtime.player.maxHp), "#ff695f", "복어 출혈");
+          damagePlayer(mudflatBleedDamage(runtime.player.maxHp), "#ff695f", "복어 출혈", false);
         }
       }
       if (runtime.jellyPoisonSeconds > 0) {
@@ -3003,7 +3048,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (tide.active) {
         runtime.tideDamageClock -= dt;
         while (runtime.tideDamageClock <= 0) {
-          damagePlayer(tide.damagePerSecond, "#73d4ea", "밀물 귀환 실패");
+          damagePlayer(tide.damagePerSecond, "#73d4ea", "밀물 귀환 실패", false);
           runtime.tideDamageClock += 1;
         }
         runtime.tideMessageClock -= dt;
@@ -3106,7 +3151,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             if ((runtime.equipment[MOSQUITO_REPELLENT_KEY] ?? 0) > 0) showPlayerMessage("해충기피제 덕분에 모기떼를 피했다.", 2.2);
             else if (runtime.player.hp < MOSQUITO_LOW_HP_THRESHOLD) showPlayerMessage("모기떼가 성가시게 구네.", 2.2);
             else {
-              damagePlayer(MOSQUITO_DAMAGE, "#d69d68", "모기떼 피해");
+              damagePlayer(MOSQUITO_DAMAGE, "#d69d68", "모기떼 피해", false);
               showPlayerMessage("모기떼에 물렸다!", 2.2);
             }
           }
@@ -3295,12 +3340,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const baseDamage = runtime.mode === "normal" ? (touchingRock ? 10 : 9) : 7;
         const playerDamage = baseDamage + stageStats.contactDamageBonus + Math.floor(runtime.elapsed / 70);
         if (supervisorRef.current) supervisorLastDamageRef.current = touchingRock ? "바위 충돌" : touchingCreature?.eventKind === "jellyfish" ? "해파리 접촉" : `${touchingCreature?.name ?? "해산물"} 접촉`;
-        runtime.player.hp = Math.max(0, runtime.player.hp - playerDamage);
-        if (supervisorRef.current) appendSupervisorEvent("contact-damage", `${supervisorLastDamageRef.current} · -${playerDamage}`, runtime);
+        const contactReason = touchingRock ? "바위 충돌" : touchingCreature?.eventKind === "jellyfish" ? "해파리 접촉" : `${touchingCreature?.name ?? "해산물"} 접촉`;
+        const contactBlocked = tryGuardBasketBlock(contactReason);
+        if (!contactBlocked) runtime.player.hp = Math.max(0, runtime.player.hp - playerDamage);
+        if (!contactBlocked && supervisorRef.current) appendSupervisorEvent("contact-damage", `${supervisorLastDamageRef.current} · -${playerDamage}`, runtime);
         if (supervisorRef.current) supervisorDecisionRef.current.clock = 0;
         runtime.player.damageCooldown = .52;
-        runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, life: .35, maxLife: .35, color: "#ff7868", size: 24 });
-        runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .72, text: `-${playerDamage}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
+        if (!contactBlocked) runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, life: .35, maxLife: .35, color: "#ff7868", size: 24 });
+        if (!contactBlocked) runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .72, text: `-${playerDamage}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
         if ("vibrate" in navigator) navigator.vibrate(22);
       }
 
@@ -3454,7 +3501,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             runtime.electricClock = electric.interval;
           }
           if (runtime.selfShockClock <= 0) {
-            damagePlayer(electric.selfDamage, "#79ddff", "전기 스파크 자기 피해");
+            damagePlayer(electric.selfDamage, "#79ddff", "전기 스파크 자기 피해", false);
             const hasSelfShockMessage = runtime.selfShockNotified;
             showPlayerMessage(hasSelfShockMessage ? "악 찌릿찌릿해!" : "악 찌릿찌릿해, 전기를 계속 쓸 수는 없겠네.", hasSelfShockMessage ? 1 : 3, hasSelfShockMessage ? .7 : 1);
             runtime.selfShockNotified = true;
@@ -3574,10 +3621,38 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
       const pickupRadius = 50 + (runtime.levels.basket ?? 0) * 24 + (runtime.equipment.cooler ?? 0) * 12;
       runtime.xpCollectLife = Math.max(0, runtime.xpCollectLife - dt);
+      // 소쿠리의 달인: 주기 흡입과 방어 충전. 캠프 안에서도 보석은 날아오므로 멈추지 않는다.
+      const guardLevel = runtime.mode === "normal" ? (runtime.levels["guard-basket"] ?? 0) : 0;
+      if (guardLevel > 0) {
+        const guard = mudflatGuardBasketStats(guardLevel);
+        runtime.guardBasketFlashLife = Math.max(0, runtime.guardBasketFlashLife - dt);
+        runtime.guardBasketInvulnerable = Math.max(0, runtime.guardBasketInvulnerable - dt);
+        if (runtime.guardBasketCharges < guard.charges) {
+          runtime.guardBasketRechargeClock += dt;
+          if (runtime.guardBasketRechargeClock >= guard.rechargeSeconds) { runtime.guardBasketRechargeClock = 0; runtime.guardBasketCharges += 1; runtime.guardBasketFlashLife = .5; }
+        } else runtime.guardBasketRechargeClock = 0;
+        runtime.guardBasketPullClock += dt;
+        if (runtime.guardBasketPullClock >= guard.pullInterval) {
+          runtime.guardBasketPullClock = 0;
+          let pulled = 0;
+          for (const pickup of runtime.pickups) {
+            if (Math.hypot(pickup.x - runtime.player.x, pickup.y - runtime.player.y) <= guard.pullRadius && startExperiencePull(pickup, runtime.player)) pulled += 1;
+          }
+          if (pulled > 0) {
+            runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, life: .3, maxLife: .3, color: "#f3d38a", size: 64 });
+            runtime.xpCollectLife = EXPERIENCE_FLASH_SECONDS;
+          }
+        }
+      }
       let earnedExperience = 0;
       for (const pickup of runtime.pickups) {
         // 베이스캠프에서는 채집 도구만 멈춘다. 캠프 안에 먼저 떨어진 경험치는 그대로 끌어와 획득한다.
-        earnedExperience += advanceExperiencePickup(pickup, runtime.player, pickupRadius, dt);
+        const gained = advanceExperiencePickup(pickup, runtime.player, pickupRadius, dt);
+        if (gained > 0) {
+          runtime.gemsCollected += 1;
+          if (runtime.mode === "normal" && runtime.gemsCollected === MUDFLAT_GUARD_BASKET_UNLOCK_GEMS) runtime.discoveryMessageLife = 3;
+        }
+        earnedExperience += gained;
       }
       runtime.xp += earnedExperience;
       if (earnedExperience > 0) runtime.xpCollectLife = EXPERIENCE_FLASH_SECONDS;
@@ -3592,7 +3667,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.floatTexts = runtime.floatTexts.filter((item) => item.life > 0);
       if (runtime.xp >= runtime.nextXp) {
         runtime.xp -= runtime.nextXp; runtime.level += 1; runtime.nextXp = Math.floor(runtime.nextXp * 1.24 + 4); runtime.paused = true;
-        const nextChoices = mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode);
+        const nextChoices = mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode, Math.random, { gemsCollected: runtime.gemsCollected });
         if (nextChoices.length) { setChoices(nextChoices); setScreen("upgrade"); if ("vibrate" in navigator) navigator.vibrate([30, 30, 30]); }
         else runtime.paused = false;
       }
@@ -3743,6 +3818,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           context.fillStyle = burst.color; context.beginPath(); context.arc(point.x + Math.cos(angle) * distance, point.y + Math.sin(angle) * distance, 3 + (particle % 2), 0, Math.PI * 2); context.fill();
         }
         context.restore();
+      }
+      if (runtime.mode === "normal" && (runtime.levels["guard-basket"] ?? 0) > 0) {
+        const guard = mudflatGuardBasketStats(runtime.levels["guard-basket"] ?? 1);
+        drawGuardBasketRing(context, width / 2, height / 2, runtime.guardBasketCharges, guard.charges, runtime.guardBasketCharges < guard.charges ? runtime.guardBasketRechargeClock / guard.rechargeSeconds : 1, runtime.guardBasketFlashLife);
       }
       if (!inBaseCamp && (runtime.levels.salt ?? 0) > 0) {
         const count = 1 + Math.floor((runtime.levels.salt ?? 0) / 2);
@@ -4127,7 +4206,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (runtime.player.hp <= cost) return;
     runtime.player.hp -= cost;
     runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .72, text: `-${cost}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
-    setChoices(mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode)); snapshot(runtime); persistActiveRun();
+    setChoices(mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode, Math.random, { gemsCollected: runtime.gemsCollected })); snapshot(runtime); persistActiveRun();
     if ("vibrate" in navigator) navigator.vibrate(18);
   };
   const buyEquipment = (id: string) => {
@@ -4187,7 +4266,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   };
   const trainSkill = (id: string) => {
     const current = campaignRef.current; if (!current) return;
-    const upgrades = current.mode === "normal" ? unlockedNormalUpgrades(current.levels) : MUDFLAT_UPGRADES;
+    const upgrades = current.mode === "normal" ? unlockedNormalUpgrades(current.levels, current) : MUDFLAT_UPGRADES;
     const skill = upgrades.find((entry) => entry.id === id); if (!skill) return;
     const level = current.levels[id] ?? 0; const price = mudflatTrainingPrice(level);
     if (level >= skill.max) { setCampNotice("이미 최고 레벨에 도달한 기술입니다."); return; }
@@ -4447,7 +4526,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
   if (screen === "camp" && campaign) {
     const haulCount = Object.values(campaign.lastHaul).reduce((sum, count) => sum + count, 0);
-    const unlockedUpgrades = campaign.mode === "normal" ? unlockedNormalUpgrades(campaign.levels) : MUDFLAT_UPGRADES;
+    const unlockedUpgrades = campaign.mode === "normal" ? unlockedNormalUpgrades(campaign.levels, campaign) : MUDFLAT_UPGRADES;
+    const lockedUpgrades = campaign.mode === "normal" ? MUDFLAT_GENERAL_UPGRADES.filter((skill) => skill.advanced && !unlockedUpgrades.includes(skill)) : [];
     const upgrades = campaign.mode === "normal"
       ? GENERAL_SKILL_ORDER.map((id) => unlockedUpgrades.find((skill) => skill.id === id)).filter((skill): skill is (typeof MUDFLAT_GENERAL_UPGRADES)[number] => Boolean(skill))
       : unlockedUpgrades;
@@ -4498,6 +4578,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
                 return <button type="button" key={skill.id} className={`is-learned is-tagged ${isActive ? "is-active" : "is-inactive"}`} aria-pressed={isActive} aria-label={`${label} 레벨 ${level} · ${isActive ? "활성, 누르면 보관" : "보관, 누르면 활성화"}`} onClick={() => toggleActiveSkill(skill.id)}><i>{skill.icon}</i><b>{label}</b><small className="ms-skill-kind">{isActive ? "활성" : "보관"}</small><em>Lv.{level}</em></button>;
               }
               return <span key={skill.id} className={`${level > 0 ? "is-learned" : "is-empty"}${isBasic ? " is-basic is-tagged" : ""}`} aria-label={`${label} ${isBasic ? "기본 기술 " : ""}레벨 ${level}`}><i>{skill.icon}</i><b>{label}</b>{isBasic && <small className="ms-skill-kind">기본</small>}<em>Lv.{level}</em></span>;
+            })}{lockedUpgrades.map((skill) => {
+              const progress = mudflatSkillUnlockProgress(skill, campaign.levels, campaign);
+              const label = GENERAL_SKILL_LABELS[skill.id] ?? skill.name;
+              return <span key={skill.id} className="is-empty is-locked is-tagged" aria-label={`${label} 잠김 · ${progress.label}`}><i>{skill.icon}</i><b>{label}</b><small className="ms-skill-kind">잠김</small><em>{progress.label}</em></span>;
             })}</div>
           </div>
         </article>

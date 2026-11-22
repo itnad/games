@@ -60,6 +60,8 @@ export type Campaign = {
   lastSaleValue: number;
   totalScore: number;
   lastBossCaught: boolean;
+  /** 캠페인 누적으로 주운 경험치 보석 수. 소쿠리의 달인 해금에 쓴다. */
+  gemsCollected: number;
   lastObjectiveLabel?: string;
   lastObjectiveComplete?: boolean;
   lastObjectiveBonus?: number;
