@@ -10,6 +10,8 @@ import {
   mudflatNetStats,
   mudflatMosquitoChance,
   mudflatRockTurnerStats,
+  mudflatGuardBasketStats,
+  mudflatSkillUnlocked,
   mudflatTongStats,
 } from "./mudflat-survivor-engine.js";
 import type { Campaign, CharacterOption, CountMap, GameMode, Screen, StageProfile } from "./mudflat-survivor-types";
@@ -39,8 +41,8 @@ export const mudflatSystemBackGuardScreen = (screen: Screen) => screen === "runn
 
 export const GENERAL_CHARACTER = { id: "beginner", name: "기본 스킨", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 };
 export const defaultCharacterId = (mode: GameMode) => mode === "normal" ? "beginner" : "digger";
-export const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "boots", "snack", "basket"];
-export const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", boots: "장화", snack: "간식", basket: "담기" };
+export const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "guard-basket", "boots", "snack", "basket"];
+export const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", "guard-basket": "소쿠리", boots: "장화", snack: "간식", basket: "담기" };
 export const DIRECTIONAL_SEAFOOD_TYPES = new Set(["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp", "large-shrimp"]);
 export const CATCH_FULL_MESSAGE = "더 담을 수가 없어. 다음에는 큰 통을 가져와야겠다.";
 
@@ -58,7 +60,7 @@ export function createCampaign(characterId: string, mode: GameMode, stage = 1): 
   return {
     version: 1, mode, characterId, stage: Math.max(1, Math.floor(stage)), coins: 0, hp: character.hp, maxHp: character.hp, baseMaxHp: character.hp,
     level: 1, xp: 0, nextXp: mode === "normal" ? 10 : 8, levels: { ...character.levels }, activeSkills: [],
-    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false,
+    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false, gemsCollected: 0,
     lastObjectiveLabel: "", lastObjectiveComplete: false, lastObjectiveBonus: 0,
   };
 }
@@ -68,9 +70,9 @@ export function derivedMaxHp(baseMaxHp: number, equipment: CountMap, levels: Cou
   return mudflatEquipmentStats(equipment, baseMaxHp, levels.snack ?? 0).maxHp;
 }
 
-export function unlockedNormalUpgrades(levels: CountMap) {
-  const unlocks = mudflatAdvancedSkillUnlocks(levels);
-  return MUDFLAT_GENERAL_UPGRADES.filter((skill) => !skill.advanced || (skill.id === "electric" ? unlocks.electric : unlocks.castNet));
+export function unlockedNormalUpgrades(levels: CountMap, stats: { gemsCollected?: number } = {}) {
+  const unlocks = mudflatAdvancedSkillUnlocks(levels, stats);
+  return MUDFLAT_GENERAL_UPGRADES.filter((skill) => mudflatSkillUnlocked(skill, unlocks));
 }
 
 export function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[number], level: number) {
@@ -100,6 +102,12 @@ export function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[numb
   if (skill.id === "cast-net") {
     const current = mudflatCastNetStats(safeLevel); const next = mudflatCastNetStats(nextLevel);
     return { current: `무리 조준 · 반경 ${current.radius}px · ${current.holdSeconds.toFixed(1)}초 구속 후 ${current.damage} 피해 · 투척 간격 ${current.interval.toFixed(1)}초`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 반경 ${next.radius}px · 구속 ${next.holdSeconds.toFixed(1)}초 · 간격 ${next.interval.toFixed(1)}초` };
+  }
+  if (skill.id === "guard-basket") {
+    const current = mudflatGuardBasketStats(safeLevel); const next = mudflatGuardBasketStats(nextLevel);
+    const radius = (stats: ReturnType<typeof mudflatGuardBasketStats>) => stats.pullRadius >= 1200 ? "화면 전체" : `반경 ${stats.pullRadius}px`;
+    const extras = `${next.bleedStop && !current.bleedStop ? " · 막을 때 출혈 정지" : ""}${next.invulnerableSeconds > 0 && !current.invulnerableSeconds ? " · 막은 뒤 0.8초 무적" : ""}${next.charges > current.charges ? " · 비축 2회" : ""}`;
+    return { current: `${current.pullInterval}초마다 ${radius(current)} 보석 흡입 · 물살·운석·접촉 피해 1회 방어, 재충전 ${current.rechargeSeconds}초${current.charges > 1 ? " · 비축 2회" : ""}`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.pullInterval}초마다 ${radius(next)} · 재충전 ${next.rechargeSeconds}초${extras}` };
   }
   if (skill.id === "boots") return { current: `이동속도와 진흙 저항 완화가 Lv.${safeLevel} 단계로 강화되었습니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 이동속도와 깊은 펄 저항이 한 단계 더 좋아집니다.` };
   if (skill.id === "snack") return { current: `기본 최대 체력의 ${safeLevel * 20}%만큼 증가합니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 기본 최대 체력 +${nextLevel * 20}%` };

@@ -195,7 +195,11 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "digging", icon: "⌁", name: "호미질", description: "조개 구멍에서 더 좋은 조개를 찾을 확률이 높아집니다.", max: 6 },
   { id: "electric", icon: "ϟ", name: "전기 스파크", description: "체력이 충분할 때 집게 범위의 해산물에게 주기적으로 전기 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 1 },
   { id: "cast-net", icon: "⌗", name: "그물 투척", description: "해산물이 모인 빈 갯벌에 그물을 펼쳐 잠시 붙잡고 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 2 },
+  { id: "guard-basket", icon: "◍", name: "소쿠리의 달인", description: "소쿠리를 휘둘러 화면의 경험치 보석을 쓸어 담고, 충전된 소쿠리가 물살·운석·접촉 피해를 한 번 막아 줍니다.", max: 6, advanced: true, requiredGems: 100 },
 ];
+
+// 소쿠리의 달인은 캠페인 누적으로 경험치 보석 100개를 주워야 열린다.
+export const MUDFLAT_GUARD_BASKET_UNLOCK_GEMS = 100;
 
 // 집게와 호미질은 모든 일반 원정에 기본으로 장착되는 채집 도구다.
 // 나머지 기술 여섯 개만 빌드를 구성하는 선택 기술 슬롯을 사용한다.
@@ -262,9 +266,56 @@ export function mudflatBleedDamage(maxHp = 0) {
   return Math.max(0, Number(maxHp) || 0) * .01;
 }
 
-export function mudflatAdvancedSkillUnlocks(levels = {}) {
+/**
+ * 해금형 기술 판정. 마스터리는 인벤토리 기준이고, 소쿠리의 달인은 캠페인 누적
+ * 경험치 보석 수(stats.gemsCollected)로 연다.
+ * @param {Record<string, number>} levels
+ * @param {{ gemsCollected?: number }} [stats]
+ */
+export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const masteryCount = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !skill.advanced && (levels[skill.id] ?? 0) >= 5).length;
-  return { masteryCount, electric: masteryCount >= 1, castNet: masteryCount >= 2 };
+  const gemsCollected = Math.max(0, Math.floor(Number(stats?.gemsCollected) || 0));
+  return { masteryCount, gemsCollected, electric: masteryCount >= 1, castNet: masteryCount >= 2, guardBasket: gemsCollected >= MUDFLAT_GUARD_BASKET_UNLOCK_GEMS };
+}
+
+/** @param {{ id: string, advanced?: boolean }} skill @param {ReturnType<typeof mudflatAdvancedSkillUnlocks>} unlocks */
+export function mudflatSkillUnlocked(skill, unlocks) {
+  if (!skill?.advanced) return true;
+  if (skill.id === "electric") return unlocks.electric;
+  if (skill.id === "cast-net") return unlocks.castNet;
+  if (skill.id === "guard-basket") return unlocks.guardBasket;
+  return false;
+}
+
+// 정비 화면 잠긴 카드용 진행 표시.
+/**
+ * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number }} skill
+ * @param {Record<string, number>} levels
+ * @param {{ gemsCollected?: number }} [stats]
+ */
+export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
+  const unlocks = mudflatAdvancedSkillUnlocks(levels, stats);
+  if (!skill?.advanced) return { unlocked: true, current: 0, target: 0, label: "" };
+  if (skill.id === "guard-basket") {
+    const target = skill.requiredGems ?? MUDFLAT_GUARD_BASKET_UNLOCK_GEMS;
+    return { unlocked: unlocks.guardBasket, current: Math.min(unlocks.gemsCollected, target), target, label: `경험치 보석 ${Math.min(unlocks.gemsCollected, target)} / ${target}` };
+  }
+  const target = skill.requiredMasteries ?? 1;
+  return { unlocked: mudflatSkillUnlocked(skill, unlocks), current: Math.min(unlocks.masteryCount, target), target, label: `숙련 Lv.5 기술 ${Math.min(unlocks.masteryCount, target)} / ${target}` };
+}
+
+// 소쿠리의 달인 수치. 난수 없이 레벨만으로 정해진다.
+export function mudflatGuardBasketStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { pullInterval: Infinity, pullRadius: 0, rechargeSeconds: Infinity, charges: 0, bleedStop: false, invulnerableSeconds: 0 };
+  return {
+    pullInterval: [10, 10, 9, 9, 8, 7][safeLevel - 1],
+    pullRadius: [360, 450, 540, 640, 760, 1200][safeLevel - 1],
+    rechargeSeconds: [60, 55, 50, 45, 40, 35][safeLevel - 1],
+    charges: safeLevel >= 6 ? 2 : 1,
+    bleedStop: safeLevel >= 3,
+    invulnerableSeconds: safeLevel >= 5 ? .8 : 0,
+  };
 }
 
 // 기술 인벤토리: 일반 모드의 `levels`는 익힌 모든 선택 기술의 레벨을 보관하고,
@@ -534,13 +585,12 @@ export function mudflatClamRewardForRoll(level = 1, roll = 0) {
 
 // `levels`는 기술 인벤토리(보관 포함)다. 활성 슬롯이 가득 차도 비활성·미습득
 // 기술이 선택지에 나오며, 고르면 교체 선택으로 이어진다.
-export function mudflatUpgradeChoices(_level, levels = {}, mode = "kids", random = Math.random) {
+export function mudflatUpgradeChoices(_level, levels = {}, mode = "kids", random = Math.random, stats = {}) {
   const upgrades = mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
-  const unlocks = mudflatAdvancedSkillUnlocks(levels);
+  const unlocks = mudflatAdvancedSkillUnlocks(levels, stats);
   const available = upgrades.filter((item) => {
     const currentLevel = levels[item.id] ?? 0;
-    const unlocked = !item.advanced || (item.id === "electric" ? unlocks.electric : unlocks.castNet);
-    return unlocked && currentLevel < item.max;
+    return mudflatSkillUnlocked(item, unlocks) && currentLevel < item.max;
   });
   if (available.length <= 3) return available;
   const shuffled = [...available];

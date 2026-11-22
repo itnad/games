@@ -32,6 +32,7 @@ type DevPreset = {
   nextXp?: number;
   levels?: CountMap;
   equipment?: CountMap;
+  gemsCollected?: number;
 };
 
 type LocalSnapshot = {
@@ -118,6 +119,19 @@ const DEV_PRESETS: DevPreset[] = [
     equipment: { cooler: 3, gloves: 2 },
   },
   {
+    id: "guard-basket",
+    title: "3단계 바위 갯벌 · 소쿠리의 달인 Lv.6",
+    stage: 3,
+    description: "소쿠리 흡입 주기·범위, 접촉·물살 피해 1회 방어와 충전 고리 표시를 확인합니다.",
+    coins: 3000,
+    level: 10,
+    xp: 0,
+    nextXp: 90,
+    levels: { tongs: 3, digging: 3, "guard-basket": 6, basket: 1 },
+    equipment: { cooler: 1 },
+    gemsCollected: 100,
+  },
+  {
     id: "final-boss",
     title: "8단계 마지막 물때",
     stage: 8,
@@ -177,6 +191,7 @@ function makePresetCampaign(preset: DevPreset) {
     nextXp: preset.nextXp ?? campaign.nextXp,
     levels,
     activeSkills: mudflatNormalizeActiveSkills(levels, undefined, mode),
+    gemsCollected: preset.gemsCollected ?? 0,
     equipment,
     pendingSkillDiscovery: false,
   };

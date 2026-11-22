@@ -14,7 +14,8 @@ const campaignShape = (value) => record(value) && value.version === 1 && ["norma
   && numericFields(value, "coins hp maxHp baseMaxHp level xp nextXp lastSaleValue totalScore")
   && value.coins >= 0 && positive(value.hp) && positive(value.maxHp) && value.hp <= value.maxHp
   && [value.levels, value.equipment, value.inventory, value.lastHaul].every(countMap)
-  && (value.activeSkills === undefined || (Array.isArray(value.activeSkills) && value.activeSkills.every((id) => typeof id === "string")));
+  && (value.activeSkills === undefined || (Array.isArray(value.activeSkills) && value.activeSkills.every((id) => typeof id === "string")))
+  && (value.gemsCollected === undefined || (Number.isInteger(value.gemsCollected) && value.gemsCollected >= 0));
 const copyCampaign = (campaign) => ({ ...campaign, levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, inventory: { ...campaign.inventory }, lastHaul: { ...campaign.lastHaul }, ...(Array.isArray(campaign.activeSkills) ? { activeSkills: [...campaign.activeSkills] } : {}) });
 const ENTITY_FIELDS = {
   creatures: "hp maxHp speed size xp score saltHit hitFlash phase age movementAngle movementClock",
@@ -51,6 +52,7 @@ export function encodeMudflatRun(campaign, runtime, choiceIds = [], nextSequence
     // the active skills that affect the live expedition.
     levels: runtime.skillInventory ?? runtime.levels, equipment: runtime.equipment,
     ...(Array.isArray(runtime.activeSkills) ? { activeSkills: [...runtime.activeSkills] } : {}),
+    ...(Number.isInteger(runtime.gemsCollected) ? { gemsCollected: runtime.gemsCollected } : {}),
   };
   return JSON.stringify({
     version: 1, savedAt, campaign: currentCampaign, stageEntryCampaign: copyCampaign(stageEntryCampaign), choiceIds, nextSequence,
@@ -96,6 +98,12 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     // them as the whole inventory and derive the active list the old way.
     if (!countMap(runtime.skillInventory)) runtime.skillInventory = { ...runtime.levels };
     if (!Array.isArray(runtime.activeSkills)) runtime.activeSkills = [...runtimeTemplate.activeSkills];
+    // 소쿠리의 달인과 보석 집계는 뒤에 추가됐다. 예전 저장은 캠페인 값과 완충 상태로 보완한다.
+    if (!Number.isInteger(runtime.gemsCollected) || runtime.gemsCollected < 0) runtime.gemsCollected = runtimeTemplate.gemsCollected;
+    for (const key of ["guardBasketPullClock", "guardBasketRechargeClock", "guardBasketFlashLife", "guardBasketInvulnerable"]) {
+      if (!finite(runtime[key]) || runtime[key] < 0) runtime[key] = 0;
+    }
+    if (!Number.isInteger(runtime.guardBasketCharges) || runtime.guardBasketCharges < 0) runtime.guardBasketCharges = runtimeTemplate.guardBasketCharges;
     // Older active-run autosaves did not know about stage-five deep-mud
     // visuals/state. They are cosmetic or transient, so backfill defaults
     // instead of discarding an otherwise valid expedition.
