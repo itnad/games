@@ -1802,8 +1802,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [dailyResult, setDailyResult] = useState<MudflatDailyResult | null>(null);
   const [dailyChallengeActive, setDailyChallengeActive] = useState(false);
   const [pearlCelebration, setPearlCelebration] = useState<number | null>(null);
-  const [supervisorActive, setSupervisorActive] = useState(false);
-  const [supervisorIntent, setSupervisorIntent] = useState("해산물을 찾는 중");
+  const [supervisorSessionActive, setSupervisorActive] = useState(false);
+  // 플레이·레벨업·일시정지 화면은 일반모드와 완전히 같은 JSX 분기를 쓴다.
+  // 감독 전용 표시는 종료 결과에서 로그를 내보낼 때만 연다.
+  const supervisorActive = screen === "defeat" && supervisorSessionActive;
+  const supervisorIntent = "";
   const [supervisorClears, setSupervisorClears] = useState(0);
   const [supervisorDefeatReason, setSupervisorDefeatReason] = useState("피해 누적");
   const [supervisorLogCopyStatus, setSupervisorLogCopyStatus] = useState("");
@@ -2108,7 +2111,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       supervisorDecisionRef.current = createSupervisorDecisionState();
       supervisorLastDamageRef.current = "피해 누적";
       setSupervisorActive(supervisor);
-      setSupervisorIntent("해산물을 찾는 중");
       setSupervisorClears(0);
       setSupervisorDefeatReason("피해 누적");
       setSupervisorLogCopyStatus("");
@@ -2274,7 +2276,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       campaignRef.current = next;
       setCampaign(next);
       setSupervisorClears((value) => value + 1);
-      setSupervisorIntent("감독의 정비 선택을 기다리는 중");
       setCampNotice(`${runtime.stage}단계 자동 정산 완료 · ${settlement.catchCount}마리 판매 · 감독이 직접 정비 항목을 구매하고 출정을 선택해 주세요.`);
       appendSupervisorEvent("maintenance-ready", `감독 선택 대기 · 잔액 ${next.coins.toLocaleString()}코인`, runtime);
       setScreen("camp");
@@ -2901,7 +2902,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           }
           if (decisionState.intent !== decision.intent) {
             decisionState.intent = decision.intent;
-            setSupervisorIntent(decision.intent);
           }
           if (previousIntent !== decision.intent || previousTargetKind !== decision.targetKind || previousTargetId !== decision.targetId) {
             appendSupervisorEvent("decision", `${decision.targetKind} · ${decision.intent}`, runtime);
@@ -4107,7 +4107,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const next = { ...current, coins: current.coins - price, equipment, maxHp, hp };
     storeCampaign(next); setCampNotice(`${item.name} Lv.${level + 1} 정비 완료 · ${mudflatEquipmentDescription(id, level + 1)}`);
     if (supervisorRef.current) {
-      setSupervisorIntent(`감독 선택 · ${item.name} Lv.${level + 1}`);
       appendSupervisorEvent("maintenance-purchase", `감독 선택 · ${item.name} Lv.${level + 1} · ${price.toLocaleString()}코인 사용 · 잔액 ${next.coins.toLocaleString()}코인`);
     }
   };
@@ -4120,7 +4119,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const next = { ...current, coins: current.coins - food.price, hp: healedHp };
     storeCampaign(next); setCampNotice(`${food.name} 구매 · 체력 ${Math.floor(healedHp)} / ${Math.floor(current.maxHp)}`);
     if (supervisorRef.current) {
-      setSupervisorIntent(`감독 선택 · ${food.name}`);
       appendSupervisorEvent("maintenance-purchase", `감독 선택 · ${food.name} · ${food.price.toLocaleString()}코인 사용 · 잔액 ${next.coins.toLocaleString()}코인`);
     }
   };
@@ -4132,7 +4130,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const next = { ...current, coins: current.coins - MOSQUITO_REPELLENT_PRICE, equipment };
     storeCampaign(next); setCampNotice("해충기피제 구매 완료 · 다음 갯벌에서 모기떼 피해를 1회 대비합니다.");
     if (supervisorRef.current) {
-      setSupervisorIntent("감독 선택 · 해충기피제");
       appendSupervisorEvent("maintenance-purchase", `감독 선택 · 해충기피제 · ${MOSQUITO_REPELLENT_PRICE.toLocaleString()}코인 사용 · 잔액 ${next.coins.toLocaleString()}코인`);
     }
   };
@@ -4157,7 +4154,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const next = { ...current, coins: current.coins - price, levels, maxHp, hp, pendingSkillDiscovery: current.pendingSkillDiscovery || discovered };
     storeCampaign(next); setCampNotice(discovered ? `신기술을 알게 되었습니다. ${skill.name} Lv.${level + 1} 훈련 완료` : `${skill.name} Lv.${level + 1} 훈련 완료`);
     if (supervisorRef.current) {
-      setSupervisorIntent(`감독 선택 · ${skill.name} Lv.${level + 1}`);
       appendSupervisorEvent("maintenance-purchase", `감독 선택 · ${skill.name} Lv.${level + 1} · ${price.toLocaleString()}코인 사용 · 잔액 ${next.coins.toLocaleString()}코인`);
     }
   };
@@ -4171,7 +4167,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       campaignRef.current = entry; setCampaign(entry);
       supervisorDecisionRef.current = createSupervisorDecisionState();
       supervisorLastDamageRef.current = "피해 누적";
-      setSupervisorIntent("해산물을 찾는 중");
       appendSupervisorEvent("maintenance-complete", `감독이 출정 선택 · 잔액 ${entry.coins.toLocaleString()}코인`, runtime);
       appendSupervisorEvent("stage-start", `${runtime.stage}단계 진입 · 체력 ${Math.floor(runtime.player.hp)} / ${Math.floor(runtime.player.maxHp)}`, runtime);
     } else {
@@ -4391,16 +4386,6 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   if (screen === "daily-result" && dailyResult) return <MudflatDailyResultPanel result={dailyResult} onBack={reset} onRetrySubmit={() => submitDailyRecord(dailyResult)} />;
 
   if (screen === "camp" && campaign) {
-    if (supervisorActive) return <main className="ms-shell ms-supervisor-transition">
-      <MudflatTopbar onExit={onExit} />
-      <section>
-        <small>SUPERVISOR MODE · STAGE {campaign.stage - 1} CLEAR</small>
-        <h1>자동 정비 중입니다</h1>
-        <p>{campNotice}</p>
-        <div><span><small>완료 단계</small><b>{supervisorClears}</b></span><span><small>현재 레벨</small><b>LV.{campaign.level}</b></span><span><small>현재 체력</small><b>{Math.floor(campaign.hp)} / {Math.floor(campaign.maxHp)}</b></span></div>
-        <strong>잠시 후 {campaign.stage}단계 관전을 계속합니다.</strong>
-      </section>
-    </main>;
     const haulCount = Object.values(campaign.lastHaul).reduce((sum, count) => sum + count, 0);
     const unlockedUpgrades = campaign.mode === "normal" ? unlockedNormalUpgrades(campaign.levels) : MUDFLAT_UPGRADES;
     const upgrades = campaign.mode === "normal"
