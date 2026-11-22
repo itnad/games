@@ -48,7 +48,7 @@ const DEV_PRESETS: DevPreset[] = [
     title: "AI 감독모드 · 1단계부터",
     stage: 1,
     supervisor: true,
-    description: "AI가 실제 조작과 피해 판정으로 채집·회피·귀환·자동 정비를 수행합니다. 레벨업 기술만 직접 선택하며 일반 기록과 저장에는 반영되지 않습니다.",
+    description: "AI가 실제 조작과 피해 판정으로 채집·회피·귀환을 수행합니다. 레벨업 기술과 정비 화면의 구매·출정은 직접 선택하며 일반 기록과 저장에는 반영되지 않습니다.",
   },
   {
     id: "tutorial",
