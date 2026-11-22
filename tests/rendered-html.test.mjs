@@ -377,9 +377,12 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(game, /windowWidth: window\.innerWidth/);
   assert.match(game, /logViewport\.canvasWidth = width/);
   assert.match(game, /decideMudflatSupervisorMove/);
-  assert.match(game, /planMudflatSupervisorMaintenance/);
+  assert.match(game, /maintenance-ready/);
   assert.match(game, /maintenance-purchase/);
-  assert.match(game, /is-supervisor-choice/);
+  assert.match(game, /감독이 직접 정비 항목을 구매하고 출정을 선택해 주세요/);
+  assert.match(game, /감독이 출정 선택/);
+  assert.doesNotMatch(game, /disabled=\{supervisorActive \|\|/);
+  assert.doesNotMatch(game, /planMudflatSupervisorMaintenance/);
   assert.match(game, /emptySeafoodRisk: runtime\.emptySeafoodSeconds/);
   assert.match(game, /retreatDirection: \{ x: -decisionState\.lastTravelX, y: -decisionState\.lastTravelY \}/);
   assert.match(game, /SUPERVISOR PAUSED/);
@@ -387,7 +390,6 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.doesNotMatch(game, /const beginSupervisor = \(\) =>/);
   assert.match(supervisor, /baseCampGuideShown/);
   assert.match(supervisor, /fallingRocks/);
-  assert.match(supervisor, /while \(upgradesBought < 2\)/);
   assert.match(styles, /\.ms-supervisor-status/);
   assert.match(styles, /\.mudflat-dev-shell/);
 });
