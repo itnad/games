@@ -2,6 +2,7 @@
 export const STW_STORAGE_KEYS = {
   lab: "paperoid-stardraft-lab",
   labPresets: "paperoid-stardraft-lab-presets",
+  history: "paperoid-stardraft-history",
   learning: "paperoid-stardraft-learning",
   record: "paperoid-stardraft-record",
   save: "paperoid-stardraft-save",

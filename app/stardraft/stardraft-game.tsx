@@ -54,6 +54,8 @@ import { STW_MAX_ZOOM, stwFillZoom, stwFitScale, stwScreenToMap, stwViewport } f
 import { createStwPixiRenderer, preloadStwPixiRenderer, type StwPixiRenderer } from "./stardraft-pixi";
 import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./stardraft-lab";
 import { STW_STORAGE_KEYS } from "./stardraft-storage.js";
+import { stwHistoryAdd, stwHistoryEntry, stwHistoryNormalize, stwHistorySummary } from "./stardraft-history.js";
+import { stwReplayMatches, stwReplayPlayer } from "./stardraft-replay.js";
 import { DEFAULT_WATCH, WatchScreen, type WatchConfig } from "./stardraft-watch";
 import { THEMES, ThemeFonts, themeProps, type ThemeId } from "./stardraft-theme";
 import { PAPEROID_BUILD_ID, PAPEROID_GIT_SHA } from "../app-version";
@@ -266,6 +268,35 @@ function readRecord(): BattleRecord {
   return { wins: 0, losses: 0, best: {} };
 }
 
+/** 최근 경기 기록(재현 코드 포함). 메인 화면의 "최근 경기"에 쓴다. */
+type HistoryEntry = {
+  id: string; at: number; result: "won" | "lost" | "draw"; time: number; difficulty: StwDifficulty; map: string;
+  races: { player: StwRaceId; enemy: StwRaceId }; persona: string | null; build: string; replay?: unknown;
+};
+const HISTORY_KEY = STW_STORAGE_KEYS.history;
+
+function readHistory(): HistoryEntry[] {
+  try {
+    return stwHistoryNormalize(JSON.parse(window.localStorage.getItem(HISTORY_KEY) ?? "[]")) as HistoryEntry[];
+  } catch {
+    return [];
+  }
+}
+
+/** 기록을 저장한다. 저장소가 모자라면 오래된 경기의 재현 코드부터 덜어 내고 다시 해 본다(목록은 남고 다시 보기만 안 된다). */
+function writeHistory(list: HistoryEntry[]) {
+  let next = list;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      window.localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+      return next;
+    } catch {
+      next = next.map((entry, index) => (index >= Math.max(1, next.length - 4 * (attempt + 1)) ? { ...entry, replay: undefined } : entry));
+    }
+  }
+  return list;
+}
+
 function writeRecord(record: BattleRecord) {
   try {
     window.localStorage.setItem(RECORD_KEY, JSON.stringify(record));
@@ -404,6 +435,9 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
   /** AI vs AI 설정 화면에서 마지막으로 시작한 설정(다시 들어오면 그대로 보인다). */
   const [watchConfig, setWatchConfig] = useState<WatchConfig | null>(null);
   const [saved, setSaved] = useState<SavedBattle | null>(() => (typeof window === "undefined" ? null : readSave()));
+  /** 최근 경기 목록(메인 화면)과, 다시 보기 중인 경기의 재생기. */
+  const [history, setHistory] = useState<HistoryEntry[]>(() => (typeof window === "undefined" ? [] : readHistory()));
+  const replayRef = useRef<{ player: { state: unknown; done: boolean; advance: (seconds: number) => number }; code: unknown } | null>(null);
 
   const gameRef = useRef<StwState | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -464,7 +498,8 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
     setScreen("menu");
   };
 
-  const enterBattle = (next: StwState, { resumed = false } = {}) => {
+  const enterBattle = (next: StwState, { resumed = false, replay = null as typeof replayRef.current } = {}) => {
+    replayRef.current = replay;
     gameRef.current = next;
     setGame(next);
     savedAtRef.current = next.time;
@@ -548,6 +583,27 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
     const personas = { ...(player.persona ? { player: player.persona } : {}), ...(enemy.persona ? { enemy: enemy.persona } : {}) };
     const next = createStardraftGame({ difficulty: "hard", seed: Math.floor(Math.random() * 2 ** 31), aiSides: ["player", "enemy"], races: { player: player.race, enemy: enemy.race }, personas, map, spectate: true, scoutReact: config.mode === "react" }) as unknown as StwState;
     enterBattle(next);
+  };
+  // 다시 보기: 최근 경기의 재현 코드로 그 경기를 처음부터 다시 돌려 관전 화면(전체 시야, 배속, 조작 없음)으로 보여 준다.
+  // 게임 판이 바뀌어 코드를 돌릴 수 없으면 알리고 그만둔다.
+  const startReplay = (entry: HistoryEntry) => {
+    try {
+      const player = stwReplayPlayer(entry.replay) as { state: unknown; done: boolean; advance: (seconds: number) => number };
+      const next = player.state as StwState;
+      next.spectate = true;
+      next.replayView = { result: entry.result, at: entry.at, sameBuild: entry.build === STW_BUILD };
+      enterBattle(next, { replay: { player, code: entry.replay } });
+    } catch {
+      showToast("이 경기는 다시 볼 수 없습니다");
+    }
+  };
+  /** 다시 보기에서 나갈 때: 메인 화면으로 돌아간다. */
+  const leaveReplay = () => {
+    gameRef.current = null;
+    replayRef.current = null;
+    setConfirmExit(false);
+    setSaved(readSave());
+    setScreen("menu");
   };
   /** 관전 경기에서 나갈 때: AI vs AI 설정 화면으로 돌아간다. */
   const leaveWatch = () => {
@@ -672,7 +728,9 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
         const budgetEnd = performance.now() + 40;
         while (left > 1e-6 && current.status === "playing") {
           const slice = Math.min(left, 1);
-          advanceStardraft(current, slice, stwAiThink);
+          // 다시 보기는 재생기가 사람 명령을 제 틱에 넣으며 돌린다.
+          if (replayRef.current) replayRef.current.player.advance(slice);
+          else advanceStardraft(current, slice, stwAiThink);
           left -= slice;
           if (performance.now() > budgetEnd) break;
         }
@@ -728,6 +786,9 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
     setRecord(next);
     // 최상급 AI용 분석: 어떤 난이도든 사람 대 AI 경기의 승패와 사람의 운영을 쌓는다.
     writeLearning(stwLearnAdd(readLearning(), game));
+    // 최근 경기: 결과와 재현 코드를 남겨 메인 화면에서 다시 볼 수 있게 한다.
+    const entry = stwHistoryEntry(game, { build: STW_BUILD, at: Date.now() }) as HistoryEntry | null;
+    if (entry) setHistory(writeHistory(stwHistoryAdd(readHistory(), entry) as HistoryEntry[]));
   }, [finished, game]);
 
   const issue = (command: StwCommand, success?: string) => {
@@ -885,6 +946,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
     const empty: BattleRecord = { wins: 0, losses: 0, best: {} };
     writeRecord(empty);
     setRecord(empty);
+    setHistory(writeHistory([]));
     setConfirmReset(false);
   };
 
@@ -896,6 +958,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
     // 경기가 끝난 뒤 ←는 게임 목록이 아니라 스타드래프트 메인 화면(실험 경기면 실험실)으로 간다. 게임 목록은 메인의 ←로 나간다.
     if (screen === "play" && game) {
       if (game.lab) setScreen("lab");
+      else if (game.replayView) leaveReplay();
       else if (game.spectate) leaveWatch();
       else goMenu();
       return;
@@ -972,6 +1035,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
             <button type="button" className="stw-secondary stw-lab-entry" onClick={() => setScreen("lab")}>실험실<small>병력·연구·시각을 정해 교전 시험</small></button>
             <button type="button" className="stw-secondary stw-lab-entry" onClick={openWatch}>AI vs AI<small>AI끼리 처음부터 대결 · 관전</small></button>
           </div>
+          <HistoryList history={history} onReplay={startReplay} />
           <div className="stw-record-line">
             <span>전적 {record.wins}승 {record.losses}패</span>
             {confirmReset ? (
@@ -980,10 +1044,10 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
                 <button type="button" className="stw-record-reset" onClick={() => setConfirmReset(false)}>취소</button>
               </>
             ) : (
-              <button type="button" className="stw-record-reset" disabled={!record.wins && !record.losses && !Object.keys(record.best).length} onClick={resetRecord}>경기 기록 초기화</button>
+              <button type="button" className="stw-record-reset" disabled={!record.wins && !record.losses && !Object.keys(record.best).length && !history.length} onClick={resetRecord}>경기 기록 초기화</button>
             )}
           </div>
-          {confirmReset ? <p className="stw-hint stw-record-confirm">전적과 난이도별 최단 승리 기록을 지웁니다.</p> : null}
+          {confirmReset ? <p className="stw-hint stw-record-confirm">전적, 난이도별 최단 승리 기록, 최근 경기 목록을 지웁니다.</p> : null}
         </section>
       </main>
     );
@@ -998,6 +1062,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
   // 지도 위에는 위험 알림 한 줄만(6초), 나머지 기록은 지도 아래 상태 줄에 최신 하나만(5초) 보인다. 없으면 정찰 정보.
   // AI 대 AI 관전: 조작 버튼을 모두 빼고 양쪽 현황을 보여 준다. 기록은 양쪽 것을 진영 이름을 붙여 보인다.
   const spectating = Boolean(game.spectate);
+  const replaying = Boolean(game.replayView);
   const playerLog = game.log.filter((entry) => spectating || entry.side === "player");
   const logText = (entry: { side: string; text: string }) => (spectating ? `${watchLabel(game, entry.side === "enemy" ? "enemy" : "player")} · ${entry.text}` : entry.text);
   const watchLog = spectating ? [...playerLog].reverse().find((entry) => game.time - entry.time < 5 * watchSpeed) ?? null : null;
@@ -1043,7 +1108,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
       <ThemeFonts theme={theme} />
       <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
-        <div><span className="stw-brand">{spectating ? (game.scoutReact ? "AI vs AI · 정찰 대응" : "AI vs AI") : STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).id === "plain" ? "" : `${mapOf(game).name} · `}{raceOf(game).name} vs {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
+        <div><span className="stw-brand">{replaying ? `다시 보기 · ${STW_DIFFICULTIES[game.difficulty].name}` : spectating ? (game.scoutReact ? "AI vs AI · 정찰 대응" : "AI vs AI") : STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).id === "plain" ? "" : `${mapOf(game).name} · `}{raceOf(game).name} vs {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
         {spectating ? null : <QueueStrip game={game} icons={icons} issue={issue} />}
       </header>
       {spectating ? (
@@ -1119,7 +1184,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
         {spectating ? (
           <div className="stw-status">
             <div className="stw-status-row">
-              <div className={`stw-status-text tone-${watchLog?.tone ?? "intel"}`}><span aria-live="polite">{watchEvent(game, 6 * watchSpeed) ?? (watchLog ? logText(watchLog) : game.scoutReact ? "관전 중 · 정찰 대응 모드 · 조작할 수 없습니다" : "관전 중 · AI끼리 대결합니다 · 조작할 수 없습니다")}</span></div>
+              <div className={`stw-status-text tone-${watchLog?.tone ?? "intel"}`}><span aria-live="polite">{watchEvent(game, 6 * watchSpeed) ?? (watchLog ? logText(watchLog) : replaying ? "다시 보기 · 지난 경기를 그대로 재생합니다 · 조작할 수 없습니다" : game.scoutReact ? "관전 중 · 정찰 대응 모드 · 조작할 수 없습니다" : "관전 중 · AI끼리 대결합니다 · 조작할 수 없습니다")}</span></div>
             </div>
           </div>
         ) : (
@@ -1236,7 +1301,15 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
       {confirmExit ? (
         <div className="stw-overlay stw-overlay-full" role="dialog" aria-modal="true" aria-labelledby="stw-exit-title">
           <section>
-            {spectating ? (
+            {replaying ? (
+              <>
+                <h2 id="stw-exit-title">다시 보기를 끝낼까요?</h2>
+                <p>기록은 최근 경기 목록에 그대로 남습니다.</p>
+                <button type="button" className="stw-primary" onClick={() => setConfirmExit(false)}>계속 보기</button>
+                <button type="button" className="stw-secondary" onClick={leaveReplay}>메인 화면으로</button>
+                <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
+              </>
+            ) : spectating ? (
               <>
                 <h2 id="stw-exit-title">관전을 끝낼까요?</h2>
                 <p>AI 대 AI 경기는 저장하지 않습니다.</p>
@@ -1265,7 +1338,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
           </section>
         </div>
       ) : null}
-      {finished ? <ResultOverlay game={game} record={record} onMenu={game.lab ? () => setScreen("lab") : game.spectate ? leaveWatch : goMenu} onExit={onExit} /> : null}
+      {finished ? <ResultOverlay game={game} record={record} onMenu={game.lab ? () => setScreen("lab") : game.replayView ? leaveReplay : game.spectate ? leaveWatch : goMenu} onExit={onExit} replayMatched={replayRef.current ? Boolean(stwReplayMatches(replayRef.current.code, game)) : null} /> : null}
     </main>
   );
 }
@@ -1619,6 +1692,8 @@ const WATCH_SIDES = ["player", "enemy"] as const;
 const WATCH_SPEEDS = [1, 2, 4, 8, 16] as const;
 type WatchSpeed = (typeof WATCH_SPEEDS)[number];
 function watchLabel(game: StwState, side: "player" | "enemy") {
+  // 다시 보기는 내 경기라 "나/적", AI 대 AI는 색 이름으로 부른다.
+  if (game.replayView) return `${side === "player" ? "나" : "적"} ${raceOf(game, side).name}`;
   return `${side === "player" ? "파랑" : "빨강"} ${raceOf(game, side).name}`;
 }
 
@@ -1627,6 +1702,7 @@ const personaName = (id: string | null | undefined) => (id ? (STW_AI_PERSONAS as
 /** 그 진영 AI의 전략 이름. 경기 중에 바꿨으면(정찰 대응·막힌 뒤 전환) "처음 → 바꾼 전략(시각)"을 차례로 잇는다. */
 function watchStrategy(game: StwState, side: "player" | "enemy") {
   const record = game.sides[side];
+  if (!game.aiSides.includes(side)) return "직접 지휘";
   const changes = [...(record.ai?.reacts ?? []), ...(record.ai?.switched ? [record.ai.switched] : [])].sort((a, b) => a.at - b.at);
   if (!changes.length) return personaName(record.persona);
   return `${personaName(changes[0].from)}${changes.map((change) => ` → ${personaName(change.to)} (${stwClock(change.at)})`).join("")}`;
@@ -1840,7 +1916,7 @@ function PauseReportButton({ game }: { game: StwState }) {
   );
 }
 
-function ResultOverlay({ game, record, onMenu, onExit }: { game: StwState; record: BattleRecord; onMenu: () => void; onExit: () => void }) {
+function ResultOverlay({ game, record, onMenu, onExit, replayMatched = null }: { game: StwState; record: BattleRecord; onMenu: () => void; onExit: () => void; replayMatched?: boolean | null }) {
   const [report, setReport] = useState<ReportKind | null>(null);
   const aiLost = stwLosingAiSides(game).length > 0;
   const won = game.winner === "player";
@@ -1853,9 +1929,11 @@ function ResultOverlay({ game, record, onMenu, onExit }: { game: StwState; recor
   const best = record.best[game.difficulty];
   // 실험실 경기는 연습이라 다음 판 팁을 띄우지 않는다.
   // AI 대 AI 관전 경기는 내 승패가 아니라 이긴 진영을 알리고, 팁·기록 없이 양쪽 전략을 함께 적는다.
-  const spectating = Boolean(game.spectate);
+  // 다시 보기는 내 지난 경기라 결과는 평소처럼(승리·패배) 적되, 전적·팁은 건드리지 않는다.
+  const replaying = Boolean(game.replayView);
+  const spectating = Boolean(game.spectate) && !replaying;
   const nextTips = useMemo(() => (game.lab || game.spectate ? [] : stwResultTips(game)), [game]);
-  const newBest = !game.lab && !spectating && won && best !== undefined && Math.round(game.time) <= best;
+  const newBest = !game.lab && !spectating && !replaying && won && best !== undefined && Math.round(game.time) <= best;
   // 세 번째 값이 true인 줄은 적을수록 낫다(굵게 표시할 쪽이 반대).
   const rows: [string, number, number, boolean?][] = [
     ["채취 광물", Math.floor(mine.minerals), Math.floor(theirs.minerals)],
@@ -1873,12 +1951,12 @@ function ResultOverlay({ game, record, onMenu, onExit }: { game: StwState; recor
   return (
     <div className="stw-overlay stw-overlay-full stw-result" role="dialog" aria-modal="true" aria-labelledby="stw-result-title">
       <section className={spectating ? (draw ? "draw" : "won") : won ? "won" : draw ? "draw" : "lost"}>
-        <small>{game.lab ? "실험실 · " : ""}{spectating ? "AI vs AI" : won ? "VICTORY" : draw ? "DRAW" : "DEFEAT"}</small>
+        <small>{game.lab ? "실험실 · " : ""}{replaying ? "다시 보기 · " : ""}{spectating ? "AI vs AI" : won ? "VICTORY" : draw ? "DRAW" : "DEFEAT"}</small>
         <h2 id="stw-result-title">{spectating ? (draw ? "자원 고갈 무승부" : `${watchLabel(game, won ? "player" : "enemy")} 승리`) : won ? "적 본진 함락" : draw ? "자원 고갈 무승부" : "아군 본진 함락"}</h2>
         <div className="stw-result-time">
           <span>경기 시간</span>
           <b>{stwClock(game.time)}</b>
-          {newBest ? <em>최단 승리 기록</em> : won && best !== undefined && !game.lab && !spectating ? <em className="quiet">최단 {stwClock(best)}</em> : null}
+          {newBest ? <em>최단 승리 기록</em> : won && best !== undefined && !game.lab && !spectating && !replaying ? <em className="quiet">최단 {stwClock(best)}</em> : null}
         </div>
         {spectating ? <p>{mapOf(game).name} · {WATCH_SIDES.map((side) => `${watchLabel(game, side)}: ${watchStrategy(game, side)}`).join(" / ")}</p> : (
         <p>
@@ -1903,7 +1981,7 @@ function ResultOverlay({ game, record, onMenu, onExit }: { game: StwState; recor
             <ul>{nextTips.map((text) => <li key={text}>{text}</li>)}</ul>
           </div>
         ) : null}
-        {spectating ? <p className="stw-result-record">AI 대 AI 경기는 전적에 넣지 않습니다.</p> : game.lab ? <p className="stw-result-record">실험 경기는 전적에 넣지 않습니다.</p> : <p className="stw-result-record">전적 {record.wins}승 {record.losses}패</p>}
+        {replaying ? <p className="stw-result-record">다시 보기는 전적에 넣지 않습니다.{replayMatched === false ? " 게임 판이 바뀌어 실제 경기와 다르게 흘러갔을 수 있습니다." : ""}</p> : spectating ? <p className="stw-result-record">AI 대 AI 경기는 전적에 넣지 않습니다.</p> : game.lab ? <p className="stw-result-record">실험 경기는 전적에 넣지 않습니다.</p> : <p className="stw-result-record">전적 {record.wins}승 {record.losses}패</p>}
         <div className={aiLost ? "stw-result-tools" : "stw-result-tools one"}>
           <button type="button" className="stw-secondary" onClick={() => setReport("bug")}>버그 리포트</button>
           {aiLost ? <button type="button" className="stw-secondary" onClick={() => setReport("ai")}>AI 개선 자료</button> : null}
@@ -1920,6 +1998,61 @@ function ResultOverlay({ game, record, onMenu, onExit }: { game: StwState; recor
 }
 
 /** 메뉴의 이어하기 카드: 저장된 경기의 종족·난이도·진행 시간. */
+const readClock = () => Date.now();
+
+/** "3분 전", "2일 전" 같은 지난 시간 표시. */
+function agoLabel(at: number, now: number) {
+  const minutes = Math.max(0, Math.round((now - at) / 60000));
+  if (minutes < 1) return "방금";
+  if (minutes < 60) return `${minutes}분 전`;
+  if (minutes < 60 * 24) return `${Math.round(minutes / 60)}시간 전`;
+  return `${Math.round(minutes / (60 * 24))}일 전`;
+}
+
+const HISTORY_RESULT = { won: "승", lost: "패", draw: "무" } as const;
+/** 처음에 보여 주는 최근 경기 수. 나머지는 "더 보기"로 편다. */
+const HISTORY_PREVIEW = 3;
+
+/** 메인 화면의 "최근 경기": 끝난 경기의 결과·조건을 보여 주고, 재현 코드가 있으면 다시 본다. */
+function HistoryList({ history, onReplay }: { history: HistoryEntry[]; onReplay: (entry: HistoryEntry) => void }) {
+  const [open, setOpen] = useState(false);
+  // 지난 시간 표시는 메인 화면을 연 때의 시각으로 계산한다(렌더마다 시각을 읽지 않는다).
+  const [now] = useState(readClock);
+  if (!history.length) return null;
+  const summary = stwHistorySummary(history) as { total: number; wins: number; losses: number; draws: number; byRace: Record<string, { wins: number; losses: number; draws: number }> };
+  const shown = open ? history : history.slice(0, HISTORY_PREVIEW);
+  return (
+    <section className="stw-history" aria-label="최근 경기">
+      <header>
+        <h3 className="stw-section">최근 경기</h3>
+        <span>{summary.total}경기 {summary.wins}승 {summary.losses}패{summary.draws ? ` ${summary.draws}무` : ""}</span>
+      </header>
+      <p className="stw-history-races">
+        {RACE_IDS.filter((race) => summary.byRace[race]).map((race) => `${STW_RACES[race].name} ${summary.byRace[race].wins}승 ${summary.byRace[race].losses}패`).join(" · ")}
+      </p>
+      <ul>
+        {shown.map((entry) => {
+          const map = (STW_MAPS as Record<string, { name: string }>)[entry.map];
+          const persona = entry.persona ? (STW_AI_PERSONAS as unknown as Record<string, { name: string }>)[entry.persona]?.name : null;
+          return (
+            <li key={entry.id} className={entry.result}>
+              <b aria-label={entry.result === "won" ? "승리" : entry.result === "lost" ? "패배" : "무승부"}>{HISTORY_RESULT[entry.result]}</b>
+              <div>
+                <strong>{STW_RACES[entry.races.player].name} vs {STW_RACES[entry.races.enemy].name} · {STW_DIFFICULTIES[entry.difficulty].name}{map && entry.map !== "plain" ? ` · ${map.name}` : ""}</strong>
+                <span>{persona ? `상대 ${persona} · ` : ""}{stwClock(entry.time)} · {agoLabel(entry.at, now)}{entry.replay && entry.build !== STW_BUILD ? " · 예전 판" : ""}</span>
+              </div>
+              {entry.replay
+                ? <button type="button" className="stw-secondary" onClick={() => onReplay(entry)} aria-label={`${STW_RACES[entry.races.player].name} vs ${STW_RACES[entry.races.enemy].name} ${stwClock(entry.time)} 경기 다시 보기`}>다시 보기</button>
+                : <em>기록만</em>}
+            </li>
+          );
+        })}
+      </ul>
+      {history.length > HISTORY_PREVIEW ? <button type="button" className="stw-history-more" aria-expanded={open} onClick={() => setOpen((value) => !value)}>{open ? "접기" : `더 보기 (${history.length - HISTORY_PREVIEW})`}</button> : null}
+    </section>
+  );
+}
+
 function ResumeCard({ saved, onResume, onDiscard }: { saved: SavedBattle; onResume: () => void; onDiscard: () => void }) {
   const game = saved.state;
   const enemy = game.hiddenEnemyRace && !game.sides.player.intel?.race ? "?" : raceOf(game, "enemy").name;

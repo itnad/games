@@ -257,6 +257,23 @@
 .stw-report-text summary { cursor:pointer; color:var(--stw-muted); font-size:13px; padding:4px 0; }
 .stw-report-text textarea { margin-top:6px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; line-height:1.4; }
 .stw-report-warn { color:var(--stw-gold) !important; }
+.stw-history { padding:12px 14px; display:grid; gap:8px; border:1px solid var(--stw-line); border-radius:16px; background:color-mix(in srgb,var(--stw-veil) 3%,transparent); }
+.stw-history header { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.stw-history header .stw-section { margin:0; }
+.stw-history header span { color:var(--stw-soft); font-size:13px; font-weight:800; font-variant-numeric:tabular-nums; }
+.stw-history-races { margin:0; color:var(--stw-muted); font-size:12.5px !important; line-height:1.4 !important; }
+.stw-history ul { margin:0; padding:0; list-style:none; display:grid; gap:6px; }
+.stw-history li { min-width:0; padding:8px 10px; display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:10px; align-items:center; border:1px solid var(--stw-line); border-radius:12px; background:var(--stw-panel); }
+.stw-history li > b { width:30px; height:30px; display:grid; place-items:center; border-radius:50%; color:#fff; font-size:14px; font-weight:900; }
+.stw-history li.won > b { background:var(--stw-green); }
+.stw-history li.lost > b { background:var(--stw-red); }
+.stw-history li.draw > b { background:var(--stw-muted); }
+.stw-history li div { min-width:0; display:grid; gap:2px; word-break:keep-all; }
+.stw-history li strong { font-size:14px; font-weight:900; line-height:1.3; }
+.stw-history li span { color:var(--stw-muted); font-size:12.5px; line-height:1.35; }
+.stw-history li button { min-height:40px; padding:0 12px; border-radius:11px; font-size:13px; font-weight:900; white-space:nowrap; }
+.stw-history li em { color:var(--stw-muted); font-size:12px; font-style:normal; white-space:nowrap; }
+.stw-history-more { min-height:38px; border:1px solid var(--stw-line); border-radius:11px; color:var(--stw-soft); background:transparent; font-size:13px; font-weight:800; }
 .stw-resume { padding:12px 14px; display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; align-items:center; border:1px solid var(--stw-gold); border-radius:16px; background:color-mix(in srgb,var(--stw-gold) 8%,transparent); }
 .stw-resume div { display:grid; gap:2px; min-width:0; word-break:keep-all; }
 .stw-resume small { color:var(--stw-gold); font-weight:900; letter-spacing:.1em; }

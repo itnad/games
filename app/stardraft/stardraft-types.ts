@@ -233,7 +233,11 @@ export type StwState = {
   /** 실험실에서 세운 경기(저장·전적 제외). */
   lab?: { placement: "clash" | "home"; control: { player: "manual" | "ai"; enemy: "fight" | "ai" } };
   /** AI 대 AI 관전 경기(양쪽 AI 운영, 사람은 조작하지 않고 전장 전체를 본다). */
+  /** AI가 맡은 진영. */
+  aiSides: ("player" | "enemy")[];
   spectate?: boolean;
+  /** 다시 보기로 재생 중인 지난 경기(화면 전용 표시. 엔진 규칙에는 쓰지 않는다). sameBuild: 기록할 때와 같은 게임 판인지. */
+  replayView?: { result: "won" | "lost" | "draw"; at: number; sameBuild: boolean };
   /** 정찰 대응 모드인 진영: 이 진영의 AI는 정찰로 상대 전략을 읽고 맞대응 전략으로 갈아탄다. */
   scoutReact?: ("player" | "enemy")[];
   hiddenEnemyRace?: boolean;
