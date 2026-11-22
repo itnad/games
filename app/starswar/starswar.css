@@ -319,6 +319,10 @@
 .stw-watch-chip.player i, .stw-watch-side.player h3 i { background:#4fc3ff; }
 .stw-watch-chip.enemy i, .stw-watch-side.enemy h3 i { background:#ff6a4d; }
 .stw-watch-chip b { font-size:15px; white-space:nowrap; }
+.stw-watch-speed { flex:0 0 auto; padding:6px 8px 0; display:flex; align-items:center; gap:8px; }
+.stw-watch-speed > span { flex:0 0 auto; color:var(--stw-muted); font-size:12.5px; font-weight:800; }
+.stw-watch-speed .stw-segment { flex:1 1 auto; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; }
+.stw-watch-speed .stw-segment button { min-height:34px; padding:0 4px; font-size:14px !important; font-variant-numeric:tabular-nums; }
 .stw-watch-body { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; align-content:start; }
 .stw-watch-side { min-width:0; padding:9px 10px; display:grid; gap:6px; align-content:start; border:1px solid var(--stw-line); border-radius:12px; background:color-mix(in srgb,var(--stw-veil) 4%,transparent); }
 .stw-watch-side.player { border-top:3px solid #4fc3ff; }

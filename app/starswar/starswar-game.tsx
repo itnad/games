@@ -393,6 +393,13 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [rendererAttempt, setRendererAttempt] = useState(0);
   const [icons, setIcons] = useState<Record<string, string>>({});
   const [labConfig, setLabConfig] = useState<LabConfig | null>(null);
+  /** 관전 경기의 배속(×1~×16). 경기 중에 바꿀 수 있고, 다음 관전 경기에도 이어진다. 일반 경기에는 쓰지 않는다. */
+  const [watchSpeed, setWatchSpeed] = useState<WatchSpeed>(1);
+  const watchSpeedRef = useRef<WatchSpeed>(1);
+  const pickWatchSpeed = (speed: WatchSpeed) => {
+    watchSpeedRef.current = speed;
+    setWatchSpeed(speed);
+  };
   /** AI vs AI 설정 화면에서 마지막으로 시작한 설정(다시 들어오면 그대로 보인다). */
   const [watchConfig, setWatchConfig] = useState<WatchConfig | null>(null);
   const [saved, setSaved] = useState<SavedBattle | null>(() => (typeof window === "undefined" ? null : readSave()));
@@ -594,7 +601,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       ? `${live?.kind === "attack" ? "attack" : "fight"}:${focusY < view.cy ? "up" : "down"}`
       : null;
     if (camera.cue && focusY !== null) camera.cueY = focusY;
-    pixi.render(current, view, { clock, timeScale: pausedRef.current ? 0 : 1, rally: current.sides.player.rally, selected: selectedRef.current });
+    pixi.render(current, view, { clock, timeScale: pausedRef.current ? 0 : current.spectate ? watchSpeedRef.current : 1, rally: current.sides.player.rally, selected: selectedRef.current });
   }, []);
 
   useEffect(() => {
@@ -658,7 +665,16 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       const current = gameRef.current;
       // 동적 Pixi 청크와 WebGL 지도가 준비되기 전에는 전투 시간과 AI를 진행하지 않는다.
       if (current && pixiRef.current && !pausedRef.current && current.status === "playing") {
-        advanceStarswar(current, dt, stwAiThink);
+        // 관전 경기는 고른 배속만큼 더 돌린다(엔진은 한 번에 1초까지만 받으므로 1초씩 끊어 넘긴다).
+        // 기기가 느려 한 프레임의 계산이 40ms를 넘기면 거기서 멈춰 화면이 굳지 않게 한다(그만큼 배속이 덜 나온다).
+        let left = dt * (current.spectate ? watchSpeedRef.current : 1);
+        const budgetEnd = performance.now() + 40;
+        while (left > 1e-6 && current.status === "playing") {
+          const slice = Math.min(left, 1);
+          advanceStarswar(current, slice, stwAiThink);
+          left -= slice;
+          if (performance.now() > budgetEnd) break;
+        }
         if (current.time - savedAtRef.current >= SAVE_EVERY) {
           savedAtRef.current = current.time;
           writeSave(current);
@@ -983,7 +999,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const spectating = Boolean(game.spectate);
   const playerLog = game.log.filter((entry) => spectating || entry.side === "player");
   const logText = (entry: { side: string; text: string }) => (spectating ? `${watchLabel(game, entry.side === "enemy" ? "enemy" : "player")} · ${entry.text}` : entry.text);
-  const watchLog = spectating ? [...playerLog].reverse().find((entry) => game.time - entry.time < 5) ?? null : null;
+  const watchLog = spectating ? [...playerLog].reverse().find((entry) => game.time - entry.time < 5 * watchSpeed) ?? null : null;
   const mapAlert = [...playerLog].reverse().find((entry) => entry.tone === "danger" && game.time - entry.time < 6) ?? null;
   const statusLog = [...playerLog].reverse().find((entry) => entry.tone !== "danger" && game.time - entry.time < 5) ?? null;
   const intel = side.intel;
@@ -1102,7 +1118,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
         {spectating ? (
           <div className="stw-status">
             <div className="stw-status-row">
-              <div className={`stw-status-text tone-${watchLog?.tone ?? "intel"}`}><span aria-live="polite">{watchEvent(game) ?? (watchLog ? logText(watchLog) : game.scoutReact ? "관전 중 · 정찰 대응 모드 · 조작할 수 없습니다" : "관전 중 · AI끼리 대결합니다 · 조작할 수 없습니다")}</span></div>
+              <div className={`stw-status-text tone-${watchLog?.tone ?? "intel"}`}><span aria-live="polite">{watchEvent(game, 6 * watchSpeed) ?? (watchLog ? logText(watchLog) : game.scoutReact ? "관전 중 · 정찰 대응 모드 · 조작할 수 없습니다" : "관전 중 · AI끼리 대결합니다 · 조작할 수 없습니다")}</span></div>
             </div>
           </div>
         ) : (
@@ -1142,7 +1158,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           ) : null}
         </div>
         )}
-        {spectating ? <SpectatorPanel game={game} /> : (
+        {spectating ? <SpectatorPanel game={game} speed={watchSpeed} onSpeed={pickWatchSpeed} /> : (
         <section className="stw-panel" aria-label="선택 패널">
           <nav className="stw-tabs">
             {TABS.map((item) => (
@@ -1598,6 +1614,9 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
 /** 완료한 연구 수. */
 /** AI 대 AI 관전: 아래쪽(아군 자리)은 파랑, 위쪽(적 자리)은 빨강 진영이다. 같은 종족끼리도 구분되게 색 이름을 붙인다. */
 const WATCH_SIDES = ["player", "enemy"] as const;
+/** 관전 경기에서 고를 수 있는 배속. */
+const WATCH_SPEEDS = [1, 2, 4, 8, 16] as const;
+type WatchSpeed = (typeof WATCH_SPEEDS)[number];
 function watchLabel(game: StwState, side: "player" | "enemy") {
   return `${side === "player" ? "파랑" : "빨강"} ${raceOf(game, side).name}`;
 }
@@ -1620,25 +1639,33 @@ function watchRead(game: StwState, side: "player" | "enemy") {
 }
 
 /** 정찰 대응 모드의 알림 한 줄: 방금(6초 안) 상대 전략을 읽었거나 전략을 갈아탔으면 그 내용. */
-function watchEvent(game: StwState) {
+function watchEvent(game: StwState, within = 6) {
   let latest: { at: number; text: string } | null = null;
   for (const side of WATCH_SIDES) {
     if (!game.scoutReact?.includes(side)) continue;
     const ai = game.sides[side].ai;
     const react = ai?.reacts?.at(-1);
     const read = ai?.reads?.at(-1);
-    const event = react && game.time - react.at < 6
+    const event = react && game.time - react.at < within
       ? { at: react.at, text: `${watchLabel(game, side)} 맞대응 · 상대 ${personaName(react.read)} → ${personaName(react.to)}` }
-      : read && game.time - read.at < 6 ? { at: read.at, text: `${watchLabel(game, side)} 정찰 · 상대 전략: ${personaName(read.persona)}` } : null;
+      : read && game.time - read.at < within ? { at: read.at, text: `${watchLabel(game, side)} 정찰 · 상대 전략: ${personaName(read.persona)}` } : null;
     if (event && (!latest || event.at > latest.at)) latest = event;
   }
   return latest?.text ?? null;
 }
 
 /** 관전 패널: 조작 탭 대신 양쪽 진영의 전략·자원·인구·병력 구성을 나란히 보여 준다(누를 것이 없다). */
-function SpectatorPanel({ game }: { game: StwState }) {
+function SpectatorPanel({ game, speed, onSpeed }: { game: StwState; speed: WatchSpeed; onSpeed: (speed: WatchSpeed) => void }) {
   return (
     <section className="stw-panel stw-watch" aria-label="양쪽 진영 현황">
+      <div className="stw-watch-speed">
+        <span id="stw-watch-speed-label">경기 속도</span>
+        <div className="stw-segment" role="radiogroup" aria-labelledby="stw-watch-speed-label">
+          {WATCH_SPEEDS.map((item) => (
+            <button key={item} type="button" role="radio" aria-checked={speed === item} className={speed === item ? "active" : ""} onClick={() => onSpeed(item)}>×{item}</button>
+          ))}
+        </div>
+      </div>
       <div className="stw-panel-body stw-watch-body">
         {WATCH_SIDES.map((side) => {
           const record = game.sides[side];
