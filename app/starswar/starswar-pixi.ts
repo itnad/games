@@ -95,10 +95,11 @@ export async function createStwPixiRenderer(host: HTMLElement, width: number, he
 
 /**
  * 플레이어 화면에 보이는 자리인지. 실험실 경기는 시험용이라 전장 전체를 보여 준다(상대 진영의 병력·건물 배치와 움직임을 그대로 본다).
+ * AI 대 AI 관전 경기도 관전자에게 전장 전체를 보여 준다.
  * 그리기에만 쓴다: 엔진의 시야(목표 찾기·AI 판단·정찰 정보)와 은폐·탐지는 바꾸지 않는다.
  */
 function playerSees(state: StwState, x: number, y: number, pad = 0) {
-  return Boolean(state.lab) || stwVisible(state, "player", x, y, pad);
+  return Boolean(state.lab) || Boolean(state.spectate) || stwVisible(state, "player", x, y, pad);
 }
 export class StwPixiRenderer {
   private readonly PIXI: PixiModule;
@@ -740,9 +741,9 @@ export class StwPixiRenderer {
     let byId: Map<number, { x: number; y: number }> | null = null;
     for (const unit of state.units) {
       if (!this.visibleCache.has(unit.id) && unit.side !== "player") continue;
-      // 은폐한 적은 아군 탐지기 범위 안에 있을 때만 보인다.
+      // 은폐한 적은 아군 탐지기 범위 안에 있을 때만 보인다. 관전 경기에서는 양쪽의 은폐 유닛을 모두 그린다(은폐 모습 그대로).
       if (unit.group === "cargo") continue;
-      if (unit.side !== "player" && isCloaked(unit, state) && !stwDetected(state, unit, "player")) continue;
+      if (unit.side !== "player" && !state.spectate && isCloaked(unit, state) && !stwDetected(state, unit, "player")) continue;
       alive.add(unit.id);
       let view = this.unitViews.get(unit.id);
       if (!view) view = this.createUnitView(unit);

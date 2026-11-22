@@ -301,6 +301,26 @@
 /* 실험실 */
 .stw-lab-entry { min-height:52px; display:grid; gap:2px; place-items:center; border-radius:16px; font-weight:900; }
 .stw-lab-entry small { color:var(--stw-muted); font-weight:600; font-size:12px; }
+/* AI 대 AI 관전: 조작 탭 대신 양쪽 진영 현황(파랑 = 아래, 빨강 = 위). */
+.stw-watch-chip i { border-radius:50%; }
+.stw-watch-chip.player i, .stw-watch-side.player h3 i { background:#4fc3ff; }
+.stw-watch-chip.enemy i, .stw-watch-side.enemy h3 i { background:#ff6a4d; }
+.stw-watch-chip b { font-size:15px; white-space:nowrap; }
+.stw-watch-body { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; align-content:start; }
+.stw-watch-side { min-width:0; padding:9px 10px; display:grid; gap:6px; align-content:start; border:1px solid var(--stw-line); border-radius:12px; background:color-mix(in srgb,var(--stw-veil) 4%,transparent); }
+.stw-watch-side.player { border-top:3px solid #4fc3ff; }
+.stw-watch-side.enemy { border-top:3px solid #ff6a4d; }
+.stw-watch-side h3 { margin:0; display:flex; align-items:center; gap:6px; font-size:15px; font-weight:900; }
+.stw-watch-side h3 i { width:10px; height:10px; flex:0 0 auto; border-radius:50%; }
+.stw-watch-side p { margin:0; color:var(--stw-soft); font-size:12.5px !important; line-height:1.4 !important; overflow-wrap:anywhere; }
+.stw-watch-side .stw-watch-plan { color:var(--stw-text); font-weight:700; }
+.stw-watch-side dl { margin:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px 10px; }
+.stw-watch-side dl div { min-width:0; display:flex; justify-content:space-between; gap:6px; font-size:13px; }
+.stw-watch-side dl div.wide { grid-column:1 / -1; }
+.stw-watch-side dt { flex:0 0 auto; color:var(--stw-muted); white-space:nowrap; }
+.stw-watch-side dd { margin:0; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.stw-watch-side dd em { color:#a9d79a; font-size:11.5px; font-style:normal; }
+.stw-watch-side .stw-watch-army b { color:var(--stw-text); }
 .stw-lab-presets { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
 .stw-lab-presets > div { position:relative; display:grid; }
 .stw-lab-presets > div > button:first-child { padding:10px 12px; display:grid; align-content:start; gap:3px; text-align:left; border:1px solid var(--stw-line); border-radius:14px; background:color-mix(in srgb,var(--stw-veil) 3%,transparent); word-break:keep-all; }
@@ -525,6 +545,11 @@
 .stw-status-more li.tone-danger { border-left-color:var(--stw-red); color:var(--stw-red); }
 .stw-status-more time { margin-right:6px; color:var(--stw-muted); font-variant-numeric:tabular-nums; }
 .stw-map-alert { position:absolute; left:8px; right:8px; top:52px; z-index:4; width:max-content; max-width:calc(100% - 16px); margin:0; padding:6px 11px; overflow:hidden; border-radius:9px; color:#fff; background:color-mix(in srgb,var(--stw-red) 88%,#000); font-size:13px !important; font-weight:800; line-height:1.35 !important; text-overflow:ellipsis; white-space:nowrap; pointer-events:none; animation:stw-alert-fade 6s ease-out forwards; }
+.stw-battle-cue { position:absolute; left:50%; z-index:5; transform:translateX(-50%); min-height:36px; padding:0 14px; display:flex; align-items:center; gap:6px; border:1px solid #ffffff55; border-radius:18px; color:#fff; background:color-mix(in srgb,var(--stw-red) 86%,#000); box-shadow:0 3px 10px #0006; font-size:13px !important; font-weight:900; white-space:nowrap; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+.stw-battle-cue.up { top:8px; }
+.stw-battle-cue.down { bottom:8px; }
+.stw-battle-cue i { font-style:normal; font-size:11px; }
+.stw-battle-cue:active { transform:translateX(-50%) scale(.96); }
 @keyframes stw-alert-fade { 0%, 75% { opacity:1; } 100% { opacity:0; } }
 
 /* 결과 창 나가기 버튼: 스크롤해도 창 아래에 붙어 늘 보인다(예전에는 통계·팁을 끝까지 내려야 보였다). */

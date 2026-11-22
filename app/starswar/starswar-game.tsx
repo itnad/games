@@ -26,6 +26,7 @@ import {
   stwRestore,
   stwSerialize,
   stwArmy,
+  stwBattleFocus,
   stwBuildCheck,
   stwClock,
   stwIsGuard,
@@ -347,8 +348,8 @@ function readSave(): SavedBattle | null {
 }
 
 function writeSave(state: StwState) {
-  // 실험실 경기는 저장하지 않는다(진짜 경기의 이어하기를 덮어쓰지 않게).
-  if (state.status !== "playing" || state.lab) return;
+  // 실험실·AI 대 AI 관전 경기는 저장하지 않는다(진짜 경기의 이어하기를 덮어쓰지 않게).
+  if (state.status !== "playing" || state.lab || state.spectate) return;
   try {
     const text = stwSerialize(state) as string;
     window.localStorage.setItem(SAVE_KEY, `${text.slice(0, -1)},"savedAt":${Date.now()}}`);
@@ -377,6 +378,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [theme, setTheme] = useState<ThemeId>(() => (typeof window === "undefined" ? DEFAULT_THEME : readTheme()));
   const [game, setGame] = useState<StwState | null>(null);
   const [, setFrame] = useState(0);
+  /** 따라가기를 끈 동안 화면 밖 전선을 알리는 버튼("종류:방향"). 카메라(cameraRef)가 정하고 화면 갱신 때 옮겨 온다. */
+  const [battleCue, setBattleCue] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [tab, setTab] = useState<Tab>("build");
   // 방어 건물을 지을 쪽(전방·후방). 경기 중 탭을 옮겨도 그대로 둔다.
@@ -404,8 +407,11 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const [selected, setSelected] = useState<string[]>([]);
   const selectedRef = useRef<string[]>([]);
   // follow: 전선 따라가기(공격 병력 선두나 집결지를 화면 가운데로). 지도를 끌거나 벌리면 멈추고, 마지막으로 만진 뒤 8초가 지나면 다시 따라간다.
+  // follow: 전선 따라가기. 경기마다 켠 채로 시작하고, 지도를 직접 옮기거나 확대하면 그 경기에서는 꺼진다.
   // fightY·fightUntil: 마지막으로 본 교전 높이와 그 높이를 붙잡아 둘 경기 시각(교전이 잠깐 끊겨도 화면이 튀지 않게).
-  const cameraRef = useRef({ zoom: 1, cx: 20, cy: 94, ready: false, follow: true, touchedAt: 0, fightY: 0, fightUntil: -1 });
+  // focusY: 지금 볼 만한 전선의 높이(없으면 null). glide: "전선 보기"를 눌러 한 번 옮겨 가는 중인 목표 높이.
+  // cue: 따라가기를 끈 동안 화면 밖에서 전선이 생겼을 때 띄울 버튼("fight:up" 같은 종류:방향). cueY: 그 버튼이 가리키는 높이.
+  const cameraRef = useRef({ zoom: 1, cx: 20, cy: 94, ready: false, follow: true, fightY: 0, fightUntil: -1, focusY: null as number | null, glide: null as number | null, cue: null as string | null, cueY: 0 });
   const pausedRef = useRef(false);
   const recordedRef = useRef(false);
   const savedAtRef = useRef(0);
@@ -452,8 +458,10 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     setGame(next);
     savedAtRef.current = next.time;
     recordedRef.current = false;
-    cameraRef.current.ready = false;
-    cameraRef.current.follow = true;
+    // 카메라는 경기마다 처음부터: 따라가기를 다시 켜고, 지난 경기의 교전 기억을 지운다
+    // (지우지 않으면 새 경기 시각이 지난 경기의 fightUntil보다 작은 동안 지난 경기의 교전 자리로 화면이 끌려간다).
+    Object.assign(cameraRef.current, { ready: false, follow: true, fightY: 0, fightUntil: -1, focusY: null, glide: null, cue: null });
+    setBattleCue(null);
     setRenderer("loading");
     setTab("build");
     setSelected([]);
@@ -501,6 +509,16 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     enterBattle(next);
   };
 
+  // AI 대 AI: 고른 내 종족 대 상대 종족을 양쪽 모두 AI가 처음부터 운영한다. 사람은 관전만 하고 전장 전체가 보인다.
+  // 규칙은 일반 경기와 같다(인구·시야·자원 그대로). 진행 중이던 내 경기의 저장은 건드리지 않는다.
+  const startSpectate = () => {
+    const pick = (choice: EnemyRace) => (choice === "random" ? RACE_IDS[Math.floor(Math.random() * RACE_IDS.length)] : choice);
+    const learned = ((STW_DIFFICULTIES[difficulty] as { master?: boolean }).master ? stwLearnSnapshot(readLearning()) : null) as never;
+    const map = mapChoice === "random" ? MAP_IDS[Math.floor(Math.random() * MAP_IDS.length)] : mapChoice;
+    const next = createStarswarGame({ difficulty, seed: Math.floor(Math.random() * 2 ** 31), aiSides: ["player", "enemy"], races: { player: pick(races.player), enemy: pick(races.enemy) }, learned, map, spectate: true }) as unknown as StwState;
+    enterBattle(next);
+  };
+
   const draw = useCallback((clock: number) => {
     const current = gameRef.current;
     const pixi = pixiRef.current;
@@ -514,38 +532,39 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       camera.cy = STW_LANE_LENGTH;
       camera.ready = true;
     }
-    // 지도를 마지막으로 만진 뒤 8초가 지나면 다시 전선을 따라간다(따라가기 버튼을 없앴다).
-    if (!camera.follow && clock * 1000 - camera.touchedAt > 8000) camera.follow = true;
-    if (camera.follow) {
-      // 전선 따라가기: 공격 병력이 있으면 그 선두를 화면 가운데로, 아니면 교전이 벌어진 곳(집결지·앞마당 수비, 따로 둔 부대, 드랍),
-      // 교전도 없으면 기본 구도(지도 맨 아래, 아군 광물 줄까지 다 보이게).
-      // 예전에는 출격 병력이 없으면 늘 맨 아래로 가서, 집결지나 앞마당에서 싸우는 중에도 화면이 갑자기 아래로 내려갔다.
-      const army = stwArmy(current, "player");
-      const front = army.attack.reduce((best, unit) => Math.min(best, unit.y), STW_LANE_LENGTH);
-      // 교전: 3초 안에 맞았거나 무언가를 노리는 아군 병력(일꾼 제외), 3초 안에 맞은 아군 건물. 그 높이의 가운데를 4초 동안 붙잡아 둔다.
-      const fightYs: number[] = [];
-      for (const unit of current.units) {
-        if (unit.side !== "player" || unit.hp <= 0 || unit.group === "cargo" || (STW_UNITS[unit.type as keyof typeof STW_UNITS] as { worker?: boolean }).worker) continue;
-        if (current.time - unit.lastHit < 3 || unit.targetId !== null) fightYs.push(unit.y);
+    // 볼 만한 전선: 출격 병력이 있으면 그 선두(6칸 뒤를 가운데로), 없으면 교전이 벌어진 곳(집결지·앞마당 수비, 따로 둔 부대, 드랍).
+    // 교전 높이는 4초 동안 붙잡아 둔다(교전이 잠깐 끊겨도 화면이 튀지 않게).
+    const live = stwBattleFocus(current, "player") as { kind: "attack" | "fight"; y: number } | null;
+    if (live?.kind === "fight") {
+      camera.fightY = live.y;
+      camera.fightUntil = current.time + 4;
+    }
+    const focusY = live?.kind === "attack" ? live.y + 6 : current.time <= camera.fightUntil ? camera.fightY : null;
+    camera.focusY = focusY;
+    // 전선 따라가기: 전선이 있으면 그곳을, 없으면 기본 구도(지도 맨 아래, 아군 광물 줄까지 다 보이게)를 화면 가운데로.
+    // 지도를 직접 옮기거나 확대하면 그 경기에서는 따라가지 않는다. 예전에는 8초 뒤 다시 따라가서, 본진을 보며 건설·생산을 누르는 중에도
+    // 앞에 세워 둔 병력이 무언가를 노릴 때마다 화면이 적 쪽으로 끌려갔다. 이제는 "전선 보기"를 눌렀을 때만 한 번 옮겨 간다(glide).
+    const aim = camera.follow ? focusY ?? STW_LANE_LENGTH : camera.glide;
+    if (aim !== null) {
+      // 목표를 뷰포트 한계(지도 양 끝)에 맞춰 잘라, 끝에 닿으면 바로 멈춘다.
+      const target = stwViewport(width, height, { ...camera, cy: aim }).cy;
+      camera.cy += (target - camera.cy) * (camera.follow ? 0.06 : 0.14);
+      if (Math.abs(target - camera.cy) < 0.02) {
+        camera.cy = target;
+        camera.glide = null;
       }
-      for (const building of current.buildings) if (building.side === "player" && building.hp > 0 && current.time - building.lastHit < 3) fightYs.push(building.y);
-      if (fightYs.length) {
-        camera.fightY = fightYs.reduce((sum, y) => sum + y, 0) / fightYs.length;
-        camera.fightUntil = current.time + 4;
-      }
-      const fighting = current.time <= camera.fightUntil;
-      const focus = army.attack.length ? front + 6 : fighting ? camera.fightY : STW_LANE_LENGTH;
-      // 맨 아래를 노릴 때는 뷰포트 한계(지도 끝)까지 바로 붙도록 지금 보이는 한계에서 출발한다.
-      const limit = stwViewport(width, height, { ...camera, cy: STW_LANE_LENGTH }).cy;
-      const target = Math.min(focus, limit);
-      camera.cy += (target - camera.cy) * 0.06;
-      if (Math.abs(target - camera.cy) < 0.02) camera.cy = target;
     }
     const view = stwViewport(width, height, camera) as StwView;
     camera.zoom = view.zoom;
     camera.cx = view.cx;
     camera.cy = view.cy;
     viewRef.current = view;
+    // 따라가기를 끈 동안 전선이 화면 밖(가장자리 3칸 안쪽 포함)에 있으면 "전선 보기" 버튼을 띄운다.
+    const reach = focusY === null ? 0 : Math.abs(stwViewport(width, height, { ...camera, cy: focusY }).cy - view.cy);
+    camera.cue = !camera.follow && camera.glide === null && focusY !== null && reach > 1 && Math.abs(focusY - view.cy) > height / view.scale / 2 - 3
+      ? `${live?.kind === "attack" ? "attack" : "fight"}:${focusY < view.cy ? "up" : "down"}`
+      : null;
+    if (camera.cue && focusY !== null) camera.cueY = focusY;
     pixi.render(current, view, { clock, timeScale: pausedRef.current ? 0 : 1, rally: current.sides.player.rally, selected: selectedRef.current });
   }, []);
 
@@ -621,6 +640,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       if (uiTimer >= 0.25) {
         uiTimer = 0;
         setFrame((value) => value + 1);
+        setBattleCue(cameraRef.current.cue);
       }
       frame = window.requestAnimationFrame(loop);
     };
@@ -647,8 +667,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const finished = screen === "play" && game?.status === "over";
 
   useEffect(() => {
-    // 실험실 경기는 전적에 넣지 않는다.
-    if (!finished || !game || recordedRef.current || game.lab) return;
+    // 실험실·AI 대 AI 관전 경기는 전적에 넣지 않는다.
+    if (!finished || !game || recordedRef.current || game.lab || game.spectate) return;
     recordedRef.current = true;
     clearSave();
     const won = game.winner === "player";
@@ -665,7 +685,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   }, [finished, game]);
 
   const issue = (command: StwCommand, success?: string) => {
-    if (!game) return;
+    // AI 대 AI 관전 경기에서는 사람의 명령을 어떤 경로로도 넣지 않는다(양쪽 모두 AI만 조종한다).
+    if (!game || game.spectate) return;
     const result = stwIssue(game, "player", command) as StwCheck;
     if (!result.ok) showToast(result.reason ?? "지금은 할 수 없습니다");
     else if (success) showToast(success, "good");
@@ -739,7 +760,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       const distance = Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y));
       zoomAround(mid, gesture.anchor, gesture.zoom * (distance / gesture.distance));
       cameraRef.current.follow = false;
-      cameraRef.current.touchedAt = event.timeStamp;
+      cameraRef.current.glide = null;
       return;
     }
     const dx = points[0].x - gesture.x;
@@ -747,7 +768,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     if (!gesture.moved && Math.hypot(dx, dy) < 8) return;
     gesture.moved = true;
     cameraRef.current.follow = false;
-    cameraRef.current.touchedAt = event.timeStamp;
+    cameraRef.current.glide = null;
     const scale = viewRef.current.scale;
     cameraRef.current.cx = gesture.cx - dx / scale;
     cameraRef.current.cy = gesture.cy - dy / scale;
@@ -763,7 +784,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     }
     gestureRef.current = null;
     // 끌거나 벌리지 않고 톡 눌렀으면 그 자리로 병력을 보낸다.
-    if (!gesture || gesture.moved || gesture.pinch || event.type === "pointercancel" || finished) return;
+    // 관전 경기에서는 지도를 눌러도 병력이 움직이지 않는다(끌기·확대만 된다).
+    if (!gesture || gesture.moved || gesture.pinch || event.type === "pointercancel" || finished || game?.spectate) return;
     if (Math.hypot(point.x - gesture.x, point.y - gesture.y) > 10) return;
     const target = stwScreenToMap(viewRef.current, point.x, point.y);
     // 고른 부대가 있으면 그 부대만 옮기고(선택은 그대로 둬 이어서 지휘), 없으면 본대 전체를 옮긴다.
@@ -778,9 +800,20 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
     }
   };
 
+  /** "전선 보기": 지금 전선으로 화면을 한 번 옮긴다(따라가기는 꺼진 채로 둔다). */
+  const showBattle = () => {
+    const camera = cameraRef.current;
+    // 버튼이 뜬 뒤 누르기 직전에 교전이 끝났어도, 버튼이 가리키던 곳으로 간다.
+    camera.glide = camera.focusY ?? camera.cueY;
+    camera.cue = null;
+    setBattleCue(null);
+  };
+
   const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     const point = localPoint(event);
     zoomAround(point, stwScreenToMap(viewRef.current, point.x, point.y), cameraRef.current.zoom * Math.exp(-event.deltaY * 0.0015));
+    cameraRef.current.follow = false;
+    cameraRef.current.glide = null;
   };
 
   const pickRace = (next: Partial<{ player: EnemyRace; enemy: EnemyRace }>) => setRaces((current) => ({ ...current, ...next }));
@@ -885,6 +918,7 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           </ol>
           <button type="button" className="stw-start" onClick={startBattle}>전투 시작</button>
           <button type="button" className="stw-secondary stw-lab-entry" onClick={() => setScreen("lab")}>실험실<small>원하는 병력·연구·시각으로 교전 시험</small></button>
+          <button type="button" className="stw-secondary stw-lab-entry" onClick={startSpectate}>AI vs AI<small>내 종족 대 상대 종족을 AI끼리 처음부터 대결 · 관전만</small></button>
           <div className="stw-record-line">
             <span>전적 {record.wins}승 {record.losses}패</span>
             {confirmReset ? (
@@ -909,7 +943,11 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
   const income = stwIncome(game, "player") as { minerals: number; gas: number };
   const army = stwArmy(game, "player");
   // 지도 위에는 위험 알림 한 줄만(6초), 나머지 기록은 지도 아래 상태 줄에 최신 하나만(5초) 보인다. 없으면 정찰 정보.
-  const playerLog = game.log.filter((entry) => entry.side === "player");
+  // AI 대 AI 관전: 조작 버튼을 모두 빼고 양쪽 현황을 보여 준다. 기록은 양쪽 것을 진영 이름을 붙여 보인다.
+  const spectating = Boolean(game.spectate);
+  const playerLog = game.log.filter((entry) => spectating || entry.side === "player");
+  const logText = (entry: { side: string; text: string }) => (spectating ? `${watchLabel(game, entry.side === "enemy" ? "enemy" : "player")} · ${entry.text}` : entry.text);
+  const watchLog = spectating ? [...playerLog].reverse().find((entry) => game.time - entry.time < 5) ?? null : null;
   const mapAlert = [...playerLog].reverse().find((entry) => entry.tone === "danger" && game.time - entry.time < 6) ?? null;
   const statusLog = [...playerLog].reverse().find((entry) => entry.tone !== "danger" && game.time - entry.time < 5) ?? null;
   const intel = side.intel;
@@ -952,9 +990,20 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
       <ThemeFonts theme={theme} />
       <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
-        <div><span className="stw-brand">{STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).id === "plain" ? "" : `${mapOf(game).name} · `}{raceOf(game).name} vs {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
-        <QueueStrip game={game} icons={icons} issue={issue} />
+        <div><span className="stw-brand">{spectating ? "AI vs AI" : STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).id === "plain" ? "" : `${mapOf(game).name} · `}{raceOf(game).name} vs {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
+        {spectating ? null : <QueueStrip game={game} icons={icons} issue={issue} />}
       </header>
+      {spectating ? (
+        <section className="stw-hud stw-hud-watch" aria-label="양쪽 인구">
+          {WATCH_SIDES.map((key) => {
+            const used = stwSupply(game, key) as { used: number; cap: number };
+            return <span key={key} className={`stw-res stw-watch-chip ${key}`}><i aria-hidden="true" /><b>{watchLabel(game, key)} {used.used}/{used.cap}</b></span>;
+          })}
+          <div className="stw-speed">
+            <button type="button" onClick={() => setPaused((value) => !value)} aria-label={paused ? "계속하기" : "일시정지"}>{paused ? "▶" : "Ⅱ"}</button>
+          </div>
+        </section>
+      ) : (
       <section className="stw-hud" aria-label="자원 현황">
         <span className="stw-res minerals"><i aria-hidden="true" /><b>{Math.floor(side.minerals)}</b><em>+{income.minerals}</em></span>
         <span className="stw-res gas"><i aria-hidden="true" /><b>{Math.floor(side.gas)}</b><em>+{income.gas}</em></span>
@@ -968,13 +1017,14 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           <button type="button" onClick={() => setPaused((value) => !value)} aria-label={paused ? "계속하기" : "일시정지"}>{paused ? "▶" : "Ⅱ"}</button>
         </div>
       </section>
+      )}
       <div className="stw-body">
         <div className="stw-map">
           <div
             ref={surfaceRef}
             className="stw-map-surface"
             role="application"
-            aria-label="전장. 톡 누르면 병력을 그 자리로 보내고, 끌어서 이동하고 두 손가락으로 확대합니다."
+            aria-label={spectating ? "전장 관전. 끌어서 이동하고 두 손가락으로 확대합니다. 병력은 조작할 수 없습니다." : "전장. 톡 누르면 병력을 그 자리로 보내고, 끌어서 이동하고 두 손가락으로 확대합니다."}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
@@ -990,9 +1040,14 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           ) : null}
           {renderer === "failed" ? <p className="stw-map-error">이 기기에서 그래픽을 초기화하지 못했습니다.</p> : null}
           {renderer === "failed" ? <button type="button" className="stw-map-retry" onClick={() => { setRenderer("loading"); setRendererAttempt((value) => value + 1); }}>지도 다시 불러오기</button> : null}
-          {mapAlert ? <p key={mapAlert.id} className="stw-map-alert" role="alert">{mapAlert.text}</p> : null}
+          {mapAlert ? <p key={mapAlert.id} className="stw-map-alert" role="alert">{logText(mapAlert)}</p> : null}
           {game.finalBattle && !finished ? <p className="stw-final-banner" role="status">최종 결전 · 전원 출격 · 지휘 불가</p> : null}
           {game.lab && !game.finalBattle && !finished && !paused ? <button type="button" className="stw-lab-final" onClick={() => issue({ type: "finalBattle" })}>최종 결전</button> : null}
+          {battleCue && !finished && !paused && renderer === "ready" ? (
+            <button type="button" className={`stw-battle-cue ${battleCue.endsWith("up") ? "up" : "down"}`} onClick={showBattle}>
+              <i aria-hidden="true">{battleCue.endsWith("up") ? "▲" : "▼"}</i>{battleCue.startsWith("attack") ? "출격 병력 보기" : "교전 중 · 보기"}
+            </button>
+          ) : null}
           {toast ? <p key={toast.id} className={`stw-toast tone-${toast.tone}`} role="status">{toast.text}</p> : null}
           {paused && !finished && !confirmExit ? (
             <div className="stw-overlay">
@@ -1008,6 +1063,13 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
           ) : null}
         </div>
         {/* 지도 아래 상태 줄: 진행 기록(최신 하나)·정찰 정보와 정찰 버튼을 지도 밖에 둬 지도를 가리지 않는다. 누르면 펼친다. */}
+        {spectating ? (
+          <div className="stw-status">
+            <div className="stw-status-row">
+              <div className={`stw-status-text tone-${watchLog?.tone ?? "intel"}`}><span aria-live="polite">{watchLog ? logText(watchLog) : "관전 중 · AI끼리 대결합니다 · 조작할 수 없습니다"}</span></div>
+            </div>
+          </div>
+        ) : (
         <div className="stw-status" data-open={statusOpen ? "true" : undefined}>
           <div className="stw-status-row">
             {/* 부대 지휘: 지도 왼쪽 위에서 지도 밖(엄지가 닿는 상태 줄 왼쪽)으로 옮겼다. 고른 부대 수가 붙는다. */}
@@ -1043,6 +1105,8 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             </div>
           ) : null}
         </div>
+        )}
+        {spectating ? <SpectatorPanel game={game} /> : (
         <section className="stw-panel" aria-label="선택 패널">
           <nav className="stw-tabs">
             {TABS.map((item) => (
@@ -1114,11 +1178,20 @@ export function StarswarGame({ onExit }: { onExit: () => void }) {
             </div>
           )}
         </section>
+        )}
       </div>
       {confirmExit ? (
         <div className="stw-overlay stw-overlay-full" role="dialog" aria-modal="true" aria-labelledby="stw-exit-title">
           <section>
-            {game.lab ? (
+            {spectating ? (
+              <>
+                <h2 id="stw-exit-title">관전을 끝낼까요?</h2>
+                <p>AI 대 AI 경기는 저장하지 않습니다.</p>
+                <button type="button" className="stw-primary" onClick={() => setConfirmExit(false)}>계속 관전하기</button>
+                <button type="button" className="stw-secondary" onClick={() => { gameRef.current = null; setConfirmExit(false); goMenu(); }}>메인 화면으로</button>
+                <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
+              </>
+            ) : game.lab ? (
               <>
                 <h2 id="stw-exit-title">실험을 끝낼까요?</h2>
                 <p>실험 경기는 저장하지 않습니다.</p>
@@ -1487,6 +1560,59 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
 }
 
 /** 완료한 연구 수. */
+/** AI 대 AI 관전: 아래쪽(아군 자리)은 파랑, 위쪽(적 자리)은 빨강 진영이다. 같은 종족끼리도 구분되게 색 이름을 붙인다. */
+const WATCH_SIDES = ["player", "enemy"] as const;
+function watchLabel(game: StwState, side: "player" | "enemy") {
+  return `${side === "player" ? "파랑" : "빨강"} ${raceOf(game, side).name}`;
+}
+
+/** 그 진영 AI의 전략 이름. 경기 중에 바꿨으면 "처음 → 바꾼 전략(시각)". */
+function watchStrategy(game: StwState, side: "player" | "enemy") {
+  const record = game.sides[side];
+  const name = (id: string | null | undefined) => (id ? (STW_AI_PERSONAS as unknown as Record<string, { name: string }>)[id]?.name ?? id : "무작위");
+  const switched = record.ai?.switched;
+  return switched ? `${name(switched.from)} → ${name(switched.to)} (${stwClock(switched.at)})` : name(record.persona);
+}
+
+/** 관전 패널: 조작 탭 대신 양쪽 진영의 전략·자원·인구·병력 구성을 나란히 보여 준다(누를 것이 없다). */
+function SpectatorPanel({ game }: { game: StwState }) {
+  return (
+    <section className="stw-panel stw-watch" aria-label="양쪽 진영 현황">
+      <div className="stw-panel-body stw-watch-body">
+        {WATCH_SIDES.map((side) => {
+          const record = game.sides[side];
+          const supply = stwSupply(game, side) as { used: number; cap: number };
+          const income = stwIncome(game, side) as { minerals: number; gas: number };
+          const counts = new Map<string, number>();
+          for (const unit of game.units) {
+            const def = STW_UNITS[unit.type as keyof typeof STW_UNITS] as { worker?: boolean };
+            if (unit.side !== side || unit.hp <= 0 || def.worker) continue;
+            counts.set(unit.type, (counts.get(unit.type) ?? 0) + 1);
+          }
+          const mix = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+          const total = mix.reduce((sum, [, count]) => sum + count, 0);
+          const buildings = game.buildings.filter((building) => building.side === side && building.hp > 0).length;
+          return (
+            <article key={side} className={`stw-watch-side ${side}`}>
+              <h3><i aria-hidden="true" />{watchLabel(game, side)}</h3>
+              <p className="stw-watch-plan">전략 · {watchStrategy(game, side)}</p>
+              <dl>
+                <div className="wide"><dt>광물</dt><dd>{Math.floor(record.minerals)} <em>+{income.minerals}</em></dd></div>
+                <div className="wide"><dt>가스</dt><dd>{Math.floor(record.gas)} <em>+{income.gas}</em></dd></div>
+                <div><dt>인구</dt><dd>{supply.used}/{supply.cap}</dd></div>
+                <div><dt>일꾼</dt><dd>{record.probes}</dd></div>
+                <div><dt>건물</dt><dd>{buildings}</dd></div>
+                <div><dt>연구</dt><dd>{researchDone(game, side)}</dd></div>
+              </dl>
+              <p className="stw-watch-army"><b>병력 {total}</b>{mix.length ? ` · ${mix.slice(0, 6).map(([type, count]) => `${STW_UNITS[type as keyof typeof STW_UNITS].name} ${count}`).join(" · ")}` : ""}</p>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function researchDone(game: StwState, side: "player" | "enemy") {
   return Object.values(game.sides[side].research).filter((status) => status === "done").length;
 }
@@ -1636,8 +1762,10 @@ function ResultOverlay({ game, record, onMenu, onExit }: { game: StwState; recor
   const matchup = `${raceOf(game, "player").name} vs ${raceOf(game, "enemy").name}`;
   const best = record.best[game.difficulty];
   // 실험실 경기는 연습이라 다음 판 팁을 띄우지 않는다.
-  const nextTips = useMemo(() => (game.lab ? [] : stwResultTips(game)), [game]);
-  const newBest = !game.lab && won && best !== undefined && Math.round(game.time) <= best;
+  // AI 대 AI 관전 경기는 내 승패가 아니라 이긴 진영을 알리고, 팁·기록 없이 양쪽 전략을 함께 적는다.
+  const spectating = Boolean(game.spectate);
+  const nextTips = useMemo(() => (game.lab || game.spectate ? [] : stwResultTips(game)), [game]);
+  const newBest = !game.lab && !spectating && won && best !== undefined && Math.round(game.time) <= best;
   // 세 번째 값이 true인 줄은 적을수록 낫다(굵게 표시할 쪽이 반대).
   const rows: [string, number, number, boolean?][] = [
     ["채취 광물", Math.floor(mine.minerals), Math.floor(theirs.minerals)],
@@ -1654,22 +1782,24 @@ function ResultOverlay({ game, record, onMenu, onExit }: { game: StwState; recor
   if ((mine.repaired ?? 0) + (theirs.repaired ?? 0) > 0) rows.push(["SCV 수리 체력", Math.round(mine.repaired ?? 0), Math.round(theirs.repaired ?? 0)]);
   return (
     <div className="stw-overlay stw-overlay-full stw-result" role="dialog" aria-modal="true" aria-labelledby="stw-result-title">
-      <section className={won ? "won" : draw ? "draw" : "lost"}>
-        <small>{game.lab ? "실험실 · " : ""}{won ? "VICTORY" : draw ? "DRAW" : "DEFEAT"}</small>
-        <h2 id="stw-result-title">{won ? "적 본진 함락" : draw ? "자원 고갈 무승부" : "아군 본진 함락"}</h2>
+      <section className={spectating ? (draw ? "draw" : "won") : won ? "won" : draw ? "draw" : "lost"}>
+        <small>{game.lab ? "실험실 · " : ""}{spectating ? "AI vs AI" : won ? "VICTORY" : draw ? "DRAW" : "DEFEAT"}</small>
+        <h2 id="stw-result-title">{spectating ? (draw ? "자원 고갈 무승부" : `${watchLabel(game, won ? "player" : "enemy")} 승리`) : won ? "적 본진 함락" : draw ? "자원 고갈 무승부" : "아군 본진 함락"}</h2>
         <div className="stw-result-time">
           <span>경기 시간</span>
           <b>{stwClock(game.time)}</b>
-          {newBest ? <em>최단 승리 기록</em> : won && best !== undefined && !game.lab ? <em className="quiet">최단 {stwClock(best)}</em> : null}
+          {newBest ? <em>최단 승리 기록</em> : won && best !== undefined && !game.lab && !spectating ? <em className="quiet">최단 {stwClock(best)}</em> : null}
         </div>
+        {spectating ? <p>{mapOf(game).name} · {WATCH_SIDES.map((side) => `${watchLabel(game, side)}: ${watchStrategy(game, side)}`).join(" / ")}</p> : (
         <p>
           {STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).name} · {matchup}
           {persona ? ` · 상대 전략: ${STW_AI_PERSONAS[switched ? switched.from as keyof typeof STW_AI_PERSONAS : persona].name}` : ""}
           {switched ? ` → ${stwClock(switched.at)}에 ${withKoreanDirection(STW_AI_PERSONAS[switched.to as keyof typeof STW_AI_PERSONAS].name)} 전환` : ""}
         </p>
+        )}
         <ArmyChart game={game} />
         <table className="stw-result-table">
-          <thead><tr><th scope="col">항목</th><th scope="col" className="mine">나</th><th scope="col" className="theirs">적</th></tr></thead>
+          <thead><tr><th scope="col">항목</th><th scope="col" className="mine">{spectating ? "파랑" : "나"}</th><th scope="col" className="theirs">{spectating ? "빨강" : "적"}</th></tr></thead>
           <tbody>
             {rows.map(([label, a, b, lowerIsBetter]) => {
               const better = a === b ? null : (a > b) !== Boolean(lowerIsBetter) ? "mine" : "theirs";
@@ -1683,7 +1813,7 @@ function ResultOverlay({ game, record, onMenu, onExit }: { game: StwState; recor
             <ul>{nextTips.map((text) => <li key={text}>{text}</li>)}</ul>
           </div>
         ) : null}
-        {game.lab ? <p className="stw-result-record">실험 경기는 전적에 넣지 않습니다.</p> : <p className="stw-result-record">전적 {record.wins}승 {record.losses}패</p>}
+        {spectating ? <p className="stw-result-record">AI 대 AI 경기는 전적에 넣지 않습니다.</p> : game.lab ? <p className="stw-result-record">실험 경기는 전적에 넣지 않습니다.</p> : <p className="stw-result-record">전적 {record.wins}승 {record.losses}패</p>}
         <div className={aiLost ? "stw-result-tools" : "stw-result-tools one"}>
           <button type="button" className="stw-secondary" onClick={() => setReport("bug")}>버그 리포트</button>
           {aiLost ? <button type="button" className="stw-secondary" onClick={() => setReport("ai")}>AI 개선 자료</button> : null}
