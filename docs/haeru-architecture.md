@@ -18,7 +18,8 @@
 | `mudflat-run-save.js` | 진행 중 월드 직렬화, 검증, 이전 필드 보완 |
 | `mudflat-cast-net*.js` | 그물 목표·상태와 렌더링 |
 | `mudflat-lumi-*` | 루미 애니메이션·렌더링 |
-| `mudflat-dev-tools.tsx` | 로컬 저장 내보내기·복원, 고정 시드 프리셋, 감독모드 무작위·재현 시드 진입 |
+| `mudflat-dev-tools.tsx` | 로컬 저장 내보내기·복원, 고정 시드 프리셋, 감독모드 무작위·재현 시드 진입, 맞춤 원정 빌더 화면 |
+| `mudflat-dev-build.js` | 맞춤 원정 빌드 명세의 기본값·검증·캠페인 변환·시드 결정(순수 함수) |
 | `mudflat-daily-challenge.js` | 한국 표준시 기준 일일 단계·시드와 익명 이름 규칙 |
 | `mudflat-daily-challenge-panel.tsx` | 오늘의 갯벌 진입, 통합 순위, 결과 공유 카드 |
 | `api/haeru-daily/route.ts` | 일일 기록 조회·최초 결과 등록과 입력 검증 |

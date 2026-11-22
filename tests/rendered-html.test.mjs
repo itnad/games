@@ -375,6 +375,22 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.ok(supervisorSection < tools.indexOf('className="mudflat-dev-warning"'));
   assert.ok(supervisorSection < tools.indexOf('className="mudflat-dev-grid"'));
   assert.match(tools, /testPresets = DEV_PRESETS\.filter\(\(preset\) => !preset\.supervisor\)/);
+  // 맞춤 원정 빌더: 프리셋 목록 바로 위에 있고, 순수 모듈의 검증·변환을 그대로 쓴다.
+  const builderSection = tools.indexOf('className="mudflat-dev-builder"');
+  assert.ok(builderSection > tools.indexOf('className="mudflat-dev-grid"'));
+  assert.ok(builderSection < tools.indexOf('className="mudflat-dev-presets"'));
+  assert.match(tools, /맞춤 원정 빌더/);
+  assert.match(tools, /const buildErrors = validateMudflatDevBuild\(build\);/);
+  assert.match(tools, /mudflatDevBuildCampaign\(build, createCampaign\(build\.characterId, build\.mode, build\.stage\)\)/);
+  assert.match(tools, /seed: mudflatDevBuildSeed\(build, createMudflatSeed\)/);
+  assert.match(tools, /label: `맞춤 원정 · \$\{campaign\.stage\}단계`/);
+  assert.match(tools, /tutorial: build\.stage === 1 && build\.tutorial,\s*supervisor: build\.supervisor,/);
+  assert.match(tools, /onClick=\{startBuild\} disabled=\{buildErrors\.length > 0\}/);
+  assert.match(tools, /onClick=\{saveBuildOnly\} disabled=\{buildErrors\.length > 0 \|\| build\.supervisor\}/);
+  assert.match(tools, /해금 조건 자동 충족/);
+  assert.match(model, /MOSQUITO_REPELLENT_KEY = "mosquitoRepellent"/);
+  assert.match(styles, /\.mudflat-dev-builder\{/);
+  assert.match(styles, /\.mudflat-dev-skill-row\{/);
   assert.match(styles, /\.mudflat-dev-supervisor\{/);
   assert.match(tools, /supervisor: Boolean\(preset\.supervisor\)/);
   assert.match(tools, /if \(!preset\.supervisor\) \{[\s\S]*?window\.localStorage\.removeItem\(MUDFLAT_ACTIVE_RUN_KEY\);[\s\S]*?\}/);
@@ -1346,12 +1362,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   const guardOnlyLeft = { tongs: 6, digging: 6, harpoon: 6, net: 6, rocker: 6, boots: 6, basket: 6, snack: 6, electric: 6, "cast-net": 6 };
   assert.deepEqual(mudflatUpgradeChoices(4, guardOnlyLeft, "normal", Math.random, { gemsCollected: 100 }).map((choice) => choice.id), ["guard-basket"]);
   assert.deepEqual(mudflatUpgradeChoices(4, guardOnlyLeft, "normal", Math.random, { gemsCollected: 99 }), []);
-  // 레벨 수치: 흡입 주기·반경, 재충전, Lv.3 출혈 정지, Lv.5 무적, Lv.6 비축 2회.
+  // 레벨 수치: 흡입 주기·반경, 재충전, Lv.3 출혈 정지, Lv.5 0.8초 무적, Lv.6 1초 무적. 비축은 항상 1회다.
   assert.deepEqual(mudflatGuardBasketStats(0), { pullInterval: Infinity, pullRadius: 0, rechargeSeconds: Infinity, charges: 0, bleedStop: false, invulnerableSeconds: 0 });
   assert.deepEqual(mudflatGuardBasketStats(1), { pullInterval: 10, pullRadius: 360, rechargeSeconds: 60, charges: 1, bleedStop: false, invulnerableSeconds: 0 });
   assert.deepEqual(mudflatGuardBasketStats(3), { pullInterval: 9, pullRadius: 540, rechargeSeconds: 50, charges: 1, bleedStop: true, invulnerableSeconds: 0 });
   assert.deepEqual(mudflatGuardBasketStats(5), { pullInterval: 8, pullRadius: 760, rechargeSeconds: 40, charges: 1, bleedStop: true, invulnerableSeconds: .8 });
-  assert.deepEqual(mudflatGuardBasketStats(6), { pullInterval: 7, pullRadius: 1200, rechargeSeconds: 35, charges: 2, bleedStop: true, invulnerableSeconds: .8 });
+  assert.deepEqual(mudflatGuardBasketStats(6), { pullInterval: 7, pullRadius: 1200, rechargeSeconds: 35, charges: 1, bleedStop: true, invulnerableSeconds: 1 });
+  assert.ok([1, 2, 3, 4, 5, 6].every((level) => mudflatGuardBasketStats(level).charges === 1));
   for (let level = 2; level <= 6; level += 1) {
     assert.ok(mudflatGuardBasketStats(level).pullInterval <= mudflatGuardBasketStats(level - 1).pullInterval);
     assert.ok(mudflatGuardBasketStats(level).pullRadius > mudflatGuardBasketStats(level - 1).pullRadius);
@@ -1966,6 +1983,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /runtime\.gemsCollected === MUDFLAT_GUARD_BASKET_UNLOCK_GEMS\) runtime\.discoveryMessageLife = 3/);
   assert.match(source, /startExperiencePull\(pickup, runtime\.player\)\) pulled \+= 1/);
   assert.match(source, /const tryGuardBasketBlock = \(reason: string\) => \{/);
+  assert.match(source, /runtime\.playerMessage = "소쿠리로 막아냈다!";/);
   assert.match(source, /if \(blockable && tryGuardBasketBlock\(reason\)\) return;/);
   assert.match(source, /"모기떼 피해", false\)/);
   assert.match(source, /"전기 스파크 자기 피해", false\)/);

@@ -14,7 +14,10 @@ import {
   MUDFLAT_DEV_LAUNCH_KEY,
   createCampaign,
 } from "./mudflat-survivor-model";
-import { MUDFLAT_REGULAR_STAGES, mudflatNormalizeActiveSkills, mudflatStageProfile } from "./mudflat-survivor-engine.js";
+import { MUDFLAT_FIXED_GENERAL_SKILL_IDS, MUDFLAT_REGULAR_STAGES, MUDFLAT_SELECTABLE_SKILL_LIMIT, MUDFLAT_SHOP_EQUIPMENT, mudflatNormalizeActiveSkills, mudflatStageProfile } from "./mudflat-survivor-engine.js";
+import { MUDFLAT_DEV_BUILD_MAX_STAGE, createMudflatDevBuild, mudflatDevBuildCampaign, mudflatDevBuildSeed, mudflatDevBuildSkills, mudflatDevFixedSeed, validateMudflatDevBuild } from "./mudflat-dev-build.js";
+
+type DevBuild = ReturnType<typeof createMudflatDevBuild>;
 import { createMudflatSeed } from "./mudflat-rng.js";
 
 type DevPreset = {
@@ -268,6 +271,69 @@ export function MudflatDevTools() {
   const [importText, setImportText] = useState("");
   const [supervisorSeed, setSupervisorSeed] = useState("20261203");
   const [status, setStatus] = useState("개발 프리셋을 선택하면 해루질럿으로 이동해 바로 시작합니다.");
+  // 맞춤 원정 빌더: 원하는 기술 레벨·활성 구성·단계·장비·시드를 골라 바로 실행하거나 정비 저장으로 남긴다.
+  const [build, setBuild] = useState<DevBuild>(() => createMudflatDevBuild("normal"));
+  const buildErrors = validateMudflatDevBuild(build);
+  const buildSkills = mudflatDevBuildSkills(build.mode);
+  const updateBuild = (patch: Partial<DevBuild>) => setBuild((current) => ({ ...current, ...patch }));
+  const setBuildSkillLevel = (id: string, level: number) => setBuild((current) => {
+    const skill = mudflatDevBuildSkills(current.mode).find((item) => item.id === id);
+    const next = Math.max(0, Math.min(skill?.max ?? 6, Math.floor(Number.isFinite(level) ? level : 0)));
+    const previous = current.levels[id] ?? 0;
+    const basic = current.mode === "normal" && MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(id);
+    let activeSkills = current.activeSkills;
+    if (next <= 0) activeSkills = activeSkills.filter((item) => item !== id);
+    else if (previous <= 0 && current.mode === "normal" && !basic && !activeSkills.includes(id) && activeSkills.length < MUDFLAT_SELECTABLE_SKILL_LIMIT) activeSkills = [...activeSkills, id];
+    return { ...current, levels: { ...current.levels, [id]: next }, activeSkills };
+  });
+  const toggleBuildActive = (id: string) => setBuild((current) => {
+    const isActive = current.activeSkills.includes(id);
+    if (!isActive && current.activeSkills.length >= MUDFLAT_SELECTABLE_SKILL_LIMIT) return current;
+    return { ...current, activeSkills: isActive ? current.activeSkills.filter((item) => item !== id) : [...current.activeSkills, id] };
+  });
+  const setBuildEquipment = (id: string, level: number) => setBuild((current) => {
+    const item = MUDFLAT_SHOP_EQUIPMENT.find((entry) => entry.id === id);
+    const next = Math.max(0, Math.min(item?.max ?? 6, Math.floor(Number.isFinite(level) ? level : 0)));
+    return { ...current, equipment: { ...current.equipment, [id]: next } };
+  });
+  const numberField = (value: string, fallback = 0) => { const parsed = Number.parseInt(value, 10); return Number.isFinite(parsed) ? parsed : fallback; };
+  const buildCampaign = () => mudflatDevBuildCampaign(build, createCampaign(build.characterId, build.mode, build.stage));
+  const startBuild = () => {
+    if (buildErrors.length > 0) return;
+    try {
+      const campaign = buildCampaign();
+      if (!build.supervisor) {
+        window.localStorage.setItem(LAST_MODE_KEY, campaign.mode);
+        window.localStorage.setItem(HIGHEST_STAGE_KEY, String(Math.max(1, Math.min(9, campaign.stage))));
+        window.localStorage.removeItem(MUDFLAT_ACTIVE_RUN_KEY);
+      }
+      window.sessionStorage.setItem(MUDFLAT_DEV_LAUNCH_KEY, JSON.stringify({
+        version: 1,
+        seed: mudflatDevBuildSeed(build, createMudflatSeed),
+        label: `맞춤 원정 · ${campaign.stage}단계`,
+        campaign,
+        run: true,
+        tutorial: build.stage === 1 && build.tutorial,
+        supervisor: build.supervisor,
+      }));
+      window.location.assign("/haeru");
+    } catch {
+      setStatus("맞춤 원정을 시작하지 못했습니다. 브라우저 저장소 설정을 확인해 주세요.");
+    }
+  };
+  const saveBuildOnly = () => {
+    if (buildErrors.length > 0 || build.supervisor) return;
+    try {
+      const campaign = buildCampaign();
+      window.localStorage.setItem(CAMPAIGN_KEY, JSON.stringify({ ...campaign, inProgress: false }));
+      window.localStorage.setItem(LAST_MODE_KEY, campaign.mode);
+      window.localStorage.setItem(HIGHEST_STAGE_KEY, String(Math.max(1, Math.min(9, campaign.stage))));
+      setSnapshot(readSnapshot());
+      setStatus(`맞춤 원정 ${campaign.stage}단계 상태를 정비 화면 저장값으로 넣었습니다.`);
+    } catch {
+      setStatus("저장값을 넣지 못했습니다. 브라우저 저장소 설정을 확인해 주세요.");
+    }
+  };
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setSnapshot(readSnapshot()));
@@ -459,6 +525,86 @@ export function MudflatDevTools() {
             ))}
           </div>
         </article>
+      </section>
+
+      <section className="mudflat-dev-builder" aria-label="맞춤 원정 빌더">
+        <header>
+          <small>CUSTOM EXPEDITION</small>
+          <h2>맞춤 원정 빌더</h2>
+          <p>원하는 기술 레벨·활성 구성·단계·장비·시드를 골라 바로 실행하거나 정비 화면 저장으로 남깁니다. 바로 실행은 현재 진행 중 저장을 지웁니다.</p>
+        </header>
+        <div className="mudflat-dev-builder-grid">
+          <fieldset>
+            <legend>모드 · 단계</legend>
+            <div className="mudflat-dev-choice" role="group" aria-label="모드">
+              {(["normal", "kids"] as const).map((mode) => <button type="button" key={mode} aria-pressed={build.mode === mode} onClick={() => setBuild(createMudflatDevBuild(mode))}>{mode === "normal" ? "일반 모드" : "어린이 모드"}</button>)}
+            </div>
+            <div className="mudflat-dev-choice" role="group" aria-label="단계">
+              {MUDFLAT_REGULAR_STAGES.map((stage) => <button type="button" key={stage.stage} aria-pressed={build.stage === stage.stage} onClick={() => updateBuild({ stage: stage.stage })}>{stage.stage}</button>)}
+              <button type="button" aria-pressed={build.stage >= 9} onClick={() => updateBuild({ stage: Math.max(9, build.stage) })}>9+</button>
+            </div>
+            <label className="field"><span>단계 직접 입력 (9 이상은 끝없는 물때)</span><input type="number" min={1} max={MUDFLAT_DEV_BUILD_MAX_STAGE} value={build.stage} onChange={(event) => updateBuild({ stage: numberField(event.target.value, 1) })} /></label>
+            {build.stage === 1 && <label className="check"><input type="checkbox" checked={build.tutorial} onChange={(event) => updateBuild({ tutorial: event.target.checked })} /><span>튜토리얼 포함</span></label>}
+            <label className="check"><input type="checkbox" checked={build.supervisor} disabled={build.mode !== "normal"} onChange={(event) => updateBuild({ supervisor: event.target.checked })} /><span>AI 감독모드로 관전 (일반 저장을 건드리지 않음)</span></label>
+            <fieldset className="mudflat-dev-seed">
+              <legend>시드</legend>
+              <div className="mudflat-dev-choice" role="group" aria-label="시드 방식">
+                {([["fixed", "단계별 고정"], ["random", "무작위"], ["custom", "직접 입력"]] as const).map(([seedMode, label]) => <button type="button" key={seedMode} aria-pressed={build.seedMode === seedMode} onClick={() => updateBuild({ seedMode })}>{label}</button>)}
+              </div>
+              {build.seedMode === "custom" && <label className="field"><span>시드 (1 ~ 4294967295)</span><input type="text" inputMode="numeric" value={String(build.seed)} onChange={(event) => updateBuild({ seed: numberField(event.target.value.replace(/\D/g, "").slice(0, 10), 0) })} /></label>}
+              {build.seedMode === "fixed" && <p className="mudflat-dev-hint">프리셋과 같은 고정 시드 {mudflatDevFixedSeed(build.stage)}</p>}
+            </fieldset>
+          </fieldset>
+          <fieldset className="mudflat-dev-skill-table">
+            <legend>기술{build.mode === "normal" && <em>활성 {build.activeSkills.length} / {MUDFLAT_SELECTABLE_SKILL_LIMIT}</em>}</legend>
+            {buildSkills.map((skill) => {
+              const basic = build.mode === "normal" && MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id);
+              const level = build.levels[skill.id] ?? 0;
+              const isActive = build.activeSkills.includes(skill.id);
+              return <div className={`mudflat-dev-skill-row${basic ? " is-basic" : ""}`} key={skill.id}>
+                <b>{skill.name}{basic && <small>기본</small>}</b>
+                <div className="mudflat-dev-stepper">
+                  <button type="button" aria-label={`${skill.name} 레벨 내리기`} disabled={level <= 0} onClick={() => setBuildSkillLevel(skill.id, level - 1)}>−</button>
+                  <input type="number" min={0} max={skill.max} value={level} aria-label={`${skill.name} 레벨`} onChange={(event) => setBuildSkillLevel(skill.id, numberField(event.target.value, 0))} />
+                  <button type="button" aria-label={`${skill.name} 레벨 올리기`} disabled={level >= skill.max} onClick={() => setBuildSkillLevel(skill.id, level + 1)}>＋</button>
+                </div>
+                {build.mode === "normal" && !basic ? <label className="check"><input type="checkbox" checked={isActive} disabled={!isActive && (level <= 0 || build.activeSkills.length >= MUDFLAT_SELECTABLE_SKILL_LIMIT)} onChange={() => toggleBuildActive(skill.id)} /><span>활성</span></label> : <span className="mudflat-dev-always">{build.mode === "normal" ? "항상 작동" : ""}</span>}
+              </div>;
+            })}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인 레벨이 있으면 경험치 보석 100개로 맞춤)</span></label>}
+          </fieldset>
+          <fieldset>
+            <legend>캐릭터</legend>
+            <label className="field"><span>캐릭터 레벨</span><input type="number" min={1} value={build.level} onChange={(event) => updateBuild({ level: numberField(event.target.value, 1) })} /></label>
+            <label className="field"><span>현재 경험치</span><input type="number" min={0} value={build.xp} onChange={(event) => updateBuild({ xp: numberField(event.target.value, 0) })} /></label>
+            <label className="field"><span>다음 레벨 경험치</span><input type="number" min={1} value={build.nextXp} onChange={(event) => updateBuild({ nextXp: numberField(event.target.value, 1) })} /></label>
+            <label className="field"><span>코인</span><input type="number" min={0} value={build.coins} onChange={(event) => updateBuild({ coins: numberField(event.target.value, 0) })} /></label>
+            <label className="field"><span>체력 (최대 체력 대비 %)</span><input type="number" min={1} max={100} value={build.hpPercent} onChange={(event) => updateBuild({ hpPercent: numberField(event.target.value, 100) })} /></label>
+            {build.mode === "normal" && <label className="field"><span>누적 경험치 보석 수</span><input type="number" min={0} value={build.gemsCollected} onChange={(event) => updateBuild({ gemsCollected: numberField(event.target.value, 0) })} /></label>}
+          </fieldset>
+          <fieldset>
+            <legend>장비</legend>
+            {MUDFLAT_SHOP_EQUIPMENT.map((item) => {
+              const level = build.equipment[item.id] ?? 0;
+              return <div className="mudflat-dev-skill-row" key={item.id}>
+                <b>{item.name}</b>
+                <div className="mudflat-dev-stepper">
+                  <button type="button" aria-label={`${item.name} 레벨 내리기`} disabled={level <= 0} onClick={() => setBuildEquipment(item.id, level - 1)}>−</button>
+                  <input type="number" min={0} max={item.max} value={level} aria-label={`${item.name} 레벨`} onChange={(event) => setBuildEquipment(item.id, numberField(event.target.value, 0))} />
+                  <button type="button" aria-label={`${item.name} 레벨 올리기`} disabled={level >= item.max} onClick={() => setBuildEquipment(item.id, level + 1)}>＋</button>
+                </div>
+                <span className="mudflat-dev-always" />
+              </div>;
+            })}
+            <label className="check"><input type="checkbox" checked={build.mosquitoRepellent} onChange={(event) => updateBuild({ mosquitoRepellent: event.target.checked })} /><span>해충기피제 준비</span></label>
+          </fieldset>
+        </div>
+        {buildErrors.length > 0 && <ul className="mudflat-dev-errors" role="alert">{buildErrors.map((error) => <li key={error}>{error}</li>)}</ul>}
+        <div className="mudflat-dev-actions">
+          <button type="button" onClick={startBuild} disabled={buildErrors.length > 0}>바로 실행</button>
+          <button type="button" onClick={saveBuildOnly} disabled={buildErrors.length > 0 || build.supervisor}>정비 저장만</button>
+          <button type="button" onClick={() => setBuild(createMudflatDevBuild(build.mode))}>초기화</button>
+        </div>
       </section>
 
       <section className="mudflat-dev-presets">

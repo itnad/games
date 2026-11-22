@@ -2679,7 +2679,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (guard.invulnerableSeconds > 0) runtime.guardBasketInvulnerable = guard.invulnerableSeconds;
       runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, life: .4, maxLife: .4, color: "#f3d38a", size: 32 });
       runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .8, text: "막음", color: "#f3d38a", kind: "playerDamage" });
-      runtime.playerMessage = "소쿠리가 막아냈다!"; runtime.playerMessageLife = 1.6; runtime.playerMessageOpacity = 1;
+      runtime.playerMessage = "소쿠리로 막아냈다!"; runtime.playerMessageLife = 1.6; runtime.playerMessageOpacity = 1;
       if (supervisorRef.current) appendSupervisorEvent("guard-blocked", `${reason} · 소쿠리 방어`, runtime);
       return true;
     };

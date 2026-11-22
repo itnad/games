@@ -312,9 +312,9 @@ export function mudflatGuardBasketStats(level = 0) {
     pullInterval: [10, 10, 9, 9, 8, 7][safeLevel - 1],
     pullRadius: [360, 450, 540, 640, 760, 1200][safeLevel - 1],
     rechargeSeconds: [60, 55, 50, 45, 40, 35][safeLevel - 1],
-    charges: safeLevel >= 6 ? 2 : 1,
+    charges: 1,
     bleedStop: safeLevel >= 3,
-    invulnerableSeconds: safeLevel >= 5 ? .8 : 0,
+    invulnerableSeconds: safeLevel >= 6 ? 1 : safeLevel >= 5 ? .8 : 0,
   };
 }
 
