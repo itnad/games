@@ -29,6 +29,7 @@ import {
 } from "./mudflat-supervisor.js";
 import { MUDFLAT_SUPERVISOR_LOG_KEY, appendMudflatSupervisorLog, createMudflatSupervisorLog, serializeMudflatSupervisorLog } from "./mudflat-supervisor-log.js";
 import { roundedRect, wrapCanvasText } from "./mudflat-canvas-utils";
+import { withKoreanObject } from "./korean-particles.js";
 import type { Campaign, CountMap, CreatureMovement, GameMode, Point, Screen, StageProfile } from "./mudflat-survivor-types";
 import {
   BEST_KEY,
@@ -144,6 +145,10 @@ import {
   mudflatCampObstacleAllowed,
   mudflatStopHarvestInCamp,
   mudflatReturnCampPosition,
+  mudflatActiveLevels,
+  mudflatNormalizeActiveSkills,
+  mudflatSelectableSkillIds,
+  MUDFLAT_SELECTABLE_SKILL_LIMIT,
   mudflatTrainingPrice,
   mudflatUpgradeChoices,
 } from "./mudflat-survivor-engine.js";
@@ -208,7 +213,7 @@ type Runtime = {
   seed: number; rngState: number;
   lumiMotion: ReturnType<typeof createLumiMotion>;
   elapsed: number; tutorialElapsed: number; firstMoveGuide: FirstMoveGuide | null; player: Point & { hp: number; maxHp: number; baseMaxHp: number; speed: number; damageCooldown: number; facing: number; stride: number; walking: boolean };
-  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; clamReveals: ClamReveal[]; mudPrints: MudPrint[]; levels: CountMap; equipment: CountMap; basket: CountMap;
+  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; clamReveals: ClamReveal[]; mudPrints: MudPrint[]; levels: CountMap; skillInventory: CountMap; activeSkills: string[]; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
   xpCollectLife: number;
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
@@ -217,7 +222,7 @@ type Runtime = {
   safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; mosquitoClock: number; mosquitoRunEnabled: boolean; rocksFlipped: number;
   paused: boolean; ended: boolean;
 };
-type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; xpCollecting?: boolean; tutorialActive?: boolean; mosquitoRepellent?: boolean; caught: number; catchCapacity: number; rocksFlipped: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
+type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; xpCollecting?: boolean; tutorialActive?: boolean; mosquitoRepellent?: boolean; caught: number; catchCapacity: number; rocksFlipped: number; storedSkillCount: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
 type SavedRun = { version: 1; savedAt: number; campaign: Campaign; stageEntryCampaign: Campaign; runtime: Runtime; choiceIds: string[]; nextSequence: number };
 type MudflatDevLaunch = { version: 1; campaign: Campaign; run?: boolean; tutorial?: boolean; supervisor?: boolean; label?: string; seed?: number };
 type ClamHarvestReward = { id: string; name: string; xp: number; score: number };
@@ -280,7 +285,7 @@ function applyClamHarvestReward(
   return stored;
 }
 
-const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, catchCapacity: 500, rocksFlipped: 0, score: 0, levels: {}, basket: {}, bossCaught: false };
+const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, catchCapacity: 500, rocksFlipped: 0, storedSkillCount: 0, score: 0, levels: {}, basket: {}, bossCaught: false };
 
 function MudflatBrand() {
   return <span className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></span>;
@@ -317,7 +322,10 @@ function createFirstMoveGuide(): FirstMoveGuide {
 }
 
 function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
-  const stats = mudflatEquipmentStats(campaign.equipment, campaign.baseMaxHp, campaign.mode === "normal" ? campaign.levels.snack : 0);
+  const skillInventory = { ...(campaign.mode === "normal" ? GENERAL_CHARACTER.levels : {}), ...campaign.levels };
+  const activeSkills = mudflatNormalizeActiveSkills(skillInventory, campaign.activeSkills, campaign.mode);
+  const activeLevels = mudflatActiveLevels(skillInventory, activeSkills, campaign.mode);
+  const stats = mudflatEquipmentStats(campaign.equipment, campaign.baseMaxHp, campaign.mode === "normal" ? activeLevels.snack : 0);
   const normalizedSeed = normalizeMudflatSeed(seed);
   const mosquitoRoll = nextMudflatRandom(normalizedSeed ^ 0x6d6f7371).value;
   const initialSwarmRoll = nextMudflatRandom(normalizedSeed ^ 0x73776172).value;
@@ -326,7 +334,7 @@ function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
     mode: campaign.mode, stage: campaign.stage, seed: normalizedSeed, rngState: normalizedSeed, lumiMotion: createLumiMotion(),
     xpCollectLife: 0,
     elapsed: 0, tutorialElapsed: 0, firstMoveGuide, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
-    creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: { ...(campaign.mode === "normal" ? GENERAL_CHARACTER.levels : {}), ...campaign.levels }, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
+    creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: activeLevels, skillInventory, activeSkills, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
     caught: 0, catchScore: 0, bossCaught: false, bossSpawned: false, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
     pufferEventClock: campaign.stage >= 3 ? 18 : -1, crabRushClock: campaign.stage >= 4 ? 26 : -1,
     mudZombieClock: campaign.stage >= 6 ? 52 : -1, mudZombieTriggered: false,
@@ -362,7 +370,7 @@ function readSavedCampaign(): Campaign | null {
       version: 1, mode: value.mode, characterId: String(value.characterId ?? "digger"), stage: Math.max(1, Math.floor(value.stage ?? 1)),
       coins: Math.max(0, Math.floor(value.coins ?? 0)), hp: Math.max(1, Number(value.hp ?? 1)), maxHp: Math.max(1, Number(value.maxHp ?? 1)), baseMaxHp: Math.max(1, Number(value.baseMaxHp ?? (value.mode === "normal" ? 100 : (CHARACTERS.find((item) => item.id === value.characterId)?.hp ?? 100)))),
       level: Math.max(1, Math.floor(value.level ?? 1)), xp: Math.max(0, Math.floor(value.xp ?? 0)), nextXp: Math.max(1, Math.floor(value.nextXp ?? 8)),
-      levels: { ...value.levels }, equipment: { ...value.equipment }, inventory: { ...value.inventory }, lastHaul: { ...(value.lastHaul ?? {}) }, lastSaleValue: Math.max(0, Math.floor(value.lastSaleValue ?? 0)), totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught),
+      levels: { ...value.levels }, activeSkills: mudflatNormalizeActiveSkills(value.levels, value.activeSkills, value.mode), equipment: { ...value.equipment }, inventory: { ...value.inventory }, lastHaul: { ...(value.lastHaul ?? {}) }, lastSaleValue: Math.max(0, Math.floor(value.lastSaleValue ?? 0)), totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught),
       lastObjectiveLabel: String(value.lastObjectiveLabel ?? ""), lastObjectiveComplete: Boolean(value.lastObjectiveComplete), lastObjectiveBonus: Math.max(0, Math.floor(value.lastObjectiveBonus ?? 0)), pendingSkillDiscovery: Boolean(value.pendingSkillDiscovery),
     };
     restored.maxHp = derivedMaxHp(restored.baseMaxHp, restored.equipment, restored.levels, restored.mode);
@@ -1786,7 +1794,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const [hud, setHud] = useState<Hud>(emptyHud);
   const [choices, setChoicesState] = useState<UpgradeChoice[]>([]);
   const choicesRef = useRef<UpgradeChoice[]>([]);
-  const setChoices = useCallback((next: UpgradeChoice[]) => { choicesRef.current = next; setChoicesState(next); }, []);
+  // 활성 슬롯이 가득 찬 채 고른 새 기술. 보관할 기술을 고를 때까지 적용을 미룬다.
+  const [swapIncomingId, setSwapIncomingId] = useState<string | null>(null);
+  const setChoices = useCallback((next: UpgradeChoice[]) => { choicesRef.current = next; setChoicesState(next); if (!next.length) setSwapIncomingId(null); }, []);
   const [savedRun, setSavedRun] = useState<SavedRun | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
   const exitOriginRef = useRef<Screen>("running");
@@ -2074,6 +2084,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       mode: runtime.mode,
       stage: runtime.stage, elapsed: runtime.elapsed, hp: runtime.player.hp, maxHp: runtime.player.maxHp, level: runtime.level,
       xp: runtime.xp, nextXp: runtime.nextXp, caught: runtime.caught, catchCapacity: mudflatCatchCapacity(runtime.equipment.cooler ?? 0), rocksFlipped: runtime.rocksFlipped,
+      storedSkillCount: runtime.mode === "normal" ? mudflatSelectableSkillIds(runtime.skillInventory).filter((id) => !runtime.activeSkills.includes(id)).length : 0,
       xpCollecting: runtime.xpCollectLife > 0, tutorialActive: firstMoveGuideActive(runtime), mosquitoRepellent: (runtime.equipment[MOSQUITO_REPELLENT_KEY] ?? 0) > 0,
       score: mudflatFinalScore({ catchScore: runtime.catchScore, caught: runtime.caught, elapsed: runtime.elapsed, bossCaught: runtime.bossCaught }),
       levels: { ...runtime.levels }, basket: { ...runtime.basket }, bossCaught: runtime.bossCaught,
@@ -2169,6 +2180,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const dailyCampaign: Campaign = {
       ...baseCampaign,
       levels: { ...baseCampaign.levels, tongs: 2, digging: 2, boots: 2, basket: 1 },
+      activeSkills: ["boots", "basket"],
       equipment: { ...baseCampaign.equipment, headlamp: 3, cooler: 3, vest: 1, gloves: 1, waders: 2 },
     };
     const runtime = makeRuntime(dailyCampaign, challenge.seed);
@@ -2267,7 +2279,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     const next: Campaign = {
       ...current, stage: runtime.stage + 1, hp: Math.max(1, runtime.player.hp), maxHp: runtime.player.maxHp,
       coins: current.coins + autoSale.value + objective.bonus,
-      level: runtime.level, xp: runtime.xp, nextXp: runtime.nextXp, levels: { ...runtime.levels }, inventory: {}, lastHaul: autoSale.haul as CountMap, lastSaleValue: autoSale.value,
+      level: runtime.level, xp: runtime.xp, nextXp: runtime.nextXp, levels: { ...runtime.skillInventory }, activeSkills: [...runtime.activeSkills], inventory: {}, lastHaul: autoSale.haul as CountMap, lastSaleValue: autoSale.value,
       equipment: withoutMosquitoRepellent(runtime.equipment),
       totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught,
       lastObjectiveLabel: objective.label, lastObjectiveComplete: objective.complete, lastObjectiveBonus: objective.bonus,
@@ -3580,7 +3592,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.floatTexts = runtime.floatTexts.filter((item) => item.life > 0);
       if (runtime.xp >= runtime.nextXp) {
         runtime.xp -= runtime.nextXp; runtime.level += 1; runtime.nextXp = Math.floor(runtime.nextXp * 1.24 + 4); runtime.paused = true;
-        const nextChoices = mudflatUpgradeChoices(runtime.level, runtime.levels, runtime.mode);
+        const nextChoices = mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode);
         if (nextChoices.length) { setChoices(nextChoices); setScreen("upgrade"); if ("vibrate" in navigator) navigator.vibrate([30, 30, 30]); }
         else runtime.paused = false;
       }
@@ -4072,11 +4084,19 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   };
   const pause = () => { const runtime = runtimeRef.current; if (!runtime || runtime.ended || runtime.paused) return; runtime.paused = true; resetMovementInput(); setScreen("paused"); persistActiveRun(); };
   const resume = () => { const runtime = runtimeRef.current; if (!runtime) return; resetMovementInput(); runtime.paused = false; setScreen("running"); };
-  const chooseUpgrade = (id: string) => {
-    const runtime = runtimeRef.current; if (!runtime) return;
-    const beforeUnlocks = mudflatAdvancedSkillUnlocks(runtime.levels);
-    runtime.levels[id] = (runtime.levels[id] ?? 0) + 1;
-    if (supervisorRef.current) appendSupervisorEvent("upgrade-selected", `${id} Lv.${runtime.levels[id]}`, runtime);
+  // 레벨업 적용. 기술 인벤토리(skillInventory)에 레벨을 더하고, 활성 슬롯에
+  // 자리가 있으면 바로 활성화한다. 가득 차 있으면 releaseId를 보관으로 내리고
+  // 그 자리에 넣는다. 보관된 기술은 레벨을 잃지 않는다.
+  const applyUpgrade = (runtime: Runtime, id: string, releaseId: string | null) => {
+    const beforeUnlocks = mudflatAdvancedSkillUnlocks(runtime.skillInventory);
+    runtime.skillInventory[id] = (runtime.skillInventory[id] ?? 0) + 1;
+    let released = "";
+    if (runtime.mode === "normal" && !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(id) && !runtime.activeSkills.includes(id)) {
+      if (releaseId && runtime.activeSkills.includes(releaseId)) { runtime.activeSkills = runtime.activeSkills.filter((item) => item !== releaseId); released = releaseId; }
+      if (runtime.activeSkills.length < MUDFLAT_SELECTABLE_SKILL_LIMIT) runtime.activeSkills = [...runtime.activeSkills, id];
+    }
+    runtime.levels = mudflatActiveLevels(runtime.skillInventory, runtime.activeSkills, runtime.mode);
+    if (supervisorRef.current) appendSupervisorEvent("upgrade-selected", `${id} Lv.${runtime.skillInventory[id]}${released ? ` · ${released} 보관` : ""}`, runtime);
     runtime.bleedSeconds = 0; runtime.bleedTickClock = 1;
     if (id === "stamina") { runtime.player.maxHp += 18; runtime.player.hp = Math.min(runtime.player.maxHp, runtime.player.hp + 35); }
     if (runtime.mode === "normal") {
@@ -4084,18 +4104,30 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.player.maxHp = nextMaxHp;
       if (id === "snack") runtime.player.hp = nextMaxHp;
       else runtime.player.hp = Math.min(runtime.player.hp, nextMaxHp);
-      const afterUnlocks = mudflatAdvancedSkillUnlocks(runtime.levels);
+      const afterUnlocks = mudflatAdvancedSkillUnlocks(runtime.skillInventory);
       if ((!beforeUnlocks.electric && afterUnlocks.electric) || (!beforeUnlocks.castNet && afterUnlocks.castNet)) runtime.discoveryMessageLife = 3;
     }
     resetMovementInput(); setChoices([]); runtime.paused = false; snapshot(runtime); setScreen("running"); persistActiveRun();
   };
+  const chooseUpgrade = (id: string) => {
+    const runtime = runtimeRef.current; if (!runtime) return;
+    // 활성 6개가 가득 찬 상태에서 새 기술을 고르면 무엇을 보관할지 먼저 고른다.
+    // 감독모드에서도 이 선택은 사람이 하고 AI는 멈춘 채 기다린다.
+    if (!mudflatCanLearnSkill(runtime.skillInventory, id, runtime.mode, runtime.activeSkills)) { setSwapIncomingId(id); return; }
+    applyUpgrade(runtime, id, null);
+  };
+  const chooseSwap = (releaseId: string) => {
+    const runtime = runtimeRef.current; if (!runtime || !swapIncomingId) return;
+    applyUpgrade(runtime, swapIncomingId, releaseId);
+  };
+  const cancelSwap = () => setSwapIncomingId(null);
   const rerollUpgradeChoices = () => {
     const runtime = runtimeRef.current; if (!runtime) return;
     const cost = Math.ceil(runtime.player.maxHp * .2);
     if (runtime.player.hp <= cost) return;
     runtime.player.hp -= cost;
     runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .72, text: `-${cost}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
-    setChoices(mudflatUpgradeChoices(runtime.level, runtime.levels, runtime.mode)); snapshot(runtime); persistActiveRun();
+    setChoices(mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode)); snapshot(runtime); persistActiveRun();
     if ("vibrate" in navigator) navigator.vibrate(18);
   };
   const buyEquipment = (id: string) => {
@@ -4136,26 +4168,51 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       appendSupervisorEvent("maintenance-purchase", `감독 선택 · 해충기피제 · ${MOSQUITO_REPELLENT_PRICE.toLocaleString()}코인 사용 · 잔액 ${next.coins.toLocaleString()}코인`);
     }
   };
+  // 정비 화면 기술 인벤토리 토글. 보관으로 내려도 레벨은 그대로다.
+  const toggleActiveSkill = (id: string) => {
+    const current = campaignRef.current; if (!current || current.mode !== "normal") return;
+    if (MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(id)) { setCampNotice("집게와 호미질은 기본 기술이라 항상 작동합니다."); return; }
+    const skill = MUDFLAT_GENERAL_UPGRADES.find((entry) => entry.id === id);
+    if (!skill || (current.levels[id] ?? 0) <= 0) return;
+    const isActive = current.activeSkills.includes(id);
+    if (!isActive && current.activeSkills.length >= MUDFLAT_SELECTABLE_SKILL_LIMIT) { setCampNotice(`활성 기술은 최대 ${MUDFLAT_SELECTABLE_SKILL_LIMIT}개입니다. 먼저 하나를 보관으로 내려 주세요.`); return; }
+    const activeSkills = isActive ? current.activeSkills.filter((item) => item !== id) : [...current.activeSkills, id];
+    const maxHp = derivedMaxHp(current.baseMaxHp, current.equipment, mudflatActiveLevels(current.levels, activeSkills, current.mode), current.mode);
+    const next = { ...current, activeSkills, maxHp, hp: Math.min(current.hp, maxHp) };
+    storeCampaign(next);
+    setCampNotice(isActive ? `${skill.name} 보관 · 레벨은 유지됩니다. 활성 ${activeSkills.length} / ${MUDFLAT_SELECTABLE_SKILL_LIMIT}` : `${skill.name} 활성화 · 활성 ${activeSkills.length} / ${MUDFLAT_SELECTABLE_SKILL_LIMIT}`);
+    if (supervisorRef.current) {
+      appendSupervisorEvent("maintenance-skill-toggle", `감독 선택 · ${skill.name} ${isActive ? "보관" : "활성화"} · 활성 ${activeSkills.length} / ${MUDFLAT_SELECTABLE_SKILL_LIMIT}`);
+    }
+  };
   const trainSkill = (id: string) => {
     const current = campaignRef.current; if (!current) return;
     const upgrades = current.mode === "normal" ? unlockedNormalUpgrades(current.levels) : MUDFLAT_UPGRADES;
     const skill = upgrades.find((entry) => entry.id === id); if (!skill) return;
     const level = current.levels[id] ?? 0; const price = mudflatTrainingPrice(level);
-    if (!mudflatCanLearnSkill(current.levels, id, current.mode)) { setCampNotice("선택 기술은 최대 6개까지만 보유할 수 있습니다."); return; }
     if (level >= skill.max) { setCampNotice("이미 최고 레벨에 도달한 기술입니다."); return; }
     if (current.coins < price) { setCampNotice("기술 훈련에 필요한 코인이 부족합니다."); return; }
     const beforeUnlocks = mudflatAdvancedSkillUnlocks(current.levels);
     const levels = { ...current.levels, [id]: level + 1 };
+    // 인벤토리의 모든 기술을 훈련할 수 있다. 새로 익힌 기술은 활성 슬롯에 자리가
+    // 있으면 바로 활성화하고, 가득 차 있으면 보관한 채 정비 화면 토글로 바꾼다.
+    let activeSkills = current.activeSkills;
+    let stored = false;
+    if (current.mode === "normal" && !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(id) && !activeSkills.includes(id)) {
+      if (activeSkills.length < MUDFLAT_SELECTABLE_SKILL_LIMIT) activeSkills = [...activeSkills, id];
+      else stored = true;
+    }
     let maxHp = current.maxHp; let hp = current.hp;
     if (id === "stamina") { maxHp += 18; hp = Math.min(maxHp, hp + 35); }
     if (current.mode === "normal") {
-      maxHp = derivedMaxHp(current.baseMaxHp, current.equipment, levels, current.mode);
-      hp = id === "snack" ? maxHp : Math.min(hp, maxHp);
+      maxHp = derivedMaxHp(current.baseMaxHp, current.equipment, mudflatActiveLevels(levels, activeSkills, current.mode), current.mode);
+      hp = id === "snack" && !stored ? maxHp : Math.min(hp, maxHp);
     }
     const afterUnlocks = mudflatAdvancedSkillUnlocks(levels);
     const discovered = (!beforeUnlocks.electric && afterUnlocks.electric) || (!beforeUnlocks.castNet && afterUnlocks.castNet);
-    const next = { ...current, coins: current.coins - price, levels, maxHp, hp, pendingSkillDiscovery: current.pendingSkillDiscovery || discovered };
-    storeCampaign(next); setCampNotice(discovered ? `신기술을 알게 되었습니다. ${skill.name} Lv.${level + 1} 훈련 완료` : `${skill.name} Lv.${level + 1} 훈련 완료`);
+    const next = { ...current, coins: current.coins - price, levels, activeSkills, maxHp, hp, pendingSkillDiscovery: current.pendingSkillDiscovery || discovered };
+    const storedNotice = stored ? ` · 활성 슬롯 ${MUDFLAT_SELECTABLE_SKILL_LIMIT} / ${MUDFLAT_SELECTABLE_SKILL_LIMIT} · 기술 인벤토리에 보관했습니다.` : "";
+    storeCampaign(next); setCampNotice(`${discovered ? "신기술을 알게 되었습니다. " : ""}${skill.name} Lv.${level + 1} 훈련 완료${storedNotice}`);
     if (supervisorRef.current) {
       appendSupervisorEvent("maintenance-purchase", `감독 선택 · ${skill.name} Lv.${level + 1} · ${price.toLocaleString()}코인 사용 · 잔액 ${next.coins.toLocaleString()}코인`);
     }
@@ -4430,12 +4487,17 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           </div>
           <div className="ms-sale-total"><span>전체 판매 가격</span><b>{campaign.lastSaleValue.toLocaleString()}코인</b></div>
           <div className="ms-camp-skill-levels" aria-label="채집기술 레벨">
-            <header><small>SKILL LEVEL</small><h3>채집기술</h3></header>
+            <header><div><small>SKILL LEVEL</small><h3>채집기술</h3></div>{campaign.mode === "normal" && <em className="ms-active-count" aria-label={`활성 기술 ${campaign.activeSkills.length} / ${MUDFLAT_SELECTABLE_SKILL_LIMIT}`}>활성 {campaign.activeSkills.length} / {MUDFLAT_SELECTABLE_SKILL_LIMIT}</em>}</header>
+            {campaign.mode === "normal" && <p className="ms-skill-inventory-hint">익힌 기술은 기술 인벤토리에 남습니다. 눌러서 활성·보관을 바꾸세요. 보관한 기술도 레벨을 유지합니다.</p>}
             <div>{upgrades.map((skill) => {
               const level = campaign.levels[skill.id] ?? 0;
               const label = campaign.mode === "normal" ? (GENERAL_SKILL_LABELS[skill.id] ?? skill.name) : skill.name;
               const isBasic = campaign.mode === "normal" && MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id);
-              return <span key={skill.id} className={`${level > 0 ? "is-learned" : "is-empty"}${isBasic ? " is-basic" : ""}`} aria-label={`${label} ${isBasic ? "기본 기술 " : ""}레벨 ${level}`}><i>{skill.icon}</i><b>{label}</b>{isBasic && <small className="ms-skill-kind">기본</small>}<em>Lv.{level}</em></span>;
+              if (campaign.mode === "normal" && !isBasic && level > 0) {
+                const isActive = campaign.activeSkills.includes(skill.id);
+                return <button type="button" key={skill.id} className={`is-learned is-tagged ${isActive ? "is-active" : "is-inactive"}`} aria-pressed={isActive} aria-label={`${label} 레벨 ${level} · ${isActive ? "활성, 누르면 보관" : "보관, 누르면 활성화"}`} onClick={() => toggleActiveSkill(skill.id)}><i>{skill.icon}</i><b>{label}</b><small className="ms-skill-kind">{isActive ? "활성" : "보관"}</small><em>Lv.{level}</em></button>;
+              }
+              return <span key={skill.id} className={`${level > 0 ? "is-learned" : "is-empty"}${isBasic ? " is-basic is-tagged" : ""}`} aria-label={`${label} ${isBasic ? "기본 기술 " : ""}레벨 ${level}`}><i>{skill.icon}</i><b>{label}</b>{isBasic && <small className="ms-skill-kind">기본</small>}<em>Lv.{level}</em></span>;
             })}</div>
           </div>
         </article>
@@ -4443,7 +4505,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <article className="ms-shop"><header><small>EQUIPMENT SHOP</small><h2>장비 물품</h2></header><div>{MUDFLAT_SHOP_EQUIPMENT.map((item) => { const level = campaign.equipment[item.id] ?? 0; const price = mudflatEquipmentPrice(item.id, level); const effectLevel = Math.max(1, Math.min(item.max, level >= item.max ? level : level + 1)); const effectDescription = `Lv.${effectLevel} 효과 · ${mudflatEquipmentDescription(item.id, effectLevel)}`; return <button type="button" key={item.id} disabled={level >= item.max || campaign.coins < price} onClick={() => buyEquipment(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{effectDescription}</small></span><em>{level >= item.max ? "최고 단계" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
           <article className="ms-shop"><header><small>FIELD SUPPLY</small><h2>소모품</h2></header><div><button type="button" disabled={mosquitoRepellentReady || campaign.coins < MOSQUITO_REPELLENT_PRICE} onClick={buyMosquitoRepellent}><i>✹</i><span><b>해충기피제</b><small>언제 나타날지 모를 모기떼에 대비합니다. 다음 갯벌 1회 동안 피해를 막습니다.</small></span><em>{mosquitoRepellentReady ? "준비 완료" : `${MOSQUITO_REPELLENT_PRICE}코인`}</em></button></div></article>
           <article className="ms-shop"><header><small>RECOVERY FOOD</small><h2>체력 회복 음식</h2></header><div>{MUDFLAT_RECOVERY_FOODS.map((food) => <button type="button" key={food.id} disabled={campaign.hp >= campaign.maxHp || campaign.coins < food.price} onClick={() => buyFood(food.id)}><i>{food.icon}</i><span><b>{food.name}</b><small>{food.description} 구매 즉시 먹습니다.</small></span><em>{food.price}코인</em></button>)}</div></article>
-          <article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const training = mudflatTrainingButtonState(campaign.levels, skill.id, campaign.mode, campaign.coins); return <button type="button" key={skill.id} disabled={training.disabled} data-slot-full={training.slotFull || undefined} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{training.label}</em></button>; })}</div></article>
+          <article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const training = mudflatTrainingButtonState(campaign.levels, skill.id, campaign.mode, campaign.coins, campaign.activeSkills); return <button type="button" key={skill.id} disabled={training.disabled} data-stored={training.stored || undefined} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{training.label}</em></button>; })}</div></article>
         </div>
       </section>
       <section className={`ms-departure${departureCollapsed ? " is-collapsed" : ""}`} ref={departureRef} aria-label="다음 갯벌 출정 패널">
@@ -4506,6 +4568,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const activeStageProfile = mudflatStageProfile(hud.stage) as StageProfile;
   const activeStageObjective = activeStageProfile.objective;
   const activeObjectiveProgress = mudflatEndlessObjectiveProgress(activeStageProfile, { caught: hud.caught, rocksFlipped: hud.rocksFlipped, hp: hud.hp, maxHp: hud.maxHp });
+  const swapIncoming = swapIncomingId ? MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === swapIncomingId) : undefined;
   const activeStageStats = mudflatStageStats(hud.stage);
   const pauseHazards = mudflatStageHazardNotes(activeStageProfile);
   const learnedPauseSkills = (hud.mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES).filter((skill) => (hud.levels[skill.id] ?? 0) > 0);
@@ -4567,5 +4630,5 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       </div>
     </section></div>
   ) : null;
-  return <main className={`ms-shell ms-game${hud.mode === "kids" ? " ms-kids-game" : ""}${supervisorActive ? " ms-supervisor-game" : ""}`}><header className="ms-game-head"><button onClick={openExitDialog} aria-label="나가기 선택">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {activeStageProfile.name}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label={supervisorActive ? "AI 감독모드로 자동 진행 중인 해루질럿 게임 화면" : "해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다."} /><div className="ms-hud-bars" data-xp-collecting={hud.xpCollecting || undefined}><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.floor(hud.hp)} / {Math.floor(hud.maxHp)}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div>{activeObjectiveProgress && <div className="goal" data-complete={activeObjectiveProgress.complete || undefined} role="status" aria-label={`보조 목표 ${activeObjectiveProgress.label} · ${activeObjectiveProgress.text}`}><span>목표</span><i><b style={{ width: `${Math.round(activeObjectiveProgress.ratio * 100)}%` }} /></i><em>{activeObjectiveProgress.text}</em></div>}</div>{supervisorActive && <aside className="ms-supervisor-status" role="status" aria-live="polite"><small>AI SUPERVISOR · {supervisorClears}단계 완료</small><b>{supervisorIntent}</b><span>실제 피해 판정 · 레벨업 선택만 직접 진행</span><button type="button" onClick={copySupervisorLog}>{supervisorLogCopyStatus || "플레이 로그 복사"}</button></aside>}{hud.mode === "normal" && <div className="ms-base-tools" aria-label="기본 채집 도구">{fixedNormalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)}><i>{skill.icon}</i><span>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name} <em>Lv.{hud.levels[skill.id] ?? 0}</em></span></button>)}</div>}<div className="ms-caught"><b>채집 {hud.caught}</b><span>(최대 {hud.catchCapacity})</span></div>{!supervisorActive && <div className="ms-touch-hint">아무 곳이나 누르고 드래그</div>}{hud.tutorialActive && <button type="button" className="ms-tutorial-skip" onClick={skipFirstMoveGuide}>튜토리얼 건너뛰기</button>}</section><section className={`ms-tools${hud.mode === "kids" ? " ms-kids-tools" : ""}`} aria-label="선택 기술">{hud.mode === "normal" ? <>{normalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)} aria-label={`${skill.name} 상세 보기`}><i>{skill.icon}</i><b>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name}</b><em>Lv.{hud.levels[skill.id] ?? 0}</em></button>)}{Array.from({ length: Math.max(0, 6 - normalSkills.length) }, (_, index) => <span className="ms-tool-empty" key={`empty-${index}`} aria-label="비어 있는 선택 기술 칸">+</span>)}</> : <><span><i>⌁</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "hoe")?.name}</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "net")?.name}</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>소금 결정의 정령</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>쓸어담기</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{lumiLoadingLayer}{selectedSkill && selectedSkillDetail && <aside className="ms-skill-detail" role="dialog" aria-label={`${selectedSkill.name} 상세`}><button type="button" aria-label="기술 상세 닫기" onClick={() => setSelectedSkillId(null)}>×</button><i>{selectedSkill.icon}</i><div><small>{MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(selectedSkill.id) ? "기본 채집 도구" : "선택 기술"} · Lv.{hud.levels[selectedSkill.id] ?? 0}</small><b>{selectedSkill.name}</b><p>{selectedSkillDetail.current}</p><strong>{selectedSkillDetail.next}</strong></div></aside>}{screen === "upgrade" && <div className="ms-layer"><section><small>{supervisorActive ? "SUPERVISOR PAUSED" : `LEVEL ${hud.level}`}</small><h2>새 채집 기술을 고르세요</h2><p>{supervisorActive ? "기술을 선택하면 AI가 관전을 계속합니다." : `선택 기술 ${normalSkills.length} / 6 · 집게와 호미질은 기본 기술입니다.`}</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div><button type="button" className="ms-reroll" disabled={!canReroll} onClick={rerollUpgradeChoices}>새로고침 · 최대 체력 20% ({rerollCost}) 사용</button><small className="ms-skill-slots">기본 기술 이외에 6개의 채집 기술을 익힐 수 있습니다.</small></section></div>}{pauseLayer}{seafoodGuideLayer}{saveError && !exitOpen && <p className="ms-live-save-warning" role="status">{saveError}</p>}{exitOpen && <MudflatExitDialog onMain={() => leaveGame("main")} onHome={() => leaveGame("home")} onCancel={cancelExit} error={saveError} dailyChallenge={dailyChallengeActive} />}</main>;
+  return <main className={`ms-shell ms-game${hud.mode === "kids" ? " ms-kids-game" : ""}${supervisorActive ? " ms-supervisor-game" : ""}`}><header className="ms-game-head"><button onClick={openExitDialog} aria-label="나가기 선택">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {activeStageProfile.name}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label={supervisorActive ? "AI 감독모드로 자동 진행 중인 해루질럿 게임 화면" : "해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다."} /><div className="ms-hud-bars" data-xp-collecting={hud.xpCollecting || undefined}><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.floor(hud.hp)} / {Math.floor(hud.maxHp)}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div>{activeObjectiveProgress && <div className="goal" data-complete={activeObjectiveProgress.complete || undefined} role="status" aria-label={`보조 목표 ${activeObjectiveProgress.label} · ${activeObjectiveProgress.text}`}><span>목표</span><i><b style={{ width: `${Math.round(activeObjectiveProgress.ratio * 100)}%` }} /></i><em>{activeObjectiveProgress.text}</em></div>}</div>{supervisorActive && <aside className="ms-supervisor-status" role="status" aria-live="polite"><small>AI SUPERVISOR · {supervisorClears}단계 완료</small><b>{supervisorIntent}</b><span>실제 피해 판정 · 레벨업 선택만 직접 진행</span><button type="button" onClick={copySupervisorLog}>{supervisorLogCopyStatus || "플레이 로그 복사"}</button></aside>}{hud.mode === "normal" && <div className="ms-base-tools" aria-label="기본 채집 도구">{fixedNormalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)}><i>{skill.icon}</i><span>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name} <em>Lv.{hud.levels[skill.id] ?? 0}</em></span></button>)}</div>}<div className="ms-caught"><b>채집 {hud.caught}</b><span>(최대 {hud.catchCapacity})</span></div>{!supervisorActive && <div className="ms-touch-hint">아무 곳이나 누르고 드래그</div>}{hud.tutorialActive && <button type="button" className="ms-tutorial-skip" onClick={skipFirstMoveGuide}>튜토리얼 건너뛰기</button>}</section><section className={`ms-tools${hud.mode === "kids" ? " ms-kids-tools" : ""}`} aria-label="선택 기술">{hud.mode === "normal" ? <>{normalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)} aria-label={`${skill.name} 상세 보기`}><i>{skill.icon}</i><b>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name}</b><em>Lv.{hud.levels[skill.id] ?? 0}</em></button>)}{Array.from({ length: Math.max(0, 6 - normalSkills.length) }, (_, index) => <span className="ms-tool-empty" key={`empty-${index}`} aria-label="비어 있는 선택 기술 칸">+</span>)}</> : <><span><i>⌁</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "hoe")?.name}</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "net")?.name}</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>소금 결정의 정령</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>쓸어담기</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{lumiLoadingLayer}{selectedSkill && selectedSkillDetail && <aside className="ms-skill-detail" role="dialog" aria-label={`${selectedSkill.name} 상세`}><button type="button" aria-label="기술 상세 닫기" onClick={() => setSelectedSkillId(null)}>×</button><i>{selectedSkill.icon}</i><div><small>{MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(selectedSkill.id) ? "기본 채집 도구" : "선택 기술"} · Lv.{hud.levels[selectedSkill.id] ?? 0}</small><b>{selectedSkill.name}</b><p>{selectedSkillDetail.current}</p><strong>{selectedSkillDetail.next}</strong></div></aside>}{screen === "upgrade" && !swapIncoming && <div className="ms-layer"><section><small>{supervisorActive ? "SUPERVISOR PAUSED" : `LEVEL ${hud.level}`}</small><h2>새 채집 기술을 고르세요</h2><p>{supervisorActive ? "기술을 선택하면 AI가 관전을 계속합니다." : `선택 기술 ${normalSkills.length} / 6 · 집게와 호미질은 기본 기술입니다.`}</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div><button type="button" className="ms-reroll" disabled={!canReroll} onClick={rerollUpgradeChoices}>새로고침 · 최대 체력 20% ({rerollCost}) 사용</button><small className="ms-skill-slots">기본 기술 이외에 6개의 채집 기술을 활성화할 수 있습니다. 가득 차면 하나를 보관하고 바꿉니다.{hud.storedSkillCount > 0 ? ` 보관 중 ${hud.storedSkillCount}개.` : ""}</small></section></div>}{screen === "upgrade" && swapIncoming && <div className="ms-layer"><section className="ms-skill-swap" aria-label="활성 기술 교체"><small>{supervisorActive ? "SUPERVISOR PAUSED" : "SKILL SWAP"}</small><h2>{withKoreanObject(swapIncoming.name)} 넣을 자리를 고르세요</h2><p>활성 기술 {MUDFLAT_SELECTABLE_SKILL_LIMIT} / {MUDFLAT_SELECTABLE_SKILL_LIMIT} · 내려놓은 기술은 레벨을 유지한 채 기술 인벤토리에 보관됩니다.</p><div>{normalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => chooseSwap(skill.id)} aria-label={`${skill.name} 보관하고 ${swapIncoming.name} 활성화`}><i>{skill.icon}</i><span><b>{skill.name}</b><small>Lv.{hud.levels[skill.id] ?? 0} · 보관하기</small></span><em>→ {swapIncoming.name}</em></button>)}</div><button type="button" className="ms-swap-cancel" onClick={cancelSwap}>다른 기술 고르기</button><small className="ms-skill-slots">보관한 기술은 정비 화면에서 언제든 다시 활성화할 수 있습니다.</small></section></div>}{pauseLayer}{seafoodGuideLayer}{saveError && !exitOpen && <p className="ms-live-save-warning" role="status">{saveError}</p>}{exitOpen && <MudflatExitDialog onMain={() => leaveGame("main")} onHome={() => leaveGame("home")} onCancel={cancelExit} error={saveError} dailyChallenge={dailyChallengeActive} />}</main>;
 }

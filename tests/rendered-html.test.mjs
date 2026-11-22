@@ -138,6 +138,8 @@ import {
   mudflatAutoSellInventory,
   mudflatAdvancedSkillUnlocks,
   mudflatCanLearnSkill,
+  mudflatNormalizeActiveSkills,
+  mudflatActiveLevels,
   mudflatTrainingButtonState,
   mudflatBleedDamage,
   mudflatBossPulse,
@@ -1316,43 +1318,71 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5, digging: 5 }), { masteryCount: 2, electric: true, castNet: true });
   assert.deepEqual(MUDFLAT_FIXED_GENERAL_SKILL_IDS, ["tongs", "digging"]);
   const sixChoiceLoadout = { tongs: 5, digging: 5, harpoon: 1, net: 1, rocker: 1, boots: 1, basket: 1, snack: 1 };
+  // 기술 인벤토리: 활성 목록이 없으면 익힌 선택 기술을 순서대로 여섯 개까지 활성으로 본다(예전 저장과 동일).
+  assert.deepEqual(mudflatNormalizeActiveSkills(sixChoiceLoadout, undefined, "normal"), ["basket", "harpoon", "boots", "snack", "rocker", "net"]);
+  assert.deepEqual(mudflatNormalizeActiveSkills(sixChoiceLoadout, ["net", "net", "electric", "tongs", 7, "harpoon"], "normal"), ["net", "harpoon"]);
+  assert.deepEqual(mudflatNormalizeActiveSkills({ hoe: 2, net: 1 }, ["net"], "kids"), []);
+  const sevenSkillInventory = { ...sixChoiceLoadout, electric: 3 };
+  const activeSix = ["harpoon", "net", "rocker", "boots", "basket", "snack"];
+  assert.deepEqual(mudflatNormalizeActiveSkills(sevenSkillInventory, [...activeSix, "electric"], "normal"), activeSix);
+  // 원정에서는 기본 기술 + 활성 기술만 작동하고, 보관 기술은 인벤토리에서 레벨을 유지한다.
+  assert.deepEqual(mudflatActiveLevels(sevenSkillInventory, activeSix, "normal"), sixChoiceLoadout);
+  assert.deepEqual(mudflatActiveLevels(sevenSkillInventory, ["electric"], "normal"), { tongs: 5, digging: 5, electric: 3 });
+  assert.deepEqual(mudflatActiveLevels({ hoe: 2, net: 1 }, [], "kids"), { hoe: 2, net: 1 });
+  // 활성 6개가 가득 차면 새 기술과 보관 기술은 교체 없이는 넣을 수 없다. 기본 기술과 활성 기술은 항상 가능하다.
   assert.equal(mudflatCanLearnSkill(sixChoiceLoadout, "electric", "normal"), false);
   assert.equal(mudflatCanLearnSkill(sixChoiceLoadout, "cast-net", "normal"), false);
   assert.equal(mudflatCanLearnSkill(sixChoiceLoadout, "harpoon", "normal"), true);
-  // 정비 화면 기술 훈련 버튼: 선택 기술 5개면 새 기술을 살 수 있다.
+  assert.equal(mudflatCanLearnSkill(sixChoiceLoadout, "tongs", "normal"), true);
+  assert.equal(mudflatCanLearnSkill(sevenSkillInventory, "electric", "normal", activeSix), false);
+  assert.equal(mudflatCanLearnSkill(sevenSkillInventory, "electric", "normal", activeSix.slice(1)), true);
+  assert.equal(mudflatCanLearnSkill(sevenSkillInventory, "snack", "normal", ["electric"]), true);
+  assert.equal(mudflatCanLearnSkill({ hoe: 1 }, "net", "kids"), true);
+  // 고급 기술 해금 조건은 인벤토리 기준이라 보관 중인 기술의 마스터리도 센다.
+  assert.equal(mudflatAdvancedSkillUnlocks({ tongs: 5, digging: 5, harpoon: 5 }).masteryCount, 3);
+  // 정비 화면 기술 훈련 버튼: 활성 5개면 새 기술이 바로 활성으로 들어간다.
   const fiveChoiceLoadout = { tongs: 5, digging: 5, harpoon: 1, net: 1, rocker: 1, boots: 1, basket: 1 };
   const richCoins = 1_000_000;
   assert.equal(mudflatTrainingButtonState(fiveChoiceLoadout, "snack", "normal", richCoins).disabled, false);
+  assert.equal(mudflatTrainingButtonState(fiveChoiceLoadout, "snack", "normal", richCoins).stored, false);
   assert.equal(mudflatTrainingButtonState(fiveChoiceLoadout, "electric", "normal", richCoins).disabled, false);
   assert.equal(mudflatTrainingButtonState(fiveChoiceLoadout, "snack", "normal", richCoins).label, `${mudflatTrainingPrice(0)}코인 · Lv.0 → 1`);
-  // 선택 기술 6개면 미습득 기술은 비활성화되고 슬롯 가득 참 문구를 보여 준다.
+  // 활성 6개가 가득 차도 새 기술을 살 수 있되, 보관으로 들어간다고 미리 표시한다.
   for (const id of ["electric", "cast-net"]) {
     const full = mudflatTrainingButtonState(sixChoiceLoadout, id, "normal", richCoins);
-    assert.equal(full.disabled, true);
-    assert.equal(full.slotFull, true);
-    assert.equal(full.label, "선택 슬롯 6/6");
-    assert.doesNotMatch(full.label, /코인|Lv\.0/);
+    assert.equal(full.disabled, false);
+    assert.equal(full.stored, true);
+    assert.equal(full.label, `${mudflatTrainingPrice(0)}코인 · Lv.0 → 1 · 보관`);
   }
-  // 이미 습득한 기술과 기본 기술(집게·호미질)은 6개가 가득 차도 계속 레벨업할 수 있다.
+  // 이미 익힌 기술과 기본 기술(집게·호미질)은 6개가 가득 차도 계속 레벨업할 수 있다.
   for (const id of ["harpoon", "net", "rocker", "boots", "basket", "snack", "tongs", "digging"]) {
     const owned = mudflatTrainingButtonState(sixChoiceLoadout, id, "normal", richCoins);
     assert.equal(owned.disabled, false, id);
-    assert.equal(owned.slotFull, false, id);
+    assert.equal(owned.stored, false, id);
     assert.equal(owned.label, `${mudflatTrainingPrice(sixChoiceLoadout[id])}코인 · Lv.${sixChoiceLoadout[id]} → ${sixChoiceLoadout[id] + 1}`);
   }
+  // 보관 중(비활성)인 기술도 레벨업할 수 있다.
+  const benched = mudflatTrainingButtonState(sevenSkillInventory, "electric", "normal", richCoins, activeSix);
+  assert.equal(benched.disabled, false);
+  assert.equal(benched.stored, false);
+  assert.equal(benched.label, `${mudflatTrainingPrice(3)}코인 · Lv.3 → 4`);
   // 코인 부족과 최고 레벨은 기존처럼 비활성화된다.
   const poor = mudflatTrainingButtonState(fiveChoiceLoadout, "snack", "normal", mudflatTrainingPrice(0) - 1);
   assert.equal(poor.disabled, true);
-  assert.equal(poor.slotFull, false);
+  assert.equal(poor.stored, false);
   assert.equal(poor.affordable, false);
   assert.equal(poor.label, `${mudflatTrainingPrice(0)}코인 · Lv.0 → 1`);
   const maxed = mudflatTrainingButtonState({ ...sixChoiceLoadout, harpoon: 6 }, "harpoon", "normal", richCoins);
   assert.equal(maxed.disabled, true);
   assert.equal(maxed.label, "최고 레벨");
-  // 어린이 모드는 선택 슬롯 제한이 없다.
-  assert.equal(mudflatTrainingButtonState({ hoe: 1, net: 1, salt: 1, boots: 1, basket: 1, stamina: 1 }, "harpoon", "kids", richCoins).slotFull, false);
+  // 어린이 모드는 활성 슬롯 제한이 없다.
+  assert.equal(mudflatTrainingButtonState({ hoe: 1, net: 1, salt: 1, boots: 1, basket: 1, stamina: 1 }, "harpoon", "kids", richCoins).stored, false);
+  // 레벨업 선택지는 활성이 가득 차도 미습득·보관 기술을 낸다. 고르면 교체 선택 화면으로 이어진다.
   const cappedChoices = mudflatUpgradeChoices(4, sixChoiceLoadout, "normal", () => .5);
-  assert.ok(cappedChoices.every((choice) => ["harpoon", "net", "rocker", "boots", "basket", "snack", "tongs", "digging"].includes(choice.id)));
+  assert.equal(cappedChoices.length, 3);
+  assert.ok(cappedChoices.every((choice) => MUDFLAT_GENERAL_UPGRADES.some((skill) => skill.id === choice.id)));
+  const onlyAdvancedLeft = { tongs: 6, digging: 6, harpoon: 6, net: 6, rocker: 6, boots: 6, basket: 6, snack: 6 };
+  assert.deepEqual(mudflatUpgradeChoices(4, onlyAdvancedLeft, "normal").map((choice) => choice.id), ["electric", "cast-net"]);
   assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
   assert.equal(mudflatTongStats(2).power, mudflatTongStats(1).power * 1.5);
   assert.equal(mudflatElectricStats(1).reach, mudflatTongStats(1).reach);
@@ -1615,7 +1645,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /<h3>채집기술<\/h3>/);
   assert.match(source, /GENERAL_SKILL_LABELS\[skill\.id\] \?\? skill\.name/);
   assert.match(source, /`선택 기술 \$\{normalSkills\.length\} \/ 6 · 집게와 호미질은 기본 기술입니다\.`/);
-  assert.match(source, /className="ms-skill-slots">기본 기술 이외에 6개의 채집 기술을 익힐 수 있습니다\.<\/small>/);
+  assert.match(source, /className="ms-skill-slots">기본 기술 이외에 6개의 채집 기술을 활성화할 수 있습니다\. 가득 차면 하나를 보관하고 바꿉니다\./);
+  assert.match(styles, /\.ms-camp-skill-levels button\.is-inactive\{/);
+  assert.match(styles, /\.ms-camp-skill-levels :is\(span,button\)\.is-tagged\{padding-top:27px\}/);
   assert.doesNotMatch(source, /선택하는 동안 갯벌의 시간은 멈춥니다/);
   assert.match(styles, /\.ms-camp-skill-levels\{/);
   assert.match(styles, /\.ms-camp-skill-levels span\.is-empty/);
@@ -1886,9 +1918,24 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /className="ms-departure-status" aria-label="현재 원정 상태"/);
   assert.match(source, /new ResizeObserver\(updateSpace\)/);
   assert.match(source, /--ms-departure-space/);
-  assert.match(source, /mudflatCanLearnSkill\(current\.levels, id, current\.mode\)/);
-  assert.match(source, /mudflatTrainingButtonState\(campaign\.levels, skill\.id, campaign\.mode, campaign\.coins\)/);
-  assert.match(source, /disabled=\{training\.disabled\} data-slot-full=\{training\.slotFull \|\| undefined\} onClick=\{\(\) => trainSkill\(skill\.id\)\}/);
+  // 기술 인벤토리: 원정은 skillInventory/activeSkills를 들고 다니고 levels에는 활성 기술만 남긴다.
+  assert.match(source, /levels: activeLevels, skillInventory, activeSkills,/);
+  assert.match(source, /levels: \{ \.\.\.runtime\.skillInventory \}, activeSkills: \[\.\.\.runtime\.activeSkills\]/);
+  assert.match(source, /mudflatUpgradeChoices\(runtime\.level, runtime\.skillInventory, runtime\.mode\)/);
+  assert.match(source, /activeSkills: mudflatNormalizeActiveSkills\(value\.levels, value\.activeSkills, value\.mode\)/);
+  // 활성 6개가 가득 차면 새 기술 선택은 교체 선택 화면으로 이어지고, 사람이 보관할 기술을 고른다.
+  assert.doesNotMatch(source, /mudflatCanLearnSkill\(current\.levels, id, current\.mode\)/);
+  assert.match(source, /if \(!mudflatCanLearnSkill\(runtime\.skillInventory, id, runtime\.mode, runtime\.activeSkills\)\) \{ setSwapIncomingId\(id\); return; \}/);
+  assert.match(source, /className="ms-skill-swap" aria-label="활성 기술 교체"/);
+  assert.match(source, /\{withKoreanObject\(swapIncoming\.name\)\} 넣을 자리를 고르세요/);
+  assert.match(source, /onClick=\{\(\) => chooseSwap\(skill\.id\)\}/);
+  assert.match(source, /className="ms-swap-cancel" onClick=\{cancelSwap\}/);
+  // 정비 화면: 인벤토리의 모든 기술을 훈련할 수 있고, 활성·보관은 토글로 바꾼다.
+  assert.match(source, /const toggleActiveSkill = \(id: string\) => \{/);
+  assert.match(source, /aria-pressed=\{isActive\}[^\n]*?onClick=\{\(\) => toggleActiveSkill\(skill\.id\)\}/);
+  assert.match(source, /활성 \{campaign\.activeSkills\.length\} \/ \{MUDFLAT_SELECTABLE_SKILL_LIMIT\}/);
+  assert.match(source, /mudflatTrainingButtonState\(campaign\.levels, skill\.id, campaign\.mode, campaign\.coins, campaign\.activeSkills\)/);
+  assert.match(source, /disabled=\{training\.disabled\} data-stored=\{training\.stored \|\| undefined\} onClick=\{\(\) => trainSkill\(skill\.id\)\}/);
   assert.match(source, /<em>\{training\.label\}<\/em>/);
   assert.match(source, /className="ms-departure-coins"[\s\S]*?\{campaign\.coins\.toLocaleString\(\)\}C/);
   assert.match(source, /aria-label="현재 체력"[\s\S]*?campHpPercent/);

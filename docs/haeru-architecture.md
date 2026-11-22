@@ -27,7 +27,8 @@
 
 ## 3. 상태와 저장
 
-- `Campaign`: 스테이지 사이에 유지되는 코인, 체력, 레벨, 기술, 장비, 조과입니다.
+- `Campaign`: 스테이지 사이에 유지되는 코인, 체력, 레벨, 기술, 장비, 조과입니다. `levels`는 기술 인벤토리(보관 기술 포함)이고 `activeSkills`는 원정에서 작동하는 최대 6개 선택 기술입니다. `activeSkills`가 없는 예전 저장은 `mudflatNormalizeActiveSkills`가 익힌 선택 기술 앞 6개로 복원합니다.
+- 런타임은 `skillInventory`(인벤토리 전체)와 `activeSkills`를 들고 다니고, 효과 계산이 읽는 `runtime.levels`에는 기본 기술과 활성 기술만 남깁니다. 단계 성공 시 `skillInventory`와 `activeSkills`를 캠페인에 되돌려 씁니다. 이어하기 저장은 세 값을 모두 담고, `decodeMudflatRun`은 예전 저장의 `levels`를 인벤토리로 보고 활성 목록을 보완합니다.
 - `Runtime`: 진행 중 원정의 플레이어, 월드 엔티티, 타이머, 이펙트, `seed`, `rngState`입니다.
 - `Hud`: 화면 표시용 축약 상태입니다.
 - `choiceIds`, `nextSequence`: 기술 선택 복원과 엔티티 ID 충돌 방지용입니다.

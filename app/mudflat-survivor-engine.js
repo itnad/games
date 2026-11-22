@@ -240,28 +240,95 @@ export function mudflatAdvancedSkillUnlocks(levels = {}) {
   return { masteryCount, electric: masteryCount >= 1, castNet: masteryCount >= 2 };
 }
 
-export function mudflatCanLearnSkill(levels = {}, skillId = "", mode = "normal") {
-  if (mode !== "normal" || (levels[skillId] ?? 0) > 0) return true;
+// 기술 인벤토리: 일반 모드의 `levels`는 익힌 모든 선택 기술의 레벨을 보관하고,
+// 그중 `activeSkills`에 든 최대 여섯 개만 원정에서 작동한다. 보관(비활성) 기술은
+// 레벨을 잃지 않는다. 전기 스파크·그물 투척 해금은 인벤토리 기준으로 센다.
+/** @param {Record<string, number>} levels */
+export function mudflatSelectableSkillIds(levels = {}) {
+  return MUDFLAT_GENERAL_UPGRADES.filter((item) => !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(item.id) && (levels[item.id] ?? 0) > 0).map((item) => item.id);
+}
+
+// 저장값이나 예전 세이브의 활성 목록을 정리한다. 목록이 없으면 익힌 선택 기술을
+// 기술 순서대로 여섯 개까지 활성으로 본다(예전 규칙과 동일한 결과).
+/**
+ * @param {Record<string, number>} levels
+ * @param {unknown} [activeSkills]
+ * @param {string} [mode]
+ * @returns {string[]}
+ */
+export function mudflatNormalizeActiveSkills(levels = {}, activeSkills = undefined, mode = "normal") {
+  if (mode !== "normal") return [];
+  const owned = mudflatSelectableSkillIds(levels);
+  if (!Array.isArray(activeSkills)) return owned.slice(0, MUDFLAT_SELECTABLE_SKILL_LIMIT);
+  const seen = new Set();
+  const normalized = [];
+  for (const id of activeSkills) {
+    if (typeof id !== "string" || seen.has(id) || !owned.includes(id)) continue;
+    seen.add(id); normalized.push(id);
+    if (normalized.length >= MUDFLAT_SELECTABLE_SKILL_LIMIT) break;
+  }
+  return normalized;
+}
+
+// 원정에서 실제로 작동하는 레벨 맵: 기본 기술 + 활성 선택 기술만 남긴다.
+/**
+ * @param {Record<string, number>} levels
+ * @param {unknown} [activeSkills]
+ * @param {string} [mode]
+ * @returns {Record<string, number>}
+ */
+export function mudflatActiveLevels(levels = {}, activeSkills = undefined, mode = "normal") {
+  if (mode !== "normal") return { ...levels };
+  const active = mudflatNormalizeActiveSkills(levels, activeSkills, mode);
+  /** @type {Record<string, number>} */
+  const result = {};
+  for (const [id, level] of Object.entries(levels)) {
+    if (MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(id) || active.includes(id)) result[id] = level;
+    else if (!MUDFLAT_GENERAL_UPGRADES.some((item) => item.id === id)) result[id] = level;
+  }
+  return result;
+}
+
+// 빈 활성 슬롯에 바로 넣을 수 있는지. false면 기존 활성 기술 하나를 보관으로
+// 내려야 한다(원정 중 교체 선택 화면, 정비 화면 토글).
+/**
+ * @param {Record<string, number>} levels
+ * @param {string} skillId
+ * @param {string} [mode]
+ * @param {unknown} [activeSkills]
+ */
+export function mudflatCanLearnSkill(levels = {}, skillId = "", mode = "normal", activeSkills = undefined) {
+  if (mode !== "normal" || MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skillId)) return true;
   const skill = MUDFLAT_GENERAL_UPGRADES.find((item) => item.id === skillId);
   if (!skill) return false;
-  // Mastery techniques are part of the same six-slot build.  This keeps
+  const active = mudflatNormalizeActiveSkills(levels, activeSkills, mode);
+  if (active.includes(skillId)) return true;
+  // Mastery techniques share the same six active slots.  This keeps
   // powerful late-game tools meaningful choices rather than free extras.
-  const ownedSelectableSkills = MUDFLAT_GENERAL_UPGRADES.filter((item) => !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(item.id) && (levels[item.id] ?? 0) > 0).length;
-  return ownedSelectableSkills < MUDFLAT_SELECTABLE_SKILL_LIMIT;
+  return active.length < MUDFLAT_SELECTABLE_SKILL_LIMIT;
 }
 
 // 정비 화면의 기술 훈련 버튼 상태. 클릭 뒤 거절하는 trainSkill 방어 로직과
 // 같은 mudflatCanLearnSkill 판정을 표시 단계에서도 미리 반영한다.
-export function mudflatTrainingButtonState(levels = {}, skillId = "", mode = "normal", coins = 0) {
+// 인벤토리의 모든 기술을 훈련할 수 있다. 활성 슬롯이 가득 찬 상태에서 새 기술을
+// 사면 보관(비활성)으로 들어가므로 `stored`로 미리 알린다.
+/**
+ * @param {Record<string, number>} levels
+ * @param {string} skillId
+ * @param {string} [mode]
+ * @param {number} [coins]
+ * @param {unknown} [activeSkills]
+ */
+export function mudflatTrainingButtonState(levels = {}, skillId = "", mode = "normal", coins = 0, activeSkills = undefined) {
   const upgrades = mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
   const skill = upgrades.find((item) => item.id === skillId);
   const level = levels[skillId] ?? 0;
   const price = mudflatTrainingPrice(level);
   const maxed = !skill || level >= skill.max;
-  const slotFull = !maxed && !mudflatCanLearnSkill(levels, skillId, mode);
+  const stored = !maxed && level === 0 && !mudflatCanLearnSkill(levels, skillId, mode, activeSkills);
   const affordable = (Number(coins) || 0) >= price;
-  const label = maxed ? "최고 레벨" : slotFull ? `선택 슬롯 ${MUDFLAT_SELECTABLE_SKILL_LIMIT}/${MUDFLAT_SELECTABLE_SKILL_LIMIT}` : `${price}코인 · Lv.${level} → ${level + 1}`;
-  return { level, price, maxed, slotFull, affordable, disabled: maxed || slotFull || !affordable, label };
+  const label = maxed ? "최고 레벨" : `${price}코인 · Lv.${level} → ${level + 1}${stored ? " · 보관" : ""}`;
+  return { level, price, maxed, stored, affordable, disabled: maxed || !affordable, label };
 }
 
 export function mudflatElectricStats(level = 0) {
@@ -438,13 +505,15 @@ export function mudflatClamRewardForRoll(level = 1, roll = 0) {
   return MUDFLAT_CLAM_GRADES.at(-1);
 }
 
+// `levels`는 기술 인벤토리(보관 포함)다. 활성 슬롯이 가득 차도 비활성·미습득
+// 기술이 선택지에 나오며, 고르면 교체 선택으로 이어진다.
 export function mudflatUpgradeChoices(_level, levels = {}, mode = "kids", random = Math.random) {
   const upgrades = mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
   const unlocks = mudflatAdvancedSkillUnlocks(levels);
   const available = upgrades.filter((item) => {
     const currentLevel = levels[item.id] ?? 0;
     const unlocked = !item.advanced || (item.id === "electric" ? unlocks.electric : unlocks.castNet);
-    return unlocked && currentLevel < item.max && mudflatCanLearnSkill(levels, item.id, mode);
+    return unlocked && currentLevel < item.max;
   });
   if (available.length <= 3) return available;
   const shuffled = [...available];
