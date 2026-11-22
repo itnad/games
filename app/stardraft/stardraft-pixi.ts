@@ -1,9 +1,9 @@
 // 스타드래프트 PixiJS 렌더러. 엔진 상태를 읽기만 하며, 플레이어 시야 밖의 적은 감춘다.
 import type { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
-import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_MAPS, STW_STORM, STW_UNITS, stwMapData } from "./starswar-data.js";
-import { stwArmy, stwDetected, stwDone, stwIsCloaked, stwMap, stwNexus, stwPoint, stwRace, stwRallyY, stwVisible, stwWorkerSplit } from "./starswar-engine.js";
-import { STW_TEAM, createStwTextures, stwTerrainTexture, type StwTextureSet } from "./starswar-sprites";
-import type { StwBuilding, StwEffect, StwMapData, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./starswar-types";
+import { STW_BUILDINGS, STW_ECONOMY, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_MAPS, STW_STORM, STW_UNITS, stwMapData } from "./stardraft-data.js";
+import { stwArmy, stwDetected, stwDone, stwIsCloaked, stwMap, stwNexus, stwPoint, stwRace, stwRallyY, stwVisible, stwWorkerSplit } from "./stardraft-engine.js";
+import { STW_TEAM, createStwTextures, stwTerrainTexture, type StwTextureSet } from "./stardraft-sprites";
+import type { StwBuilding, StwEffect, StwMapData, StwSide, StwState, StwUi, StwUnit, StwUnitType, StwView } from "./stardraft-types";
 
 type MapData = StwMapData;
 

@@ -73,7 +73,7 @@ const clientOnlyPixi: Plugin = {
   name: "paperoid-client-only-pixi",
   enforce: "pre",
   resolveId(id, importer) {
-    if (this.environment?.config.consumer === "server" && /^pixi\.js(?:\/|$)/.test(id) && /[\\/]app[\\/]starswar[\\/]/.test(importer ?? "")) return PIXI_SERVER_STUB;
+    if (this.environment?.config.consumer === "server" && /^pixi\.js(?:\/|$)/.test(id) && /[\\/]app[\\/]stardraft[\\/]/.test(importer ?? "")) return PIXI_SERVER_STUB;
     return null;
   },
   load(id) {

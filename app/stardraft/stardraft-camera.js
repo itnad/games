@@ -1,5 +1,5 @@
 // 스타드래프트 카메라: 확대 배율(1 = 전장 전체)과 화면 중심의 전장 좌표로 화면 배치를 계산한다.
-import { STW_LANE_LENGTH, STW_LANE_WIDTH } from "./starswar-data.js";
+import { STW_LANE_LENGTH, STW_LANE_WIDTH } from "./stardraft-data.js";
 
 export const STW_MAX_ZOOM = 4;
 /**

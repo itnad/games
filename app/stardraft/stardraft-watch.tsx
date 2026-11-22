@@ -2,9 +2,9 @@
 
 // 스타드래프트 AI vs AI 설정: 양쪽 종족·맵과 모드(전략 선택 / 정찰 대응)를 고르고, AI끼리 처음부터 겨루는 경기를 세운다.
 import { useState } from "react";
-import { STW_AI_PERSONAS, STW_MAPS, STW_MAP_IDS, STW_RACES } from "./starswar-data.js";
-import type { StwMapId, StwRaceId } from "./starswar-types";
-import { ThemeFonts, themeProps, type ThemeId } from "./starswar-theme";
+import { STW_AI_PERSONAS, STW_MAPS, STW_MAP_IDS, STW_RACES } from "./stardraft-data.js";
+import type { StwMapId, StwRaceId } from "./stardraft-types";
+import { ThemeFonts, themeProps, type ThemeId } from "./stardraft-theme";
 
 export type WatchRace = StwRaceId | "random";
 /** pick: 양쪽 전략을 고르거나 무작위로 둔다. react: 양쪽 AI가 정찰로 상대 전략을 읽고 맞대응 전략으로 갈아탄다. */

@@ -291,3 +291,13 @@ test("game connects confirmed exits, autosave, safe paused resume and end-of-run
   assert.match(dialog, /event.key === "Escape"/);
   assert.match(dialog, /event.key !== "Tab"/);
 });
+
+test("a far creature's return countdown survives a live save round trip", () => {
+  const { campaign, runtime } = fixture();
+  runtime.creatures.push({ ...runtime.creatures[0], id: 31, type: "shrimp", x: 2400, y: -900, movement: "wander", returnSeconds: 3.25 });
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime, [], 40, 1000), makeRuntime);
+  assert.ok(restored, "저장이 되살아나야 한다");
+  assert.equal(restored.runtime.creatures.find((creature) => creature.id === 31).returnSeconds, 3.25);
+  // 이 기능이 생기기 전의 저장(returnSeconds 없음)도 그대로 읽는다: 이어한 뒤 멀리 있으면 그때부터 5초를 센다.
+  assert.equal(restored.runtime.creatures.find((creature) => creature.id === 12).returnSeconds, undefined);
+});

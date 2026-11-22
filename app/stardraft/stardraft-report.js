@@ -1,9 +1,9 @@
 // 스타드래프트 결과 화면의 리포트 글. 클립보드에 복사해 개발 대화에 붙여 넣는 용도다.
 // - 버그 리포트: 경기 설정, 결과, 흐름, 내 명령, 최근 기록, 마지막 상태, 재현 코드
 // - AI 개선 자료: 진 AI의 운영(빌드 순서·일꾼·자원·병력 구성)과 이긴 쪽 비교, 큰 교전, 자동 진단, 재현 코드
-import { STW_AI_PERSONAS, STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RALLY_POINTS, STW_RESEARCH, STW_UNITS, stwMapData } from "./starswar-data.js";
-import { stwClock, stwSupply } from "./starswar-engine.js";
-import { stwReplayCode } from "./starswar-replay.js";
+import { STW_AI_PERSONAS, STW_BUILDINGS, STW_DIFFICULTIES, STW_RACES, STW_RALLY_POINTS, STW_RESEARCH, STW_UNITS, stwMapData } from "./stardraft-data.js";
+import { stwClock, stwSupply } from "./stardraft-engine.js";
+import { stwReplayCode } from "./stardraft-replay.js";
 
 const SIDE_NAME = { player: "나", enemy: "적" };
 

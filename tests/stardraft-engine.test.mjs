@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { STW_AI_PERSONAS, STW_BUILDINGS, STW_DIFFICULTIES, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_MAPS, STW_MAP_IDS, STW_SPELLS, STW_STORM, STW_UNITS, stwGroundSpan, stwMapData } from "../app/starswar/starswar-data.js";
+import { STW_AI_PERSONAS, STW_BUILDINGS, STW_DIFFICULTIES, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_MAPS, STW_MAP_IDS, STW_SPELLS, STW_STORM, STW_UNITS, stwGroundSpan, stwMapData } from "../app/stardraft/stardraft-data.js";
 import {
-  createStarswarGame,
+  createStardraftGame,
   stwCreateScenario,
   stwArmy,
   stwBattleFocus,
@@ -31,21 +31,21 @@ import {
   stwIsGuard,
   stwTapAttacks,
   stwWorkerSplit,
-  stepStarswar,
-} from "../app/starswar/starswar-engine.js";
-import { stwAiThink, stwReadPersona, stwScoutCounter } from "../app/starswar/starswar-ai.js";
-import { STW_SCOUT_COUNTERS } from "../app/starswar/starswar-counters.js";
-import { stwFingerprint, stwReplay, stwReplayCode, stwReplayMatches } from "../app/starswar/starswar-replay.js";
-import { stwAiReport, stwBugReport, stwLosingAiSides } from "../app/starswar/starswar-report.js";
-import { stwIntelTag, stwLearnAdd, stwLearnEmpty, stwLearnFeatures, stwLearnPick, stwLearnSnapshot, stwLearnTags } from "../app/starswar/starswar-learn.js";
-import { STW_MAX_ZOOM, STW_VIEW_EDGE_Y, stwFillZoom, stwScreenToMap, stwViewport } from "../app/starswar/starswar-camera.js";
-import { STW_TIPS, stwResultTips, stwTipQueue } from "../app/starswar/starswar-tips.js";
+  stepStardraft,
+} from "../app/stardraft/stardraft-engine.js";
+import { stwAiThink, stwReadPersona, stwScoutCounter } from "../app/stardraft/stardraft-ai.js";
+import { STW_SCOUT_COUNTERS } from "../app/stardraft/stardraft-counters.js";
+import { stwFingerprint, stwReplay, stwReplayCode, stwReplayMatches } from "../app/stardraft/stardraft-replay.js";
+import { stwAiReport, stwBugReport, stwLosingAiSides } from "../app/stardraft/stardraft-report.js";
+import { stwIntelTag, stwLearnAdd, stwLearnEmpty, stwLearnFeatures, stwLearnPick, stwLearnSnapshot, stwLearnTags } from "../app/stardraft/stardraft-learn.js";
+import { STW_MAX_ZOOM, STW_VIEW_EDGE_Y, stwFillZoom, stwScreenToMap, stwViewport } from "../app/stardraft/stardraft-camera.js";
+import { STW_TIPS, stwResultTips, stwTipQueue } from "../app/stardraft/stardraft-tips.js";
 
 const run = (state, seconds, ai = null) => {
   const steps = Math.round(seconds * 10);
-  for (let index = 0; index < steps && state.status === "playing"; index += 1) stepStarswar(state, ai);
+  for (let index = 0; index < steps && state.status === "playing"; index += 1) stepStardraft(state, ai);
 };
-const quiet = () => createStarswarGame({ seed: 5, aiSides: [] });
+const quiet = () => createStardraftGame({ seed: 5, aiSides: [] });
 const finishAll = (state) => {
   for (const building of state.buildings) {
     building.progress = 1;
@@ -54,7 +54,7 @@ const finishAll = (state) => {
   }
 };
 
-test("starswar mirrors both bases and mines at the documented rate", () => {
+test("stardraft mirrors both bases and mines at the documented rate", () => {
   const state = quiet();
   const mine = stwNexus(state, "player", "main");
   const theirs = stwNexus(state, "enemy", "main");
@@ -68,7 +68,7 @@ test("starswar mirrors both bases and mines at the documented rate", () => {
   assert.deepEqual(stwIncome(state, "player"), { minerals: 228, gas: 0 });
 });
 
-test("starswar tech tree gates buildings, units, and research", () => {
+test("stardraft tech tree gates buildings, units, and research", () => {
   const state = quiet();
   state.sides.player.minerals = 5000;
   state.sides.player.gas = 5000;
@@ -95,7 +95,7 @@ test("starswar tech tree gates buildings, units, and research", () => {
   assert.equal(counts.zealot, 0);
 });
 
-test("starswar production lines wait for supply and resources", () => {
+test("stardraft production lines wait for supply and resources", () => {
   const state = quiet();
   state.sides.player.minerals = 2000;
   stwCommand(state, "player", { type: "build", building: "pylon" });
@@ -115,7 +115,7 @@ test("starswar production lines wait for supply and resources", () => {
   assert.equal(gateway.blocked, "사이버네틱스 코어 필요");
 });
 
-test("starswar damage applies explosive size rules, shields, armor, and upgrades", () => {
+test("stardraft damage applies explosive size rules, shields, armor, and upgrades", () => {
   const state = quiet();
   const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 50);
   const dragoon = stwSpawnUnitAt(state, "player", "dragoon", 22, 50);
@@ -129,7 +129,7 @@ test("starswar damage applies explosive size rules, shields, armor, and upgrades
   assert.deepEqual(stwHitDamage(state, dragoon, enemyDragoon), [22]);
 });
 
-test("starswar armies rally, sail out as a wave, and destroy the enemy main", () => {
+test("stardraft armies rally, sail out as a wave, and destroy the enemy main", () => {
   const state = quiet();
   for (let index = 0; index < 8; index += 1) stwSpawnUnitAt(state, "player", index % 2 ? "dragoon" : "zealot", 10 + index * 2, 80);
   run(state, 8);
@@ -143,7 +143,7 @@ test("starswar armies rally, sail out as a wave, and destroy the enemy main", ()
   assert.ok(state.log.some((entry) => entry.text === "대기 병력 8기가 출격합니다!"));
 });
 
-test("starswar auto waves launch when enough units gather", () => {
+test("stardraft auto waves launch when enough units gather", () => {
   const state = quiet();
   stwCommand(state, "player", { type: "autoWave", size: 6 });
   for (let index = 0; index < 5; index += 1) stwSpawnUnitAt(state, "player", "zealot", 12 + index * 3, 77);
@@ -154,7 +154,7 @@ test("starswar auto waves launch when enough units gather", () => {
   assert.equal(stwArmy(state, "player").attack.length, 6);
 });
 
-test("starswar high templar storm hits clumps once researched", () => {
+test("stardraft high templar storm hits clumps once researched", () => {
   const state = quiet();
   const templar = stwSpawnUnitAt(state, "player", "templar", 20, 60);
   templar.energy = 120;
@@ -163,13 +163,13 @@ test("starswar high templar storm hits clumps once researched", () => {
   assert.equal(state.storms.length, 0, "연구 전에는 스톰이 없음");
   state.sides.player.research.storm = "done";
   for (const unit of state.units) if (unit.side === "enemy") { unit.x = 19 + (unit.id % 2) * 1.5; unit.y = 54; }
-  stepStarswar(state);
+  stepStardraft(state);
   assert.equal(state.storms.length, 1);
   assert.ok(templar.energy < 50);
   assert.equal(state.sides.player.stats.storms, 1);
 });
 
-test("starswar scouting reveals the enemy tech and returns the probe", () => {
+test("stardraft scouting reveals the enemy tech and returns the probe", () => {
   const state = quiet();
   state.sides.player.probes = 8;
   assert.equal(stwCommand(state, "player", { type: "scout" }).ok, true);
@@ -187,7 +187,7 @@ test("starswar scouting reveals the enemy tech and returns the probe", () => {
   assert.ok(state.log.some((entry) => /정찰 성공/.test(entry.text)));
 });
 
-test("starswar scout recall turns back the latest outgoing scout, or all of them", () => {
+test("stardraft scout recall turns back the latest outgoing scout, or all of them", () => {
   const state = quiet();
   state.sides.player.probes = 12;
   assert.match(stwCommand(state, "player", { type: "scoutRecall" }).reason, /되돌릴 정찰/);
@@ -208,7 +208,7 @@ test("starswar scout recall turns back the latest outgoing scout, or all of them
   assert.ok(state.replay.commands.some(([, , command]) => command.type === "scoutRecall"), "재현 코드에 남음");
 });
 
-test("starswar workers fill gas first, then the main, then the natural", () => {
+test("stardraft workers fill gas first, then the main, then the natural", () => {
   const state = quiet();
   state.sides.player.minerals = 2000;
   stwCommand(state, "player", { type: "build", building: "assimilator" });
@@ -219,14 +219,14 @@ test("starswar workers fill gas first, then the main, then the natural", () => {
   assert.ok(stwDone(stwNexus(state, "player", "natural")));
 });
 
-test("starswar AI personas play deterministic, rule-abiding games", () => {
+test("stardraft AI personas play deterministic, rule-abiding games", () => {
   const summary = (state) => JSON.stringify({
     time: state.time,
     units: state.units.map((unit) => [unit.type, Math.round(unit.x * 10), Math.round(unit.y * 10)]),
     buildings: state.buildings.map((building) => [building.side, building.type]),
   });
-  const a = createStarswarGame({ seed: 11, aiSides: ["player", "enemy"], personas: { player: "dragoon", enemy: "templar" } });
-  const b = createStarswarGame({ seed: 11, aiSides: ["player", "enemy"], personas: { player: "dragoon", enemy: "templar" } });
+  const a = createStardraftGame({ seed: 11, aiSides: ["player", "enemy"], personas: { player: "dragoon", enemy: "templar" } });
+  const b = createStardraftGame({ seed: 11, aiSides: ["player", "enemy"], personas: { player: "dragoon", enemy: "templar" } });
   run(a, 420, stwAiThink);
   run(b, 420, stwAiThink);
   assert.equal(summary(a), summary(b));
@@ -236,13 +236,13 @@ test("starswar AI personas play deterministic, rule-abiding games", () => {
     assert.ok(a.sides[side].minerals >= 0 && a.sides[side].gas >= 0);
   }
   assert.ok(a.units.every((unit) => Number.isFinite(unit.x) && Number.isFinite(unit.y) && Number.isFinite(unit.hp)));
-  const rush = createStarswarGame({ seed: 3, aiSides: ["enemy"], personas: { enemy: "rush" } });
+  const rush = createStardraftGame({ seed: 3, aiSides: ["enemy"], personas: { enemy: "rush" } });
   run(rush, 330, stwAiThink);
   assert.equal(rush.status, "over", "아무것도 안 하면 질럿 러시에 무너짐");
   assert.equal(rush.winner, "enemy");
 });
 
-test("starswar camera fits the lane, clamps, and caps zoom", () => {
+test("stardraft camera fits the lane, clamps, and caps zoom", () => {
   const full = stwViewport(390, 450, { zoom: 1, cx: 0, cy: 0 });
   assert.ok(Math.abs(full.scale - 4.5) < 1e-9);
   assert.equal(full.cx, 20);
@@ -257,7 +257,7 @@ test("starswar camera fits the lane, clamps, and caps zoom", () => {
   assert.ok(Math.abs(center.x - 20) < 1e-9 && Math.abs(center.y - 50) < 1e-9);
 });
 
-test("starswar cancels buildings, probes, research, and units with the right refunds", () => {
+test("stardraft cancels buildings, probes, research, and units with the right refunds", () => {
   const state = quiet();
   const record = state.sides.player;
   record.minerals = 1000;
@@ -304,7 +304,7 @@ test("starswar cancels buildings, probes, research, and units with the right ref
   assert.match(stwCommand(state, "player", { type: "cancelUnit", gatewayId: gateway.id }).reason, /생산 중인 유닛이 없습니다/);
 });
 
-test("starswar AI rally units automatically defend buildings from flanking attackers (people defend by tapping)", () => {
+test("stardraft AI rally units automatically defend buildings from flanking attackers (people defend by tapping)", () => {
   // 자동 수비는 AI만 한다. 같은 상황을 AI가 맡은 진영으로 본다(사람 진영은 아래 지도 탭 시험에서 끌려가지 않음을 본다).
   const state = quiet();
   state.aiSides = ["player"];
@@ -331,7 +331,7 @@ test("starswar AI rally units automatically defend buildings from flanking attac
   assert.ok(defenders.every((unit) => Math.abs(unit.y - rallyY) < 6), "정찰 프로브 하나에 전군이 끌려가지 않음");
 });
 
-test("starswar recall pulls attacking units out of a fight to any position", () => {
+test("stardraft recall pulls attacking units out of a fight to any position", () => {
   const state = quiet();
   const attackers = [0, 1, 2, 3, 4, 5].map((index) => stwSpawnUnitAt(state, "player", "dragoon", 12 + index * 3, 30, "attack"));
   for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(state, "enemy", "zealot", 14 + index * 3, 24);
@@ -351,7 +351,7 @@ test("starswar recall pulls attacking units out of a fight to any position", () 
   assert.ok(state.log.some((entry) => /^전군 6기가 앞마당으로 물러나 수비합니다\.$/.test(entry.text)));
 });
 
-test("starswar gates the new units behind their tech and producers", () => {
+test("stardraft gates the new units behind their tech and producers", () => {
   const state = quiet();
   state.sides.player.minerals = 9000;
   state.sides.player.gas = 9000;
@@ -384,7 +384,7 @@ test("starswar gates the new units behind their tech and producers", () => {
   assert.equal(gateway.line, "dark", "다른 종류의 생산 건물은 그대로");
 });
 
-test("starswar merges two high templar into an archon with the same supply", () => {
+test("stardraft merges two high templar into an archon with the same supply", () => {
   const state = quiet();
   const a = stwSpawnUnitAt(state, "player", "templar", 18, 77);
   const b = stwSpawnUnitAt(state, "player", "templar", 22, 77);
@@ -403,7 +403,7 @@ test("starswar merges two high templar into an archon with the same supply", () 
   assert.match(stwCommand(state, "player", { type: "merge" }).reason, /하이템플러 2기가 필요합니다/);
 });
 
-test("starswar dark templar stay untargetable until a detector arrives", () => {
+test("stardraft dark templar stay untargetable until a detector arrives", () => {
   const state = quiet();
   state.sides.player.minerals = 2000;
   stwCommand(state, "player", { type: "build", building: "pylon" });
@@ -425,11 +425,11 @@ test("starswar dark templar stay untargetable until a detector arrives", () => {
   assert.ok(gone || !stwDetected(state, dark, "player"), "죽거나 탐지 밖으로 비킨다");
 });
 
-test("starswar reavers and archons deal splash damage to clumped enemies", () => {
+test("stardraft reavers and archons deal splash damage to clumped enemies", () => {
   const state = quiet();
   const reaver = stwSpawnUnitAt(state, "player", "reaver", 20, 60, "attack");
   const clump = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "enemy", "zealot", 19 + (index % 2) * 1.5, 52 + Math.floor(index / 2) * 1.5));
-  for (let index = 0; index < 30 && clump.every((unit) => unit.hp + unit.shields >= 160); index += 1) stepStarswar(state);
+  for (let index = 0; index < 30 && clump.every((unit) => unit.hp + unit.shields >= 160); index += 1) stepStardraft(state);
   const hurt = clump.filter((unit) => unit.hp + unit.shields < 160).length;
   assert.ok(hurt >= 3, `스캐럽 한 발에 여러 기가 피해 (${hurt}기)`);
   assert.ok(reaver.targetId !== null);
@@ -437,7 +437,7 @@ test("starswar reavers and archons deal splash damage to clumped enemies", () =>
   assert.deepEqual(stwHitDamage(state, reaver, clump[0]), [125]);
 });
 
-test("starswar observers escort the attacking army", () => {
+test("stardraft observers escort the attacking army", () => {
   const state = quiet();
   const observer = stwSpawnUnitAt(state, "player", "observer", 20, 80);
   for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(state, "player", "zealot", 14 + index * 4, 77);
@@ -449,17 +449,17 @@ test("starswar observers escort the attacking army", () => {
   assert.equal(observer.targetId, null);
 });
 
-test("starswar dark and robo AI personas field their signature units", () => {
-  const dark = createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], personas: { player: "dark", enemy: "dragoon" } });
+test("stardraft dark and robo AI personas field their signature units", () => {
+  const dark = createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], personas: { player: "dark", enemy: "dragoon" } });
   const seen = new Set();
   for (let step = 0; step < 6000 && dark.status === "playing"; step += 1) {
-    stepStarswar(dark, stwAiThink);
+    stepStardraft(dark, stwAiThink);
     for (const unit of dark.units) if (unit.side === "player") seen.add(unit.type);
   }
   assert.ok(seen.has("dark"), "다크템플러 기습은 다크템플러를 소환");
 
   // 로보 운영: 옵저버 1기를 갖춘 뒤 지원 베이가 있으면 리버를 고른다(연구용 가스보다 먼저).
-  const robo = createStarswarGame({ seed: 1, aiSides: ["player"], personas: { player: "robo" } });
+  const robo = createStardraftGame({ seed: 1, aiSides: ["player"], personas: { player: "robo" } });
   robo.sides.player.minerals = 5000;
   robo.sides.player.gas = 5000;
   for (const building of ["pylon", "gateway", "core", "robo", "bay"]) {
@@ -473,9 +473,9 @@ test("starswar dark and robo AI personas field their signature units", () => {
   assert.equal(stwOwnBuildings(robo, "player", "robo")[0].line, "reaver", "로보 운영은 리버를 소환");
 });
 
-const terran = (enemy = "protoss") => createStarswarGame({ seed: 5, aiSides: [], races: { player: "terran", enemy } });
+const terran = (enemy = "protoss") => createStardraftGame({ seed: 5, aiSides: [], races: { player: "terran", enemy } });
 
-test("starswar terran starts with a command center and gates its tech tree", () => {
+test("stardraft terran starts with a command center and gates its tech tree", () => {
   const state = terran();
   assert.equal(state.sides.player.race, "terran");
   assert.equal(stwNexus(state, "player", "main").type, "cc");
@@ -514,7 +514,7 @@ test("starswar terran starts with a command center and gates its tech tree", () 
   assert.equal(stwNexus(state, "player", "natural").type, "cc");
 });
 
-test("starswar medics heal bio and stim speeds up researched infantry", () => {
+test("stardraft medics heal bio and stim speeds up researched infantry", () => {
   const state = terran();
   const marine = stwSpawnUnitAt(state, "player", "marine", 20, 80);
   const medic = stwSpawnUnitAt(state, "player", "medic", 21, 81);
@@ -534,7 +534,7 @@ test("starswar medics heal bio and stim speeds up researched infantry", () => {
   assert.ok(state.effects.some((effect) => effect.kind === "stim") || marine.hp < marine.maxHp);
 });
 
-test("starswar SCVs repair terran mech units that stay near a command center, spending resources", () => {
+test("stardraft SCVs repair terran mech units that stay near a command center, spending resources", () => {
   const state = terran();
   stwCommand(state, "player", { type: "move", y: 88 });
   const tank = stwSpawnUnitAt(state, "player", "tank", 20, 88);
@@ -574,7 +574,7 @@ test("starswar SCVs repair terran mech units that stay near a command center, sp
   assert.equal(tank.repairing, false);
 });
 
-test("starswar siege tanks auto-siege after research and shell clumps", () => {
+test("stardraft siege tanks auto-siege after research and shell clumps", () => {
   const state = terran();
   const tank = stwSpawnUnitAt(state, "player", "tank", 20, 60, "attack");
   const clump = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "enemy", "zealot", 19 + index * 1.2, 46, "attack"));
@@ -591,7 +591,7 @@ test("starswar siege tanks auto-siege after research and shell clumps", () => {
   assert.equal(tank.sieged, false, "후퇴 명령에 시즈 해제");
 });
 
-test("starswar comsat scans and turrets detect dark templar", () => {
+test("stardraft comsat scans and turrets detect dark templar", () => {
   const state = terran();
   state.sides.player.minerals = 9000;
   state.sides.player.gas = 9000;
@@ -625,7 +625,7 @@ test("starswar comsat scans and turrets detect dark templar", () => {
   assert.equal(stwDetected(second, sneaky, "player"), true);
 });
 
-test("starswar bunkers fire and terran buildings repair themselves", () => {
+test("stardraft bunkers fire and terran buildings repair themselves", () => {
   const state = terran();
   state.sides.player.minerals = 9000;
   for (const building of ["depot", "barracks", "bunker"]) {
@@ -643,7 +643,7 @@ test("starswar bunkers fire and terran buildings repair themselves", () => {
   assert.ok(depot.hp > 300, `테란 건물 자동 수리 ${depot.hp}`);
 });
 
-test("starswar attackers retaliate against defenses unless told to raze buildings first", () => {
+test("stardraft attackers retaliate against defenses unless told to raze buildings first", () => {
   const setup = (focus) => {
     const state = terran();
     state.sides.player.minerals = 9000;
@@ -674,7 +674,7 @@ test("starswar attackers retaliate against defenses unless told to raze building
   assert.equal(stwCommand(raze.state, "enemy", { type: "focus", mode: "units" }).ok, false);
 });
 
-test("starswar melee crowds spread to other buildings instead of queueing behind a full one", () => {
+test("stardraft melee crowds spread to other buildings instead of queueing behind a full one", () => {
   const state = quiet();
   state.sides.player.minerals = 9000;
   for (const building of ["pylon", "forge", "gateway", "gateway", "cannon"]) {
@@ -705,7 +705,7 @@ test("starswar melee crowds spread to other buildings instead of queueing behind
   }
 });
 
-test("starswar places defenses at the front of the main, center first", () => {
+test("stardraft places defenses at the front of the main, center first", () => {
   const state = quiet();
   state.sides.player.minerals = 9000;
   for (const building of ["pylon", "forge", "cannon", "cannon"]) {
@@ -732,13 +732,13 @@ const runZealotRush = (state, seconds) => {
       for (const gateway of stwOwnBuildings(state, "player", "gateway")) if (gateway.line !== "zealot") stwCommand(state, "player", { type: "line", buildingId: gateway.id, unit: "zealot" });
       if (record.autoWave !== 8) stwCommand(state, "player", { type: "autoWave", size: 8 });
     }
-    stepStarswar(state, stwAiThink);
+    stepStardraft(state, stwAiThink);
   }
 };
 
-test("starswar AI holds a four-gate zealot rush behind its defenses", () => {
+test("stardraft AI holds a four-gate zealot rush behind its defenses", () => {
   // 예전에는 바이오닉 AI가 6분 30초 안에 무너졌다.
-  const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "bio" } });
+  const state = createStardraftGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "bio" } });
   runZealotRush(state, 420);
   assert.equal(state.status, "playing", "6분 30초까지 버틴다");
   assert.ok(state.sides.enemy.stats.kills >= 16, `질럿을 잡는다 ${state.sides.enemy.stats.kills}`);
@@ -746,9 +746,9 @@ test("starswar AI holds a four-gate zealot rush behind its defenses", () => {
   assert.ok(bunkers.length, "벙커가 있다");
 });
 
-test("starswar zergling AI switches to hydras when a zealot rush keeps it pinned", () => {
+test("stardraft zergling AI switches to hydras when a zealot rush keeps it pinned", () => {
   // 저글링은 질럿에게 손해를 본다. 예전에는 저글링만 고집하다 10~12분에 무너졌다.
-  const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { enemy: "ling" } });
+  const state = createStardraftGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { enemy: "ling" } });
   runZealotRush(state, 600);
   assert.notEqual(state.winner, "player", "10분 안에 무너지지 않는다(먼저 이길 수도 있다)");
   assert.equal(state.sides.enemy.persona, "hydra", "히드라로 갈아탄다");
@@ -759,7 +759,7 @@ test("starswar zergling AI switches to hydras when a zealot rush keeps it pinned
   else assert.equal(state.winner, "enemy", "히드라가 나오기 전에 끝났다면 저그가 이긴 것이다");
 });
 
-test("starswar units fighting in range hold their ground instead of being shoved back", () => {
+test("stardraft units fighting in range hold their ground instead of being shoved back", () => {
   // 16 대 8 질럿: 예전에는 수가 많은 쪽이 뒤에서 밀어붙여 적 앞줄이 싸우는 동안 24칸 넘게 뒤로 밀렸다.
   const state = quiet();
   for (const building of state.buildings) building.hp = building.maxHp = 1e6;
@@ -773,7 +773,7 @@ test("starswar units fighting in range hold their ground instead of being shoved
       const target = state.units.find((item) => item.id === unit.targetId);
       if (target && Math.hypot(unit.x - target.x, unit.y - target.y) - target.radius - unit.radius * 0.5 <= STW_UNITS[unit.type].range) before.set(unit.id, unit.y);
     }
-    stepStarswar(state);
+    stepStardraft(state);
     for (const unit of state.units) {
       if (!before.has(unit.id)) continue;
       fighting += 1;
@@ -785,7 +785,7 @@ test("starswar units fighting in range hold their ground instead of being shoved
   assert.ok(pushedBack < 0.5, `싸우는 동안 뒤로 밀린 거리 ${pushedBack.toFixed(2)}`);
 });
 
-test("starswar retreat orders pause auto waves until the next forward order", () => {
+test("stardraft retreat orders pause auto waves until the next forward order", () => {
   const state = quiet();
   stwCommand(state, "player", { type: "autoWave", size: 1 });
   for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(state, "player", "zealot", 10 + index * 3, 80, "rally");
@@ -814,7 +814,7 @@ test("starswar retreat orders pause auto waves until the next forward order", ()
   assert.equal(stwArmy(state, "player").attack.length, 6);
 });
 
-test("starswar resource scouts sweep the enemy mineral line along the lane edges and report", () => {
+test("stardraft resource scouts sweep the enemy mineral line along the lane edges and report", () => {
   const state = quiet();
   state.sides.player.probes = 8;
   const probes = state.sides.player.probes;
@@ -825,7 +825,7 @@ test("starswar resource scouts sweep the enemy mineral line along the lane edges
   let closest = Infinity;
   let widest = 0;
   for (let step = 0; step < 900 && state.units.includes(scout); step += 1) {
-    stepStarswar(state);
+    stepStardraft(state);
     closest = Math.min(closest, Math.hypot(scout.x - mineralLine.x, scout.y - mineralLine.y));
     if (scout.y > 20 && scout.y < 80) widest = Math.max(widest, Math.abs(scout.x - 20));
   }
@@ -837,7 +837,7 @@ test("starswar resource scouts sweep the enemy mineral line along the lane edges
   assert.ok(state.log.some((entry) => /^자원 정찰 보고: 적 프로브 \d+기 · 가스 \d+곳 · 앞마당 확장 안 함$/.test(entry.text)), "보고");
 });
 
-test("starswar cloaked units step out of detection when hit and wait outside it", () => {
+test("stardraft cloaked units step out of detection when hit and wait outside it", () => {
   // 캐논(탐지)이 지키는 적 기지 앞의 질럿 여섯에게 다크템플러 넷이 들어간다.
   const state = quiet();
   state.sides.enemy.minerals = 9999;
@@ -854,7 +854,7 @@ test("starswar cloaked units step out of detection when hit and wait outside it"
   const hitAt = new Map();
   const escapedAt = new Map();
   for (let step = 0; step < 200; step += 1) {
-    stepStarswar(state);
+    stepStardraft(state);
     for (const dark of darks) {
       if (dark.hp <= 0) continue;
       if (!hitAt.has(dark.id) && dark.hitAt !== undefined) hitAt.set(dark.id, state.time);
@@ -871,7 +871,7 @@ test("starswar cloaked units step out of detection when hit and wait outside it"
   assert.ok(darks.filter((dark) => dark.hp > 0).length >= 3, "대부분 살아남는다");
 });
 
-test("starswar casters wait behind the army until a spell is ready, then move to the front", () => {
+test("stardraft casters wait behind the army until a spell is ready, then move to the front", () => {
   const state = quiet();
   state.sides.player.research.storm = "done";
   for (const building of state.buildings) building.hp = building.maxHp = 1e6;
@@ -894,13 +894,13 @@ test("starswar casters wait behind the army until a spell is ready, then move to
   assert.ok(gap(ready) <= 4.5, `마법을 쓸 수 있으면 적 바로 앞까지 ${gap(ready).toFixed(1)}`);
 });
 
-test("starswar Protoss AI opens gateway, forge and natural against Zerg even under pressure", () => {
+test("stardraft Protoss AI opens gateway, forge and natural against Zerg even under pressure", () => {
   // 예전에는 경계 중 빌드 순서가 앞마당까지 닿지 못해 본진 하나에 일꾼 22기로 묶였다.
   for (const zerg of ["ling", "pool"]) {
-    const state = createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "robo", enemy: zerg } });
+    const state = createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "robo", enemy: zerg } });
     let natural = null;
     while (state.status === "playing" && state.time < 420) {
-      stepStarswar(state, stwAiThink);
+      stepStardraft(state, stwAiThink);
       if (natural === null && stwNexus(state, "player", "natural")) natural = state.time;
     }
     // 갓 나온 유닛이 이동 공격을 하게 된 뒤 이 판(시드 1, 저글링 물량)은 5분 질럿 공격이 조금 다르게 흘러 앞마당이 6분 51초다(시드 2·3은 5분 24초).
@@ -909,13 +909,13 @@ test("starswar Protoss AI opens gateway, forge and natural against Zerg even und
     assert.ok(stwOwnBuildings(state, "player", "gateway").length, "게이트웨이");
   }
   // 테란 상대로는 쓰지 않는다(빌드 순서 그대로).
-  const terran = createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "robo", enemy: "bio" } });
+  const terran = createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "robo", enemy: "bio" } });
   run(terran, 150, stwAiThink);
   assert.equal(stwOwnBuildings(terran, "player", "forge").length, 0, "테란전은 포지를 먼저 짓지 않는다");
 });
 
-test("starswar saves a running game and resumes it exactly where it stopped", () => {
-  const original = createStarswarGame({ seed: 9, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "dragoon", enemy: "hydra" } });
+test("stardraft saves a running game and resumes it exactly where it stopped", () => {
+  const original = createStardraftGame({ seed: 9, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "dragoon", enemy: "hydra" } });
   run(original, 120, stwAiThink);
   const saved = stwSerialize(original);
   const resumed = stwRestore(saved);
@@ -932,8 +932,8 @@ test("starswar saves a running game and resumes it exactly where it stopped", ()
   assert.equal(stwRestore(JSON.stringify({ ...JSON.parse(saved), saveVersion: 0 })), null);
 });
 
-test("starswar records army value, supply peaks and lost value for the result screen", () => {
-  const state = createStarswarGame({ seed: 4, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
+test("stardraft records army value, supply peaks and lost value for the result screen", () => {
+  const state = createStardraftGame({ seed: 4, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
   run(state, 300, stwAiThink);
   assert.equal(state.history.length, 30, "10초마다 한 점");
   assert.deepEqual(Object.keys(state.history[0]).sort(), ["enemy", "player", "t"]);
@@ -948,7 +948,7 @@ test("starswar records army value, supply peaks and lost value for the result sc
   }
 });
 
-test("starswar lab scenarios set the clock, armies, tech and research for an instant engagement", () => {
+test("stardraft lab scenarios set the clock, armies, tech and research for an instant engagement", () => {
   const state = stwCreateScenario({
     seed: 3,
     time: 900,
@@ -992,7 +992,7 @@ test("starswar lab scenarios set the clock, armies, tech and research for an ins
   assert.ok(!home.units.some((unit) => unit.side === "player" && unit.type !== "marine"));
 });
 
-test("starswar lab scenarios take each side's controller, strategy and building counts", () => {
+test("stardraft lab scenarios take each side's controller, strategy and building counts", () => {
   const state = stwCreateScenario({
     time: 600,
     placement: "home",
@@ -1024,13 +1024,13 @@ test("starswar lab scenarios take each side's controller, strategy and building 
   assert.ok(crowded.log.some((entry) => /^실험실: 아군 게이트웨이 \d+개는 자리가 모자라 짓지 못했습니다\.$/.test(entry.text)), "자리 부족 알림");
 });
 
-test("starswar lab casters start with full energy so their spells fire right away", () => {
+test("stardraft lab casters start with full energy so their spells fire right away", () => {
   const cast = (config) => {
     const state = stwCreateScenario({ seed: 2, time: 600, ...config });
     const spells = {};
     const seen = new Set();
     for (let step = 0; step < 100 && state.status === "playing"; step += 1) {
-      stepStarswar(state);
+      stepStardraft(state);
       for (const effect of state.effects) {
         if (effect.kind !== "spell" || effect.side !== "player" || seen.has(effect)) continue;
         seen.add(effect);
@@ -1058,7 +1058,7 @@ test("starswar lab casters start with full energy so their spells fire right awa
   assert.deepEqual([STW_UNITS.queen.energy, STW_UNITS.queen.energyRegen, STW_UNITS.templar.energy, STW_UNITS.templar.energyRegen, STW_UNITS.defiler.energyRegen], [75, 1.2, 75, 1.2, 1.65]);
 });
 
-test("starswar storms spare allies, allies still step out of them, and templar aim past our own front line", () => {
+test("stardraft storms spare allies, allies still step out of them, and templar aim past our own front line", () => {
   // 1) 스톰은 적만 맞힌다. 아군은 맞지 않지만, 보이는 모습은 원작처럼 우리 편 스톰을 빠져나오고 다시 들어가지 않는다.
   const state = quiet();
   for (const building of state.buildings) building.hp = building.maxHp = 1e6;
@@ -1095,7 +1095,7 @@ test("starswar storms spare allies, allies still step out of them, and templar a
   // 뒷줄은 처음에 시전 사거리(9) 밖이라, 마법을 쓸 수 있는 템플러가 앞으로 나와 쓴다.
   let cast = [];
   for (let step = 0; step < 40 && !cast.length; step += 1) {
-    stepStarswar(battle);
+    stepStardraft(battle);
     cast = [...battle.storms];
   }
   assert.ok(cast.length >= 1, "스톰을 쓴다");
@@ -1107,14 +1107,14 @@ test("starswar storms spare allies, allies still step out of them, and templar a
   }
 });
 
-test("starswar area spells and irradiate aim past our own front line like storms", () => {
+test("stardraft area spells and irradiate aim past our own front line like storms", () => {
   // 인스네어(범위 마법 공통 규칙)와 이레디에이트도 아군이 걸리는 적 최전선 대신 아군이 없는 적을 노린다.
   const cases = [
     { races: { player: "zerg", enemy: "terran" }, caster: "queen", research: "ensnare", melee: "zergling", foe: "marine", spell: "ensnare", radius: STW_SPELLS.ensnare.radius },
     { races: { player: "terran", enemy: "zerg" }, caster: "vessel", research: "irradiate", melee: "firebat", foe: "hydra", spell: "irradiate", radius: STW_SPELLS.irradiate.radius + 1 },
   ];
   for (const item of cases) {
-    const battle = createStarswarGame({ seed: 5, aiSides: [], races: item.races });
+    const battle = createStardraftGame({ seed: 5, aiSides: [], races: item.races });
     battle.sides.player.research[item.research] = "done";
     for (const building of battle.buildings) building.hp = building.maxHp = 1e6;
     const caster = stwSpawnUnitAt(battle, "player", item.caster, 20, 60, "attack");
@@ -1131,7 +1131,7 @@ test("starswar area spells and irradiate aim past our own front line like storms
     for (const unit of battle.units) if (unit !== caster) unit.stunUntil = 999;
     let cast = null;
     for (let step = 0; step < 60 && !cast; step += 1) {
-      stepStarswar(battle);
+      stepStardraft(battle);
       cast = battle.effects.find((effect) => effect.kind === "spell" && effect.spell === item.spell);
     }
     assert.ok(cast, `${item.spell}를 쓴다`);
@@ -1143,8 +1143,8 @@ test("starswar area spells and irradiate aim past our own front line like storms
   }
 });
 
-test("starswar replay code rebuilds the same game from the setup and the player's commands, across a save and resume", () => {
-  let state = createStarswarGame({ seed: 4242, races: { player: "terran", enemy: "protoss" } });
+test("stardraft replay code rebuilds the same game from the setup and the player's commands, across a save and resume", () => {
+  let state = createStardraftGame({ seed: 4242, races: { player: "terran", enemy: "protoss" } });
   const plan = [[3, { type: "worker" }], [40, { type: "build", building: "supply" }], [70, { type: "build", building: "barracks" }], [130, { type: "build", building: "barracks" }], [160, { type: "autoWave", size: 8 }], [260, { type: "rally", point: "natural" }], [330, { type: "move", y: 55 }], [420, { type: "attack" }]];
   let next = 0;
   let resumed = false;
@@ -1154,7 +1154,7 @@ test("starswar replay code rebuilds the same game from the setup and the player'
       stwIssue(state, "player", { type: "worker" });
       stwIssue(state, "player", { type: "build", building: "supply" });
     }
-    stepStarswar(state, stwAiThink);
+    stepStardraft(state, stwAiThink);
     if (!resumed && state.time >= 300) {
       // 화면의 이어하기처럼 저장했다가 되살려 이어 간다.
       state = stwRestore(stwSerialize(state));
@@ -1181,8 +1181,8 @@ test("starswar replay code rebuilds the same game from the setup and the player'
   assert.ok(stwReplayMatches(labCode, stwReplay(labCode)), "실험실 경기도 같다");
 });
 
-test("starswar result reports: bug report with replay code, AI report only for a losing AI", () => {
-  const state = createStarswarGame({ seed: 11, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "dragoon", enemy: "hydra" } });
+test("stardraft result reports: bug report with replay code, AI report only for a losing AI", () => {
+  const state = createStardraftGame({ seed: 11, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "dragoon", enemy: "hydra" } });
   run(state, 2400, stwAiThink);
   assert.equal(state.status, "over");
   const loser = state.winner === "player" ? "enemy" : "player";
@@ -1204,14 +1204,14 @@ test("starswar result reports: bug report with replay code, AI report only for a
   assert.ok(point.player.mix && point.player.minerals !== undefined);
 
   // 사람 대 AI에서 사람이 지면 AI 개선 자료는 없다.
-  const human = createStarswarGame({ seed: 3, races: { player: "protoss", enemy: "zerg" } });
+  const human = createStardraftGame({ seed: 3, races: { player: "protoss", enemy: "zerg" } });
   run(human, 2400, stwAiThink);
   assert.equal(human.winner, "enemy");
   assert.deepEqual(stwLosingAiSides(human), []);
   assert.equal(stwAiReport(human), null);
 });
 
-test("starswar same-side air units spread out instead of stacking into one", () => {
+test("stardraft same-side air units spread out instead of stacking into one", () => {
   const state = quiet();
   const carriers = [0, 1, 2].map(() => stwSpawnUnitAt(state, "player", "carrier", 20, 70, "rally"));
   const foeWraith = stwSpawnUnitAt(state, "enemy", "wraith", 20, 70, "rally");
@@ -1229,7 +1229,7 @@ test("starswar same-side air units spread out instead of stacking into one", () 
   assert.equal(Math.round(foeWraith.y * 10) / 10, 70);
 });
 
-test("starswar natural adds building room on its flanks and front edge, keeping the centre path open", () => {
+test("stardraft natural adds building room on its flanks and front edge, keeping the centre path open", () => {
   const state = quiet();
   const record = state.sides.player;
   record.minerals = 1e6;
@@ -1257,14 +1257,14 @@ test("starswar natural adds building room on its flanks and front edge, keeping 
   }
 });
 
-test("starswar AI rebuilds a lost natural instead of staying on one base", () => {
+test("stardraft AI rebuilds a lost natural instead of staying on one base", () => {
   // 시드 2: 테란 선제 벙커(2026-11)를 넣은 뒤 시드 4는 앞마당 자리에 적이 버티는 동안 광물이 모자라 다시 짓기 전에 무너졌다.
   // 시드 1~8에서 다시 짓는 판은 넣기 전 4판, 넣은 뒤 5판이라 규칙은 그대로다.
-  const state = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "mech", enemy: "dragoon" } });
+  const state = createStardraftGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "mech", enemy: "dragoon" } });
   let destroyed = false;
   let rebuilt = false;
   while (state.status === "playing" && state.time < 900 && !rebuilt) {
-    stepStarswar(state, stwAiThink);
+    stepStardraft(state, stwAiThink);
     const natural = stwNexus(state, "player", "natural");
     if (!destroyed && natural && stwDone(natural)) {
       natural.hp = 0;
@@ -1275,11 +1275,11 @@ test("starswar AI rebuilds a lost natural instead of staying on one base", () =>
   assert.ok(rebuilt, "부서진 앞마당을 다시 짓는다");
 });
 
-test("starswar AI from a reported loss: expands, researches, and holds off a cannon turtle instead of starving", async () => {
+test("stardraft AI from a reported loss: expands, researches, and holds off a cannon turtle instead of starving", async () => {
   // 사람이 앞마당에 캐논을 두르고 캐리어를 모아 이긴 경기(결과 화면 리포트의 재현 코드). 사람 명령은 그대로 두고 지금 AI로 다시 돌린다.
   // 예전 AI는 사거리 연구(가스 100)를 커세어·드라군이 가스를 먹어 끝내 못 하고, 그 뒤의 확장도 못 해 일꾼 22기로 13분에 졌다.
   const { readFile } = await import("node:fs/promises");
-  const code = JSON.parse(await readFile(new URL("./fixtures/starswar-cannon-carrier-replay.json", import.meta.url), "utf8"));
+  const code = JSON.parse(await readFile(new URL("./fixtures/stardraft-cannon-carrier-replay.json", import.meta.url), "utf8"));
   let expandedAt = null;
   let rangeAt = null;
   const state = stwReplay(code, {
@@ -1294,11 +1294,11 @@ test("starswar AI from a reported loss: expands, researches, and holds off a can
   assert.ok(state.sides.enemy.probes > 30, `일꾼 ${state.sides.enemy.probes}`);
 });
 
-test("starswar AI from a reported loss: no early second gas or double pylon, survives a one-gate zealot push", async () => {
+test("stardraft AI from a reported loss: no early second gas or double pylon, survives a one-gate zealot push", async () => {
   // 사람이 게이트웨이 하나로 질럿을 모아 2분 40초부터 밀고 앞마당을 먹은 경기(5분 30초에 AI 패배). 사람 명령은 그대로 두고 지금 AI로 다시 돌린다.
   // 예전 AI는 1분 15초에 파일런을 둘 짓고, 일꾼 13기에 둘째 가스를 지어 광물이 모자라 코어도 질럿도 못 뽑은 채 가스만 626 쌓였다.
   const { readFile } = await import("node:fs/promises");
-  const code = JSON.parse(await readFile(new URL("./fixtures/starswar-early-zealot-replay.json", import.meta.url), "utf8"));
+  const code = JSON.parse(await readFile(new URL("./fixtures/stardraft-early-zealot-replay.json", import.meta.url), "utf8"));
   // 이 경기는 보통 난이도였다. 보통 AI는 이제 유닛 생산이 20% 느려 일부러 약하므로, 빌드 판단은 핸디캡 없는 어려움 AI로 본다.
   code.setup.difficulty = "hard";
   let pylonsAt75 = null;
@@ -1317,12 +1317,12 @@ test("starswar AI from a reported loss: no early second gas or double pylon, sur
   assert.equal(state.status, "playing", "6분 30초까지 버틴다");
 });
 
-test("starswar new units join the attack group while the player is fighting, otherwise go to the rally point", () => {
+test("stardraft new units join the attack group while the player is fighting, otherwise go to the rally point", () => {
   const produce = (state) => {
     const gateway = stwOwnBuildings(state, "player", "gateway")[0];
     gateway.line = "zealot";
     const before = new Set(state.units.map((unit) => unit.id));
-    for (let step = 0; step < 400 && state.units.every((unit) => before.has(unit.id) || unit.side !== "player" || unit.type !== "zealot"); step += 1) stepStarswar(state);
+    for (let step = 0; step < 400 && state.units.every((unit) => before.has(unit.id) || unit.side !== "player" || unit.type !== "zealot"); step += 1) stepStardraft(state);
     return state.units.find((unit) => !before.has(unit.id) && unit.side === "player" && unit.type === "zealot");
   };
   // 공격 병력이 나가 싸우는 중: 새 질럿은 공격 병력에 합류해 앞으로 간다.
@@ -1342,7 +1342,7 @@ test("starswar new units join the attack group while the player is fighting, oth
   assert.equal(produce(ai).group, "rally");
 });
 
-test("starswar player drops work with any ground army and a single transport; AI keeps its stricter rules", () => {
+test("stardraft player drops work with any ground army and a single transport; AI keeps its stricter rules", () => {
   const scenario = () => stwCreateScenario({ seed: 1, time: 900, placement: "home", races: { player: "terran", enemy: "protoss" }, sides: { player: { units: { dropship: 1, goliath: 10 } }, enemy: { units: { zealot: 2 } } } });
   const state = scenario();
   run(state, 2);
@@ -1359,11 +1359,11 @@ test("starswar player drops work with any ground army and a single transport; AI
   assert.equal(stwDropCheck(ai, "player", "bomb").ok, false);
 });
 
-test("starswar learning: tags the human's strategy, keeps a plan from AI losses, and the master AI uses it reproducibly", () => {
+test("stardraft learning: tags the human's strategy, keeps a plan from AI losses, and the master AI uses it reproducibly", () => {
   // 사람(여기서는 질럿 러시 성향 AI로 흉내)이 어려움 AI를 이긴 경기를 사람 대 AI 경기처럼 쌓는다.
   let store = stwLearnEmpty();
   for (const seed of [1, 2]) {
-    const game = createStarswarGame({ seed, difficulty: "hard", aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "rush" } });
+    const game = createStardraftGame({ seed, difficulty: "hard", aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { player: "rush" } });
     run(game, 1500, stwAiThink);
     assert.equal(game.status, "over");
     game.aiSides = ["enemy"];
@@ -1386,11 +1386,11 @@ test("starswar learning: tags the human's strategy, keeps a plan from AI losses,
   snapshot.stats["protoss|zerg"] = { [`plan:${kept.id}`]: [5, 5] };
   const pick = stwLearnPick(snapshot, "protoss", "zerg", () => 0.5);
   assert.equal(pick.plan?.id, kept.id);
-  const master = createStarswarGame({ seed: 9, difficulty: "master", races: { player: "zerg", enemy: "protoss" }, learned: snapshot });
+  const master = createStardraftGame({ seed: 9, difficulty: "master", races: { player: "zerg", enemy: "protoss" }, learned: snapshot });
   assert.equal(master.sides.enemy.plan?.id, kept.id);
   assert.equal(master.sides.enemy.persona, "rush");
   // 프로급도 같은 판단을 쓰고 수입만 +15%다. 최상급은 수입 보너스가 없다.
-  const pro = createStarswarGame({ seed: 9, difficulty: "pro", races: { player: "zerg", enemy: "protoss" }, learned: snapshot });
+  const pro = createStardraftGame({ seed: 9, difficulty: "pro", races: { player: "zerg", enemy: "protoss" }, learned: snapshot });
   assert.equal(pro.sides.enemy.plan?.id, kept.id);
   assert.equal(STW_DIFFICULTIES.master.income, 1);
   assert.equal(STW_DIFFICULTIES.pro.income, 1.15);
@@ -1406,7 +1406,7 @@ test("starswar learning: tags the human's strategy, keeps a plan from AI losses,
   assert.equal(stwIntelTag({ race: "protoss", buildings: { nexus: 1, archives: 1 }, units: {}, research: [] }, 280), "cloak");
 });
 
-test("starswar detected cloaked units fight through when the local fight favours them, and break the detector first", () => {
+test("stardraft detected cloaked units fight through when the local fight favours them, and break the detector first", () => {
   // 캐논 둘과 질럿 셋이 지키는 곳에 다크템플러 넷과 질럿 넷이 들어간다: 우리 힘이 앞서므로 맞더라도 캐논부터 깬다.
   const setup = (darkCount, zealots, foeZealots) => {
     const state = quiet();
@@ -1427,7 +1427,7 @@ test("starswar detected cloaked units fight through when the local fight favours
   let committed = 0;
   let detectorTargeted = false;
   for (let step = 0; step < 150; step += 1) {
-    stepStarswar(strong.state);
+    stepStardraft(strong.state);
     for (const dark of strong.darks) {
       if ((dark.commitUntil ?? 0) > strong.state.time) committed += 1;
       const target = strong.state.buildings.find((building) => building.id === dark.targetId);
@@ -1441,26 +1441,26 @@ test("starswar detected cloaked units fight through when the local fight favours
   const weak = setup(2, 0, 6);
   let evaded = false;
   for (let step = 0; step < 150; step += 1) {
-    stepStarswar(weak.state);
+    stepStardraft(weak.state);
     if (weak.darks.some((dark) => dark.evadeTo)) evaded = true;
     assert.ok(weak.darks.every((dark) => !((dark.commitUntil ?? 0) > weak.state.time)), "불리하면 싸우기로 하지 않는다");
   }
   assert.ok(evaded, "비킨다");
 });
 
-test("starswar drops can be recalled on demand: a raid comes back with its squad, an unlanded bomb drop unloads at home", () => {
+test("stardraft drops can be recalled on demand: a raid comes back with its squad, an unlanded bomb drop unloads at home", () => {
   const scenario = () => stwCreateScenario({ seed: 1, time: 900, placement: "home", races: { player: "terran", enemy: "protoss" }, sides: { player: { units: { dropship: 2, marine: 8, vulture: 4 } }, enemy: { units: { zealot: 2 } } } });
   // 게릴라: 내려서 견제 중에 지금 회수하면 태워서 돌아와 집결지에 내린다.
   const raid = scenario();
   run(raid, 1);
   assert.ok(stwIssue(raid, "player", { type: "drop" }).ok);
   const op = raid.ops[0];
-  for (let index = 0; index < 600 && op.phase !== "fight"; index += 1) stepStarswar(raid);
+  for (let index = 0; index < 600 && op.phase !== "fight"; index += 1) stepStardraft(raid);
   assert.equal(op.phase, "fight");
   assert.ok(stwIssue(raid, "player", { type: "dropRecall", opId: op.id }).ok);
   run(raid, 1);
   assert.ok(op.phase === "pickup" || op.phase === "home", op.phase);
-  for (let index = 0; index < 900 && raid.ops.includes(op); index += 1) stepStarswar(raid);
+  for (let index = 0; index < 900 && raid.ops.includes(op); index += 1) stepStardraft(raid);
   assert.ok(!raid.ops.includes(op), "작전이 끝난다");
   // 거둔 작전의 드랍십만 돌아온다(다른 드랍십은 제 작전을 계속한다).
   const transport = raid.units.find((unit) => unit.id === op.transports[0]);
@@ -1472,7 +1472,7 @@ test("starswar drops can be recalled on demand: a raid comes back with its squad
   assert.ok(stwIssue(bomb, "player", { type: "drop" }).ok);
   run(bomb, 3);
   assert.ok(stwIssue(bomb, "player", { type: "dropRecall" }).ok);
-  for (let index = 0; index < 900 && bomb.ops.length; index += 1) stepStarswar(bomb);
+  for (let index = 0; index < 900 && bomb.ops.length; index += 1) stepStardraft(bomb);
   assert.equal(bomb.ops.length, 0);
   const army = bomb.units.filter((unit) => unit.side === "player" && (unit.type === "marine" || unit.type === "vulture"));
   assert.equal(army.length, 12, "아무도 잃지 않는다");
@@ -1480,7 +1480,7 @@ test("starswar drops can be recalled on demand: a raid comes back with its squad
   assert.equal(stwIssue(bomb, "player", { type: "dropRecall" }).ok, false, "거둘 작전이 없으면 실패");
 });
 
-test("starswar squads by unit type: move only chosen types, new units join their squad, the attack button merges everyone", () => {
+test("stardraft squads by unit type: move only chosen types, new units join their squad, the attack button merges everyone", () => {
   const state = stwCreateScenario({ seed: 3, time: 600, placement: "home", races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { zealot: 6, corsair: 3, dark: 2 }, buildings: { stargate: 1 }, minerals: 3000, gas: 2000 }, enemy: { units: { zergling: 2 } } } });
   run(state, 3);
   const mean = (type) => {
@@ -1516,12 +1516,12 @@ test("starswar squads by unit type: move only chosen types, new units join their
   assert.ok(state.units.filter((unit) => unit.type === "dark" && unit.side === "player").every((unit) => unit.squad === undefined));
 });
 
-test("starswar carrier attacks launch one visible interceptor per hit", () => {
+test("stardraft carrier attacks launch one visible interceptor per hit", () => {
   for (const [research, expected] of [[[], 4], [["carrierCapacity"], 8]]) {
     const state = stwCreateScenario({ races: { player: "protoss", enemy: "zerg" }, sides: { player: { units: { carrier: 1 }, research }, enemy: { units: { hydra: 6 } } } });
     let launch = null;
     for (let step = 0; step < 200 && !launch; step += 1) {
-      stepStarswar(state);
+      stepStardraft(state);
       launch = state.effects.find((effect) => effect.kind === "interceptor" && effect.side === "player");
     }
     assert.ok(launch, "캐리어가 공격한다");
@@ -1530,13 +1530,13 @@ test("starswar carrier attacks launch one visible interceptor per hit", () => {
   }
 });
 
-test("starswar terran AI personas field their signature units and finish a game", () => {
-  const bio = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
-  const mech = createStarswarGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "bio" } });
+test("stardraft terran AI personas field their signature units and finish a game", () => {
+  const bio = createStardraftGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "dragoon" } });
+  const mech = createStardraftGame({ seed: 3, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "bio" } });
   const seen = { bio: new Set(), mech: new Set() };
   for (let step = 0; step < 15000 && (bio.status === "playing" || mech.status === "playing"); step += 1) {
-    if (bio.status === "playing") stepStarswar(bio, stwAiThink);
-    if (mech.status === "playing") stepStarswar(mech, stwAiThink);
+    if (bio.status === "playing") stepStardraft(bio, stwAiThink);
+    if (mech.status === "playing") stepStardraft(mech, stwAiThink);
     for (const unit of bio.units) if (unit.side === "player") seen.bio.add(unit.type);
     for (const unit of mech.units) if (unit.side === "player") seen.mech.add(unit.type);
   }
@@ -1546,9 +1546,9 @@ test("starswar terran AI personas field their signature units and finish a game"
   assert.equal(mech.status, "over", "테란 대 테란 전투가 끝남");
 });
 
-const zerg = (enemy = "protoss") => createStarswarGame({ seed: 5, aiSides: [], races: { player: "zerg", enemy } });
+const zerg = (enemy = "protoss") => createStardraftGame({ seed: 5, aiSides: [], races: { player: "zerg", enemy } });
 
-test("starswar zerg hatcheries morph zerglings in pairs and gate the hive tech", () => {
+test("stardraft zerg hatcheries morph zerglings in pairs and gate the hive tech", () => {
   const state = zerg();
   const main = stwNexus(state, "player", "main");
   assert.equal(main.type, "hatchery");
@@ -1585,7 +1585,7 @@ test("starswar zerg hatcheries morph zerglings in pairs and gate the hive tech",
   assert.equal(stwBuildCheck(state, "player", "cavern").ok, true);
 });
 
-test("starswar lurkers burrow, cloak, and spine every enemy on the line", () => {
+test("stardraft lurkers burrow, cloak, and spine every enemy on the line", () => {
   const state = zerg("terran");
   const lurker = stwSpawnUnitAt(state, "player", "lurker", 20, 60, "attack");
   const line = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "enemy", "marine", 20, 53 - index * 1.8, "attack"));
@@ -1601,7 +1601,7 @@ test("starswar lurkers burrow, cloak, and spine every enemy on the line", () => 
   assert.equal(lurker.burrowed, false, "후퇴 명령에 땅 위로");
 });
 
-test("starswar burrowed lurkers do not wait forever for a building just out of range", () => {
+test("stardraft burrowed lurkers do not wait forever for a building just out of range", () => {
   // 후반 리포트: 적 병력이 없는데 럴커 둘이 적 건물 바로 옆(사거리 밖 6~10칸)에서 10분 가까이 땅속에 멈춰 경기가 끝나지 않았다.
   // "다가오는 적"을 기다리는 규칙이 움직이지 않는 건물까지 셌다.
   const state = zerg("terran");
@@ -1614,7 +1614,7 @@ test("starswar burrowed lurkers do not wait forever for a building just out of r
   assert.ok(cc.hp + cc.shields < before, `사거리 밖 건물로 다가가 가시를 쏜다 (${before} → ${cc.hp + cc.shields})`);
 });
 
-test("starswar zerg units regenerate and use separate melee and missile upgrades", () => {
+test("stardraft zerg units regenerate and use separate melee and missile upgrades", () => {
   const state = zerg();
   const ling = stwSpawnUnitAt(state, "player", "zergling", 20, 80);
   const hydra = stwSpawnUnitAt(state, "player", "hydra", 24, 80);
@@ -1629,13 +1629,13 @@ test("starswar zerg units regenerate and use separate melee and missile upgrades
   assert.equal(stwHitDamage(state, hydra, zealot)[0], before[1] + 0.5, "원거리 공격 +1이 폭발형이라 소형에게 절반");
 });
 
-test("starswar zerg AI personas field their signature units and finish a game", () => {
-  const ling = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "ling", enemy: "robo" } });
-  const hydra = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "terran" }, personas: { player: "hydra", enemy: "mech" } });
+test("stardraft zerg AI personas field their signature units and finish a game", () => {
+  const ling = createStardraftGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "ling", enemy: "robo" } });
+  const hydra = createStardraftGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "terran" }, personas: { player: "hydra", enemy: "mech" } });
   const seen = { ling: new Set(), hydra: new Set() };
   for (let step = 0; step < 15000 && (ling.status === "playing" || hydra.status === "playing"); step += 1) {
-    if (ling.status === "playing") stepStarswar(ling, stwAiThink);
-    if (hydra.status === "playing") stepStarswar(hydra, stwAiThink);
+    if (ling.status === "playing") stepStardraft(ling, stwAiThink);
+    if (hydra.status === "playing") stepStardraft(hydra, stwAiThink);
     for (const unit of ling.units) if (unit.side === "player") seen.ling.add(unit.type);
     for (const unit of hydra.units) if (unit.side === "player") seen.hydra.add(unit.type);
   }
@@ -1644,7 +1644,7 @@ test("starswar zerg AI personas field their signature units and finish a game", 
   assert.equal(ling.status, "over");
   assert.equal(hydra.status, "over");
   // 럴커 변태가 끝나면 히드라 럴커는 럴커를 고른다(연구용 가스보다 먼저).
-  const late = createStarswarGame({ seed: 1, aiSides: ["player"], races: { player: "zerg", enemy: "terran" }, personas: { player: "hydra" } });
+  const late = createStardraftGame({ seed: 1, aiSides: ["player"], races: { player: "zerg", enemy: "terran" }, personas: { player: "hydra" } });
   late.sides.player.minerals = 5000;
   late.sides.player.gas = 5000;
   late.sides.player.research.lair = "done";
@@ -1658,15 +1658,15 @@ test("starswar zerg AI personas field their signature units and finish a game", 
   assert.equal(stwNexus(late, "player", "main").line, "lurker", "히드라 럴커는 럴커를 변태");
 });
 
-test("starswar terran and zerg each have four AI personas and the new ones field their signature units", async () => {
-  const { STW_AI_PERSONAS } = await import("../app/starswar/starswar-data.js");
+test("stardraft terran and zerg each have four AI personas and the new ones field their signature units", async () => {
+  const { STW_AI_PERSONAS } = await import("../app/stardraft/stardraft-data.js");
   const byRace = Object.values(STW_AI_PERSONAS).reduce((map, persona) => ((map[persona.race] = (map[persona.race] ?? 0) + 1), map), {});
   assert.deepEqual(byRace, { protoss: 7, terran: 7, zerg: 7 });
   const games = {
-    tankbio: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio", enemy: "templar" } }),
-    vulture: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "vulture", enemy: "dragoon" } }),
-    pool: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "terran" }, personas: { player: "pool", enemy: "bio" } }),
-    ultra: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "terran" }, personas: { player: "ultra", enemy: "mech" } }),
+    tankbio: createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio", enemy: "templar" } }),
+    vulture: createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "vulture", enemy: "dragoon" } }),
+    pool: createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "terran" }, personas: { player: "pool", enemy: "bio" } }),
+    ultra: createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "terran" }, personas: { player: "ultra", enemy: "mech" } }),
   };
   const seen = Object.fromEntries(Object.keys(games).map((key) => [key, new Set()]));
   let poolDronesAt200 = null;
@@ -1675,7 +1675,7 @@ test("starswar terran and zerg each have four AI personas and the new ones field
     for (const [key, game] of Object.entries(games)) {
       if (game.status !== "playing") continue;
       running = true;
-      stepStarswar(game, stwAiThink);
+      stepStardraft(game, stwAiThink);
       for (const unit of game.units) if (unit.side === "player") seen[key].add(unit.type);
     }
     if (games.pool.time === 200) poolDronesAt200 = games.pool.sides.player.probes;
@@ -1683,7 +1683,7 @@ test("starswar terran and zerg each have four AI personas and the new ones field
   }
   assert.ok(seen.tankbio.has("marine") && seen.tankbio.has("medic"), "탱크 바이오는 해병과 메딕");
   // 팩토리와 머신 샵이 서면 탱크 바이오는 팩토리에서 시즈 탱크를 고른다.
-  const tb = createStarswarGame({ seed: 1, aiSides: ["player"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio" } });
+  const tb = createStardraftGame({ seed: 1, aiSides: ["player"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio" } });
   tb.sides.player.minerals = 5000;
   tb.sides.player.gas = 5000;
   for (const building of ["depot", "barracks", "factory", "shop"]) {
@@ -1697,7 +1697,7 @@ test("starswar terran and zerg each have four AI personas and the new ones field
   assert.ok(seen.ultra.has("zergling") && seen.ultra.has("hydra"), "울트라 운영은 저글링과 히드라로 버팀");
 
   // 울트라리스크 동굴이 서면 울트라 운영은 울트라리스크를 고른다(연구용 가스보다 먼저).
-  const late = createStarswarGame({ seed: 1, aiSides: ["player"], races: { player: "zerg", enemy: "terran" }, personas: { player: "ultra" } });
+  const late = createStardraftGame({ seed: 1, aiSides: ["player"], races: { player: "zerg", enemy: "terran" }, personas: { player: "ultra" } });
   late.sides.player.minerals = 5000;
   late.sides.player.gas = 5000;
   late.sides.player.research.lair = "done";
@@ -1710,9 +1710,9 @@ test("starswar terran and zerg each have four AI personas and the new ones field
   assert.equal(stwNexus(late, "player", "main").line, "ultra", "울트라 운영은 울트라리스크");
 });
 
-test("starswar protoss AI adapts its gateway mix to the enemy army it sees", () => {
+test("stardraft protoss AI adapts its gateway mix to the enemy army it sees", () => {
   const setup = (enemyRace, enemyType) => {
-    const state = createStarswarGame({ seed: 1, aiSides: ["player"], races: { player: "protoss", enemy: enemyRace }, personas: { player: "dragoon" } });
+    const state = createStardraftGame({ seed: 1, aiSides: ["player"], races: { player: "protoss", enemy: enemyRace }, personas: { player: "dragoon" } });
     state.sides.player.minerals = 5000;
     state.sides.player.gas = 5000;
     for (const building of ["pylon", "gateway", "core", "gateway", "gateway", "gateway"]) {
@@ -1731,7 +1731,7 @@ test("starswar protoss AI adapts its gateway mix to the enemy army it sees", () 
   assert.ok(versusMarines.filter((line) => line === "zealot").length >= 2, `해병에는 질럿 (${versusMarines})`);
 });
 
-test("starswar warns about depleting minerals and ends an exhausted game as a draw", () => {
+test("stardraft warns about depleting minerals and ends an exhausted game as a draw", () => {
   const state = quiet();
   state.sides.player.bases.main.minerals = 1510;
   run(state, 3);
@@ -1810,8 +1810,8 @@ test("starswar warns about depleting minerals and ends an exhausted game as a dr
   assert.equal(rich.status, "playing");
 });
 
-test("starswar AI attacks with everything once its minerals run dry", () => {
-  const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], personas: { enemy: "dragoon" } });
+test("stardraft AI attacks with everything once its minerals run dry", () => {
+  const state = createStardraftGame({ seed: 1, aiSides: ["enemy"], personas: { enemy: "dragoon" } });
   state.sides.enemy.bases.main.minerals = 0;
   state.sides.enemy.bases.natural.minerals = 0;
   state.sides.enemy.minerals = 0;
@@ -1820,7 +1820,7 @@ test("starswar AI attacks with everything once its minerals run dry", () => {
   assert.equal(stwArmy(state, "enemy").attack.length, 3, "출격 규모와 상관없이 총공격");
 });
 
-test("starswar zerg overlords can escort the army as mobile detectors at the cost of supply risk", () => {
+test("stardraft zerg overlords can escort the army as mobile detectors at the cost of supply risk", () => {
   const state = zerg("protoss");
   state.sides.player.minerals = 9000;
   assert.match(stwCommand(state, "player", { type: "escort", on: true }).reason, /완성된 오버로드가 없습니다/);
@@ -1845,7 +1845,7 @@ test("starswar zerg overlords can escort the army as mobile detectors at the cos
   const dark = stwSpawnUnitAt(state, "enemy", "dark", overlord.x, overlord.y - 3);
   assert.equal(stwDetected(state, dark, "player"), true, "동행 오버로드가 다크템플러를 탐지");
 
-  const other = createStarswarGame({ seed: 5, aiSides: [], races: { player: "zerg", enemy: "protoss" } });
+  const other = createStardraftGame({ seed: 5, aiSides: [], races: { player: "zerg", enemy: "protoss" } });
   other.sides.player.research.pneumatized = "done";
   const fast = stwSpawnUnitAt(other, "player", "overlord", 20, 80);
   other.sides.player.escort = true;
@@ -1868,8 +1868,8 @@ test("starswar zerg overlords can escort the army as mobile detectors at the cos
   assert.ok(Math.hypot(returned.x - home.x, returned.y - home.y) < 8, "동행을 끄면 본진으로 돌아감");
 });
 
-test("starswar zerg AI escorts an overlord once cloaked units hurt it", () => {
-  const state = createStarswarGame({ seed: 3, aiSides: ["player"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "hydra" } });
+test("stardraft zerg AI escorts an overlord once cloaked units hurt it", () => {
+  const state = createStardraftGame({ seed: 3, aiSides: ["player"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "hydra" } });
   state.sides.player.minerals = 5000;
   for (const building of ["overlord", "overlord", "pool"]) {
     stwCommand(state, "player", { type: "build", building });
@@ -1881,7 +1881,7 @@ test("starswar zerg AI escorts an overlord once cloaked units hurt it", () => {
   assert.ok(state.units.some((unit) => unit.side === "player" && unit.type === "overlord"));
 });
 
-test("starswar never sends only support units to attack", () => {
+test("stardraft never sends only support units to attack", () => {
   const state = zerg("protoss");
   state.sides.player.escort = true;
   stwSpawnUnitAt(state, "player", "overlord", 20, 77);
@@ -1894,7 +1894,7 @@ test("starswar never sends only support units to attack", () => {
   assert.equal(stwArmy(state, "player").attack.length, 2, "전투 유닛이 생기면 오버로드도 함께 출격");
 });
 
-test("starswar keeps home overlords home and returns stranded support units to the rally group", () => {
+test("stardraft keeps home overlords home and returns stranded support units to the rally group", () => {
   const state = zerg("protoss");
   const home = stwSpawnUnitAt(state, "player", "overlord", 24, 92);
   const ling = stwSpawnUnitAt(state, "player", "zergling", 20, 77);
@@ -1914,7 +1914,7 @@ test("starswar keeps home overlords home and returns stranded support units to t
   assert.equal(stwArmy(state, "player").attack.length, 0);
 
   // AI: 지원 유닛만 남은 공격은 끝난 것으로 보고 다음 출격을 준비한다.
-  const ai = createStarswarGame({ seed: 1, aiSides: ["player"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "ling" } });
+  const ai = createStardraftGame({ seed: 1, aiSides: ["player"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "ling" } });
   ai.sides.player.escort = true;
   stwSpawnUnitAt(ai, "player", "overlord", 20, 50, "attack");
   ai.sides.player.ai = { nextThink: 0, step: 0, wave: 0, attacking: true, waveStart: 2, done: [] };
@@ -1923,7 +1923,7 @@ test("starswar keeps home overlords home and returns stranded support units to t
   assert.equal(ai.sides.player.ai.wave, 1);
 });
 
-test("starswar defensive buildings guard their whole base, not just their own range", () => {
+test("stardraft defensive buildings guard their whole base, not just their own range", () => {
   const state = quiet();
   state.sides.player.minerals = 9000;
   for (const building of ["pylon", "forge", "expand", "cannon"]) {
@@ -1948,7 +1948,7 @@ test("starswar defensive buildings guard their whole base, not just their own ra
   assert.notEqual(cannon.targetId, far.id);
 });
 
-test("starswar a single detector building reveals cloaked units across its whole base", () => {
+test("stardraft a single detector building reveals cloaked units across its whole base", () => {
   const state = quiet();
   state.sides.player.minerals = 9000;
   for (const building of ["pylon", "forge", "expand", "cannon"]) {
@@ -1974,7 +1974,7 @@ test("starswar a single detector building reveals cloaked units across its whole
   assert.equal(stwDetected(z, stwSpawnUnitAt(z, "enemy", "dark", home.x - 6, home.y + 2, "attack"), "player"), true);
 });
 
-test("starswar a sunken colony strikes anywhere in its base and each strike leaves a tentacle effect", () => {
+test("stardraft a sunken colony strikes anywhere in its base and each strike leaves a tentacle effect", () => {
   const state = zerg("protoss");
   state.sides.player.minerals = 9000;
   for (const building of ["pool", "sunken"]) {
@@ -1989,7 +1989,7 @@ test("starswar a sunken colony strikes anywhere in its base and each strike leav
   const seen = new WeakSet();
   let strikes = 0;
   for (let index = 0; index < 300 && zealot.hp > 0; index += 1) {
-    stepStarswar(state);
+    stepStardraft(state);
     for (const effect of state.effects) {
       if (effect.kind !== "tentacle" || seen.has(effect)) continue;
       seen.add(effect);
@@ -2002,7 +2002,7 @@ test("starswar a sunken colony strikes anywhere in its base and each strike leav
   assert.ok(zealot.hp <= 0, "질럿이 죽는다");
 });
 
-test("starswar map taps move the army: forward fights, backward retreats, enemy base attacks", () => {
+test("stardraft map taps move the army: forward fights, backward retreats, enemy base attacks", () => {
   const state = quiet();
   const units = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "player", "zealot", 16 + index * 4, 77));
   // 앞쪽을 누르면 집결지가 옮겨지고 가는 길의 적과 싸운다.
@@ -2037,7 +2037,7 @@ test("starswar map taps move the army: forward fights, backward retreats, enemy 
   assert.equal(stwRallyName("natural"), "앞마당");
 });
 
-test("starswar fast units lead the wave by a few tiles instead of crawling with the slowest", () => {
+test("stardraft fast units lead the wave by a few tiles instead of crawling with the slowest", () => {
   const trial = (charge) => {
     const state = quiet();
     if (charge) state.sides.player.research.charge = "done";
@@ -2055,14 +2055,14 @@ test("starswar fast units lead the wave by a few tiles instead of crawling with 
   assert.ok(Math.abs(fast.dragoon - slow.dragoon) < 1, "드라군 속도는 그대로");
 });
 
-test("starswar kiting is imperfect: upgraded melee closes in during the aim window, unupgraded melee does not", () => {
+test("stardraft kiting is imperfect: upgraded melee closes in during the aim window, unupgraded melee does not", () => {
   const trial = (charge, ion) => {
-    const state = createStarswarGame({ seed: 2, aiSides: [], races: { player: "protoss", enemy: "terran" } });
+    const state = createStardraftGame({ seed: 2, aiSides: [], races: { player: "protoss", enemy: "terran" } });
     if (charge) state.sides.player.research.charge = "done";
     if (ion) state.sides.enemy.research.ion = "done";
     const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 56, "attack");
     const vulture = stwSpawnUnitAt(state, "enemy", "vulture", 20, 44, "attack");
-    for (let step = 0; step < 150 && zealot.hp > 0 && vulture.hp > 0; step += 1) stepStarswar(state);
+    for (let step = 0; step < 150 && zealot.hp > 0 && vulture.hp > 0; step += 1) stepStardraft(state);
     return { zealotHit: vulture.hp < vulture.maxHp, zealotAlive: zealot.hp > 0 };
   };
   assert.equal(trial(false, false).zealotHit, false, "발업 없는 질럿은 벌처를 따라잡지 못함");
@@ -2070,7 +2070,7 @@ test("starswar kiting is imperfect: upgraded melee closes in during the aim wind
   assert.equal(trial(true, true).zealotHit, true, "이온 추진기 벌처도 완벽하게 카이팅하지는 못함");
 });
 
-test("starswar immediate auto-wave sends fighters as soon as they exist", () => {
+test("stardraft immediate auto-wave sends fighters as soon as they exist", () => {
   const state = quiet();
   stwCommand(state, "player", { type: "autoWave", size: 1 });
   const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 92);
@@ -2083,7 +2083,7 @@ test("starswar immediate auto-wave sends fighters as soon as they exist", () => 
   assert.equal(stwArmy(only, "player").attack.length, 0, "지원 유닛만으로는 나가지 않음");
 });
 
-test("starswar several high templar do not stack storms on the same clump", () => {
+test("stardraft several high templar do not stack storms on the same clump", () => {
   const state = quiet();
   state.sides.player.research.storm = "done";
   const casters = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "player", "templar", 16 + index * 4, 70));
@@ -2100,20 +2100,20 @@ test("starswar several high templar do not stack storms on the same clump", () =
   assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= 3.2, "두 스톰의 중심은 반경 이상 떨어짐");
 });
 
-test("starswar melee units switch off a fleeing target and spread over a firing line", () => {
-  const state = createStarswarGame({ seed: 1, aiSides: [], races: { player: "protoss", enemy: "terran" } });
+test("stardraft melee units switch off a fleeing target and spread over a firing line", () => {
+  const state = createStardraftGame({ seed: 1, aiSides: [], races: { player: "protoss", enemy: "terran" } });
   state.sides.enemy.research.stim = "done";
   const zealots = [0, 1, 2, 3, 4].map((index) => stwSpawnUnitAt(state, "player", "zealot", 14 + index * 3, 58, "attack"));
   stwSpawnUnitAt(state, "enemy", "marine", 20, 50, "attack");
   for (let index = 0; index < 7; index += 1) stwSpawnUnitAt(state, "enemy", "marine", 13 + index * 2.4, 44, "attack");
   stwSpawnUnitAt(state, "enemy", "medic", 20, 42, "attack");
-  for (let step = 0; step < 900 && state.units.some((unit) => unit.side === "player") && state.units.some((unit) => unit.side === "enemy"); step += 1) stepStarswar(state);
+  for (let step = 0; step < 900 && state.units.some((unit) => unit.side === "player") && state.units.some((unit) => unit.side === "enemy"); step += 1) stepStardraft(state);
   assert.ok(zealots.filter((unit) => unit.hp > 0).length >= 3, "미끼 해병에게 끌려다니지 않고 사격선을 무너뜨림");
   assert.ok(state.units.filter((unit) => unit.side === "enemy" && unit.type === "marine").length <= 1, "해병 줄이 무너짐(멀리 빠져나간 1기까지 허용)");
 });
 
-test("starswar ranged units drop a receding target for one in range, and volleys avoid overkill", () => {
-  const state = createStarswarGame({ seed: 1, aiSides: [], races: { player: "protoss", enemy: "terran" } });
+test("stardraft ranged units drop a receding target for one in range, and volleys avoid overkill", () => {
+  const state = createStardraftGame({ seed: 1, aiSides: [], races: { player: "protoss", enemy: "terran" } });
   state.sides.enemy.research.ion = "done";
   const dragoon = stwSpawnUnitAt(state, "player", "dragoon", 20, 60, "attack");
   const bait = stwSpawnUnitAt(state, "enemy", "vulture", 20, 54, "attack");
@@ -2141,7 +2141,7 @@ test("starswar ranged units drop a receding target for one in range, and volleys
   assert.ok(volley.sides.player.stats.overkill <= 2, `낭비된 공격은 남는 두 발뿐 (${volley.sides.player.stats.overkill})`);
 });
 
-test("starswar lurkers stay burrowed while enemies keep approaching, but come up for enemies that only stand nearby", () => {
+test("stardraft lurkers stay burrowed while enemies keep approaching, but come up for enemies that only stand nearby", () => {
   const setup = () => {
     const state = zerg("terran");
     const lurker = stwSpawnUnitAt(state, "player", "lurker", 20, 60, "attack");
@@ -2156,7 +2156,7 @@ test("starswar lurkers stay burrowed while enemies keep approaching, but come up
   const coming = setup();
   const walker = stwSpawnUnitAt(coming.state, "enemy", "marine", 20, 51, "attack");
   for (let tick = 0; tick < 35; tick += 1) {
-    stepStarswar(coming.state);
+    stepStardraft(coming.state);
     assert.equal(coming.lurker.burrowed, true, "다가오는 적이 있으면 계속 숨어 있음");
   }
   assert.ok(walker.hp < walker.maxHp, "다가온 해병을 가시로 맞힘");
@@ -2169,7 +2169,7 @@ test("starswar lurkers stay burrowed while enemies keep approaching, but come up
   for (let tick = 0; tick < 150 && guard.hp === guard.maxHp; tick += 1) {
     guard.x = 20;
     guard.y = 51;
-    stepStarswar(standing.state);
+    stepStardraft(standing.state);
     if (!standing.lurker.burrowed) surfaced = true;
   }
   assert.equal(surfaced, true, "서 있는 적 앞에서는 땅 위로 나옴");
@@ -2177,15 +2177,15 @@ test("starswar lurkers stay burrowed while enemies keep approaching, but come up
   assert.equal(standing.lurker.burrowed, true);
 });
 
-test("starswar lurker strategy: rushes lair and lurker aspect, fields lurkers by 7:00, and waits for four lurkers before attacking", async () => {
-  const { STW_AI_PERSONAS } = await import("../app/starswar/starswar-data.js");
+test("stardraft lurker strategy: rushes lair and lurker aspect, fields lurkers by 7:00, and waits for four lurkers before attacking", async () => {
+  const { STW_AI_PERSONAS } = await import("../app/stardraft/stardraft-data.js");
   assert.equal(STW_AI_PERSONAS.lurker.race, "zerg");
-  const game = createStarswarGame({ seed: 13, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "lurker", enemy: "dragoon" } });
+  const game = createStardraftGame({ seed: 13, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "lurker", enemy: "dragoon" } });
   let firstLurkerAt = null;
   let lurkersAtFirstAttack = null;
   let most = 0;
   while (game.status === "playing" && game.time < 540) {
-    stepStarswar(game, stwAiThink);
+    stepStardraft(game, stwAiThink);
     const lurkers = game.units.filter((unit) => unit.side === "player" && unit.type === "lurker").length;
     most = Math.max(most, lurkers);
     if (firstLurkerAt === null && lurkers) firstLurkerAt = game.time;
@@ -2198,8 +2198,8 @@ test("starswar lurker strategy: rushes lair and lurker aspect, fields lurkers by
   assert.ok(lurkersAtFirstAttack === null || lurkersAtFirstAttack >= 4, `첫 출격 때 럴커 ${lurkersAtFirstAttack}`);
 });
 
-test("starswar tanks holding a rally point siege ahead of time and unsiege when the rally moves", () => {
-  const state = createStarswarGame({ seed: 1, aiSides: [], races: { player: "terran", enemy: "protoss" } });
+test("stardraft tanks holding a rally point siege ahead of time and unsiege when the rally moves", () => {
+  const state = createStardraftGame({ seed: 1, aiSides: [], races: { player: "terran", enemy: "protoss" } });
   state.sides.player.research.siege = "done";
   const tank = stwSpawnUnitAt(state, "player", "tank", 20, stwRallyY("player", "main") - 1.8);
   run(state, 3);
@@ -2215,7 +2215,7 @@ test("starswar tanks holding a rally point siege ahead of time and unsiege when 
   assert.ok(tank.y < stwRallyY("player", "main") - 4);
 });
 
-test("starswar adrenal glands make zerglings bite half again as often", () => {
+test("stardraft adrenal glands make zerglings bite half again as often", () => {
   const bites = (adrenal) => {
     const state = zerg("protoss");
     if (adrenal) state.sides.player.research.adrenal = "done";
@@ -2228,7 +2228,7 @@ test("starswar adrenal glands make zerglings bite half again as often", () => {
     let cooldown = 0;
     // 첫 물기 뒤 10초 동안 센다(달려가는 시간은 뺀다). 물 때마다 걸리는 공격 간격도 본다.
     while (ticks < 100) {
-      stepStarswar(state);
+      stepStardraft(state);
       for (const effect of state.effects) {
         if (effect.kind !== "bite" || effect.attackerId !== ling.id || seen.has(effect)) continue;
         seen.add(effect);
@@ -2247,8 +2247,8 @@ test("starswar adrenal glands make zerglings bite half again as often", () => {
   assert.ok(fast.count >= plain.count * 1.25, `아드레날린 물기 ${fast.count}회 (기본 ${plain.count}회)`);
 });
 
-test("starswar zergling-swarm AI keeps pure zerglings, streams reinforcements, and switches strategy after repeated failures", () => {
-  const state = createStarswarGame({ seed: 2, aiSides: [], races: { player: "protoss", enemy: "zerg" }, personas: { enemy: "ling" } });
+test("stardraft zergling-swarm AI keeps pure zerglings, streams reinforcements, and switches strategy after repeated failures", () => {
+  const state = createStardraftGame({ seed: 2, aiSides: [], races: { player: "protoss", enemy: "zerg" }, personas: { enemy: "ling" } });
   state.time = 500;
   state.sides.enemy.minerals = 9000;
   state.sides.enemy.gas = 9000;
@@ -2275,7 +2275,7 @@ test("starswar zergling-swarm AI keeps pure zerglings, streams reinforcements, a
   assert.equal(memory.wave, 1, "실패 횟수를 일부 덜어 새 성향의 출격 규모로 시작");
 });
 
-test("starswar weapons tell ground from air: melee cannot touch flyers, anti-air cannot touch ground", () => {
+test("stardraft weapons tell ground from air: melee cannot touch flyers, anti-air cannot touch ground", () => {
   const state = quiet();
   const scout = stwSpawnUnitAt(state, "enemy", "scout", 20, 60, "attack");
   const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 62, "attack");
@@ -2297,7 +2297,7 @@ test("starswar weapons tell ground from air: melee cannot touch flyers, anti-air
   assert.equal(vsAir, 14 * 2 * 0.75, "중형에게 폭발형 75%");
 });
 
-test("starswar overlords float and only anti-air weapons can hit them; spores and turrets shoot only air", () => {
+test("stardraft overlords float and only anti-air weapons can hit them; spores and turrets shoot only air", () => {
   const state = zerg("protoss");
   state.sides.player.minerals = 9000;
   for (const building of ["overlord", "pool", "evo", "spore"]) {
@@ -2316,7 +2316,7 @@ test("starswar overlords float and only anti-air weapons can hit them; spores an
   assert.notEqual(spore.targetId, zealot.id, "스포어는 지상을 쏘지 않는다");
 });
 
-test("starswar corsairs splash only air, mutalisks bounce, scourges die on impact", () => {
+test("stardraft corsairs splash only air, mutalisks bounce, scourges die on impact", () => {
   const state = quiet();
   const corsair = stwSpawnUnitAt(state, "player", "corsair", 20, 60, "attack");
   const wraiths = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "enemy", "wraith", 19 + index * 1.4, 56, "attack"));
@@ -2332,8 +2332,8 @@ test("starswar corsairs splash only air, mutalisks bounce, scourges die on impac
   const muta = stwSpawnUnitAt(bounce, "player", "mutalisk", 20, 60, "attack");
   const marines = [0, 1, 2].map((index) => stwSpawnUnitAt(bounce, "enemy", "marine", 18.5 + index * 1.6, 57.5, "attack"));
   for (const target of marines) target.hp = 9999;
-  stepStarswar(bounce);
-  for (let index = 0; index < 20 && marines.every((target) => target.hp === 9999); index += 1) stepStarswar(bounce);
+  stepStardraft(bounce);
+  for (let index = 0; index < 20 && marines.every((target) => target.hp === 9999); index += 1) stepStardraft(bounce);
   const losses = marines.map((target) => 9999 - target.hp).sort((a, b) => b - a);
   assert.ok(losses[0] > 0 && losses[1] > 0 && losses[2] > 0, `세 해병이 모두 맞는다 ${losses}`);
   assert.ok(losses[1] <= losses[0] / 2 && losses[2] <= losses[1] / 2, `튕길수록 줄어든다 ${losses}`);
@@ -2347,7 +2347,7 @@ test("starswar corsairs splash only air, mutalisks bounce, scourges die on impac
   assert.ok(scoutTarget.hp + scoutTarget.shields <= 250 - 110 + 1, `스카웃 피해 ${scoutTarget.hp + scoutTarget.shields}`);
 });
 
-test("starswar scourges dive from afar, split by what each target needs, skip poor trades and wait behind when there is nothing to hit", () => {
+test("stardraft scourges dive from afar, split by what each target needs, skip poor trades and wait behind when there is nothing to hit", () => {
   // 돌진: 예전에는 7칸 안에 들어와야 목표를 잡았다. 11칸 밖의 수송선을 바로 잡아 제 속도(초당 5.6칸)로 달려든다.
   const dive = quiet();
   const diver = stwSpawnUnitAt(dive, "player", "scourge", 20, 60, "attack");
@@ -2405,7 +2405,7 @@ test("starswar scourges dive from afar, split by what each target needs, skip po
     for (const unit of swarm) if (unit.hp > 0 && unit.targetId === bait.id && Math.hypot(unit.x - bait.x, unit.y - bait.y) < 5) unit.hp = 0;
     bait.x = 20;
     bait.y = 50;
-    stepStarswar(covered);
+    stepStardraft(covered);
     tries = Math.max(tries, bait.scourgeTried?.count ?? 0);
   }
   assert.equal(tries, 6, "여섯 기까지만 달려든다");
@@ -2418,14 +2418,14 @@ test("starswar scourges dive from afar, split by what each target needs, skip po
   for (const unit of guards) unit.hp = unit.maxHp = 9999;
   let nearest = Infinity;
   for (let step = 0; step < 100; step += 1) {
-    stepStarswar(alone);
+    stepStardraft(alone);
     nearest = Math.min(nearest, ...guards.map((unit) => Math.hypot(unit.x - scout.x, unit.y - scout.y)));
   }
   assert.equal(scout.hp, scout.maxHp, "맞지 않는다");
   assert.ok(nearest > 6.5, `해병 사거리(6) 밖에 머문다 ${nearest}`);
 });
 
-test("starswar air-only units wait behind the wave when there is no air to hit; cloaked units stop dodging when dodging does not help", () => {
+test("stardraft air-only units wait behind the wave when there is no air to hit; cloaked units stop dodging when dodging does not help", () => {
   // 발키리(공중만 때림): 공중 적이 없으면 해병 꼬리 뒤, 드라군 사거리 밖에서 기다린다. 예전에는 함께 들어가 한 발도 못 쏘고 죽었다.
   const wait = quiet();
   const marines = [0, 1, 2, 3, 4, 5].map((index) => stwSpawnUnitAt(wait, "player", "marine", 13 + index * 2.6, 58, "attack"));
@@ -2449,7 +2449,7 @@ test("starswar air-only units wait behind the wave when there is no air to hit; 
   for (let step = 0; step < 300; step += 1) {
     eye.x = dark.x;
     eye.y = dark.y;
-    stepStarswar(hunted);
+    stepStardraft(hunted);
     const now = dark.evadeTo !== undefined;
     if (now && !dodging) dodges += 1;
     dodging = now;
@@ -2458,7 +2458,7 @@ test("starswar air-only units wait behind the wave when there is no air to hit; 
   assert.ok(9999 - (goon.hp + goon.shields - goon.maxShields) >= 200, `그 뒤로는 드라군을 친다 ${goon.hp}`);
 });
 
-test("starswar siege tanks do not double up on a dying target, vessels irradiate sturdy carriers, yamato waits for a pricier target, ghosts walk up to lock down", () => {
+test("stardraft siege tanks do not double up on a dying target, vessels irradiate sturdy carriers, yamato waits for a pricier target, ghosts walk up to lock down", () => {
   // 시즈 포격: 가장 가까운 적을 쏜다(피해가 더 들어가는 드라군을 고르게 했더니 AI 대전에서 테란이 너무 강해져 되돌렸다).
   const aim = quiet();
   aim.sides.player.research.siege = "done";
@@ -2471,7 +2471,7 @@ test("starswar siege tanks do not double up on a dying target, vessels irradiate
   for (let step = 0; step < 40 && !shell; step += 1) {
     Object.assign(nearZealot, { x: 20, y: 55 });
     Object.assign(farGoon, { x: 20, y: 51 });
-    stepStarswar(aim);
+    stepStardraft(aim);
     shell = aim.effects.find((effect) => effect.kind === "shell" && effect.attackerId === tank.id) ?? null;
   }
   assert.equal(shell?.targetId, nearZealot.id, "가까운 질럿을 쏜다");
@@ -2484,7 +2484,7 @@ test("starswar siege tanks do not double up on a dying target, vessels irradiate
   const lings = [54, 49].map((y) => stwSpawnUnitAt(spread, "enemy", "zergling", 20, y, "attack"));
   for (let step = 0; step < 40 && !spread.effects.some((effect) => effect.kind === "shell"); step += 1) {
     for (const [index, ling] of lings.entries()) if (ling.hp > 0) Object.assign(ling, { x: 20, y: index ? 49 : 54 });
-    stepStarswar(spread);
+    stepStardraft(spread);
   }
   assert.ok(lings.every((ling) => ling.hp <= 0), `첫 포격에 둘 다 잡는다 ${lings.map((ling) => ling.hp)}`);
 
@@ -2495,7 +2495,7 @@ test("starswar siege tanks do not double up on a dying target, vessels irradiate
   vessel.energy = 80;
   const clump = [0, 1, 2, 3, 4].map((index) => stwSpawnUnitAt(rad, "enemy", "zergling", 19 + (index % 3), 54 + Math.floor(index / 3) * 0.8, "attack"));
   const hydra = stwSpawnUnitAt(rad, "enemy", "hydra", 25, 54, "attack");
-  for (let step = 0; step < 30 && vessel.energy >= 75; step += 1) stepStarswar(rad);
+  for (let step = 0; step < 30 && vessel.energy >= 75; step += 1) stepStardraft(rad);
   assert.ok((hydra.irradiateUntil ?? 0) > rad.time, "히드라에 건다");
   assert.ok(clump.every((ling) => ling.irradiateUntil === undefined), "저글링에는 걸지 않는다");
 
@@ -2510,7 +2510,7 @@ test("starswar siege tanks do not double up on a dying target, vessels irradiate
     // 배틀크루저와 질럿은 제자리에 두고 캐리어만 다가오게 한다.
     Object.assign(cruiser, { x: 20, y: 62 });
     Object.assign(front, { x: 20, y: 54 });
-    stepStarswar(gun);
+    stepStardraft(gun);
   }
   assert.ok(prize.yamatoAt !== undefined, "캐리어에 쏜다");
   assert.equal(front.yamatoAt, undefined, "질럿에는 쏘지 않는다");
@@ -2529,7 +2529,7 @@ test("starswar siege tanks do not double up on a dying target, vessels irradiate
   for (let step = 0; step < 60 && !locked; step += 1) {
     Object.assign(blocker, { x: 26, y: 55 });
     Object.assign(mothership, { x: 20, y: 48 });
-    stepStarswar(sneak);
+    stepStardraft(sneak);
     locked = (mothership.stunUntil ?? 0) > sneak.time;
   }
   assert.ok(locked, "캐리어에 락다운을 건다");
@@ -2546,13 +2546,13 @@ test("starswar siege tanks do not double up on a dying target, vessels irradiate
   for (let step = 0; step < 80 && caster.energy > 0; step += 1) {
     crowd.forEach((unit, index) => Object.assign(unit, { x: 18 + index * 2, y: 55 }));
     Object.assign(caster, { x: 20, y: 49 });
-    stepStarswar(mind);
+    stepStardraft(mind);
   }
   assert.equal(caster.energy, 0, "하이템플러에 피드백을 쓴다");
   assert.ok(caster.hp <= 0, "에너지만큼 피해를 입혀 잡는다");
 });
 
-test("starswar casters without a ready spell stay out of enemy reach and back off when hit", () => {
+test("stardraft casters without a ready spell stay out of enemy reach and back off when hit", () => {
   // 퀸(에너지 60, 브루들링 150에 못 미침)을 U-238 해병 앞의 부대 자리로 보낸다. 예전에는 6칸 안의 적만 피해서, 7칸에서 쏘는 해병 앞에 떠 있다 죽었다.
   const state = quiet();
   state.sides.player.research.broodling = "done";
@@ -2565,7 +2565,7 @@ test("starswar casters without a ready spell stay out of enemy reach and back of
   let nearest = Infinity;
   for (let step = 0; step < 200; step += 1) {
     marines.forEach((marine, index) => Object.assign(marine, { x: 15 + index * 3.3, y: 34 }));
-    stepStarswar(state);
+    stepStardraft(state);
     nearest = Math.min(nearest, ...marines.map((marine) => Math.hypot(marine.x - queen.x, marine.y - queen.y)));
   }
   assert.equal(queen.hp, queen.maxHp, "한 대도 맞지 않는다");
@@ -2582,7 +2582,7 @@ test("starswar casters without a ready spell stay out of enemy reach and back of
   const before = struck.y;
   for (let step = 0; step < 20; step += 1) {
     struck.hitAt = hurt.time;
-    stepStarswar(hurt);
+    stepStardraft(hurt);
   }
   assert.ok(struck.y - before > 4, `물러난 거리 ${struck.y - before}`);
 
@@ -2599,14 +2599,14 @@ test("starswar casters without a ready spell stay out of enemy reach and back of
   let closest = Infinity;
   for (let step = 0; step < 200; step += 1) {
     Object.assign(tank, { x: 20, y: 34, sieged: true });
-    stepStarswar(ground);
+    stepStardraft(ground);
     closest = Math.min(closest, Math.hypot(tank.x - defiler.x, tank.y - defiler.y));
   }
   assert.equal(defiler.hp, defiler.maxHp, "탱크에 맞지 않는다");
   assert.ok(closest > 13.5, `시즈 사거리(12) + 2칸 밖 ${closest}`);
 });
 
-test("starswar lurkers pre-burrow at a held spot, aim at armed units, dig in closer after surfacing and leave plain buildings to keep up", () => {
+test("stardraft lurkers pre-burrow at a held spot, aim at armed units, dig in closer after surfacing and leave plain buildings to keep up", () => {
   // 따로 세워 둔 럴커는 자리에 닿으면 적이 없어도 미리 잠복한다.
   const post = quiet();
   const sentry = stwSpawnUnitAt(post, "player", "lurker", 20, 60, "rally");
@@ -2630,7 +2630,7 @@ test("starswar lurkers pre-burrow at a held spot, aim at armed units, dig in clo
   for (let step = 0; step < 5; step += 1) {
     Object.assign(medic, { x: 20, y: 57.5 });
     Object.assign(marine, { x: 23, y: 56 });
-    stepStarswar(aim);
+    stepStardraft(aim);
   }
   assert.equal(digger.targetId, marine.id, "해병을 겨눈다");
 
@@ -2645,7 +2645,7 @@ test("starswar lurkers pre-burrow at a held spot, aim at armed units, dig in clo
   let burrowedAt = null;
   for (let step = 0; step < 60 && burrowedAt === null; step += 1) {
     Object.assign(standing, { x: 20, y: 53.3 });
-    stepStarswar(redig);
+    stepStardraft(redig);
     if (step === 1) assert.ok(!lurker.burrowed, "바로 잠복하지 않는다");
     if (lurker.burrowed) burrowedAt = Math.hypot(standing.x - lurker.x, standing.y - lurker.y);
   }
@@ -2670,20 +2670,20 @@ test("starswar lurkers pre-burrow at a held spot, aim at armed units, dig in clo
   run(follow, 0.6);
   assert.ok(!straggler.burrowed, "건물만 보고 잠복하지 않는다");
   assert.ok(straggler.y < startY - 0.5, `본대 쪽으로 나아간다 ${startY} → ${straggler.y}`);
-  for (let step = 0; step < 80 && !straggler.burrowed; step += 1) stepStarswar(follow);
+  for (let step = 0; step < 80 && !straggler.burrowed; step += 1) stepStardraft(follow);
   assert.ok(straggler.burrowed, "본대를 따라잡으면 잠복한다");
   assert.ok((lead.y - straggler.y) * -1 <= 5.5, `본대와의 간격 ${(straggler.y - lead.y).toFixed(1)}`);
 });
 
-test("starswar templar AI starts storm research as soon as the archives stand and builds no templar before that", () => {
+test("stardraft templar AI starts storm research as soon as the archives stand and builds no templar before that", () => {
   // 예전에는 아카이브가 서기 직전에 발업·지상 공격을 먼저 연구하고 스톰 없이 템플러(가스 150)부터 뽑아,
   // 이 경기에서는 끝까지(11분) 스톰 연구 값을 모으지 못했다.
-  const state = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "templar", enemy: "bio" } });
+  const state = createStardraftGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "templar", enemy: "bio" } });
   let archivesAt = null;
   let stormAt = null;
   let templarBeforeStorm = false;
   while (state.status === "playing" && state.time < 560 && stormAt === null) {
-    stepStarswar(state, stwAiThink);
+    stepStardraft(state, stwAiThink);
     if (archivesAt === null && stwOwnBuildings(state, "player", "archives").some((building) => stwDone(building))) archivesAt = state.time;
     if (state.sides.player.research.storm) stormAt = state.time;
     else if (state.units.some((unit) => unit.side === "player" && unit.type === "templar")) templarBeforeStorm = true;
@@ -2693,7 +2693,7 @@ test("starswar templar AI starts storm research as soon as the archives stand an
   assert.equal(templarBeforeStorm, false, "스톰 연구 전에는 템플러를 뽑지 않는다");
 });
 
-test("starswar air units ride behind the wave and never lead it; wraith cloak needs research", () => {
+test("stardraft air units ride behind the wave and never lead it; wraith cloak needs research", () => {
   const state = quiet();
   const zealot = stwSpawnUnitAt(state, "player", "zealot", 20, 70, "attack");
   const scout = stwSpawnUnitAt(state, "player", "scout", 20, 70, "attack");
@@ -2706,12 +2706,12 @@ test("starswar air units ride behind the wave and never lead it; wraith cloak ne
   assert.equal(stwDetected(terranState, wraith, "enemy"), false, "은폐 장치 연구 뒤에는 탐지기가 필요하다");
 });
 
-test("starswar air AI personas field their signature flyers and opponents answer with anti-air", () => {
+test("stardraft air AI personas field their signature flyers and opponents answer with anti-air", () => {
   const games = {
     // 씨앗 1: 원거리 무빙 공격을 넣은 뒤 씨앗 2의 커세어 판은 바이오닉이 대공 건물 전에 끝냈다(1·3·4·5는 대공을 갖춘다).
-    corsair: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "corsair", enemy: "bio" } }),
-    wraith: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "zerg" }, personas: { player: "wraith", enemy: "hydra" } }),
-    muta: createStarswarGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "muta", enemy: "dragoon" } }),
+    corsair: createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" }, personas: { player: "corsair", enemy: "bio" } }),
+    wraith: createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "zerg" }, personas: { player: "wraith", enemy: "hydra" } }),
+    muta: createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "muta", enemy: "dragoon" } }),
   };
   const seen = { corsair: new Set(), wraith: new Set(), muta: new Set() };
   const foeAA = { corsair: false, wraith: false, muta: false };
@@ -2720,7 +2720,7 @@ test("starswar air AI personas field their signature flyers and opponents answer
     for (const [key, game] of Object.entries(games)) {
       if (game.status !== "playing") continue;
       playing = true;
-      stepStarswar(game, stwAiThink);
+      stepStardraft(game, stwAiThink);
       for (const unit of game.units) if (unit.side === "player") seen[key].add(unit.type);
       if (game.buildings.some((building) => building.side === "enemy" && ["turret", "spore", "cannon", "armory"].includes(building.type))) foeAA[key] = true;
     }
@@ -2730,12 +2730,12 @@ test("starswar air AI personas field their signature flyers and opponents answer
   assert.ok(seen.wraith.has("wraith"), "레이스 메카닉은 레이스를 띄운다");
   assert.ok(Object.values(foeAA).filter(Boolean).length >= 2, `상대가 대공 건물을 갖춘다 ${JSON.stringify(foeAA)}`);
   // 뮤탈 저글링은 상대가 일찍 무너지면 스파이어 전에 끝나므로, 방해 없는 판에서 스파이어와 뮤탈리스크를 확인한다.
-  const solo = createStarswarGame({ seed: 2, aiSides: ["player"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "muta" } });
+  const solo = createStardraftGame({ seed: 2, aiSides: ["player"], races: { player: "zerg", enemy: "protoss" }, personas: { player: "muta" } });
   // 상대 건물을 못 부수게 해 판이 일찍 끝나지 않도록 한다.
   for (const building of solo.buildings) if (building.side === "enemy") { building.hp = 1e6; building.maxHp = 1e6; }
   const soloSeen = new Set();
   for (let step = 0; step < 7200 && !soloSeen.has("mutalisk"); step += 1) {
-    stepStarswar(solo, stwAiThink);
+    stepStardraft(solo, stwAiThink);
     for (const unit of solo.units) if (unit.side === "player") soloSeen.add(unit.type);
   }
   assert.ok(soloSeen.has("mutalisk"), "뮤탈 저글링은 뮤탈리스크를 띄운다");
@@ -2745,7 +2745,7 @@ const research = (state, side, ...ids) => {
   for (const id of ids) state.sides[side].research[id] = "done";
 };
 
-test("starswar final battle opens with minerals left once both incomes and production stop; the lab can start with depleted minerals", () => {
+test("stardraft final battle opens with minerals left once both incomes and production stop; the lab can start with depleted minerals", () => {
   // 서로 공격하지 않고 럴커만·스카웃만 모으면 인구가 차서 광물이 남는다. 예전에는 가진 광물이 50 이상이면 최종 결전이 열리지 않아 끝나지 않았다.
   const setup = () => stwCreateScenario({ seed: 1, time: 1200, placement: "home", races: { player: "zerg", enemy: "protoss" }, sides: {
     player: { depleted: true, minerals: 3000, gas: 3000, units: { lurker: 6 } },
@@ -2790,8 +2790,8 @@ test("starswar final battle opens with minerals left once both incomes and produ
   assert.equal(real.finalBattle, undefined);
 });
 
-test("starswar every unit in the data can be produced or summoned and has a drawing slot", async () => {
-  const { STW_UNITS, STW_PRODUCER_UNITS, STW_ARMY_UNITS } = await import("../app/starswar/starswar-data.js");
+test("stardraft every unit in the data can be produced or summoned and has a drawing slot", async () => {
+  const { STW_UNITS, STW_PRODUCER_UNITS, STW_ARMY_UNITS } = await import("../app/stardraft/stardraft-data.js");
   const producible = new Set(Object.values(STW_PRODUCER_UNITS).flat());
   for (const id of STW_ARMY_UNITS) {
     const def = STW_UNITS[id];
@@ -2800,7 +2800,7 @@ test("starswar every unit in the data can be produced or summoned and has a draw
   assert.equal(STW_ARMY_UNITS.length, 38);
 });
 
-test("starswar casters: maelstrom and stasis freeze clumps, lockdown stops machines, feedback burns energy", () => {
+test("stardraft casters: maelstrom and stasis freeze clumps, lockdown stops machines, feedback burns energy", () => {
   const state = quiet();
   research(state, "player", "maelstrom", "stasis");
   const darkArchon = stwSpawnUnitAt(state, "player", "darkArchon", 20, 62, "attack");
@@ -2808,8 +2808,8 @@ test("starswar casters: maelstrom and stasis freeze clumps, lockdown stops machi
   const lings = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "enemy", "zealot", 18 + index * 1.2, 55, "attack"));
   const templar = stwSpawnUnitAt(state, "enemy", "templar", 26, 56, "rally");
   templar.energy = 120;
-  stepStarswar(state);
-  stepStarswar(state);
+  stepStardraft(state);
+  stepStardraft(state);
   assert.ok(templar.energy === 0 || lings.every((unit) => unit.stunUntil > state.time), "피드백이나 마엘스트롬을 쓴다");
   run(state, 2);
   assert.ok(lings.filter((unit) => unit.stunUntil > state.time).length >= 3, "마엘스트롬으로 질럿이 멈춘다");
@@ -2840,14 +2840,14 @@ test("starswar casters: maelstrom and stasis freeze clumps, lockdown stops machi
   assert.ok(dragoon.stunUntil > ghostState.time, "락다운으로 드라군이 멈춘다");
 });
 
-test("starswar vessels matrix allies, EMP shields and irradiate clumps; yamato hits hard", () => {
+test("stardraft vessels matrix allies, EMP shields and irradiate clumps; yamato hits hard", () => {
   const state = terran("protoss");
   research(state, "player", "emp", "irradiate", "yamato");
   const vessel = stwSpawnUnitAt(state, "player", "vessel", 20, 66, "attack");
   vessel.energy = 200;
   const zealots = [0, 1, 2].map((index) => stwSpawnUnitAt(state, "enemy", "zealot", 18.5 + index * 1.4, 58, "rally"));
-  stepStarswar(state);
-  stepStarswar(state);
+  stepStardraft(state);
+  stepStardraft(state);
   assert.ok(zealots.every((unit) => unit.shields === 0), "EMP로 보호막이 사라진다");
   const tank = stwSpawnUnitAt(state, "player", "battlecruiser", 20, 62, "attack");
   tank.lastHit = state.time;
@@ -2874,10 +2874,10 @@ test("starswar vessels matrix allies, EMP shields and irradiate clumps; yamato h
   assert.ok(carrier.hp + carrier.shields <= 450 - 200, `야마토 포 ${carrier.hp + carrier.shields}`);
 });
 
-test("starswar wounded units step back only when it can save them, then return to the fight", () => {
+test("stardraft wounded units step back only when it can save them, then return to the fight", () => {
   // 체력 30% 아래로 맞은 유닛은 살 가망이 있을 때만 잠깐 물러난다. 맞은 뒤 2초 안에 물러났는지와, 그동안 적과 얼마나 벌어졌는지를 본다.
   const hurt = (races, type, foeType, gap, { research = [], foeResearch = [], medic = false } = {}) => {
-    const state = createStarswarGame({ seed: 5, aiSides: [], races });
+    const state = createStardraftGame({ seed: 5, aiSides: [], races });
     for (const id of research) state.sides.player.research[id] = "done";
     for (const id of foeResearch) state.sides.enemy.research[id] = "done";
     const unit = stwSpawnUnitAt(state, "player", type, 20, 60, "attack");
@@ -2888,7 +2888,7 @@ test("starswar wounded units step back only when it can save them, then return t
     let fled = false;
     let farthest = 0;
     for (let tick = 0; tick < 25 && unit.hp > 0; tick += 1) {
-      stepStarswar(state);
+      stepStardraft(state);
       if (unit.fleeUntil !== undefined) fled = true;
       farthest = Math.max(farthest, Math.hypot(unit.x - foe.x, unit.y - foe.y));
     }
@@ -2913,23 +2913,23 @@ test("starswar wounded units step back only when it can save them, then return t
   // 공중 유닛끼리는 물러나지 않는다.
   assert.equal(hurt(zvz, "mutalisk", "mutalisk", 2.5).fled, false, "공중전에서는 물러나지 않음");
   // 최종 결전 중에는 물러나지 않는다.
-  const last = createStarswarGame({ seed: 5, aiSides: [], races: zvz });
+  const last = createStardraftGame({ seed: 5, aiSides: [], races: zvz });
   const cornered = stwSpawnUnitAt(last, "player", "hydra", 20, 60, "attack");
   cornered.hp = 20;
   stwSpawnUnitAt(last, "enemy", "hydra", 20, 55.8, "attack");
   last.finalBattle = { at: last.time };
   let fledInFinal = false;
   for (let tick = 0; tick < 25 && cornered.hp > 0; tick += 1) {
-    stepStarswar(last);
+    stepStardraft(last);
     if (cornered.fleeUntil !== undefined) fledInFinal = true;
   }
   assert.equal(fledInFinal, false);
 });
 
-test("starswar air units back off while reloading only from enemies they outrange", () => {
+test("stardraft air units back off while reloading only from enemies they outrange", () => {
   // 공중 유닛의 무빙: 재장전 동안, 자기보다 사거리가 짧은 적의 사거리 안이면 물러난다. 사거리가 같거나 긴 적 앞에서는 그대로 싸운다.
   const duel = (races, attackerType, foeType, gap) => {
-    const state = createStarswarGame({ seed: 5, aiSides: [], races });
+    const state = createStardraftGame({ seed: 5, aiSides: [], races });
     const attacker = stwSpawnUnitAt(state, "player", attackerType, 20, 60, "attack");
     const foe = stwSpawnUnitAt(state, "enemy", foeType, 20, 60 - gap, "rally");
     foe.stunUntil = 999;
@@ -2937,7 +2937,7 @@ test("starswar air units back off while reloading only from enemies they outrang
     let shots = 0;
     let last = attacker.cooldown;
     for (let tick = 0; tick < 60; tick += 1) {
-      stepStarswar(state);
+      stepStardraft(state);
       if (attacker.cooldown > last + 0.1) shots += 1;
       last = attacker.cooldown;
       farthest = Math.max(farthest, Math.hypot(attacker.x - foe.x, attacker.y - foe.y));
@@ -2958,15 +2958,15 @@ test("starswar air units back off while reloading only from enemies they outrang
   // 싸움: 배틀크루저 4기는 드라군 12기를 물러나며 잡는다(예전에는 전멸).
   const fight = stwCreateScenario({ seed: 1, time: 900, placement: "clash", races: { player: "terran", enemy: "protoss" }, sides: { player: { units: { battlecruiser: 4 } }, enemy: { units: { dragoon: 12 }, research: ["range"] } } });
   const alive = (side, type) => fight.units.filter((unit) => unit.side === side && unit.type === type && unit.hp > 0).length;
-  for (let tick = 0; tick < 900 && fight.status === "playing" && alive("player", "battlecruiser") && alive("enemy", "dragoon"); tick += 1) stepStarswar(fight);
+  for (let tick = 0; tick < 900 && fight.status === "playing" && alive("player", "battlecruiser") && alive("enemy", "dragoon"); tick += 1) stepStardraft(fight);
   assert.equal(alive("enemy", "dragoon"), 0);
   assert.ok(alive("player", "battlecruiser") >= 1);
 });
 
-test("starswar air units shoot enemies that can hit them first, and scouts go for air targets", () => {
+test("stardraft air units shoot enemies that can hit them first, and scouts go for air targets", () => {
   // 공중 공격 유닛은 자기를 때릴 수 있는 적부터 친다(때릴 수 없는 적은 5칸 더 먼 것으로 친다). 스카웃은 공중 목표부터(지상은 6칸 더).
   const pick = (races, attackerType, near, nearDistance, far, farDistance) => {
-    const state = createStarswarGame({ seed: 5, aiSides: [], races });
+    const state = createStardraftGame({ seed: 5, aiSides: [], races });
     const attacker = stwSpawnUnitAt(state, "player", attackerType, 20, 60, "attack");
     const first = stwSpawnUnitAt(state, "enemy", near, 20 - nearDistance, 60, "rally");
     const second = stwSpawnUnitAt(state, "enemy", far, 20 + farDistance, 60, "rally");
@@ -2978,7 +2978,7 @@ test("starswar air units shoot enemies that can hit them first, and scouts go fo
   const pvz = { player: "protoss", enemy: "zerg" };
   assert.equal(pick(zvp, "mutalisk", "zealot", 5, "dragoon", 7), "dragoon", "뮤탈: 질럿 5칸·드라군 7칸이면 드라군");
   // 이동 사격: 드라군으로 날아가는 길에 사거리 안에 든 질럿은 목표를 바꾸지 않고 쏘고 지나간다.
-  const pass = createStarswarGame({ seed: 5, aiSides: [], races: zvp });
+  const pass = createStardraftGame({ seed: 5, aiSides: [], races: zvp });
   const muta = stwSpawnUnitAt(pass, "player", "mutalisk", 20, 60, "attack");
   const underfoot = stwSpawnUnitAt(pass, "enemy", "zealot", 21, 60, "rally");
   const threat = stwSpawnUnitAt(pass, "enemy", "dragoon", 26, 60, "rally");
@@ -2996,15 +2996,15 @@ test("starswar air units shoot enemies that can hit them first, and scouts go fo
   // 섞인 병력과의 싸움: 스카웃 6기는 저글링 24 + 뮤탈 6에서 뮤탈을 먼저 잡고 살아남는다(예전에는 저글링을 쏘다 전멸).
   const fight = stwCreateScenario({ seed: 1, time: 900, placement: "clash", races: pvz, sides: { player: { units: { scout: 6 } }, enemy: { units: { zergling: 24, mutalisk: 6 } } } });
   const alive = (side, type) => fight.units.filter((unit) => unit.side === side && unit.type === type && unit.hp > 0).length;
-  for (let tick = 0; tick < 900 && fight.status === "playing" && alive("player", "scout") && alive("enemy", "mutalisk"); tick += 1) stepStarswar(fight);
+  for (let tick = 0; tick < 900 && fight.status === "playing" && alive("player", "scout") && alive("enemy", "mutalisk"); tick += 1) stepStardraft(fight);
   assert.equal(alive("enemy", "mutalisk"), 0, "뮤탈을 모두 잡음");
   assert.ok(alive("player", "scout") >= 3, `스카웃 ${alive("player", "scout")}기 생존`);
 });
 
-test("starswar firebats pick small targets over nearer large ones and stim while charging in", () => {
+test("stardraft firebats pick small targets over nearer large ones and stim while charging in", () => {
   // 화염은 진동형(소형 100%, 중형 50%, 대형 25%)이라, 조금 더 멀어도 질럿·저글링부터 친다. 바로 붙어 있는 적은 그대로 친다.
   const pick = (enemyRace, near, nearDistance, far, farDistance) => {
-    const state = createStarswarGame({ seed: 5, aiSides: [], races: { player: "terran", enemy: enemyRace } });
+    const state = createStardraftGame({ seed: 5, aiSides: [], races: { player: "terran", enemy: enemyRace } });
     const firebat = stwSpawnUnitAt(state, "player", "firebat", 20, 60, "attack");
     const first = stwSpawnUnitAt(state, "enemy", near, 20 - nearDistance, 60, "rally");
     const second = stwSpawnUnitAt(state, "enemy", far, 20 + farDistance, 60, "rally");
@@ -3018,7 +3018,7 @@ test("starswar firebats pick small targets over nearer large ones and stim while
   assert.equal(pick("protoss", "dragoon", 4, "dragoon", 7), "dragoon", "같은 크기면 가까운 쪽");
 
   // 스팀팩: 붙은 뒤가 아니라 달려드는 동안(사거리 밖 6칸 안) 쓴다.
-  const charge = createStarswarGame({ seed: 5, aiSides: [], races: { player: "terran", enemy: "zerg" } });
+  const charge = createStardraftGame({ seed: 5, aiSides: [], races: { player: "terran", enemy: "zerg" } });
   research(charge, "player", "stim");
   const firebat = stwSpawnUnitAt(charge, "player", "firebat", 20, 60, "attack");
   const hydra = stwSpawnUnitAt(charge, "enemy", "hydra", 20, 53, "rally");
@@ -3029,7 +3029,7 @@ test("starswar firebats pick small targets over nearer large ones and stim while
   assert.equal(hydra.hp, hydra.maxHp);
 });
 
-test("starswar detectors: observers avoid enemy anti-air defenses, go to allies hit by hidden enemies, and keep a squad post; vessels watch from above the army", () => {
+test("stardraft detectors: observers avoid enemy anti-air defenses, go to allies hit by hidden enemies, and keep a squad post; vessels watch from above the army", () => {
   const lab = (races, mine, mineResearch, foe, foeResearch, foeBuildings = {}, energy = "full") => {
     const state = stwCreateScenario({ seed: 1, time: 900, placement: "home", races, sides: {
       player: { units: mine, research: mineResearch, energy, natural: true },
@@ -3041,7 +3041,7 @@ test("starswar detectors: observers avoid enemy anti-air defenses, go to allies 
   };
   const armed = (state, side) => state.units.filter((unit) => unit.side === side && unit.hp > 0 && STW_UNITS[unit.type].damage && !STW_UNITS[unit.type].worker);
   const fight = (state) => {
-    for (let tick = 0; tick < 2400 && state.status === "playing" && armed(state, "player").length && armed(state, "enemy").length; tick += 1) stepStarswar(state);
+    for (let tick = 0; tick < 2400 && state.status === "playing" && armed(state, "player").length && armed(state, "enemy").length; tick += 1) stepStardraft(state);
   };
 
   // 옵저버: 스포어 콜로니(탐지 + 대공) 구역으로 들어가지 않아 살아남고, 그 덕에 럴커를 드러내 이긴다.
@@ -3053,7 +3053,7 @@ test("starswar detectors: observers avoid enemy anti-air defenses, go to allies 
   assert.equal(armed(spores, "enemy").length, 0, "럴커·히드라를 모두 잡음");
 
   // 숨은 적에게 맞는 아군에게 간다: 선두는 멀리 앞에 있고, 뒤에 남은 드라군을 다크템플러가 친다.
-  const ambush = createStarswarGame({ seed: 5, aiSides: [], races: { player: "protoss", enemy: "protoss" } });
+  const ambush = createStardraftGame({ seed: 5, aiSides: [], races: { player: "protoss", enemy: "protoss" } });
   const lead = stwSpawnUnitAt(ambush, "player", "zealot", 20, 40, "attack");
   lead.stunUntil = 999;
   const victim = stwSpawnUnitAt(ambush, "player", "dragoon", 20, 64, "attack");
@@ -3063,13 +3063,13 @@ test("starswar detectors: observers avoid enemy anti-air defenses, go to allies 
   assert.equal(stwDetected(ambush, dark, "player"), false, "처음에는 옵저버가 선두 곁이라 다크템플러가 안 보임");
   let revealed = false;
   for (let tick = 0; tick < 90 && !revealed; tick += 1) {
-    stepStarswar(ambush);
+    stepStardraft(ambush);
     revealed = dark.hp > 0 && stwDetected(ambush, dark, "player");
   }
   assert.equal(revealed, true, `옵저버가 맞는 아군 쪽으로 와서 다크템플러를 드러냄(옵저버 y ${watcher.y.toFixed(1)}, 다크 y ${dark.y.toFixed(1)})`);
 
   // 따로 둔 부대의 옵저버는 공격 병력이 나가도 세워 둔 자리를 지킨다.
-  const post = createStarswarGame({ seed: 5, aiSides: [], races: { player: "protoss", enemy: "terran" } });
+  const post = createStardraftGame({ seed: 5, aiSides: [], races: { player: "protoss", enemy: "terran" } });
   const sentry = stwSpawnUnitAt(post, "player", "observer", 20, 70, "rally");
   for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(post, "player", "zealot", 14 + index * 4, 76, "rally");
   assert.ok(stwIssue(post, "player", { type: "squadMove", units: ["observer"], y: 60 }).ok);
@@ -3090,7 +3090,7 @@ test("starswar detectors: observers avoid enemy anti-air defenses, go to allies 
   assert.ok(vessel.hp > 0);
 });
 
-test("starswar queens keep to spell range and spawn broodlings on tanks and templars, not reavers or workers", () => {
+test("stardraft queens keep to spell range and spawn broodlings on tanks and templars, not reavers or workers", () => {
   // 브루들링 대상: 기계(시즈 탱크)·사이오닉(하이템플러)도 잡는다. 리버·일꾼만 있으면 쓰지 않는다.
   const cast = (enemyRace, type) => {
     const state = zerg(enemyRace);
@@ -3135,7 +3135,7 @@ test("starswar queens keep to spell range and spawn broodlings on tanks and temp
     const queens = battle.units.filter((unit) => unit.type === "queen");
     let closest = Infinity;
     for (let tick = 0; tick < 300 && battle.units.some((unit) => unit.side === "enemy" && unit.type === "marine" && unit.hp > 0); tick += 1) {
-      stepStarswar(battle);
+      stepStardraft(battle);
       const marines = battle.units.filter((unit) => unit.side === "enemy" && unit.type === "marine" && unit.hp > 0);
       for (const queen of queens) for (const marine of marines) closest = Math.min(closest, Math.hypot(marine.x - queen.x, marine.y - queen.y));
     }
@@ -3144,7 +3144,7 @@ test("starswar queens keep to spell range and spawn broodlings on tanks and temp
   }
 });
 
-test("starswar queens ensnare and spawn broodlings; defilers swarm and plague", () => {
+test("stardraft queens ensnare and spawn broodlings; defilers swarm and plague", () => {
   const state = zerg("terran");
   research(state, "player", "ensnare", "broodling", "plague");
   const queen = stwSpawnUnitAt(state, "player", "queen", 20, 66, "rally");
@@ -3189,7 +3189,7 @@ test("starswar queens ensnare and spawn broodlings; defilers swarm and plague", 
   assert.ok(victims.every((unit) => unit.hp >= 1), `체력 1까지만 ${victims.map((unit) => unit.hp.toFixed(1))}`);
 });
 
-test("starswar carriers launch more interceptors after research, devourers corrode armor, arbiters cloak allies", () => {
+test("stardraft carriers launch more interceptors after research, devourers corrode armor, arbiters cloak allies", () => {
   const state = quiet();
   const carrier = stwSpawnUnitAt(state, "player", "carrier", 20, 60, "attack");
   const dummy = stwSpawnUnitAt(state, "enemy", "zealot", 20, 54, "rally");
@@ -3213,7 +3213,7 @@ test("starswar carriers launch more interceptors after research, devourers corro
   assert.equal(stwDetected(cloak, zealot, "enemy"), true, "은폐장 밖이면 보인다");
 });
 
-test("starswar drops carry ground units to the enemy main and transports take riders down with them", () => {
+test("stardraft drops carry ground units to the enemy main and transports take riders down with them", () => {
   const state = quiet();
   assert.match(stwCommand(state, "player", { type: "drop" }).reason, /쉬는 셔틀 필요/);
   const shuttle = stwSpawnUnitAt(state, "player", "shuttle", 20, 80, "rally");
@@ -3224,14 +3224,14 @@ test("starswar drops carry ground units to the enemy main and transports take ri
   assert.equal(state.ops[0].phase, "load", "바로 싣지 않는다: 병력이 수송선으로 걸어가고 수송선이 다가가 태운다");
   assert.equal(riders.filter((unit) => unit.group === "board").length, 4);
   assert.equal(stwArmy(state, "player").fighters.length, 1, "탈 병력은 대기 병력에서 빠진다");
-  for (let index = 0; index < 200 && state.ops[0].phase === "load"; index += 1) stepStarswar(state);
+  for (let index = 0; index < 200 && state.ops[0].phase === "load"; index += 1) stepStardraft(state);
   assert.equal(riders.filter((unit) => unit.group === "cargo").length, 4, "다가가서 태운 뒤 출발");
-  for (let index = 0; index < 400 && shuttle.cargo?.length; index += 1) stepStarswar(state);
+  for (let index = 0; index < 400 && shuttle.cargo?.length; index += 1) stepStardraft(state);
   const enemyMain = stwNexus(state, "enemy", "main");
   const landed = riders.filter((unit) => unit.group === "attack");
   assert.equal(landed.length, 4, "적 본진 뒤에 내린다");
   assert.ok(landed.every((unit) => Math.hypot(unit.x - enemyMain.x, unit.y - enemyMain.y) < 14), "적 본진 옆");
-  for (let index = 0; index < 1500 && shuttle.op !== undefined; index += 1) stepStarswar(state);
+  for (let index = 0; index < 1500 && shuttle.op !== undefined; index += 1) stepStardraft(state);
   assert.equal(shuttle.group, "rally", "견제를 마친 셔틀은 병력을 태워 돌아온다");
   assert.ok(riders.filter((unit) => unit.hp > 0 && unit.group === "rally").length >= 3, "회수한 병력은 집결지로 돌아온다");
 
@@ -3239,9 +3239,9 @@ test("starswar drops carry ground units to the enemy main and transports take ri
   const dropship = stwSpawnUnitAt(shot, "player", "dropship", 20, 80, "rally");
   const marines = [0, 1].map((index) => stwSpawnUnitAt(shot, "player", "marine", 18 + index * 2, 78, "rally"));
   stwCommand(shot, "player", { type: "drop" });
-  for (let index = 0; index < 200 && shot.ops[0].phase === "load"; index += 1) stepStarswar(shot);
+  for (let index = 0; index < 200 && shot.ops[0].phase === "load"; index += 1) stepStardraft(shot);
   dropship.hp = 0;
-  stepStarswar(shot);
+  stepStardraft(shot);
   assert.ok(marines.every((unit) => !shot.units.includes(unit)), "격추되면 탄 병력도 잃는다");
 
   const zergDrop = zerg("protoss");
@@ -3257,7 +3257,7 @@ test("starswar drops carry ground units to the enemy main and transports take ri
   assert.equal(stwOwnBuildings(zergDrop, "player", "overlord").length, 2, "기지에 오버로드 2기는 남긴다");
 });
 
-test("starswar transports load by slots: zealots take two, dragoons four, raids keep room for medics", () => {
+test("stardraft transports load by slots: zealots take two, dragoons four, raids keep room for medics", () => {
   const state = quiet();
   stwSpawnUnitAt(state, "player", "shuttle", 20, 80, "rally");
   stwSpawnUnitAt(state, "player", "dragoon", 18, 78, "rally");
@@ -3280,14 +3280,14 @@ test("starswar transports load by slots: zealots take two, dragoons four, raids 
   assert.deepEqual([aboard.filter((type) => type === "marine").length, aboard.filter((type) => type === "medic").length, aboard.includes("tank")], [6, 2, false], "게릴라는 해병 6 + 메딕 2, 탱크는 태우지 않음");
 });
 
-test("starswar guerrilla drops kill workers, suppress mining, and pull out when defenders arrive", () => {
+test("stardraft guerrilla drops kill workers, suppress mining, and pull out when defenders arrive", () => {
   const state = quiet();
   state.sides.enemy.probes = 20;
   for (const building of state.buildings) if (building.side === "enemy") building.hp = building.maxHp = 1e9;
   const shuttle = stwSpawnUnitAt(state, "player", "shuttle", 20, 80, "rally");
   const zealots = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "player", "zealot", 16 + index * 2, 78, "rally"));
   assert.equal(stwCommand(state, "player", { type: "drop", mission: "raid", target: "main" }).ok, true);
-  for (let index = 0; index < 600 && !zealots.some((unit) => unit.raid !== undefined && unit.group === "attack"); index += 1) stepStarswar(state);
+  for (let index = 0; index < 600 && !zealots.some((unit) => unit.raid !== undefined && unit.group === "attack"); index += 1) stepStardraft(state);
   const op = state.ops[0];
   assert.equal(op.phase, "fight", "내려서 견제");
   const mined = state.sides.enemy.stats.minerals;
@@ -3300,12 +3300,12 @@ test("starswar guerrilla drops kill workers, suppress mining, and pull out when 
   for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(state, "enemy", "zealot", center.x - 4 + index * 1.6, center.y - 7, "attack");
   run(state, 1.5);
   assert.ok(["pickup", "home"].includes(op.phase), `적이 몰려오면 회수 (${op.phase})`);
-  for (let index = 0; index < 1500 && shuttle.op !== undefined; index += 1) stepStarswar(state);
+  for (let index = 0; index < 1500 && shuttle.op !== undefined; index += 1) stepStardraft(state);
   assert.equal(shuttle.group, "rally");
   assert.ok(zealots.some((unit) => unit.hp > 0 && unit.group === "rally" && unit.raid === undefined), "살아남은 질럿은 집결지로");
 });
 
-test("starswar repeated raids relaunch on their own and alternate between main and natural", () => {
+test("stardraft repeated raids relaunch on their own and alternate between main and natural", () => {
   const state = quiet();
   state.sides.enemy.minerals = 9000;
   stwCommand(state, "enemy", { type: "build", building: "expand" });
@@ -3316,7 +3316,7 @@ test("starswar repeated raids relaunch on their own and alternate between main a
   stwCommand(state, "player", { type: "dropPlan", mission: "raid", target: "alternate", repeat: true });
   assert.equal(stwCommand(state, "player", { type: "drop" }).ok, true);
   const first = state.ops[0].base;
-  for (let index = 0; index < 1500 && shuttle.op !== undefined; index += 1) stepStarswar(state);
+  for (let index = 0; index < 1500 && shuttle.op !== undefined; index += 1) stepStardraft(state);
   run(state, 8);
   assert.ok(state.ops.length === 1, "돌아와서 다시 나간다");
   assert.notEqual(state.ops[0].base, first, "본진과 앞마당을 번갈아");
@@ -3324,7 +3324,7 @@ test("starswar repeated raids relaunch on their own and alternate between main a
   assert.equal(state.sides.player.raidRelaunchAt, undefined);
 });
 
-test("starswar bomb drops gather, wait for the front to engage, land together, and hit production first", () => {
+test("stardraft bomb drops gather, wait for the front to engage, land together, and hit production first", () => {
   const state = quiet();
   state.sides.enemy.minerals = 9000;
   for (const building of ["pylon", "gateway", "forge"]) {
@@ -3354,9 +3354,9 @@ test("starswar bomb drops gather, wait for the front to engage, land together, a
   assert.equal(op.phase, "gather", "정면이 맞붙기 전에는 집결점에서 기다린다");
   // 정면이 적과 맞붙으면 들어간다.
   stwSpawnUnitAt(state, "enemy", "zealot", front.x, front.y - 4, "rally");
-  for (let index = 0; index < 400 && op.phase === "gather"; index += 1) stepStarswar(state);
+  for (let index = 0; index < 400 && op.phase === "gather"; index += 1) stepStardraft(state);
   assert.equal(op.phase, "in");
-  for (let index = 0; index < 600 && state.ops.includes(op) && op.phase === "in"; index += 1) stepStarswar(state);
+  for (let index = 0; index < 600 && state.ops.includes(op) && op.phase === "in"; index += 1) stepStardraft(state);
   const gateway = stwOwnBuildings(state, "enemy", "gateway")[0];
   const before = gateway.hp + gateway.shields;
   run(state, 12);
@@ -3364,7 +3364,7 @@ test("starswar bomb drops gather, wait for the front to engage, land together, a
   assert.ok(shuttles.every((unit) => unit.hp <= 0 || !unit.cargo?.length), "동시에 내렸다");
 });
 
-test("starswar defence buildings guard the main first once enemy transports have been seen", () => {
+test("stardraft defence buildings guard the main first once enemy transports have been seen", () => {
   const state = quiet();
   state.sides.player.minerals = 9000;
   for (const building of ["pylon", "forge", "expand"]) {
@@ -3382,7 +3382,7 @@ test("starswar defence buildings guard the main first once enemy transports have
   assert.equal(stwOwnBuildings(state, "player", "cannon")[1].slot, "guard-0");
 });
 
-test("starswar defence buildings go front (natural, else the main's front row) or rear (mineral-line guard slots, then the main from the back)", () => {
+test("stardraft defence buildings go front (natural, else the main's front row) or rear (mineral-line guard slots, then the main from the back)", () => {
   const state = quiet();
   state.sides.player.minerals = 20000;
   for (const building of ["pylon", "forge"]) {
@@ -3422,9 +3422,9 @@ test("starswar defence buildings go front (natural, else the main's front row) o
   assert.match(stwBuildCheck(full, "player", "cannon", "rear").reason, /후방\(본진\)에 지을 자리가 없습니다/);
 });
 
-test("starswar AI musters units away from intruders it cannot beat yet, then strikes together, and skips defences while they are inside", () => {
+test("stardraft AI musters units away from intruders it cannot beat yet, then strikes together, and skips defences while they are inside", () => {
   // 실제 경기(커밋 91ebfd7): 질럿 둘이 3분에 테란 본진에 들어오자 짓던 벙커가 부서지고 해병이 하나씩 잡혀 5분에 무너졌다.
-  const state = createStarswarGame({ seed: 5, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "tankbio" } });
+  const state = createStardraftGame({ seed: 5, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "tankbio" } });
   state.sides.enemy.minerals = 600;
   for (const building of ["depot", "barracks"]) {
     stwCommand(state, "enemy", { type: "build", building });
@@ -3450,7 +3450,7 @@ test("starswar AI musters units away from intruders it cannot beat yet, then str
   assert.ok(Math.abs(state.sides.enemy.rally - zealotY) < 1.5, `적이 있는 높이로 간다 (${state.sides.enemy.rally} vs ${zealotY.toFixed(1)})`);
 
   // 들어온 적이 없으면 프로토스 상대로도 2분 30초에 벙커를 미리 세운다.
-  const calm = createStarswarGame({ seed: 5, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "tankbio" } });
+  const calm = createStardraftGame({ seed: 5, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: "tankbio" } });
   calm.sides.enemy.minerals = 2000;
   for (const building of ["depot", "barracks"]) {
     stwCommand(calm, "enemy", { type: "build", building });
@@ -3462,8 +3462,8 @@ test("starswar AI musters units away from intruders it cannot beat yet, then str
   assert.equal(stwOwnBuildings(calm, "enemy", "bunker").length, 1, "프로토스 상대 선제 벙커");
 });
 
-test("starswar AI answers drops: main defence after a sighting, four guards kept home, and raids of its own", () => {
-  const state = createStarswarGame({ seed: 3, aiSides: ["enemy"], races: { player: "protoss", enemy: "protoss" }, personas: { enemy: "dragoon" } });
+test("stardraft AI answers drops: main defence after a sighting, four guards kept home, and raids of its own", () => {
+  const state = createStardraftGame({ seed: 3, aiSides: ["enemy"], races: { player: "protoss", enemy: "protoss" }, personas: { enemy: "dragoon" } });
   state.sides.enemy.minerals = 9000;
   for (const building of ["pylon", "gateway", "core", "forge", "expand"]) {
     stwCommand(state, "enemy", { type: "build", building });
@@ -3486,7 +3486,7 @@ test("starswar AI answers drops: main defence after a sighting, four guards kept
   assert.ok(army.fighters.every((unit) => unit.type === "dragoon"), "공중도 쏘는 드라군을 남김");
 
   // 로보 운영 AI는 셔틀이 있으면 게릴라 드랍을 보낸다.
-  const robo = createStarswarGame({ seed: 3, aiSides: ["player"], races: { player: "protoss", enemy: "protoss" }, personas: { player: "robo" } });
+  const robo = createStardraftGame({ seed: 3, aiSides: ["player"], races: { player: "protoss", enemy: "protoss" }, personas: { player: "robo" } });
   robo.time = 400;
   robo.sides.player.ai = { nextThink: 0, step: 0, wave: 0, attacking: false, waveStart: 0, done: Array.from({ length: 30 }, (_, index) => index) };
   stwSpawnUnitAt(robo, "player", "shuttle", 20, 80, "rally");
@@ -3496,7 +3496,7 @@ test("starswar AI answers drops: main defence after a sighting, four guards kept
   assert.equal(robo.ops[0].kind, "raid");
 });
 
-test("starswar overlords that come back from a drop can drop again or take up escort duty", () => {
+test("stardraft overlords that come back from a drop can drop again or take up escort duty", () => {
   const state = zerg("protoss");
   state.sides.player.minerals = 9000;
   // 내린 히드라가 적 넥서스를 부숴 판이 끝나지 않도록 한다.
@@ -3509,22 +3509,22 @@ test("starswar overlords that come back from a drop can drop again or take up es
   stwSpawnUnitAt(state, "player", "hydra", 20, 78, "rally");
   assert.equal(stwCommand(state, "player", { type: "drop" }).ok, true);
   const flier = state.units.find((unit) => unit.side === "player" && unit.type === "overlord");
-  for (let index = 0; index < 2500 && flier.op !== undefined; index += 1) stepStarswar(state);
+  for (let index = 0; index < 2500 && flier.op !== undefined; index += 1) stepStardraft(state);
   assert.equal(flier.group, "rally", "내려 준 뒤 돌아온다");
   // 돌아온 오버로드는 다음 침투에 먼저 쓰이고, 기지에 앉은 오버로드는 2기가 그대로 남는다.
   stwSpawnUnitAt(state, "player", "hydra", 20, 78, "rally");
   assert.equal(stwCommand(state, "player", { type: "drop" }).ok, true);
   assert.equal(flier.op !== undefined && state.ops.some((op) => op.id === flier.op), true, "돌아온 오버로드가 다시 출발(먼저 병력 쪽으로 가서 태운다)");
   assert.equal(stwOwnBuildings(state, "player", "overlord").length, 2);
-  for (let index = 0; index < 2500 && flier.op !== undefined; index += 1) stepStarswar(state);
+  for (let index = 0; index < 2500 && flier.op !== undefined; index += 1) stepStardraft(state);
   // 동행을 켜면 떠 있는 오버로드가 동행을 맡고, 기지의 오버로드는 앉아 있는다.
   stwCommand(state, "player", { type: "escort", on: true });
-  stepStarswar(state);
+  stepStardraft(state);
   assert.equal(flier.escort, true);
   assert.equal(stwOwnBuildings(state, "player", "overlord").length, 2);
 });
 
-test("starswar casters stand close enough behind the front to reach the enemy line", () => {
+test("stardraft casters stand close enough behind the front to reach the enemy line", () => {
   const state = terran("zerg");
   research(state, "player", "irradiate");
   const marines = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(state, "player", "marine", 14 + index * 3, 60, "attack"));
@@ -3539,13 +3539,13 @@ test("starswar casters stand close enough behind the front to reach the enemy li
   assert.ok(vessel.y - Math.min(...marines.map((unit) => unit.y)) <= 4, "베슬은 선두 3칸 남짓 뒤");
 });
 
-test("starswar dark templars merge into a dark archon and infested terrans explode", () => {
+test("stardraft dark templars merge into a dark archon and infested terrans explode", () => {
   const state = quiet();
   assert.match(stwCommand(state, "player", { type: "darkMerge" }).reason, /다크템플러 2기/);
   stwSpawnUnitAt(state, "player", "dark", 20, 70, "rally");
   stwSpawnUnitAt(state, "player", "dark", 22, 70, "rally");
   assert.equal(stwCommand(state, "player", { type: "darkMerge" }).ok, true);
-  stepStarswar(state);
+  stepStardraft(state);
   assert.equal(state.units.filter((unit) => unit.side === "player" && unit.type === "darkArchon").length, 1);
   assert.equal(state.units.filter((unit) => unit.side === "player" && unit.type === "dark").length, 0);
 
@@ -3557,8 +3557,8 @@ test("starswar dark templars merge into a dark archon and infested terrans explo
   assert.ok(marines.filter((unit) => unit.hp <= 0).length >= 2, "주변 해병이 죽는다");
 });
 
-test("starswar AI scouts early and goes on alert against a rush: defense first, no attacks", () => {
-  const state = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "protoss" }, personas: { enemy: "dragoon" } });
+test("stardraft AI scouts early and goes on alert against a rush: defense first, no attacks", () => {
+  const state = createStardraftGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "protoss" }, personas: { enemy: "dragoon" } });
   state.sides.player.minerals = 9000;
   for (const building of ["pylon", "gateway", "gateway", "gateway"]) {
     stwCommand(state, "player", { type: "build", building });
@@ -3580,7 +3580,7 @@ test("starswar AI scouts early and goes on alert against a rush: defense first, 
   assert.equal(state.sides.enemy.ai.attacking, false, "경계 중에는 출격하지 않음");
 });
 
-test("starswar maps: plain is the default, every map keeps its buildings clear of resources and cliffs", () => {
+test("stardraft maps: plain is the default, every map keeps its buildings clear of resources and cliffs", () => {
   assert.deepEqual(STW_MAP_IDS, ["plain", "canyon", "gold"]);
   assert.equal(stwMapData("nowhere").id, "plain", "모르는 맵은 평원");
   assert.equal(STW_MAPS.plain.layout, STW_LAYOUT);
@@ -3613,8 +3613,8 @@ test("starswar maps: plain is the default, every map keeps its buildings clear o
   }
 });
 
-test("starswar gold natural sits forward, holds more minerals, and mines 40% faster", () => {
-  const state = createStarswarGame({ seed: 5, aiSides: [], map: "gold" });
+test("stardraft gold natural sits forward, holds more minerals, and mines 40% faster", () => {
+  const state = createStardraftGame({ seed: 5, aiSides: [], map: "gold" });
   const plain = quiet();
   assert.equal(state.map, "gold");
   assert.equal(state.replay.setup.map, "gold");
@@ -3660,20 +3660,20 @@ test("starswar gold natural sits forward, holds more minerals, and mines 40% fas
   assert.equal(plain.sides.player.rally, 34);
 });
 
-test("starswar canyon keeps ground units between the cliffs while flyers cross over them", () => {
+test("stardraft canyon keeps ground units between the cliffs while flyers cross over them", () => {
   const map = STW_MAPS.canyon;
   assert.deepEqual(stwGroundSpan(map, 50), [12, 28]);
   assert.deepEqual(stwGroundSpan(map, 60), [6, 34]);
   assert.deepEqual(stwGroundSpan(map, 70), [1, 39]);
   assert.deepEqual(stwGroundSpan(STW_MAPS.plain, 50), [1, 39]);
-  const state = createStarswarGame({ seed: 5, aiSides: [], map: "canyon" });
+  const state = createStardraftGame({ seed: 5, aiSides: [], map: "canyon" });
   // 가운데에 선 큰 부대: 지상 유닛은 길 안에 줄을 이어 서고, 공중 유닛은 절벽 위에 떠도 된다.
   const ground = Array.from({ length: 30 }, (_, index) => stwSpawnUnitAt(state, "player", index < 18 ? "zealot" : "dragoon", 4 + (index % 10) * 3.5, 66 + Math.floor(index / 10) * 2, "rally"));
   const flyer = stwSpawnUnitAt(state, "player", "scout", 3, 50, "rally");
   stwCommand(state, "player", { type: "rally", point: "center" });
   let outside = 0;
   for (let step = 0; step < 300; step += 1) {
-    stepStarswar(state, null);
+    stepStardraft(state, null);
     for (const unit of ground) {
       const [left, right] = stwGroundSpan(map, unit.y);
       if (unit.x < left - 1e-6 || unit.x > right + 1e-6) outside += 1;
@@ -3691,13 +3691,13 @@ test("starswar canyon keeps ground units between the cliffs while flyers cross o
   run(state, 0.5);
   assert.ok(high.x < 11, `공중 유닛은 절벽 위를 지난다 (${high.x})`);
   // 길을 지나 적 본진까지 간다(벽에 걸려 멈추지 않는다).
-  const march = createStarswarGame({ seed: 5, aiSides: [], map: "canyon" });
+  const march = createStardraftGame({ seed: 5, aiSides: [], map: "canyon" });
   const runner = stwSpawnUnitAt(march, "player", "zealot", 2, 70, "rally");
   stwCommand(march, "player", { type: "attack" });
   run(march, 40);
   assert.ok(runner.y < 30 || runner.hp <= 0, `가장자리에서 출발해도 협곡을 빠져나간다 (${runner.y})`);
   // 자원 정찰 일꾼도 협곡을 지나 한 바퀴 돌고 돌아온다.
-  const scouting = createStarswarGame({ seed: 5, aiSides: [], map: "canyon" });
+  const scouting = createStardraftGame({ seed: 5, aiSides: [], map: "canyon" });
   scouting.sides.player.probes = 8;
   assert.equal(stwCommand(scouting, "player", { type: "scout", mode: "resources" }).ok, true);
   const probes = scouting.sides.player.probes;
@@ -3706,13 +3706,13 @@ test("starswar canyon keeps ground units between the cliffs while flyers cross o
   assert.equal(scouting.sides.player.probes, probes + 1, "돌아와 다시 일한다");
 });
 
-test("starswar replays and learning carry the map", () => {
-  let state = createStarswarGame({ seed: 11, aiSides: ["enemy"], races: { player: "terran", enemy: "zerg" }, personas: { enemy: "hydra" }, map: "canyon" });
+test("stardraft replays and learning carry the map", () => {
+  let state = createStardraftGame({ seed: 11, aiSides: ["enemy"], races: { player: "terran", enemy: "zerg" }, personas: { enemy: "hydra" }, map: "canyon" });
   for (const [at, command] of [[1, { type: "probe" }], [20, { type: "build", building: "depot" }], [60, { type: "build", building: "barracks" }], [150, { type: "move", y: 50 }]]) {
-    while (state.time < at) stepStarswar(state, stwAiThink);
+    while (state.time < at) stepStardraft(state, stwAiThink);
     stwIssue(state, "player", command);
   }
-  while (state.status === "playing" && state.time < 420) stepStarswar(state, stwAiThink);
+  while (state.status === "playing" && state.time < 420) stepStardraft(state, stwAiThink);
   const code = JSON.parse(JSON.stringify(stwReplayCode(state, "test")));
   assert.equal(code.setup.map, "canyon");
   const replayed = stwReplay(code, { until: state.time });
@@ -3730,7 +3730,7 @@ test("starswar replays and learning carry the map", () => {
 
   // 승패는 맵마다 따로 센다. 다른 맵은 해 보지 않은 선택에 한해 평원의 기록을 빌린다.
   const finish = (map, persona, winner) => {
-    const game = createStarswarGame({ seed: 2, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: persona }, map });
+    const game = createStardraftGame({ seed: 2, aiSides: ["enemy"], races: { player: "protoss", enemy: "terran" }, personas: { enemy: persona }, map });
     game.status = "over";
     game.winner = winner;
     return game;
@@ -3753,13 +3753,13 @@ test("starswar replays and learning carry the map", () => {
   assert.equal(pick("plain", later), "mech");
 });
 
-test("starswar report copied while paused replays exactly up to that moment", () => {
-  const state = createStarswarGame({ seed: 21, aiSides: ["enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { enemy: "ling" } });
+test("stardraft report copied while paused replays exactly up to that moment", () => {
+  const state = createStardraftGame({ seed: 21, aiSides: ["enemy"], races: { player: "protoss", enemy: "zerg" }, personas: { enemy: "ling" } });
   for (const [at, command] of [[1, { type: "probe" }], [30, { type: "build", building: "pylon" }], [95, { type: "build", building: "gateway" }], [180, { type: "move", y: 70 }]]) {
-    while (state.time < at) stepStarswar(state, stwAiThink);
+    while (state.time < at) stepStardraft(state, stwAiThink);
     stwIssue(state, "player", command);
   }
-  while (state.time < 250) stepStarswar(state, stwAiThink);
+  while (state.time < 250) stepStardraft(state, stwAiThink);
   // 일시정지 중에 내린 명령(같은 틱)도 남는다.
   stwIssue(state, "player", { type: "probe" });
   assert.equal(state.status, "playing");
@@ -3776,7 +3776,7 @@ test("starswar report copied while paused replays exactly up to that moment", ()
   assert.equal(Math.round(stwReplay(code, { until: 120 }).time), 120);
 });
 
-test("starswar freshly trained units attack-move to the rally point; a commander's order turns it back into a retreat", () => {
+test("stardraft freshly trained units attack-move to the rally point; a commander's order turns it back into a retreat", () => {
   const setup = () => {
     const state = quiet();
     state.sides.player.minerals = 2000;
@@ -3796,7 +3796,7 @@ test("starswar freshly trained units attack-move to the rally point; a commander
   let zealot = null;
   let fought = false;
   for (let step = 0; step < 600; step += 1) {
-    stepStarswar(state, null);
+    stepStardraft(state, null);
     zealot ??= state.units.find((unit) => unit.side === "player" && unit.type === "zealot");
     if (zealot?.targetId !== null && zealot?.targetId !== undefined && marines.some((marine) => marine.id === zealot.targetId)) fought = true;
   }
@@ -3808,7 +3808,7 @@ test("starswar freshly trained units attack-move to the rally point; a commander
   const order = setup().state;
   let fresh = null;
   for (let step = 0; step < 300 && !fresh; step += 1) {
-    stepStarswar(order, null);
+    stepStardraft(order, null);
     fresh = order.units.find((unit) => unit.side === "player" && unit.type === "zealot") ?? null;
   }
   assert.equal(fresh.fresh, true, "갓 나온 유닛은 이동 공격 중");
@@ -3816,7 +3816,7 @@ test("starswar freshly trained units attack-move to the rally point; a commander
   assert.equal(fresh.fresh, undefined, "지시를 받으면 이동 공격이 풀린다");
 });
 
-test("starswar the army can be sent all the way back to the main mineral line", () => {
+test("stardraft the army can be sent all the way back to the main mineral line", () => {
   const state = quiet();
   assert.equal(stwCommand(state, "player", { type: "move", y: 99.5 }).ok, true);
   assert.equal(state.sides.player.rally, 97, "뒤쪽 끝은 광물 줄(97)");
@@ -3829,7 +3829,7 @@ test("starswar the army can be sent all the way back to the main mineral line", 
   assert.equal(stwCommand(state, "player", { type: "squadMove", units: ["zealot"], y: 98 }).ok, true);
   assert.equal(state.sides.player.squads.zealot.y, 97);
   // AI의 경계 집결(방어 건물 뒤)은 예전처럼 84다.
-  const ai = createStarswarGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "protoss" }, personas: { enemy: "dragoon" } });
+  const ai = createStardraftGame({ seed: 1, aiSides: ["enemy"], races: { player: "protoss", enemy: "protoss" }, personas: { enemy: "dragoon" } });
   ai.sides.player.minerals = 9000;
   for (const building of ["pylon", "gateway", "gateway", "gateway"]) {
     stwCommand(ai, "player", { type: "build", building });
@@ -3840,7 +3840,7 @@ test("starswar the army can be sent all the way back to the main mineral line", 
   if ((ai.sides.enemy.ai.alertUntil ?? 0) > ai.time && !stwNexus(ai, "enemy", "natural")) assert.equal(ai.sides.enemy.rally, 84);
 });
 
-test("starswar a squad moved on its own gets through allies that step aside", () => {
+test("stardraft a squad moved on its own gets through allies that step aside", () => {
   const state = quiet();
   stwCommand(state, "player", { type: "move", y: 60 });
   const zealots = Array.from({ length: 18 }, (_, i) => stwSpawnUnitAt(state, "player", "zealot", 8 + (i % 9) * 3, 58 + Math.floor(i / 9) * 2, "rally"));
@@ -3856,7 +3856,7 @@ test("starswar a squad moved on its own gets through allies that step aside", ()
   assert.ok(zealots.every((unit, index) => Math.abs(unit.y - lines[index]) < 3), "질럿은 옆으로만 비켜 섰다가 제 줄에 남는다");
 });
 
-test("starswar infiltration walks a squad along the edge to the enemy mineral line, hits workers, and walks back", () => {
+test("stardraft infiltration walks a squad along the edge to the enemy mineral line, hits workers, and walks back", () => {
   const state = quiet();
   state.sides.enemy.probes = 16;
   const guards = Array.from({ length: 6 }, (_, i) => stwSpawnUnitAt(state, "enemy", "zealot", 14 + i * 2.4, 24, "rally"));
@@ -3930,9 +3930,9 @@ test("starswar infiltration walks a squad along the edge to the enemy mineral li
   assert.ok(zerglings.every((unit) => unit.group === "rally"), "회수한 병력은 집결지로 돌아온다");
 });
 
-test("starswar yamato picks fighters (100+ health), then defences, then overlords, then any building, and says what it shot", () => {
+test("stardraft yamato picks fighters (100+ health), then defences, then overlords, then any building, and says what it shot", () => {
   const setup = (enemies) => {
-    const state = createStarswarGame({ seed: 5, aiSides: [], races: { player: "terran", enemy: "zerg" } });
+    const state = createStardraftGame({ seed: 5, aiSides: [], races: { player: "terran", enemy: "zerg" } });
     research(state, "player", "yamato");
     const bc = stwSpawnUnitAt(state, "player", "battlecruiser", 20, 62, "rally");
     bc.energy = 150;
@@ -3964,7 +3964,7 @@ test("starswar yamato picks fighters (100+ health), then defences, then overlord
   assert.ok(building.placed[0].hp <= building.placed[0].maxHp - 250, `해처리에 쏜다 (${building.placed[0].hp})`);
 });
 
-test("starswar a whole-army map tap (merge) folds separated squads back into the main army; a plain move leaves them", () => {
+test("stardraft a whole-army map tap (merge) folds separated squads back into the main army; a plain move leaves them", () => {
   const state = quiet();
   const zealots = [16, 18, 20].map((x) => stwSpawnUnitAt(state, "player", "zealot", x, 80, "rally"));
   const darks = [22, 24].map((x) => stwSpawnUnitAt(state, "player", "dark", x, 80, "rally"));
@@ -3985,7 +3985,7 @@ test("starswar a whole-army map tap (merge) folds separated squads back into the
   assert.ok(Math.abs(avgY(darks) - avgY(zealots)) < 6, `함께 움직인다 (다크 ${avgY(darks).toFixed(1)}, 질럿 ${avgY(zealots).toFixed(1)})`);
 });
 
-test("starswar squad orders stop an infiltration: move back retreats, release rejoins the main army", () => {
+test("stardraft squad orders stop an infiltration: move back retreats, release rejoins the main army", () => {
   const state = quiet();
   const wraiths = [18, 20, 22, 24].map((x) => stwSpawnUnitAt(state, "player", "wraith", x, 77, "rally"));
   const sent = stwCommand(state, "player", { type: "infiltrate", units: ["wraith"], base: "main" });
@@ -4010,7 +4010,7 @@ test("starswar squad orders stop an infiltration: move back retreats, release re
   assert.ok(darks.every((unit) => unit.raid === undefined && unit.group === "rally" && unit.squad === undefined), "본대로 돌아온다");
 });
 
-test("starswar tips: race filter, unseen first, and result tips follow the game's weak spots", () => {
+test("stardraft tips: race filter, unseen first, and result tips follow the game's weak spots", () => {
   const ids = STW_TIPS.map((tip) => tip.id);
   assert.equal(new Set(ids).size, ids.length, "tip ids are unique");
   assert.ok(STW_TIPS.length >= 25);
@@ -4032,7 +4032,7 @@ test("starswar tips: race filter, unseen first, and result tips follow the game'
   assert.notEqual(stwTipQueue("terran", ["t-repair"], random)[0].id, "t-repair");
   assert.ok(stwTipQueue("protoss", [], random).every((tip) => tip.id !== "t-repair"));
 
-  const game = createStarswarGame({ seed: 3, aiSides: [], races: { player: "protoss", enemy: "zerg" } });
+  const game = createStardraftGame({ seed: 3, aiSides: [], races: { player: "protoss", enemy: "zerg" } });
   game.status = "over";
   game.winner = "enemy";
   game.time = 600;
@@ -4054,7 +4054,7 @@ test("starswar tips: race filter, unseen first, and result tips follow the game'
   assert.equal(stwResultTips(game).length, 1, "a quiet win still gets one general tip");
 
   // 테란이 기계 유닛을 쓰고도 수리하지 않았으면 결과 화면에 수리 방법을 알려 준다.
-  const mech = createStarswarGame({ seed: 3, aiSides: [], races: { player: "terran", enemy: "zerg" } });
+  const mech = createStardraftGame({ seed: 3, aiSides: [], races: { player: "terran", enemy: "zerg" } });
   mech.status = "over";
   mech.winner = "player";
   mech.history = [{ t: 300, player: { supply: 20, army: 600, workers: 18, minerals: 100, gas: 0, mix: { tank: 3, marine: 6 } }, enemy: { supply: 20, army: 400, workers: 18, minerals: 100, gas: 0, mix: { hydra: 6 } } }];
@@ -4063,11 +4063,11 @@ test("starswar tips: race filter, unseen first, and result tips follow the game'
   assert.ok(stwResultTips(mech).every((tip) => !tip.includes("SCV가 붙어")), "once repaired, no repair tip");
 });
 
-test("starswar difficulty handicaps: unit production speed per level, beginner AI never expands and stops at 3 defenses", () => {
+test("stardraft difficulty handicaps: unit production speed per level, beginner AI never expands and stops at 3 defenses", () => {
   assert.deepEqual(["beginner", "easy", "normal", "hard"].map((id) => [STW_DIFFICULTIES[id].income, STW_DIFFICULTIES[id].production]), [[1, 0.5], [0.75, 0.75], [1, 0.8], [1, 1]]);
   // 생산 속도: 같은 게이트웨이 질럿 한 기가 초심자 AI에게는 두 배 걸리고, 사람 쪽은 그대로다.
   const timeFor = (difficulty, side) => {
-    const game = createStarswarGame({ seed: 3, difficulty, races: { player: "protoss", enemy: "protoss" } });
+    const game = createStardraftGame({ seed: 3, difficulty, races: { player: "protoss", enemy: "protoss" } });
     game.sides[side].minerals = 1000;
     stwCommand(game, side, { type: "build", building: "pylon" });
     finishAll(game);
@@ -4077,7 +4077,7 @@ test("starswar difficulty handicaps: unit production speed per level, beginner A
     assert.equal(gateway.line, "zealot");
     const before = game.units.filter((unit) => unit.side === side && unit.type === "zealot").length;
     for (let tick = 0; tick < 600; tick += 1) {
-      stepStarswar(game);
+      stepStardraft(game);
       if (game.units.filter((unit) => unit.side === side && unit.type === "zealot").length > before) return Math.round(game.time);
     }
     return Infinity;
@@ -4089,7 +4089,7 @@ test("starswar difficulty handicaps: unit production speed per level, beginner A
   assert.ok(Math.abs(timeFor("hard", "enemy") - zealot) <= 1);
 
   // 초심자 AI: 확장과 넷째 방어 건물은 막히고(빌드 순서가 넘어가도록 "찼습니다"), 사람은 같은 난이도에서도 막히지 않는다.
-  const game = createStarswarGame({ seed: 4, difficulty: "beginner", races: { player: "protoss", enemy: "protoss" } });
+  const game = createStardraftGame({ seed: 4, difficulty: "beginner", races: { player: "protoss", enemy: "protoss" } });
   game.sides.enemy.minerals = 5000;
   assert.match(stwBuildCheck(game, "enemy", "expand").reason, /찼습니다/);
   assert.equal(stwBuildCheck(game, "player", "expand").ok, game.sides.player.minerals >= 400);
@@ -4102,14 +4102,14 @@ test("starswar difficulty handicaps: unit production speed per level, beginner A
 
   // 초심자 AI가 7분 동안 혼자 운영해도 앞마당이 없고 방어 건물은 3개 이하다.
   for (const race of ["protoss", "terran", "zerg"]) {
-    const ai = createStarswarGame({ seed: 7, difficulty: "beginner", races: { player: "protoss", enemy: race } });
-    while (ai.time < 420 && ai.status === "playing") stepStarswar(ai, stwAiThink);
+    const ai = createStardraftGame({ seed: 7, difficulty: "beginner", races: { player: "protoss", enemy: race } });
+    while (ai.time < 420 && ai.status === "playing") stepStardraft(ai, stwAiThink);
     assert.equal(stwNexus(ai, "enemy", "natural"), null, race);
     assert.ok(stwOwnBuildings(ai, "enemy").filter((building) => STW_BUILDINGS[building.type].defense).length <= 3, race);
   }
 });
 
-test("starswar map taps have one meaning: go there fighting and stay; only the enemy base means destroy it; people are never auto-pulled home", () => {
+test("stardraft map taps have one meaning: go there fighting and stay; only the enemy base means destroy it; people are never auto-pulled home", () => {
   const state = stwCreateScenario({ seed: 5, placement: "home", map: "gold", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 6, medic: 2 } }, enemy: { units: {} } } });
   // 보고된 경기: 황금 앞마당 34를 누르자 전군이 출격했다. 이제는 34에 머문다. 적 앞마당 한가운데(28)도 그 자리에 머문다.
   let result = stwCommand(state, "player", { type: "move", y: 34, merge: true });
@@ -4159,7 +4159,7 @@ test("starswar map taps have one meaning: go there fighting and stay; only the e
   assert.ok(Math.abs(defend(30, true)) < 2, "AI: 적 앞마당에 세운 병력은 제자리");
 });
 
-test("starswar medics stop healing and fall back when the army retreats", () => {
+test("stardraft medics stop healing and fall back when the army retreats", () => {
   const state = stwCreateScenario({ seed: 6, placement: "home", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 2, medic: 1 } }, enemy: { units: {} } } });
   // 메딕과 다친 해병을 앞(y 40)에 두고 집결지(본진 앞 77)로 물러나게 한다.
   const medic = state.units.find((unit) => unit.side === "player" && unit.type === "medic");
@@ -4173,7 +4173,7 @@ test("starswar medics stop healing and fall back when the army retreats", () => 
   assert.ok(medic.y > startY + 3, `메딕이 물러난다 (${startY} → ${medic.y.toFixed(1)})`);
 });
 
-test("starswar guards: send only some units of a type to hold a spot; whole-army taps, attacks and new units leave them alone until released", () => {
+test("stardraft guards: send only some units of a type to hold a spot; whole-army taps, attacks and new units leave them alone until released", () => {
   const state = stwCreateScenario({ seed: 9, placement: "home", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 8, medic: 2 }, buildings: { barracks: 1 }, minerals: 2000 }, enemy: { units: {} } } });
   const marines = () => state.units.filter((unit) => unit.side === "player" && unit.type === "marine" && unit.hp > 0);
   // 해병 2기만 본진 광물 줄로: 경비가 된다.
@@ -4220,7 +4220,7 @@ test("starswar guards: send only some units of a type to hold a spot; whole-army
   assert.ok(guards.every((unit) => unit.squad === undefined));
 });
 
-test("starswar building focus also drives an army standing where the map was tapped (within its 12-cell reach), guards ignore it", () => {
+test("stardraft building focus also drives an army standing where the map was tapped (within its 12-cell reach), guards ignore it", () => {
   const setup = (focus) => {
     const state = stwCreateScenario({ seed: 11, placement: "home", races: { player: "protoss", enemy: "terran" }, sides: { player: { units: { dragoon: 4 } }, enemy: { units: {}, buildings: { barracks: 1 } } } });
     const barracks = state.buildings.find((building) => building.side === "enemy" && building.type === "barracks");
@@ -4239,7 +4239,7 @@ test("starswar building focus also drives an army standing where the map was tap
     const hits = { building: 0, unit: 0 };
     let started = null;
     for (let tick = 0; tick < 400 && (started === null || tick < started + 40); tick += 1) {
-      stepStarswar(state);
+      stepStardraft(state);
       for (const unit of state.units) {
         if (unit.side !== "player" || unit.targetId === null) continue;
         started ??= tick;
@@ -4254,7 +4254,7 @@ test("starswar building focus also drives an army standing where the map was tap
   assert.ok(fight.unit > fight.building, `교전 우선: 해병부터 (${JSON.stringify(fight)})`);
 });
 
-test("starswar units chasing an enemy unit switch to another enemy unit already in reach", () => {
+test("stardraft units chasing an enemy unit switch to another enemy unit already in reach", () => {
   const state = quiet();
   const ling = stwSpawnUnitAt(state, "player", "zergling", 20, 50, "attack");
   const far = stwSpawnUnitAt(state, "enemy", "marine", 20, 42, "rally");
@@ -4267,7 +4267,7 @@ test("starswar units chasing an enemy unit switch to another enemy unit already 
   // 12판 중 9판을 졌다(질럿 러시 수비 시험들이 이를 지킨다).
 });
 
-test("starswar ranged units step away from melee while reloading, and slip behind a friendly defense building when one is near", () => {
+test("stardraft ranged units step away from melee while reloading, and slip behind a friendly defense building when one is near", () => {
   // 탁 트인 곳: 느린 드라군(2.6)도 질럿(3.0)이 붙으면 재장전 동안 물러난다.
   const open = quiet();
   const dragoon = stwSpawnUnitAt(open, "player", "dragoon", 20, 50, "attack");
@@ -4277,7 +4277,7 @@ test("starswar ranged units step away from melee while reloading, and slip behin
   const moved = [];
   for (let tick = 0; tick < 30; tick += 1) {
     const before = { x: dragoon.x, y: dragoon.y };
-    stepStarswar(open);
+    stepStardraft(open);
     moved.push(Math.hypot(dragoon.x - before.x, dragoon.y - before.y));
   }
   assert.ok(moved.filter((step) => step > 0.05).length >= 5, "재장전 동안 움직인다");
@@ -4302,7 +4302,7 @@ test("starswar ranged units step away from melee while reloading, and slip behin
   assert.notEqual(side(shooter), side(chaser), `캐논을 사이에 둔다 (드라군 y ${shooter.y.toFixed(1)}, 질럿 y ${chaser.y.toFixed(1)}, 캐논 y ${cannon.y.toFixed(1)})`);
 });
 
-test("starswar a squad sent in front of a packed friendly line passes through it and holds the tapped spot, even with enemies near", () => {
+test("stardraft a squad sent in front of a packed friendly line passes through it and holds the tapped spot, even with enemies near", () => {
   for (const map of ["plain", "canyon"]) {
     const state = stwCreateScenario({ seed: 5, placement: "home", map, races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { marine: 30, medic: 8 } }, enemy: { units: {} } } });
     stwCommand(state, "player", { type: "move", y: 50 });
@@ -4323,7 +4323,7 @@ test("starswar a squad sent in front of a packed friendly line passes through it
   }
 });
 
-test("starswar medics heal the wounded within reach before walking to a worse one, and split patients instead of stacking", () => {
+test("stardraft medics heal the wounded within reach before walking to a worse one, and split patients instead of stacking", () => {
   const state = quiet();
   const medic = stwSpawnUnitAt(state, "player", "medic", 20, 60, "rally");
   const near = stwSpawnUnitAt(state, "player", "marine", 22, 60, "rally");
@@ -4332,7 +4332,7 @@ test("starswar medics heal the wounded within reach before walking to a worse on
   near.hp = near.maxHp * 0.6;
   far.hp = far.maxHp * 0.2;
   state.sides.player.rally = 60;
-  stepStarswar(state);
+  stepStardraft(state);
   assert.equal(medic.healTargetId, near.id, "사거리 안의 다친 해병부터 치료한다(더 다친 해병이 7칸 밖에 있어도)");
 
   // 메딕 둘, 사거리 안의 다친 해병 둘: 한 명에게 몰리지 않고 나눠 치료한다.
@@ -4343,25 +4343,25 @@ test("starswar medics heal the wounded within reach before walking to a worse on
   marines[0].hp = marines[0].maxHp * 0.3;
   marines[1].hp = marines[1].maxHp * 0.5;
   pair.sides.player.rally = 60;
-  stepStarswar(pair);
-  stepStarswar(pair);
+  stepStardraft(pair);
+  stepStardraft(pair);
   assert.notEqual(medics[0].healTargetId, null);
   assert.notEqual(medics[1].healTargetId, null);
   assert.notEqual(medics[0].healTargetId, medics[1].healTargetId, "둘이 서로 다른 해병을 치료한다");
 });
 
-test("starswar casters keep energy for the spell they are walking toward: vessels irradiate zerg, defilers plague a big marine ball", () => {
+test("stardraft casters keep energy for the spell they are walking toward: vessels irradiate zerg, defilers plague a big marine ball", () => {
   // 베슬: 저글링·히드라 상대로 이레디에이트를 쓴다(예전에는 다가가는 사이 디펜시브 매트릭스가 에너지를 다 썼다).
   const zergFight = stwCreateScenario({ seed: 1, time: 900, placement: "clash", races: { player: "terran", enemy: "zerg" }, sides: { player: { units: { vessel: 2, marine: 12 }, research: ["irradiate", "emp"] }, enemy: { units: { zergling: 16, hydra: 8 } } } });
   const spells = new Set();
   for (let tick = 0; tick < 200; tick += 1) {
-    stepStarswar(zergFight);
+    stepStardraft(zergFight);
     for (const effect of zergFight.effects) if (effect.kind === "spell" && effect.side === "player") spells.add(effect.spell);
   }
   assert.ok(spells.has("irradiate"), `이레디에이트 ${[...spells]}`);
 
   // 디파일러: 뭉친 해병 16기 앞에서는 다크 스웜만 되풀이하지 않고 플레이그도 쓴다.
-  const ball = createStarswarGame({ seed: 1, aiSides: [], races: { player: "zerg", enemy: "terran" } });
+  const ball = createStardraftGame({ seed: 1, aiSides: [], races: { player: "zerg", enemy: "terran" } });
   ball.sides.player.research.plague = "done";
   for (const building of ball.buildings) building.hp = building.maxHp = 1e6;
   for (let index = 0; index < 2; index += 1) stwSpawnUnitAt(ball, "player", "defiler", 18 + index * 4, 66, "attack").energy = 200;
@@ -4374,15 +4374,15 @@ test("starswar casters keep energy for the spell they are walking toward: vessel
   ball.sides.player.rally = 60;
   const used = new Set();
   for (let tick = 0; tick < 250; tick += 1) {
-    stepStarswar(ball);
+    stepStardraft(ball);
     for (const effect of ball.effects) if (effect.kind === "spell" && effect.side === "player") used.add(effect.spell);
   }
   assert.ok(used.has("plague"), `플레이그 ${[...used]}`);
 });
 
-test("starswar ghosts hang back while charging lockdown, then step up and lock the priciest mech; full energy also locks vultures", () => {
+test("stardraft ghosts hang back while charging lockdown, then step up and lock the priciest mech; full energy also locks vultures", () => {
   const setup = (energy, foe) => {
-    const state = createStarswarGame({ seed: 3, aiSides: [], races: { player: "terran", enemy: "terran" } });
+    const state = createStardraftGame({ seed: 3, aiSides: [], races: { player: "terran", enemy: "terran" } });
     state.sides.player.research.lockdown = "done";
     for (const building of state.buildings) building.hp = building.maxHp = 1e6;
     const marines = Array.from({ length: 8 }, (_, index) => stwSpawnUnitAt(state, "player", "marine", 12 + index * 2.2, 60, "attack"));
@@ -4405,7 +4405,7 @@ test("starswar ghosts hang back while charging lockdown, then step up and lock t
   ready.ghost.y = 50;
   let locked = null;
   for (let tick = 0; tick < 200 && !locked; tick += 1) {
-    stepStarswar(ready.state);
+    stepStardraft(ready.state);
     locked = ready.foes.find((unit) => (unit.stunUntil ?? 0) > ready.state.time) ?? null;
   }
   assert.equal(locked?.type, "tank", "탱크부터 잠근다");
@@ -4414,28 +4414,28 @@ test("starswar ghosts hang back while charging lockdown, then step up and lock t
     const vultures = setup(energy, ["vulture", "vulture"]);
     let cast = false;
     for (let tick = 0; tick < 150 && !cast; tick += 1) {
-      stepStarswar(vultures.state);
+      stepStardraft(vultures.state);
       cast = vultures.foes.some((unit) => (unit.stunUntil ?? 0) > vultures.state.time);
     }
     assert.equal(cast, expected, `에너지 ${energy}일 때 벌처 락다운`);
   }
 });
 
-test("starswar ghost strategy: defends with bunkers and tanks, researches lockdown and cloak, fields ghosts; never picked against zerg; mech no longer builds ghosts", async () => {
-  const { STW_AI_PERSONAS } = await import("../app/starswar/starswar-data.js");
+test("stardraft ghost strategy: defends with bunkers and tanks, researches lockdown and cloak, fields ghosts; never picked against zerg; mech no longer builds ghosts", async () => {
+  const { STW_AI_PERSONAS } = await import("../app/stardraft/stardraft-data.js");
   assert.deepEqual(STW_AI_PERSONAS.ghost.avoid, ["zerg"]);
   // 무작위로 고를 때 저그 상대로는 나오지 않는다(락다운은 기계 유닛에만 걸린다). 프로토스 상대로는 나온다.
-  const picked = (enemyRace) => new Set(Array.from({ length: 60 }, (_, seed) => createStarswarGame({ seed: (seed + 1) * 2654435761, aiSides: ["enemy"], races: { player: enemyRace, enemy: "terran" } }).sides.enemy.persona));
+  const picked = (enemyRace) => new Set(Array.from({ length: 60 }, (_, seed) => createStardraftGame({ seed: (seed + 1) * 2654435761, aiSides: ["enemy"], races: { player: enemyRace, enemy: "terran" } }).sides.enemy.persona));
   assert.ok(!picked("zerg").has("ghost"));
   assert.ok(picked("protoss").has("ghost"));
 
   // 고스트 특수전 대 프로토스: 벙커 둘 이상, 락다운·은폐 연구, 고스트가 나온다.
-  const game = createStarswarGame({ seed: 13, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "ghost", enemy: "carrier" } });
+  const game = createStardraftGame({ seed: 13, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "ghost", enemy: "carrier" } });
   let bunkers = 0;
   let ghosts = 0;
   let tanks = 0;
   while (game.status === "playing" && game.time < 720) {
-    stepStarswar(game, stwAiThink);
+    stepStardraft(game, stwAiThink);
     if (Math.round(game.time * 10) % 50 === 0) {
       bunkers = Math.max(bunkers, stwOwnBuildings(game, "player", "bunker").length);
       ghosts = Math.max(ghosts, game.units.filter((unit) => unit.side === "player" && unit.type === "ghost").length);
@@ -4452,22 +4452,22 @@ test("starswar ghost strategy: defends with bunkers and tanks, researches lockdo
   // 고스트를 뽑는 동안에도 해병을 여덟 넘게 지켜 10분에 들어오는 드라군·질럿 공격을 넘긴다.
   // 시드 2: 다친 유닛 회피를 넣은 뒤 시드 13에서는 찌르기에서 드라군을 덜 잃은 프로토스에게 뚫렸다. 16개 시드로 재면 회피 전후가 같다
   // (11분에 남은 테란 병력 평균 32.5 → 32.2기, 스무 기 넘게 남는 판 16 → 15).
-  const hold = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "ghost", enemy: "dragoon" } });
-  while (hold.status === "playing" && hold.time < 540) stepStarswar(hold, stwAiThink);
+  const hold = createStardraftGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "ghost", enemy: "dragoon" } });
+  while (hold.status === "playing" && hold.time < 540) stepStardraft(hold, stwAiThink);
   assert.equal(stwOwnBuildings(hold, "player", "bunker").length, 6);
   assert.equal(hold.sides.player.rally, 70);
-  while (hold.status === "playing" && hold.time < 560) stepStarswar(hold, stwAiThink);
+  while (hold.status === "playing" && hold.time < 560) stepStardraft(hold, stwAiThink);
   const holdMarines = hold.units.filter((unit) => unit.side === "player" && unit.type === "marine").length;
   assert.ok(holdMarines >= 8, `해병 ${holdMarines}`);
-  while (hold.status === "playing" && hold.time < 660) stepStarswar(hold, stwAiThink);
+  while (hold.status === "playing" && hold.time < 660) stepStardraft(hold, stwAiThink);
   assert.equal(hold.status, "playing");
   assert.ok(hold.units.filter((unit) => unit.side === "player" && !STW_UNITS[unit.type].worker).length >= 20, "10분 공격을 넘긴 뒤 병력이 남는다");
 
   // 메카닉은 사이언스 퍼실리티·락다운·고스트를 쓰지 않는다(고스트는 보병 계열이라 바이오닉·탱크 바이오로 옮겼다).
-  const mech = createStarswarGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "mech" } });
+  const mech = createStardraftGame({ seed: 2, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "terran" }, personas: { player: "mech", enemy: "mech" } });
   let mechGhosts = 0;
   while (mech.status === "playing" && mech.time < 900) {
-    stepStarswar(mech, stwAiThink);
+    stepStardraft(mech, stwAiThink);
     if (Math.round(mech.time * 10) % 50 === 0) mechGhosts += mech.units.filter((unit) => unit.side === "player" && unit.type === "ghost").length;
   }
   assert.equal(mechGhosts, 0);
@@ -4475,8 +4475,8 @@ test("starswar ghost strategy: defends with bunkers and tanks, researches lockdo
 });
 
 test("AI 대 AI 관전 경기는 일반 규칙 그대로 양쪽 AI가 처음부터 운영하고 재현 정보에 표시가 남는다", () => {
-  const watch = createStarswarGame({ seed: 31, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "zerg" }, spectate: true });
-  const plain = createStarswarGame({ seed: 31, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "zerg" } });
+  const watch = createStardraftGame({ seed: 31, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "zerg" }, spectate: true });
+  const plain = createStardraftGame({ seed: 31, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "zerg" } });
   assert.equal(watch.spectate, true);
   assert.equal(plain.spectate, undefined);
   assert.equal(watch.replay.setup.spectate, true);
@@ -4491,8 +4491,8 @@ test("AI 대 AI 관전 경기는 일반 규칙 그대로 양쪽 AI가 처음부�
   }
   // 관전 표시는 화면용이다: 같은 시드의 일반 AI 대전과 경기 진행이 똑같다.
   for (let index = 0; index < 20 * 120; index += 1) {
-    stepStarswar(watch, stwAiThink);
-    stepStarswar(plain, stwAiThink);
+    stepStardraft(watch, stwAiThink);
+    stepStardraft(plain, stwAiThink);
   }
   assert.equal(watch.units.length, plain.units.length);
   assert.equal(watch.buildings.length, plain.buildings.length);
@@ -4502,7 +4502,7 @@ test("AI 대 AI 관전 경기는 일반 규칙 그대로 양쪽 AI가 처음부�
 });
 
 test("지도 화면이 볼 전선: 출격 병력의 선두, 없으면 교전 높이의 가운데, 둘 다 없으면 없음", () => {
-  const state = createStarswarGame({ seed: 5, aiSides: [] });
+  const state = createStardraftGame({ seed: 5, aiSides: [] });
   // 병력이 없으면(일꾼뿐이면) 볼 전선이 없다: 화면은 기본 구도(본진)에 머문다.
   assert.equal(stwBattleFocus(state, "player"), null);
   // 세워 둔 병력은 가만히 있으면 전선이 아니다.
@@ -4603,17 +4603,17 @@ test("정찰 대응: 맞대응 표는 모든 종족·상대 전략을 덮고, �
 
 test("정찰 대응 모드: AI가 맡은 진영만 켜지고, 읽은 전략과 갈아탄 기록이 남으며, 끄면 예전과 똑같이 흘러간다", () => {
   const setup = { difficulty: "hard", seed: 91, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "carrier" } };
-  const react = createStarswarGame({ ...setup, scoutReact: true });
+  const react = createStardraftGame({ ...setup, scoutReact: true });
   assert.deepEqual(react.scoutReact, ["player", "enemy"]);
   assert.deepEqual(react.replay.setup.scoutReact, ["player", "enemy"]);
   // 사람이 맡은 진영은 정찰 대응 대상이 아니다.
-  assert.deepEqual(createStarswarGame({ seed: 1, scoutReact: true }).scoutReact, ["enemy"]);
-  assert.equal(createStarswarGame({ seed: 1, aiSides: [], scoutReact: true }).scoutReact, undefined);
-  assert.deepEqual(createStarswarGame({ ...setup, scoutReact: ["enemy"] }).scoutReact, ["enemy"]);
-  const plain = createStarswarGame(setup);
+  assert.deepEqual(createStardraftGame({ seed: 1, scoutReact: true }).scoutReact, ["enemy"]);
+  assert.equal(createStardraftGame({ seed: 1, aiSides: [], scoutReact: true }).scoutReact, undefined);
+  assert.deepEqual(createStardraftGame({ ...setup, scoutReact: ["enemy"] }).scoutReact, ["enemy"]);
+  const plain = createStardraftGame(setup);
   assert.equal(plain.scoutReact, undefined);
-  for (let step = 0; step < 6600 && react.status === "playing"; step += 1) stepStarswar(react, stwAiThink);
-  for (let step = 0; step < 6600 && plain.status === "playing"; step += 1) stepStarswar(plain, stwAiThink);
+  for (let step = 0; step < 6600 && react.status === "playing"; step += 1) stepStardraft(react, stwAiThink);
+  for (let step = 0; step < 6600 && plain.status === "playing"; step += 1) stepStardraft(plain, stwAiThink);
   // 정찰 대응 쪽: 스타게이트·플릿 비컨을 본 테란은 상대를 공중 전략(커세어 → 캐리어)으로 읽는다.
   const reads = react.sides.player.ai.reads.map((item) => item.persona);
   assert.ok(reads.some((persona) => persona === "corsair" || persona === "carrier"), `읽은 전략: ${reads.join(", ")}`);
@@ -4629,9 +4629,43 @@ test("정찰 대응 모드: AI가 맡은 진영만 켜지고, 읽은 전략과 �
   assert.equal(plain.sides.player.ai.reacts, undefined);
   assert.match(stwBugReport(react), /정찰 대응 모드/);
   // 같은 설정·같은 시드면 정찰 대응 경기도 똑같이 다시 흘러간다(재현).
-  const again = createStarswarGame({ ...setup, scoutReact: true });
-  for (let step = 0; step < 3000; step += 1) stepStarswar(again, stwAiThink);
-  const check = createStarswarGame({ ...setup, scoutReact: true });
-  for (let step = 0; step < 3000; step += 1) stepStarswar(check, stwAiThink);
+  const again = createStardraftGame({ ...setup, scoutReact: true });
+  for (let step = 0; step < 3000; step += 1) stepStardraft(again, stwAiThink);
+  const check = createStardraftGame({ ...setup, scoutReact: true });
+  for (let step = 0; step < 3000; step += 1) stepStardraft(check, stwAiThink);
   assert.deepEqual(stwFingerprint(again), stwFingerprint(check));
+});
+
+test("예전 이름(starswar)으로 저장한 값은 새 키로 한 번 옮기고, 이미 새 값이 있으면 건드리지 않는다", async () => {
+  const { STW_STORAGE_KEYS, stwMigrateLegacyStorage } = await import("../app/stardraft/stardraft-storage.js");
+  const memory = () => {
+    const map = new Map();
+    return { map, getItem: (key) => (map.has(key) ? map.get(key) : null), setItem: (key, value) => map.set(key, String(value)), removeItem: (key) => map.delete(key) };
+  };
+  assert.deepEqual(Object.values(STW_STORAGE_KEYS).sort(), [
+    "paperoid-stardraft-lab", "paperoid-stardraft-lab-presets", "paperoid-stardraft-learning", "paperoid-stardraft-record",
+    "paperoid-stardraft-save", "paperoid-stardraft-theme-v2", "paperoid-stardraft-tips-seen",
+  ]);
+  // 예전 키 일곱 개가 모두 옮겨지고 예전 키는 사라진다.
+  const old = memory();
+  for (const key of Object.values(STW_STORAGE_KEYS)) old.setItem(key.replace("paperoid-stardraft-", "paperoid-starswar-"), `값:${key}`);
+  old.setItem("paperoid-favorites", "[\"starswar\"]");
+  assert.equal(stwMigrateLegacyStorage(old), 7);
+  for (const key of Object.values(STW_STORAGE_KEYS)) assert.equal(old.getItem(key), `값:${key}`);
+  assert.equal([...old.map.keys()].filter((key) => key.startsWith("paperoid-starswar-")).length, 0);
+  assert.equal(old.getItem("paperoid-favorites"), "[\"starswar\"]", "다른 키는 건드리지 않는다");
+  // 다시 불러도 아무 일도 없다.
+  assert.equal(stwMigrateLegacyStorage(old), 0);
+  // 새 키에 이미 값이 있으면 그 값을 두고 예전 키만 지운다.
+  const both = memory();
+  both.setItem("paperoid-stardraft-record", "새 전적");
+  both.setItem("paperoid-starswar-record", "옛 전적");
+  both.setItem("paperoid-starswar-save", "옛 이어하기");
+  assert.equal(stwMigrateLegacyStorage(both), 1);
+  assert.equal(both.getItem("paperoid-stardraft-record"), "새 전적");
+  assert.equal(both.getItem("paperoid-stardraft-save"), "옛 이어하기");
+  assert.equal(both.getItem("paperoid-starswar-record"), null);
+  // 저장소가 막혀 있어도 던지지 않는다.
+  assert.equal(stwMigrateLegacyStorage({ getItem() { throw new Error("blocked"); }, setItem() {}, removeItem() {} }), 0);
+  assert.equal(stwMigrateLegacyStorage(null), 0);
 });

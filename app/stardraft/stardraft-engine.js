@@ -1,7 +1,7 @@
 // 스타드래프트 규칙 엔진. React와 DOM에 의존하지 않는 결정적 시뮬레이션.
 // 플레이어와 AI는 같은 stwCommand만 쓴다.
 import { withKoreanDirection, withKoreanObject, withKoreanSubject } from "../korean-particles.js";
-import { stwLearnPick } from "./starswar-learn.js";
+import { stwLearnPick } from "./stardraft-learn.js";
 import {
   STW_ARMY_UNITS,
   STW_BUILDINGS,
@@ -28,7 +28,7 @@ import {
   STW_WORKER_HP,
   stwGroundSpan,
   stwMapData,
-} from "./starswar-data.js";
+} from "./stardraft-data.js";
 
 export const STW_SIDES = ["player", "enemy"];
 
@@ -225,7 +225,7 @@ function createSide(id, persona, race, map) {
 /**
  * learned: 최상급 경기에서 AI가 쓸 학습 묶음(stwLearnSnapshot). 재현 정보에 함께 남아 같은 경기가 다시 돌아간다.
  */
-export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {}, races = {}, hiddenEnemyRace = false, learned = null, map = "plain", spectate = false, scoutReact = false } = {}) {
+export function createStardraftGame({ difficulty = "normal", seed = 20261101, aiSides = ["enemy"], personas = {}, races = {}, hiddenEnemyRace = false, learned = null, map = "plain", spectate = false, scoutReact = false } = {}) {
   const mapData = stwMapData(map);
   // scoutReact: true면 AI가 맡은 진영 모두, 배열이면 그 진영만(AI가 맡은 쪽만 뜻이 있다).
   const reactSides = (scoutReact === true ? [...aiSides] : Array.isArray(scoutReact) ? scoutReact : []).filter((side) => aiSides.includes(side));
@@ -264,7 +264,7 @@ export function createStarswarGame({ difficulty = "normal", seed = 20261101, aiS
   // AI 대 AI 관전: 양쪽 모두 AI가 운영하고 사람은 지켜보기만 한다(화면이 조작을 막고 전장 전체를 보여 준다).
   // 엔진 규칙은 일반 경기와 같다(시야·은폐·탐지·인구 그대로, 난이도 보정은 사람 상대일 때만 붙으므로 없다).
   if (spectate) state.spectate = true;
-  // 정찰 대응 모드: 이 진영들의 AI는 정찰로 상대 전략을 읽고 맞대응 전략으로 갈아탄다(starswar-ai.js의 reactToScout).
+  // 정찰 대응 모드: 이 진영들의 AI는 정찰로 상대 전략을 읽고 맞대응 전략으로 갈아탄다(stardraft-ai.js의 reactToScout).
   if (reactSides.length) state.scoutReact = reactSides;
   const master = Boolean(STW_DIFFICULTIES[state.difficulty].master);
   if (master) state.learned = learned ? JSON.parse(JSON.stringify(learned)) : { v: 1, plans: [], stats: {}, tagStats: {}, foeTags: {} };
@@ -1480,12 +1480,12 @@ export function stwSpawnUnitAt(state, side, type, x, y, group = "rally") {
  * @param {number} seconds
  * @param {((state: any, side: string) => void) | null} [aiThink]
  */
-export function advanceStarswar(state, seconds, aiThink = null) {
+export function advanceStardraft(state, seconds, aiThink = null) {
   state.accumulator += Math.min(seconds, 1);
   let steps = 0;
   while (state.accumulator >= STW_TICK && steps < 40) {
     state.accumulator -= STW_TICK;
-    stepStarswar(state, aiThink);
+    stepStardraft(state, aiThink);
     steps += 1;
   }
   return steps;
@@ -1495,7 +1495,7 @@ export function advanceStarswar(state, seconds, aiThink = null) {
  * @param {any} state
  * @param {((state: any, side: string) => void) | null} [aiThink]
  */
-export function stepStarswar(state, aiThink = null) {
+export function stepStardraft(state, aiThink = null) {
   if (state.status !== "playing") return;
   const dt = STW_TICK;
   state.time = Math.round((state.time + dt) * 1000) / 1000;
@@ -1619,7 +1619,7 @@ export function stwCreateScenario({ difficulty = "normal", seed = 1, time = 0, r
     if (persona && STW_AI_PERSONAS[persona]?.race === race) personas[side] = persona;
   }
   const aiSides = STW_SIDES.filter((side) => control[side] === "ai");
-  const state = createStarswarGame({ difficulty, seed, races, aiSides, personas, map });
+  const state = createStardraftGame({ difficulty, seed, races, aiSides, personas, map });
   state.lab = { placement, control };
   state.time = Math.max(0, Math.round(time));
   const missing = [];

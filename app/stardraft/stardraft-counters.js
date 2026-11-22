@@ -1,5 +1,5 @@
 // 스타드래프트 정찰 대응 모드의 맞대응 표: [내 종족][상대 전략][내 전략] = 전략 고정 AI 대 AI 대진표의 승률(%).
-// scripts/starswar-matrix.mjs 로 만든다(1764판, 칸마다 8판). 손으로 고치지 않는다.
+// scripts/stardraft-matrix.mjs 로 만든다(1764판, 칸마다 8판). 손으로 고치지 않는다.
 export const STW_SCOUT_COUNTERS = {
   protoss: {
     rush: { rush: 50, dark: 50, dragoon: 0, templar: 0, robo: 0, carrier: 0, corsair: 0 },

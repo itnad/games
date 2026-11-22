@@ -1,7 +1,7 @@
 // 스타드래프트 경기 재현. 엔진은 결정적이므로 경기를 만든 설정과 사람이 내린 명령(틱, 명령)만 있으면
 // 같은 코드에서 같은 경기를 처음부터 다시 돌릴 수 있다. 결과 화면의 리포트에 이 재현 코드를 넣는다.
-import { createStarswarGame, stepStarswar, stwCreateScenario, stwIssue } from "./starswar-engine.js";
-import { stwAiThink } from "./starswar-ai.js";
+import { createStardraftGame, stepStardraft, stwCreateScenario, stwIssue } from "./stardraft-engine.js";
+import { stwAiThink } from "./stardraft-ai.js";
 
 /** 재현 코드 형식 판. */
 export const STW_REPLAY_VERSION = 1;
@@ -37,7 +37,7 @@ export function stwReplayCode(state, build = "") {
  */
 export function stwReplay(code, { until = code?.end?.status === "playing" ? code.end.time : Infinity, onTick = null } = {}) {
   if (!code || code.v !== STW_REPLAY_VERSION) throw new Error("재현 코드 형식이 맞지 않습니다");
-  const state = code.scenario ? stwCreateScenario(code.scenario) : createStarswarGame(code.setup);
+  const state = code.scenario ? stwCreateScenario(code.scenario) : createStardraftGame(code.setup);
   const commands = code.commands ?? [];
   // 시각은 0.1초씩 더해 가며 쌓여 소수 오차가 있으므로 틱 수로 견준다.
   const limitTick = Math.round(Math.min(until, REPLAY_TIME_LIMIT) * 10);
@@ -50,7 +50,7 @@ export function stwReplay(code, { until = code?.end?.status === "playing" ? code
       next += 1;
     }
     if (state.status !== "playing" || tick >= limitTick) break;
-    stepStarswar(state, stwAiThink);
+    stepStardraft(state, stwAiThink);
     onTick?.(state);
   }
   return state;

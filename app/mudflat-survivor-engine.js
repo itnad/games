@@ -2,6 +2,33 @@ export const MUDFLAT_RUN_SECONDS = 240;
 export const MUDFLAT_TIDE_FILL_SECONDS = 1;
 export const MUDFLAT_JOYSTICK_RADIUS = 72;
 export const MUDFLAT_RETURN_GUIDE_SECONDS = 10;
+// 생물 수 상한: 살아 있는 생물이 이만큼이면 일반 출현을 멈춘다(해산물 무리는 조금 일찍 멈춘다). 이벤트 생물은 상한 밖이다.
+export const MUDFLAT_CREATURE_LIMIT = 240;
+export const MUDFLAT_SWARM_CREATURE_LIMIT = MUDFLAT_CREATURE_LIMIT - 15;
+// 먼 생물 되돌리기: 플레이어에서 이만큼(px) 넘게 떨어진 생물은 이 시간(초) 뒤에 화면 가장자리 바깥에서 다시 들어온다.
+// 돌아다니거나 달아나는 생물이 닿을 수 없는 곳에 쌓여 상한을 채우면, 후반에 화면 주변이 텅 비었다.
+export const MUDFLAT_FAR_CREATURE_DISTANCE = 1000;
+export const MUDFLAT_FAR_CREATURE_RETURN_SECONDS = 5;
+
+/** 멀어지면 되돌아오는 생물인지. 대왕 박하지, 이벤트 생물(게 돌진·돌진 복어·해파리·펄에서 나오는 게), 랜턴으로만 찾는 숨은 패류, 채집할 수 없는 생물은 그대로 둔다. */
+export function mudflatCreatureCanReturn(creature) {
+  return Boolean(creature) && creature.hp > 0 && !creature.boss && creature.eventKind === undefined && creature.eventLife === undefined
+    && !creature.requiresHeadlamp && !creature.uncollectible && (creature.emergeSeconds ?? 0) <= 0;
+}
+
+/**
+ * 먼 생물 되돌리기의 한 프레임. 생물의 대기 시간(returnSeconds)을 진행하고, 지금 돌아와야 하는지 알려 준다.
+ * 기다리는 5초 사이에 플레이어가 다가와 다시 가까워졌거나, 되돌릴 수 없는 상태(그물에 걸림 등)가 되면 그만둔다.
+ * blocked: 이번 프레임에 되돌리기를 하지 않는 경우(튜토리얼, 그물에 걸린 생물).
+ */
+export function mudflatFarCreatureStep(creature, distance, dt, { blocked = false } = {}) {
+  const far = Number(distance) >= MUDFLAT_FAR_CREATURE_DISTANCE;
+  if (blocked || !far || !mudflatCreatureCanReturn(creature)) return { returnSeconds: undefined, returnNow: false };
+  const waiting = Number.isFinite(creature.returnSeconds) ? creature.returnSeconds : MUDFLAT_FAR_CREATURE_RETURN_SECONDS;
+  const left = waiting - Math.max(0, Number(dt) || 0);
+  return left > 0 ? { returnSeconds: left, returnNow: false } : { returnSeconds: undefined, returnNow: true };
+}
+
 // 운석: 떨어질 자리가 표시된 뒤 실제로 떨어지기까지의 시간(초). 예전 2.1초의 4배 속도다.
 export const MUDFLAT_METEOR_FALL_SECONDS = .525;
 export const MUDFLAT_TIDE_SPEED_MULTIPLIER = .2;
