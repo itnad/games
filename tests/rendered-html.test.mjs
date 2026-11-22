@@ -138,6 +138,7 @@ import {
   mudflatAutoSellInventory,
   mudflatAdvancedSkillUnlocks,
   mudflatCanLearnSkill,
+  mudflatTrainingButtonState,
   mudflatBleedDamage,
   mudflatBossPulse,
   mudflatEmptySeafoodHazard,
@@ -1317,6 +1318,38 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatCanLearnSkill(sixChoiceLoadout, "electric", "normal"), false);
   assert.equal(mudflatCanLearnSkill(sixChoiceLoadout, "cast-net", "normal"), false);
   assert.equal(mudflatCanLearnSkill(sixChoiceLoadout, "harpoon", "normal"), true);
+  // 정비 화면 기술 훈련 버튼: 선택 기술 5개면 새 기술을 살 수 있다.
+  const fiveChoiceLoadout = { tongs: 5, digging: 5, harpoon: 1, net: 1, rocker: 1, boots: 1, basket: 1 };
+  const richCoins = 1_000_000;
+  assert.equal(mudflatTrainingButtonState(fiveChoiceLoadout, "snack", "normal", richCoins).disabled, false);
+  assert.equal(mudflatTrainingButtonState(fiveChoiceLoadout, "electric", "normal", richCoins).disabled, false);
+  assert.equal(mudflatTrainingButtonState(fiveChoiceLoadout, "snack", "normal", richCoins).label, `${mudflatTrainingPrice(0)}코인 · Lv.0 → 1`);
+  // 선택 기술 6개면 미습득 기술은 비활성화되고 슬롯 가득 참 문구를 보여 준다.
+  for (const id of ["electric", "cast-net"]) {
+    const full = mudflatTrainingButtonState(sixChoiceLoadout, id, "normal", richCoins);
+    assert.equal(full.disabled, true);
+    assert.equal(full.slotFull, true);
+    assert.equal(full.label, "선택 슬롯 6/6");
+    assert.doesNotMatch(full.label, /코인|Lv\.0/);
+  }
+  // 이미 습득한 기술과 기본 기술(집게·호미질)은 6개가 가득 차도 계속 레벨업할 수 있다.
+  for (const id of ["harpoon", "net", "rocker", "boots", "basket", "snack", "tongs", "digging"]) {
+    const owned = mudflatTrainingButtonState(sixChoiceLoadout, id, "normal", richCoins);
+    assert.equal(owned.disabled, false, id);
+    assert.equal(owned.slotFull, false, id);
+    assert.equal(owned.label, `${mudflatTrainingPrice(sixChoiceLoadout[id])}코인 · Lv.${sixChoiceLoadout[id]} → ${sixChoiceLoadout[id] + 1}`);
+  }
+  // 코인 부족과 최고 레벨은 기존처럼 비활성화된다.
+  const poor = mudflatTrainingButtonState(fiveChoiceLoadout, "snack", "normal", mudflatTrainingPrice(0) - 1);
+  assert.equal(poor.disabled, true);
+  assert.equal(poor.slotFull, false);
+  assert.equal(poor.affordable, false);
+  assert.equal(poor.label, `${mudflatTrainingPrice(0)}코인 · Lv.0 → 1`);
+  const maxed = mudflatTrainingButtonState({ ...sixChoiceLoadout, harpoon: 6 }, "harpoon", "normal", richCoins);
+  assert.equal(maxed.disabled, true);
+  assert.equal(maxed.label, "최고 레벨");
+  // 어린이 모드는 선택 슬롯 제한이 없다.
+  assert.equal(mudflatTrainingButtonState({ hoe: 1, net: 1, salt: 1, boots: 1, basket: 1, stamina: 1 }, "harpoon", "kids", richCoins).slotFull, false);
   const cappedChoices = mudflatUpgradeChoices(4, sixChoiceLoadout, "normal", () => .5);
   assert.ok(cappedChoices.every((choice) => ["harpoon", "net", "rocker", "boots", "basket", "snack", "tongs", "digging"].includes(choice.id)));
   assert.equal(mudflatTongStats(2).rotationSpeed, mudflatTongStats(1).rotationSpeed * 1.5);
@@ -1823,6 +1856,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /new ResizeObserver\(updateSpace\)/);
   assert.match(source, /--ms-departure-space/);
   assert.match(source, /mudflatCanLearnSkill\(current\.levels, id, current\.mode\)/);
+  assert.match(source, /mudflatTrainingButtonState\(campaign\.levels, skill\.id, campaign\.mode, campaign\.coins\)/);
+  assert.match(source, /disabled=\{training\.disabled\} data-slot-full=\{training\.slotFull \|\| undefined\} onClick=\{\(\) => trainSkill\(skill\.id\)\}/);
+  assert.match(source, /<em>\{training\.label\}<\/em>/);
   assert.match(source, /className="ms-departure-coins"[\s\S]*?\{campaign\.coins\.toLocaleString\(\)\}C/);
   assert.match(source, /aria-label="현재 체력"[\s\S]*?campHpPercent/);
   assert.match(source, /aria-label="현재 경험치"[\s\S]*?campXpPercent/);

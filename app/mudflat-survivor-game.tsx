@@ -86,6 +86,7 @@ import {
   mudflatBossPulse,
   mudflatAdvancedSkillUnlocks,
   mudflatCanLearnSkill,
+  mudflatTrainingButtonState,
   mudflatAutoSellInventory,
   mudflatBleedDamage,
   mudflatCastNetStats,
@@ -4441,7 +4442,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           <article className="ms-shop"><header><small>EQUIPMENT SHOP</small><h2>장비 물품</h2></header><div>{MUDFLAT_SHOP_EQUIPMENT.map((item) => { const level = campaign.equipment[item.id] ?? 0; const price = mudflatEquipmentPrice(item.id, level); const effectLevel = Math.max(1, Math.min(item.max, level >= item.max ? level : level + 1)); const effectDescription = `Lv.${effectLevel} 효과 · ${mudflatEquipmentDescription(item.id, effectLevel)}`; return <button type="button" key={item.id} disabled={level >= item.max || campaign.coins < price} onClick={() => buyEquipment(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{effectDescription}</small></span><em>{level >= item.max ? "최고 단계" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
           <article className="ms-shop"><header><small>FIELD SUPPLY</small><h2>소모품</h2></header><div><button type="button" disabled={mosquitoRepellentReady || campaign.coins < MOSQUITO_REPELLENT_PRICE} onClick={buyMosquitoRepellent}><i>✹</i><span><b>해충기피제</b><small>언제 나타날지 모를 모기떼에 대비합니다. 다음 갯벌 1회 동안 피해를 막습니다.</small></span><em>{mosquitoRepellentReady ? "준비 완료" : `${MOSQUITO_REPELLENT_PRICE}코인`}</em></button></div></article>
           <article className="ms-shop"><header><small>RECOVERY FOOD</small><h2>체력 회복 음식</h2></header><div>{MUDFLAT_RECOVERY_FOODS.map((food) => <button type="button" key={food.id} disabled={campaign.hp >= campaign.maxHp || campaign.coins < food.price} onClick={() => buyFood(food.id)}><i>{food.icon}</i><span><b>{food.name}</b><small>{food.description} 구매 즉시 먹습니다.</small></span><em>{food.price}코인</em></button>)}</div></article>
-          <article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const level = campaign.levels[skill.id] ?? 0; const price = mudflatTrainingPrice(level); return <button type="button" key={skill.id} disabled={level >= skill.max || campaign.coins < price} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{level >= skill.max ? "최고 레벨" : `${price}코인 · Lv.${level} → ${level + 1}`}</em></button>; })}</div></article>
+          <article className="ms-shop"><header><small>SKILL TRAINING</small><h2>기술 레벨업</h2></header><div>{upgrades.map((skill) => { const training = mudflatTrainingButtonState(campaign.levels, skill.id, campaign.mode, campaign.coins); return <button type="button" key={skill.id} disabled={training.disabled} data-slot-full={training.slotFull || undefined} onClick={() => trainSkill(skill.id)}><i>{skill.icon}</i><span><b>{skill.name}</b><small>{skill.description}</small></span><em>{training.label}</em></button>; })}</div></article>
         </div>
       </section>
       <section className={`ms-departure${departureCollapsed ? " is-collapsed" : ""}`} ref={departureRef} aria-label="다음 갯벌 출정 패널">

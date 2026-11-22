@@ -250,6 +250,20 @@ export function mudflatCanLearnSkill(levels = {}, skillId = "", mode = "normal")
   return ownedSelectableSkills < MUDFLAT_SELECTABLE_SKILL_LIMIT;
 }
 
+// 정비 화면의 기술 훈련 버튼 상태. 클릭 뒤 거절하는 trainSkill 방어 로직과
+// 같은 mudflatCanLearnSkill 판정을 표시 단계에서도 미리 반영한다.
+export function mudflatTrainingButtonState(levels = {}, skillId = "", mode = "normal", coins = 0) {
+  const upgrades = mode === "normal" ? MUDFLAT_GENERAL_UPGRADES : MUDFLAT_UPGRADES;
+  const skill = upgrades.find((item) => item.id === skillId);
+  const level = levels[skillId] ?? 0;
+  const price = mudflatTrainingPrice(level);
+  const maxed = !skill || level >= skill.max;
+  const slotFull = !maxed && !mudflatCanLearnSkill(levels, skillId, mode);
+  const affordable = (Number(coins) || 0) >= price;
+  const label = maxed ? "최고 레벨" : slotFull ? `선택 슬롯 ${MUDFLAT_SELECTABLE_SKILL_LIMIT}/${MUDFLAT_SELECTABLE_SKILL_LIMIT}` : `${price}코인 · Lv.${level} → ${level + 1}`;
+  return { level, price, maxed, slotFull, affordable, disabled: maxed || slotFull || !affordable, label };
+}
+
 export function mudflatElectricStats(level = 0) {
   const rawLevel = Math.max(0, Math.floor(Number(level) || 0));
   const safeLevel = mudflatSafeLevel(level);
