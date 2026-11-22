@@ -1,6 +1,7 @@
 // 스타드래프트 AI. 플레이어와 같은 stwCommand만 쓴다.
 // 성향마다 빌드 순서와 출격 규모가 다르다. 프로토스·테란·저그가 같은 틀을 쓴다.
-import { STW_BUILDINGS, STW_DEFENSE_REACH, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./starswar-data.js";
+import { STW_AI_PERSONAS, STW_BUILDINGS, STW_DEFENSE_REACH, STW_DIFFICULTIES, STW_RACES, STW_RESEARCH, STW_SPELLS, STW_UNITS } from "./starswar-data.js";
+import { STW_SCOUT_COUNTERS } from "./starswar-counters.js";
 import { stwIntelTag, stwLearnSwitch } from "./starswar-learn.js";
 import {
   stwArmy,
@@ -352,8 +353,13 @@ export function stwAiThink(state, side) {
   if (!memory.scouted && state.time >= 120 && record.probes >= 7 && stwCommand(state, side, { type: "scout" }).ok) memory.scouted = true;
   if (memory.scouted && !memory.scouted2 && state.time >= 210 && record.probes >= 8 && stwCommand(state, side, { type: "scout" }).ok) memory.scouted2 = true;
   if (settings.master) readOpponent(state, side, record, memory);
+  // 정찰 대응 모드: 정찰은 평소의 두 번(2분·3분 30초)만 보내고, 그 뒤로는 병력이 본 것으로 읽는다.
+  // 5분 30초·7분 30초·9분 30초에 일꾼을 더 보내 봤더니 읽는 판 수는 그대로인데, 전략을 갈아타지 않은 판의 승률이
+  // 같은 시드의 전략 고정 경기보다 51% → 44%로 떨어졌다(일꾼 3기 값). 빼면 52% → 52%로 같다.
+  const reactive = Boolean(state.scoutReact?.includes(side));
   const alert = assessThreat(state, side, memory);
-  trackFoe(state, side, memory);
+  const visibleFoes = trackFoe(state, side, memory);
+  if (reactive) reactToScout(state, side, record, memory, visibleFoes);
   // 지금 따르는 성향: 프로토스·저그의 테크 성향은 수비가 안정될 때까지 기본 빌드(드라군·히드라 운영)로 시작한다.
   const persona = openingPersona(state, side, memory, race, alert);
   // 하이템플러 운영: 아카이브를 짓기 시작했는데 스톰 연구를 아직 시작하지 못한 동안(다른 연구와 템플러 생산을 미룬다).
@@ -1123,6 +1129,140 @@ function zergLines(state, side, persona, units, reserve) {
  * 저글링 물량·뮤탈 저글링·커세어 질럿·레이스 메카닉이 SWITCH_TO 표를 따라 갈아탄다. 빌드 순서는 새 성향의 것을 처음부터 따르되
  * 이미 지은 건물·끝난 연구는 건너뛴다. 저글링은 덴·동굴이 설 때까지 계속 나온다.
  */
+/* ───────── 정찰 대응 모드 ───────── */
+
+/** 맞대응 전략으로 갈아타는 조건: 대진표 승률이 지금 전략보다 이만큼(%p) 넘게 높아야 한다. */
+const SCOUT_REACT_MARGIN = 15;
+/** 갈아타기는 이 시각(초)까지, 최대 이 횟수, 앞선 갈아타기에서 이만큼(초) 지난 뒤에만. */
+const SCOUT_REACT_UNTIL = 540;
+const SCOUT_REACT_MAX = 2;
+const SCOUT_REACT_GAP = 150;
+
+/**
+ * 정찰로 본 것에서 상대 전략을 읽는다. 아직 가를 수 없으면 null.
+ * evidence: { race, time, seenAt, buildings: {종류: 수}, units: {종류: 수}, research: [id], probes, fresh }.
+ * 건물은 짓는 중인 것도 센다. 같은 테크를 거치는 전략(예: 스타게이트 하나는 커세어, 둘이나 플릿 비컨은 캐리어)은 본 데까지로 읽고,
+ * 더 보이면 고쳐 읽는다.
+ * fresh: 건물 수·일꾼 수가 방금(45초 안) 본진을 본 값인지. "없다·적다"로 가르는 규칙(코어가 없다, 배럭이 하나뿐이다)은 방금 본 값일 때만 쓴다.
+ * 오래된 정찰에 새로 본 건물 몇 채를 얹은 값으로 "배럭이 하나뿐"이라 읽으면, 바이오닉의 늦은 스타포트를 레이스 메카닉으로 잘못 읽는다.
+ */
+export function stwReadPersona(evidence) {
+  if (!evidence) return null;
+  const b = (type) => evidence.buildings?.[type] ?? 0;
+  const u = (type) => evidence.units?.[type] ?? 0;
+  const researched = new Set(evidence.research ?? []);
+  const r = (id) => researched.has(id);
+  const time = evidence.time ?? 0;
+  // seenAt: 본진을 본(건물 수·일꾼 수를 센) 시각. 일꾼 수로 가르는 규칙은 이 시각으로 본다.
+  const seenAt = evidence.seenAt ?? time;
+  const fresh = evidence.fresh !== false;
+  if (evidence.race === "protoss") {
+    if (b("beacon") || u("carrier") || b("stargate") >= 2) return "carrier";
+    if (r("storm") || u("templar") || u("archon")) return "templar";
+    if (b("archives") || u("dark") || u("darkArchon") || r("maelstrom")) return "dark";
+    if (b("robo") || b("bay") || u("reaver")) return "robo";
+    if (b("stargate") || u("corsair") || u("scout")) return "corsair";
+    if (fresh && !b("core") && (b("gateway") >= 3 || (b("gateway") >= 2 && !b("assimilator") && time < 200))) return "rush";
+    if (b("core") && time >= 420) return "dragoon";
+    return null;
+  }
+  if (evidence.race === "terran") {
+    const factories = b("factory");
+    const barracks = b("barracks");
+    if (u("battlecruiser") || r("yamato") || b("starport") >= 2 || (fresh && b("starport") && b("science") && factories >= 2 && barracks <= 1)) return "bc";
+    if (u("wraith") >= 2 || r("wraithCloak") || (fresh && b("starport") && time < 450 && factories <= 1 && barracks <= 1)) return "wraith";
+    if (u("ghost") >= 2 || (fresh && b("bunker") >= 2 && b("academy") && factories >= 1 && barracks <= 1 && time < 480)) return "ghost";
+    if (factories >= 1 && barracks >= 2) return b("shop") || u("tank") ? "tankbio" : "bio";
+    if (fresh && factories >= 2 && (!b("shop") || b("refinery") <= 1)) return "vulture";
+    if (factories >= 1 && u("vulture") >= 5 && !u("tank")) return "vulture";
+    if (factories >= 1 && (b("shop") || time >= 240)) return "mech";
+    if (barracks >= 2 && (b("academy") || time >= 200)) return "bio";
+    return null;
+  }
+  if (b("mound") || u("defiler") || u("guardian") || (b("nest") && time < 450)) return "hive";
+  if (b("spire") || u("mutalisk") || u("scourge")) return "muta";
+  if (b("cavern") || u("ultralisk")) return "ultra";
+  if (u("lurker") || (r("lurkerAspect") && time < 330)) return "lurker";
+  if (b("den")) return "hydra";
+  // 덴이 없는 저그(본진을 본 시각 기준): 3분 20초~4분 30초에 일꾼이 15기 이하면 빠른 저글링(다른 전략은 18기 이상),
+  // 4분 10초 전에 해처리가 둘이면 앞마당부터 먹는 울트라 운영, 4분 30초가 지나도 덴이 없으면 저글링 물량.
+  // 첫 정찰(2분 20초쯤)에는 모든 전략이 일꾼 14기라 가를 수 없다.
+  if (fresh && b("pool") && seenAt >= 200 && seenAt < 270 && (evidence.probes ?? 99) <= 15) return "pool";
+  if (fresh && seenAt >= 200 && seenAt < 250 && b("hatchery") >= 2) return "ultra";
+  if (fresh && b("pool") && seenAt >= 270) return "ling";
+  return null;
+}
+
+/** 다른 전략들의 바탕이 되는 기본 운영. 더 뚜렷한 전략으로 이미 읽었으면 이것으로 되돌려 읽지 않는다(질럿 러시도 5분이 지나면 코어를 올린다). */
+const GENERIC_READS = new Set(["dragoon", "mech", "bio", "hydra", "ling"]);
+/** 시작 빌드가 전부인 전략: 이 시각(초)이 지나면 그 전략으로 갈아타지 않는다(7분에 "질럿 러시"로 바꿔도 러시가 아니다). */
+const OPENING_ONLY = { rush: 210, pool: 180, vulture: 270, dark: 330 };
+
+/**
+ * 읽은 상대 전략에 맞설 내 전략: 대진표에서 승률이 가장 높은 것. 지금 전략보다 뚜렷이(SCOUT_REACT_MARGIN) 낫지 않으면 null.
+ * time을 주면 그 시각에 갈아탈 수 있는 전략만 본다(시작 빌드가 전부인 전략은 늦으면 뺀다).
+ */
+export function stwScoutCounter(race, foeRace, read, current, time = 0) {
+  const row = STW_SCOUT_COUNTERS[race]?.[read];
+  if (!row) return null;
+  let best = null;
+  for (const [persona, rate] of Object.entries(row)) {
+    if (STW_AI_PERSONAS[persona]?.avoid?.includes(foeRace)) continue;
+    if (persona !== current && OPENING_ONLY[persona] !== undefined && time > OPENING_ONLY[persona]) continue;
+    if (!best || rate > row[best]) best = persona;
+  }
+  if (!best || best === current || row[best] < (row[current] ?? 50) + SCOUT_REACT_MARGIN) return null;
+  return best;
+}
+
+/**
+ * 정찰 대응: 정찰 정보(본진을 본 순간의 건물·유닛·연구), 기억해 둔 적 건물, 지금까지 본 적 유닛으로 상대 전략을 읽고,
+ * 대진표에서 그 전략에 승률이 뚜렷이 높은 전략으로 갈아탄다. 읽은 것(reads)과 갈아탄 것(reacts)은 관전 화면이 보여 준다.
+ */
+function reactToScout(state, side, record, memory, visibleFoes) {
+  memory.sawUnits ??= {};
+  const now = {};
+  for (const unit of visibleFoes) now[unit.type] = (now[unit.type] ?? 0) + 1;
+  for (const [type, count] of Object.entries(now)) memory.sawUnits[type] = Math.max(memory.sawUnits[type] ?? 0, count);
+  const intel = record.intel;
+  if (intel && intel.time !== memory.reactIntelAt) {
+    memory.reactIntelAt = intel.time;
+    // 최상급의 읽기와 같은 대비: 러시 조짐이면 경계, 공중·은폐 테크를 봤으면 대공·탐지를 준비한다.
+    const tag = stwIntelTag(intel, state.time);
+    if (tag === "rush") memory.alertUntil = Math.max(memory.alertUntil ?? 0, 420);
+    if (tag === "air") memory.expectAir = true;
+    if (tag === "cloak") memory.expectCloak = true;
+  }
+  const foe = stwOpponent(side);
+  const foeRace = state.sides[foe].race;
+  const buildings = { ...(intel?.buildings ?? {}) };
+  const remembered = {};
+  for (const item of Object.values(record.seen ?? {})) remembered[item.type] = (remembered[item.type] ?? 0) + 1;
+  for (const [type, count] of Object.entries(remembered)) buildings[type] = Math.max(buildings[type] ?? 0, count);
+  const units = { ...memory.sawUnits };
+  for (const [type, count] of Object.entries(intel?.units ?? {})) units[type] = Math.max(units[type] ?? 0, count);
+  const fresh = Boolean(intel) && state.time - intel.time <= 45;
+  const seenNow = stwReadPersona({ race: foeRace, time: state.time, buildings, units, research: (intel?.research ?? []).map((item) => item.id), probes: intel?.probes, fresh, seenAt: intel?.time });
+  memory.reads ??= [];
+  const before = memory.reads.at(-1)?.persona;
+  // 기본 운영으로는 이미 읽어 둔 더 뚜렷한 전략을 덮지 않는다.
+  const read = seenNow && !(before && GENERIC_READS.has(seenNow) && !GENERIC_READS.has(before)) ? seenNow : before;
+  if (!read) return;
+  if (before !== read) memory.reads.push({ persona: read, at: state.time });
+  memory.reacts ??= [];
+  const last = memory.reacts.at(-1);
+  if (record.plan || state.time > SCOUT_REACT_UNTIL || memory.reacts.length >= SCOUT_REACT_MAX || (last && state.time - last.at < SCOUT_REACT_GAP)) return;
+  const from = record.persona;
+  const to = stwScoutCounter(record.race, foeRace, read, from, state.time);
+  if (!to) return;
+  memory.reacts.push({ from, to, read, at: state.time });
+  record.persona = to;
+  // 새 빌드 순서를 처음부터 다시 보되, 이미 가진 건물·끝낸 연구는 한 것으로 친다.
+  memory.done = [];
+  memory.built = [];
+  markOwnedSteps(state, side, buildOrder(state, side, to), memory);
+}
+
 function switchStrategy(state, side, memory) {
   const record = state.sides[side];
   const from = record.persona;

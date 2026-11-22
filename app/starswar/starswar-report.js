@@ -180,6 +180,16 @@ function headerLines(state, env) {
   ];
   if (state.lab) lines.push(`- 실험실 경기: 배치 ${state.lab.placement === "home" ? "각자 집결지" : "맵 가운데 대치"} · 아군 ${state.lab.control.player === "ai" ? "AI 운영" : "직접 지휘"} · 적 ${state.lab.control.enemy === "ai" ? "AI 운영" : "교전만"}`);
   if (state.spectate) lines.push("- AI 대 AI 관전 경기: 양쪽 모두 AI 운영 · 사람 조작 없음 · 나 = 파랑(아래), 적 = 빨강(위)");
+  if (state.scoutReact?.length) {
+    lines.push("- 정찰 대응 모드: AI가 정찰로 상대 전략을 읽고 맞대응 전략으로 갈아탄다");
+    const personaName = (id) => STW_AI_PERSONAS[id]?.name ?? id;
+    for (const side of state.scoutReact) {
+      const ai = state.sides[side].ai;
+      const reads = (ai?.reads ?? []).map((read) => `${stwClock(read.at)} ${personaName(read.persona)}`).join(" → ") || "없음";
+      const reacts = (ai?.reacts ?? []).map((react) => `${stwClock(react.at)} ${personaName(react.from)} → ${personaName(react.to)}`).join(", ") || "없음";
+      lines.push(`  - ${side === "player" ? "나" : "적"}: 읽은 상대 전략 ${reads} · 갈아탄 전략 ${reacts}`);
+    }
+  }
   if (env?.build) lines.push(`- 게임 판: ${env.build}`);
   if (env?.device) lines.push(`- 기기: ${env.device}`);
   if (env?.copiedAt) lines.push(`- 복사한 때: ${env.copiedAt}`);

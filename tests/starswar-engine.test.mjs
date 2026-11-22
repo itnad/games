@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { STW_BUILDINGS, STW_DIFFICULTIES, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_MAPS, STW_MAP_IDS, STW_SPELLS, STW_STORM, STW_UNITS, stwGroundSpan, stwMapData } from "../app/starswar/starswar-data.js";
+import { STW_AI_PERSONAS, STW_BUILDINGS, STW_DIFFICULTIES, STW_LANE_LENGTH, STW_LANE_WIDTH, STW_LAYOUT, STW_MAPS, STW_MAP_IDS, STW_SPELLS, STW_STORM, STW_UNITS, stwGroundSpan, stwMapData } from "../app/starswar/starswar-data.js";
 import {
   createStarswarGame,
   stwCreateScenario,
@@ -33,7 +33,8 @@ import {
   stwWorkerSplit,
   stepStarswar,
 } from "../app/starswar/starswar-engine.js";
-import { stwAiThink } from "../app/starswar/starswar-ai.js";
+import { stwAiThink, stwReadPersona, stwScoutCounter } from "../app/starswar/starswar-ai.js";
+import { STW_SCOUT_COUNTERS } from "../app/starswar/starswar-counters.js";
 import { stwFingerprint, stwReplay, stwReplayCode, stwReplayMatches } from "../app/starswar/starswar-replay.js";
 import { stwAiReport, stwBugReport, stwLosingAiSides } from "../app/starswar/starswar-report.js";
 import { stwIntelTag, stwLearnAdd, stwLearnEmpty, stwLearnFeatures, stwLearnPick, stwLearnSnapshot, stwLearnTags } from "../app/starswar/starswar-learn.js";
@@ -4531,4 +4532,106 @@ test("지도 화면이 볼 전선: 출격 병력의 선두, 없으면 교전 높
   assert.deepEqual(stwBattleFocus(state, "player"), { kind: "attack", y: 48 });
   // 상대 쪽 전선은 따로 센다.
   assert.equal(stwBattleFocus(state, "enemy"), null);
+});
+
+test("정찰 대응: 정찰로 본 건물·유닛·연구에서 상대 전략을 읽는다", () => {
+  const read = (race, time, buildings, units = {}, research = [], probes = 20) => stwReadPersona({ race, time, buildings, units, research, probes });
+  // 프로토스
+  assert.equal(read("protoss", 150, { nexus: 1, pylon: 1, gateway: 1 }), null, "게이트웨이 하나로는 아직 가를 수 없다");
+  assert.equal(read("protoss", 190, { nexus: 1, pylon: 2, gateway: 2 }), "rush");
+  assert.equal(read("protoss", 300, { nexus: 1, gateway: 3, pylon: 3, assimilator: 1 }), "rush");
+  assert.equal(read("protoss", 300, { nexus: 1, gateway: 1, core: 1, assimilator: 1 }), null, "코어만으로는 7분 전까지 기다린다");
+  assert.equal(read("protoss", 430, { nexus: 2, gateway: 3, core: 1, forge: 1, cannon: 3 }), "dragoon");
+  assert.equal(read("protoss", 430, { nexus: 2, gateway: 2, core: 1, stargate: 1 }), "corsair");
+  assert.equal(read("protoss", 500, { nexus: 2, gateway: 2, core: 1, stargate: 1, beacon: 1 }), "carrier");
+  assert.equal(read("protoss", 500, { nexus: 2, gateway: 2, core: 1, stargate: 2 }), "carrier");
+  assert.equal(read("protoss", 320, { nexus: 1, gateway: 1, core: 1, citadel: 1, archives: 1 }), "dark");
+  assert.equal(read("protoss", 400, { nexus: 1, gateway: 2, core: 1, citadel: 1, archives: 1 }), "dark", "스톰 연구를 보기 전에는 다크템플러로 읽는다");
+  assert.equal(read("protoss", 400, { nexus: 1, gateway: 2, core: 1, citadel: 1, archives: 1 }, {}, ["storm"]), "templar");
+  assert.equal(read("protoss", 400, { nexus: 1, gateway: 2, core: 1 }, { dark: 2 }), "dark");
+  assert.equal(read("protoss", 400, { nexus: 1, gateway: 2, core: 1, robo: 1 }), "robo");
+  // 테란
+  assert.equal(read("terran", 150, { cc: 1, depot: 1, barracks: 1 }), null);
+  assert.equal(read("terran", 220, { cc: 1, depot: 2, barracks: 3, refinery: 1, academy: 1 }), "bio");
+  assert.equal(read("terran", 330, { cc: 1, barracks: 2, factory: 1, shop: 1, academy: 1 }), "tankbio");
+  assert.equal(read("terran", 300, { cc: 1, barracks: 1, factory: 1, shop: 1, refinery: 2 }), "mech");
+  assert.equal(read("terran", 230, { cc: 1, barracks: 1, factory: 2, refinery: 1 }), "vulture");
+  assert.equal(read("terran", 330, { cc: 1, barracks: 1, factory: 1, shop: 1, starport: 1, refinery: 2 }), "wraith");
+  assert.equal(read("terran", 500, { cc: 2, barracks: 1, factory: 2, shop: 1, starport: 2, science: 1 }), "bc");
+  assert.equal(read("terran", 400, { cc: 2, barracks: 1, factory: 1, shop: 1, academy: 1, bunker: 3 }), "ghost");
+  // 저그
+  assert.equal(read("zerg", 150, { hatchery: 1, pool: 1 }), null);
+  assert.equal(read("zerg", 230, { hatchery: 1, pool: 1, extractor: 1 }, {}, [], 14), "pool");
+  assert.equal(read("zerg", 150, { hatchery: 1, pool: 1, extractor: 1 }, {}, [], 14), null, "첫 정찰 때는 모든 전략이 일꾼 14기다");
+  assert.equal(read("zerg", 235, { hatchery: 2, pool: 1, extractor: 1 }, {}, [], 21), "ultra");
+  assert.equal(read("zerg", 280, { hatchery: 3, pool: 1, extractor: 1 }, {}, [], 20), "ling");
+  assert.equal(read("zerg", 255, { hatchery: 1, pool: 1, extractor: 1 }, {}, [], 19), null, "4분 30초 전에는 덴이 없어도 기다린다");
+  assert.equal(read("zerg", 260, { hatchery: 2, pool: 1, den: 1, sunken: 1 }), "hydra");
+  assert.equal(read("zerg", 300, { hatchery: 2, pool: 1, den: 1 }, {}, ["lair", "lurkerAspect"]), "lurker");
+  assert.equal(read("zerg", 400, { hatchery: 3, pool: 1, spire: 1 }), "muta");
+  assert.equal(read("zerg", 420, { hatchery: 3, pool: 1, den: 1, cavern: 1 }), "ultra");
+  assert.equal(read("zerg", 420, { hatchery: 3, pool: 1, den: 1, nest: 1 }), "hive");
+  assert.equal(read("zerg", 700, { hatchery: 3, pool: 1, den: 1, nest: 1, mound: 1, spire: 1 }), "hive");
+  // 오래된 정찰에 새로 본 건물만 얹은 값(fresh: false)으로는 "없다·적다"로 가르는 규칙을 쓰지 않는다.
+  const stale = (race, time, buildings) => stwReadPersona({ race, time, buildings, units: {}, research: [], probes: 14, fresh: false });
+  assert.equal(stale("terran", 400, { cc: 1, barracks: 1, factory: 1, starport: 1 }), "mech", "배럭 수가 옛 값이면 레이스 메카닉으로 단정하지 않는다");
+  assert.equal(stale("protoss", 300, { nexus: 1, gateway: 3 }), null);
+  assert.equal(stale("zerg", 300, { hatchery: 2, pool: 1 }), null);
+});
+
+test("정찰 대응: 맞대응 표는 모든 종족·상대 전략을 덮고, 뚜렷이 나을 때만 갈아탄다", () => {
+  const personas = Object.values(STW_AI_PERSONAS);
+  for (const race of ["protoss", "terran", "zerg"]) {
+    const own = personas.filter((persona) => persona.race === race).map((persona) => persona.id);
+    for (const foe of personas) {
+      const row = STW_SCOUT_COUNTERS[race]?.[foe.id];
+      assert.ok(row, `${race} 대 ${foe.id} 줄이 있어야 한다`);
+      assert.deepEqual(Object.keys(row).sort(), [...own].sort());
+      for (const current of own) {
+        const pick = stwScoutCounter(race, foe.race, foe.id, current, 300);
+        if (pick === null) continue;
+        assert.notEqual(pick, current);
+        assert.ok(own.includes(pick));
+        assert.ok(row[pick] >= row[current] + 15, "지금 전략보다 15%p 넘게 나아야 한다");
+        assert.ok(!STW_AI_PERSONAS[pick].avoid?.includes(foe.race), "그 종족 상대로 피하는 전략은 고르지 않는다");
+        assert.ok(!["rush", "pool", "vulture"].includes(pick), "5분에는 시작 빌드가 전부인 전략으로 갈아타지 않는다");
+      }
+    }
+  }
+  assert.equal(stwScoutCounter("protoss", "terran", "없는전략", "dragoon"), null);
+});
+
+test("정찰 대응 모드: AI가 맡은 진영만 켜지고, 읽은 전략과 갈아탄 기록이 남으며, 끄면 예전과 똑같이 흘러간다", () => {
+  const setup = { difficulty: "hard", seed: 91, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "bio", enemy: "carrier" } };
+  const react = createStarswarGame({ ...setup, scoutReact: true });
+  assert.deepEqual(react.scoutReact, ["player", "enemy"]);
+  assert.deepEqual(react.replay.setup.scoutReact, ["player", "enemy"]);
+  // 사람이 맡은 진영은 정찰 대응 대상이 아니다.
+  assert.deepEqual(createStarswarGame({ seed: 1, scoutReact: true }).scoutReact, ["enemy"]);
+  assert.equal(createStarswarGame({ seed: 1, aiSides: [], scoutReact: true }).scoutReact, undefined);
+  assert.deepEqual(createStarswarGame({ ...setup, scoutReact: ["enemy"] }).scoutReact, ["enemy"]);
+  const plain = createStarswarGame(setup);
+  assert.equal(plain.scoutReact, undefined);
+  for (let step = 0; step < 6600 && react.status === "playing"; step += 1) stepStarswar(react, stwAiThink);
+  for (let step = 0; step < 6600 && plain.status === "playing"; step += 1) stepStarswar(plain, stwAiThink);
+  // 정찰 대응 쪽: 스타게이트·플릿 비컨을 본 테란은 상대를 공중 전략(커세어 → 캐리어)으로 읽는다.
+  const reads = react.sides.player.ai.reads.map((item) => item.persona);
+  assert.ok(reads.some((persona) => persona === "corsair" || persona === "carrier"), `읽은 전략: ${reads.join(", ")}`);
+  for (const side of ["player", "enemy"]) {
+    for (const change of react.sides[side].ai.reacts ?? []) {
+      assert.equal(STW_AI_PERSONAS[change.to].race, react.sides[side].race);
+      assert.ok(change.at <= 540);
+    }
+    assert.ok((react.sides[side].ai.reacts ?? []).length <= 2);
+  }
+  // 끈 경기: 읽기가 없다.
+  assert.equal(plain.sides.player.ai.reads, undefined);
+  assert.equal(plain.sides.player.ai.reacts, undefined);
+  assert.match(stwBugReport(react), /정찰 대응 모드/);
+  // 같은 설정·같은 시드면 정찰 대응 경기도 똑같이 다시 흘러간다(재현).
+  const again = createStarswarGame({ ...setup, scoutReact: true });
+  for (let step = 0; step < 3000; step += 1) stepStarswar(again, stwAiThink);
+  const check = createStarswarGame({ ...setup, scoutReact: true });
+  for (let step = 0; step < 3000; step += 1) stepStarswar(check, stwAiThink);
+  assert.deepEqual(stwFingerprint(again), stwFingerprint(check));
 });

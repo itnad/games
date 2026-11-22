@@ -177,7 +177,13 @@ export type StwSideState = {
   bonusSupply?: number;
   stats: StwStats;
   /** AI의 기억(전략 전환 기록 등). 플레이어 쪽은 null. */
-  ai?: { switched?: { from: string; to: string; at: number } } | null;
+  ai?: {
+    switched?: { from: string; to: string; at: number };
+    /** 정찰 대응 모드: 정찰로 읽은 상대 전략들(바뀔 때마다 하나씩). */
+    reads?: { persona: string; at: number }[];
+    /** 정찰 대응 모드: 맞대응으로 갈아탄 기록(read = 그때 읽은 상대 전략). */
+    reacts?: { from: string; to: string; read: string; at: number }[];
+  } | null;
 };
 
 export type StwLogEntry = { id: number; time: number; side: StwSide; text: string; tone: "info" | "good" | "warn" | "danger" | "order" };
@@ -228,6 +234,8 @@ export type StwState = {
   lab?: { placement: "clash" | "home"; control: { player: "manual" | "ai"; enemy: "fight" | "ai" } };
   /** AI 대 AI 관전 경기(양쪽 AI 운영, 사람은 조작하지 않고 전장 전체를 본다). */
   spectate?: boolean;
+  /** 정찰 대응 모드인 진영: 이 진영의 AI는 정찰로 상대 전략을 읽고 맞대응 전략으로 갈아탄다. */
+  scoutReact?: ("player" | "enemy")[];
   hiddenEnemyRace?: boolean;
   difficulty: StwDifficulty;
   status: "playing" | "over";

@@ -881,6 +881,7 @@ test("keeps StarDraft in its own app/starswar folder as a public mobile game at 
   assert.deepEqual(folder, [
     "starswar-ai.js",
     "starswar-camera.js",
+    "starswar-counters.js",
     "starswar-data.js",
     "starswar-engine.js",
     "starswar-game.tsx",
@@ -893,6 +894,7 @@ test("keeps StarDraft in its own app/starswar folder as a public mobile game at 
     "starswar-theme.tsx",
     "starswar-tips.js",
     "starswar-types.ts",
+    "starswar-watch.tsx",
     "starswar.css",
   ]);
   assert.equal((await readdir(new URL("../app/", import.meta.url))).some((file) => /^(starswar|frontline)/.test(file) && file !== "starswar"), false);
