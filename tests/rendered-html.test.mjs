@@ -184,6 +184,7 @@ import {
   mudflatWaterChannelLanes,
   mudflatWaterChannelCenterX,
   mudflatWaterChannelHalfWidth,
+  mudflatEndlessObjectiveProgress,
   mudflatEndlessObjectiveResult,
   mudflatSeafoodSaleValue,
   mudflatSettleCatch,
@@ -1544,6 +1545,28 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(mudflatStageEmptySeafoodHazard(20, 5).damagePerSecond > mudflatStageEmptySeafoodHazard(20, 1).damagePerSecond);
   assert.equal(typeof mudflatInWaterChannel(0, 0, 2), "boolean");
   assert.equal(mudflatEndlessObjectiveResult({ objective: { id: "rocks", label: "돌 3개", target: 3, bonus: 50 } }, { rocksFlipped: 3 }).bonus, 50);
+  // 보조 목표 진행률: HUD 카운터와 정산이 같은 판정을 공유한다.
+  assert.equal(mudflatEndlessObjectiveProgress(mudflatStageProfile(3), { caught: 999 }), null);
+  const rocksGoal = { objective: { id: "rocks", label: "돌 9개 뒤집기", target: 9, bonus: 50 } };
+  assert.deepEqual(mudflatEndlessObjectiveProgress(rocksGoal, { rocksFlipped: 4 }), { id: "rocks", label: "돌 9개 뒤집기", current: 4, target: 9, ratio: 4 / 9, complete: false, text: "돌 4 / 9" });
+  assert.equal(mudflatEndlessObjectiveProgress(rocksGoal, { rocksFlipped: 12 }).text, "돌 9 / 9");
+  assert.equal(mudflatEndlessObjectiveProgress(rocksGoal, { rocksFlipped: 12 }).ratio, 1);
+  const catchGoal = { objective: { id: "catch", label: "해산물 120마리 채집", target: 120, bonus: 50 } };
+  assert.equal(mudflatEndlessObjectiveProgress(catchGoal, { caught: 45 }).text, "채집 45 / 120");
+  assert.equal(mudflatEndlessObjectiveProgress(catchGoal, { caught: 45 }).complete, false);
+  assert.equal(mudflatEndlessObjectiveResult(catchGoal, { caught: 120 }).bonus, 50);
+  const healthGoal = { objective: { id: "health", label: "체력 50% 이상으로 귀환", target: .5, bonus: 50 } };
+  const healthProgress = mudflatEndlessObjectiveProgress(healthGoal, { hp: 36, maxHp: 100 });
+  assert.equal(healthProgress.text, "체력 36% / 50%");
+  assert.equal(healthProgress.complete, false);
+  assert.equal(healthProgress.ratio, .72);
+  assert.equal(mudflatEndlessObjectiveProgress(healthGoal, { hp: 72, maxHp: 100 }).complete, true);
+  assert.equal(mudflatEndlessObjectiveResult(healthGoal, { hp: 72, maxHp: 100 }).bonus, 50);
+  for (const stage of [9, 10, 11, 12]) {
+    const progress = mudflatEndlessObjectiveProgress(mudflatStageProfile(stage), { caught: 0, rocksFlipped: 0, hp: 100, maxHp: 100 });
+    assert.equal(progress.label, mudflatStageProfile(stage).objective.label);
+    assert.ok(progress.text.length <= 18, "HUD 카운터 문구는 한 줄에 들어가야 한다");
+  }
   assert.ok(mudflatFinalScore({ catchScore: 1000, caught: 50, elapsed: 240, bossCaught: true }) > 4000);
 
   const source = await readMudflatSourceBundle();
@@ -1840,6 +1863,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-base-tools\{position:absolute;z-index:4;left:14px;top:auto;bottom:10px/);
   assert.match(styles, /\.ms-caught\{z-index:4;right:14px;top:auto;bottom:10px/);
   assert.match(source, /className="ms-skill-detail"/);
+  // 보조 목표는 별도 카드로 게임 화면을 가리지 않고 HUD 카드 안의 세 번째 줄로 표시한다.
+  assert.doesNotMatch(source, /className="ms-stage-objective"/);
+  assert.doesNotMatch(styles, /\.ms-stage-objective/);
+  assert.match(source, /mudflatEndlessObjectiveProgress\(activeStageProfile, \{ caught: hud\.caught, rocksFlipped: hud\.rocksFlipped, hp: hud\.hp, maxHp: hud\.maxHp \}\)/);
+  assert.match(source, /<\/div>\{activeObjectiveProgress && <div className="goal" data-complete=\{activeObjectiveProgress\.complete \|\| undefined\} role="status"[^\n]*?<span>목표<\/span><i><b style=\{\{ width: `\$\{Math\.round\(activeObjectiveProgress\.ratio \* 100\)\}%` \}\} \/><\/i><em>\{activeObjectiveProgress\.text\}<\/em><\/div>\}<\/div>/);
+  assert.match(source, /rocksFlipped: runtime\.rocksFlipped,\n/);
+  assert.match(styles, /\.ms-hud-bars \.goal i b\{background:linear-gradient\(90deg,#d99a2b,#f6cf6a\)/);
+  assert.match(styles, /\.ms-hud-bars \.goal\[data-complete\] i b\{/);
   assert.match(source, /onClick=\{\(\) => setSelectedSkillId\(skill\.id\)\}/);
   assert.match(styles, /\.ms-skill-detail\{position:fixed/);
   assert.doesNotMatch(source, /damageCreature\([^\n]+#[0-9a-fA-F]{6}/);

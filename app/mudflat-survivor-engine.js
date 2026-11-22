@@ -669,13 +669,33 @@ export function mudflatStageEmptySeafoodHazard(emptySeconds = 0, stage = 1) {
   return mudflatEmptySeafoodHazard(Math.max(0, Number(emptySeconds) || 0) / Math.max(.35, profile.coldThresholdMultiplier));
 }
 
-export function mudflatEndlessObjectiveResult(profile, { caught = 0, rocksFlipped = 0, hp = 0, maxHp = 1 } = {}) {
+// 보조 목표 진행률. HUD 카운터와 단계 성공 정산이 같은 판정을 공유한다.
+export function mudflatEndlessObjectiveProgress(profile, { caught = 0, rocksFlipped = 0, hp = 0, maxHp = 1 } = {}) {
   const objective = profile?.objective;
-  if (!objective) return { complete: false, bonus: 0, label: "" };
-  const complete = objective.id === "catch" ? caught >= objective.target
-    : objective.id === "rocks" ? rocksFlipped >= objective.target
-      : hp / Math.max(1, maxHp) >= objective.target;
-  return { complete, bonus: complete ? objective.bonus : 0, label: objective.label };
+  if (!objective) return null;
+  const safeTarget = Math.max(0, Number(objective.target) || 0);
+  if (objective.id === "health") {
+    const percent = Math.max(0, Math.min(1, (Number(hp) || 0) / Math.max(1, Number(maxHp) || 1)));
+    const targetPercent = Math.round(safeTarget * 100);
+    return {
+      id: objective.id, label: objective.label, current: Math.floor(percent * 100), target: targetPercent,
+      ratio: safeTarget > 0 ? Math.min(1, percent / safeTarget) : 1, complete: percent >= safeTarget,
+      text: `체력 ${Math.floor(percent * 100)}% / ${targetPercent}%`,
+    };
+  }
+  const current = Math.max(0, Math.floor(objective.id === "catch" ? Number(caught) || 0 : Number(rocksFlipped) || 0));
+  const complete = current >= safeTarget;
+  return {
+    id: objective.id, label: objective.label, current, target: safeTarget,
+    ratio: safeTarget > 0 ? Math.min(1, current / safeTarget) : 1, complete,
+    text: `${objective.id === "catch" ? "채집" : "돌"} ${Math.min(current, safeTarget)} / ${safeTarget}`,
+  };
+}
+
+export function mudflatEndlessObjectiveResult(profile, stats = {}) {
+  const progress = mudflatEndlessObjectiveProgress(profile, stats);
+  if (!progress) return { complete: false, bonus: 0, label: "" };
+  return { complete: progress.complete, bonus: progress.complete ? profile.objective.bonus : 0, label: progress.label };
 }
 
 export function mudflatSeafoodSaleValue(type, count = 1, _coolerLevel = 0, stage = 1) {
