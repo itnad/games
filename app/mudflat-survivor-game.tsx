@@ -1616,53 +1616,90 @@ function drawHoeBot(context: CanvasRenderingContext2D, x: number, y: number, pha
   context.restore();
 }
 
-// 뻘권 몸통 자세. 준비(0~0.15)에는 주먹 반대쪽으로 6px 물러나며 2px 낮아지고 뒤로 기울며,
-// 내지르기(0.15~0.36)에는 주먹 쪽으로 4px 쏠린다. 복귀(0.5~)에는 원래 자세로 돌아온다.
-function smashBodyOffset(progress: number, angle: number) {
-  const dirX = Math.cos(angle); const dirY = Math.sin(angle);
-  const prep = progress < .15 ? progress / .15 : progress < .36 ? 1 - (progress - .15) / .21 : 0;
-  const lunge = progress >= .15 && progress < .5 ? Math.sin(Math.min(1, (progress - .15) / .21) * Math.PI / 2) * (progress < .5 ? 1 - Math.max(0, (progress - .36) / .14) : 0) : 0;
-  const side = dirX >= 0 ? 1 : -1;
-  return { x: -dirX * 6 * prep + dirX * 4 * lunge, y: 2 * prep - dirY * 2 * lunge, rotate: -side * .12 * prep + side * .06 * lunge };
+// 뻘권 시간 배분(총 0.55초): 준비 0.08초 → 내지르기 0.12초 → 충격 0.2초 → 복귀 0.15초.
+// progress(0~1)를 초 단위 단계로 바꾼다.
+const SMASH_EFFECT_SECONDS = .55;
+const SMASH_PREP_END = .08;
+const SMASH_STRIKE_END = .2;
+const SMASH_IMPACT_END = .4;
+function smashPhases(progress: number) {
+  const t = Math.max(0, Math.min(1, progress)) * SMASH_EFFECT_SECONDS;
+  const ease = (value: number) => Math.sin(Math.max(0, Math.min(1, value)) * Math.PI / 2);
+  const prep = t < SMASH_PREP_END ? t / SMASH_PREP_END : 0;
+  const extend = t < SMASH_PREP_END ? 0 : t < SMASH_STRIKE_END ? ease((t - SMASH_PREP_END) / (SMASH_STRIKE_END - SMASH_PREP_END)) : t < SMASH_IMPACT_END ? 1 : 1 - ease((t - SMASH_IMPACT_END) / (SMASH_EFFECT_SECONDS - SMASH_IMPACT_END));
+  const impact = t < SMASH_STRIKE_END ? 0 : Math.min(1, (t - SMASH_STRIKE_END) / (SMASH_IMPACT_END - SMASH_STRIKE_END));
+  const striking = t >= SMASH_PREP_END && t < SMASH_STRIKE_END;
+  return { t, prep, extend, impact, striking };
 }
 
-// 뻘권 연출. 0~0.15 준비(몸 기울임), 0.15~0.36 내지르기(팔 뻗음·잔상 선), 0.3~0.65
-// 충격(주먹 끝 반원 충격파와 통로를 지나는 속도선), 이후 복귀. 흰빛·하늘빛으로
-// 소쿠리(황토)·건곤대나이(청록)와 구분한다. 루미는 팔 없이 충격파·속도선만 그린다.
+// 뻘권 몸통 자세. 준비에는 주먹 반대쪽 어깨를 빼듯 6px 물러나며 2px 낮아지고 뒤로 기울고,
+// 내지르기·충격 동안 주먹 쪽으로 4px 쏠렸다가 복귀에 원래 자세로 돌아온다.
+function smashBodyOffset(progress: number, angle: number) {
+  const { prep, extend } = smashPhases(progress);
+  const dirX = Math.cos(angle); const dirY = Math.sin(angle);
+  const side = dirX >= 0 ? 1 : -1;
+  return { x: -dirX * 6 * prep + dirX * 4 * extend, y: 2 * prep - dirY * 2 * extend, rotate: -side * .12 * prep + side * .06 * extend };
+}
+
+// 뻘권 연출. 충격파·속도선을 먼저 그리고 팔·주먹을 그 위에 그려 팔이 가려지지 않게 한다.
+// 흰색 테두리에 옅은 하늘색으로 소쿠리(황토)·건곤대나이(청록)와 구분한다. 루미는 팔 없이
+// 충격파·속도선만 그린다.
 function drawSmashCast(context: CanvasRenderingContext2D, x: number, y: number, angle: number, progress: number, length: number, width: number, lumi: boolean) {
+  const { prep, extend, impact, striking } = smashPhases(progress);
+  const reachMax = 44;
+  const reach = 10 + (reachMax - 10) * extend;
+  const fistX = reach + 3;
   context.save();
   context.translate(x, y); context.rotate(angle);
-  if (!lumi && progress < .62) {
-    const extend = progress < .15 ? 0 : Math.min(1, (progress - .15) / .21);
-    const retract = progress > .5 ? Math.min(1, (progress - .5) / .12) : 0;
-    const reach = 10 + 34 * Math.sin(extend * Math.PI / 2) * (1 - retract);
-    const lean = progress < .15 ? -6 * (progress / .15) : -6 * (1 - extend);
-    context.strokeStyle = "rgba(28,23,20,.35)"; context.lineWidth = 9; context.lineCap = "round";
-    context.beginPath(); context.moveTo(lean, -2); context.lineTo(reach, -2); context.stroke();
-    context.strokeStyle = "#f0c9a5"; context.lineWidth = 6;
-    context.beginPath(); context.moveTo(lean, -2); context.lineTo(reach, -2); context.stroke();
-    context.fillStyle = "#e9b48c"; context.strokeStyle = "#8a5a3b"; context.lineWidth = 1.5;
-    context.beginPath(); context.arc(reach + 3, -2, 7, 0, Math.PI * 2); context.fill(); context.stroke();
-    if (extend > .3 && retract === 0) {
-      context.strokeStyle = "rgba(255,255,255,.55)"; context.lineWidth = 1.5;
-      for (let index = -1; index <= 1; index += 1) { context.beginPath(); context.moveTo(reach - 6, -2 + index * 5); context.lineTo(reach - 18 - extend * 10, -2 + index * 6); context.stroke(); }
-    }
-  }
-  const impact = Math.max(0, Math.min(1, (progress - .3) / .35));
+  // 충격: 주먹 끝에서 반원 충격파가 통로 폭까지 펼쳐지고, 속도선이 통로 길이만큼 지나간다.
   if (impact > 0 && impact < 1) {
-    const front = 40;
-    context.globalAlpha = (1 - impact) * .85;
-    context.strokeStyle = "#ffffff"; context.lineWidth = 3;
-    context.beginPath(); context.arc(front, 0, 14 + 40 * impact, -Math.PI / 2, Math.PI / 2); context.stroke();
-    context.strokeStyle = "#bfe6ff"; context.lineWidth = 2;
-    context.beginPath(); context.arc(front, 0, 8 + 48 * impact, -Math.PI / 2.4, Math.PI / 2.4); context.stroke();
-    context.strokeStyle = "rgba(230,245,255,.8)"; context.lineWidth = 1.5;
+    const fade = 1 - impact;
+    const radius = 10 + (width / 2 - 10) * Math.sin(impact * Math.PI / 2);
+    const originX = 10 + (reachMax - 10) + 6;
+    context.globalAlpha = fade * .32;
+    context.fillStyle = "#dff2ff";
+    context.beginPath(); context.arc(originX, 0, radius, -Math.PI / 2, Math.PI / 2); context.closePath(); context.fill();
+    context.globalAlpha = fade * .9;
+    context.strokeStyle = "#ffffff"; context.lineWidth = 3.5;
+    context.beginPath(); context.arc(originX, 0, radius, -Math.PI / 2, Math.PI / 2); context.stroke();
+    context.strokeStyle = "#9fd8ff"; context.lineWidth = 2;
+    context.beginPath(); context.arc(originX, 0, Math.max(4, radius - 7), -Math.PI / 2.3, Math.PI / 2.3); context.stroke();
+    context.strokeStyle = "rgba(240,250,255,.9)"; context.lineWidth = 2; context.lineCap = "round";
     for (let index = -2; index <= 2; index += 1) {
       const lineY = index * (width / 5);
-      const start = front + length * impact * .55; const end = front + length * Math.min(1, impact * 1.15);
-      context.beginPath(); context.moveTo(start, lineY); context.lineTo(end, lineY); context.stroke();
+      const head = originX + length * Math.min(1, impact * 1.1);
+      const tail = originX + length * Math.max(0, impact * 1.1 - .35);
+      context.globalAlpha = fade * (index === 0 ? .9 : .7);
+      context.beginPath(); context.moveTo(tail, lineY); context.lineTo(head, lineY); context.stroke();
     }
   }
+  context.globalAlpha = 1;
+  if (lumi) {
+    context.restore();
+    return;
+  }
+  // 준비: 어깨를 뒤로 빼는 동안 팔은 몸 뒤쪽에 짧게 보인다. 내지르기·충격·복귀: 팔을 뻗고 거둔다.
+  const shoulderX = -6 * prep;
+  if (striking || extend >= 1) {
+    // 주먹 뒤로 길게 남는 잔상 선 3개.
+    const trail = striking ? extend : Math.max(0, 1 - impact * 1.6);
+    if (trail > 0) {
+      context.strokeStyle = "rgba(255,255,255,.75)"; context.lineWidth = 2; context.lineCap = "round";
+      for (let index = -1; index <= 1; index += 1) {
+        context.globalAlpha = trail * (index === 0 ? .8 : .55);
+        context.beginPath(); context.moveTo(fistX - 8, -2 + index * 6); context.lineTo(fistX - 8 - 40 * trail, -2 + index * 8); context.stroke();
+      }
+      context.globalAlpha = 1;
+    }
+  }
+  context.strokeStyle = "rgba(28,23,20,.35)"; context.lineWidth = 10; context.lineCap = "round";
+  context.beginPath(); context.moveTo(shoulderX, -2); context.lineTo(reach, -2); context.stroke();
+  context.strokeStyle = "#f0c9a5"; context.lineWidth = 7;
+  context.beginPath(); context.moveTo(shoulderX, -2); context.lineTo(reach, -2); context.stroke();
+  context.fillStyle = "#e9b48c"; context.strokeStyle = "#8a5a3b"; context.lineWidth = 2;
+  context.beginPath(); context.arc(fistX, -2, 8, 0, Math.PI * 2); context.fill(); context.stroke();
+  context.strokeStyle = "rgba(138,90,59,.8)"; context.lineWidth = 1.5;
+  context.beginPath(); context.moveTo(fistX - 3, -6); context.lineTo(fistX - 3, 2); context.stroke();
   context.restore();
 }
 
@@ -3822,7 +3859,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             const stepX = runtime.player.x + dirX * 24; const stepY = runtime.player.y + dirY * 24;
             if (!runtime.rocks.some((rock) => rock.lift === undefined && Math.hypot(rock.x - stepX, rock.y - stepY) < rock.radius + 16)) { runtime.player.x = stepX; runtime.player.y = stepY; }
             runtime.player.facing = angle;
-            runtime.smashEffect = .55; runtime.smashAngle = angle; runtime.smashClock = smash.cooldown;
+            runtime.smashEffect = SMASH_EFFECT_SECONDS; runtime.smashAngle = angle; runtime.smashClock = smash.cooldown;
             if (supervisorRef.current) appendSupervisorEvent("smash", `뻘권 Lv.${smashLevel} · ${hits}마리`, runtime);
           } else runtime.smashClock = .1;
         }
@@ -4226,14 +4263,14 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (lumiArt) drawLumiGatherer(context, width / 2, height / 2, runtime.lumiMotion, lumiArt,
         actionTime, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
       // 뻘권 준비 단계에서는 몸통을 주먹 반대쪽으로 6px 빼며 낮추고, 내지르는 동안 앞으로 쏠린다.
-      const smashPose = characterId !== "lumi" && runtime.smashEffect > 0 ? smashBodyOffset(1 - runtime.smashEffect / .55, runtime.smashAngle) : null;
+      const smashPose = characterId !== "lumi" && runtime.smashEffect > 0 ? smashBodyOffset(1 - runtime.smashEffect / SMASH_EFFECT_SECONDS, runtime.smashAngle) : null;
       context.save();
       if (smashPose) { context.translate(width / 2 + smashPose.x, height / 2 + smashPose.y); context.rotate(smashPose.rotate); context.translate(-width / 2, -height / 2); }
       if (characterId !== "lumi") drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);
       context.restore();
       if (runtime.smashEffect > 0) {
         const smashStats = mudflatSmashStats(Math.max(1, runtime.levels.smash ?? 0));
-        drawSmashCast(context, width / 2, height / 2, runtime.smashAngle, 1 - runtime.smashEffect / .55, smashStats.length, smashStats.width, characterId === "lumi");
+        drawSmashCast(context, width / 2, height / 2, runtime.smashAngle, 1 - runtime.smashEffect / SMASH_EFFECT_SECONDS, smashStats.length, smashStats.width, characterId === "lumi");
       }
       if (runtime.rockLiftEffect > 0) {
         const liftStats = mudflatRockLiftStats(Math.max(1, runtime.levels["rock-lift"] ?? 0));
