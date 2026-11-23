@@ -203,7 +203,7 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "flame-burst", icon: "♨", name: "화염 방사", description: "5초마다 바라보는 방향을 시작으로 사방에 불줄기를 뿜어 닿는 모든 해산물에 큰 피해를 줍니다.", max: 6, advanced: true, requiredSelectableSkills: 5, requiredSelectableLevel: 2, requiredHitFamily: "shrimp" },
   { id: "frost-trail", icon: "❄", name: "서리 발자국", description: "지나간 자리에 서리 바닥을 남깁니다. 바닥 위의 해산물은 느려지고 조금씩 얼어붙는 피해를 받습니다.", max: 6, advanced: true, requiredSelectableSkills: 5, requiredSelectableLevel: 1, requiredHitFamily: "rock" },
   { id: "frost-wave", icon: "❆", name: "빙결 파동", description: "주위에 냉기 고리를 퍼뜨려 닿는 모든 해산물에 피해를 주고 느리게 합니다. Lv.6은 잠시 얼립니다.", max: 6, advanced: true, requiredSelectableSkills: 4, requiredSelectableLevel: 3, requiredHitFamily: "tide" },
-  { id: "chain-lightning", icon: "⚡", name: "번개 체인", description: "가까운 해산물에 번개를 꽂고 근처 해산물로 번지게 합니다. 물골 위의 해산물은 더 아픕니다.", max: 6, advanced: true, requiredSelectableSkills: 5, requiredSelectableLevel: 1, requiredHitFamily: "mosquito" },
+  { id: "chain-lightning", icon: "⚡", name: "번개 체인", description: "가까운 해산물에 번개를 꽂고 근처 해산물로 번지게 합니다. 맞은 해산물은 잠깐 감전됩니다.", max: 6, advanced: true, requiredSelectableSkills: 5, requiredSelectableLevel: 1, requiredHitFamily: "mosquito" },
   { id: "thunderbolt", icon: "☇", name: "낙뢰", description: "화면 안에서 체력이 가장 높은 해산물에게 하늘에서 번개를 떨어뜨립니다. Lv.5부터 연달아 떨어집니다.", max: 6, advanced: true, requiredSelectableSkills: 4, requiredSelectableLevel: 2, requiredHitFamily: "pufferfish" },
 ];
 
@@ -233,13 +233,8 @@ export const MUDFLAT_HIT_LABELS = { crab: "게에게 피격", shrimp: "새우에
 export const MUDFLAT_CHAIN_LIGHTNING_UNLOCK_SKILLS = 5;
 export const MUDFLAT_THUNDERBOLT_UNLOCK_SKILLS = 4;
 export const MUDFLAT_THUNDERBOLT_UNLOCK_LEVEL = 2;
-// 물골 위의 해산물은 번개 피해를 1.5배 받는다. 번개를 맞은 해산물(대왕 박하지 제외)은 0.3초 감전되어 멈춘다.
-export const MUDFLAT_LIGHTNING_WATER_MULTIPLIER = 1.5;
-export const MUDFLAT_SHOCK_SECONDS = .3;
-
-export function mudflatLightningDamage(damage = 0, inWaterChannel = false) {
-  return Math.max(0, Number(damage) || 0) * (inWaterChannel ? MUDFLAT_LIGHTNING_WATER_MULTIPLIER : 1);
-}
+// 번개를 맞은 해산물(대왕 박하지 제외)은 0.2초 감전되어 멈춘다.
+export const MUDFLAT_SHOCK_SECONDS = .2;
 
 // 감전: shockUntil(원정 경과 시각)까지 이동 0. 둔화와 별개 상태라 둔화 시간을 늘리지 않는다.
 export function mudflatShockMultiplier(creature, elapsed = 0) {

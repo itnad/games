@@ -157,12 +157,10 @@ import {
   mudflatThunderboltStats,
   mudflatChainLightningPath,
   mudflatThunderboltTarget,
-  mudflatLightningDamage,
   mudflatShockMultiplier,
   MUDFLAT_CHAIN_LIGHTNING_UNLOCK_SKILLS,
   MUDFLAT_THUNDERBOLT_UNLOCK_SKILLS,
   MUDFLAT_THUNDERBOLT_UNLOCK_LEVEL,
-  MUDFLAT_LIGHTNING_WATER_MULTIPLIER,
   MUDFLAT_SHOCK_SECONDS,
   mudflatNewUnlocks,
   mudflatHitFamily,
@@ -1554,13 +1552,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatThunderboltStats(level).splashRatio), [.5, .5, .5, .6, .6, .6]);
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatThunderboltStats(level).strikes), [1, 1, 1, 1, 2, 3]);
   assert.deepEqual(mudflatThunderboltStats(5), { interval: 6, damage: 180, splash: 50, splashRatio: .6, strikes: 2, strikeGap: .1, warnSeconds: .4, boltSeconds: .3 });
-  // 물골 위 1.5배, 감전 0.3초(이동 0, 둔화와 별개), 체인 경로는 가장 가까운 순서로 한 생물당 한 번, 낙뢰 대상은 대왕 박하지 우선·체력 최대.
-  assert.equal(MUDFLAT_LIGHTNING_WATER_MULTIPLIER, 1.5);
-  assert.equal(MUDFLAT_SHOCK_SECONDS, .3);
-  assert.equal(mudflatLightningDamage(90, true), 135);
-  assert.equal(mudflatLightningDamage(90, false), 90);
-  assert.equal(mudflatShockMultiplier({ shockUntil: 10.3 }, 10), 0);
-  assert.equal(mudflatShockMultiplier({ shockUntil: 10.3 }, 10.3), 1);
+  // 감전 0.2초(이동 0, 둔화와 별개), 체인 경로는 가장 가까운 순서로 한 생물당 한 번, 낙뢰 대상은 대왕 박하지 우선·체력 최대. 물골 추가 피해는 없다.
+  assert.equal(MUDFLAT_SHOCK_SECONDS, .2);
+  assert.equal(mudflatShockMultiplier({ shockUntil: 10.2 }, 10), 0);
+  assert.equal(mudflatShockMultiplier({ shockUntil: 10.2 }, 10.2), 1);
   assert.equal(mudflatShockMultiplier({}, 0), 1);
   const herd = [
     { id: 1, x: 60, y: 0, hp: 5, size: 10 }, { id: 2, x: 150, y: 0, hp: 5, size: 10 }, { id: 3, x: 200, y: 110, hp: 5, size: 10 },
@@ -2381,15 +2376,16 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawFrostMark\(/);
   assert.match(source, /function drawFrostCast\(/);
   assert.doesNotMatch(source, /frostWave[\s\S]{0,200}navigator\.vibrate/);
-  // 번개 체인·낙뢰: 감전 배율은 이동 속도에만 곱하고, 체인은 반경 220px 경로가 있을 때만 발동해 번질수록 피해가 줄며 물골 위 1.5배,
+  // 번개 체인·낙뢰: 감전 배율은 이동 속도에만 곱하고, 체인은 반경 220px 경로가 있을 때만 발동해 번질수록 피해가 줄고,
   // 낙뢰는 화면 안 체력 최대 대상 발밑 예고 뒤 떨어지고 살아 있는 대상을 따라가며 0.1초 간격 연타. 대왕 박하지는 감전되지 않는다.
   // 모기떼·복어 출혈 피해는 실제로 적용됐을 때만 피격 경험으로 기록한다. 진동·화면 흔들림 없음.
   assert.match(source, /\* mudflatSlowMultiplier\(creature, runtime\.elapsed\) \* mudflatShockMultiplier\(creature, runtime\.elapsed\);/);
   assert.match(source, /const path = mudflatChainLightningPath\(revealedCreatures, runtime\.player, chain\) as Creature\[\];/);
-  assert.match(source, /damageCreature\(creature, mudflatLightningDamage\(chain\.damage \* Math\.pow\(1 - chain\.decay, index\), inWater\), \.18\);\n\s+if \(!creature\.boss\) creature\.shockUntil = runtime\.elapsed \+ MUDFLAT_SHOCK_SECONDS;/);
+  assert.match(source, /damageCreature\(creature, chain\.damage \* Math\.pow\(1 - chain\.decay, index\), \.18\);\n\s+if \(!creature\.boss\) creature\.shockUntil = runtime\.elapsed \+ MUDFLAT_SHOCK_SECONDS;/);
+  assert.doesNotMatch(source, /mudflatLightningDamage|inWater\b/);
   assert.match(source, /const target = mudflatThunderboltTarget\(revealedCreatures\.filter\(onScreenCreature\)\) as Creature \| null;/);
   assert.match(source, /if \(target\) \{ bolt\.x = target\.x; bolt\.y = target\.y; \}/);
-  assert.match(source, /damageCreature\(creature, mudflatLightningDamage\(isTarget \? bolt\.damage : bolt\.damage \* bolt\.splashRatio, inWater\), \.2\);/);
+  assert.match(source, /damageCreature\(creature, isTarget \? bolt\.damage : bolt\.damage \* bolt\.splashRatio, \.2\);/);
   assert.match(source, /bolt\.struck \+= 1; bolt\.lastStrikeAt = bolt\.age; bolt\.nextStrikeAt = bolt\.age \+ \.1;/);
   assert.match(source, /if \(damagePlayer\(MOSQUITO_DAMAGE, "#d69d68", "모기떼 피해", false\)\) markHitExperience\("mosquito"\);/);
   assert.match(source, /if \(damagePlayer\(mudflatBleedDamage\(runtime\.player\.maxHp\), "#ff695f", "복어 출혈", false\)\) markHitExperience\("pufferfish"\);/);

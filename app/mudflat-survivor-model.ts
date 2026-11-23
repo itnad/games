@@ -153,12 +153,12 @@ export function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[numb
   }
   if (skill.id === "chain-lightning") {
     const current = mudflatChainLightningStats(safeLevel); const next = mudflatChainLightningStats(nextLevel);
-    return { current: `${current.interval}초마다 가까운 해산물에 ${current.damage} 피해 · ${current.jump}px 안으로 최대 ${current.chain}마리 번짐(번질 때마다 ${Math.round(current.decay * 100)}% 감소) · 물골 위 1.5배`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.interval}초 · 피해 ${next.damage} · ${next.chain}마리 · 감소 ${Math.round(next.decay * 100)}%` };
+    return { current: `${current.interval}초마다 가까운 해산물에 ${current.damage} 피해 · ${current.jump}px 안으로 최대 ${current.chain}마리 번짐(번질 때마다 ${Math.round(current.decay * 100)}% 감소) · 0.2초 감전`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.interval}초 · 피해 ${next.damage} · ${next.chain}마리 · 감소 ${Math.round(next.decay * 100)}%` };
   }
   if (skill.id === "thunderbolt") {
     const current = mudflatThunderboltStats(safeLevel); const next = mudflatThunderboltStats(nextLevel);
     const strikes = (stats: ReturnType<typeof mudflatThunderboltStats>) => stats.strikes > 1 ? ` · 0.1초 간격 ${stats.strikes}연타` : "";
-    return { current: `${current.interval}초마다 화면에서 체력이 가장 높은 해산물에 ${current.damage} 피해 · 반경 ${current.splash}px ${Math.round(current.splashRatio * 100)}%${strikes(current)} · 물골 위 1.5배`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.interval}초 · 피해 ${next.damage} · 주변 ${Math.round(next.splashRatio * 100)}%${strikes(next)}` };
+    return { current: `${current.interval}초마다 화면에서 체력이 가장 높은 해산물에 ${current.damage} 피해 · 반경 ${current.splash}px ${Math.round(current.splashRatio * 100)}%${strikes(current)} · 0.2초 감전`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.interval}초 · 피해 ${next.damage} · 주변 ${Math.round(next.splashRatio * 100)}%${strikes(next)}` };
   }
   if (skill.id === "boots") return { current: `이동속도와 진흙 저항 완화가 Lv.${safeLevel} 단계로 강화되었습니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 이동속도와 깊은 펄 저항이 한 단계 더 좋아집니다.` };
   if (skill.id === "snack") return { current: `기본 최대 체력의 ${safeLevel * 20}%만큼 증가합니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 기본 최대 체력 +${nextLevel * 20}%` };

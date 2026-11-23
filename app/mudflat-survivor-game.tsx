@@ -165,7 +165,6 @@ import {
   mudflatThunderboltStats,
   mudflatChainLightningPath,
   mudflatThunderboltTarget,
-  mudflatLightningDamage,
   mudflatShockMultiplier,
   MUDFLAT_SHOCK_SECONDS,
   MUDFLAT_SMASH_KNOCKBACK_SECONDS,
@@ -3972,12 +3971,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const target = runtime.creatures.find((creature) => creature.id === bolt.targetId && creature.hp > 0);
           if (target) { bolt.x = target.x; bolt.y = target.y; }
           if (bolt.struck < bolt.strikes && bolt.age >= bolt.nextStrikeAt) {
-            const inWater = stageProfile.waterChannels && mudflatInWaterChannel(bolt.x, bolt.y, runtime.stage);
             for (const creature of runtime.creatures) {
               if (creature.hp <= 0 || !isCreatureRevealed(creature)) continue;
               const isTarget = creature.id === bolt.targetId;
               if (!isTarget && Math.hypot(creature.x - bolt.x, creature.y - bolt.y) > bolt.splash + creature.size) continue;
-              damageCreature(creature, mudflatLightningDamage(isTarget ? bolt.damage : bolt.damage * bolt.splashRatio, inWater), .2);
+              damageCreature(creature, isTarget ? bolt.damage : bolt.damage * bolt.splashRatio, .2);
               if (!creature.boss) creature.shockUntil = runtime.elapsed + MUDFLAT_SHOCK_SECONDS;
             }
             bolt.struck += 1; bolt.lastStrikeAt = bolt.age; bolt.nextStrikeAt = bolt.age + .1;
@@ -4199,7 +4197,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           } else runtime.frostWaveClock = .5;
         }
         // 번개 체인: 주기마다 반경 220px 안의 가장 가까운 해산물에서 시작해 근처 해산물로 번진다. 번질 때마다 피해가 줄고,
-        // 물골 위의 해산물은 1.5배, 대왕 박하지가 아니면 0.3초 감전. 그물에 잡힌 생물도 맞는다.
+        // 대왕 박하지가 아니면 0.2초 감전. 그물에 잡힌 생물도 맞는다.
         const chainLightningLevel = runtime.levels["chain-lightning"] ?? 0;
         if (runtime.mode === "normal" && chainLightningLevel > 0 && runtime.chainLightningClock <= 0) {
           const chain = mudflatChainLightningStats(chainLightningLevel);
@@ -4207,8 +4205,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           if (path.length > 0) {
             let from: Point = runtime.player;
             path.forEach((creature, index) => {
-              const inWater = stageProfile.waterChannels && mudflatInWaterChannel(creature.x, creature.y, runtime.stage);
-              damageCreature(creature, mudflatLightningDamage(chain.damage * Math.pow(1 - chain.decay, index), inWater), .18);
+              damageCreature(creature, chain.damage * Math.pow(1 - chain.decay, index), .18);
               if (!creature.boss) creature.shockUntil = runtime.elapsed + MUDFLAT_SHOCK_SECONDS;
               runtime.lightningArcs.push({ id: sequenceRef.current++, x: from.x, y: from.y, tx: creature.x, ty: creature.y, age: 0 });
               from = creature;
