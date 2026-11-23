@@ -3,11 +3,12 @@
 여러 보드게임과 모바일 해루질 액션 게임 **해루질럿**을 제공하는 Vinext 기반 웹 애플리케이션입니다.
 
 - 운영 사이트: <https://games.itnadcom.chatgpt.site>
+- 독립 배포 사이트(자체 Cloudflare Workers): <https://games.itnadcom.workers.dev>
 - 해루질럿: <https://games.itnadcom.chatgpt.site/haeru>
 - 해루질럿 내부 QA 도구: `/haeru-dev`
 - 원격 저장소: <https://github.com/itnad/games>
 
-현재 운영 환경은 OpenAI Sites가 관리하는 Cloudflare Workers입니다. 소스는 GitHub에서 독립적으로 개발할 수 있으며, 자체 Cloudflare 계정으로 배포하려면 [배포·D1·복구 가이드](docs/deployment-and-recovery.md)의 독립 배포 절차를 따릅니다.
+운영 환경은 두 곳입니다. 기존 사이트는 OpenAI Sites가 관리하는 Cloudflare Workers이고, 독립 배포 사이트는 자체 Cloudflare 계정의 Worker로 `main`에 푸시될 때마다 Cloudflare가 직접 빌드해 배포합니다. 두 사이트는 데이터베이스(D1)가 따로라서 순위표와 추천 게시판이 따로 쌓입니다. 절차는 [배포·D1·복구 가이드](docs/deployment-and-recovery.md)에 있습니다.
 
 ## 1. 신규 개발자 빠른 시작
 

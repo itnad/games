@@ -7,9 +7,9 @@
 | 방식 | 현재 상태 | 적합한 경우 |
 | --- | --- | --- |
 | OpenAI Sites 관리형 배포 | 현재 운영 방식 | 기존 `games.itnadcom.chatgpt.site` 주소와 Sites D1을 유지할 때 |
-| 자체 Cloudflare Workers 배포 | 별도 Cloudflare 계정 설정 필요 | Codex/Sites 없이 GitHub 중심으로 독립 운영할 때 |
+| 자체 Cloudflare Workers 배포 | 2026-11-23부터 함께 운영: `https://games.itnadcom.workers.dev` (2.8절의 방식) | Codex/Sites 없이 GitHub 중심으로 독립 운영할 때 |
 
-두 방식은 서로 다른 프로젝트입니다. 자체 Cloudflare 배포는 기존 `chatgpt.site` 주소나 Sites D1 데이터를 자동으로 이어받지 않습니다. 새 `workers.dev` 주소 또는 소유한 사용자 도메인을 사용하고, 필요한 데이터는 명시적으로 내보내고 가져옵니다.
+두 방식은 서로 다른 프로젝트이고 지금은 둘 다 살아 있습니다. D1도 따로라서 순위표와 추천 게시판 내용이 사이트마다 따로 쌓입니다. 자체 Cloudflare 배포는 기존 `chatgpt.site` 주소나 Sites D1 데이터를 자동으로 이어받지 않습니다. 새 `workers.dev` 주소 또는 소유한 사용자 도메인을 사용하고, 필요한 데이터는 명시적으로 내보내고 가져옵니다.
 
 ## 2. 자체 Cloudflare Workers에 독립 배포
 
@@ -77,6 +77,10 @@ Copy-Item wrangler.direct.example.jsonc wrangler.direct.jsonc
 
 독립 배포를 장기 운영한다면 완성한 `wrangler.direct.jsonc`를 저장소에 커밋해 배포 설정을 코드와 함께 관리할 수 있습니다. API 토큰이나 계정 비밀번호는 이 파일에 넣지 않습니다.
 
+현재 저장소에는 운영 중인 독립 배포의 `wrangler.direct.jsonc`가 커밋되어 있습니다(Worker 이름 `games`, D1 `paperoid-games-db`). 다른 계정에 새로 배포할 때는 이 파일의 `name`과 `database_id`를 자기 값으로 바꿉니다. `database_id`는 비밀값이 아닙니다(계정 로그인이나 API 토큰 없이는 접근할 수 없습니다).
+
+파일 이름을 `wrangler.jsonc`로 두지 않는 이유: 저장소 루트의 기본 Wrangler 설정은 Vite의 Cloudflare 플러그인과 Sites 빌드가 자동으로 읽습니다. 독립 배포 설정은 `--config`로 명시할 때만 쓰이도록 다른 이름을 씁니다.
+
 ### 2.5 최초 D1 마이그레이션
 
 먼저 적용될 SQL을 확인합니다.
@@ -112,8 +116,9 @@ npx wrangler deploy --config wrangler.direct.jsonc
 2. `/haeru` 게임 진입
 3. `/haeru-dev` 내부 QA 도구
 4. `/api/version`
-5. 게임 추천 게시판 조회와 등록
-6. 휴대폰 터치 이동, 일시정지, 이어하기
+5. 게임 추천 게시판 조회와 등록(`/api/game-suggestions`)
+6. 오늘의 순위표 세 가지가 500이 아닌 빈 순위표로 응답하는지(`/api/haeru-daily`, `/api/baksal-daily`, `/api/stardraft-daily?participantId=<아무 UUID>`). 500이면 마이그레이션이 적용되지 않은 것입니다
+7. 휴대폰 터치 이동, 일시정지, 이어하기
 
 ### 2.7 GitHub Actions 자동 배포
 
@@ -157,6 +162,38 @@ jobs:
 
 보호 브랜치를 사용한다면 Pull Request 테스트가 통과한 변경만 `main`에 병합하도록 설정합니다. 운영 DB 마이그레이션과 애플리케이션 배포는 같은 커밋에서 실행해야 합니다.
 
+GitHub Actions 배포와 2.8절의 Cloudflare 빌드는 둘 중 하나만 씁니다. 둘 다 켜면 푸시마다 두 번 배포됩니다. 지금은 2.8절의 방식을 쓰고 있어 이 워크플로는 추가하지 않았습니다.
+
+### 2.8 Cloudflare가 저장소를 직접 빌드(Workers Builds, 현재 방식)
+
+Cloudflare 대시보드에서 GitHub 저장소를 연결하면 `main`에 푸시될 때마다 Cloudflare가 직접 빌드하고 배포합니다. PC에 Node.js를 설치하거나 API 토큰을 GitHub에 등록할 필요가 없습니다. 2026-11-23에 이 방식으로 첫 배포를 했습니다.
+
+순서:
+
+1. 대시보드 **Storage & databases → D1**에서 데이터베이스를 만들고 Database ID를 `wrangler.direct.jsonc`에 넣어 커밋합니다(2.3·2.4절).
+2. **Compute → Workers & Pages → Create application → Connect GitHub**에서 저장소를 고릅니다.
+3. 프로젝트 이름을 정합니다. 이 이름이 Worker 이름이자 주소(`<이름>.<하위주소>.workers.dev`)가 됩니다. `wrangler.direct.jsonc`의 `name`과 같게 둡니다.
+4. 같은 화면 아래 **Advanced settings**에서 다음을 넣습니다.
+
+| 항목 | 값 |
+| --- | --- |
+| Build command | `npm run build` |
+| Deploy command | `npx wrangler d1 migrations apply paperoid-games-db --remote --config wrangler.direct.jsonc && npx wrangler deploy --config wrangler.direct.jsonc` |
+| Enable Preview builds | 끔(작업 브랜치 푸시마다 빌드가 돌지 않게) |
+| Path | `/` |
+| API token | Create new token(자동 생성. D1 마이그레이션까지 이 토큰으로 됐습니다) |
+| 변수 | 없음 |
+
+5. **Deploy**를 누르면 빌드가 시작됩니다. 끝나면 로그 끝에 주소가 나옵니다.
+
+주의:
+
+- Deploy command를 기본값(`npx wrangler deploy`)으로 두면 `wrangler.direct.jsonc`를 읽지 않아 D1이 연결되지 않습니다.
+- 이 방식은 배포 전에 `npm test`를 돌리지 않습니다. 테스트는 GitHub Actions의 회귀 워크플로(`.github/workflows/stark-rift.yml`)가 따로 돌리지만 배포를 막지는 않습니다. `main`에 올리기 전에 테스트를 통과시키는 규칙을 지킵니다.
+- 프로젝트를 만드는 화면에서 `WorkerResource.getWorkerResult: response missing default_environment.script` 오류가 한 번 났습니다. 처음부터 다시 진행하니 넘어갔습니다.
+- 로그의 `preview_urls` 경고는 판마다 미리보기 주소가 생긴다는 안내입니다. 끄려면 설정 파일에 `"preview_urls": false`를 넣습니다.
+- 빌드 기록과 다시 배포: Workers & Pages → `games` → Deployments. 설정 변경: Settings → Build.
+
 ## 3. 기존 OpenAI Sites에 저장하고 게시
 
 이 절차는 기존 주소를 유지하는 방법이며 Sites 프로젝트에 대한 소유자 또는 편집자 권한과 Sites 도구가 필요합니다. 일반 GitHub 권한만으로는 `chatgpt.site`에 게시할 수 없습니다.
@@ -199,9 +236,9 @@ Sites 기능을 지원하는 에이전트의 표준 절차:
 - Drizzle 설정: `drizzle.config.ts`
 - 마이그레이션: `drizzle/*.sql`
 - Worker 연결: `db/index.ts`, `worker/index.ts`
-- API 사용처: `app/api/game-suggestions/route.ts`
+- API 사용처: `app/api/game-suggestions/route.ts`, `app/api/haeru-daily/route.ts`, `app/api/baksal-daily/route.ts`, `app/api/stardraft-daily/route.ts`
 
-현재 D1은 게임 추천 게시판에 사용됩니다. 해루질럿의 진행 데이터는 브라우저 `localStorage`에 있으므로 D1 장애가 게임 플레이 저장을 직접 지우지는 않습니다.
+현재 D1의 테이블은 네 개입니다: 게임 추천 게시판(`game_suggestions`)과 오늘의 순위표 셋(`mudflat_daily_results` 해루질럿, `baksal_daily_results` 박살, `stardraft_daily_results` 스타드래프트). 게임의 진행 데이터(이어하기·전적)는 브라우저 `localStorage`에 있으므로 D1 장애가 게임 플레이 저장을 직접 지우지는 않습니다. D1이 없거나 테이블이 없으면 순위표와 게시판만 500으로 실패합니다.
 
 ### 4.2 변경 절차
 
