@@ -3375,6 +3375,109 @@ test("스타드래프트 오버로드 둥지: 앞마당이 완성되면 탐지 �
   assert.equal(stwSupply(state, "player").cap, 20 + 9 * 8);
 });
 
+test("스타드래프트 오버로드 동행 수: 1기째는 공격 병력을 따라가고, 2기째부터는 집결지에서 기다리다 드랍에 먼저 쓰인다", () => {
+  const setup = () => {
+    const state = zerg("protoss");
+    state.sides.player.minerals = 9000;
+    for (let index = 0; index < 5; index += 1) stwCommand(state, "player", { type: "build", building: "overlord" });
+    finishAll(state);
+    stwCommand(state, "player", { type: "build", building: "expand" });
+    finishAll(state);
+    run(state, 26);
+    research(state, "player", "ventral");
+    for (let index = 0; index < 4; index += 1) stwCommand(state, "player", { type: "build", building: "overlord" });
+    finishAll(state);
+    for (let index = 0; index < 12; index += 1) stwSpawnUnitAt(state, "player", "hydra", 12 + (index % 6) * 2.5, 76 + Math.floor(index / 6) * 2, "rally");
+    return state;
+  };
+  const flying = (state) => state.units.filter((unit) => unit.side === "player" && unit.type === "overlord");
+  const front = (state) => flying(state).filter((unit) => unit.escort && !unit.standby);
+  const waiting = (state) => flying(state).filter((unit) => unit.escort && unit.standby);
+  const parked = (state) => stwOwnBuildings(state, "player", "overlord");
+
+  // 예전 명령(on)은 1기와 같다.
+  const one = setup();
+  assert.equal(stwCommand(one, "player", { type: "escort", on: true }).ok, true);
+  assert.deepEqual([front(one).length, waiting(one).length, one.sides.player.escortMode], [1, 0, undefined]);
+
+  // 2기: 선두 동행 1 + 집결지 대기 1. 출격하면 선두 동행만 따라간다.
+  const two = setup();
+  const free = stwFreeSlots(two, "player");
+  assert.equal(stwCommand(two, "player", { type: "escort", mode: 2 }).ok, true);
+  assert.deepEqual([front(two).length, waiting(two).length, parked(two).length], [1, 1, 7]);
+  assert.equal(stwFreeSlots(two, "player"), free, "띄워도 둥지 자리는 그대로");
+  run(two, 20);
+  const rallyY = stwRallyY("player", two.sides.player.rally, two);
+  assert.ok(Math.abs(waiting(two)[0].y - rallyY) < 9, `대기 오버로드는 집결지 곁에 뜬다 (${waiting(two)[0].y.toFixed(1)} / ${rallyY})`);
+  stwCommand(two, "player", { type: "attack" });
+  assert.equal(front(two)[0].group, "attack");
+  assert.equal(waiting(two)[0].group, "rally", "대기 오버로드는 공격 병력을 따라가지 않는다");
+  // 선두 동행을 잃으면 대기하던 오버로드가 그 자리를 잇고, 대기 자리는 둥지에서 다시 채운다.
+  const stayed = waiting(two)[0];
+  front(two)[0].hp = 0;
+  run(two, 0.3);
+  assert.equal(stayed.standby, false, "대기 오버로드가 선두 동행이 된다");
+  assert.deepEqual([front(two).length, waiting(two).length, parked(two).length], [1, 1, 6], "9기 가운데 1기를 잃고 2기가 떠 있다");
+
+  // 전체: 기지(본진·앞마당)마다 탐지 당번 1기만 남기고 모두 뜬다. 새로 지은 오버로드도 따라 뜬다.
+  const all = setup();
+  assert.equal(stwCommand(all, "player", { type: "escort", mode: "all" }).ok, true);
+  assert.equal(all.sides.player.escortMode, "all");
+  assert.deepEqual([front(all).length, waiting(all).length], [1, 6]);
+  assert.deepEqual(parked(all).map((item) => item.base).sort(), ["main", "natural"]);
+  assert.equal(stwFreeSlots(all, "player"), free);
+  assert.equal(stwSupply(all, "player").cap, 20 + 9 * 8);
+  stwCommand(all, "player", { type: "build", building: "overlord" });
+  finishAll(all);
+  run(all, 0.2);
+  assert.equal(waiting(all).length, 7, "새 오버로드도 집결지 대기에 합류");
+  run(all, 25);
+  assert.ok(waiting(all).every((unit) => Math.abs(unit.y - rallyY) < 9), "모두 집결지 곁에 모인다");
+  // 드랍: 집결지에서 대기하던 오버로드가 가장 먼저 쓰이고, 병력 곁에 있어 몇 초 만에 다 태운다.
+  const check = stwDropCheck(all, "player", "bomb");
+  assert.ok(check.carriers.slice(0, 7).every((item) => item.kind === "unit" && item.standby), "대기 오버로드가 맨 앞 순서");
+  assert.equal(stwCommand(all, "player", { type: "drop", mission: "bomb" }).ok, true);
+  const carriers = flying(all).filter((unit) => unit.op !== undefined);
+  assert.equal(carriers.length, 3, "히드라 12기(24칸)에 3기");
+  assert.ok(carriers.every((unit) => unit.standby));
+  run(all, 5);
+  assert.equal(all.ops[0].phase, "gather", "5초 안에 다 태우고 떠난다");
+  assert.equal(carriers.reduce((sum, unit) => sum + (unit.cargo?.length ?? 0), 0), 12);
+  // 돌아오면 다시 집결지에서 기다린다(둥지로 가지 않는다).
+  stwCommand(all, "player", { type: "dropRecall" });
+  run(all, 30);
+  assert.ok(carriers.every((unit) => all.units.includes(unit) && unit.op === undefined && unit.standby), "돌아와서도 대기 동행");
+  assert.ok(carriers.every((unit) => Math.abs(unit.y - rallyY) < 9));
+  assert.equal(parked(all).length, 2);
+
+  // 수를 줄이면 남는 오버로드는 둥지로 돌아가 내려앉는다.
+  stwCommand(all, "player", { type: "escort", mode: 1 });
+  assert.deepEqual([front(all).length, waiting(all).length, all.sides.player.escortMode], [1, 0, undefined]);
+  run(all, 45);
+  assert.deepEqual([flying(all).length, parked(all).length], [1, 9]);
+  stwCommand(all, "player", { type: "escort", mode: 0 });
+  run(all, 45);
+  assert.deepEqual([flying(all).length, parked(all).length, all.sides.player.escort], [0, 10, false]);
+});
+
+test("스타드래프트 폭탄 드랍 집결점: 사람 진영은 앞에서 태웠으면 되돌아가지 않고 그 높이의 가장자리에 모인다(AI는 그대로)", () => {
+  const stageOf = (aiSides) => {
+    const state = createStardraftGame({ seed: 5, aiSides, races: { player: "zerg", enemy: "protoss" } });
+    research(state, "player", "ventral");
+    const carriers = [0, 1].map((index) => stwSpawnUnitAt(state, "player", "overlord", 17 + index * 6, 56, "rally"));
+    for (let index = 0; index < 16; index += 1) stwSpawnUnitAt(state, "player", "zergling", 13 + (index % 8) * 2, 55 + Math.floor(index / 8) * 2, "rally");
+    state.sides.player.rally = 56;
+    assert.equal(stwCommand(state, "player", { type: "drop", mission: "bomb" }).ok, true);
+    for (let index = 0; index < 250 && state.ops[0].phase === "load"; index += 1) stepStardraft(state);
+    assert.equal(state.ops[0].phase, "gather");
+    return carriers.map((unit) => unit.dropPath.at(-1).y);
+  };
+  const human = stageOf([]);
+  assert.ok(human.every((y) => y > 53 && y < 60), `태운 높이(세로 56쯤)에 모인다 (${human.map((y) => y.toFixed(1))})`);
+  const ai = stageOf(["player"]);
+  assert.ok(ai.every((y) => y > 70 && y < 74), `AI는 예전 집결점(세로 72)을 쓴다 (${ai.map((y) => y.toFixed(1))})`);
+});
+
 test("stardraft transports load by slots: zealots take two, dragoons four, raids keep room for medics", () => {
   const state = quiet();
   stwSpawnUnitAt(state, "player", "shuttle", 20, 80, "rally");

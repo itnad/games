@@ -1598,7 +1598,11 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
   const workerName = STW_UNITS[race.worker].name;
   const count = (list: { type: string }[], type: StwArmyType) => list.filter((unit) => unit.type === type).length;
   const overlordsReady = stwOwnBuildings(game, "player", "overlord").filter((item) => stwDone(item)).length;
-  const escorting = game.units.some((unit) => unit.side === "player" && unit.type === "overlord" && unit.escort);
+  const escorts = game.units.filter((unit) => unit.side === "player" && unit.type === "overlord" && unit.escort);
+  const escortBusy = escorts.filter((unit) => unit.standby && unit.op !== undefined).length;
+  const escortWaiting = escorts.filter((unit) => unit.standby).length - escortBusy;
+  const overlordsBack = game.units.filter((unit) => unit.side === "player" && unit.type === "overlord" && !unit.escort && unit.op === undefined).length;
+  const escortMode: 0 | 1 | 2 | "all" = side.escort ? side.escortMode ?? 1 : 0;
   const scouts = game.units.filter((unit) => unit.side === "player" && unit.group === "scout");
   const scoutingMain = scouts.filter((unit) => unit.scoutMode !== "resources").length;
   const scoutingResources = scouts.length - scoutingMain;
@@ -1643,17 +1647,15 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
       {race.id === "zerg" ? (
         <>
           <h3 className="stw-section">오버로드 동행</h3>
-          <p className="stw-hint">오버로드 1기가 떠올라 병력을 따라다니며 은폐 유닛을 탐지합니다. 인구 +8은 유지되지만 잃으면 상한이 8 줄어듭니다.</p>
-          <div className="stw-scout">
-            <Card
-              title={side.escort ? "동행 중" : "오버로드 동행"}
-              sub={`완성된 오버로드 ${overlordsReady}${escorting ? " · 동행 1" : ""}`}
-              note={side.escort ? "누르면 둥지로 돌려보냅니다" : overlordsReady || escorting ? "누르면 오버로드 1기가 출발합니다" : "완성된 오버로드가 없습니다"}
-              tone={side.escort ? "done" : undefined}
-              disabled={!side.escort && !overlordsReady && !escorting}
-              onClick={() => issue({ type: "escort", on: !side.escort })}
-            />
+          <p className="stw-hint">1기째는 공격 병력 선두 뒤를 따라다니며 은폐 유닛을 탐지합니다. 2기째부터는 집결지의 대기 병력 곁에 떠 있어, 수송 작전을 내리면 그 자리에서 바로 병력을 태웁니다. &quot;전체&quot;는 기지마다 탐지용 1기만 남기고 모두 띄웁니다. 인구 +8은 유지되지만 잃을 때마다 상한이 8 줄어듭니다.</p>
+          <div className="stw-segment" role="radiogroup" aria-label="오버로드 동행 수">
+            {([[0, "끔"], [1, "1기"], [2, "2기"], ["all", "전체"]] as [0 | 1 | 2 | "all", string][]).map(([mode, label]) => (
+              <button key={mode} type="button" role="radio" aria-checked={escortMode === mode} className={escortMode === mode ? "active" : ""} disabled={mode !== 0 && !side.escort && !overlordsReady && !escorts.length && !overlordsBack} onClick={() => issue({ type: "escort", mode })}>{label}</button>
+            ))}
           </div>
+          <p className="stw-hint" role="status">{overlordsReady || escorts.length
+            ? `둥지 ${overlordsReady}기${escorts.length ? ` · 선두 동행 ${escorts.length - escortWaiting - escortBusy}기 · 집결지 대기 ${escortWaiting}기` : ""}${escortBusy ? ` · 수송 중 ${escortBusy}기` : ""}${overlordsBack ? ` · 둥지로 돌아오는 중 ${overlordsBack}기` : ""}`
+            : overlordsBack ? `둥지로 돌아오는 중 ${overlordsBack}기` : "완성된 오버로드가 없습니다"}</p>
         </>
       ) : null}
       <h3 className="stw-section">수송 작전</h3>

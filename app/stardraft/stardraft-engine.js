@@ -628,6 +628,17 @@ function liftOverlord(state, side, building) {
   return unit;
 }
 
+/** 동행 수: 0(끔) · 1 · 2 · "all"(전체). 예전 저장과 AI는 켜짐/꺼짐만 쓴다(켜짐 = 1). */
+function escortMode(record) {
+  if (!record.escort) return 0;
+  return record.escortMode === 2 || record.escortMode === "all" ? record.escortMode : 1;
+}
+
+/** 집결지에서 대기하는 동행 오버로드(2기째부터). 공격 병력을 따라가지 않고 대기 병력 곁에 머물며, 드랍에 가장 먼저 쓰인다. */
+function standbyOverlord(state, unit) {
+  return unit.type === "overlord" && unit.hp > 0 && Boolean(unit.escort && unit.standby && state.sides[unit.side].escort);
+}
+
 /** 할 일 없는 오버로드(작전·동행·화물·경로 없음). 둥지로 돌아가는 중이어도 바로 다시 쓸 수 있다. */
 function idleOverlord(state, unit) {
   return unit.type === "overlord" && unit.hp > 0 && unit.op === undefined && !unit.cargo?.length && !unit.dropPath?.length && !(state.sides[unit.side].escort && unit.escort);
@@ -810,8 +821,10 @@ function parkedOverlords(state, side, { all = false } = {}) {
 function idleCarriers(state, side) {
   const record = state.sides[side];
   if (record.race === "zerg") {
+    // 집결지에서 대기 중인 동행 오버로드(2기째부터)가 병력 곁에 있으므로 가장 먼저 쓴다.
+    const waiting = state.units.filter((unit) => unit.side === side && standbyOverlord(state, unit) && unit.op === undefined && !unit.cargo?.length && !unit.dropPath?.length);
     const floating = state.units.filter((unit) => unit.side === side && idleOverlord(state, unit) && !unit.escort);
-    return [...floating, ...parkedOverlords(state, side)];
+    return [...waiting, ...floating, ...parkedOverlords(state, side)];
   }
   return state.units.filter((unit) => unit.side === side && STW_UNITS[unit.type].transport && unit.group === "rally" && !unit.cargo?.length && !unit.dropPath?.length && unit.op === undefined);
 }
@@ -899,6 +912,8 @@ function dropPath(transport, land) {
 /** 돌아오는 길. 둥지가 있는 오버로드는 자기 둥지 높이까지만 온다(앞마당 둥지면 그만큼 일찍 병력을 내리고 다시 나갈 수 있다). */
 function homePath(side, transport, state = null) {
   const x = edgeX(transport.x);
+  // 집결지에서 대기하던 동행 오버로드는 집결지 높이로 돌아와 병력을 내리고 다시 대기한다.
+  if (state && standbyOverlord(state, transport)) return [{ x, y: transport.y }, { x, y: stwRallyY(side, state.sides[side].rally, state) }];
   const nest = state && transport.nest !== undefined ? nestSlot(state, transport.nest) : null;
   const home = stwPoint(side, { x: 20, y: nest ? nest.point.y : 88 });
   return [{ x, y: transport.y }, { x, y: home.y }];
@@ -1459,7 +1474,7 @@ function runCommand(state, side, command) {
       if (!army.fighters.length) return fail("출격할 전투 병력이 없습니다");
       // 수송선은 출격하지 않는다(본진 침투로만 움직인다).
       // 출격 버튼은 따로 둔 부대까지 모두 합쳐 내보낸다. 자동 출격(keepSquads)은 본대만 내보낸다.
-      const going = army.rally.filter((unit) => (unit.type !== "overlord" || (record.escort && unit.escort)) && !STW_UNITS[unit.type].transport && !stwIsGuard(unit.squad) && (!command.keepSquads || unit.squad === undefined));
+      const going = army.rally.filter((unit) => (unit.type !== "overlord" || (record.escort && unit.escort && !unit.standby)) && !STW_UNITS[unit.type].transport && !stwIsGuard(unit.squad) && (!command.keepSquads || unit.squad === undefined));
       if (!going.length) return fail("출격할 대기 병력이 없습니다");
       if (!command.keepSquads) {
         // 따로 둔 부대는 합쳐 내보내되, 경비는 제자리를 지킨다.
@@ -1494,14 +1509,28 @@ function runCommand(state, side, command) {
       return { ok: true, recalled: army.attack.length };
     }
     case "escort": {
-      // 오버로드 동행: 완성된 오버로드 1기가 떠올라 병력을 따라다닌다(저그 전용).
+      // 오버로드 동행(저그 전용). mode: 0 끔 · 1 · 2 · "all" 전체. on만 주면 켜짐 = 1기(AI와 예전 명령).
+      // 1기째는 공격 병력 선두 뒤를 따라가고, 2기째부터는 집결지의 대기 병력 곁에 머문다(탐지 + 바로 태울 수 있는 수송선).
       if (record.race !== "zerg") return fail("저그만 쓸 수 있습니다");
-      const on = Boolean(command.on);
+      const mode = command.mode === undefined ? (command.on ? 1 : 0) : command.mode === 2 || command.mode === "all" ? command.mode : command.mode ? 1 : 0;
+      const on = mode !== 0;
       if (on && !state.units.some((unit) => unit.side === side && unit.type === "overlord") && !stwOwnBuildings(state, side, "overlord", { doneOnly: true }).length) return fail("완성된 오버로드가 없습니다");
       record.escort = on;
-      if (!on) for (const unit of state.units) if (unit.side === side && unit.type === "overlord") unit.escort = false;
+      record.escortMode = on && mode !== 1 ? mode : undefined;
+      if (!on) {
+        for (const unit of state.units) {
+          if (unit.side !== side || unit.type !== "overlord") continue;
+          unit.escort = false;
+          unit.standby = false;
+        }
+      }
       if (on) escortStep(state, side);
-      if (side === "player") pushLog(state, side, on ? "오버로드 1기가 병력과 동행합니다. 잃으면 인구 상한이 8 줄어듭니다." : "동행 오버로드가 기지로 돌아갑니다.", "order");
+      if (side === "player") {
+        const text = mode === "all" ? "오버로드가 기지마다 탐지용 1기만 남기고 모두 떠올라 병력과 동행합니다. 1기는 공격 병력을 따라가고 나머지는 집결지에서 기다립니다. 잃을 때마다 인구 상한이 8 줄어듭니다."
+          : mode === 2 ? "오버로드 2기가 병력과 동행합니다. 1기는 공격 병력을 따라가고 1기는 집결지에서 기다립니다. 잃을 때마다 인구 상한이 8 줄어듭니다."
+            : "오버로드 1기가 병력과 동행합니다. 잃으면 인구 상한이 8 줄어듭니다.";
+        pushLog(state, side, on ? text : "동행 오버로드가 기지로 돌아갑니다.", "order");
+      }
       return { ok: true };
     }
     case "focus": {
@@ -2017,20 +2046,54 @@ function stepProducer(state, building, record, dt) {
   building.blocked = null;
 }
 
-/** 동행이 켜져 있는데 떠 있는 오버로드가 없으면 완성된 오버로드 건물 하나를 유닛으로 띄운다. */
+/**
+ * 동행 수(escortMode)에 맞춰 오버로드를 띄우고 돌려보낸다.
+ * - 선두 동행 1기: 공격 병력을 따라간다. 없으면 집결지에서 대기하던 동행을 올리고, 그것도 없으면 떠 있는 오버로드 → 둥지 순서로 띄운다(하나뿐이면 탐지 당번이라도).
+ * - 집결지 대기(2기면 1기, 전체면 남는 대로): 대기 병력 곁에 머문다. 기지마다 탐지 당번 1기는 남긴다.
+ * - 수가 줄면 남는 대기 오버로드를 풀어 둥지로 돌려보낸다(침투 중인 것은 마치고 돌아간다).
+ */
 function escortStep(state, side) {
-  if (state.units.some((unit) => unit.side === side && unit.type === "overlord" && unit.escort)) return;
-  // 침투를 마치고 돌아와 떠 있는 오버로드가 있으면 그것을 먼저 동행시킨다.
-  const idle = state.units.find((unit) => unit.side === side && unit.type === "overlord" && unit.op === undefined && !unit.cargo?.length && !unit.dropPath?.length);
-  if (idle) {
-    idle.escort = true;
-    idle.group = "rally";
-    return;
+  const mode = escortMode(state.sides[side]);
+  const escorts = state.units.filter((unit) => unit.side === side && unit.type === "overlord" && unit.escort);
+  const free = (unit) => unit.op === undefined && !unit.cargo?.length && !unit.dropPath?.length;
+  const waiting = escorts.filter((unit) => unit.standby);
+  if (!escorts.some((unit) => !unit.standby)) {
+    const promoted = waiting.find(free);
+    // 침투를 마치고 돌아와 떠 있는 오버로드가 있으면 그것을 먼저 동행시킨다.
+    const idle = promoted ?? state.units.find((unit) => unit.side === side && unit.type === "overlord" && !unit.escort && free(unit));
+    if (idle) {
+      idle.escort = true;
+      idle.standby = false;
+      idle.group = "rally";
+      if (promoted) waiting.splice(waiting.indexOf(promoted), 1);
+    } else {
+      // 둥지에서 띄운다: 탐지 당번이 아닌 앞마당 둥지의 오버로드부터, 하나뿐이면 그 하나라도.
+      const building = parkedOverlords(state, side, { all: true })[0];
+      if (building) liftOverlord(state, side, building).escort = true;
+    }
   }
-  // 둥지에서 띄운다: 탐지 당번이 아닌 앞마당 둥지의 오버로드부터, 하나뿐이면 그 하나라도.
-  const building = parkedOverlords(state, side, { all: true })[0];
-  if (!building) return;
-  liftOverlord(state, side, building).escort = true;
+  const want = mode === "all" ? Infinity : mode === 2 ? 1 : 0;
+  while (waiting.length > want) {
+    const unit = waiting.find(free) ?? waiting[0];
+    unit.escort = false;
+    unit.standby = false;
+    waiting.splice(waiting.indexOf(unit), 1);
+  }
+  if (waiting.length >= want) return;
+  const join = (unit) => {
+    unit.escort = true;
+    unit.standby = true;
+    unit.group = "rally";
+    waiting.push(unit);
+  };
+  for (const unit of state.units) {
+    if (waiting.length >= want) return;
+    if (unit.side === side && idleOverlord(state, unit) && !unit.escort) join(unit);
+  }
+  for (const building of parkedOverlords(state, side)) {
+    if (waiting.length >= want) return;
+    join(liftOverlord(state, side, building));
+  }
 }
 
 /* ───────── 전투 ───────── */
@@ -3930,7 +3993,7 @@ function armyWatchSpot(state, unit) {
   const centerY = escort.reduce((sum, ally) => sum + ally.y, 0) / escort.length;
   const minX = Math.min(...escort.map((ally) => ally.x));
   const maxX = Math.max(...escort.map((ally) => ally.x));
-  const peers = state.units.filter((ally) => ally.side === unit.side && ally.type === unit.type && ally.hp > 0 && ally.squad === undefined && (ally.type !== "overlord" || (state.sides[ally.side].escort && ally.escort)))
+  const peers = state.units.filter((ally) => ally.side === unit.side && ally.type === unit.type && ally.hp > 0 && ally.squad === undefined && (ally.type !== "overlord" || (state.sides[ally.side].escort && ally.escort && !ally.standby)))
     .sort((a, b) => a.id - b.id);
   const index = Math.max(0, peers.indexOf(unit));
   const x = minX + ((index + 0.5) / Math.max(1, peers.length)) * (maxX - minX);
@@ -3958,6 +4021,12 @@ function observerStep(state, unit, plan, dt) {
   // 따로 둔 부대(경비 포함)는 지휘관이 세운 자리를 지킨다(공격 병력이 나가도 끌려가지 않는다).
   if (unit.squad !== undefined && slot) {
     moveToward(unit, slot.x, slot.y, speed, dt);
+    return;
+  }
+  // 집결지 대기 동행(2기째부터): 공격 병력을 따라가지 않고 대기 병력 곁의 자기 자리에 머문다.
+  if (standbyOverlord(state, unit)) {
+    const wait = slot ?? { x: 20, y: stwRallyY(unit.side, state.sides[unit.side].rally, state) };
+    moveToward(unit, wait.x, wait.y, speed, dt);
     return;
   }
   const goal = hiddenAttackerSpot(state, unit) ?? armyWatchSpot(state, unit) ?? slot ?? { x: 20, y: stwRallyY(unit.side, state.sides[unit.side].rally, state) };
@@ -4289,6 +4358,8 @@ function frontEngaged(state, side) {
 
 /** 폭탄 드랍 집결점(아군 기준 세로 위치): 우리 앞마당 가장자리. 적 대공이 닿지 않는 곳에서 모인다. */
 const DROP_STAGE_Y = 72;
+/** 사람 진영이 앞에서 태웠을 때 모일 수 있는 가장 앞쪽(아군 기준 세로). 중앙선(50)을 넘지 않는다. */
+const DROP_STAGE_FRONT = 52;
 
 /**
  * 출발 전 탑승(load): 정한 병력이 모두 타면(또는 20초가 지나면 못 탄 병력은 두고) 작전을 시작한다.
@@ -4323,7 +4394,12 @@ function stepLoad(state, op, transports) {
   op.phase = "gather";
   const land = landingPoint(state, op.side, op.target, "main");
   const x = edgeX(land.x);
-  const stageY = stwPoint(op.side, { x: 0, y: DROP_STAGE_Y }).y;
+  // 사람이 지휘하는 진영: 집결점(세로 72)보다 앞에서 태웠으면 뒤로 돌아가지 않고 태운 높이의 가장자리에 모인다(중앙선 앞 DROP_STAGE_FRONT까지만).
+  // 중앙 집결지에서 태운 병력이 우리 앞마당까지 되돌아갔다가 다시 나가던 낭비를 없앤다. AI는 예전 집결점을 그대로 쓴다.
+  const own = (y) => (op.side === "player" ? y : STW_LANE_LENGTH - y);
+  const loadedY = loaded.reduce((sum, transport) => sum + own(transport.y), 0) / loaded.length;
+  const stageOwn = state.aiSides.includes(op.side) ? DROP_STAGE_Y : Math.min(DROP_STAGE_Y, Math.max(DROP_STAGE_FRONT, loadedY));
+  const stageY = stwPoint(op.side, { x: 0, y: stageOwn }).y;
   loaded.forEach((transport, index) => {
     const offset = (index - (loaded.length - 1) / 2) * 1.6;
     transport.dropPath = [{ x, y: transport.y }, { x, y: stageY + offset }];

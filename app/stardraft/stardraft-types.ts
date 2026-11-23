@@ -76,6 +76,8 @@ export type StwUnit = {
   cargo?: number[];
   bornAt?: number;
   escort?: boolean;
+  /** 동행 오버로드 가운데 집결지에서 대기하는 것(2기째부터). 공격 병력을 따라가지 않고 드랍에 먼저 쓰인다. */
+  standby?: boolean;
   op?: number;
   raid?: number;
   bomb?: StwDropTarget;
@@ -165,6 +167,8 @@ export type StwSideState = {
   seen: Record<string, StwSeen>;
   race: StwRaceId;
   escort: boolean;
+  /** 동행 수: 2 또는 "all"(전체). 없으면 켜짐 = 1기. */
+  escortMode?: 2 | "all";
   /** 유닛 종류별로 따로 둔 부대: { 종류: { y } }. */
   squads?: Partial<Record<string, { y: number; guard?: boolean; spots?: { x: number; y: number }[] }>>;
   /** 공격 목표: 교전 우선(기본) 또는 건물 우선. */
@@ -287,7 +291,7 @@ export type StwCommand =
   | { type: "recall"; point: StwRallyId }
   | { type: "focus"; mode: StwFocus }
   | { type: "autoWave"; size: number }
-  | { type: "escort"; on: boolean }
+  | { type: "escort"; on?: boolean; mode?: 0 | 1 | 2 | "all" }
   | { type: "scout"; target?: "main" | "resources" }
   | { type: "scoutRecall"; target?: "main" | "resources"; all?: boolean }
   | { type: "cancelBuild"; buildingId: number }
