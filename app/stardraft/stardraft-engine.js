@@ -948,7 +948,7 @@ function boardUnit(unit, transport) {
  * 바로 싣지 않는다: 정한 병력은 수송선으로 걸어가고(board, boardTo) 수송선은 그 병력 쪽으로 날아가 1.8칸 안에서 싣는다(작전 "load" 단계).
  * 예전에는 출발 버튼을 누르는 순간 거리와 상관없이 수송선 안으로 옮겨져, 본진 곳곳의 오버로드가 따로따로 출발했다.
  */
-function loadTransport(state, transport, passengers, mission) {
+function loadTransport(state, transport, passengers, mission, mix = mission === "raid") {
   transport.cargo = [];
   transport.boarding = [];
   let room = STW_TRANSPORT.capacity;
@@ -957,7 +957,7 @@ function loadTransport(state, transport, passengers, mission) {
   for (let index = 0; index < passengers.length && room > 0;) {
     const unit = passengers[index];
     const slots = stwSlots(unit.type);
-    if (slots > room || (mission === "raid" && unit.type === "marine" && marines >= 6 && medicWaiting())) {
+    if (slots > room || (mix && unit.type === "marine" && marines >= 6 && medicWaiting())) {
       index += 1;
       continue;
     }
@@ -1370,8 +1370,12 @@ function runCommand(state, side, command) {
       if (!check.ok) return check;
       // riders: 태울 유닛 종류와 순서(AI의 폭탄 드랍이 쓴다. 리버·질럿만 태우고 드라군은 정면으로 보내는 식). 없으면 대기 병력 모두.
       const wanted = Array.isArray(command.riders) ? command.riders : null;
+      // riderLimit: 종류별로 태울 수의 상한({ tank: 4 }처럼). 넘는 유닛은 태우지 않고 남긴다(탱크를 다 실어 보내면 정면 라인이 빈다).
+      const limits = wanted && command.riderLimit ? command.riderLimit : {};
+      const taken = {};
       const passengers = wanted
         ? check.passengers.filter((unit) => wanted.includes(unit.type)).sort((a, b) => wanted.indexOf(a.type) - wanted.indexOf(b.type) || a.id - b.id)
+          .filter((unit) => (taken[unit.type] = (taken[unit.type] ?? 0) + 1) <= (limits[unit.type] ?? Infinity))
         : [...check.passengers];
       if (!passengers.length) return fail("태울 수 있는 병력이 없습니다");
       const transports = [];
@@ -1379,7 +1383,8 @@ function runCommand(state, side, command) {
       for (const carrier of check.carriers) {
         if (!passengers.length) break;
         const transport = liftCarrier(state, side, carrier);
-        loadTransport(state, transport, passengers, plan.mission);
+        // 태울 유닛을 정한 드랍(riders)도 게릴라처럼 수송선마다 해병은 6기까지만 태워 메딕 자리를 남긴다.
+        loadTransport(state, transport, passengers, plan.mission, plan.mission === "raid" || Boolean(wanted));
         if (transport.cargo.length || transport.boarding.length) transports.push(transport);
       }
       if (!transports.length) return fail("태울 수 있는 병력이 없습니다");
@@ -4413,13 +4418,13 @@ function stepLoad(state, op, transports) {
 }
 
 /**
- * 비상 하차: 병력을 태우고 날아가는 오버로드·셔틀의 체력(셔틀은 체력 + 보호막)이 30%(STW_TRANSPORT.bailHp) 아래로 떨어지면 격추되기 전에 그 자리에 병력을 내린다.
- * 격추되면 탄 병력을 모두 잃지만, 내려 두면 그 병력은 싸울 수 있다. 수송선은 빈 몸으로 돌아간다(드랍십은 쓰지 않는다).
+ * 비상 하차: 병력을 태우고 날아가는 수송선(오버로드·셔틀·드랍십)의 체력(셔틀은 체력 + 보호막)이 30%(STW_TRANSPORT.bailHp) 아래로 떨어지면 격추되기 전에 그 자리에 병력을 내린다.
+ * 격추되면 탄 병력을 모두 잃지만, 내려 두면 그 병력은 싸울 수 있다. 수송선은 빈 몸으로 돌아간다.
  * 가는 길(게릴라 out·폭탄 in)에 내린 병력은 공격 병력이 되어 끝까지 싸우고, 돌아오는 길(home)에 내린 병력은 대기 병력으로 걸어서 돌아온다.
  * @returns {any[] | null} 내린 병력. 비상 하차를 하지 않았으면 null.
  */
 function bailOut(state, op, transport, heading) {
-  if ((transport.type !== "overlord" && transport.type !== "shuttle") || !transport.cargo?.length || !transport.dropPath?.length) return null;
+  if (!transport.cargo?.length || !transport.dropPath?.length) return null;
   if (transport.hp + (transport.shields ?? 0) >= (transport.maxHp + (transport.maxShields ?? 0)) * STW_TRANSPORT.bailHp) return null;
   const riders = unloadCargo(state, transport, (rider) => {
     rider.group = heading === "home" ? "rally" : "attack";
@@ -4439,7 +4444,7 @@ function bailOut(state, op, transport, heading) {
  * 수송 작전 진행(틱마다).
  * 게릴라: 이동(out) → 내려서 견제(fight) → 회수(pickup) → 귀환(home). 버틴 시간, 다가오는 적, 남은 체력으로 회수를 정한다.
  * 폭탄: 집결(gather) → 정면이 맞붙거나 시간이 차면 동시에 진입(in) → 귀환(home). 내린 병력은 끝까지 싸운다.
- * 오버로드와 셔틀은 가는 길과 돌아오는 길에 체력이 30% 아래로 떨어지면 그 자리에 병력을 내린다(bailOut).
+ * 수송선은 가는 길과 돌아오는 길에 체력이 30% 아래로 떨어지면 그 자리에 병력을 내린다(bailOut).
  */
 function stepOps(state) {
   const find = (id) => state.units.find((item) => item.id === id && item.hp > 0);
