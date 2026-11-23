@@ -1661,7 +1661,7 @@ test("stardraft zerg AI personas field their signature units and finish a game",
 test("stardraft terran and zerg each have four AI personas and the new ones field their signature units", async () => {
   const { STW_AI_PERSONAS } = await import("../app/stardraft/stardraft-data.js");
   const byRace = Object.values(STW_AI_PERSONAS).reduce((map, persona) => ((map[persona.race] = (map[persona.race] ?? 0) + 1), map), {});
-  assert.deepEqual(byRace, { protoss: 7, terran: 7, zerg: 7 });
+  assert.deepEqual(byRace, { protoss: 7, terran: 7, zerg: 10 });
   const games = {
     tankbio: createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio", enemy: "templar" } }),
     vulture: createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "vulture", enemy: "dragoon" } }),
@@ -3375,6 +3375,130 @@ test("스타드래프트 오버로드 둥지: 앞마당이 완성되면 탐지 �
   assert.equal(stwSupply(state, "player").cap, 20 + 9 * 8);
 });
 
+test("스타드래프트 오버로드 비상 하차: 병력을 태우고 가다 체력이 30% 아래로 떨어지면 그 자리에 내리고 돌아간다", () => {
+  const setup = () => {
+    const state = zerg("protoss");
+    state.sides.player.minerals = 9000;
+    for (let index = 0; index < 5; index += 1) stwCommand(state, "player", { type: "build", building: "overlord" });
+    finishAll(state);
+    research(state, "player", "ventral");
+    for (let index = 0; index < 12; index += 1) stwSpawnUnitAt(state, "player", "hydra", 12 + (index % 6) * 2.5, 76 + Math.floor(index / 6) * 2, "rally");
+    return state;
+  };
+  // 폭탄 드랍: 날아가는 중에 한 기가 크게 다치면 그 오버로드의 병력만 그 자리에 내린다.
+  const state = setup();
+  assert.equal(stwCommand(state, "player", { type: "drop", mission: "bomb" }).ok, true);
+  const op = state.ops[0];
+  const carriers = state.units.filter((unit) => unit.side === "player" && unit.type === "overlord" && unit.op !== undefined);
+  assert.equal(carriers.length, 3);
+  for (let index = 0; index < 600 && !(op.phase === "in" && carriers[0].y < 50); index += 1) stepStardraft(state);
+  assert.equal(op.phase, "in");
+  const [hurt, ...rest] = carriers;
+  const riders = hurt.cargo.map((id) => state.units.find((unit) => unit.id === id));
+  assert.equal(riders.length, 4);
+  hurt.hp = hurt.maxHp * 0.31;
+  stepStardraft(state);
+  assert.equal(hurt.cargo.length, 4, "30% 이상이면 계속 간다");
+  hurt.hp = hurt.maxHp * 0.29;
+  const cap = stwSupply(state, "player").cap;
+  stepStardraft(state);
+  assert.equal(hurt.cargo.length, 0, "30% 아래면 그 자리에 내린다");
+  assert.ok(riders.every((unit) => unit.hp > 0 && unit.group === "attack" && Math.hypot(unit.x - hurt.x, unit.y - hurt.y) < 3), "내린 병력은 오버로드 곁에서 공격 병력이 된다");
+  assert.ok(riders.every((unit) => unit.bomb === op.target && op.riders.includes(unit.id)), "다른 병력처럼 목표를 치러 간다");
+  assert.ok(state.log.some((entry) => /크게 다친 오버로드가 병력 4기를 그 자리에 내리고 돌아갑니다/.test(entry.text)));
+  assert.equal(stwSupply(state, "player").cap, cap, "오버로드가 살아 인구 상한은 그대로");
+  assert.ok(rest.every((unit) => unit.cargo.length === 4), "다른 오버로드는 그대로 간다");
+  const homeward = hurt.y;
+  for (let index = 0; index < 30; index += 1) stepStardraft(state);
+  assert.ok(hurt.hp > 0 && hurt.y > homeward + 2, "빈 오버로드는 돌아간다");
+  for (let index = 0; index < 900 && rest.some((unit) => unit.cargo?.length && unit.hp > 0); index += 1) stepStardraft(state);
+  const enemyMain = stwNexus(state, "enemy", "main");
+  const landed = state.units.filter((unit) => unit.side === "player" && unit.type === "hydra" && unit.hp > 0 && !riders.includes(unit) && unit.group === "attack");
+  assert.ok(landed.length && landed.every((unit) => Math.hypot(unit.x - enemyMain.x, unit.y - enemyMain.y) < 30), "나머지는 적 본진에 내린다");
+
+  // 게릴라 드랍: 가는 길에 다치면 내려서 그 자리에서 싸우고(회수하지 않는다) 오버로드는 돌아간다.
+  const raid = setup();
+  assert.equal(stwCommand(raid, "player", { type: "drop", mission: "raid" }).ok, true);
+  const raider = raid.units.find((unit) => unit.side === "player" && unit.type === "overlord" && unit.op !== undefined);
+  for (let index = 0; index < 600 && !(raid.ops[0].phase === "out" && raider.y < 55); index += 1) stepStardraft(raid);
+  const cargo = raider.cargo.map((id) => raid.units.find((unit) => unit.id === id));
+  raider.hp = raider.maxHp * 0.2;
+  stepStardraft(raid);
+  assert.equal(raider.cargo.length, 0);
+  assert.ok(cargo.every((unit) => unit.group === "attack" && unit.raid === undefined));
+  assert.equal(raid.ops[0].phase, "home");
+
+  // 셔틀·드랍십은 비상 하차를 하지 않는다.
+  const shuttleGame = quiet();
+  const shuttle = stwSpawnUnitAt(shuttleGame, "player", "shuttle", 20, 80, "rally");
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(shuttleGame, "player", "zealot", 17 + index * 2, 78, "rally");
+  stwCommand(shuttleGame, "player", { type: "drop" });
+  for (let index = 0; index < 600 && !(shuttleGame.ops[0].phase === "out" && shuttle.y < 55); index += 1) stepStardraft(shuttleGame);
+  shuttle.hp = 1;
+  shuttle.shields = 0;
+  stepStardraft(shuttleGame);
+  assert.equal(shuttle.cargo.length, 4, "셔틀은 그대로 간다");
+});
+
+test("스타드래프트 AI 오버로드 폭탄 드랍: 오버로드 여섯 기 이상과 그만큼의 병력이 모이면 한꺼번에 태워 보낸다(최대 열 기)", () => {
+  const setup = (persona, overlords, army) => {
+    const state = createStardraftGame({ seed: 3, difficulty: "hard", aiSides: ["player"], races: { player: "zerg", enemy: "terran" }, personas: { player: persona } });
+    state.sides.player.minerals = 9000;
+    for (let index = 0; index < overlords; index += 1) stwCommand(state, "player", { type: "build", building: "overlord" });
+    finishAll(state);
+    state.sides.player.minerals = 0;
+    state.time = 500;
+    for (const [type, count] of Object.entries(army)) for (let index = 0; index < count; index += 1) stwSpawnUnitAt(state, "player", type, 8 + (index % 12) * 2, 74 + Math.floor(index / 12) * 1.5, "rally");
+    return state;
+  };
+  const bomb = (state) => (state.ops ?? []).find((op) => op.side === "player" && op.kind === "bomb");
+  const think = (state) => {
+    state.sides.player.ai = { ...(state.sides.player.ai ?? { step: 99, wave: 0, attacking: false, waveStart: 0 }), nextThink: 0 };
+    stwAiThink(state, "player");
+  };
+
+  for (const persona of ["hydradrop", "lingdrop", "mixdrop"]) {
+    assert.equal(STW_AI_PERSONAS[persona].race, "zerg");
+    assert.match(STW_AI_PERSONAS[persona].name, /폭탄 드랍$/);
+  }
+  // 드랍 연구가 끝나기 전에는 보내지 않는다.
+  const early = setup("hydradrop", 8, { hydra: 24 });
+  think(early);
+  assert.equal(bomb(early), undefined, "복부 주머니·기낭 갑피 전에는 드랍하지 않는다");
+  // 연구가 끝났고 오버로드 8기(탐지 당번 1기를 뺀 7기), 히드라 24기(48칸): 여섯 기에 가득 태워 보낸다.
+  const hydra = setup("hydradrop", 8, { hydra: 24 });
+  research(hydra, "player", "lair", "ventral", "pneumatized");
+  think(hydra);
+  assert.equal(bomb(hydra)?.transports.length, 6, "히드라 24기는 오버로드 여섯 기");
+  assert.equal(bomb(hydra).target, "production");
+  assert.equal(hydra.sides.player.ai.bombs, 1);
+  for (let index = 0; index < 120 && bomb(hydra).phase === "load"; index += 1) stepStardraft(hydra);
+  const carried = hydra.units.filter((unit) => unit.side === "player" && unit.type === "overlord").reduce((sum, unit) => sum + (unit.cargo?.length ?? 0), 0);
+  assert.equal(carried, 24, "모두 탄다");
+  // 병력이 다섯 기 분량(40칸)에 못 미치면 더 모은다. 오버로드가 모자라도(띄울 수 있는 것 5기) 기다린다.
+  const few = setup("hydradrop", 8, { hydra: 20 });
+  research(few, "player", "lair", "ventral", "pneumatized");
+  think(few);
+  assert.equal(bomb(few), undefined, "히드라 20기(40칸)로는 아직");
+  const short = setup("mixdrop", 6, { hydra: 24 });
+  research(short, "player", "lair", "ventral", "pneumatized");
+  think(short);
+  assert.equal(bomb(short), undefined, "띄울 오버로드가 여섯 기 미만이면 기다린다");
+  assert.ok(stwOwnBuildings(short, "player", "overlord").length >= 6);
+  // 저글링 떼: 오버로드가 넉넉해도 한 번에 열 기까지만 쓰고, 남은 저글링은 정면으로 나간다.
+  const lings = setup("lingdrop", 14, { zergling: 100 });
+  research(lings, "player", "lair", "ventral", "pneumatized");
+  think(lings);
+  assert.equal(bomb(lings)?.transports.length, 10, "최대 열 기");
+  assert.equal(lings.units.filter((unit) => unit.side === "player" && unit.type === "zergling" && unit.group === "attack").length, 20, "못 탄 저글링 20기는 정면으로");
+  // 사람의 명령에도 상한을 줄 수 있다.
+  const manual = setup("hydra", 8, { hydra: 24 });
+  manual.aiSides = [];
+  research(manual, "player", "ventral");
+  assert.equal(stwCommand(manual, "player", { type: "drop", mission: "bomb", maxCarriers: 2 }).ok, true);
+  assert.equal(bomb(manual).transports.length, 2);
+});
+
 test("스타드래프트 오버로드 동행 수: 1기째는 공격 병력을 따라가고, 2기째부터는 집결지에서 기다리다 드랍에 먼저 쓰인다", () => {
   const setup = () => {
     const state = zerg("protoss");
@@ -4801,7 +4925,14 @@ test("정찰 대응: 정찰로 본 건물·유닛·연구에서 상대 전략을
 });
 
 test("정찰 대응: 맞대응 표는 모든 종족·상대 전략을 덮고, 뚜렷이 나을 때만 갈아탄다", () => {
-  const personas = Object.values(STW_AI_PERSONAS);
+  // 오버로드 폭탄 드랍 셋은 대진표를 돌리지 않고 넣어 맞대응 표에 없다: 읽어도 갈아타지 않고, 그 전략으로 시작한 쪽은 표에 없는 승률을 50%로 본다.
+  const unmeasured = ["hydradrop", "lingdrop", "mixdrop"];
+  for (const id of unmeasured) {
+    assert.equal(STW_AI_PERSONAS[id].race, "zerg");
+    assert.equal(stwScoutCounter("protoss", "zerg", id, "dragoon", 300), null);
+    assert.doesNotThrow(() => stwScoutCounter("zerg", "protoss", "dragoon", id, 300));
+  }
+  const personas = Object.values(STW_AI_PERSONAS).filter((persona) => !unmeasured.includes(persona.id));
   for (const race of ["protoss", "terran", "zerg"]) {
     const own = personas.filter((persona) => persona.race === race).map((persona) => persona.id);
     for (const foe of personas) {

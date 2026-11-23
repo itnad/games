@@ -683,8 +683,9 @@ export const STW_NEST = { capacity: 4, naturalWatch: 1 };
  * - gatherTimeout: 폭탄 드랍 수송선이 집결점에 모이기를 기다리는 최대 시간
  * - syncTimeout: "정면 출격과 동시에"일 때 정면이 맞붙기를 기다리는 최대 시간(출발부터)
  * - relaunchDelay: 계속 견제일 때 돌아와서 다시 나가기까지
+ * - bailHp: 병력을 태우고 날아가는 오버로드의 체력이 이 비율 아래로 떨어지면 그 자리에 병력을 내리고 돌아간다(격추되면 탄 병력도 함께 잃는다)
  */
-export const STW_TRANSPORT = { capacity: 8, raidDwell: 25, retreatRatio: 0.7, hpRatio: 0.5, pickupTimeout: 8, gatherTimeout: 60, syncTimeout: 45, relaunchDelay: 6 };
+export const STW_TRANSPORT = { capacity: 8, raidDwell: 25, retreatRatio: 0.7, hpRatio: 0.5, pickupTimeout: 8, gatherTimeout: 60, syncTimeout: 45, relaunchDelay: 6, bailHp: 0.3 };
 /** 크기 규칙에서 벗어나는 탑승 칸(질럿·다크템플러 2, 울트라리스크 8). 나머지는 소형 1, 중형 2, 대형 4. */
 export const STW_SLOTS = { zealot: 2, dark: 2, templar: 2, goliath: 2, vulture: 2, hydra: 2, ultra: 8 };
 /** 게릴라 드랍에 태우는 빠르고 싼 유닛(앞이 먼저). */
@@ -732,5 +733,8 @@ export const STW_AI_PERSONAS = {
   ultra: { id: "ultra", race: "zerg", name: "울트라 운영", note: "앞마당을 빨리 먹고 성큰으로 버티며 울트라리스크와 저글링으로 민다" },
   hive: { id: "hive", race: "zerg", name: "디파일러 하이브", note: "히드라로 버티며 하이브를 올려 디파일러의 다크 스웜·플레이그와 가디언으로 민다" },
   muta: { id: "muta", race: "zerg", name: "뮤탈 저글링", note: "레어와 스파이어를 서둘러 뮤탈리스크와 저글링으로 몰아친다" },
+  hydradrop: { id: "hydradrop", race: "zerg", name: "히드라 폭탄 드랍", note: "히드라를 모으며 버티다 오버로드 여섯 기 이상에 가득 태워 적 본진에 한꺼번에 내린다" },
+  lingdrop: { id: "lingdrop", race: "zerg", name: "저글링 폭탄 드랍", note: "발업과 공격·갑피를 올린 저글링 떼를 오버로드 여섯 기 이상에 태워 적 본진에 쏟아붓는다" },
+  mixdrop: { id: "mixdrop", race: "zerg", name: "혼합 폭탄 드랍", note: "저글링·히드라·럴커를 섞어 오버로드 여섯 기 이상에 태워 적 본진에 한꺼번에 내린다" },
 };
 for (const persona of Object.values(STW_AI_PERSONAS)) persona.race ??= "protoss";
