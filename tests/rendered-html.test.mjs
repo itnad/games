@@ -914,6 +914,8 @@ test("keeps StarDraft in its own app/stardraft folder as a public mobile game at
     "stardraft-ai.js",
     "stardraft-camera.js",
     "stardraft-counters.js",
+    "stardraft-daily-panel.tsx",
+    "stardraft-daily.js",
     "stardraft-data.js",
     "stardraft-engine.js",
     "stardraft-game.tsx",

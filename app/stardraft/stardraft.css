@@ -257,6 +257,35 @@
 .stw-report-text summary { cursor:pointer; color:var(--stw-muted); font-size:13px; padding:4px 0; }
 .stw-report-text textarea { margin-top:6px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; line-height:1.4; }
 .stw-report-warn { color:var(--stw-gold) !important; }
+.stw-daily { padding:12px 14px; display:grid; gap:8px; border:1px solid color-mix(in srgb,var(--stw-blue) 55%,transparent); border-radius:16px; background:color-mix(in srgb,var(--stw-blue) 8%,transparent); }
+.stw-daily-title { display:grid; gap:2px; word-break:keep-all; }
+.stw-daily-title small { color:var(--stw-blue); font-weight:900; letter-spacing:.06em; }
+.stw-daily-title span { color:var(--stw-muted); font-size:13px; line-height:1.4; }
+.stw-daily-races { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+.stw-daily-race { min-width:0; min-height:86px; padding:9px 6px; display:grid; gap:3px; justify-items:center; align-content:center; border:1px solid var(--stw-line); border-radius:13px; color:var(--stw-text); background:var(--stw-panel); -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+.stw-daily-race b { font-size:16px; font-weight:900; }
+.stw-daily-race span { color:var(--stw-muted); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.stw-daily-race em { margin-top:2px; padding:3px 12px; border-radius:999px; color:var(--stw-on-gold); background:var(--stw-gold); font-size:13px; font-style:normal; font-weight:900; }
+.stw-daily-race:active { transform:scale(.97); }
+.stw-daily-tabs { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.stw-daily-toggle { min-height:36px; border:1px solid var(--stw-line); border-radius:11px; color:var(--stw-soft); background:transparent; font-size:13px; font-weight:800; }
+.stw-daily-body { display:grid; gap:8px; }
+.stw-daily-note { margin:0; color:var(--stw-muted); font-size:13px !important; line-height:1.45 !important; }
+.stw-daily-board { margin:0; padding:0; list-style:none; display:grid; gap:4px; }
+.stw-daily-board li { min-width:0; padding:7px 10px; display:grid; grid-template-columns:26px minmax(0,1fr) auto; gap:2px 8px; align-items:center; border:1px solid var(--stw-line); border-radius:10px; background:var(--stw-panel); font-size:14px; }
+.stw-daily-board li.mine { border-color:var(--stw-gold); box-shadow:0 0 0 1px var(--stw-gold) inset; }
+.stw-daily-board i { grid-row:1 / span 2; color:var(--stw-muted); font-style:normal; font-weight:900; text-align:center; font-variant-numeric:tabular-nums; }
+.stw-daily-board b { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.stw-daily-board span { font-weight:900; font-variant-numeric:tabular-nums; }
+.stw-daily-board em { grid-column:2 / span 2; color:var(--stw-muted); font-size:12px; font-style:normal; }
+.stw-daily-name { display:grid; grid-template-columns:auto minmax(0,1fr); gap:8px; align-items:center; color:var(--stw-muted); font-size:13px; font-weight:800; }
+.stw-daily-name input { min-width:0; min-height:40px; padding:0 10px; border:1px solid var(--stw-line); border-radius:10px; color:var(--stw-text); background:var(--stw-panel); font-size:15px; }
+.stw-result-nav.daily > button:first-child { grid-column:1 / -1; }
+.stw-result .stw-daily-result { margin:2px 0 4px; padding:8px 10px; border:1px solid color-mix(in srgb,var(--stw-blue) 45%,transparent); border-radius:12px; background:color-mix(in srgb,var(--stw-blue) 8%,transparent); }
+.stw-daily-result { display:grid; gap:6px; justify-items:center; }
+.stw-daily-result.saved { color:var(--stw-text); font-weight:800; }
+.stw-daily-result.failed { color:var(--stw-red); }
+.stw-daily-result button { min-height:38px; padding:0 14px; border-radius:10px; font-weight:900; }
 .stw-history { padding:12px 14px; display:grid; gap:8px; border:1px solid var(--stw-line); border-radius:16px; background:color-mix(in srgb,var(--stw-veil) 3%,transparent); }
 .stw-history header { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
 .stw-history header .stw-section { margin:0; }
