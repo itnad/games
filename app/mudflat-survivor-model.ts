@@ -13,6 +13,7 @@ import {
   mudflatGuardBasketStats,
   mudflatHoeBotStats,
   mudflatRockLiftStats,
+  mudflatSmashStats,
   mudflatSkillUnlocked,
   mudflatTongStats,
 } from "./mudflat-survivor-engine.js";
@@ -43,8 +44,8 @@ export const mudflatSystemBackGuardScreen = (screen: Screen) => screen === "runn
 
 export const GENERAL_CHARACTER = { id: "beginner", name: "기본 스킨", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 };
 export const defaultCharacterId = (mode: GameMode) => mode === "normal" ? "beginner" : "digger";
-export const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "guard-basket", "hoe-bot", "rock-lift", "boots", "snack", "basket"];
-export const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", "guard-basket": "소쿠리", "hoe-bot": "호미봇", "rock-lift": "건곤", boots: "장화", snack: "간식", basket: "담기" };
+export const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "guard-basket", "hoe-bot", "rock-lift", "smash", "boots", "snack", "basket"];
+export const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", "guard-basket": "소쿠리", "hoe-bot": "호미봇", "rock-lift": "건곤", smash: "뻘권", boots: "장화", snack: "간식", basket: "담기" };
 export const DIRECTIONAL_SEAFOOD_TYPES = new Set(["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp", "large-shrimp"]);
 export const CATCH_FULL_MESSAGE = "더 담을 수가 없어. 다음에는 큰 통을 가져와야겠다.";
 
@@ -121,6 +122,10 @@ export function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[numb
     const current = mudflatRockLiftStats(safeLevel); const next = mudflatRockLiftStats(nextLevel);
     const radius = (stats: ReturnType<typeof mudflatRockLiftStats>) => stats.radius >= 1200 ? "화면 전체" : `반경 ${stats.radius}px`;
     return { current: `${current.interval}초마다 ${radius(current)} 바위 ${current.rocks}개를 띄워 떨어뜨림 · 낙하 피해 ${current.damage} · 발견물은 돌뒤집개 Lv.${Math.max(1, Math.floor(rocker ?? 1))} 기준`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.interval}초 · ${radius(next)} · ${next.rocks}개 · 피해 ${next.damage}` };
+  }
+  if (skill.id === "smash") {
+    const current = mudflatSmashStats(safeLevel); const next = mudflatSmashStats(nextLevel);
+    return { current: `재사용 ${current.cooldown}초 · 앞 ${current.length}px × 폭 ${current.width}px · 피해 ${current.damage} · 넉백 ${current.knockback}px · 바위 충돌 +${current.rockBonus}${current.chain ? " · 날아가다 부딪힌 해산물도 50% 피해와 넉백" : ""}`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 재사용 ${next.cooldown}초 · 피해 ${next.damage} · 넉백 ${next.knockback}px${next.chain && !current.chain ? " · 연쇄 넉백" : ""}` };
   }
   if (skill.id === "boots") return { current: `이동속도와 진흙 저항 완화가 Lv.${safeLevel} 단계로 강화되었습니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 이동속도와 깊은 펄 저항이 한 단계 더 좋아집니다.` };
   if (skill.id === "snack") return { current: `기본 최대 체력의 ${safeLevel * 20}%만큼 증가합니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 기본 최대 체력 +${nextLevel * 20}%` };

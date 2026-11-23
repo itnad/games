@@ -198,6 +198,7 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "guard-basket", icon: "◍", name: "소쿠리의 달인", description: "소쿠리를 휘둘러 화면의 경험치 보석을 쓸어 담고, 충전된 소쿠리가 물살·운석·접촉 피해를 한 번 막아 줍니다.", max: 6, advanced: true, requiredGems: 100 },
   { id: "hoe-bot", icon: "⚙", name: "호미봇", description: "호미 모양 로봇이 따라다니며 가까운 조개 구멍을 찾아 대신 파냅니다. 조개 등급은 호미질 레벨을 따릅니다.", max: 6, advanced: true, requiredDigs: 20 },
   { id: "rock-lift", icon: "⌾", name: "건곤대나이", description: "갯벌을 들썩여 가까운 바위를 띄웠다 떨어뜨립니다. 떨어진 자리의 해산물이 피해를 입고 바위는 사라지며, 바위 밑 발견물은 돌뒤집개 레벨을 따릅니다.", max: 6, advanced: true, requiredSkills: 5 },
+  { id: "smash", icon: "✊", name: "뻘권", description: "조작 방향으로 한 걸음 내디디며 주먹을 내질러 앞의 해산물에 피해를 주고 멀리 밀쳐 냅니다. 바위에 부딪히면 추가 피해, Lv.5부터는 날아가다 부딪힌 해산물도 함께 밀립니다.", max: 6, advanced: true, requiredLevel3Skills: 4 },
 ];
 
 // 소쿠리의 달인은 캠페인 누적으로 경험치 보석 100개를 주워야 열린다.
@@ -207,6 +208,9 @@ export const MUDFLAT_GUARD_BASKET_UNLOCK_GEMS = 100;
 export const MUDFLAT_HOE_BOT_UNLOCK_DIGS = 20;
 // 건곤대나이는 집게·호미질을 뺀 선택 기술 5종을 인벤토리에 익히면 열린다(보관 포함).
 export const MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS = 5;
+// 뻘권은 기본 기술을 포함한 채집기술 중 Lv.3 이상이 4개면 열린다.
+export const MUDFLAT_SMASH_UNLOCK_SKILLS = 4;
+export const MUDFLAT_SMASH_UNLOCK_LEVEL = 3;
 
 // 집게와 호미질은 모든 일반 원정에 기본으로 장착되는 채집 도구다.
 // 나머지 기술 여섯 개만 빌드를 구성하는 선택 기술 슬롯을 사용한다.
@@ -284,12 +288,14 @@ export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const gemsCollected = Math.max(0, Math.floor(Number(stats?.gemsCollected) || 0));
   const digsCompleted = Math.max(0, Math.floor(Number(stats?.digsCompleted) || 0));
   const skillCount = mudflatSelectableSkillIds(levels).length;
+  const level3Count = MUDFLAT_GENERAL_UPGRADES.filter((skill) => (levels[skill.id] ?? 0) >= MUDFLAT_SMASH_UNLOCK_LEVEL).length;
   return {
-    masteryCount, gemsCollected, digsCompleted, skillCount,
+    masteryCount, gemsCollected, digsCompleted, skillCount, level3Count,
     electric: masteryCount >= 1, castNet: masteryCount >= 2,
     guardBasket: gemsCollected >= MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
     hoeBot: digsCompleted >= MUDFLAT_HOE_BOT_UNLOCK_DIGS,
     rockLift: skillCount >= MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS,
+    smash: level3Count >= MUDFLAT_SMASH_UNLOCK_SKILLS,
   };
 }
 
@@ -301,12 +307,13 @@ export function mudflatSkillUnlocked(skill, unlocks) {
   if (skill.id === "guard-basket") return unlocks.guardBasket;
   if (skill.id === "hoe-bot") return unlocks.hoeBot;
   if (skill.id === "rock-lift") return unlocks.rockLift;
+  if (skill.id === "smash") return unlocks.smash;
   return false;
 }
 
 // 정비 화면 잠긴 카드용 진행 표시.
 /**
- * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number, requiredSkills?: number }} skill
+ * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number, requiredSkills?: number, requiredLevel3Skills?: number }} skill
  * @param {Record<string, number>} levels
  * @param {{ gemsCollected?: number, digsCompleted?: number }} [stats]
  */
@@ -320,6 +327,10 @@ export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
   if (skill.id === "rock-lift") {
     const target = skill.requiredSkills ?? MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS;
     return { unlocked: unlocks.rockLift, current: Math.min(unlocks.skillCount, target), target, label: `선택 기술 ${Math.min(unlocks.skillCount, target)} / ${target}` };
+  }
+  if (skill.id === "smash") {
+    const target = skill.requiredLevel3Skills ?? MUDFLAT_SMASH_UNLOCK_SKILLS;
+    return { unlocked: unlocks.smash, current: Math.min(unlocks.level3Count, target), target, label: `Lv.${MUDFLAT_SMASH_UNLOCK_LEVEL} 이상 기술 ${Math.min(unlocks.level3Count, target)} / ${target}` };
   }
   if (skill.id === "guard-basket") {
     const target = skill.requiredGems ?? MUDFLAT_GUARD_BASKET_UNLOCK_GEMS;
@@ -370,6 +381,26 @@ export function mudflatRockLiftStats(level = 0) {
     rocks: [2, 3, 4, 5, 6, 7][safeLevel - 1],
     damage: [12, 16, 20, 26, 32, 40][safeLevel - 1],
     impactPadding: [18, 20, 22, 24, 26, 28][safeLevel - 1],
+  };
+}
+
+// 뻘권 수치. 타격 통로는 플레이어 앞 length × width, 넉백은 0.35초 동안 knockback px.
+// 바위에 부딪히면 rockBonus 추가 피해, Lv.5부터 날아가다 닿은 해산물에 50% 피해와 넉백을 전파한다.
+export const MUDFLAT_SMASH_KNOCKBACK_SECONDS = .35;
+export const MUDFLAT_SMASH_CHAIN_RATIO = .5;
+export function mudflatSmashStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { cooldown: Infinity, length: 0, width: 0, damage: 0, knockback: 0, rockBonus: 0, chain: false, triggerRange: 0, triggerHalfWidth: 0 };
+  return {
+    cooldown: [12, 10, 8, 6, 5, 4][safeLevel - 1],
+    length: [120, 135, 150, 165, 180, 200][safeLevel - 1],
+    width: [70, 78, 86, 94, 102, 110][safeLevel - 1],
+    damage: [10, 15, 20, 30, 40, 50][safeLevel - 1],
+    knockback: [120, 150, 180, 210, 240, 270][safeLevel - 1],
+    rockBonus: [10, 13, 16, 20, 25, 30][safeLevel - 1],
+    chain: safeLevel >= 5,
+    triggerRange: 48,
+    triggerHalfWidth: 40,
   };
 }
 

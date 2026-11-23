@@ -168,6 +168,28 @@ test("live save keeps lifted rocks and rock-lift timers, backfills older saves, 
   assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
 });
 
+test("live save keeps knockback state and smash timers, backfills older saves, and rejects a bad chain flag", () => {
+  const { campaign, runtime } = fixture("normal");
+  Object.assign(runtime.creatures[0], { knockbackX: 80, knockbackY: -20, knockbackLife: .2, knockbackDamage: 40, knockbackRockBonus: 25, knockbackCast: 3, knockbackChain: true });
+  Object.assign(runtime, { smashClock: 2.5, smashEffect: .3, smashAngle: 1.2, smashCastId: 3 });
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  const creature = restored.runtime.creatures.find((item) => item.id === 12);
+  assert.equal(creature.knockbackX, 80);
+  assert.equal(creature.knockbackChain, true);
+  assert.equal(restored.runtime.smashCastId, 3);
+  assert.equal(restored.runtime.smashAngle, 1.2);
+  const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
+  for (const key of ["smashClock", "smashEffect", "smashAngle", "smashCastId"]) delete legacy.runtime[key];
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.equal(legacyRestored.runtime.smashClock, 0);
+  assert.equal(legacyRestored.runtime.smashCastId, 0);
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.runtime.creatures[0].knockbackChain = "yes";
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
+});
+
 test("live save keeps a detached stage-entry checkpoint for rescue retries", () => {
   const { campaign, runtime } = fixture();
   const stageEntryCampaign = {

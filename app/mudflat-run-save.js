@@ -112,6 +112,11 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     // 건곤대나이 타이머도 뒤에 추가됐다.
     if (!finite(runtime.rockLiftClock)) runtime.rockLiftClock = runtimeTemplate.rockLiftClock;
     if (!finite(runtime.rockLiftEffect) || runtime.rockLiftEffect < 0) runtime.rockLiftEffect = 0;
+    // 뻘권 타이머·연출·연쇄 식별값도 뒤에 추가됐다.
+    for (const key of ["smashClock", "smashEffect", "smashAngle"]) {
+      if (!finite(runtime[key])) runtime[key] = 0;
+    }
+    if (!Number.isInteger(runtime.smashCastId) || runtime.smashCastId < 0) runtime.smashCastId = 0;
     // Older active-run autosaves did not know about stage-five deep-mud
     // visuals/state. They are cosmetic or transient, so backfill defaults
     // instead of discarding an otherwise valid expedition.
@@ -134,7 +139,8 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (!runtime.creatures.every((creature) => typeof creature.type === "string" && typeof creature.name === "string"
       && ["chase", "still", "wander", "flee", "oval"].includes(creature.movement))) return null;
     if (!runtime.creatures.every((creature) => (creature.eventKind === undefined || ["puffer-rush", "crab-line", "mud-zombie", "jellyfish"].includes(creature.eventKind))
-      && ["chargeX", "chargeY", "eventLife", "emergeSeconds"].every((key) => creature[key] === undefined || finite(creature[key]))
+      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast"].every((key) => creature[key] === undefined || finite(creature[key]))
+      && (creature.knockbackChain === undefined || typeof creature.knockbackChain === "boolean")
       && (creature.uncollectible === undefined || typeof creature.uncollectible === "boolean"))) return null;
     if (!runtime.hoeBots.every((unit) => ["follow", "move", "dig"].includes(unit.phase) && Number.isInteger(unit.targetHoleId) && unit.targetHoleId >= 0)) return null;
     if (!runtime.rocks.every((rock) => rock.lift === undefined || (finite(rock.lift) && rock.lift >= 0))) return null;
