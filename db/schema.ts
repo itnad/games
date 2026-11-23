@@ -51,3 +51,21 @@ export const baksalDailyResults = sqliteTable("baksal_daily_results", {
   uniqueIndex("baksal_daily_results_date_participant_unique").on(table.challengeDate, table.participantId),
   index("baksal_daily_results_ranking_index").on(table.challengeDate, table.score),
 ]);
+
+export const stardraftDailyResults = sqliteTable("stardraft_daily_results", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  challengeDate: text("challenge_date").notNull(),
+  participantId: text("participant_id").notNull(),
+  displayName: text("display_name").notNull(),
+  seed: integer("seed").notNull(),
+  // 승리까지 걸린 경기 시간(틱, 0.1초)과 잃은 병력 가치. 순위는 시간이 짧은 순, 같으면 잃은 가치가 적은 순이다.
+  elapsedTicks: integer("elapsed_ticks").notNull(),
+  lostValue: integer("lost_value").notNull(),
+  // 그 경기를 다시 돌릴 수 있는 재현 코드(JSON)와 기록한 게임 판.
+  build: text("build").notNull().default(""),
+  replay: text("replay").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("stardraft_daily_results_date_participant_unique").on(table.challengeDate, table.participantId),
+  index("stardraft_daily_results_ranking_index").on(table.challengeDate, table.elapsedTicks),
+]);

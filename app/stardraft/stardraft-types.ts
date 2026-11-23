@@ -236,6 +236,8 @@ export type StwState = {
   /** AI가 맡은 진영. */
   aiSides: ("player" | "enemy")[];
   spectate?: boolean;
+  /** 오늘의 대전 경기(그 날짜). 화면 전용 표시: 이어하기 저장·전적·최근 경기에 넣지 않고, 이기면 순위표에 올린다. */
+  daily?: { date: string };
   /** 다시 보기로 재생 중인 지난 경기(화면 전용 표시. 엔진 규칙에는 쓰지 않는다). sameBuild: 기록할 때와 같은 게임 판인지. */
   replayView?: { result: "won" | "lost" | "draw"; at: number; sameBuild: boolean };
   /** 정찰 대응 모드인 진영: 이 진영의 AI는 정찰로 상대 전략을 읽고 맞대응 전략으로 갈아탄다. */

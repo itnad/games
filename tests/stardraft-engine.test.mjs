@@ -4639,7 +4639,7 @@ test("정찰 대응 모드: AI가 맡은 진영만 켜지고, 읽은 전략과 �
 test("스타드래프트의 브라우저 저장 키는 모두 paperoid-stardraft- 로 시작하고 예전 이름을 옮기는 처리는 없다", async () => {
   const storage = await import("../app/stardraft/stardraft-storage.js");
   assert.deepEqual(Object.values(storage.STW_STORAGE_KEYS).sort(), [
-    "paperoid-stardraft-history", "paperoid-stardraft-lab", "paperoid-stardraft-lab-presets", "paperoid-stardraft-learning", "paperoid-stardraft-record",
+    "paperoid-stardraft-daily-name-v1", "paperoid-stardraft-daily-participant-v1", "paperoid-stardraft-history", "paperoid-stardraft-lab", "paperoid-stardraft-lab-presets", "paperoid-stardraft-learning", "paperoid-stardraft-record",
     "paperoid-stardraft-save", "paperoid-stardraft-theme-v2", "paperoid-stardraft-tips-seen",
   ]);
   assert.deepEqual(Object.keys(storage), ["STW_STORAGE_KEYS"]);
@@ -4723,4 +4723,130 @@ test("최근 경기: 끝난 사람 대 AI 경기만 재현 코드와 함께 남�
     { ...stored, id: "c", result: "draw", races: { player: "zerg", enemy: "protoss" } },
   ]);
   assert.deepEqual(summary, { total: 3, wins: 1, losses: 1, draws: 1, byRace: { terran: { wins: 1, losses: 1, draws: 0 }, zerg: { wins: 0, losses: 0, draws: 1 } } });
+});
+
+test("오늘의 대전: 조건은 한국 시각 날짜만으로 정해지고, 그 조건으로 경기가 열린다", async () => {
+  const daily = await import("../app/stardraft/stardraft-daily.js");
+  // 한국 시각 자정에 날짜가 바뀐다(UTC 15:00).
+  assert.equal(daily.stwKstDate(Date.UTC(2026, 10, 22, 14, 59)), "2026-11-22");
+  assert.equal(daily.stwKstDate(Date.UTC(2026, 10, 22, 15, 0)), "2026-11-23");
+  const today = daily.stwDailyChallengeForDate("2026-11-23");
+  assert.deepEqual(today, daily.stwDailyChallengeForDate("2026-11-23"), "같은 날짜는 언제나 같은 조건");
+  assert.equal(today.difficulty, "normal");
+  // 100일을 훑어: 값이 모두 올바르고, 상대 전략은 그 종족의 것이며, 날마다 조건이 바뀐다.
+  const seen = new Set();
+  for (let day = 0; day < 100; day += 1) {
+    const date = new Date(Date.UTC(2026, 0, 1 + day)).toISOString().slice(0, 10);
+    const challenge = daily.stwDailyChallengeForDate(date);
+    assert.equal(challenge.date, date);
+    assert.ok(["protoss", "terran", "zerg"].includes(challenge.races.player) && ["protoss", "terran", "zerg"].includes(challenge.races.enemy));
+    assert.equal(STW_AI_PERSONAS[challenge.persona].race, challenge.races.enemy);
+    assert.ok(!STW_AI_PERSONAS[challenge.persona].avoid?.includes(challenge.races.player), "그 종족 상대로 피하는 전략은 나오지 않는다");
+    assert.ok(STW_MAP_IDS.includes(challenge.map));
+    assert.ok(Number.isInteger(challenge.seed) && challenge.seed >= 1 && challenge.seed <= 0xffffffff);
+    seen.add(`${challenge.races.player}>${challenge.races.enemy}>${challenge.persona}>${challenge.map}`);
+  }
+  assert.ok(seen.size >= 60, `100일 동안 서로 다른 조건 ${seen.size}가지`);
+  assert.equal(daily.stwDailyChallengeForDate("엉뚱한 값").date, daily.stwKstDate());
+  // 그 조건으로 연 경기: 사람이 아래쪽을 지휘하고, 적은 정해진 전략의 AI다.
+  const game = createStardraftGame(daily.stwDailySetup(today));
+  assert.deepEqual(game.aiSides, ["enemy"]);
+  assert.deepEqual([game.sides.player.race, game.sides.enemy.race, game.sides.enemy.persona, game.map, game.difficulty], [today.races.player, today.races.enemy, today.persona, today.map, "normal"]);
+  assert.equal(game.replay.setup.seed, today.seed);
+});
+
+test("오늘의 대전: 기록 비교, 자정 넘긴 경기, 이름·식별값, 시간 표시", async () => {
+  const daily = await import("../app/stardraft/stardraft-daily.js");
+  // 빨리 이긴 쪽이 좋고, 같으면 잃은 병력 가치가 적은 쪽.
+  assert.equal(daily.stwDailyRecordIsBetter(null, { elapsedTicks: 9000, lostValue: 0 }), true);
+  assert.equal(daily.stwDailyRecordIsBetter({ elapsedTicks: 6000, lostValue: 500 }, { elapsedTicks: 5999, lostValue: 9000 }), true);
+  assert.equal(daily.stwDailyRecordIsBetter({ elapsedTicks: 6000, lostValue: 500 }, { elapsedTicks: 6000, lostValue: 400 }), true);
+  assert.equal(daily.stwDailyRecordIsBetter({ elapsedTicks: 6000, lostValue: 500 }, { elapsedTicks: 6000, lostValue: 500 }), false);
+  assert.equal(daily.stwDailyRecordIsBetter({ elapsedTicks: 6000, lostValue: 500 }, { elapsedTicks: 6001, lostValue: 0 }), false);
+  // 날짜: 오늘은 받고, 어제는 자정 뒤 한 시간 안에만 받는다.
+  const justAfter = Date.UTC(2026, 10, 22, 15, 30);  // 11/23 00:30 KST
+  const later = Date.UTC(2026, 10, 22, 16, 30);      // 11/23 01:30 KST
+  assert.equal(daily.stwDailyAcceptedDate("2026-11-23", justAfter), "2026-11-23");
+  assert.equal(daily.stwDailyAcceptedDate("2026-11-22", justAfter), "2026-11-22");
+  assert.equal(daily.stwDailyAcceptedDate("2026-11-22", later), null);
+  assert.equal(daily.stwDailyAcceptedDate("2026-11-21", justAfter), null);
+  assert.equal(daily.stwDailyAcceptedDate("2026-11-24", justAfter), null);
+  assert.equal(daily.stwDailyAcceptedDate(undefined, justAfter), null);
+  // 이름·식별값
+  assert.equal(daily.normalizeStwDailyName("  가  나\n다  "), "가 나다");
+  assert.equal(Array.from(daily.normalizeStwDailyName("가".repeat(30))).length, 12);
+  assert.equal(daily.normalizeStwDailyName(42), "");
+  assert.equal(daily.stwDailyDefaultName("abcd-ef12-3456-7890"), "지휘관 7890");
+  assert.equal(daily.validStwDailyParticipantId("aaaaaaaa-1111-2222-3333-444444444444"), true);
+  assert.equal(daily.validStwDailyParticipantId("짧음"), false);
+  assert.equal(daily.stwDailyClock(3435), "05:43.5");
+  assert.equal(daily.stwDailyClock(0), "00:00.0");
+  // 이긴 경기에서만 기록이 나온다.
+  assert.equal(daily.stwDailyResult({ status: "over", winner: "enemy", time: 100, sides: { player: { stats: {} } } }), null);
+  assert.equal(daily.stwDailyResult({ status: "playing", winner: null, time: 100, sides: { player: { stats: {} } } }), null);
+  assert.deepEqual(daily.stwDailyResult({ status: "over", winner: "player", time: 343.5, sides: { player: { stats: { valueLost: 299.6 } } } }), { elapsedTicks: 3435, lostValue: 300 });
+});
+
+test("오늘의 대전: 서버는 그 날 조건으로 이긴 경기의 재현 코드만 받는다", async () => {
+  const daily = await import("../app/stardraft/stardraft-daily.js");
+  const challenge = daily.stwDailyChallengeForDate("2026-11-23");
+  const setup = daily.stwDailySetup(challenge);
+  const code = (overrides = {}) => ({ v: 1, build: "t", setup, commands: [[10, "player", { type: "probe" }], [10, "player", { type: "probe" }], [4000, "player", { type: "move", y: 30 }]], end: { time: 600, status: "over", winner: "player" }, ...overrides });
+  assert.equal(daily.stwDailyReplayProblem(code(), challenge, 6000), null);
+  // 실제 경기에서 나온 코드도 통과한다(지는 경기라 끝 상태만 이긴 것으로 바꿔 모양을 본다).
+  const game = createStardraftGame(setup);
+  stwIssue(game, "player", { type: "probe" });
+  for (let step = 0; step < 50; step += 1) stepStardraft(game, stwAiThink);
+  const real = JSON.parse(JSON.stringify(stwReplayCode(game, "t")));
+  assert.equal(daily.stwDailyReplayProblem({ ...real, end: { time: 600, status: "over", winner: "player" } }, challenge, 6000), null);
+  const bad = [
+    [code({ v: 2 }), /형식/],
+    [code({ setup: undefined, scenario: {} }), /형식/],
+    [code({ setup: { ...setup, seed: setup.seed + 1 } }), /조건과 다른/],
+    [code({ setup: { ...setup, difficulty: "beginner" } }), /조건과 다른/],
+    [code({ setup: { ...setup, races: { player: "zerg", enemy: setup.races.enemy } } }), /조건과 다른/],
+    [code({ setup: { ...setup, map: setup.map === "gold" ? "plain" : "gold" } }), /조건과 다른/],
+    [code({ setup: { ...setup, personas: { enemy: "없는전략" } } }), /조건과 다른/],
+    [code({ setup: { ...setup, personas: { ...setup.personas, player: "rush" } } }), /조건과 다른/],
+    [code({ setup: { ...setup, aiSides: ["player", "enemy"] } }), /조건과 다른/],
+    [code({ setup: { ...setup, aiSides: [] } }), /조건과 다른/],
+    [code({ setup: { ...setup, learned: {} } }), /조건과 다른/],
+    [code({ setup: { ...setup, scoutReact: ["enemy"] } }), /조건과 다른/],
+    [code({ end: { time: 600, status: "over", winner: "enemy" } }), /이긴 경기/],
+    [code({ end: { time: 600, status: "playing", winner: null } }), /이긴 경기/],
+    [code({ end: { time: 599.9, status: "over", winner: "player" } }), /경기 시간/],
+    [code({ commands: [[10, "enemy", { type: "probe" }]] }), /명령 기록/],
+    [code({ commands: [[20, "player", { type: "probe" }], [10, "player", { type: "probe" }]] }), /명령 기록/],
+    [code({ commands: [[7000, "player", { type: "probe" }]] }), /경기 시간/],
+    [code({ commands: Array.from({ length: daily.STW_DAILY_REPLAY_MAX_COMMANDS + 1 }, (_, index) => [index, "player", { type: "probe" }]) }), /너무 깁니다/],
+    [null, /형식/],
+  ];
+  for (const [value, reason] of bad) assert.match(daily.stwDailyReplayProblem(value, challenge, 6000) ?? "문제 없음", reason);
+});
+
+test("오늘의 대전: API는 서버가 정한 조건으로만 받고, 화면은 전적·저장과 따로 다룬다", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const route = await readFile(new URL("../app/api/stardraft-daily/route.ts", import.meta.url), "utf8");
+  const schema = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
+  const migration = await readFile(new URL("../drizzle/0003_stardraft_daily_results.sql", import.meta.url), "utf8");
+  const gameSource = await readFile(new URL("../app/stardraft/stardraft-game.tsx", import.meta.url), "utf8");
+  const panel = await readFile(new URL("../app/stardraft/stardraft-daily-panel.tsx", import.meta.url), "utf8");
+  // 조건은 요청이 아니라 서버가 날짜로 정한다. 요청이 고를 수 있는 날짜도 서버가 가린다.
+  assert.match(route, /const date = stwDailyAcceptedDate\(payload\.date\);/);
+  assert.match(route, /const challenge = stwDailyChallengeForDate\(date\);/);
+  assert.match(route, /stwDailyReplayProblem\(payload\.replay, challenge, elapsedTicks\)/);
+  assert.doesNotMatch(route, /payload\.(seed|races|persona|map|difficulty)/);
+  // 하루 한 사람 한 줄, 더 좋은 기록일 때만 바꾼다. 순위표 목록에는 재현 코드와 식별값을 싣지 않는다.
+  assert.match(route, /onConflictDoNothing\(\{ target: \[stardraftDailyResults\.challengeDate, stardraftDailyResults\.participantId\] \}\)/);
+  assert.match(route, /stwDailyRecordIsBetter\(existing, candidate\)/);
+  assert.match(route, /orderBy\(asc\(stardraftDailyResults\.elapsedTicks\), asc\(stardraftDailyResults\.lostValue\), asc\(stardraftDailyResults\.id\)\)/);
+  assert.match(route, /leaderboard\.map\(\(entry, index\) => \(\{ rank: index \+ 1, displayName: entry\.displayName, elapsedTicks: entry\.elapsedTicks, lostValue: entry\.lostValue \}\)\)/);
+  assert.match(schema, /export const stardraftDailyResults = sqliteTable\("stardraft_daily_results"/);
+  assert.match(migration, /CREATE TABLE `stardraft_daily_results`/);
+  assert.match(migration, /CREATE UNIQUE INDEX `stardraft_daily_results_date_participant_unique` ON `stardraft_daily_results` \(`challenge_date`,`participant_id`\)/);
+  // 화면: 저장하지 않고, 전적·학습 자료·최근 경기에 넣지 않으며, 이긴 경기만 올린다.
+  assert.match(gameSource, /if \(state\.status !== "playing" \|\| state\.lab \|\| state\.spectate \|\| state\.daily\) return;/);
+  assert.match(gameSource, /if \(game\.daily\) \{\s*if \(game\.winner === "player"\) sendDaily\(game\);\s*return;\s*\}\s*clearSave\(\);/);
+  assert.match(gameSource, /next\.daily = \{ date: challenge\.date \};/);
+  assert.match(panel, /body: JSON\.stringify\(\{ \.\.\.identity, date: game\.daily\.date, \.\.\.result, build, replay: stwReplayCode\(game, build\) \}\)/);
 });

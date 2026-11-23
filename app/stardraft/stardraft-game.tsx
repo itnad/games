@@ -56,6 +56,8 @@ import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./stardraf
 import { STW_STORAGE_KEYS } from "./stardraft-storage.js";
 import { stwHistoryAdd, stwHistoryEntry, stwHistoryNormalize, stwHistorySummary } from "./stardraft-history.js";
 import { stwReplayMatches, stwReplayPlayer } from "./stardraft-replay.js";
+import { stwDailyClock, stwDailySetup } from "./stardraft-daily.js";
+import { DailyCard, submitStwDaily, type StwDailyChallenge, type StwDailySubmission } from "./stardraft-daily-panel";
 import { DEFAULT_WATCH, WatchScreen, type WatchConfig } from "./stardraft-watch";
 import { THEMES, ThemeFonts, themeProps, type ThemeId } from "./stardraft-theme";
 import { PAPEROID_BUILD_ID, PAPEROID_GIT_SHA } from "../app-version";
@@ -381,8 +383,8 @@ function readSave(): SavedBattle | null {
 }
 
 function writeSave(state: StwState) {
-  // 실험실·AI 대 AI 관전 경기는 저장하지 않는다(진짜 경기의 이어하기를 덮어쓰지 않게).
-  if (state.status !== "playing" || state.lab || state.spectate) return;
+  // 실험실·AI 대 AI 관전·오늘의 대전 경기는 저장하지 않는다(진짜 경기의 이어하기를 덮어쓰지 않게).
+  if (state.status !== "playing" || state.lab || state.spectate || state.daily) return;
   try {
     const text = stwSerialize(state) as string;
     window.localStorage.setItem(SAVE_KEY, `${text.slice(0, -1)},"savedAt":${Date.now()}}`);
@@ -437,6 +439,9 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
   const [saved, setSaved] = useState<SavedBattle | null>(() => (typeof window === "undefined" ? null : readSave()));
   /** 최근 경기 목록(메인 화면)과, 다시 보기 중인 경기의 재생기. */
   const [history, setHistory] = useState<HistoryEntry[]>(() => (typeof window === "undefined" ? [] : readHistory()));
+  /** 오늘의 대전: 기록을 올린 결과(결과 화면에 보인다)와, 메인 화면 순위표를 다시 읽게 하는 번호. */
+  const [dailySubmission, setDailySubmission] = useState<StwDailySubmission | null>(null);
+  const [dailyRefresh, setDailyRefresh] = useState(0);
   const replayRef = useRef<{ player: { state: unknown; done: boolean; advance: (seconds: number) => number }; code: unknown } | null>(null);
 
   const gameRef = useRef<StwState | null>(null);
@@ -500,6 +505,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
 
   const enterBattle = (next: StwState, { resumed = false, replay = null as typeof replayRef.current } = {}) => {
     replayRef.current = replay;
+    setDailySubmission(null);
     gameRef.current = next;
     setGame(next);
     savedAtRef.current = next.time;
@@ -583,6 +589,22 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
     const personas = { ...(player.persona ? { player: player.persona } : {}), ...(enemy.persona ? { enemy: enemy.persona } : {}) };
     const next = createStardraftGame({ difficulty: "hard", seed: Math.floor(Math.random() * 2 ** 31), aiSides: ["player", "enemy"], races: { player: player.race, enemy: enemy.race }, personas, map, spectate: true, scoutReact: config.mode === "react" }) as unknown as StwState;
     enterBattle(next);
+  };
+  // 오늘의 대전: 날짜로 정해진 조건(종족 대결·맵·상대 전략·시드·난이도)으로 경기를 연다. 하던 일반 경기의 저장은 건드리지 않는다.
+  const startDaily = (challenge: StwDailyChallenge) => {
+    const next = createStardraftGame(stwDailySetup(challenge) as never) as unknown as StwState;
+    next.daily = { date: challenge.date };
+    enterBattle(next);
+  };
+  /** 오늘의 대전 기록 올리기(이긴 경기만). 실패하면 결과 화면에서 다시 보낼 수 있다. */
+  const sendDaily = (target: StwState) => {
+    const elapsedTicks = Math.round(target.time * 10);
+    setDailySubmission({ status: "sending", elapsedTicks });
+    submitStwDaily(target, STW_BUILD).then((result) => {
+      if (gameRef.current !== target) return;
+      setDailySubmission(result);
+      if (result?.status === "saved") setDailyRefresh((value) => value + 1);
+    });
   };
   // 다시 보기: 최근 경기의 재현 코드로 그 경기를 처음부터 다시 돌려 관전 화면(전체 시야, 배속, 조작 없음)으로 보여 준다.
   // 게임 판이 바뀌어 코드를 돌릴 수 없으면 알리고 그만둔다.
@@ -774,6 +796,11 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
     // 실험실·AI 대 AI 관전 경기는 전적에 넣지 않는다.
     if (!finished || !game || recordedRef.current || game.lab || game.spectate) return;
     recordedRef.current = true;
+    // 오늘의 대전은 전적·학습 자료·최근 경기·이어하기 저장과 따로 다룬다: 이기면 순위표에 올리기만 한다.
+    if (game.daily) {
+      if (game.winner === "player") sendDaily(game);
+      return;
+    }
     clearSave();
     const won = game.winner === "player";
     const lost = game.winner === "enemy";
@@ -993,6 +1020,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
             <TipLine race={races.player} rotate={9} className="stw-tip-menu" />
           </div>
           {saved ? <ResumeCard saved={saved} onResume={resumeBattle} onDiscard={discardSave} /> : null}
+          <DailyCard onStart={startDaily} refresh={dailyRefresh} />
           <div className="stw-race-pick">
             <h3 className="stw-section">내 종족</h3>
             <div className="stw-segment" role="radiogroup" aria-label="내 종족">
@@ -1108,7 +1136,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
       <ThemeFonts theme={theme} />
       <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
-        <div><span className="stw-brand">{replaying ? `다시 보기 · ${STW_DIFFICULTIES[game.difficulty].name}` : spectating ? (game.scoutReact ? "AI vs AI · 정찰 대응" : "AI vs AI") : STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).id === "plain" ? "" : `${mapOf(game).name} · `}{raceOf(game).name} vs {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
+        <div><span className="stw-brand">{game.daily ? `오늘의 대전 · ${STW_DIFFICULTIES[game.difficulty].name}` : replaying ? `다시 보기 · ${STW_DIFFICULTIES[game.difficulty].name}` : spectating ? (game.scoutReact ? "AI vs AI · 정찰 대응" : "AI vs AI") : STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).id === "plain" ? "" : `${mapOf(game).name} · `}{raceOf(game).name} vs {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
         {spectating ? null : <QueueStrip game={game} icons={icons} issue={issue} />}
       </header>
       {spectating ? (
@@ -1325,6 +1353,14 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
                 <button type="button" className="stw-secondary" onClick={() => { gameRef.current = null; setConfirmExit(false); setScreen("lab"); }}>실험실로</button>
                 <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
               </>
+            ) : game.daily ? (
+              <>
+                <h2 id="stw-exit-title">오늘의 대전을 그만둘까요?</h2>
+                <p>오늘의 대전은 저장되지 않습니다. 나가면 이 경기는 끝나고, 몇 번이든 처음부터 다시 도전할 수 있습니다.</p>
+                <button type="button" className="stw-primary" onClick={() => setConfirmExit(false)}>계속 지휘하기</button>
+                <button type="button" className="stw-secondary" onClick={() => { gameRef.current = null; setConfirmExit(false); goMenu(); }}>그만두고 메인 화면으로</button>
+                <button type="button" className="stw-secondary" onClick={onExit}>그만두고 게임 목록으로</button>
+              </>
             ) : (
               <>
                 <h2 id="stw-exit-title">전투를 멈출까요?</h2>
@@ -1338,7 +1374,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
           </section>
         </div>
       ) : null}
-      {finished ? <ResultOverlay game={game} record={record} onMenu={game.lab ? () => setScreen("lab") : game.replayView ? leaveReplay : game.spectate ? leaveWatch : goMenu} onExit={onExit} replayMatched={replayRef.current ? Boolean(stwReplayMatches(replayRef.current.code, game)) : null} /> : null}
+      {finished ? <ResultOverlay game={game} record={record} onMenu={game.lab ? () => setScreen("lab") : game.replayView ? leaveReplay : game.spectate ? leaveWatch : goMenu} onExit={onExit} replayMatched={replayRef.current ? Boolean(stwReplayMatches(replayRef.current.code, game)) : null} daily={game.daily ? { submission: dailySubmission, onRetry: () => startDaily(stwDailyChallengeForGame(game)), onResend: () => sendDaily(game) } : null} /> : null}
     </main>
   );
 }
@@ -1916,7 +1952,36 @@ function PauseReportButton({ game }: { game: StwState }) {
   );
 }
 
-function ResultOverlay({ game, record, onMenu, onExit, replayMatched = null }: { game: StwState; record: BattleRecord; onMenu: () => void; onExit: () => void; replayMatched?: boolean | null }) {
+/** 결과 화면의 오늘의 대전 줄: 기록과 순위, 올리는 중·실패 안내. 진 경기는 순위표에 오르지 않는다. */
+function DailyResult({ game, daily }: { game: StwState; daily: DailyResultProps }) {
+  const submission = daily.submission;
+  if (game.winner !== "player") return <p className="stw-result-record stw-daily-result">이겨야 순위표에 오릅니다. 같은 조건으로 몇 번이든 다시 도전할 수 있습니다.</p>;
+  if (!submission || submission.status === "sending") return <p className="stw-result-record stw-daily-result" role="status">기록 {stwDailyClock(Math.round(game.time * 10))} · 순위표에 올리는 중입니다.</p>;
+  if (submission.status === "failed") {
+    return (
+      <p className="stw-result-record stw-daily-result failed" role="status">
+        기록 {stwDailyClock(submission.elapsedTicks)} · {submission.message}
+        <button type="button" className="stw-secondary" onClick={daily.onResend}>다시 보내기</button>
+      </p>
+    );
+  }
+  const best = submission.best ?? submission.elapsedTicks;
+  return (
+    <p className="stw-result-record stw-daily-result saved" role="status">
+      기록 {stwDailyClock(submission.elapsedTicks)} · {submission.improved ? `오늘 ${submission.rank}위에 올랐습니다` : `오늘의 내 최고 기록은 ${stwDailyClock(best)} (${submission.rank}위)`}
+    </p>
+  );
+}
+
+/** 끝난 오늘의 대전 경기의 조건(같은 조건으로 다시 도전할 때 쓴다). */
+function stwDailyChallengeForGame(game: StwState): StwDailyChallenge {
+  const setup = ((game.replay as { setup?: unknown } | undefined)?.setup ?? {}) as { seed?: number; personas?: { enemy?: string } };
+  return { date: game.daily?.date ?? "", difficulty: game.difficulty, races: { player: game.sides.player.race, enemy: game.sides.enemy.race }, persona: setup.personas?.enemy ?? game.sides.enemy.persona ?? "", map: (game.map ?? "plain") as StwMapId, seed: setup.seed ?? 0 };
+}
+
+type DailyResultProps = { submission: StwDailySubmission | null; onRetry: () => void; onResend: () => void };
+
+function ResultOverlay({ game, record, onMenu, onExit, replayMatched = null, daily = null }: { game: StwState; record: BattleRecord; onMenu: () => void; onExit: () => void; replayMatched?: boolean | null; daily?: DailyResultProps | null }) {
   const [report, setReport] = useState<ReportKind | null>(null);
   const aiLost = stwLosingAiSides(game).length > 0;
   const won = game.winner === "player";
@@ -1951,13 +2016,15 @@ function ResultOverlay({ game, record, onMenu, onExit, replayMatched = null }: {
   return (
     <div className="stw-overlay stw-overlay-full stw-result" role="dialog" aria-modal="true" aria-labelledby="stw-result-title">
       <section className={spectating ? (draw ? "draw" : "won") : won ? "won" : draw ? "draw" : "lost"}>
-        <small>{game.lab ? "실험실 · " : ""}{replaying ? "다시 보기 · " : ""}{spectating ? "AI vs AI" : won ? "VICTORY" : draw ? "DRAW" : "DEFEAT"}</small>
+        <small>{game.lab ? "실험실 · " : ""}{daily ? "오늘의 대전 · " : ""}{replaying ? "다시 보기 · " : ""}{spectating ? "AI vs AI" : won ? "VICTORY" : draw ? "DRAW" : "DEFEAT"}</small>
         <h2 id="stw-result-title">{spectating ? (draw ? "자원 고갈 무승부" : `${watchLabel(game, won ? "player" : "enemy")} 승리`) : won ? "적 본진 함락" : draw ? "자원 고갈 무승부" : "아군 본진 함락"}</h2>
         <div className="stw-result-time">
           <span>경기 시간</span>
           <b>{stwClock(game.time)}</b>
           {newBest ? <em>최단 승리 기록</em> : won && best !== undefined && !game.lab && !spectating && !replaying ? <em className="quiet">최단 {stwClock(best)}</em> : null}
         </div>
+        {/* 오늘의 대전: 기록과 순위는 경기 시간 바로 아래에 둬 내리지 않아도 보인다. */}
+        {daily ? <DailyResult game={game} daily={daily} /> : null}
         {spectating ? <p>{mapOf(game).name} · {WATCH_SIDES.map((side) => `${watchLabel(game, side)}: ${watchStrategy(game, side)}`).join(" / ")}</p> : (
         <p>
           {STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).name} · {matchup}
@@ -1981,14 +2048,15 @@ function ResultOverlay({ game, record, onMenu, onExit, replayMatched = null }: {
             <ul>{nextTips.map((text) => <li key={text}>{text}</li>)}</ul>
           </div>
         ) : null}
-        {replaying ? <p className="stw-result-record">다시 보기는 전적에 넣지 않습니다.{replayMatched === false ? " 게임 판이 바뀌어 실제 경기와 다르게 흘러갔을 수 있습니다." : ""}</p> : spectating ? <p className="stw-result-record">AI 대 AI 경기는 전적에 넣지 않습니다.</p> : game.lab ? <p className="stw-result-record">실험 경기는 전적에 넣지 않습니다.</p> : <p className="stw-result-record">전적 {record.wins}승 {record.losses}패</p>}
+        {daily ? <p className="stw-result-record">오늘의 대전은 전적과 최근 경기에 넣지 않습니다.</p> : replaying ? <p className="stw-result-record">다시 보기는 전적에 넣지 않습니다.{replayMatched === false ? " 게임 판이 바뀌어 실제 경기와 다르게 흘러갔을 수 있습니다." : ""}</p> : spectating ? <p className="stw-result-record">AI 대 AI 경기는 전적에 넣지 않습니다.</p> : game.lab ? <p className="stw-result-record">실험 경기는 전적에 넣지 않습니다.</p> : <p className="stw-result-record">전적 {record.wins}승 {record.losses}패</p>}
         <div className={aiLost ? "stw-result-tools" : "stw-result-tools one"}>
           <button type="button" className="stw-secondary" onClick={() => setReport("bug")}>버그 리포트</button>
           {aiLost ? <button type="button" className="stw-secondary" onClick={() => setReport("ai")}>AI 개선 자료</button> : null}
         </div>
         {/* 나가는 버튼은 결과 창 맨 아래에 붙여, 통계·팁을 내리지 않아도 늘 보인다. */}
-        <div className="stw-result-nav">
-          <button type="button" className="stw-primary" onClick={onMenu}>{game.lab ? "실험실로" : spectating ? "AI vs AI 설정으로" : "스타드래프트 메인으로"}</button>
+        <div className={daily ? "stw-result-nav daily" : "stw-result-nav"}>
+          {daily ? <button type="button" className="stw-primary" onClick={daily.onRetry}>다시 도전</button> : null}
+          <button type="button" className={daily ? "stw-secondary" : "stw-primary"} onClick={onMenu}>{game.lab ? "실험실로" : spectating ? "AI vs AI 설정으로" : "스타드래프트 메인으로"}</button>
           <button type="button" className="stw-secondary" onClick={onExit}>게임 목록으로</button>
         </div>
       </section>
