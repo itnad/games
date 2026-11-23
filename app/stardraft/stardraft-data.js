@@ -396,7 +396,7 @@ export const STW_BUILDINGS = {
   // ───── 저그: 드론이 건물로 변태한다. 건물도 체력이 저절로 회복된다 ─────
   hatchery: { id: "hatchery", race: "zerg", name: "해처리", minerals: 300, gas: 0, time: 60, hp: 1250, shields: 0, armor: 1, size: 8, supply: 10, sight: 11, base: true },
   hatch: { id: "hatch", race: "zerg", name: "해처리", minerals: 225, gas: 0, time: 40, hp: 1250, shields: 0, armor: 1, size: 6, supply: 2, sight: 9, note: "본진에 해처리 추가 · 생산 라인 +1" },
-  overlord: { id: "overlord", race: "zerg", name: "오버로드", minerals: 100, gas: 0, time: 18, hp: 200, shields: 0, armor: 0, size: 3.6, supply: 8, sight: 9, detector: 5, flying: true, note: "인구 +8 · 기지 전체의 은폐 탐지 · 떠 있어 공중 공격에 맞음 · 병력 탭에서 동행시킬 수 있음" },
+  overlord: { id: "overlord", race: "zerg", name: "오버로드", minerals: 100, gas: 0, time: 18, hp: 200, shields: 0, armor: 0, size: 3.6, supply: 8, sight: 9, detector: 5, flying: true, note: "인구 +8 · 한 자리에 4기씩 모이는 둥지 · 둥지가 있는 기지의 은폐 탐지 · 공중 공격에 맞음 · 병력 탭에서 동행" },
   extractor: { id: "extractor", race: "zerg", name: "익스트랙터", minerals: 50, gas: 0, time: 20, hp: 750, shields: 0, armor: 1, size: 4.2, sight: 6, refinery: true, note: "가스 채취 · 드론 3기 배치" },
   pool: { unique: true, id: "pool", race: "zerg", name: "스포닝 풀", minerals: 200, gas: 0, time: 40, hp: 750, shields: 0, armor: 1, size: 4.8, sight: 8, note: "저글링·성큰 콜로니 해금 · 대사 촉진 연구" },
   evo: { unique: true, id: "evo", race: "zerg", name: "에볼루션 챔버", minerals: 75, gas: 0, time: 25, hp: 750, shields: 0, armor: 1, size: 4.4, sight: 8, note: "근접·원거리 공격과 갑피 업그레이드 · 스포어 콜로니 해금" },
@@ -665,6 +665,13 @@ export function stwGroundSpan(map, y) {
 
 /** 일꾼 체력(보호막 포함). 게릴라 드랍에 내린 병력이 광물 줄에서 이만큼 피해를 쌓을 때마다 일꾼 1기가 죽는다. */
 export const STW_WORKER_HP = { probe: 40, scv: 60, drone: 40 };
+
+/**
+ * 오버로드 둥지: 오버로드는 건물 자리 하나에 capacity기씩 모인다(파일런·디팟처럼 한 자리에 하나가 아니다).
+ * - capacity: 한 자리의 정원(2×2). 한 둥지가 수송 32칸으로 폭탄 드랍 한 조다
+ * - naturalWatch: 앞마당 기지가 완성되면 앞마당 둥지에 두는 탐지 당번 수. 복부 주머니 연구 뒤에는 한 둥지(capacity)를 채운다
+ */
+export const STW_NEST = { capacity: 4, naturalWatch: 1 };
 
 /**
  * 수송 작전 수치.

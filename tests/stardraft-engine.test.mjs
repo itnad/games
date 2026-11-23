@@ -1862,10 +1862,17 @@ test("stardraft zerg overlords can escort the army as mobile detectors at the co
   assert.ok(state.units.some((unit) => unit.side === "player" && unit.type === "overlord"), "동행이 켜져 있으면 다음 오버로드가 떠오름");
   assert.equal(stwOwnBuildings(state, "player", "overlord").length, 0);
   stwCommand(state, "player", { type: "escort", on: false });
-  run(state, 15);
-  const home = stwNexus(state, "player", "main");
-  const returned = state.units.find((unit) => unit.side === "player" && unit.type === "overlord");
-  assert.ok(Math.hypot(returned.x - home.x, returned.y - home.y) < 8, "동행을 끄면 본진으로 돌아감");
+  // 동행을 끄면 자기 둥지로 돌아와 내려앉아 다시 건물이 된다(인구 상한은 그대로).
+  const floating = state.units.find((unit) => unit.side === "player" && unit.type === "overlord");
+  const nest = floating.nest;
+  assert.match(nest, /^main-\d+$/, "떠 있어도 둥지 자리를 기억한다");
+  run(state, 30);
+  assert.ok(!state.units.some((unit) => unit.side === "player" && unit.type === "overlord"), "동행을 끄면 둥지에 내려앉는다");
+  const landed = stwOwnBuildings(state, "player", "overlord");
+  assert.equal(landed.length, 1);
+  assert.equal(landed[0].slot, nest);
+  assert.ok(stwDone(landed[0]));
+  assert.equal(stwSupply(state, "player").cap, capBefore - 8);
 });
 
 test("stardraft zerg AI escorts an overlord once cloaked units hurt it", () => {
@@ -3254,7 +3261,118 @@ test("stardraft drops carry ground units to the enemy main and transports take r
   assert.match(stwCommand(zergDrop, "player", { type: "drop" }).reason, /복부 주머니/);
   research(zergDrop, "player", "ventral");
   assert.equal(stwCommand(zergDrop, "player", { type: "drop" }).ok, true, "복부 주머니 뒤 오버로드가 실어 나른다");
-  assert.equal(stwOwnBuildings(zergDrop, "player", "overlord").length, 2, "기지에 오버로드 2기는 남긴다");
+  assert.equal(stwOwnBuildings(zergDrop, "player", "overlord").length, 2, "태울 병력만큼만 띄운다");
+});
+
+test("스타드래프트 오버로드 둥지: 한 자리에 4기가 모이고, 띄워도 자리가 풀리지 않으며, 소속이 모두 죽어야 풀린다", () => {
+  const state = zerg("protoss");
+  state.sides.player.minerals = 9000;
+  const free = stwFreeSlots(state, "player");
+  const build = (count) => {
+    for (let index = 0; index < count; index += 1) assert.equal(stwCommand(state, "player", { type: "build", building: "overlord" }).ok, true);
+    finishAll(state);
+  };
+  const overlords = () => stwOwnBuildings(state, "player", "overlord");
+  build(4);
+  assert.equal(stwFreeSlots(state, "player"), free - 1, "오버로드 4기가 건물 자리 하나만 쓴다");
+  assert.equal(new Set(overlords().map((item) => item.slot)).size, 1);
+  assert.deepEqual(overlords().map((item) => item.perch).sort(), [0, 1, 2, 3]);
+  assert.equal(new Set(overlords().map((item) => `${item.x},${item.y}`)).size, 4, "둥지 안에서 서로 다른 칸에 뜬다");
+  const first = overlords()[0].slot;
+  const center = stwPoint("player", STW_LAYOUT.mainSlots[Number(first.split("-")[1])]);
+  assert.ok(center.y >= 95, `첫 둥지는 본진 맨 뒷줄 (${center.y})`);
+  assert.ok(overlords().every((item) => Math.hypot(item.x - center.x, item.y - center.y) < 2.2));
+  build(5);
+  assert.equal(stwFreeSlots(state, "player"), free - 3, "9기는 세 자리(4 + 4 + 1)");
+  assert.equal(stwSupply(state, "player").cap, 10 + 9 * 8);
+
+  // 띄워도 둥지 자리는 그대로다: 동행으로 1기, 침투로 여럿이 떠도 빈 자리 수가 늘지 않고, 그 자리에 다른 건물이 들어서지 않는다.
+  research(state, "player", "ventral");
+  for (let index = 0; index < 20; index += 1) stwSpawnUnitAt(state, "player", "hydra", 10 + (index % 10) * 2, 76 + Math.floor(index / 10) * 2, "rally");
+  assert.equal(stwCommand(state, "player", { type: "drop", mission: "bomb" }).ok, true);
+  const flying = state.units.filter((unit) => unit.side === "player" && unit.type === "overlord");
+  assert.equal(flying.length, 5, "히드라 20기(40칸)를 5기가 나른다");
+  assert.ok(flying.every((unit) => /^main-\d+$/.test(unit.nest) && unit.perch !== undefined));
+  assert.equal(stwFreeSlots(state, "player"), free - 3, "띄워도 자리가 풀리지 않는다");
+  assert.equal(overlords().length, 4);
+  for (const type of ["pool", "evo", "hatch"]) stwCommand(state, "player", { type: "build", building: type });
+  const nests = new Set([...overlords().map((item) => item.slot), ...flying.map((unit) => unit.nest)]);
+  assert.ok(state.buildings.filter((item) => item.side === "player" && item.type !== "overlord").every((item) => !nests.has(item.slot)), "둥지 자리에는 다른 건물을 짓지 못한다");
+  const taken = stwFreeSlots(state, "player");
+
+  // 한 둥지의 소속이 모두 죽으면(떠 있는 것과 내려앉은 것 모두) 그 자리가 풀린다.
+  const key = flying[0].nest;
+  const members = () => [...overlords().filter((item) => item.slot === key), ...state.units.filter((unit) => unit.type === "overlord" && unit.nest === key && unit.hp > 0)];
+  const all = members();
+  for (const member of all.slice(1)) member.hp = 0;
+  run(state, 0.2);
+  assert.equal(stwFreeSlots(state, "player"), taken, "한 기라도 남으면 자리를 잡아 둔다");
+  for (const member of members()) member.hp = 0;
+  run(state, 0.2);
+  assert.equal(stwFreeSlots(state, "player"), taken + 1, "모두 죽으면 자리가 풀린다");
+});
+
+test("스타드래프트 오버로드 둥지: 앞마당이 완성되면 탐지 당번 1기가 날아가고, 복부 주머니 뒤에는 앞마당 둥지를 4기까지 채운다", () => {
+  const state = zerg("protoss");
+  state.sides.player.minerals = 9000;
+  const overlords = (base) => stwOwnBuildings(state, "player", "overlord").filter((item) => item.base === base);
+  const build = (count) => {
+    for (let index = 0; index < count; index += 1) stwCommand(state, "player", { type: "build", building: "overlord" });
+    finishAll(state);
+  };
+  build(3);
+  assert.equal(overlords("main").length, 3);
+  stwCommand(state, "player", { type: "build", building: "expand" });
+  run(state, 1);
+  assert.equal(state.units.filter((unit) => unit.type === "overlord").length, 0, "앞마당 기지가 완성되기 전에는 옮기지 않는다");
+  finishAll(state);
+  const natural = stwNexus(state, "player", "natural");
+  const hidden = () => stwSpawnUnitAt(state, "enemy", "dark", natural.x + 3, natural.y - 3);
+  const before = hidden();
+  assert.equal(stwDetected(state, before, "player"), false, "앞마당 둥지가 없으면 앞마당의 은폐를 못 본다");
+  before.hp = 0;
+  run(state, 0.2);
+  const mover = state.units.find((unit) => unit.side === "player" && unit.type === "overlord");
+  assert.match(mover?.nest ?? "", /^natural-\d+$/, "본진 둥지에서 1기가 앞마당 둥지로 간다");
+  assert.equal(overlords("main").length, 2);
+  // 앞마당 둥지 자리: 앞마당 맨 뒤 가장자리(드랍 길목).
+  const spot = STW_LAYOUT.naturalSlots[Number(mover.nest.split("-")[1])];
+  assert.equal(spot.y, Math.max(...STW_LAYOUT.naturalSlots.map((item) => item.y)));
+  assert.ok(Math.min(spot.x, STW_LANE_WIDTH - spot.x) <= 6);
+  run(state, 25);
+  assert.equal(overlords("natural").length, 1, "앞마당 둥지에 내려앉는다");
+  const after = hidden();
+  assert.equal(stwDetected(state, after, "player"), true, "앞마당 둥지가 앞마당 전체의 은폐를 탐지한다");
+  after.hp = 0;
+  run(state, 0.2);
+  build(2);
+  assert.deepEqual([overlords("main").length, overlords("natural").length], [4, 1], "복부 주머니 전에는 앞마당에 1기만 둔다");
+
+  research(state, "player", "ventral");
+  build(4);
+  assert.deepEqual([overlords("main").length, overlords("natural").length], [5, 4], "연구 뒤 새 오버로드는 앞마당 둥지(4기)부터 채운다");
+  assert.equal(new Set(overlords("natural").map((item) => item.slot)).size, 1);
+
+  // 드랍: 기지마다 1기는 탐지 당번으로 남기고, 앞마당 둥지의 오버로드부터 나간다.
+  for (let index = 0; index < 12; index += 1) stwSpawnUnitAt(state, "player", "hydra", 12 + (index % 6) * 2, 72 + Math.floor(index / 6) * 2, "rally");
+  const check = stwDropCheck(state, "player", "raid");
+  assert.equal(check.carriers.length, 7, "9기 가운데 본진 1기·앞마당 1기를 남긴다");
+  assert.deepEqual(check.carriers.slice(0, 3).map((item) => item.base), ["natural", "natural", "natural"]);
+  assert.equal(stwCommand(state, "player", { type: "drop", mission: "bomb" }).ok, true);
+  assert.deepEqual([overlords("main").length, overlords("natural").length], [5, 1], "히드라 12기(24칸)는 앞마당 둥지의 3기가 나른다");
+  const carriers = state.units.filter((unit) => unit.side === "player" && unit.type === "overlord");
+  // 돌아오는 중에도 바로 다시 쓸 수 있고(둥지에 내려앉기를 기다리지 않는다), 쓰지 않으면 자기 둥지에 내려앉는다.
+  run(state, 12);
+  stwCommand(state, "player", { type: "dropRecall" });
+  for (let index = 0; index < 600 && carriers.every((unit) => unit.op !== undefined); index += 1) stepStardraft(state);
+  const back = carriers.find((unit) => unit.op === undefined);
+  assert.ok(back && state.units.includes(back), "회수를 마친 직후에는 아직 떠 있다");
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(state, "player", "zergling", 16 + index * 2, 74, "rally");
+  assert.ok(stwDropCheck(state, "player", "raid").carriers.includes(back), "둥지로 돌아가는 중에도 다음 드랍에 쓸 수 있다");
+  run(state, 60);
+  assert.equal(state.units.filter((unit) => unit.side === "player" && unit.type === "overlord").length, 0);
+  assert.deepEqual([overlords("main").length, overlords("natural").length], [5, 4], "앞마당 둥지로 돌아와 내려앉는다");
+  assert.equal(stwSupply(state, "player").cap, 20 + 9 * 8);
 });
 
 test("stardraft transports load by slots: zealots take two, dragoons four, raids keep room for medics", () => {
