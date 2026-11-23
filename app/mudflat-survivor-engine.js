@@ -196,10 +196,14 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "electric", icon: "ϟ", name: "전기 스파크", description: "체력이 충분할 때 집게 범위의 해산물에게 주기적으로 전기 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 1 },
   { id: "cast-net", icon: "⌗", name: "그물 투척", description: "해산물이 모인 빈 갯벌에 그물을 펼쳐 잠시 붙잡고 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 2 },
   { id: "guard-basket", icon: "◍", name: "소쿠리의 달인", description: "소쿠리를 휘둘러 화면의 경험치 보석을 쓸어 담고, 충전된 소쿠리가 물살·운석·접촉 피해를 한 번 막아 줍니다.", max: 6, advanced: true, requiredGems: 100 },
+  { id: "hoe-bot", icon: "⚙", name: "호미봇", description: "호미 모양 로봇이 따라다니며 가까운 조개 구멍을 찾아 대신 파냅니다. 조개 등급은 호미질 레벨을 따릅니다.", max: 6, advanced: true, requiredDigs: 20 },
 ];
 
 // 소쿠리의 달인은 캠페인 누적으로 경험치 보석 100개를 주워야 열린다.
 export const MUDFLAT_GUARD_BASKET_UNLOCK_GEMS = 100;
+// 호미봇은 플레이어가 직접 조개 구멍을 20번 파야 열린다(캠페인 누적). 호미질
+// 레벨과 무관하므로 호미질 Lv.1에서도 로봇의 차이를 겪어 볼 수 있다.
+export const MUDFLAT_HOE_BOT_UNLOCK_DIGS = 20;
 
 // 집게와 호미질은 모든 일반 원정에 기본으로 장착되는 채집 도구다.
 // 나머지 기술 여섯 개만 빌드를 구성하는 선택 기술 슬롯을 사용한다.
@@ -270,12 +274,18 @@ export function mudflatBleedDamage(maxHp = 0) {
  * 해금형 기술 판정. 마스터리는 인벤토리 기준이고, 소쿠리의 달인은 캠페인 누적
  * 경험치 보석 수(stats.gemsCollected)로 연다.
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number }} [stats]
  */
 export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const masteryCount = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !skill.advanced && (levels[skill.id] ?? 0) >= 5).length;
   const gemsCollected = Math.max(0, Math.floor(Number(stats?.gemsCollected) || 0));
-  return { masteryCount, gemsCollected, electric: masteryCount >= 1, castNet: masteryCount >= 2, guardBasket: gemsCollected >= MUDFLAT_GUARD_BASKET_UNLOCK_GEMS };
+  const digsCompleted = Math.max(0, Math.floor(Number(stats?.digsCompleted) || 0));
+  return {
+    masteryCount, gemsCollected, digsCompleted,
+    electric: masteryCount >= 1, castNet: masteryCount >= 2,
+    guardBasket: gemsCollected >= MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
+    hoeBot: digsCompleted >= MUDFLAT_HOE_BOT_UNLOCK_DIGS,
+  };
 }
 
 /** @param {{ id: string, advanced?: boolean }} skill @param {ReturnType<typeof mudflatAdvancedSkillUnlocks>} unlocks */
@@ -284,18 +294,23 @@ export function mudflatSkillUnlocked(skill, unlocks) {
   if (skill.id === "electric") return unlocks.electric;
   if (skill.id === "cast-net") return unlocks.castNet;
   if (skill.id === "guard-basket") return unlocks.guardBasket;
+  if (skill.id === "hoe-bot") return unlocks.hoeBot;
   return false;
 }
 
 // 정비 화면 잠긴 카드용 진행 표시.
 /**
- * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number }} skill
+ * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number }} skill
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number }} [stats]
  */
 export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
   const unlocks = mudflatAdvancedSkillUnlocks(levels, stats);
   if (!skill?.advanced) return { unlocked: true, current: 0, target: 0, label: "" };
+  if (skill.id === "hoe-bot") {
+    const target = skill.requiredDigs ?? MUDFLAT_HOE_BOT_UNLOCK_DIGS;
+    return { unlocked: unlocks.hoeBot, current: Math.min(unlocks.digsCompleted, target), target, label: `호미질 ${Math.min(unlocks.digsCompleted, target)} / ${target}` };
+  }
   if (skill.id === "guard-basket") {
     const target = skill.requiredGems ?? MUDFLAT_GUARD_BASKET_UNLOCK_GEMS;
     return { unlocked: unlocks.guardBasket, current: Math.min(unlocks.gemsCollected, target), target, label: `경험치 보석 ${Math.min(unlocks.gemsCollected, target)} / ${target}` };
@@ -315,6 +330,20 @@ export function mudflatGuardBasketStats(level = 0) {
     charges: 1,
     bleedStop: safeLevel >= 3,
     invulnerableSeconds: safeLevel >= 6 ? 1 : safeLevel >= 5 ? .8 : 0,
+  };
+}
+
+// 호미봇 수치. 로봇 레벨은 작업 속도·탐색 범위·이동 속도·대수만 정하고,
+// 파낸 조개의 등급은 플레이어의 호미질 레벨로 굴린다.
+export function mudflatHoeBotStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { digSeconds: Infinity, searchRange: 0, speedMultiplier: 0, bots: 0, gaebul: false };
+  return {
+    digSeconds: [4, 3.5, 3, 2.6, 2.2, 1.8][safeLevel - 1],
+    searchRange: [260, 320, 380, 440, 1200, 1200][safeLevel - 1],
+    speedMultiplier: [.9, 1, 1.1, 1.2, 1.3, 1.4][safeLevel - 1],
+    bots: safeLevel >= 6 ? 2 : 1,
+    gaebul: safeLevel >= 4,
   };
 }
 

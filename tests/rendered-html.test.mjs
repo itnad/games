@@ -139,6 +139,8 @@ import {
   mudflatAdvancedSkillUnlocks,
   mudflatCanLearnSkill,
   mudflatGuardBasketStats,
+  mudflatHoeBotStats,
+  MUDFLAT_HOE_BOT_UNLOCK_DIGS,
   mudflatSkillUnlocked,
   mudflatSkillUnlockProgress,
   MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
@@ -1327,7 +1329,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(mudflatSeafoodSwarmInterval(6, 0, .5) < mudflatSeafoodSwarmInterval(6, 0, .9));
   assert.ok(mudflatSeafoodSwarmInterval(6, 0, 0, true) >= 9);
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
-  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["쓸어담기", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척", "소쿠리의 달인"]);
+  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["쓸어담기", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척", "소쿠리의 달인", "호미봇"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "rocker").description, "돌 밑에 숨어있는 해산물을 더 빨리 더 잘 찾아낼 수 있습니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "snack").description, "최대 체력이 기본 대비 20% 상승하며 현재 체력을 전부 회복합니다.");
@@ -1342,8 +1344,34 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(generalChoices.every((choice) => ["basket", "tongs", "harpoon", "boots", "snack", "rocker", "net", "digging"].includes(choice.id)));
   assert.equal(new Set(generalChoices.map((choice) => choice.id)).size, 3);
   assert.ok(generalChoices.every((choice) => !["electric", "cast-net"].includes(choice.id)));
-  assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5 }), { masteryCount: 1, gemsCollected: 0, electric: true, castNet: false, guardBasket: false });
-  assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5, digging: 5 }), { masteryCount: 2, gemsCollected: 0, electric: true, castNet: true, guardBasket: false });
+  assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5 }), { masteryCount: 1, gemsCollected: 0, digsCompleted: 0, electric: true, castNet: false, guardBasket: false, hoeBot: false });
+  assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5, digging: 5 }), { masteryCount: 2, gemsCollected: 0, digsCompleted: 0, electric: true, castNet: true, guardBasket: false, hoeBot: false });
+  // 호미봇: 호미질 레벨이 아니라 직접 끝낸 호미질 20회로 열린다. 마스터리 집계에는 들어가지 않는다.
+  assert.equal(MUDFLAT_HOE_BOT_UNLOCK_DIGS, 20);
+  const hoeBot = MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "hoe-bot");
+  assert.equal(hoeBot.name, "호미봇");
+  assert.equal(hoeBot.advanced, true);
+  assert.equal(hoeBot.requiredDigs, 20);
+  assert.equal(mudflatAdvancedSkillUnlocks({ "hoe-bot": 6 }).masteryCount, 0);
+  assert.equal(mudflatAdvancedSkillUnlocks({ digging: 6 }, { digsCompleted: 19 }).hoeBot, false);
+  assert.equal(mudflatAdvancedSkillUnlocks({ digging: 1 }, { digsCompleted: 20 }).hoeBot, true);
+  assert.equal(mudflatSkillUnlocked(hoeBot, mudflatAdvancedSkillUnlocks({ digging: 1 }, { digsCompleted: 20 })), true);
+  assert.equal(mudflatSkillUnlocked(hoeBot, mudflatAdvancedSkillUnlocks({ digging: 6 }, { gemsCollected: 500 })), false);
+  assert.deepEqual(mudflatSkillUnlockProgress(hoeBot, {}, { digsCompleted: 7 }), { unlocked: false, current: 7, target: 20, label: "호미질 7 / 20" });
+  const hoeBotOnlyLeft = { tongs: 6, digging: 6, harpoon: 6, net: 6, rocker: 6, boots: 6, basket: 6, snack: 6, electric: 6, "cast-net": 6, "guard-basket": 6 };
+  assert.deepEqual(mudflatUpgradeChoices(4, hoeBotOnlyLeft, "normal", Math.random, { gemsCollected: 100, digsCompleted: 20 }).map((choice) => choice.id), ["hoe-bot"]);
+  assert.deepEqual(mudflatUpgradeChoices(4, hoeBotOnlyLeft, "normal", Math.random, { gemsCollected: 100, digsCompleted: 19 }), []);
+  // 레벨 수치: 작업 시간·탐색 범위·이동 속도가 단조롭게 좋아지고, Lv.4 개불, Lv.6 로봇 2대.
+  assert.deepEqual(mudflatHoeBotStats(0), { digSeconds: Infinity, searchRange: 0, speedMultiplier: 0, bots: 0, gaebul: false });
+  assert.deepEqual(mudflatHoeBotStats(1), { digSeconds: 4, searchRange: 260, speedMultiplier: .9, bots: 1, gaebul: false });
+  assert.deepEqual(mudflatHoeBotStats(4), { digSeconds: 2.6, searchRange: 440, speedMultiplier: 1.2, bots: 1, gaebul: true });
+  assert.deepEqual(mudflatHoeBotStats(6), { digSeconds: 1.8, searchRange: 1200, speedMultiplier: 1.4, bots: 2, gaebul: true });
+  for (let level = 2; level <= 6; level += 1) {
+    assert.ok(mudflatHoeBotStats(level).digSeconds < mudflatHoeBotStats(level - 1).digSeconds);
+    assert.ok(mudflatHoeBotStats(level).searchRange >= mudflatHoeBotStats(level - 1).searchRange);
+    assert.ok(mudflatHoeBotStats(level).speedMultiplier > mudflatHoeBotStats(level - 1).speedMultiplier);
+  }
+  assert.ok([1, 2, 3, 4].every((level) => mudflatHoeBotStats(level).digSeconds > 2), "Lv.4까지는 사람의 호미질(2초)보다 느리다");
   // 소쿠리의 달인: 캠페인 누적 경험치 보석 100개로 열리고, 마스터리 집계에는 들어가지 않는다.
   assert.equal(MUDFLAT_GUARD_BASKET_UNLOCK_GEMS, 100);
   const guardBasket = MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "guard-basket");
@@ -1977,7 +2005,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /new ResizeObserver\(updateSpace\)/);
   assert.match(source, /--ms-departure-space/);
   // 소쿠리의 달인: 보석 집계, 흡입, 방어 경로. 모기떼·전기 자기 피해·밀물·출혈은 막지 않는다.
-  assert.match(source, /gemsCollected: Math\.max\(0, Math\.floor\(campaign\.gemsCollected \?\? 0\)\), guardBasketPullClock: 0, guardBasketCharges: 1/);
+  assert.match(source, /gemsCollected: Math\.max\(0, Math\.floor\(campaign\.gemsCollected \?\? 0\)\), digsCompleted: Math\.max\(0, Math\.floor\(campaign\.digsCompleted \?\? 0\)\), guardBasketPullClock: 0, guardBasketCharges: 1/);
   assert.match(source, /lastBossCaught: runtime\.bossCaught, gemsCollected: runtime\.gemsCollected,/);
   assert.match(source, /if \(gained > 0\) \{\s*runtime\.gemsCollected \+= 1;/);
   assert.match(source, /runtime\.gemsCollected === MUDFLAT_GUARD_BASKET_UNLOCK_GEMS\) runtime\.discoveryMessageLife = 3/);
@@ -1998,6 +2026,18 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /mudflatSkillUnlockProgress\(skill, campaign\.levels, campaign\)/);
   assert.match(source, /mudflatUpgradeChoices\(runtime\.level, runtime\.skillInventory, runtime\.mode, Math\.random, \{ gemsCollected: runtime\.gemsCollected \}\)/);
   assert.match(styles, /\.ms-camp-skill-levels span\.is-locked\{/);
+  // 호미봇: 플레이어 호미질만 해금 집계, 로봇은 공유 진행도로 파고 보상은 호미질 레벨 기준, 감독 AI와 플레이어 애니메이션은 로봇 구멍을 무시한다.
+  assert.match(source, /runtime\.digsCompleted \+= 1;\s*if \(runtime\.mode === "normal" && runtime\.digsCompleted === MUDFLAT_HOE_BOT_UNLOCK_DIGS\) runtime\.discoveryMessageLife = 3;/);
+  assert.match(source, /const botHoleIds = new Set\(runtime\.hoeBots\.filter\(\(unit\) => unit\.phase === "dig"\)\.map\(\(unit\) => unit\.targetHoleId\)\);/);
+  assert.match(source, /if \(hole !== activeClamHole && !botHoleIds\.has\(hole\.id\)\) hole\.progress = 0;/);
+  assert.match(source, /targetHole\.progress \+= dt \* digSeconds \/ bot\.digSeconds;/);
+  assert.match(source, /const diggingLevel = runtime\.levels\.digging \?\? 1;\s*const reward = targetHole\.kind === "gaebul" \? MUDFLAT_GAEBUL : \(mudflatClamRewardForRoll\(diggingLevel, runtimeRandom\(runtime\)\)/);
+  assert.match(source, /appendSupervisorEvent\("hoe-bot-harvested"/);
+  assert.match(source, /const botsResting = inBaseCamp \|\| runtime\.elapsed >= MUDFLAT_RUN_SECONDS \|\| tutorialActiveAtFrame;/);
+  assert.match(source, /clamHoles: runtime\.clamHoles\.filter\(\(hole\) => !runtime\.hoeBots\.some\(\(unit\) => unit\.targetHoleId === hole\.id\)\),/);
+  assert.match(source, /const diggingHole = runtime\.clamHoles\.find\(\(hole\) => hole\.progress > 0 && Math\.hypot\(hole\.x - runtime\.player\.x, hole\.y - runtime\.player\.y\) <= 48\);/);
+  assert.match(source, /drawHoeBot\(context, point\.x, point\.y, unit\.phase, unit\.digClock, actionTime, unit\.facing\)/);
+  assert.match(source, /digsCompleted: runtime\.digsCompleted,/);
   // 기술 인벤토리: 원정은 skillInventory/activeSkills를 들고 다니고 levels에는 활성 기술만 남긴다.
   assert.match(source, /levels: activeLevels, skillInventory, activeSkills,/);
   assert.match(source, /levels: \{ \.\.\.runtime\.skillInventory \}, activeSkills: \[\.\.\.runtime\.activeSkills\]/);

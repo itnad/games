@@ -149,6 +149,8 @@ import {
   mudflatStopHarvestInCamp,
   mudflatReturnCampPosition,
   mudflatGuardBasketStats,
+  mudflatHoeBotStats,
+  MUDFLAT_HOE_BOT_UNLOCK_DIGS,
   mudflatSkillUnlockProgress,
   MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
   mudflatActiveLevels,
@@ -171,6 +173,8 @@ type Burst = Point & { id: number; life: number; maxLife: number; color: string;
 type FloatText = Point & { id: number; life: number; text: string; color: string; kind?: "playerDamage" | "harvest" };
 type Rock = Point & { id: number; radius: number; tone: number };
 type ClamHole = Point & { id: number; radius: number; progress: number; kind?: "clam" | "gaebul"; angle?: number };
+// 호미봇: 플레이어를 따라다니다 조개 구멍을 대신 파는 로봇. 피해·충돌이 없다.
+type HoeBot = Point & { id: number; targetHoleId: number; digClock: number; phase: "follow" | "move" | "dig"; facing: number };
 type ClamReveal = Point & { id: number; life: number; maxLife: number; type: string };
 type MudPrint = Point & { id: number; life: number; maxLife: number; angle: number; side: number };
 type RockFlipEffect = Point & { rockId: number; life: number; maxLife: number };
@@ -219,11 +223,11 @@ type Runtime = {
   seed: number; rngState: number;
   lumiMotion: ReturnType<typeof createLumiMotion>;
   elapsed: number; tutorialElapsed: number; firstMoveGuide: FirstMoveGuide | null; player: Point & { hp: number; maxHp: number; baseMaxHp: number; speed: number; damageCooldown: number; facing: number; stride: number; walking: boolean };
-  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; clamReveals: ClamReveal[]; mudPrints: MudPrint[]; levels: CountMap; skillInventory: CountMap; activeSkills: string[]; equipment: CountMap; basket: CountMap;
+  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; hoeBots: HoeBot[]; clamReveals: ClamReveal[]; mudPrints: MudPrint[]; levels: CountMap; skillInventory: CountMap; activeSkills: string[]; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
   xpCollectLife: number;
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
-  bossSpawned: boolean; openingWaveRemaining: number; spawnClock: number; gemsCollected: number; guardBasketPullClock: number; guardBasketCharges: number; guardBasketRechargeClock: number; guardBasketFlashLife: number; guardBasketInvulnerable: number; pufferEventClock: number; crabRushClock: number; mudZombieClock: number; mudZombieTriggered: boolean; jellyfishClock: number; jellyPoisonSeconds: number; jellyPoisonTickClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
+  bossSpawned: boolean; openingWaveRemaining: number; spawnClock: number; gemsCollected: number; digsCompleted: number; guardBasketPullClock: number; guardBasketCharges: number; guardBasketRechargeClock: number; guardBasketFlashLife: number; guardBasketInvulnerable: number; pufferEventClock: number; crabRushClock: number; mudZombieClock: number; mudZombieTriggered: boolean; jellyfishClock: number; jellyPoisonSeconds: number; jellyPoisonTickClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
   deepMudGauge: number; deepMudLock: number; deepMudStepClock: number;
   safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; mosquitoClock: number; mosquitoRunEnabled: boolean; rocksFlipped: number;
   paused: boolean; ended: boolean;
@@ -340,8 +344,8 @@ function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
     mode: campaign.mode, stage: campaign.stage, seed: normalizedSeed, rngState: normalizedSeed, lumiMotion: createLumiMotion(),
     xpCollectLife: 0,
     elapsed: 0, tutorialElapsed: 0, firstMoveGuide, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
-    creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: activeLevels, skillInventory, activeSkills, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
-    caught: 0, catchScore: 0, bossCaught: false, gemsCollected: Math.max(0, Math.floor(campaign.gemsCollected ?? 0)), guardBasketPullClock: 0, guardBasketCharges: 1, guardBasketRechargeClock: 0, guardBasketFlashLife: 0, guardBasketInvulnerable: 0, bossSpawned: false, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
+    creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], hoeBots: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: activeLevels, skillInventory, activeSkills, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
+    caught: 0, catchScore: 0, bossCaught: false, gemsCollected: Math.max(0, Math.floor(campaign.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(campaign.digsCompleted ?? 0)), guardBasketPullClock: 0, guardBasketCharges: 1, guardBasketRechargeClock: 0, guardBasketFlashLife: 0, guardBasketInvulnerable: 0, bossSpawned: false, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
     pufferEventClock: campaign.stage >= 3 ? 18 : -1, crabRushClock: campaign.stage >= 4 ? 26 : -1,
     mudZombieClock: campaign.stage >= 6 ? 52 : -1, mudZombieTriggered: false,
     jellyfishClock: campaign.stage >= 8 ? mudflatJellyfishInterval(campaign.stage) : -1,
@@ -376,7 +380,7 @@ function readSavedCampaign(): Campaign | null {
       version: 1, mode: value.mode, characterId: String(value.characterId ?? "digger"), stage: Math.max(1, Math.floor(value.stage ?? 1)),
       coins: Math.max(0, Math.floor(value.coins ?? 0)), hp: Math.max(1, Number(value.hp ?? 1)), maxHp: Math.max(1, Number(value.maxHp ?? 1)), baseMaxHp: Math.max(1, Number(value.baseMaxHp ?? (value.mode === "normal" ? 100 : (CHARACTERS.find((item) => item.id === value.characterId)?.hp ?? 100)))),
       level: Math.max(1, Math.floor(value.level ?? 1)), xp: Math.max(0, Math.floor(value.xp ?? 0)), nextXp: Math.max(1, Math.floor(value.nextXp ?? 8)),
-      levels: { ...value.levels }, activeSkills: mudflatNormalizeActiveSkills(value.levels, value.activeSkills, value.mode), equipment: { ...value.equipment }, inventory: { ...value.inventory }, lastHaul: { ...(value.lastHaul ?? {}) }, lastSaleValue: Math.max(0, Math.floor(value.lastSaleValue ?? 0)), totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught), gemsCollected: Math.max(0, Math.floor(value.gemsCollected ?? 0)),
+      levels: { ...value.levels }, activeSkills: mudflatNormalizeActiveSkills(value.levels, value.activeSkills, value.mode), equipment: { ...value.equipment }, inventory: { ...value.inventory }, lastHaul: { ...(value.lastHaul ?? {}) }, lastSaleValue: Math.max(0, Math.floor(value.lastSaleValue ?? 0)), totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught), gemsCollected: Math.max(0, Math.floor(value.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(value.digsCompleted ?? 0)),
       lastObjectiveLabel: String(value.lastObjectiveLabel ?? ""), lastObjectiveComplete: Boolean(value.lastObjectiveComplete), lastObjectiveBonus: Math.max(0, Math.floor(value.lastObjectiveBonus ?? 0)), pendingSkillDiscovery: Boolean(value.pendingSkillDiscovery),
     };
     restored.maxHp = derivedMaxHp(restored.baseMaxHp, restored.equipment, restored.levels, restored.mode);
@@ -1549,6 +1553,38 @@ function drawClamHole(context: CanvasRenderingContext2D, hole: ClamHole) {
   context.restore();
 }
 
+// 호미봇: 호미 날에 눈이 달린 작은 로봇. 따라다닐 때는 통통 뛰고, 팔 때는 날이
+// 위아래로 움직이며 흙 알갱이가 튄다.
+function drawHoeBot(context: CanvasRenderingContext2D, x: number, y: number, phase: string, digClock: number, time: number, facing: number) {
+  const digging = phase === "dig";
+  const bob = digging ? Math.abs(Math.sin(digClock * 9)) * 4 : Math.abs(Math.sin(time * 6)) * 3;
+  context.save();
+  context.fillStyle = "rgba(20,16,14,.26)";
+  context.beginPath(); context.ellipse(x, y + 12, 11, 4, 0, 0, Math.PI * 2); context.fill();
+  context.translate(x, y - bob); context.scale(facing || 1, 1);
+  context.strokeStyle = "#8a5a2b"; context.lineWidth = 4; context.lineCap = "round";
+  context.beginPath(); context.moveTo(-2, 8); context.lineTo(-2, -16); context.stroke();
+  const swing = digging ? Math.sin(digClock * 9) * .55 : 0;
+  context.save(); context.translate(-2, -16); context.rotate(-.35 + swing);
+  context.fillStyle = "#c3ccd1"; context.strokeStyle = "#4b5a62"; context.lineWidth = 1.5;
+  context.beginPath(); context.moveTo(0, -3); context.lineTo(17, -6); context.lineTo(15, 4); context.lineTo(0, 3); context.closePath(); context.fill(); context.stroke();
+  context.restore();
+  context.fillStyle = "#ece0c2"; context.strokeStyle = "#5c4a2e"; context.lineWidth = 1.5;
+  context.beginPath(); context.arc(0, 2, 8, 0, Math.PI * 2); context.fill(); context.stroke();
+  context.fillStyle = "#2a2622";
+  context.beginPath(); context.arc(-3, 1, 1.6, 0, Math.PI * 2); context.fill();
+  context.beginPath(); context.arc(3, 1, 1.6, 0, Math.PI * 2); context.fill();
+  if (digging) {
+    context.fillStyle = "#6b4a2b";
+    for (let index = 0; index < 3; index += 1) {
+      const t = (digClock * 3 + index / 3) % 1;
+      context.globalAlpha = 1 - t;
+      context.beginPath(); context.arc(10 + index * 4 - t * 6, -4 - t * 14, 1.8, 0, Math.PI * 2); context.fill();
+    }
+  }
+  context.restore();
+}
+
 function drawClamDigging(context: CanvasRenderingContext2D, origin: Point, target: Point, progress: number) {
   const angle = Math.atan2(target.y - origin.y, target.x - origin.x);
   const strike = Math.sin((progress * 4 % 1) * Math.PI);
@@ -2311,7 +2347,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       coins: current.coins + autoSale.value + objective.bonus,
       level: runtime.level, xp: runtime.xp, nextXp: runtime.nextXp, levels: { ...runtime.skillInventory }, activeSkills: [...runtime.activeSkills], inventory: {}, lastHaul: autoSale.haul as CountMap, lastSaleValue: autoSale.value,
       equipment: withoutMosquitoRepellent(runtime.equipment),
-      totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught, gemsCollected: runtime.gemsCollected,
+      totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught, gemsCollected: runtime.gemsCollected, digsCompleted: runtime.digsCompleted,
       lastObjectiveLabel: objective.label, lastObjectiveComplete: objective.complete, lastObjectiveBonus: objective.bonus,
     };
     if (supervisorRef.current) {
@@ -2887,7 +2923,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             pickups: runtime.pickups,
             rocks: runtime.rocks,
             fallingRocks: runtime.fallingRocks,
-            clamHoles: runtime.clamHoles,
+            clamHoles: runtime.clamHoles.filter((hole) => !runtime.hoeBots.some((unit) => unit.targetHoleId === hole.id)),
             pickupRadius: 50 + (runtime.levels.basket ?? 0) * 24 + (runtime.equipment.cooler ?? 0) * 12,
             rockerLevel: runtime.levels.rocker ?? 0,
             rockReach: mudflatTongStats(runtime.levels.tongs ?? 1).reach,
@@ -3381,8 +3417,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const distance = Math.hypot(hole.x - runtime.player.x, hole.y - runtime.player.y);
         if (!inBaseCamp && supervisorCanDig && distance <= 48 && distance < activeClamDistance) { activeClamHole = hole; activeClamDistance = distance; }
       }
+      const botHoleIds = new Set(runtime.hoeBots.filter((unit) => unit.phase === "dig").map((unit) => unit.targetHoleId));
       for (const hole of runtime.clamHoles) {
-        if (hole !== activeClamHole) hole.progress = 0;
+        if (hole !== activeClamHole && !botHoleIds.has(hole.id)) hole.progress = 0;
       }
       if (activeClamHole) {
         activeClamHole.progress += dt;
@@ -3400,9 +3437,68 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           );
           if (supervisorRef.current) appendSupervisorEvent("hole-harvested", `${activeClamHole.kind === "gaebul" ? "개불 숨구멍" : "조개구멍"} · ${reward.name}`, runtime);
           runtime.clamHoles = runtime.clamHoles.filter((hole) => hole.id !== activeClamHole?.id);
+          runtime.digsCompleted += 1;
+          if (runtime.mode === "normal" && runtime.digsCompleted === MUDFLAT_HOE_BOT_UNLOCK_DIGS) runtime.discoveryMessageLife = 3;
           if (reward.id !== MUDFLAT_PEARL.id && "vibrate" in navigator) navigator.vibrate([18, 25, 35]);
         }
       }
+
+      // 호미봇: 플레이어를 따라다니다 범위 안의 조개 구멍을 대신 판다. 플레이어가 같은
+      // 구멍에 오면 진행도를 함께 올려 더 빨리 끝난다. 캠프 안·밀물·튜토리얼 중에는 쉰다.
+      const hoeBotLevel = runtime.mode === "normal" ? (runtime.levels["hoe-bot"] ?? 0) : 0;
+      if (hoeBotLevel > 0) {
+        const bot = mudflatHoeBotStats(hoeBotLevel);
+        while (runtime.hoeBots.length < bot.bots) runtime.hoeBots.push({ id: sequenceRef.current++, x: runtime.player.x - 46, y: runtime.player.y + 28, targetHoleId: 0, digClock: 0, phase: "follow", facing: 1 });
+        if (runtime.hoeBots.length > bot.bots) runtime.hoeBots = runtime.hoeBots.slice(0, bot.bots);
+        const botsResting = inBaseCamp || runtime.elapsed >= MUDFLAT_RUN_SECONDS || tutorialActiveAtFrame;
+        const botSpeed = runtime.player.speed * bot.speedMultiplier;
+        const moveBotToward = (unit: HoeBot, targetX: number, targetY: number, stopDistance: number) => {
+          const dx = targetX - unit.x; const dy = targetY - unit.y; const length = Math.hypot(dx, dy);
+          if (length <= stopDistance) return true;
+          const step = Math.min(length - stopDistance, botSpeed * dt);
+          unit.x += dx / length * step; unit.y += dy / length * step;
+          if (Math.abs(dx) > .5) unit.facing = dx > 0 ? 1 : -1;
+          return false;
+        };
+        runtime.hoeBots.forEach((unit, index) => {
+          const targetHole = unit.targetHoleId > 0 ? runtime.clamHoles.find((hole) => hole.id === unit.targetHoleId) : undefined;
+          if (unit.phase !== "follow" && (botsResting || !targetHole)) {
+            if (targetHole && targetHole !== activeClamHole) targetHole.progress = 0;
+            unit.phase = "follow"; unit.targetHoleId = 0; unit.digClock = 0;
+          }
+          if (unit.phase === "follow") {
+            const side = index % 2 === 0 ? -1 : 1;
+            moveBotToward(unit, runtime.player.x + side * 46, runtime.player.y + 28, 6);
+            if (!botsResting) {
+              const claimed = new Set(runtime.hoeBots.filter((other) => other !== unit && other.targetHoleId > 0).map((other) => other.targetHoleId));
+              let nearest: ClamHole | undefined; let nearestDistance = Infinity;
+              for (const hole of runtime.clamHoles) {
+                if (hole === activeClamHole || claimed.has(hole.id)) continue;
+                if (hole.kind === "gaebul" && !bot.gaebul) continue;
+                if (runtime.baseCampGuideShown && isInsideBaseCamp(hole, runtime.baseCamp, runtime.stage)) continue;
+                if (Math.hypot(hole.x - runtime.player.x, hole.y - runtime.player.y) > bot.searchRange) continue;
+                const length = Math.hypot(hole.x - unit.x, hole.y - unit.y);
+                if (length < nearestDistance) { nearest = hole; nearestDistance = length; }
+              }
+              if (nearest) { unit.targetHoleId = nearest.id; unit.phase = "move"; }
+            }
+          } else if (unit.phase === "move" && targetHole) {
+            if (moveBotToward(unit, targetHole.x, targetHole.y, 14)) { unit.phase = "dig"; unit.digClock = 0; }
+          } else if (unit.phase === "dig" && targetHole) {
+            unit.digClock += dt;
+            const digSeconds = targetHole.kind === "gaebul" ? GAEBUL_DIG_SECONDS : CLAM_DIG_SECONDS;
+            targetHole.progress += dt * digSeconds / bot.digSeconds;
+            if (targetHole.progress >= digSeconds) {
+              const diggingLevel = runtime.levels.digging ?? 1;
+              const reward = targetHole.kind === "gaebul" ? MUDFLAT_GAEBUL : (mudflatClamRewardForRoll(diggingLevel, runtimeRandom(runtime)) ?? MUDFLAT_CLAM_GRADES[0]!);
+              applyClamHarvestReward(runtime, reward, targetHole, () => sequenceRef.current++, showCatchFullMessage, celebratePearl);
+              if (supervisorRef.current) appendSupervisorEvent("hoe-bot-harvested", `${targetHole.kind === "gaebul" ? "개불 숨구멍" : "조개구멍"} · ${reward.name}`, runtime);
+              runtime.clamHoles = runtime.clamHoles.filter((hole) => hole.id !== targetHole.id);
+              unit.phase = "follow"; unit.targetHoleId = 0; unit.digClock = 0;
+            }
+          }
+        });
+      } else if (runtime.hoeBots.length > 0) runtime.hoeBots = [];
 
       if (characterId === "lumi") {
         advanceLumiMotion(runtime.lumiMotion, {
@@ -3770,6 +3866,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const point = screenPoint(hole); if (point.x < -35 || point.y < -35 || point.x > width + 35 || point.y > height + 35) continue;
         context.save(); context.translate(point.x, point.y); drawClamHole(context, hole); context.restore();
       }
+      for (const unit of runtime.hoeBots) {
+        const point = screenPoint(unit); if (point.x < -40 || point.y < -40 || point.x > width + 40 || point.y > height + 40) continue;
+        drawHoeBot(context, point.x, point.y, unit.phase, unit.digClock, actionTime, unit.facing);
+      }
 
       for (const rock of runtime.rocks) {
         const point = screenPoint(rock); if (point.x < -45 || point.y < -45 || point.x > width + 45 || point.y > height + 45) continue;
@@ -3995,7 +4095,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           context.restore();
         }
       }
-      const diggingHole = runtime.clamHoles.find((hole) => hole.progress > 0);
+      const diggingHole = runtime.clamHoles.find((hole) => hole.progress > 0 && Math.hypot(hole.x - runtime.player.x, hole.y - runtime.player.y) <= 48);
       if (diggingHole) drawClamDigging(context, { x: width / 2, y: height / 2 }, screenPoint(diggingHole), diggingHole.progress / (diggingHole.kind === "gaebul" ? GAEBUL_DIG_SECONDS : CLAM_DIG_SECONDS));
       for (const label of runtime.floatTexts) {
         const point = screenPoint(label); context.save(); context.globalAlpha = Math.min(1, label.life * 2.5);
@@ -4669,7 +4769,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const fixedNormalSkills = GENERAL_SKILL_ORDER.map((id) => MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === id)).filter((skill): skill is (typeof MUDFLAT_GENERAL_UPGRADES)[number] => Boolean(skill && MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id)));
   const normalSkills = GENERAL_SKILL_ORDER.map((id) => MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === id)).filter((skill): skill is (typeof MUDFLAT_GENERAL_UPGRADES)[number] => Boolean(skill && !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id) && (hud.levels[skill.id] ?? 0) > 0)).slice(0, 6);
   const selectedSkill = selectedSkillId ? MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === selectedSkillId && (hud.levels[skill.id] ?? 0) > 0) : undefined;
-  const selectedSkillDetail = selectedSkill ? mudflatSkillDetail(selectedSkill, hud.levels[selectedSkill.id] ?? 1) : null;
+  const selectedSkillDetail = selectedSkill ? mudflatSkillDetail(selectedSkill, hud.levels[selectedSkill.id] ?? 1, hud.levels.digging ?? 1) : null;
   const rerollCost = Math.ceil(hud.maxHp * .2);
   const canReroll = hud.hp > rerollCost;
   const activeStageProfile = mudflatStageProfile(hud.stage) as StageProfile;

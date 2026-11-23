@@ -125,6 +125,28 @@ test("live save carries the gem count and guard basket state, and backfills olde
   assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
 });
 
+test("live save carries hoe bots and the dig count, backfills older saves, and rejects broken bots", () => {
+  const { campaign, runtime } = fixture("normal");
+  runtime.digsCompleted = 12;
+  runtime.hoeBots.push({ id: 21, x: -150, y: 700, targetHoleId: 14, digClock: .8, phase: "dig", facing: -1 });
+  runtime.hoeBots.push({ id: 22, x: -200, y: 740, targetHoleId: 0, digClock: 0, phase: "follow", facing: 1 });
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  assert.deepEqual(restored.runtime.hoeBots, runtime.hoeBots);
+  assert.equal(restored.runtime.digsCompleted, 12);
+  assert.equal(restored.campaign.digsCompleted, 12);
+  assert.ok(restored.nextSequence > 22); // 로봇 ID도 충돌 방지 범위에 든다.
+  const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
+  delete legacy.runtime.hoeBots; delete legacy.runtime.digsCompleted; delete legacy.campaign.digsCompleted;
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.deepEqual(legacyRestored.runtime.hoeBots, []);
+  assert.equal(legacyRestored.runtime.digsCompleted, 0);
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.runtime.hoeBots[0].phase = "fly";
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
+});
+
 test("live save keeps a detached stage-entry checkpoint for rescue retries", () => {
   const { campaign, runtime } = fixture();
   const stageEntryCampaign = {

@@ -4,6 +4,7 @@ import {
   MUDFLAT_FIXED_GENERAL_SKILL_IDS,
   MUDFLAT_GENERAL_UPGRADES,
   MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
+  MUDFLAT_HOE_BOT_UNLOCK_DIGS,
   MUDFLAT_SELECTABLE_SKILL_LIMIT,
   MUDFLAT_SHOP_EQUIPMENT,
   MUDFLAT_UPGRADES,
@@ -25,7 +26,7 @@ const KIDS_BASE_SKILL_ID = "hoe";
  *   version: 1, mode: "normal" | "kids", stage: number, tutorial: boolean, supervisor: boolean,
  *   characterId: string, level: number, xp: number, nextXp: number, coins: number, hpPercent: number,
  *   levels: Record<string, number>, activeSkills: string[], equipment: Record<string, number>,
- *   mosquitoRepellent: boolean, gemsCollected: number, autoUnlock: boolean,
+ *   mosquitoRepellent: boolean, gemsCollected: number, digsCompleted: number, autoUnlock: boolean,
  *   seedMode: "fixed" | "random" | "custom", seed: number,
  * }} MudflatDevBuild
  */
@@ -56,7 +57,7 @@ export function createMudflatDevBuild(mode = "normal") {
     version: 1, mode: safeMode, stage: 1, tutorial: false, supervisor: false,
     characterId: safeMode === "normal" ? "beginner" : "digger",
     level: 1, xp: 0, nextXp: safeMode === "normal" ? 10 : 8, coins: 1000, hpPercent: 100,
-    levels, activeSkills: [], equipment, mosquitoRepellent: false, gemsCollected: 0, autoUnlock: true,
+    levels, activeSkills: [], equipment, mosquitoRepellent: false, gemsCollected: 0, digsCompleted: 0, autoUnlock: true,
     seedMode: "fixed", seed: mudflatDevFixedSeed(1),
   };
 }
@@ -101,6 +102,7 @@ export function validateMudflatDevBuild(build) {
     if (!isInt(level) || level < 0 || level > item.max) errors.push(`${item.name} 레벨은 0부터 ${item.max}까지입니다.`);
   }
   if (!isInt(build.gemsCollected) || build.gemsCollected < 0) errors.push("경험치 보석 수는 0 이상의 정수여야 합니다.");
+  if (!isInt(build.digsCompleted) || build.digsCompleted < 0) errors.push("호미질 수는 0 이상의 정수여야 합니다.");
   if (!MUDFLAT_DEV_BUILD_SEED_MODES.includes(build.seedMode ?? "")) errors.push("시드 방식이 올바르지 않습니다.");
   else if (build.seedMode === "custom" && (!isInt(build.seed) || build.seed < 1 || build.seed > 0xffffffff)) errors.push("직접 입력 시드는 1부터 4294967295 사이의 정수여야 합니다.");
   if (build.supervisor && mode !== "normal") errors.push("AI 감독모드는 일반 모드에서만 관전할 수 있습니다.");
@@ -129,9 +131,10 @@ export function mudflatDevBuildCampaign(build, baseCampaign) {
     ? mudflatEquipmentStats(equipment, baseMaxHp, activeLevels.snack ?? 0).maxHp
     : Math.max(1, baseMaxHp + Math.max(0, levels.stamina ?? 0) * 18);
   const hpPercent = Math.max(1, Math.min(100, Math.floor(Number(build.hpPercent) || 100)));
-  // 해금 조건 자동 충족: 소쿠리의 달인 레벨이 있으면 보석 100개를 채운다.
-  const guardNeedsUnlock = mode === "normal" && build.autoUnlock !== false && (levels["guard-basket"] ?? 0) > 0;
-  const gemsCollected = Math.max(Math.max(0, Math.floor(Number(build.gemsCollected) || 0)), guardNeedsUnlock ? MUDFLAT_GUARD_BASKET_UNLOCK_GEMS : 0);
+  // 해금 조건 자동 충족: 소쿠리의 달인 레벨이 있으면 보석 100개, 호미봇 레벨이 있으면 호미질 20회를 채운다.
+  const autoUnlock = mode === "normal" && build.autoUnlock !== false;
+  const gemsCollected = Math.max(Math.max(0, Math.floor(Number(build.gemsCollected) || 0)), autoUnlock && (levels["guard-basket"] ?? 0) > 0 ? MUDFLAT_GUARD_BASKET_UNLOCK_GEMS : 0);
+  const digsCompleted = Math.max(Math.max(0, Math.floor(Number(build.digsCompleted) || 0)), autoUnlock && (levels["hoe-bot"] ?? 0) > 0 ? MUDFLAT_HOE_BOT_UNLOCK_DIGS : 0);
   return {
     ...baseCampaign,
     mode,
@@ -142,7 +145,7 @@ export function mudflatDevBuildCampaign(build, baseCampaign) {
     nextXp: Math.max(1, Math.floor(Number(build.nextXp) || 1)),
     levels, activeSkills, equipment, maxHp,
     hp: Math.max(1, Math.round(maxHp * hpPercent / 100)),
-    gemsCollected,
+    gemsCollected, digsCompleted,
     pendingSkillDiscovery: false,
   };
 }
