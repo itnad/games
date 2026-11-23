@@ -1,10 +1,16 @@
-// 스타드래프트 "오늘의 대전": 한국 시각 날짜마다 조건(종족 대결·맵·상대 전략·시드)이 하나로 정해지고, 누가 가장 빨리 이기는지 겨룬다.
+// 스타드래프트 "오늘의 대전": 한국 시각 날짜마다 내 종족별로 하나씩, 세 가지 조건(상대 종족·맵·상대 전략·시드)이 정해지고, 누가 가장 빨리 이기는지 겨룬다.
+// 상대 종족과 전략은 화면에 알리지 않는다(경기에서 정찰로 알아낸다).
 // 조건을 정하는 규칙, 기록 비교, 서버가 받은 기록을 살피는 검사를 모은 순수 함수들이다(화면과 서버가 같은 함수를 쓴다).
 import { STW_AI_PERSONAS, STW_MAP_IDS, STW_RACES } from "./stardraft-data.js";
 import { STW_REPLAY_VERSION } from "./stardraft-replay.js";
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const RACE_IDS = Object.keys(STW_RACES);
+/** 오늘의 대전이 열리는 내 종족들(날마다 종족별로 하나씩). */
+export const STW_DAILY_RACES = Object.keys(STW_RACES);
+const RACE_IDS = STW_DAILY_RACES;
+
+/** 내 종족 순서(프로토스·테란·저그)에 맞춘 상대 종족의 순서 여섯 가지. 하루의 세 대전은 서로 다른 종족을 상대한다. */
+const ENEMY_ORDERS = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
 
 /** 오늘의 대전 난이도: 누구나 끝까지 갈 수 있게 보통으로 고정한다(겨루는 것은 승리 시간). */
 export const STW_DAILY_DIFFICULTY = "normal";
@@ -29,22 +35,32 @@ export function stwKstDate(now = Date.now()) {
   return new Date(Number(now) + KST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-/** 그 날짜의 조건. 날짜만으로 정해지므로 화면과 서버가 같은 값을 얻는다. */
-export function stwDailyChallengeForDate(date = stwKstDate()) {
+/**
+ * 그 날짜에 그 종족으로 하는 대전의 조건. 날짜와 내 종족만으로 정해지므로 화면과 서버가 같은 값을 얻는다.
+ * 상대 종족·전략·맵·시드는 종족마다 따로 정해진다. 상대 종족은 경기에서 가려 둔다(hidden).
+ */
+export function stwDailyChallengeForDate(date = stwKstDate(), race = RACE_IDS[0]) {
   const day = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : stwKstDate();
-  const player = RACE_IDS[hashText(`stardraft-player:${day}`) % RACE_IDS.length];
-  const enemy = RACE_IDS[hashText(`stardraft-enemy:${day}`) % RACE_IDS.length];
+  const player = RACE_IDS.includes(race) ? race : RACE_IDS[0];
+  // 상대 종족: 그 날의 세 대전이 서로 다른 종족을 만나도록, 날짜로 종족 순서 여섯 가지 가운데 하나를 고른다.
+  const order = ENEMY_ORDERS[hashText(`stardraft-enemies:${day}`) % ENEMY_ORDERS.length];
+  const enemy = RACE_IDS[order[RACE_IDS.indexOf(player)]];
   // 상대 전략: 그 종족의 전략 가운데, 내 종족 상대로 피하는 것(저그 상대 고스트)은 빼고 고른다.
   const personas = Object.values(STW_AI_PERSONAS).filter((persona) => persona.race === enemy && !persona.avoid?.includes(player)).map((persona) => persona.id);
-  const persona = personas[hashText(`stardraft-persona:${day}:${enemy}`) % personas.length];
-  const map = STW_MAP_IDS[hashText(`stardraft-map:${day}`) % STW_MAP_IDS.length];
+  const persona = personas[hashText(`stardraft-persona:${day}:${player}:${enemy}`) % personas.length];
+  const map = STW_MAP_IDS[hashText(`stardraft-map:${day}:${player}`) % STW_MAP_IDS.length];
   const seed = hashText(`stardraft-seed:${day}:${player}:${enemy}:${persona}:${map}`);
   return { date: day, difficulty: STW_DAILY_DIFFICULTY, races: { player, enemy }, persona, map, seed };
 }
 
-/** 오늘의 대전 경기를 만드는 설정(createStardraftGame에 그대로 넘긴다). */
+/** 그 날짜의 대전 세 가지(내 종족별). */
+export function stwDailyChallengesForDate(date = stwKstDate()) {
+  return RACE_IDS.map((race) => stwDailyChallengeForDate(date, race));
+}
+
+/** 오늘의 대전 경기를 만드는 설정(createStardraftGame에 그대로 넘긴다). 상대 종족은 정찰하기 전까지 가려 둔다. */
 export function stwDailySetup(challenge) {
-  return { difficulty: challenge.difficulty, seed: challenge.seed, aiSides: ["enemy"], races: { ...challenge.races }, personas: { enemy: challenge.persona }, map: challenge.map };
+  return { difficulty: challenge.difficulty, seed: challenge.seed, aiSides: ["enemy"], races: { ...challenge.races }, personas: { enemy: challenge.persona }, map: challenge.map, hiddenEnemyRace: true };
 }
 
 /**
@@ -100,7 +116,7 @@ export function stwDailyReplayProblem(code, challenge, elapsedTicks) {
     && setup.races?.player === challenge.races.player && setup.races?.enemy === challenge.races.enemy
     && (setup.map ?? "plain") === challenge.map && personas.enemy === challenge.persona && personas.player === undefined
     && Array.isArray(setup.aiSides) && setup.aiSides.length === 1 && setup.aiSides[0] === "enemy"
-    && !setup.hiddenEnemyRace && setup.learned === undefined && setup.spectate === undefined && setup.scoutReact === undefined;
+    && setup.hiddenEnemyRace === true && setup.learned === undefined && setup.spectate === undefined && setup.scoutReact === undefined;
   if (!sameConditions) return "오늘의 대전 조건과 다른 경기입니다";
   const commands = code.commands;
   if (!Array.isArray(commands) || commands.length > STW_DAILY_REPLAY_MAX_COMMANDS) return "명령 기록이 너무 깁니다";

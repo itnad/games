@@ -55,6 +55,8 @@ export const baksalDailyResults = sqliteTable("baksal_daily_results", {
 export const stardraftDailyResults = sqliteTable("stardraft_daily_results", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   challengeDate: text("challenge_date").notNull(),
+  // 내 종족: 날마다 종족별로 대전이 하나씩 열리고, 순위표도 종족별로 따로다.
+  playerRace: text("player_race").notNull().default(""),
   participantId: text("participant_id").notNull(),
   displayName: text("display_name").notNull(),
   seed: integer("seed").notNull(),
@@ -66,6 +68,6 @@ export const stardraftDailyResults = sqliteTable("stardraft_daily_results", {
   replay: text("replay").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
-  uniqueIndex("stardraft_daily_results_date_participant_unique").on(table.challengeDate, table.participantId),
-  index("stardraft_daily_results_ranking_index").on(table.challengeDate, table.elapsedTicks),
+  uniqueIndex("stardraft_daily_results_date_race_participant_unique").on(table.challengeDate, table.playerRace, table.participantId),
+  index("stardraft_daily_results_race_ranking_index").on(table.challengeDate, table.playerRace, table.elapsedTicks),
 ]);

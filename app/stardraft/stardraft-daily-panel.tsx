@@ -1,14 +1,18 @@
 "use client";
 
-// 스타드래프트 "오늘의 대전" 카드: 오늘의 조건, 도전 버튼, 순위표, 이름 바꾸기. 기록 올리기도 여기서 한다.
+// 스타드래프트 "오늘의 대전" 카드: 내 종족별 대전 세 가지와 도전 버튼, 종족별 순위표, 이름 바꾸기. 기록 올리기도 여기서 한다.
+// 상대 종족과 전략은 보여 주지 않는다(경기에서 정찰로 알아낸다).
 import { useEffect, useState } from "react";
-import { STW_AI_PERSONAS, STW_DIFFICULTIES, STW_MAPS, STW_RACES } from "./stardraft-data.js";
+import { withKoreanDirection } from "../korean-particles.js";
+import { STW_RACES } from "./stardraft-data.js";
 import {
+  STW_DAILY_RACES,
   normalizeStwDailyName,
   stwDailyChallengeForDate,
   stwDailyClock,
   stwDailyDefaultName,
   stwDailyResult,
+  stwKstDate,
 } from "./stardraft-daily.js";
 import { stwReplayCode } from "./stardraft-replay.js";
 import { STW_STORAGE_KEYS } from "./stardraft-storage.js";
@@ -16,7 +20,9 @@ import type { StwDifficulty, StwMapId, StwRaceId, StwState } from "./stardraft-t
 
 export type StwDailyChallenge = { date: string; difficulty: StwDifficulty; races: { player: StwRaceId; enemy: StwRaceId }; persona: string; map: StwMapId; seed: number };
 type DailyRow = { rank: number; displayName: string; elapsedTicks: number; lostValue: number };
-type DailyBoard = { challenge: StwDailyChallenge; leaderboard: DailyRow[]; participant: DailyRow | null; error?: string };
+type RaceBoard = { leaderboard: DailyRow[]; participant: DailyRow | null };
+type DailyBoards = { date: string; boards: Record<string, RaceBoard>; error?: string };
+const DAILY_RACES = STW_DAILY_RACES as StwRaceId[];
 /** 기록을 올린 결과. status: sending(보내는 중) · saved(올라감) · failed(못 올림). */
 export type StwDailySubmission = { status: "sending" | "saved" | "failed"; elapsedTicks: number; rank?: number | null; improved?: boolean; best?: number; message?: string };
 
@@ -55,7 +61,7 @@ export async function submitStwDaily(game: StwState, build: string): Promise<Stw
     const response = await fetch(API, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...identity, date: game.daily.date, ...result, build, replay: stwReplayCode(game, build) }),
+      body: JSON.stringify({ ...identity, date: game.daily.date, race: game.daily.race, ...result, build, replay: stwReplayCode(game, build) }),
     });
     const payload = (await response.json()) as { accepted?: boolean; improved?: boolean; participant?: DailyRow | null; error?: string };
     if (!response.ok || !payload.accepted) return { status: "failed", elapsedTicks: result.elapsedTicks, message: payload.error ?? "기록을 올리지 못했습니다." };
@@ -65,31 +71,26 @@ export async function submitStwDaily(game: StwState, build: string): Promise<Stw
   }
 }
 
-/** 조건 한 줄: "프로토스 vs 저그 · 협곡 · 상대 뮤탈 저글링 · 보통". */
-export function stwDailyConditions(challenge: StwDailyChallenge) {
-  const persona = (STW_AI_PERSONAS as unknown as Record<string, { name: string }>)[challenge.persona]?.name ?? challenge.persona;
-  return `${STW_RACES[challenge.races.player].name} vs ${STW_RACES[challenge.races.enemy].name} · ${STW_MAPS[challenge.map].name} · 상대 ${persona} · ${STW_DIFFICULTIES[challenge.difficulty].name}`;
-}
-
 export function DailyCard({ onStart, refresh }: { onStart: (challenge: StwDailyChallenge) => void; refresh: number }) {
   const [open, setOpen] = useState(false);
-  const [board, setBoard] = useState<DailyBoard | null>(null);
+  const [data, setData] = useState<DailyBoards | null>(null);
   const [failed, setFailed] = useState("");
   const [name, setName] = useState("");
-  // 조건은 날짜로 정해지므로 순위표를 못 불러와도 바로 보여 주고 도전할 수 있다. 불러오면 서버가 준 조건을 쓴다.
-  const [local] = useState(() => stwDailyChallengeForDate() as StwDailyChallenge);
-  const challenge = board?.challenge ?? local;
+  const [tab, setTab] = useState<StwRaceId>(DAILY_RACES[0]);
+  // 날짜는 순위표를 불러오면 서버가 준 것을 쓰고, 못 불러오면 이 기기의 한국 시각으로 정한다(그래도 도전은 된다).
+  const [localDate] = useState(() => stwKstDate() as string);
+  const date = data?.date ?? localDate;
 
   useEffect(() => {
     let cancelled = false;
     const identity = dailyIdentity();
     fetch(`${API}?participantId=${encodeURIComponent(identity.participantId)}`, { cache: "no-store" })
-      .then(async (response) => ({ ok: response.ok, payload: (await response.json()) as DailyBoard }))
+      .then(async (response) => ({ ok: response.ok, payload: (await response.json()) as DailyBoards }))
       .then(({ ok, payload }) => {
         if (cancelled) return;
         setName(identity.displayName);
-        if (ok && Array.isArray(payload.leaderboard)) {
-          setBoard(payload);
+        if (ok && payload.boards) {
+          setData(payload);
           setFailed("");
         } else setFailed(payload.error ?? "순위표를 불러오지 못했습니다.");
       })
@@ -113,28 +114,42 @@ export function DailyCard({ onStart, refresh }: { onStart: (challenge: StwDailyC
       // 이름을 저장하지 못해도 이번 도전은 할 수 있다.
     }
   };
-  const mine = board?.participant ?? null;
+  const board = data?.boards[tab] ?? null;
+  const mineOnTab = board?.participant ?? null;
 
   return (
     <section className="stw-daily" aria-label="오늘의 대전">
-      <div className="stw-daily-head">
-        <div>
-          <small>오늘의 대전 · {challenge.date.slice(5).replace("-", "/")}</small>
-          <b>{stwDailyConditions(challenge)}</b>
-          <span>{mine ? `내 기록 ${stwDailyClock(mine.elapsedTicks)} · ${mine.rank}위` : "가장 빨리 이기면 1위 · 몇 번이든 다시 도전"}</span>
-        </div>
-        <button type="button" className="stw-primary" onClick={() => onStart(challenge)}>도전</button>
+      <div className="stw-daily-title">
+        <small>오늘의 대전 · {date.slice(5).replace("-", "/")}</small>
+        <span>종족을 골라 도전하세요. 상대 종족과 전략은 정찰로 알아내야 합니다.</span>
       </div>
-      <button type="button" className="stw-daily-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>{open ? "순위표 접기" : `순위표 보기${board ? ` (${board.leaderboard.length})` : ""}`}</button>
+      <div className="stw-daily-races">
+        {DAILY_RACES.map((race) => {
+          const mine = data?.boards[race]?.participant ?? null;
+          return (
+            <button key={race} type="button" className={`stw-daily-race ${race}`} onClick={() => onStart(stwDailyChallengeForDate(date, race) as StwDailyChallenge)} aria-label={`${withKoreanDirection(STW_RACES[race].name)} 오늘의 대전 도전`}>
+              <b>{STW_RACES[race].name}</b>
+              <span>{mine ? `${stwDailyClock(mine.elapsedTicks)} · ${mine.rank}위` : "기록 없음"}</span>
+              <em>도전</em>
+            </button>
+          );
+        })}
+      </div>
+      <button type="button" className="stw-daily-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>{open ? "순위표 접기" : "순위표 보기"}</button>
       {open ? (
         <div className="stw-daily-body">
-          <p className="stw-hint">모두 같은 조건(같은 종족·맵·상대 전략·시드)으로 겨룹니다. 이긴 경기만 오르고, 하루에 가장 좋은 기록 하나가 남습니다. 전적과 이어하기에는 들어가지 않습니다.</p>
+          <p className="stw-hint">종족마다 모두 같은 조건(같은 상대·맵·시드, 난이도 보통)으로 겨룹니다. 가장 빨리 이긴 순서이고, 이긴 경기만 오르며, 종족마다 하루에 가장 좋은 기록 하나가 남습니다. 전적과 이어하기에는 들어가지 않습니다.</p>
           {failed ? <p className="stw-daily-note" role="status">{failed}</p> : null}
+          <div className="stw-segment stw-daily-tabs" role="radiogroup" aria-label="순위표 종족">
+            {DAILY_RACES.map((race) => (
+              <button key={race} type="button" role="radio" aria-checked={tab === race} className={tab === race ? "active" : ""} onClick={() => setTab(race)}>{STW_RACES[race].name}</button>
+            ))}
+          </div>
           {board ? (
             board.leaderboard.length ? (
               <ol className="stw-daily-board">
                 {board.leaderboard.map((row) => (
-                  <li key={row.rank} className={mine && mine.rank === row.rank ? "mine" : undefined}>
+                  <li key={row.rank} className={mineOnTab && mineOnTab.rank === row.rank ? "mine" : undefined}>
                     <i>{row.rank}</i>
                     <b>{row.displayName}</b>
                     <span>{stwDailyClock(row.elapsedTicks)}</span>
@@ -142,7 +157,7 @@ export function DailyCard({ onStart, refresh }: { onStart: (challenge: StwDailyC
                   </li>
                 ))}
               </ol>
-            ) : <p className="stw-daily-note">아직 기록이 없습니다. 첫 기록을 남겨 보세요.</p>
+            ) : <p className="stw-daily-note">아직 {STW_RACES[tab].name} 기록이 없습니다. 첫 기록을 남겨 보세요.</p>
           ) : failed ? null : <p className="stw-daily-note" role="status">순위표를 불러오는 중입니다.</p>}
           <label className="stw-daily-name">
             <span>순위표 이름</span>

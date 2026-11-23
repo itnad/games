@@ -56,7 +56,7 @@ import { LAB_PRESETS, LabScreen, normalizeLab, type LabConfig } from "./stardraf
 import { STW_STORAGE_KEYS } from "./stardraft-storage.js";
 import { stwHistoryAdd, stwHistoryEntry, stwHistoryNormalize, stwHistorySummary } from "./stardraft-history.js";
 import { stwReplayMatches, stwReplayPlayer } from "./stardraft-replay.js";
-import { stwDailyClock, stwDailySetup } from "./stardraft-daily.js";
+import { stwDailyChallengeForDate, stwDailyClock, stwDailySetup } from "./stardraft-daily.js";
 import { DailyCard, submitStwDaily, type StwDailyChallenge, type StwDailySubmission } from "./stardraft-daily-panel";
 import { DEFAULT_WATCH, WatchScreen, type WatchConfig } from "./stardraft-watch";
 import { THEMES, ThemeFonts, themeProps, type ThemeId } from "./stardraft-theme";
@@ -590,10 +590,11 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
     const next = createStardraftGame({ difficulty: "hard", seed: Math.floor(Math.random() * 2 ** 31), aiSides: ["player", "enemy"], races: { player: player.race, enemy: enemy.race }, personas, map, spectate: true, scoutReact: config.mode === "react" }) as unknown as StwState;
     enterBattle(next);
   };
-  // 오늘의 대전: 날짜로 정해진 조건(종족 대결·맵·상대 전략·시드·난이도)으로 경기를 연다. 하던 일반 경기의 저장은 건드리지 않는다.
+  // 오늘의 대전: 날짜와 내 종족으로 정해진 조건(상대 종족·맵·상대 전략·시드·난이도)으로 경기를 연다. 상대 종족은 정찰하기 전까지 가려 둔다.
+  // 하던 일반 경기의 저장은 건드리지 않는다.
   const startDaily = (challenge: StwDailyChallenge) => {
     const next = createStardraftGame(stwDailySetup(challenge) as never) as unknown as StwState;
-    next.daily = { date: challenge.date };
+    next.daily = { date: challenge.date, race: challenge.races.player };
     enterBattle(next);
   };
   /** 오늘의 대전 기록 올리기(이긴 경기만). 실패하면 결과 화면에서 다시 보낼 수 있다. */
@@ -1374,7 +1375,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
           </section>
         </div>
       ) : null}
-      {finished ? <ResultOverlay game={game} record={record} onMenu={game.lab ? () => setScreen("lab") : game.replayView ? leaveReplay : game.spectate ? leaveWatch : goMenu} onExit={onExit} replayMatched={replayRef.current ? Boolean(stwReplayMatches(replayRef.current.code, game)) : null} daily={game.daily ? { submission: dailySubmission, onRetry: () => startDaily(stwDailyChallengeForGame(game)), onResend: () => sendDaily(game) } : null} /> : null}
+      {finished ? <ResultOverlay game={game} record={record} onMenu={game.lab ? () => setScreen("lab") : game.replayView ? leaveReplay : game.spectate ? leaveWatch : goMenu} onExit={onExit} replayMatched={replayRef.current ? Boolean(stwReplayMatches(replayRef.current.code, game)) : null} daily={game.daily ? { submission: dailySubmission, onRetry: () => startDaily(stwDailyChallengeForDate(game.daily?.date, game.daily?.race) as StwDailyChallenge), onResend: () => sendDaily(game) } : null} /> : null}
     </main>
   );
 }
@@ -1971,12 +1972,6 @@ function DailyResult({ game, daily }: { game: StwState; daily: DailyResultProps 
       기록 {stwDailyClock(submission.elapsedTicks)} · {submission.improved ? `오늘 ${submission.rank}위에 올랐습니다` : `오늘의 내 최고 기록은 ${stwDailyClock(best)} (${submission.rank}위)`}
     </p>
   );
-}
-
-/** 끝난 오늘의 대전 경기의 조건(같은 조건으로 다시 도전할 때 쓴다). */
-function stwDailyChallengeForGame(game: StwState): StwDailyChallenge {
-  const setup = ((game.replay as { setup?: unknown } | undefined)?.setup ?? {}) as { seed?: number; personas?: { enemy?: string } };
-  return { date: game.daily?.date ?? "", difficulty: game.difficulty, races: { player: game.sides.player.race, enemy: game.sides.enemy.race }, persona: setup.personas?.enemy ?? game.sides.enemy.persona ?? "", map: (game.map ?? "plain") as StwMapId, seed: setup.seed ?? 0 };
 }
 
 type DailyResultProps = { submission: StwDailySubmission | null; onRetry: () => void; onResend: () => void };

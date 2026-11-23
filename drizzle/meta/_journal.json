@@ -29,6 +29,13 @@
       "when": 1795391559229,
       "tag": "0003_stardraft_daily_results",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1795392730742,
+      "tag": "0004_stardraft_daily_by_race",
+      "breakpoints": true
     }
   ]
 }
