@@ -2103,7 +2103,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /damageCreature\(creature, creature\.knockbackRockBonus \?\? 0, \.18\);/);
   assert.match(source, /const chainDamage = \(creature\.knockbackDamage \?\? 0\) \* MUDFLAT_SMASH_CHAIN_RATIO;/);
   assert.match(source, /if \(creature\.knockbackChain && creature\.knockbackLife > 0\) \{/);
-  assert.match(source, /runtime\.smashEffect = \.55; runtime\.smashAngle = angle; runtime\.smashClock = smash\.cooldown;/);
+  assert.match(source, /runtime\.smashEffect = SMASH_EFFECT_SECONDS; runtime\.smashAngle = angle; runtime\.smashClock = smash\.cooldown;/);
+  assert.match(source, /const SMASH_PREP_END = \.08;\s*const SMASH_STRIKE_END = \.2;\s*const SMASH_IMPACT_END = \.4;/);
+  assert.match(source, /function smashPhases\(/);
   assert.match(source, /appendSupervisorEvent\("smash", `뻘권 Lv\.\$\{smashLevel\} · \$\{hits\}마리`, runtime\)/);
   assert.match(source, /function drawSmashCast\(/);
   assert.match(source, /function smashBodyOffset\(/);
