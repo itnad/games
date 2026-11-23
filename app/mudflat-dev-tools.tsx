@@ -41,6 +41,9 @@ type DevPreset = {
   hitByShrimp?: boolean;
   hitByRock?: boolean;
   hitByTide?: boolean;
+  hitByMosquito?: boolean;
+  hitByPufferfish?: boolean;
+  bossEarly?: boolean;
 };
 
 type LocalSnapshot = {
@@ -205,6 +208,33 @@ const DEV_PRESETS: DevPreset[] = [
     hitByTide: true,
   },
   {
+    id: "lightning",
+    title: "2단계 차오르는 물골 · 번개 체인 Lv.6 · 낙뢰 Lv.6",
+    stage: 2,
+    description: "2.5초마다 가까운 게에서 최대 8마리로 번개가 번지고, 5초마다 체력이 가장 높은 게 발밑에 예고가 뜬 뒤 번개가 0.1초 간격으로 세 번 떨어지는지, 맞은 게가 0.2초 감전되는지 확인합니다.",
+    coins: 3000,
+    level: 12,
+    xp: 0,
+    nextXp: 90,
+    levels: { tongs: 3, digging: 2, harpoon: 3, "chain-lightning": 6, thunderbolt: 6 },
+    equipment: { cooler: 1 },
+    hitByMosquito: true,
+    hitByPufferfish: true,
+  },
+  {
+    id: "boss-skills",
+    title: "8단계 마지막 물때 · 대왕 박하지 8초 등장 · 점프·파이어볼·집게발·복어 소환",
+    stage: 8,
+    description: "대왕 박하지가 8초 뒤 나타나 4초마다 점프 공격(보라 고리 예고 뒤 착지 반경 80px), Lv.5 파이어볼 5발, 집게발 왕복 투척, 돌진 복어 4마리 소환을 번갈아 쓰는지, 체력이 16배(약 31,000)인지 확인합니다.",
+    coins: 3000,
+    level: 14,
+    xp: 0,
+    nextXp: 90,
+    levels: { tongs: 4, digging: 2, harpoon: 4, electric: 3, "guard-basket": 3 },
+    equipment: { cooler: 1, vest: 2 },
+    bossEarly: true,
+  },
+  {
     id: "final-boss",
     title: "8단계 마지막 물때",
     stage: 8,
@@ -270,6 +300,8 @@ function makePresetCampaign(preset: DevPreset) {
     hitByShrimp: preset.hitByShrimp === true,
     hitByRock: preset.hitByRock === true,
     hitByTide: preset.hitByTide === true,
+    hitByMosquito: preset.hitByMosquito === true,
+    hitByPufferfish: preset.hitByPufferfish === true,
     equipment,
     pendingSkillDiscovery: false,
   };
@@ -390,6 +422,7 @@ export function MudflatDevTools() {
         run: true,
         tutorial: build.stage === 1 && build.tutorial,
         supervisor: build.supervisor,
+        bossEarly: build.bossEarly,
       }));
       window.location.assign("/haeru");
     } catch {
@@ -441,6 +474,7 @@ export function MudflatDevTools() {
         run: true,
         tutorial: Boolean(preset.tutorial),
         supervisor: Boolean(preset.supervisor),
+        bossEarly: Boolean(preset.bossEarly),
       }));
       window.location.assign("/haeru");
     } catch {
@@ -620,6 +654,7 @@ export function MudflatDevTools() {
             </div>
             <label className="field"><span>단계 직접 입력 (9 이상은 끝없는 물때)</span><input type="number" min={1} max={MUDFLAT_DEV_BUILD_MAX_STAGE} value={build.stage} onChange={(event) => updateBuild({ stage: numberField(event.target.value, 1) })} /></label>
             {build.stage === 1 && <label className="check"><input type="checkbox" checked={build.tutorial} onChange={(event) => updateBuild({ tutorial: event.target.checked })} /><span>튜토리얼 포함</span></label>}
+            <label className="check"><input type="checkbox" checked={build.bossEarly} onChange={(event) => updateBuild({ bossEarly: event.target.checked })} /><span>대왕 박하지 8초 뒤 등장 (기본 200초)</span></label>
             <label className="check"><input type="checkbox" checked={build.supervisor} disabled={build.mode !== "normal"} onChange={(event) => updateBuild({ supervisor: event.target.checked })} /><span>AI 감독모드로 관전 (일반 저장을 건드리지 않음)</span></label>
             <fieldset className="mudflat-dev-seed">
               <legend>시드</legend>
@@ -646,7 +681,7 @@ export function MudflatDevTools() {
                 {build.mode === "normal" && !basic ? <label className="check"><input type="checkbox" checked={isActive} disabled={!isActive && (level <= 0 || build.activeSkills.length >= MUDFLAT_SELECTABLE_SKILL_LIMIT)} onChange={() => toggleBuildActive(skill.id)} /><span>활성</span></label> : <span className="mudflat-dev-always">{build.mode === "normal" ? "항상 작동" : ""}</span>}
               </div>;
             })}
-            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤. 건곤대나이는 선택 기술 5종, 뻘권은 Lv.3 이상 기술 4개, 파이어볼은 선택 기술 6개 + 게 피격, 화염 방사는 Lv.2 선택 기술 5개 + 새우 피격, 서리 발자국은 선택 기술 5개 + 바위 피격, 빙결 파동은 Lv.3 선택 기술 4개 + 돌발 물살 피격이 필요하며 레벨이 있으면 피격 경험을 채움)</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤. 건곤대나이는 선택 기술 5종, 뻘권은 Lv.3 이상 기술 4개, 파이어볼은 선택 기술 6개 + 게 피격, 화염 방사는 Lv.2 선택 기술 5개 + 새우 피격, 서리 발자국은 선택 기술 5개 + 바위 피격, 빙결 파동은 Lv.3 선택 기술 4개 + 돌발 물살 피격, 번개 체인은 선택 기술 5개 + 모기떼 피격, 낙뢰는 Lv.2 선택 기술 4개 + 복어 피격이 필요하며 레벨이 있으면 피격 경험을 채움)</span></label>}
           </fieldset>
           <fieldset>
             <legend>캐릭터</legend>
@@ -660,6 +695,8 @@ export function MudflatDevTools() {
             {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByShrimp} onChange={(event) => updateBuild({ hitByShrimp: event.target.checked })} /><span>새우에게 피해를 받은 경험</span></label>}
             {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByRock} onChange={(event) => updateBuild({ hitByRock: event.target.checked })} /><span>바위에 피해를 받은 경험</span></label>}
             {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByTide} onChange={(event) => updateBuild({ hitByTide: event.target.checked })} /><span>돌발 물살에 피해를 받은 경험</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByMosquito} onChange={(event) => updateBuild({ hitByMosquito: event.target.checked })} /><span>모기떼에게 피해를 받은 경험</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByPufferfish} onChange={(event) => updateBuild({ hitByPufferfish: event.target.checked })} /><span>복어에게 피해를 받은 경험</span></label>}
             {build.mode === "normal" && <label className="field"><span>누적 호미질 수</span><input type="number" min={0} value={build.digsCompleted} onChange={(event) => updateBuild({ digsCompleted: numberField(event.target.value, 0) })} /></label>}
           </fieldset>
           <fieldset>
