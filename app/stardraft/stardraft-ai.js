@@ -322,6 +322,9 @@ const CARRIER_BOMB = {
   tankdrop: { base: "mech", carrier: "dropship", tech: ["starport"], min: 3, from: 420, target: "main", riders: ["tank", "goliath", "vulture"], need: { tank: 6 }, limit: { tank: 4 } },
   vulturedrop: { base: "vulture", carrier: "dropship", tech: ["starport"], min: 3, from: 420, target: "main", riders: ["vulture"] },
 };
+// 다크 아콘 합체: 한 경기에 합치는 횟수와, 합친 뒤에도 남겨 두는 다크템플러 수.
+const DARK_MERGE_LIMIT = 2;
+const DARK_MERGE_KEEP = 4;
 const DEFAULT_PERSONA = { protoss: "dragoon", terran: "bio", zerg: "hydra" };
 /**
  * 경계 중에도 짓는 1단계 유닛 해금 건물: 질럿 러시에 드라군·파이어뱃·히드라로 맞서야 한다.
@@ -814,8 +817,12 @@ export function stwAiThink(state, side) {
   const templarsNow = units.filter((unit) => unit.type === "templar");
   const spentTemplars = templarsNow.filter((unit) => unit.energy < 40).length;
   if (race.id === "protoss" && templarsNow.length >= 4 && (!stwResearchDone(state, side, "storm") || spentTemplars >= 2)) stwCommand(state, side, { type: "merge" });
-  // 다크템플러 기습: 마엘스트롬 연구 뒤 다크템플러가 넷 이상이면 둘을 다크 아콘으로(다크 아콘은 둘까지).
-  if (persona === "dark" && stwResearchDone(state, side, "maelstrom") && units.filter((unit) => unit.type === "dark").length >= 4 && units.filter((unit) => unit.type === "darkArchon").length < 2) stwCommand(state, side, { type: "darkMerge" });
+  // 다크템플러 기습: 마엘스트롬 연구 뒤 다크템플러가 여섯 이상이면 둘을 다크 아콘으로. 한 경기에 두 번까지만 합친다.
+  // 예전에는 넷 이상이면 합치고 다크 아콘이 죽을 때마다 다시 합쳐, 한 경기에 다크템플러 30기 중 17기를 다크 아콘 8기로 썼다.
+  // 그 다크 아콘들이 묶어 잡은 적은 값 700이고, 다크템플러는 한 기가 평균 값 442를 잡고 있었다(마엘스트롬은 기계인 드라군에 안 통한다).
+  if (persona === "dark" && stwResearchDone(state, side, "maelstrom") && (memory.darkMerges ?? 0) < DARK_MERGE_LIMIT && units.filter((unit) => unit.type === "dark").length >= DARK_MERGE_KEEP + 2 && units.filter((unit) => unit.type === "darkArchon").length < 2) {
+    if (stwCommand(state, side, { type: "darkMerge" }).ok) memory.darkMerges = (memory.darkMerges ?? 0) + 1;
+  }
 
   // 3-3-9. 테란이 공중에 밀리면 아머리를 먼저 세운다(골리앗·발키리 해금). 모자라면 그 비용을 아껴 둔다.
   // 예전에는 팩토리 라인을 정할 때 돈이 있으면 짓는 정도라, 캐리어가 나온 뒤에도 아머리 없이 벌처·탱크만 뽑다 졌다.
@@ -1728,6 +1735,14 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 총공격: 광물이 바닥나 더 모을 수 없거나 인구가 거의 찼으면 기다릴 이유가 없다.
   const supply = stwSupply(state, side);
   const allIn = (stwIncome(state, side).minerals < 60 && record.minerals < 100) || supply.used >= 92;
+  // 은폐 근접 유닛(다크템플러)은 적 탐지 건물을 알고 있는 동안 출격에서 빼고 집결지에 남긴다. 탐지 구역으로 들어가면 드러나 체력 낮은
+  // 근접 유닛일 뿐인데(리포트 경기: 죽은 11기가 모두 적 기지에서, 그중 7기가 드러난 채), 집결지에서는 보이지 않는 채로 들어오는 적을 받아낸다
+  // (그 경기에서 잡은 92기 중 76기가 우리 쪽 절반). 기억한 탐지 건물이 모두 사라지면(본대가 깼으면) 다시 함께 나가고, 총공격에는 모두 나간다.
+  const cloakedHold = allIn || !Object.values(record.seen ?? {}).some((item) => STW_BUILDINGS[item.type]?.detector && STW_BUILDINGS[item.type]?.defense)
+    ? []
+    : [...new Set(army.fighters.filter((unit) => STW_UNITS[unit.type].cloaked && !STW_UNITS[unit.type].flying).map((unit) => unit.type))];
+  // 남길 유닛은 출격 규모와 전투력 계산에서도 뺀다(나가지 않을 병력을 세면 모자란 병력으로 나간다).
+  if (cloakedHold.length) army.fighters = army.fighters.filter((unit) => !cloakedHold.includes(unit.type));
 
   // 셔틀·드랍십 폭탄 드랍(CARRIER_BOMB): 쉬는 수송선이 세 기 이상이고 태울 유닛(riders)이 셋째 셔틀까지 타는 양이면 그 유닛만 태워 적 본진에 내리고,
   // 나머지(드라군 등)는 같은 순간 정면으로 보낸다. 셔틀 수에는 상한을 두지 않는다(있는 셔틀은 탈 병력이 있는 한 모두 쓴다).
@@ -1875,7 +1890,7 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
     memory.waveLings = total ? army.fighters.reduce((sum, unit) => sum + (unit.type === "zergling" ? value(unit.type) : 0), 0) / total : 0;
     // 폭탄 드랍 성향은 쉬는 수송선이 둘 이상이면 출격과 동시에 폭탄 드랍(남은 병력은 정면으로).
     if (dropPlan?.mission === "bomb" && stwDropCheck(state, side, "bomb").ok) stwCommand(state, side, { type: "drop", ...dropPlan });
-    else stwCommand(state, side, { type: "attack" });
+    else stwCommand(state, side, cloakedHold.length ? { type: "attack", hold: cloakedHold } : { type: "attack" });
     keepHomeGuard(state, side, record);
     memory.attacking = true;
     memory.waveStart = stwArmy(state, side).attackers.length;

@@ -1485,7 +1485,9 @@ function runCommand(state, side, command) {
       if (!army.fighters.length) return fail("출격할 전투 병력이 없습니다");
       // 수송선은 출격하지 않는다(본진 침투로만 움직인다).
       // 출격 버튼은 따로 둔 부대까지 모두 합쳐 내보낸다. 자동 출격(keepSquads)은 본대만 내보낸다.
-      const going = army.rally.filter((unit) => (unit.type !== "overlord" || (record.escort && unit.escort && !unit.standby)) && !STW_UNITS[unit.type].transport && !stwIsGuard(unit.squad) && (!command.keepSquads || unit.squad === undefined));
+      // hold: 이번 출격에서 빼고 집결지에 남길 유닛 종류(AI가 탐지 건물이 있는 기지로 다크템플러를 보내지 않을 때 쓴다).
+      const held = Array.isArray(command.hold) ? command.hold : [];
+      const going = army.rally.filter((unit) => !held.includes(unit.type) && (unit.type !== "overlord" || (record.escort && unit.escort && !unit.standby)) && !STW_UNITS[unit.type].transport && !stwIsGuard(unit.squad) && (!command.keepSquads || unit.squad === undefined));
       if (!going.length) return fail("출격할 대기 병력이 없습니다");
       if (!command.keepSquads) {
         // 따로 둔 부대는 합쳐 내보내되, 경비는 제자리를 지킨다.
@@ -2451,6 +2453,12 @@ function applyHits(state) {
     // 누구에게 맞았는지 기억해 둔다(교전 우선이면 건물을 치던 유닛이 반격한다. 건물도 적어 둬, 숨은 적이 건물을 칠 때 탐지 유닛이 찾아간다).
     hit.target.hitBy = hit.attacker.id;
     hit.target.hitAt = state.time;
+    // 우리를 쏜 적 방어 건물은 보지 못했어도 기억한다(seen). 방어 건물은 기지 구역 전체를 쏴서 시야 밖에서 맞는 일이 잦은데,
+    // 본 것만 기억하니 AI가 캐논 넷에 맞으면서도 하나로 알고 다시 들어갔다(리포트 경기: 다크템플러 4기를 캐논에 잃는 동안 기억한 캐논 0~1개).
+    if (hit.attacker.kind === "building" && hit.attacker.side !== hit.target.side) {
+      const tower = hit.attacker;
+      state.sides[hit.target.side].seen[tower.id] = { id: tower.id, type: tower.type, x: tower.x, y: tower.y, base: tower.base, radius: tower.radius, at: state.time };
+    }
     // 공중 유닛에게 맞았으면 기억해 둔다(AI가 대공을 갖추고, 플레이어에게 알린다).
     if (hit.attacker.kind === "unit" && isFlying(hit.attacker)) {
       state.sides[hit.target.side].sawAirAt = state.time;
