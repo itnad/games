@@ -1343,7 +1343,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(mudflatSeafoodSwarmInterval(6, 0, .5) < mudflatSeafoodSwarmInterval(6, 0, .9));
   assert.ok(mudflatSeafoodSwarmInterval(6, 0, 0, true) >= 9);
   assert.equal(mudflatUpgradeChoices(2, {}).length, 3);
-  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["쓸어담기", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척", "소쿠리의 달인", "호미봇", "건곤대나이", "뻘권", "화염구 난사", "화염 방사"]);
+  assert.deepEqual(MUDFLAT_GENERAL_UPGRADES.map((upgrade) => upgrade.name), ["쓸어담기", "집게 숙련도", "작살던지기", "갯벌 장화", "든든한 간식", "돌뒤집개", "뜰채", "호미질", "전기 스파크", "그물 투척", "소쿠리의 달인", "호미봇", "건곤대나이", "뻘권", "파이어볼", "화염 방사"]);
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "basket").description, "경험치와 보상을 끌어당기는 범위가 넓어집니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "rocker").description, "돌 밑에 숨어있는 해산물을 더 빨리 더 잘 찾아낼 수 있습니다.");
   assert.equal(MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "snack").description, "최대 체력이 기본 대비 20% 상승하며 현재 체력을 전부 회복합니다.");
@@ -1360,10 +1360,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(generalChoices.every((choice) => !["electric", "cast-net"].includes(choice.id)));
   assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5 }), { masteryCount: 1, gemsCollected: 0, digsCompleted: 0, skillCount: 0, level3Count: 1, electric: true, castNet: false, guardBasket: false, hoeBot: false, rockLift: false, smash: false, fireball: false, flameBurst: false });
   assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5, digging: 5 }), { masteryCount: 2, gemsCollected: 0, digsCompleted: 0, skillCount: 0, level3Count: 2, electric: true, castNet: true, guardBasket: false, hoeBot: false, rockLift: false, smash: false, fireball: false, flameBurst: false });
-  // 화염 계열: 화염구 난사는 작살 Lv.3, 화염 방사는 화염구 난사 Lv.3으로 열린다. 마스터리 집계 제외.
+  // 화염 계열: 파이어볼는 작살 Lv.3, 화염 방사는 파이어볼 Lv.3으로 열린다. 마스터리 집계 제외.
   const fireball = MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "fireball");
   const flameBurst = MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "flame-burst");
-  assert.equal(fireball.name, "화염구 난사");
+  assert.equal(fireball.name, "파이어볼");
   assert.equal(flameBurst.name, "화염 방사");
   assert.deepEqual(fireball.requiredSkillLevels, { harpoon: 3 });
   assert.deepEqual(flameBurst.requiredSkillLevels, { fireball: 3 });
@@ -1375,13 +1375,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatSkillUnlocked(fireball, mudflatAdvancedSkillUnlocks({ harpoon: 3 })), true);
   assert.equal(mudflatSkillUnlocked(flameBurst, mudflatAdvancedSkillUnlocks({ harpoon: 3 })), false);
   assert.deepEqual(mudflatSkillUnlockProgress(fireball, { harpoon: 1 }, {}), { unlocked: false, current: 1, target: 3, label: "작살던지기 Lv.3 필요 · 현재 Lv.1" });
-  assert.deepEqual(mudflatSkillUnlockProgress(flameBurst, { fireball: 5 }, {}), { unlocked: true, current: 3, target: 3, label: "화염구 난사 Lv.3 필요 · 현재 Lv.3" });
+  assert.deepEqual(mudflatSkillUnlockProgress(flameBurst, { fireball: 5 }, {}), { unlocked: true, current: 3, target: 3, label: "파이어볼 Lv.3 필요 · 현재 Lv.3" });
   assert.equal(mudflatNewUnlocks(mudflatAdvancedSkillUnlocks({ harpoon: 2 }), mudflatAdvancedSkillUnlocks({ harpoon: 3 })), true);
   assert.equal(mudflatNewUnlocks(mudflatAdvancedSkillUnlocks({ harpoon: 3 }), mudflatAdvancedSkillUnlocks({ harpoon: 4 })), false);
   const fireOnlyLeft = { tongs: 6, digging: 6, harpoon: 6, net: 6, rocker: 6, boots: 6, basket: 6, snack: 6, electric: 6, "cast-net": 6, "guard-basket": 6, "hoe-bot": 6, "rock-lift": 6, smash: 6 };
   assert.deepEqual(mudflatUpgradeChoices(4, fireOnlyLeft, "normal", Math.random, { gemsCollected: 100, digsCompleted: 20 }).map((choice) => choice.id), ["fireball"]);
   assert.deepEqual(mudflatUpgradeChoices(4, { ...fireOnlyLeft, fireball: 6 }, "normal", Math.random, { gemsCollected: 100, digsCompleted: 20 }).map((choice) => choice.id), ["flame-burst"]);
-  // 화염구 난사 수치: 1초 주기, 발수 1~6, 간격 0·0.4·0.2·0.1·0.1·0.1초, 피해 10~60, 속도 240·사거리 260·명중 반경 40·흔들림 14px.
+  // 파이어볼 수치: 1초 주기, 발수 1~6, 간격 0·0.4·0.2·0.1·0.1·0.1초, 피해 10~60, 속도 240·사거리 260·명중 반경 40·흔들림 14px.
   assert.deepEqual(mudflatFireballStats(0), { interval: Infinity, shots: 0, spacing: 0, damage: 0, speed: 0, range: 0, splash: 0, wobble: 0, wobblePeriod: 1, sectorHalfAngle: 0 });
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatFireballStats(level).shots), [1, 2, 3, 4, 5, 6]);
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatFireballStats(level).spacing), [0, .4, .2, .1, .1, .1]);
@@ -2164,7 +2164,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /drawRock\(context, rock, effect, rockLiftHeight\(rock\)\)/);
   assert.match(source, /function drawRockLiftCast\(/);
   assert.doesNotMatch(source, /rockLift[\s\S]{0,200}navigator\.vibrate/);
-  // 화염구 난사·화염 방사: 화면 안 생물이 있을 때만 발사, 방향 재추첨, 흔들림 비행, 첫 명중 + 근처 피해, 첫 줄기는 바라보는 방향, 겹치는 줄기도 한 번만.
+  // 파이어볼·화염 방사: 화면 안 생물이 있을 때만 발사, 방향 재추첨, 흔들림 비행, 첫 명중 + 근처 피해, 첫 줄기는 바라보는 방향, 겹치는 줄기도 한 번만.
   assert.match(source, /if \(revealedCreatures\.some\(\(creature\) => creature\.hp > 0 && onScreen\(creature\)\)\) \{/);
   assert.match(source, /if \(!sectorHasTarget\(angle\)\) angle = runtimeRandom\(runtime\) \* Math\.PI \* 2;/);
   assert.match(source, /ball\.x \+= ball\.vx \* dt \+ perpX \* \(wobble - previousWobble\)/);

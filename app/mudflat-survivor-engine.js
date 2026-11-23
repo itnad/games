@@ -199,7 +199,7 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "hoe-bot", icon: "⚙", name: "호미봇", description: "호미 모양 로봇이 따라다니며 가까운 조개 구멍을 찾아 대신 파냅니다. 조개 등급은 호미질 레벨을 따릅니다.", max: 6, advanced: true, requiredDigs: 20 },
   { id: "rock-lift", icon: "⌾", name: "건곤대나이", description: "갯벌을 들썩여 가까운 바위를 띄웠다 떨어뜨립니다. 떨어진 자리의 해산물이 피해를 입고 바위는 사라지며, 바위 밑 발견물은 돌뒤집개 레벨을 따릅니다.", max: 6, advanced: true, requiredSkills: 5 },
   { id: "smash", icon: "✊", name: "뻘권", description: "조작 방향으로 한 걸음 내디디며 주먹을 내질러 앞의 해산물에 피해를 주고 멀리 밀쳐 냅니다. 바위에 부딪히면 추가 피해, Lv.5부터는 날아가다 부딪힌 해산물도 함께 밀립니다.", max: 6, advanced: true, requiredLevel3Skills: 4 },
-  { id: "fireball", icon: "☄", name: "화염구 난사", description: "1초마다 제멋대로 흔들리며 날아가는 불덩이를 쏩니다. 처음 맞은 해산물과 그 근처에 피해를 주고, 레벨이 오르면 한 번에 더 많이 쏩니다.", max: 6, advanced: true, requiredSkillLevels: { harpoon: 3 } },
+  { id: "fireball", icon: "☄", name: "파이어볼", description: "1초마다 제멋대로 흔들리며 날아가는 불덩이를 쏩니다. 처음 맞은 해산물과 그 근처에 피해를 주고, 레벨이 오르면 한 번에 더 많이 쏩니다.", max: 6, advanced: true, requiredSkillLevels: { harpoon: 3 } },
   { id: "flame-burst", icon: "♨", name: "화염 방사", description: "5초마다 바라보는 방향을 시작으로 사방에 불줄기를 뿜어 닿는 모든 해산물에 큰 피해를 줍니다.", max: 6, advanced: true, requiredSkillLevels: { fireball: 3 } },
 ];
 
@@ -424,7 +424,7 @@ export function mudflatSmashStats(level = 0) {
   };
 }
 
-// 화염구 난사 수치. 1초마다 한 묶음(shots발)을 spacing 간격으로 쏜다. 불덩이는 speed로 range까지
+// 파이어볼 수치. 1초마다 한 묶음(shots발)을 spacing 간격으로 쏜다. 불덩이는 speed로 range까지
 // 날아가며 좌우로 wobble px 흔들리고, 처음 맞은 해산물 반경 splash 안에 같은 피해를 준다.
 export function mudflatFireballStats(level = 0) {
   const safeLevel = mudflatSafeLevel(level);

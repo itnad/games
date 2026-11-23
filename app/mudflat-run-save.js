@@ -118,7 +118,7 @@ export function decodeMudflatRun(serialized, makeRuntime) {
       if (!finite(runtime[key])) runtime[key] = 0;
     }
     if (!Number.isInteger(runtime.smashCastId) || runtime.smashCastId < 0) runtime.smashCastId = 0;
-    // 화염구 난사·화염 방사도 뒤에 추가됐다.
+    // 파이어볼·화염 방사도 뒤에 추가됐다.
     if (!Array.isArray(runtime.fireballs)) runtime.fireballs = [];
     if (!Array.isArray(runtime.flameRays)) runtime.flameRays = [];
     for (const key of ["fireballClock", "fireballSpacingClock", "flameBurstClock"]) {

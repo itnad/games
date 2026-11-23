@@ -47,7 +47,7 @@ export const mudflatSystemBackGuardScreen = (screen: Screen) => screen === "runn
 export const GENERAL_CHARACTER = { id: "beginner", name: "기본 스킨", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 };
 export const defaultCharacterId = (mode: GameMode) => mode === "normal" ? "beginner" : "digger";
 export const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "guard-basket", "hoe-bot", "rock-lift", "smash", "fireball", "flame-burst", "boots", "snack", "basket"];
-export const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", "guard-basket": "소쿠리", "hoe-bot": "호미봇", "rock-lift": "건곤", smash: "뻘권", fireball: "화염구", "flame-burst": "화염방사", boots: "장화", snack: "간식", basket: "담기" };
+export const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", "guard-basket": "소쿠리", "hoe-bot": "호미봇", "rock-lift": "건곤", smash: "뻘권", fireball: "파이어볼", "flame-burst": "화염방사", boots: "장화", snack: "간식", basket: "담기" };
 export const DIRECTIONAL_SEAFOOD_TYPES = new Set(["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp", "large-shrimp"]);
 export const CATCH_FULL_MESSAGE = "더 담을 수가 없어. 다음에는 큰 통을 가져와야겠다.";
 

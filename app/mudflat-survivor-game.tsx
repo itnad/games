@@ -177,7 +177,7 @@ type Creature = Point & { id: number; type: string; name: string; family?: strin
 type Pickup = ReturnType<typeof createExperiencePickup>;
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
-// 화염구: 흔들리며 날아가는 불덩이. baseAngle 기준 수직 방향으로 사인 흔들림을 더한다.
+// 파이어볼: 흔들리며 날아가는 불덩이. baseAngle 기준 수직 방향으로 사인 흔들림을 더한다.
 type Fireball = Point & { id: number; vx: number; vy: number; age: number; life: number; damage: number; splash: number; wobblePhase: number; baseAngle: number };
 // 화염 방사 불줄기 연출(피해는 발동 순간에 적용). 0.35초 뻗고 0.5초에 사라진다.
 type FlameRay = Point & { id: number; angle: number; age: number; length: number; width: number };
@@ -1623,7 +1623,7 @@ function drawHoeBot(context: CanvasRenderingContext2D, x: number, y: number, pha
   context.restore();
 }
 
-// 화염구: 주황 불덩이와 노란 심지, 뒤로 흔들리는 꼬리 3개, 옅은 빛무리.
+// 파이어볼: 주황 불덩이와 노란 심지, 뒤로 흔들리는 꼬리 3개, 옅은 빛무리.
 function drawFireball(context: CanvasRenderingContext2D, x: number, y: number, angle: number, age: number, time: number) {
   const flicker = Math.sin(time * 40 + age * 7);
   context.save(); context.translate(x, y); context.rotate(angle);
@@ -3739,7 +3739,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (landed.length > 0) runtime.rocks = runtime.rocks.filter((rock) => !landed.includes(rock));
       }
 
-      // 화염구 비행: 사인 흔들림을 더해 날아가다 처음 닿은 해산물 반경 splash 안에 같은 피해를 주고 터진다.
+      // 파이어볼 비행: 사인 흔들림을 더해 날아가다 처음 닿은 해산물 반경 splash 안에 같은 피해를 주고 터진다.
       if (runtime.fireballs.length > 0) {
         const fire = mudflatFireballStats(Math.max(1, runtime.levels.fireball ?? 0));
         const exploded: Fireball[] = [];
@@ -3897,7 +3897,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
         runtime.netSlams = runtime.netSlams.filter((item) => item.life > 0);
 
-        // 화염구 난사: 화면 안에 해산물이 있을 때만 1초마다 한 묶음을 쏜다. 방향은 저장 난수로 뽑고,
+        // 파이어볼: 화면 안에 해산물이 있을 때만 1초마다 한 묶음을 쏜다. 방향은 저장 난수로 뽑고,
         // 그 방향 ±45°·사거리 안에 해산물이 없으면 한 번 다시 뽑는다.
         const fireballLevel = runtime.levels.fireball ?? 0;
         if (runtime.mode === "normal" && fireballLevel > 0) {
@@ -3921,7 +3921,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           } else if (runtime.fireballClock <= 0) {
             if (revealedCreatures.some((creature) => creature.hp > 0 && onScreen(creature))) {
               shootFireball(); runtime.fireballQueue = fire.shots - 1; runtime.fireballSpacingClock = fire.spacing; runtime.fireballClock = fire.interval;
-              if (supervisorRef.current) appendSupervisorEvent("fireball-volley", `화염구 난사 Lv.${fireballLevel} · ${fire.shots}발`, runtime);
+              if (supervisorRef.current) appendSupervisorEvent("fireball-volley", `파이어볼 Lv.${fireballLevel} · ${fire.shots}발`, runtime);
             } else runtime.fireballClock = .25;
           }
         }
