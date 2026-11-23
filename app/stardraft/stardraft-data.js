@@ -683,7 +683,7 @@ export const STW_NEST = { capacity: 4, naturalWatch: 1 };
  * - gatherTimeout: 폭탄 드랍 수송선이 집결점에 모이기를 기다리는 최대 시간
  * - syncTimeout: "정면 출격과 동시에"일 때 정면이 맞붙기를 기다리는 최대 시간(출발부터)
  * - relaunchDelay: 계속 견제일 때 돌아와서 다시 나가기까지
- * - bailHp: 병력을 태우고 날아가는 오버로드의 체력이 이 비율 아래로 떨어지면 그 자리에 병력을 내리고 돌아간다(격추되면 탄 병력도 함께 잃는다)
+ * - bailHp: 병력을 태우고 날아가는 오버로드·셔틀의 체력(셔틀은 보호막 포함)이 이 비율 아래로 떨어지면 그 자리에 병력을 내리고 돌아간다(격추되면 탄 병력도 함께 잃는다)
  */
 export const STW_TRANSPORT = { capacity: 8, raidDwell: 25, retreatRatio: 0.7, hpRatio: 0.5, pickupTimeout: 8, gatherTimeout: 60, syncTimeout: 45, relaunchDelay: 6, bailHp: 0.3 };
 /** 크기 규칙에서 벗어나는 탑승 칸(질럿·다크템플러 2, 울트라리스크 8). 나머지는 소형 1, 중형 2, 대형 4. */
@@ -718,6 +718,9 @@ export const STW_AI_PERSONAS = {
   robo: { id: "robo", name: "로보 운영", note: "드라군과 리버, 옵저버로 천천히 밀어붙인다" },
   carrier: { id: "carrier", name: "캐리어 함대", note: "드라군으로 버티며 스타게이트와 플릿 비컨을 올려 캐리어로 민다" },
   corsair: { id: "corsair", name: "커세어 질럿", note: "스타게이트 커세어로 하늘을 잡고 질럿·드라군과 함께 민다" },
+  reaverdrop: { id: "reaverdrop", name: "리버 폭탄 드랍", note: "로보 운영으로 버티며 리버와 질럿을 셔틀 세 기 이상에 태워 적 본진에 내리고, 드라군은 같은 순간 정면으로 민다" },
+  darkdrop: { id: "darkdrop", name: "다크템플러 폭탄 드랍", note: "다크템플러를 모아 셔틀 세 기 이상으로 적 본진에 한꺼번에 내린다 · 본진에 탐지가 없으면 그대로 끝난다", avoid: ["zerg"] },
+  zealotdrop: { id: "zealotdrop", name: "질럿 폭탄 드랍", note: "발업 질럿을 셔틀 세 기 이상으로 적 본진에 내리고, 드라군은 같은 순간 정면으로 민다" },
   bio: { id: "bio", race: "terran", name: "바이오닉 러시", note: "해병과 메딕, 스팀팩으로 빠르게 몰아친다" },
   mech: { id: "mech", race: "terran", name: "메카닉 운영", note: "벌처로 버티며 시즈 탱크 포격선을 민다" },
   tankbio: { id: "tankbio", race: "terran", name: "탱크 바이오", note: "해병·메딕 뒤에 시즈 탱크를 받쳐 앞마당과 함께 민다" },
