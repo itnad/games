@@ -2062,7 +2062,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /appendSupervisorEvent\("guard-blocked", `\$\{reason\} · 소쿠리 방어`, runtime\)/);
   assert.match(source, /unlockedNormalUpgrades\(campaign\.levels, campaign\)/);
   assert.match(source, /mudflatSkillUnlockProgress\(skill, campaign\.levels, campaign\)/);
-  assert.match(source, /mudflatUpgradeChoices\(runtime\.level, runtime\.skillInventory, runtime\.mode, Math\.random, \{ gemsCollected: runtime\.gemsCollected \}\)/);
+  assert.match(source, /mudflatUpgradeChoices\(runtime\.level, runtime\.skillInventory, runtime\.mode, Math\.random, \{ gemsCollected: runtime\.gemsCollected, digsCompleted: runtime\.digsCompleted \}\)/);
+  assert.equal((source.match(/mudflatUpgradeChoices\(runtime\.level, runtime\.skillInventory, runtime\.mode, Math\.random, \{ gemsCollected: runtime\.gemsCollected, digsCompleted: runtime\.digsCompleted \}\)/g) ?? []).length, 2, "레벨업과 새로고침 둘 다 해금 집계를 넘긴다");
   assert.match(styles, /\.ms-camp-skill-levels span\.is-locked\{/);
   // 건곤대나이: 떠 있는 바위는 돌뒤집개·충돌 대상이 아니고, 착지 때 피해·발견 굴림(돌뒤집개 레벨)·바위 소멸. 진동·화면 흔들림·HUD 고리는 넣지 않는다.
   assert.match(source, /rock\.lift === undefined && Math\.hypot\(rock\.x - runtime\.player\.x, rock\.y - runtime\.player\.y\) <= tong\.reach \+ rock\.radius/);

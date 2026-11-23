@@ -36,7 +36,7 @@
 - `Campaign.gemsCollected`는 플레이어에게 실제로 도착한 경험치 보석의 캠페인 누적 수입니다. 런타임 `gemsCollected`가 원정 중 올라가고 단계 성공 시 되돌려 씁니다. 소쿠리의 달인 상태(`guardBasketPullClock`, `guardBasketCharges`, `guardBasketRechargeClock`, `guardBasketFlashLife`, `guardBasketInvulnerable`)는 런타임에만 있으며 이어하기 저장에 포함되고, 예전 저장은 0과 완충 1회로 보완합니다.
 - 런타임은 `skillInventory`(인벤토리 전체)와 `activeSkills`를 들고 다니고, 효과 계산이 읽는 `runtime.levels`에는 기본 기술과 활성 기술만 남깁니다. 단계 성공 시 `skillInventory`와 `activeSkills`를 캠페인에 되돌려 씁니다. 이어하기 저장은 세 값을 모두 담고, `decodeMudflatRun`은 예전 저장의 `levels`를 인벤토리로 보고 활성 목록을 보완합니다.
 - `Runtime`: 진행 중 원정의 플레이어, 월드 엔티티, 타이머, 이펙트, `seed`, `rngState`입니다.
-- `Hud`: 화면 표시용 축약 상태입니다. `levels`에는 활성 기술만 있고, 보조 목표 카운터용 `rocksFlipped`와 보관 중인 기술 수 `storedSkillCount`를 함께 복사합니다.
+- `Hud`: 화면 표시용 축약 상태입니다. `levels`에는 활성 기술만 있고, 보조 목표 카운터용 `rocksFlipped`와 보관 중인 기술 수 `storedSkillCount`를 함께 복사합니다. 기술 상세 패널(`mudflatSkillDetail`)은 호미봇·건곤대나이 문구에 호미질·돌뒤집개 레벨을 함께 받아 "결과 등급 기준"을 표시합니다.
 - `choiceIds`, `nextSequence`: 기술 선택 복원과 엔티티 ID 충돌 방지용입니다.
 
 런타임의 새 필드는 저장 템플릿 검사 대상입니다. 이전 저장에도 기본값을 줄 수 있는 필드는 `decodeMudflatRun`에서 명시적으로 보완하고 테스트합니다. 의미가 달라져 안전하게 변환할 수 없으면 저장 버전을 올립니다.
@@ -49,7 +49,7 @@
 
 - 엔진의 단계 조합처럼 입력만으로 결정되는 값은 자체 결정 함수를 사용할 수 있습니다.
 - 게임 루프에서 `Math.random()`을 직접 호출하지 않습니다.
-- **예외(현재 구현)**: 레벨업 선택지와 선택지 새로고침은 `mudflatUpgradeChoices(level, skillInventory, mode, Math.random, { gemsCollected })`로 `Math.random`을 넘겨 뽑습니다. 그래서 같은 시드라도 제시되는 채집기술은 달라질 수 있고, 오늘의 갯벌에서도 참가자마다 다릅니다. 뽑힌 선택지는 `choiceIds`로 저장되어 이어하기에서 그대로 복원됩니다. 저장 난수로 옮길지는 정하지 않았습니다.
+- **예외(현재 구현)**: 레벨업 선택지와 선택지 새로고침은 `mudflatUpgradeChoices(level, skillInventory, mode, Math.random, { gemsCollected, digsCompleted })`로 `Math.random`과 해금 집계를 넘겨 뽑습니다(선택 기술 수는 인벤토리에서 바로 셉니다). 그래서 같은 시드라도 제시되는 채집기술은 달라질 수 있고, 오늘의 갯벌에서도 참가자마다 다릅니다. 뽑힌 선택지는 `choiceIds`로 저장되어 이어하기에서 그대로 복원됩니다. 저장 난수로 옮길지는 정하지 않았습니다.
 - 프레임 사이 시간은 34ms로 잘린 가변 값입니다. 30fps보다 느린 기기에서는 게임 시간이 실제 시간보다 느리게 흐르고, 주사율이 다르면 같은 시드도 세부 전개가 달라질 수 있습니다.
 - `/haeru-dev`의 일반 QA 프리셋은 고정 시드(`20261102 + 단계 × 101`)를 사용합니다. 감독모드는 기본적으로 실행할 때마다 새 시드를 만들며, 로그에 남은 시드를 직접 입력하면 같은 조건을 다시 시작할 수 있습니다. 맞춤 원정 빌더는 `단계별 고정`(프리셋과 같은 값)·`무작위`·`직접 입력` 중 고릅니다.
 - 감독모드는 같은 실제 런타임·충돌·피해 규칙을 사용하며 `Math.random()` 없이 현재 월드 상태와 감독 AI 자신의 기억(계획한 경로, 진전 기록, 잠시 포기한 목표, 생물별 접근 속도)만으로 다음 이동을 판단합니다. 따라서 같은 시드·화면 크기로 시작하면 월드와 첫 움직임은 같습니다. 다만 레벨업 선택지가 무작위이고(위 예외) 프레임 시간에 따라 세부 전개가 달라지므로, 판 전체가 똑같이 되풀이되지는 않습니다.

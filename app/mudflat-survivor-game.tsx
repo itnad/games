@@ -3905,7 +3905,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.floatTexts = runtime.floatTexts.filter((item) => item.life > 0);
       if (runtime.xp >= runtime.nextXp) {
         runtime.xp -= runtime.nextXp; runtime.level += 1; runtime.nextXp = Math.floor(runtime.nextXp * 1.24 + 4); runtime.paused = true;
-        const nextChoices = mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode, Math.random, { gemsCollected: runtime.gemsCollected });
+        const nextChoices = mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode, Math.random, { gemsCollected: runtime.gemsCollected, digsCompleted: runtime.digsCompleted });
         if (nextChoices.length) { setChoices(nextChoices); setScreen("upgrade"); if ("vibrate" in navigator) navigator.vibrate([30, 30, 30]); }
         else runtime.paused = false;
       }
@@ -4452,7 +4452,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (runtime.player.hp <= cost) return;
     runtime.player.hp -= cost;
     runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .72, text: `-${cost}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
-    setChoices(mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode, Math.random, { gemsCollected: runtime.gemsCollected })); snapshot(runtime); persistActiveRun();
+    setChoices(mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode, Math.random, { gemsCollected: runtime.gemsCollected, digsCompleted: runtime.digsCompleted })); snapshot(runtime); persistActiveRun();
     if ("vibrate" in navigator) navigator.vibrate(18);
   };
   const buyEquipment = (id: string) => {
