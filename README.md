@@ -100,14 +100,19 @@ npm run build:game-html
 | `app/mudflat-run-save.js` | 진행 중 원정 직렬화·검증·5초 자동 저장·복원 |
 | `app/mudflat-cast-net.js` | 그물 목표 선정, 구속, 피해, 해제 규칙 |
 | `app/mudflat-cast-net-renderer.js` | 그물 비행·전개·조임 Canvas 표현 |
-| `app/mudflat-experience.js` | 경험치 오브젝트 이동과 획득 처리 |
+| `app/mudflat-experience.js` | 경험치 보석의 출현·비행·획득 처리와 소쿠리의 달인 흡입 시작 |
 | `app/mudflat-lumi-animation.js` | 루미 이동 방향과 애니메이션 상태 계산 |
 | `app/mudflat-lumi-renderer.ts` | 루미 스프라이트 렌더링 |
 | `app/mudflat-kids-effects.js` | 어린이 모드 기술 효과 |
 | `app/mudflat-seafood-guide.tsx` | 해산물 도감 |
 | `app/mudflat-exit-dialog.tsx` | 게임 이탈 확인과 이어하기 저장 안내 |
 | `app/mudflat-retry-button.tsx` | 실패 재도전과 비밀 길게 누르기 처리 |
-| `app/mudflat-dev-tools.tsx` | 브라우저 로컬 데이터를 이용한 QA 프리셋 |
+| `app/mudflat-supervisor.js` | 개발용 AI 감독모드의 이동·회피·귀환 판단(레벨업·교체·정비 선택은 사람) |
+| `app/mudflat-supervisor-log.js` | 감독 플레이 로그 수집·직렬화 |
+| `app/mudflat-daily-challenge.js` | 오늘의 갯벌 날짜·단계·시드 규칙 |
+| `app/mudflat-daily-challenge-panel.tsx` | 오늘의 갯벌 진입, 통합 순위, 결과 공유 |
+| `app/mudflat-dev-tools.tsx` | 브라우저 로컬 데이터를 이용한 QA 프리셋, 감독모드 진입, 맞춤 원정 빌더 화면 |
+| `app/mudflat-dev-build.js` | 맞춤 원정 빌드 명세의 기본값·검증·캠페인 변환·시드 결정(순수 함수) |
 | `app/mudflat-survivor.css` | 해루질럿 전체 UI와 반응형 레이아웃 |
 
 게임 밸런스 수치와 규칙은 가능한 한 `mudflat-survivor-engine.js`에 두고, React 상태와 DOM/Canvas 연결만 `mudflat-survivor-game.tsx`에 둡니다. 순수 규칙을 변경할 때는 같은 입력에 같은 결과를 내는 함수로 분리하고 테스트를 추가합니다.
@@ -134,13 +139,18 @@ npm run build:game-html
 version, mode, characterId, stage
 coins, hp, maxHp, baseMaxHp
 level, xp, nextXp
-levels       기술 레벨 맵
-equipment    장비 레벨과 일회용품 맵
-inventory    누적 보유물
-lastHaul     직전 스테이지 조과
+levels         기술 인벤토리: 익힌 모든 기술의 레벨 맵(보관 기술 포함)
+activeSkills   원정에서 작동하는 선택 기술 ID 목록(최대 6개, 집게·호미질 제외)
+equipment      장비 레벨과 일회용품 맵
+inventory      누적 보유물
+lastHaul       직전 스테이지 조과
 lastSaleValue, totalScore
 lastBossCaught, lastObjective*
+gemsCollected  캠페인 누적 경험치 보석 수(소쿠리의 달인 해금 기준)
+pendingSkillDiscovery  정비 화면에서 새 기술 해금을 알릴지 여부
 ```
+
+`activeSkills`나 `gemsCollected`가 없는 예전 저장은 복원 시 익힌 선택 기술 앞 6개와 0으로 보완합니다.
 
 `version`을 올리는 변경은 저장 호환성 변경입니다. 필드를 삭제하거나 의미를 바꾸기 전에 복원 로직과 테스트를 함께 수정해야 합니다.
 
@@ -154,7 +164,9 @@ campaign
 choiceIds       현재 기술 선택 화면의 선택값
 nextSequence    월드 엔티티 ID 충돌 방지값
 runtime         플레이어, 시간, 생물, 획득물, 투사체, 그물,
-                바위, 조개구멍, 이펙트, seed/rngState와 스테이지 상태
+                바위, 조개구멍, 이펙트, seed/rngState와 스테이지 상태,
+                skillInventory/activeSkills(levels에는 활성 기술만),
+                gemsCollected와 소쿠리의 달인 충전·흡입 상태
 ```
 
 자동 저장 간격은 5초이며, 종료되었거나 체력이 0인 원정은 저장하지 않습니다. 복원 시 구조와 숫자 유효성을 검사하고 손상되거나 호환되지 않는 저장은 안전하게 무시합니다. 저장 형식을 수정했다면 `tests/mudflat-run-save.test.mjs`에 정상 복원, 이전 형식 보완, 손상 거부 사례를 추가합니다.
@@ -169,16 +181,17 @@ runtime         플레이어, 시간, 생물, 획득물, 투사체, 그물,
 - 해루질럿 로컬 저장 데이터 내보내기
 - 내보낸 JSON의 형식과 키를 검증한 뒤 로컬 저장 데이터 복원
 - 해루질럿 로컬 저장 초기화
-- 1단계 튜토리얼, 4단계 랜턴 Lv.1/Lv.6, 5단계 깊은 펄, 6단계 모기·기피제, 비밀 기술, 8단계 보스 프리셋
-- AI가 이동·채집·위험 회피·귀환·정비·다음 출정을 맡고, 레벨업 채집기술만 사람이 선택하는 감독모드
-- 프리셋을 즉시 실행하거나 정비 저장 상태로만 저장
+- 1단계 튜토리얼, 4단계 랜턴 Lv.1/Lv.6, 5단계 깊은 펄, 6단계 모기·기피제, 비밀 기술, 3단계 소쿠리의 달인 Lv.6, 8단계 보스 프리셋
+- 맞춤 원정 빌더: 모드·단계·기술 레벨과 활성 기술(최대 6개)·캐릭터 수치·장비·시드를 직접 골라 바로 실행하거나 정비 저장으로 남김. 소쿠리의 달인 레벨이 있으면 해금 조건(경험치 보석 100개)을 자동으로 채움
+- AI가 이동·채집·위험 회피·귀환을 맡고, 레벨업 채집기술과 교체 선택, 정비 화면의 구매·활성 토글·다음 출정은 사람이 고르는 감독모드
+- 프리셋이나 빌드를 즉시 실행하거나 정비 저장 상태로만 저장
 
-감독모드는 일반 진행과 분리된 관전 세션입니다. 시작해도 기존 이어하기 저장을 지우지 않고, 감독 중 열린 단계·최고 점수·일일 순위를 갱신하지 않습니다. 직접 주소 `/haeru-dev`에서 **AI 감독모드 · 1단계부터**의 **감독모드 관전 시작**을 누릅니다.
+감독모드는 일반 진행과 분리된 관전 세션입니다. 시작해도 기존 이어하기 저장을 지우지 않고, 감독 중 열린 단계·최고 점수·일일 순위를 갱신하지 않습니다. 직접 주소 `/haeru-dev`에서 **AI 감독모드 · 1단계부터**의 **무작위 시드 관전 시작**을 누르거나, 재현 시드를 입력해 **입력 시드로 재현**을 누릅니다. 맞춤 원정 빌더의 **AI 감독모드로 관전**을 켜면 직접 만든 빌드로도 관전할 수 있습니다.
 
 권장 QA 흐름:
 
 1. `/haeru-dev`에서 기존 데이터를 내보냅니다.
-2. 확인할 프리셋의 `바로 실행`을 누릅니다.
+2. 확인할 프리셋의 `바로 실행`을 누르거나, 프리셋에 없는 조합은 맞춤 원정 빌더에서 만들어 `바로 실행`을 누릅니다.
 3. 모바일 화면 크기와 실제 터치 조작을 함께 확인합니다.
 4. 테스트가 끝나면 개발 도구로 돌아가 로컬 데이터를 초기화하거나 원래 데이터를 복원합니다.
 
