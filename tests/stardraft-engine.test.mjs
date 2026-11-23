@@ -3488,7 +3488,7 @@ test("스타드래프트 AI 셔틀 폭탄 드랍: 셔틀 세 기와 태울 유�
   assert.equal(bomb(setup("darkdrop", 5, { dark: 20, dragoon: 2 }))?.transports.length, 5);
 });
 
-test("스타드래프트 AI 오버로드 폭탄 드랍: 오버로드 여섯 기 이상과 그만큼의 병력이 모이면 한꺼번에 태워 보낸다(최대 열 기)", () => {
+test("스타드래프트 AI 오버로드 폭탄 드랍: 오버로드 여섯 기 이상과 그만큼의 병력이 모이면 한꺼번에 태워 보낸다(상한 없음)", () => {
   const setup = (persona, overlords, army) => {
     const state = createStardraftGame({ seed: 3, difficulty: "hard", aiSides: ["player"], races: { player: "zerg", enemy: "terran" }, personas: { player: persona } });
     state.sides.player.minerals = 9000;
@@ -3533,18 +3533,13 @@ test("스타드래프트 AI 오버로드 폭탄 드랍: 오버로드 여섯 기 
   think(short);
   assert.equal(bomb(short), undefined, "띄울 오버로드가 여섯 기 미만이면 기다린다");
   assert.ok(stwOwnBuildings(short, "player", "overlord").length >= 6);
-  // 저글링 떼: 오버로드가 넉넉해도 한 번에 열 기까지만 쓰고, 남은 저글링은 정면으로 나간다.
+  // 저글링 떼: 수송선 수에는 상한이 없다. 오버로드 14기 가운데 탐지 당번 1기를 뺀 13기가 저글링 100기를 모두 태운다.
   const lings = setup("lingdrop", 14, { zergling: 100 });
   research(lings, "player", "lair", "ventral", "pneumatized");
   think(lings);
-  assert.equal(bomb(lings)?.transports.length, 10, "최대 열 기");
-  assert.equal(lings.units.filter((unit) => unit.side === "player" && unit.type === "zergling" && unit.group === "attack").length, 20, "못 탄 저글링 20기는 정면으로");
-  // 사람의 명령에도 상한을 줄 수 있다.
-  const manual = setup("hydra", 8, { hydra: 24 });
-  manual.aiSides = [];
-  research(manual, "player", "ventral");
-  assert.equal(stwCommand(manual, "player", { type: "drop", mission: "bomb", maxCarriers: 2 }).ok, true);
-  assert.equal(bomb(manual).transports.length, 2);
+  assert.equal(bomb(lings)?.transports.length, 13, "띄울 수 있는 오버로드를 모두 쓴다");
+  assert.equal(lings.units.filter((unit) => unit.side === "player" && unit.type === "zergling" && (unit.group === "board" || unit.group === "cargo")).length, 100, "저글링 100기가 모두 탄다");
+  assert.equal(stwOwnBuildings(lings, "player", "overlord").length, 1, "본진 탐지 당번 1기만 남는다");
 });
 
 test("스타드래프트 오버로드 동행 수: 1기째는 공격 병력을 따라가고, 2기째부터는 집결지에서 기다리다 드랍에 먼저 쓰인다", () => {

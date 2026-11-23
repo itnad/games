@@ -1375,10 +1375,9 @@ function runCommand(state, side, command) {
         : [...check.passengers];
       if (!passengers.length) return fail("태울 수 있는 병력이 없습니다");
       const transports = [];
-      // maxCarriers: 한 번에 쓸 수송선 수의 상한(AI의 오버로드 폭탄 드랍이 쓴다). 없으면 태울 병력이 남는 한 모두 쓴다.
-      const limit = Number.isFinite(command.maxCarriers) ? Math.max(1, command.maxCarriers) : Infinity;
+      // 수송선 수에는 상한이 없다: 태울 병력이 남는 한 쉬는 수송선을 모두 쓴다(어느 종족이든, 사람이든 AI든).
       for (const carrier of check.carriers) {
-        if (!passengers.length || transports.length >= limit) break;
+        if (!passengers.length) break;
         const transport = liftCarrier(state, side, carrier);
         loadTransport(state, transport, passengers, plan.mission);
         if (transport.cargo.length || transport.boarding.length) transports.push(transport);

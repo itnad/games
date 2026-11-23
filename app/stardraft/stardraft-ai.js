@@ -279,14 +279,14 @@ const DROP_PLANS = {
   tankbio: { mission: "bomb", target: "production", sync: true },
 };
 /**
- * 오버로드 폭탄 드랍 성향: 띄울 수 있는 오버로드가 min기 이상이고 그 min기째까지 타는 병력((min − 1) × 8칸 초과)이 모이면 한꺼번에 적 본진에 내린다(최대 max기).
+ * 오버로드 폭탄 드랍 성향: 띄울 수 있는 오버로드가 min기 이상이고 그 min기째까지 타는 병력((min − 1) × 8칸 초과)이 모이면 한꺼번에 적 본진에 내린다. 수송선 수에는 상한이 없다(띄울 수 있는 오버로드는 태울 병력이 있는 한 모두 쓴다).
  * - 그 전에도 평소처럼 정면 웨이브를 보낸다. 드랍을 기다리며 집에서 버티게 했더니 상대가 마음껏 커져 먼저 밀고 들어왔다(표본 28판에서 히드라 3승·혼합 1승·저글링 0승).
  * - 기낭 갑피(오버로드 속도 +50%)가 끝나야 보낸다. waitSpeedUntil초가 지나면 없어도 보낸다.
  * - 복부 주머니 연구가 끝나면 오버로드를 min + 2기(기지마다 남기는 탐지 당번 2기)까지 인구와 상관없이 더 짓는다.
  * - 보낸 오버로드의 절반 넘게 잃었으면 그 경기에서는 다시 하지 않는다(오버로드를 잃을 때마다 인구 상한이 8씩 준다).
  * - 대공을 피해 돌아가지 않는다: 몇 기 맞더라도 들어가서 내리는 전략이다.
  */
-const MASS_BOMB = { min: 6, max: 10, target: "production", waitSpeedUntil: 660, personas: new Set(["hydradrop", "lingdrop", "mixdrop"]) };
+const MASS_BOMB = { min: 6, target: "production", waitSpeedUntil: 660, personas: new Set(["hydradrop", "lingdrop", "mixdrop"]) };
 /**
  * 프로토스 셔틀 폭탄 드랍 성향: 쉬는 셔틀이 min기 이상이고 그 min기째까지 타는 병력((min − 1) × 8칸 초과)이 모이면 riders에 적은 유닛만 태워
  * 적 본진에 내리고, 드라군 같은 나머지는 같은 순간 정면으로 보낸다(정면이 맞붙을 때 내린다).
@@ -1746,7 +1746,7 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
     const check = ready && !bombing && !memory.bombOff && threat < 3 ? stwDropCheck(state, side, "bomb") : null;
     // 여섯 기째까지 타게 되는 병력(5기를 채우고 한 칸 이상)이 모이면 보낸다.
     if (check?.ok && check.carriers.length >= MASS_BOMB.min && check.passengers.reduce((sum, unit) => sum + stwSlots(unit.type), 0) > (MASS_BOMB.min - 1) * 8) {
-      if (stwCommand(state, side, { type: "drop", mission: "bomb", target: MASS_BOMB.target, sync: false, maxCarriers: MASS_BOMB.max }).ok) {
+      if (stwCommand(state, side, { type: "drop", mission: "bomb", target: MASS_BOMB.target, sync: false }).ok) {
         memory.bombs = (memory.bombs ?? 0) + 1;
         memory.bombSent = state.units.filter((unit) => unit.side === side && unit.type === "overlord" && unit.op !== undefined).length;
         memory.bombOverlords = overlords;
