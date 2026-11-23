@@ -1663,7 +1663,7 @@ test("stardraft zerg AI personas field their signature units and finish a game",
 test("stardraft terran and zerg each have four AI personas and the new ones field their signature units", async () => {
   const { STW_AI_PERSONAS } = await import("../app/stardraft/stardraft-data.js");
   const byRace = Object.values(STW_AI_PERSONAS).reduce((map, persona) => ((map[persona.race] = (map[persona.race] ?? 0) + 1), map), {});
-  assert.deepEqual(byRace, { protoss: 10, terran: 7, zerg: 10 });
+  assert.deepEqual(byRace, { protoss: 10, terran: 10, zerg: 10 });
   const games = {
     tankbio: createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "tankbio", enemy: "templar" } }),
     vulture: createStardraftGame({ seed: 1, aiSides: ["player", "enemy"], races: { player: "terran", enemy: "protoss" }, personas: { player: "vulture", enemy: "dragoon" } }),
@@ -3430,7 +3430,7 @@ test("스타드래프트 오버로드 비상 하차: 병력을 태우고 가다 
   assert.ok(cargo.every((unit) => unit.group === "attack" && unit.raid === undefined));
   assert.equal(raid.ops[0].phase, "home");
 
-  // 셔틀도 같다: 체력 + 보호막이 30% 아래면 내린다. 드랍십은 하지 않는다.
+  // 셔틀과 드랍십도 같다(셔틀은 체력 + 보호막이 30% 아래).
   const shuttleGame = quiet();
   const shuttle = stwSpawnUnitAt(shuttleGame, "player", "shuttle", 20, 80, "rally");
   const zealots = [0, 1, 2, 3].map((index) => stwSpawnUnitAt(shuttleGame, "player", "zealot", 17 + index * 2, 78, "rally"));
@@ -3450,9 +3450,13 @@ test("스타드래프트 오버로드 비상 하차: 병력을 태우고 가다 
   for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(shipGame, "player", "marine", 17 + index * 2, 78, "rally");
   stwCommand(shipGame, "player", { type: "drop" });
   for (let index = 0; index < 600 && !(shipGame.ops[0].phase === "out" && dropship.y < 55); index += 1) stepStardraft(shipGame);
-  dropship.hp = 1;
+  dropship.hp = dropship.maxHp * 0.31;
   stepStardraft(shipGame);
-  assert.equal(dropship.cargo.length, 4, "드랍십은 그대로 간다");
+  assert.equal(dropship.cargo.length, 4, "30% 이상이면 그대로 간다");
+  dropship.hp = dropship.maxHp * 0.29;
+  stepStardraft(shipGame);
+  assert.equal(dropship.cargo.length, 0, "드랍십도 30% 아래면 그 자리에 내린다");
+  assert.ok(shipGame.log.some((entry) => /크게 다친 드랍십이 병력 4기를 그 자리에 내리고 돌아갑니다/.test(entry.text)));
 });
 
 test("스타드래프트 AI 셔틀 폭탄 드랍: 셔틀 세 기와 태울 유닛이 모이면 그 유닛만 태워 보내고 나머지는 정면으로 나간다", () => {
@@ -3486,6 +3490,39 @@ test("스타드래프트 AI 셔틀 폭탄 드랍: 셔틀 세 기와 태울 유�
   assert.equal(bomb(setup("zealotdrop", 2, { zealot: 12, dragoon: 6 })), undefined);
   assert.equal(bomb(setup("darkdrop", 3, { dark: 8, dragoon: 6 })), undefined, "다크템플러 8기(16칸)는 셔틀 둘 분량");
   assert.equal(bomb(setup("darkdrop", 5, { dark: 20, dragoon: 2 }))?.transports.length, 5);
+});
+
+test("스타드래프트 AI 드랍십 폭탄 드랍: 드랍십 세 기에 정한 유닛을 태우고, 해병은 한 기에 여섯까지만 태워 메딕 자리를 남긴다", () => {
+  const setup = (persona, dropships, army) => {
+    const state = createStardraftGame({ seed: 3, difficulty: "hard", aiSides: ["player"], races: { player: "terran", enemy: "protoss" }, personas: { player: persona } });
+    state.time = 600;
+    state.sides.player.ai = { nextThink: 0, step: 99, wave: 0, attacking: false, waveStart: 0, done: [], built: [] };
+    for (let index = 0; index < dropships; index += 1) stwSpawnUnitAt(state, "player", "dropship", 14 + index * 4, 80, "rally");
+    for (const [type, count] of Object.entries(army)) for (let index = 0; index < count; index += 1) stwSpawnUnitAt(state, "player", type, 8 + (index % 12) * 2, 74 + Math.floor(index / 12) * 1.5, "rally");
+    stwAiThink(state, "player");
+    return state;
+  };
+  const bomb = (state) => (state.ops ?? []).find((op) => op.side === "player" && op.kind === "bomb");
+  const riding = (state) => state.units.filter((unit) => unit.side === "player" && (unit.group === "board" || unit.group === "cargo")).map((unit) => unit.type).sort();
+  const count = (list, type) => list.filter((item) => item === type).length;
+  for (const id of ["biodrop", "tankdrop", "vulturedrop"]) assert.match(STW_AI_PERSONAS[id].name, /폭탄 드랍$/);
+
+  // 바이오닉: 해병 30·메딕 8·탱크 2 → 드랍십마다 해병 6 + 메딕 2. 탱크와 남은 해병은 정면으로.
+  const bio = setup("biodrop", 3, { marine: 30, medic: 8, tank: 2 });
+  assert.equal(bomb(bio)?.transports.length, 3);
+  assert.deepEqual([count(riding(bio), "marine"), count(riding(bio), "medic"), count(riding(bio), "tank")], [18, 6, 0]);
+  assert.equal(bio.units.filter((unit) => unit.side === "player" && unit.type === "tank" && unit.group === "attack").length, 2);
+  // 탱크: 여섯이 모여야 보내고 넷만 태운다(한 기에 둘). 남는 칸에 골리앗, 남은 탱크는 정면의 시즈 라인으로.
+  assert.equal(bomb(setup("tankdrop", 3, { tank: 5, goliath: 6 })), undefined, "탱크가 여섯이 안 되면 기다린다");
+  const tank = setup("tankdrop", 3, { tank: 7, goliath: 6, marine: 6 });
+  assert.equal(bomb(tank)?.transports.length, 3);
+  assert.deepEqual([count(riding(tank), "tank"), count(riding(tank), "goliath"), count(riding(tank), "marine")], [4, 4, 0]);
+  assert.equal(tank.units.filter((unit) => unit.side === "player" && unit.type === "tank" && unit.group === "attack").length, 3, "탱크 셋은 정면으로");
+  assert.equal(bomb(tank).target, "main");
+  // 벌처: 벌처만. 드랍십이 둘이면 기다린다.
+  const vulture = setup("vulturedrop", 3, { vulture: 12, tank: 2 });
+  assert.deepEqual(riding(vulture), Array(12).fill("vulture"));
+  assert.equal(bomb(setup("vulturedrop", 2, { vulture: 12 })), undefined);
 });
 
 test("스타드래프트 AI 오버로드 폭탄 드랍: 오버로드 여섯 기 이상과 그만큼의 병력이 모이면 한꺼번에 태워 보낸다(상한 없음)", () => {
@@ -4969,14 +5006,13 @@ test("정찰 대응: 정찰로 본 건물·유닛·연구에서 상대 전략을
 
 test("정찰 대응: 맞대응 표는 모든 종족·상대 전략을 덮고, 뚜렷이 나을 때만 갈아탄다", () => {
   // 오버로드 폭탄 드랍 셋은 대진표를 돌리지 않고 넣어 맞대응 표에 없다: 읽어도 갈아타지 않고, 그 전략으로 시작한 쪽은 표에 없는 승률을 50%로 본다.
-  const unmeasured = ["hydradrop", "lingdrop", "mixdrop", "reaverdrop", "darkdrop", "zealotdrop"];
-  for (const id of unmeasured) {
-    const race = STW_AI_PERSONAS[id].race;
-    assert.equal(race, id.startsWith("hydra") || id.startsWith("ling") || id.startsWith("mix") ? "zerg" : "protoss");
+  const unmeasured = { hydradrop: "zerg", lingdrop: "zerg", mixdrop: "zerg", reaverdrop: "protoss", darkdrop: "protoss", zealotdrop: "protoss", biodrop: "terran", tankdrop: "terran", vulturedrop: "terran" };
+  for (const [id, race] of Object.entries(unmeasured)) {
+    assert.equal(STW_AI_PERSONAS[id].race, race);
     assert.equal(stwScoutCounter("terran", race, id, "bio", 300), null);
     assert.doesNotThrow(() => stwScoutCounter(race, "terran", "bio", id, 300));
   }
-  const personas = Object.values(STW_AI_PERSONAS).filter((persona) => !unmeasured.includes(persona.id));
+  const personas = Object.values(STW_AI_PERSONAS).filter((persona) => !(persona.id in unmeasured));
   for (const race of ["protoss", "terran", "zerg"]) {
     const own = personas.filter((persona) => persona.race === race).map((persona) => persona.id);
     for (const foe of personas) {

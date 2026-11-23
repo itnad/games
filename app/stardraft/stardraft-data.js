@@ -683,7 +683,7 @@ export const STW_NEST = { capacity: 4, naturalWatch: 1 };
  * - gatherTimeout: 폭탄 드랍 수송선이 집결점에 모이기를 기다리는 최대 시간
  * - syncTimeout: "정면 출격과 동시에"일 때 정면이 맞붙기를 기다리는 최대 시간(출발부터)
  * - relaunchDelay: 계속 견제일 때 돌아와서 다시 나가기까지
- * - bailHp: 병력을 태우고 날아가는 오버로드·셔틀의 체력(셔틀은 보호막 포함)이 이 비율 아래로 떨어지면 그 자리에 병력을 내리고 돌아간다(격추되면 탄 병력도 함께 잃는다)
+ * - bailHp: 병력을 태우고 날아가는 수송선(오버로드·셔틀·드랍십)의 체력(셔틀은 보호막 포함)이 이 비율 아래로 떨어지면 그 자리에 병력을 내리고 돌아간다(격추되면 탄 병력도 함께 잃는다)
  */
 export const STW_TRANSPORT = { capacity: 8, raidDwell: 25, retreatRatio: 0.7, hpRatio: 0.5, pickupTimeout: 8, gatherTimeout: 60, syncTimeout: 45, relaunchDelay: 6, bailHp: 0.3 };
 /** 크기 규칙에서 벗어나는 탑승 칸(질럿·다크템플러 2, 울트라리스크 8). 나머지는 소형 1, 중형 2, 대형 4. */
@@ -728,6 +728,9 @@ export const STW_AI_PERSONAS = {
   // avoid: 이 종족 상대로는 무작위로 고르지 않는다(고스트의 락다운은 기계 유닛에만 걸려 저그 상대로는 쓸 데가 없다).
   ghost: { id: "ghost", race: "terran", name: "고스트 특수전", note: "벙커와 시즈 탱크로 버티며 은폐·락다운 고스트 부대를 모아 해병·메딕·시즈 탱크와 함께 민다", avoid: ["zerg"] },
   bc: { id: "bc", race: "terran", name: "배틀크루저", note: "탱크로 버티며 사이언스 퍼실리티를 올려 배틀크루저와 야마토 포로 민다" },
+  biodrop: { id: "biodrop", race: "terran", name: "바이오닉 폭탄 드랍", note: "바이오닉으로 밀다가 스팀팩 해병과 메딕을 드랍십 세 기 이상에 태워 적 본진에 내리고, 나머지는 같은 순간 정면으로 민다" },
+  tankdrop: { id: "tankdrop", race: "terran", name: "탱크 폭탄 드랍", note: "메카닉으로 버티며 시즈 탱크와 골리앗을 드랍십 세 기 이상으로 적 본진에 내려 안에서 포격한다" },
+  vulturedrop: { id: "vulturedrop", race: "terran", name: "벌처 폭탄 드랍", note: "벌처 떼를 드랍십 세 기 이상으로 적 광물 줄에 내려 일꾼을 쓸어 낸다" },
   wraith: { id: "wraith", race: "terran", name: "레이스 메카닉", note: "스타포트 레이스와 골리앗·벌처로 하늘과 땅을 같이 민다" },
   ling: { id: "ling", race: "zerg", name: "저글링 물량", note: "해처리를 늘리고 저글링을 끝까지 업그레이드해 쉬지 않고 밀어붙인다 · 계속 막히면 다른 길을 찾는다" },
   lurker: { id: "lurker", race: "zerg", name: "럴커 저글링", note: "성큰으로 버티며 레어와 럴커 변태를 서둘러, 땅속 럴커와 저글링으로 조인다 · 공중에는 히드라" },

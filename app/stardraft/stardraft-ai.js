@@ -57,7 +57,7 @@ const BUILD_ORDERS = {
     { build: "assimilator" }, { build: "gateway" }, { build: "robo" }, { research: "range" }, { build: "bay" },
     { build: "expand", at: 260 }, { build: "gateway" }, { build: "forge" }, { build: "cannon" }, { research: "weapons1" }, { research: "scarab" }, { build: "gateway" },
   ],
-  // 셔틀 폭탄 드랍 셋(PROTOSS_BOMB): 바탕 운영의 빌드에 셔틀을 뽑을 로보틱스를 7분에 더한다(리버는 둘째 로보). 그 전에는 바탕 운영과 똑같이 싸운다.
+  // 셔틀 폭탄 드랍 셋(CARRIER_BOMB): 바탕 운영의 빌드에 셔틀을 뽑을 로보틱스를 7분에 더한다(리버는 둘째 로보). 그 전에는 바탕 운영과 똑같이 싸운다.
   reaverdrop: [
     { build: "pylon" }, { build: "gateway" }, { build: "assimilator" }, { build: "core" }, { build: "pylon" },
     { build: "assimilator" }, { build: "gateway" }, { build: "robo" }, { research: "range" }, { build: "bay" },
@@ -128,6 +128,23 @@ const BUILD_ORDERS = {
     { build: "depot" }, { build: "barracks" }, { build: "refinery" }, { build: "factory" }, { build: "depot" },
     { build: "factory" }, { build: "refinery", at: 240 }, { build: "shop" }, { research: "siege" }, { research: "ion" },
     { build: "bunker" }, { build: "expand", at: 320 }, { build: "factory" }, { build: "academy" }, { build: "comsat" }, { build: "ebay" }, { build: "turret" },
+  ],
+  // 드랍십 폭탄 드랍 셋(CARRIER_BOMB): 바탕 운영의 빌드에서 스타포트를 7분으로 당긴다(바이오닉은 팩토리도). 그 전에는 바탕 운영과 똑같이 싸운다.
+  biodrop: [
+    { build: "depot" }, { build: "barracks" }, { build: "barracks" }, { build: "refinery" }, { build: "depot" },
+    { build: "academy" }, { build: "barracks" }, { research: "stim" }, { build: "ebay" }, { research: "infWeapons1" },
+    { build: "expand", at: 300 }, { research: "u238" }, { build: "comsat" }, { build: "refinery" }, { build: "factory", at: 420 }, { build: "starport" },
+    { research: "infArmor1" }, { build: "barracks" }, { build: "science" }, { research: "irradiate" },
+  ],
+  tankdrop: [
+    { build: "depot" }, { build: "barracks" }, { build: "refinery" }, { build: "depot" }, { build: "factory" },
+    { build: "refinery" }, { build: "shop" }, { build: "bunker" }, { research: "siege" }, { build: "factory" },
+    { build: "expand", at: 280 }, { build: "academy" }, { build: "starport", at: 420 }, { research: "ion" }, { build: "comsat" }, { build: "armory" }, { build: "ebay" }, { build: "turret" },
+  ],
+  vulturedrop: [
+    { build: "depot" }, { build: "barracks" }, { build: "refinery" }, { build: "factory" }, { build: "depot" },
+    { build: "factory" }, { build: "refinery", at: 240 }, { build: "shop" }, { research: "siege" }, { research: "ion" },
+    { build: "bunker" }, { build: "expand", at: 320 }, { build: "starport", at: 420 }, { build: "factory" }, { build: "academy" }, { build: "comsat" }, { build: "ebay" }, { build: "turret" },
   ],
   // 레이스 메카닉: 메카닉 운영에 스타포트 하나를 얹어 레이스를 섞는다. 공중이 많이 보이면 아머리와 골리앗.
   wraith: [
@@ -288,16 +305,22 @@ const DROP_PLANS = {
  */
 const MASS_BOMB = { min: 6, target: "production", waitSpeedUntil: 660, personas: new Set(["hydradrop", "lingdrop", "mixdrop"]) };
 /**
- * 프로토스 셔틀 폭탄 드랍 성향: 쉬는 셔틀이 min기 이상이고 그 min기째까지 타는 병력((min − 1) × 8칸 초과)이 모이면 riders에 적은 유닛만 태워
- * 적 본진에 내리고, 드라군 같은 나머지는 같은 순간 정면으로 보낸다(정면이 맞붙을 때 내린다).
+ * 셔틀·드랍십 폭탄 드랍 성향: 쉬는 수송선(carrier)이 min기 이상이고 그 min기째까지 타는 병력((min − 1) × 8칸 초과)이 모이면 riders에 적은 유닛만 태워
+ * 적 본진에 내리고, 나머지는 같은 순간 정면으로 보낸다(정면이 맞붙을 때 내린다).
  * - base: 그 밖의 모든 판단(생산 구성·웨이브·연구)은 이 성향을 그대로 따른다.
- * - 셔틀은 from초부터 min기까지 뽑는다. 상한은 두지 않는다: 셔틀은 한 기에 광물 200이라 필요한 만큼만 뽑고, 있는 셔틀은 탈 병력이 있는 한 모두 쓴다.
- * - 보낸 셔틀의 절반 넘게 잃으면 그 경기에서는 다시 하지 않는다.
+ * - 수송선은 from초부터 min기까지 뽑는다. 그 시각부터 tech의 건물을 핵심 테크로 쳐 광물을 먼저 모은다.
+ * - 수송선 수의 상한은 없다: 필요한 만큼만 뽑고, 있는 수송선은 탈 병력이 있는 한 모두 쓴다.
+ * - 보낸 수송선의 절반 넘게 잃으면 그 경기에서는 다시 하지 않는다.
  */
-const PROTOSS_BOMB = {
-  reaverdrop: { base: "robo", min: 3, from: 420, target: "main", riders: ["reaver", "zealot"] },
-  darkdrop: { base: "dark", min: 3, from: 420, target: "main", riders: ["dark", "zealot"] },
-  zealotdrop: { base: "dragoon", min: 3, from: 420, target: "production", riders: ["zealot"] },
+const CARRIER_BOMB = {
+  reaverdrop: { base: "robo", carrier: "shuttle", tech: ["robo"], min: 3, from: 420, target: "main", riders: ["reaver", "zealot"] },
+  darkdrop: { base: "dark", carrier: "shuttle", tech: ["robo"], min: 3, from: 420, target: "main", riders: ["dark", "zealot"] },
+  zealotdrop: { base: "dragoon", carrier: "shuttle", tech: ["robo"], min: 3, from: 420, target: "production", riders: ["zealot"] },
+  // 해병은 드랍십 한 기에 6기까지만 타고 나머지 두 칸은 메딕·파이어뱃이 탄다(엔진의 섞어 태우기).
+  biodrop: { base: "bio", carrier: "dropship", tech: ["factory", "starport"], min: 3, from: 420, target: "production", riders: ["marine", "medic", "firebat"] },
+  // 탱크는 여섯이 모였을 때 넷만 태운다(need·limit): 탱크를 다 실어 보냈더니 정면의 시즈 라인이 비어 표본 28판에서 메카닉 22승이 11승이 됐다.
+  tankdrop: { base: "mech", carrier: "dropship", tech: ["starport"], min: 3, from: 420, target: "main", riders: ["tank", "goliath", "vulture"], need: { tank: 6 }, limit: { tank: 4 } },
+  vulturedrop: { base: "vulture", carrier: "dropship", tech: ["starport"], min: 3, from: 420, target: "main", riders: ["vulture"] },
 };
 const DEFAULT_PERSONA = { protoss: "dragoon", terran: "bio", zerg: "hydra" };
 /**
@@ -339,11 +362,11 @@ const MASS_BOMB_TECH_FROM = 450;
  */
 function techSteps(state, persona) {
   if (MASS_BOMB.personas.has(persona)) return state.time >= MASS_BOMB_TECH_FROM ? ["lair", "ventral", "pneumatized"] : undefined;
-  // 셔틀 폭탄 드랍: 바탕 성향의 핵심 테크에, 셔틀을 뽑기 시작할 시각부터 로보틱스를 더한다(광물을 유닛에 다 써서 로보가 13분에야 섰다).
-  const bomb = PROTOSS_BOMB[persona];
+  // 셔틀·드랍십 폭탄 드랍: 바탕 성향의 핵심 테크에, 수송선을 뽑기 시작할 시각부터 그 생산 건물을 더한다(광물을 유닛에 다 써서 로보가 13분에야 섰다).
+  const bomb = CARRIER_BOMB[persona];
   if (!bomb) return TECH_STEPS[persona];
   const base = TECH_STEPS[bomb.base];
-  return state.time >= bomb.from ? [...(base ?? []), "robo"] : base;
+  return state.time >= bomb.from ? [...(base ?? []), ...bomb.tech] : base;
 }
 const TECH_STEPS = {
   muta: ["lair", "spire"], ultra: ["lair", "cavern"], hive: ["lair", "nest", "hive", "mound"], lurker: ["den", "lair", "lurkerAspect"],
@@ -441,7 +464,7 @@ export function stwAiThink(state, side) {
   // 지금 따르는 성향: 프로토스·저그의 테크 성향은 수비가 안정될 때까지 기본 빌드(드라군·히드라 운영)로 시작한다.
   // chosen: 고른 성향 그대로(빌드 순서·테크 단계·폭탄 드랍 규칙). persona: 그 밖의 판단에 쓰는 성향(셔틀 폭탄 드랍은 바탕 성향을 따른다).
   const chosen = openingPersona(state, side, memory, race, alert);
-  const shuttleBomb = PROTOSS_BOMB[chosen] ?? null;
+  const shuttleBomb = CARRIER_BOMB[chosen] ?? null;
   const persona = shuttleBomb?.base ?? chosen;
   // 하이템플러 운영: 아카이브를 짓기 시작했는데 스톰 연구를 아직 시작하지 못한 동안(다른 연구와 템플러 생산을 미룬다).
   const stormPending = persona === "templar" && stwOwnBuildings(state, side, "archives").length > 0 && !record.research.storm;
@@ -803,8 +826,8 @@ export function stwAiThink(state, side) {
 
   // 3-4. 테란 생산 라인: 배럭(해병·메딕·파이어뱃), 팩토리(벌처·시즈 탱크).
   if (race.id === "terran") {
-    terranLines(state, side, persona, units, reserve);
-    manageArmy(state, side, persona, memory, settings, { alert });
+    terranLines(state, side, persona, units, reserve, shuttleBomb && !memory.bombOff ? shuttleBomb : null);
+    manageArmy(state, side, persona, memory, settings, { alert, shuttleBomb });
     return;
   }
   if (race.id === "zerg") {
@@ -836,7 +859,7 @@ export function stwAiThink(state, side) {
     else if (persona === "robo" && state.time > 300 && !units.some((item) => item.type === "shuttle") && (units.some((item) => item.type === "reaver") || !stwHas(state, side, "bay"))) unit = "shuttle";
     else if (persona === "robo" && stwHas(state, side, "bay")) unit = "reaver";
     // 셔틀 폭탄 드랍: 7분부터 셔틀을 min기까지 뽑는다. 리버 폭탄 드랍은 리버가 둘 있은 뒤부터, 로보가 둘이면 둘째 로보에서.
-    if (shuttleBomb && !memory.bombOff && unit !== "observer" && state.time >= shuttleBomb.from) {
+    if (shuttleBomb?.carrier === "shuttle" && !memory.bombOff && unit !== "observer" && state.time >= shuttleBomb.from) {
       const robos = stwOwnBuildings(state, side, "robo", { doneOnly: true });
       const shuttles = units.filter((item) => item.type === "shuttle").length + robos.filter((item) => item.current?.unit === "shuttle").length;
       const mine = robos.length < 2 || robo === robos.at(-1);
@@ -1023,7 +1046,7 @@ function protossCounter(state, side) {
   return null;
 }
 
-function terranLines(state, side, persona, units, reserve) {
+function terranLines(state, side, persona, units, reserve, carrierBomb = null) {
   const record = state.sides[side];
   const gasReserveFor = reserve.gasFor ?? (() => reserve.gas);
   const count = (type) => units.filter((unit) => unit.type === type).length;
@@ -1106,10 +1129,12 @@ function terranLines(state, side, persona, units, reserve) {
     else if (persona === "wraith" && state.time > 360 && !count("dropship") && index === 0) unit = "dropship";
     // 탱크 바이오는 7분 뒤 폭탄 드랍용 드랍십 둘(베슬보다 먼저).
     if (persona === "tankbio" && state.time > 420 && count("dropship") < 2) unit = "dropship";
+    // 드랍십 폭탄 드랍: 7분부터 드랍십을 min기까지 뽑는다(베슬·레이스보다 먼저).
+    if (carrierBomb && state.time >= carrierBomb.from && count("dropship") + (starport.current?.unit === "dropship" ? 1 : 0) < carrierBomb.min) unit = "dropship";
     // 적 공중이 많으면 아머리가 있을 때 발키리를 섞는다.
     if (airHeavy && stwHas(state, side, "armory") && count("valkyrie") < 4 && (index === 1 || unit === null)) unit = "valkyrie";
     // 레이스·배틀크루저는 그 성향의 핵심이라 연구용 가스보다 먼저 만든다.
-    const core = persona === "wraith" || persona === "bc";
+    const core = persona === "wraith" || persona === "bc" || (carrierBomb && unit === "dropship");
     if (unit && !core && record.gas < STW_UNITS[unit].gas + gasReserveFor(unit) && record.minerals < 400) unit = null;
     if (unit && !core && reserve.safe && ((reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && !starport.current) || reserve.expand)) unit = null;
     if (starport.line !== unit) stwCommand(state, side, { type: "line", buildingId: starport.id, unit });
@@ -1704,22 +1729,26 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   const supply = stwSupply(state, side);
   const allIn = (stwIncome(state, side).minerals < 60 && record.minerals < 100) || supply.used >= 92;
 
-  // 셔틀 폭탄 드랍(PROTOSS_BOMB): 쉬는 셔틀이 세 기 이상이고 태울 유닛(riders)이 셋째 셔틀까지 타는 양이면 그 유닛만 태워 적 본진에 내리고,
+  // 셔틀·드랍십 폭탄 드랍(CARRIER_BOMB): 쉬는 수송선이 세 기 이상이고 태울 유닛(riders)이 셋째 셔틀까지 타는 양이면 그 유닛만 태워 적 본진에 내리고,
   // 나머지(드라군 등)는 같은 순간 정면으로 보낸다. 셔틀 수에는 상한을 두지 않는다(있는 셔틀은 탈 병력이 있는 한 모두 쓴다).
   if (shuttleBomb && !memory.bombOff) {
-    const shuttles = state.units.filter((unit) => unit.side === side && unit.type === "shuttle").length;
+    const shuttles = state.units.filter((unit) => unit.side === side && unit.type === shuttleBomb.carrier).length;
     const bombing = (state.ops ?? []).some((op) => op.side === side && op.kind === "bomb" && !op.done);
-    // 지난 드랍의 결과: 보낸 셔틀의 절반 넘게 잃었으면 이 경기에서는 다시 하지 않는다.
+    // 지난 드랍의 결과: 보낸 수송선의 절반 넘게 잃었으면 이 경기에서는 다시 하지 않는다.
     if (memory.bombSent && !bombing) {
       if (memory.bombCarriers - shuttles > memory.bombSent / 2) memory.bombOff = true;
       memory.bombSent = 0;
     }
     const check = !bombing && !memory.bombOff && threat < 3 ? stwDropCheck(state, side, "bomb") : null;
-    const seats = check?.ok ? check.passengers.filter((unit) => shuttleBomb.riders.includes(unit.type)).reduce((sum, unit) => sum + stwSlots(unit.type), 0) : 0;
-    if (check?.ok && check.carriers.length >= shuttleBomb.min && seats > (shuttleBomb.min - 1) * 8) {
-      if (stwCommand(state, side, { type: "drop", mission: "bomb", target: shuttleBomb.target, sync: true, riders: shuttleBomb.riders }).ok) {
+    // 태울 수 있는 칸: 종류별 상한(limit)까지만 센다. need에 적은 종류는 대기 병력에 그 수만큼 있어야 보낸다.
+    const waiting = {};
+    for (const unit of check?.ok ? check.passengers : []) waiting[unit.type] = (waiting[unit.type] ?? 0) + 1;
+    const seats = shuttleBomb.riders.reduce((sum, type) => sum + Math.min(waiting[type] ?? 0, shuttleBomb.limit?.[type] ?? Infinity) * stwSlots(type), 0);
+    const enough = Object.entries(shuttleBomb.need ?? {}).every(([type, count]) => (waiting[type] ?? 0) >= count);
+    if (check?.ok && enough && check.carriers.length >= shuttleBomb.min && seats > (shuttleBomb.min - 1) * 8) {
+      if (stwCommand(state, side, { type: "drop", mission: "bomb", target: shuttleBomb.target, sync: true, riders: shuttleBomb.riders, riderLimit: shuttleBomb.limit }).ok) {
         memory.bombs = (memory.bombs ?? 0) + 1;
-        memory.bombSent = state.units.filter((unit) => unit.side === side && unit.type === "shuttle" && unit.op !== undefined).length;
+        memory.bombSent = state.units.filter((unit) => unit.side === side && unit.type === shuttleBomb.carrier && unit.op !== undefined).length;
         memory.bombCarriers = shuttles;
         // 못 탄 병력은 드랍 명령이 정면으로 내보냈다(정면이 맞붙는 순간 셔틀이 들어간다).
         const front = stwArmy(state, side).attackers.length;
