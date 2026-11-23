@@ -16,12 +16,15 @@ const campaignShape = (value) => record(value) && value.version === 1 && ["norma
   && [value.levels, value.equipment, value.inventory, value.lastHaul].every(countMap)
   && (value.activeSkills === undefined || (Array.isArray(value.activeSkills) && value.activeSkills.every((id) => typeof id === "string")))
   && (value.gemsCollected === undefined || (Number.isInteger(value.gemsCollected) && value.gemsCollected >= 0))
-  && (value.digsCompleted === undefined || (Number.isInteger(value.digsCompleted) && value.digsCompleted >= 0));
+  && (value.digsCompleted === undefined || (Number.isInteger(value.digsCompleted) && value.digsCompleted >= 0))
+  && (value.hitByCrab === undefined || typeof value.hitByCrab === "boolean")
+  && (value.hitByShrimp === undefined || typeof value.hitByShrimp === "boolean");
 const copyCampaign = (campaign) => ({ ...campaign, levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, inventory: { ...campaign.inventory }, lastHaul: { ...campaign.lastHaul }, ...(Array.isArray(campaign.activeSkills) ? { activeSkills: [...campaign.activeSkills] } : {}) });
 const ENTITY_FIELDS = {
   creatures: "hp maxHp speed size xp score saltHit hitFlash phase age movementAngle movementClock",
   pickups: "xp age visualX visualY fromX fromY pullTime pullDuration", projectiles: "vx vy damage life",
   harpoons: "vx vy damage distance maxDistance angle",
+  fireballs: "vx vy age life damage splash wobblePhase baseAngle", flameRays: "angle age length width",
   netSlams: "life maxLife damage radius headDepth range angle targetId",
   castNets: "originX originY angle radius damage holdSeconds age duration",
   rocks: "radius tone", clamHoles: "radius progress", hoeBots: "targetHoleId digClock facing", clamReveals: "life maxLife",
@@ -55,6 +58,8 @@ export function encodeMudflatRun(campaign, runtime, choiceIds = [], nextSequence
     ...(Array.isArray(runtime.activeSkills) ? { activeSkills: [...runtime.activeSkills] } : {}),
     ...(Number.isInteger(runtime.gemsCollected) ? { gemsCollected: runtime.gemsCollected } : {}),
     ...(Number.isInteger(runtime.digsCompleted) ? { digsCompleted: runtime.digsCompleted } : {}),
+    ...(typeof runtime.hitByCrab === "boolean" ? { hitByCrab: runtime.hitByCrab } : {}),
+    ...(typeof runtime.hitByShrimp === "boolean" ? { hitByShrimp: runtime.hitByShrimp } : {}),
   };
   return JSON.stringify({
     version: 1, savedAt, campaign: currentCampaign, stageEntryCampaign: copyCampaign(stageEntryCampaign), choiceIds, nextSequence,
@@ -108,6 +113,8 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (!Number.isInteger(runtime.guardBasketCharges) || runtime.guardBasketCharges < 0) runtime.guardBasketCharges = runtimeTemplate.guardBasketCharges;
     // 호미봇과 호미질 집계도 뒤에 추가됐다. 예전 저장은 로봇 없음·캠페인 값으로 보완한다.
     if (!Number.isInteger(runtime.digsCompleted) || runtime.digsCompleted < 0) runtime.digsCompleted = runtimeTemplate.digsCompleted;
+    if (typeof runtime.hitByCrab !== "boolean") runtime.hitByCrab = runtimeTemplate.hitByCrab;
+    if (typeof runtime.hitByShrimp !== "boolean") runtime.hitByShrimp = runtimeTemplate.hitByShrimp;
     if (!Array.isArray(runtime.hoeBots)) runtime.hoeBots = [];
     // 건곤대나이 타이머도 뒤에 추가됐다.
     if (!finite(runtime.rockLiftClock)) runtime.rockLiftClock = runtimeTemplate.rockLiftClock;
@@ -117,6 +124,13 @@ export function decodeMudflatRun(serialized, makeRuntime) {
       if (!finite(runtime[key])) runtime[key] = 0;
     }
     if (!Number.isInteger(runtime.smashCastId) || runtime.smashCastId < 0) runtime.smashCastId = 0;
+    // 파이어볼·화염 방사도 뒤에 추가됐다.
+    if (!Array.isArray(runtime.fireballs)) runtime.fireballs = [];
+    if (!Array.isArray(runtime.flameRays)) runtime.flameRays = [];
+    for (const key of ["fireballClock", "fireballSpacingClock", "flameBurstClock"]) {
+      if (!finite(runtime[key])) runtime[key] = 0;
+    }
+    if (!Number.isInteger(runtime.fireballQueue) || runtime.fireballQueue < 0) runtime.fireballQueue = 0;
     // Older active-run autosaves did not know about stage-five deep-mud
     // visuals/state. They are cosmetic or transient, so backfill defaults
     // instead of discarding an otherwise valid expedition.
