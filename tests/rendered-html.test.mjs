@@ -1609,9 +1609,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual(bossStats.charge, { windup: .6, duration: .55, speed: 420 });
   assert.deepEqual(bossStats.jump, { windup: .4, air: .7, radius: 80, height: 90, damage: 30 });
   assert.deepEqual(bossStats.fireball, { windup: .5, level: 5, damage: 16, spread: Math.PI / 18 });
-  assert.deepEqual(bossStats.claw, { windup: .4, speed: 320, range: 300, radius: 18, damage: 18 });
+  assert.deepEqual(bossStats.claw, { windup: .4, speed: 320, range: 300, radius: 18, damage: 50 });
   assert.deepEqual(bossStats.summon, { windup: .8, count: 4, distance: 70 });
-  assert.deepEqual([mudflatBossSkillStats(3).jump.damage, mudflatBossSkillStats(3).fireball.damage, mudflatBossSkillStats(3).claw.damage], [20, 11, 13]);
+  assert.deepEqual([mudflatBossSkillStats(3).jump.damage, mudflatBossSkillStats(3).fireball.damage, mudflatBossSkillStats(3).claw.damage], [20, 11, 25]);
   // 다음 기술은 직전 기술을 빼고 고르고, 하나뿐이면 같은 기술을 되풀이한다.
   assert.equal(mudflatBossNextSkill(["charge"], "charge", .7), "charge");
   assert.equal(mudflatBossNextSkill(["charge", "fireball"], "charge", .99), "fireball");

@@ -655,7 +655,7 @@ export function mudflatBossSkillStats(stage = 1) {
     charge: { windup: .6, duration: .55, speed: 420 },
     jump: { windup: .4, air: .7, radius: 80, height: 90, damage: 14 + safeStage * 2 },
     fireball: { windup: .5, level: 5, damage: 8 + safeStage, spread: Math.PI / 18 },
-    claw: { windup: .4, speed: 320, range: 300, radius: 18, damage: 10 + safeStage },
+    claw: { windup: .4, speed: 320, range: 300, radius: 18, damage: 10 + safeStage * 5 },
     summon: { windup: .8, count: 4, distance: 70 },
   };
 }
