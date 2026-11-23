@@ -165,7 +165,9 @@ export class StwPixiRenderer {
     ground.height = STW_LANE_LENGTH;
     this.ground = ground;
     this.terrains.set("plain", this.tex.terrain);
-    for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) {
+    // 지도 위·아래 끝 너머(STW_VIEW_EDGE_Y만큼 더 내려 보는 띠)에만 바닥을 거울처럼 이어 그린다. 양옆에는 그리지 않는다:
+    // 가로로 넓은 화면(PC)에서는 전장이 화면 폭의 일부만 차지해, 양옆에 깐 복사본이 지도가 세 개 겹친 것처럼 보였다. 양옆은 바탕색(거의 검정)으로 둔다.
+    for (const [dx, dy] of [[0, -1], [0, 1]]) {
       const bleed = new PIXI.Sprite(this.tex.terrain);
       bleed.tint = 0x9c8f7c;
       bleed.label = `${dx},${dy}`;
