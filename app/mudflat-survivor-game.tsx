@@ -157,6 +157,10 @@ import {
   mudflatFlameBurstStats,
   mudflatNewUnlocks,
   mudflatHitFamily,
+  mudflatFrostTrailStats,
+  mudflatFrostWaveStats,
+  mudflatSlowMultiplier,
+  mudflatApplySlow,
   MUDFLAT_SMASH_KNOCKBACK_SECONDS,
   MUDFLAT_SMASH_CHAIN_RATIO,
   MUDFLAT_ROCK_LIFT_SECONDS,
@@ -174,7 +178,7 @@ import {
 
 type ExitProps = { onExit: () => void };
 type CreatureEventKind = "puffer-rush" | "crab-line" | "mud-zombie" | "jellyfish";
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; knockbackX?: number; knockbackY?: number; knockbackLife?: number; knockbackDamage?: number; knockbackRockBonus?: number; knockbackCast?: number; knockbackChain?: boolean; movementAngle: number; movementClock: number; facing?: 1 | -1; returnSeconds?: number; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; knockbackX?: number; knockbackY?: number; knockbackLife?: number; knockbackDamage?: number; knockbackRockBonus?: number; knockbackCast?: number; knockbackChain?: boolean; slowUntil?: number; slowFactor?: number; movementAngle: number; movementClock: number; facing?: 1 | -1; returnSeconds?: number; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
 type Pickup = ReturnType<typeof createExperiencePickup>;
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
@@ -182,6 +186,10 @@ type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; dis
 type Fireball = Point & { id: number; vx: number; vy: number; age: number; life: number; damage: number; splash: number; wobblePhase: number; baseAngle: number };
 // 화염 방사 불줄기 연출(피해는 발동 순간에 적용). 0.35초 뻗고 0.5초에 사라진다.
 type FlameRay = Point & { id: number; angle: number; age: number; length: number; width: number };
+// 서리 바닥: 위의 해산물을 느리게 하고 틱 피해를 준다. 수명이 끝나면 녹듯이 사라진다.
+type FrostPatch = Point & { id: number; radius: number; age: number; life: number };
+// 빙결 파동 고리 연출(피해·둔화는 발동 순간에 적용).
+type FrostWave = Point & { id: number; age: number; radius: number };
 type NetSlamEffect = Point & { id: number; life: number; maxLife: number; damage: number; radius: number; headDepth: number; range: number; angle: number; targetId: number; area: boolean; hit: boolean };
 type CastNetEffect = ReturnType<typeof createCastNet>;
 type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number; kind?: "harvest" };
@@ -240,11 +248,11 @@ type Runtime = {
   seed: number; rngState: number;
   lumiMotion: ReturnType<typeof createLumiMotion>;
   elapsed: number; tutorialElapsed: number; firstMoveGuide: FirstMoveGuide | null; player: Point & { hp: number; maxHp: number; baseMaxHp: number; speed: number; damageCooldown: number; facing: number; stride: number; walking: boolean };
-  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; fireballs: Fireball[]; flameRays: FlameRay[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; hoeBots: HoeBot[]; clamReveals: ClamReveal[]; mudPrints: MudPrint[]; levels: CountMap; skillInventory: CountMap; activeSkills: string[]; equipment: CountMap; basket: CountMap;
+  creatures: Creature[]; pickups: Pickup[]; projectiles: Projectile[]; harpoons: Harpoon[]; fireballs: Fireball[]; flameRays: FlameRay[]; frostPatches: FrostPatch[]; frostWaves: FrostWave[]; netSlams: NetSlamEffect[]; castNets: CastNetEffect[]; rocks: Rock[]; clamHoles: ClamHole[]; hoeBots: HoeBot[]; clamReveals: ClamReveal[]; mudPrints: MudPrint[]; levels: CountMap; skillInventory: CountMap; activeSkills: string[]; equipment: CountMap; basket: CountMap;
   bursts: Burst[]; floatTexts: FloatText[];
   xpCollectLife: number;
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
-  bossSpawned: boolean; openingWaveRemaining: number; spawnClock: number; gemsCollected: number; digsCompleted: number; hitByCrab: boolean; hitByShrimp: boolean; rockLiftClock: number; rockLiftEffect: number; smashClock: number; smashEffect: number; smashAngle: number; smashCastId: number; fireballClock: number; fireballQueue: number; fireballSpacingClock: number; flameBurstClock: number; guardBasketPullClock: number; guardBasketCharges: number; guardBasketRechargeClock: number; guardBasketFlashLife: number; guardBasketInvulnerable: number; pufferEventClock: number; crabRushClock: number; mudZombieClock: number; mudZombieTriggered: boolean; jellyfishClock: number; jellyPoisonSeconds: number; jellyPoisonTickClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
+  bossSpawned: boolean; openingWaveRemaining: number; spawnClock: number; gemsCollected: number; digsCompleted: number; hitByCrab: boolean; hitByShrimp: boolean; hitByRock: boolean; hitByTide: boolean; rockLiftClock: number; rockLiftEffect: number; smashClock: number; smashEffect: number; smashAngle: number; smashCastId: number; fireballClock: number; fireballQueue: number; fireballSpacingClock: number; flameBurstClock: number; frostTrailClock: number; frostTickClock: number; frostWaveClock: number; guardBasketPullClock: number; guardBasketCharges: number; guardBasketRechargeClock: number; guardBasketFlashLife: number; guardBasketInvulnerable: number; pufferEventClock: number; crabRushClock: number; mudZombieClock: number; mudZombieTriggered: boolean; jellyfishClock: number; jellyPoisonSeconds: number; jellyPoisonTickClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
   deepMudGauge: number; deepMudLock: number; deepMudStepClock: number;
   safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; mosquitoClock: number; mosquitoRunEnabled: boolean; rocksFlipped: number;
   paused: boolean; ended: boolean;
@@ -361,8 +369,8 @@ function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
     mode: campaign.mode, stage: campaign.stage, seed: normalizedSeed, rngState: normalizedSeed, lumiMotion: createLumiMotion(),
     xpCollectLife: 0,
     elapsed: 0, tutorialElapsed: 0, firstMoveGuide, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
-    creatures: [], pickups: [], projectiles: [], harpoons: [], fireballs: [], flameRays: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], hoeBots: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: activeLevels, skillInventory, activeSkills, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
-    caught: 0, catchScore: 0, bossCaught: false, gemsCollected: Math.max(0, Math.floor(campaign.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(campaign.digsCompleted ?? 0)), hitByCrab: campaign.hitByCrab === true, hitByShrimp: campaign.hitByShrimp === true, rockLiftClock: 3, rockLiftEffect: 0, smashClock: 0, smashEffect: 0, smashAngle: 0, smashCastId: 0, fireballClock: 0, fireballQueue: 0, fireballSpacingClock: 0, flameBurstClock: 0, guardBasketPullClock: 0, guardBasketCharges: 1, guardBasketRechargeClock: 0, guardBasketFlashLife: 0, guardBasketInvulnerable: 0, bossSpawned: false, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
+    creatures: [], pickups: [], projectiles: [], harpoons: [], fireballs: [], flameRays: [], frostPatches: [], frostWaves: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], hoeBots: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: activeLevels, skillInventory, activeSkills, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
+    caught: 0, catchScore: 0, bossCaught: false, gemsCollected: Math.max(0, Math.floor(campaign.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(campaign.digsCompleted ?? 0)), hitByCrab: campaign.hitByCrab === true, hitByShrimp: campaign.hitByShrimp === true, hitByRock: campaign.hitByRock === true, hitByTide: campaign.hitByTide === true, rockLiftClock: 3, rockLiftEffect: 0, smashClock: 0, smashEffect: 0, smashAngle: 0, smashCastId: 0, fireballClock: 0, fireballQueue: 0, fireballSpacingClock: 0, flameBurstClock: 0, frostTrailClock: 0, frostTickClock: 0, frostWaveClock: 0, guardBasketPullClock: 0, guardBasketCharges: 1, guardBasketRechargeClock: 0, guardBasketFlashLife: 0, guardBasketInvulnerable: 0, bossSpawned: false, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
     pufferEventClock: campaign.stage >= 3 ? 18 : -1, crabRushClock: campaign.stage >= 4 ? 26 : -1,
     mudZombieClock: campaign.stage >= 6 ? 52 : -1, mudZombieTriggered: false,
     jellyfishClock: campaign.stage >= 8 ? mudflatJellyfishInterval(campaign.stage) : -1,
@@ -397,7 +405,7 @@ function readSavedCampaign(): Campaign | null {
       version: 1, mode: value.mode, characterId: String(value.characterId ?? "digger"), stage: Math.max(1, Math.floor(value.stage ?? 1)),
       coins: Math.max(0, Math.floor(value.coins ?? 0)), hp: Math.max(1, Number(value.hp ?? 1)), maxHp: Math.max(1, Number(value.maxHp ?? 1)), baseMaxHp: Math.max(1, Number(value.baseMaxHp ?? (value.mode === "normal" ? 100 : (CHARACTERS.find((item) => item.id === value.characterId)?.hp ?? 100)))),
       level: Math.max(1, Math.floor(value.level ?? 1)), xp: Math.max(0, Math.floor(value.xp ?? 0)), nextXp: Math.max(1, Math.floor(value.nextXp ?? 8)),
-      levels: { ...value.levels }, activeSkills: mudflatNormalizeActiveSkills(value.levels, value.activeSkills, value.mode), equipment: { ...value.equipment }, inventory: { ...value.inventory }, lastHaul: { ...(value.lastHaul ?? {}) }, lastSaleValue: Math.max(0, Math.floor(value.lastSaleValue ?? 0)), totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught), gemsCollected: Math.max(0, Math.floor(value.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(value.digsCompleted ?? 0)), hitByCrab: value.hitByCrab === true, hitByShrimp: value.hitByShrimp === true,
+      levels: { ...value.levels }, activeSkills: mudflatNormalizeActiveSkills(value.levels, value.activeSkills, value.mode), equipment: { ...value.equipment }, inventory: { ...value.inventory }, lastHaul: { ...(value.lastHaul ?? {}) }, lastSaleValue: Math.max(0, Math.floor(value.lastSaleValue ?? 0)), totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught), gemsCollected: Math.max(0, Math.floor(value.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(value.digsCompleted ?? 0)), hitByCrab: value.hitByCrab === true, hitByShrimp: value.hitByShrimp === true, hitByRock: value.hitByRock === true, hitByTide: value.hitByTide === true,
       lastObjectiveLabel: String(value.lastObjectiveLabel ?? ""), lastObjectiveComplete: Boolean(value.lastObjectiveComplete), lastObjectiveBonus: Math.max(0, Math.floor(value.lastObjectiveBonus ?? 0)), pendingSkillDiscovery: Boolean(value.pendingSkillDiscovery),
     };
     restored.maxHp = derivedMaxHp(restored.baseMaxHp, restored.equipment, restored.levels, restored.mode);
@@ -1658,6 +1666,70 @@ function drawFlameRay(context: CanvasRenderingContext2D, x: number, y: number, a
   context.restore();
 }
 
+// 서리 바닥: 옅은 하늘색 원과 육각 결정 무늬. 수명 끝 0.5초 동안 녹듯이 사라진다.
+function drawFrostPatch(context: CanvasRenderingContext2D, x: number, y: number, radius: number, age: number, life: number, time: number) {
+  const fade = Math.min(1, age / .25) * Math.min(1, Math.max(0, (life - age) / .5));
+  context.save(); context.translate(x, y); context.globalAlpha = fade;
+  context.fillStyle = "rgba(190,230,255,.28)"; context.strokeStyle = "rgba(230,245,255,.55)"; context.lineWidth = 1.5;
+  context.beginPath(); context.ellipse(0, 0, radius, radius * .72, 0, 0, Math.PI * 2); context.fill(); context.stroke();
+  context.strokeStyle = "rgba(255,255,255,.7)"; context.lineWidth = 1;
+  for (let index = 0; index < 3; index += 1) {
+    const angle = index * Math.PI / 3 + Math.sin(time * 1.5 + x * .01) * .08;
+    const length = radius * .55;
+    context.beginPath(); context.moveTo(-Math.cos(angle) * length, -Math.sin(angle) * length * .72); context.lineTo(Math.cos(angle) * length, Math.sin(angle) * length * .72); context.stroke();
+  }
+  context.restore();
+}
+
+// 빙결 파동: 흰 테두리·하늘색 채움의 고리가 0.4초 동안 퍼지고 0.7초에 사라진다.
+function drawFrostWave(context: CanvasRenderingContext2D, x: number, y: number, age: number, radius: number) {
+  const grow = Math.min(1, age / .4);
+  const fade = age < .4 ? 1 : Math.max(0, 1 - (age - .4) / .3);
+  const reach = radius * Math.sin(grow * Math.PI / 2);
+  context.save(); context.translate(x, y); context.globalAlpha = fade;
+  context.fillStyle = "rgba(190,230,255,.18)";
+  context.beginPath(); context.ellipse(0, 0, reach, reach * .72, 0, 0, Math.PI * 2); context.fill();
+  context.strokeStyle = "#ffffff"; context.lineWidth = 3;
+  context.beginPath(); context.ellipse(0, 0, reach, reach * .72, 0, 0, Math.PI * 2); context.stroke();
+  context.strokeStyle = "#9fd8ff"; context.lineWidth = 2;
+  context.beginPath(); context.ellipse(0, 0, Math.max(0, reach - 8), Math.max(0, reach - 8) * .72, 0, 0, Math.PI * 2); context.stroke();
+  context.restore();
+}
+
+// 둔화·빙결 표시: 하늘색 테두리와 얼음 결정 2개. 빙결은 결정이 크고 테두리가 두껍다. 만료 0.3초 전부터 깜빡인다.
+function drawFrostMark(context: CanvasRenderingContext2D, x: number, y: number, size: number, frozen: boolean, remaining: number, time: number) {
+  const blink = remaining < .3 ? (Math.sin(time * 30) > 0 ? 1 : .35) : 1;
+  context.save(); context.translate(x, y); context.globalAlpha = blink * (frozen ? .95 : .75);
+  context.strokeStyle = frozen ? "#e8f7ff" : "#9fd8ff"; context.lineWidth = frozen ? 3 : 1.5;
+  context.beginPath(); context.arc(0, 0, size + 5, 0, Math.PI * 2); context.stroke();
+  context.strokeStyle = "#ffffff"; context.lineWidth = 1.5;
+  const crystal = frozen ? 7 : 4;
+  for (const [cx, cy] of [[-size * .6, -size - 4], [size * .6, -size - 2]]) {
+    for (let index = 0; index < 3; index += 1) {
+      const angle = index * Math.PI / 3;
+      context.beginPath(); context.moveTo(cx - Math.cos(angle) * crystal, cy - Math.sin(angle) * crystal); context.lineTo(cx + Math.cos(angle) * crystal, cy + Math.sin(angle) * crystal); context.stroke();
+    }
+  }
+  context.restore();
+}
+
+// 빙결 파동 발동 제스처: 채집꾼은 양손을 가슴 앞에 모았다 0.3초에 걸쳐 펴고, 루미는 몸 둘레 하늘색 발광만.
+function drawFrostCast(context: CanvasRenderingContext2D, x: number, y: number, age: number, lumi: boolean) {
+  const spread = Math.sin(Math.min(1, age / .3) * Math.PI / 2);
+  context.save();
+  context.globalAlpha = 1 - spread * .6;
+  context.strokeStyle = "rgba(159,216,255,.8)"; context.lineWidth = 3;
+  context.beginPath(); context.arc(x, y, 26 + spread * 10, 0, Math.PI * 2); context.stroke();
+  if (!lumi) {
+    context.globalAlpha = 1;
+    context.fillStyle = "#e9b48c"; context.strokeStyle = "#8a5a3b"; context.lineWidth = 1.5;
+    for (const side of [-1, 1]) {
+      context.beginPath(); context.arc(x + side * (4 + spread * 18), y - 4 - spread * 6, 5, 0, Math.PI * 2); context.fill(); context.stroke();
+    }
+  }
+  context.restore();
+}
+
 // 뻘권 시간 배분(총 0.55초): 준비 0.08초 → 내지르기 0.12초 → 충격 0.2초 → 복귀 0.15초.
 // progress(0~1)를 초 단위 단계로 바꾼다.
 const SMASH_EFFECT_SECONDS = .55;
@@ -2554,7 +2626,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       coins: current.coins + autoSale.value + objective.bonus,
       level: runtime.level, xp: runtime.xp, nextXp: runtime.nextXp, levels: { ...runtime.skillInventory }, activeSkills: [...runtime.activeSkills], inventory: {}, lastHaul: autoSale.haul as CountMap, lastSaleValue: autoSale.value,
       equipment: withoutMosquitoRepellent(runtime.equipment),
-      totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught, gemsCollected: runtime.gemsCollected, digsCompleted: runtime.digsCompleted, hitByCrab: runtime.hitByCrab, hitByShrimp: runtime.hitByShrimp,
+      totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught, gemsCollected: runtime.gemsCollected, digsCompleted: runtime.digsCompleted, hitByCrab: runtime.hitByCrab, hitByShrimp: runtime.hitByShrimp, hitByRock: runtime.hitByRock, hitByTide: runtime.hitByTide,
       lastObjectiveLabel: objective.label, lastObjectiveComplete: objective.complete, lastObjectiveBonus: objective.bonus,
     };
     if (supervisorRef.current) {
@@ -2964,14 +3036,24 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     };
     const damagePlayer = (damage: number, color = PLAYER_DAMAGE_TEXT_COLOR, reason = "피해 누적", blockable = true) => {
       const safeDamage = Math.max(0, Math.round((Number(damage) || 0) * 100) / 100);
-      if (!safeDamage) return;
-      if (blockable && tryGuardBasketBlock(reason)) return;
+      if (!safeDamage) return false;
+      if (blockable && tryGuardBasketBlock(reason)) return false;
       if (supervisorRef.current) supervisorLastDamageRef.current = reason;
       runtime.player.hp = Math.max(0, runtime.player.hp - safeDamage);
       if (supervisorRef.current) appendSupervisorEvent("damage", `${reason} · -${safeDamage}`, runtime);
       runtime.bursts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, life: .42, maxLife: .42, color, size: 25 });
       const damageLabel = Number.isInteger(safeDamage) ? String(safeDamage) : safeDamage.toFixed(1);
       runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .78, text: `-${damageLabel}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
+      return true;
+    };
+    // 피격 경험(게·새우·바위·돌발 물살): 막히지 않은 피해에서만 기록하고, 조건이 완성되면 발견 문구를 띄운다.
+    const markHitExperience = (kind: "crab" | "shrimp" | "rock" | "tide" | null) => {
+      if (!kind || runtime.mode !== "normal") return;
+      const key = kind === "crab" ? "hitByCrab" : kind === "shrimp" ? "hitByShrimp" : kind === "rock" ? "hitByRock" : "hitByTide";
+      if (runtime[key]) return;
+      const before = mudflatAdvancedSkillUnlocks(runtime.skillInventory, runtime);
+      runtime[key] = true;
+      if (mudflatNewUnlocks(before, mudflatAdvancedSkillUnlocks(runtime.skillInventory, runtime))) runtime.discoveryMessageLife = 3;
     };
 
     const showPlayerMessage = (message: string, life: number, opacity = 1) => {
@@ -3312,7 +3394,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const inBaseCamp = mudflatStopHarvestInCamp(runtime, baseCampDimensions(runtime.stage));
       if (!inBaseCamp) {
         runtime.hoeClock -= dt; runtime.netClock -= dt; runtime.castNetClock -= dt; runtime.electricClock -= dt;
-        runtime.selfShockClock -= dt; runtime.rockTurnClock -= dt; runtime.harpoonClock -= dt; runtime.smashClock -= dt; runtime.fireballClock -= dt; runtime.flameBurstClock -= dt;
+        runtime.selfShockClock -= dt; runtime.rockTurnClock -= dt; runtime.harpoonClock -= dt; runtime.smashClock -= dt; runtime.fireballClock -= dt; runtime.flameBurstClock -= dt; runtime.frostTrailClock -= dt; runtime.frostWaveClock -= dt;
       }
       if (tide.active && inBaseCamp) { completeStage(runtime); return; }
       if (runtime.rockFlipEffect) {
@@ -3391,7 +3473,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           runtime.lastTideCycle = tideCycle;
           const inSafeZone = Math.hypot(runtime.player.x - runtime.safeZone.x, runtime.player.y - runtime.safeZone.y) <= 112;
           if (!inSafeZone && !inBaseCamp) {
-            damagePlayer(10 + runtime.stage, "#79c7df", "돌발 물살");
+            if (damagePlayer(10 + runtime.stage, "#79c7df", "돌발 물살")) markHitExperience("tide");
             showPlayerMessage("돌발 물살에 휩쓸렸다! 밝은 언덕배기로!", 3.6);
           } else if (inSafeZone) {
             showPlayerMessage("언덕배기에서 돌발 물살을 피했다.", 2.6);
@@ -3557,7 +3639,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           : creature.eventKind === "puffer-rush" ? "chase"
             : (creature.type === "pufferfish" ? mudflatPufferMovementForAge(creature.age) : creature.movement);
         const baseCreatureSpeed = ["whelk", "fist-whelk", "golbaengi"].includes(creature.type) ? mudflatShellMovementSpeed(speed) : creature.speed;
-        const creatureSpeed = (creature.requiresHeadlamp && !revealed ? baseCreatureSpeed * .25 : baseCreatureSpeed) * castNetMovementMultiplier(creature, runtime.castNets);
+        const creatureSpeed = (creature.requiresHeadlamp && !revealed ? baseCreatureSpeed * .25 : baseCreatureSpeed) * castNetMovementMultiplier(creature, runtime.castNets) * mudflatSlowMultiplier(creature, runtime.elapsed);
         if ((creature.emergeSeconds ?? 0) > 0) {
           // Buried crabs become tangible only after their staggered emergence.
         } else if (creature.eventKind === "crab-line") {
@@ -3647,12 +3729,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const contactBlocked = tryGuardBasketBlock(contactReason);
         if (!contactBlocked) runtime.player.hp = Math.max(0, runtime.player.hp - playerDamage);
         // 게·새우에게 실제로 피해를 받으면 파이어볼·화염 방사 해금 조건의 피격 경험을 채운다(막힌 피해는 제외).
-        const hitFamily = !contactBlocked && touchingCreature ? mudflatHitFamily(touchingCreature) : null;
-        if (hitFamily && runtime.mode === "normal" && ((hitFamily === "crab" && !runtime.hitByCrab) || (hitFamily === "shrimp" && !runtime.hitByShrimp))) {
-          const beforeHits = mudflatAdvancedSkillUnlocks(runtime.skillInventory, runtime);
-          if (hitFamily === "crab") runtime.hitByCrab = true; else runtime.hitByShrimp = true;
-          if (mudflatNewUnlocks(beforeHits, mudflatAdvancedSkillUnlocks(runtime.skillInventory, runtime))) runtime.discoveryMessageLife = 3;
-        }
+        if (!contactBlocked) markHitExperience(touchingRock ? "rock" : mudflatHitFamily(touchingCreature));
         if (!contactBlocked && supervisorRef.current) appendSupervisorEvent("contact-damage", `${supervisorLastDamageRef.current} · -${playerDamage}`, runtime);
         if (supervisorRef.current) supervisorDecisionRef.current.clock = 0;
         runtime.player.damageCooldown = .52;
@@ -3772,6 +3849,26 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (runtime.flameRays.length > 0) {
         for (const ray of runtime.flameRays) ray.age += dt;
         runtime.flameRays = runtime.flameRays.filter((ray) => ray.age < .5);
+      }
+      // 서리 바닥: 수명을 세고, 0.5초마다 바닥 위 해산물에 틱 피해와 둔화(바닥을 벗어난 뒤 1초 더)를 준다.
+      if (runtime.frostPatches.length > 0) {
+        const trail = mudflatFrostTrailStats(Math.max(1, runtime.levels["frost-trail"] ?? 0));
+        for (const patch of runtime.frostPatches) patch.age += dt;
+        runtime.frostPatches = runtime.frostPatches.filter((patch) => patch.age < patch.life);
+        runtime.frostTickClock -= dt;
+        if (runtime.frostTickClock <= 0 && runtime.frostPatches.length > 0) {
+          runtime.frostTickClock += trail.tickSeconds;
+          for (const creature of runtime.creatures) {
+            if (creature.hp <= 0 || !isCreatureRevealed(creature)) continue;
+            if (!runtime.frostPatches.some((patch) => Math.hypot(creature.x - patch.x, creature.y - patch.y) <= patch.radius + creature.size)) continue;
+            damageCreature(creature, trail.tickDamage, .1);
+            mudflatApplySlow(creature, creature.boss ? trail.slow / 2 : trail.slow, trail.tickSeconds + trail.lingerSeconds, runtime.elapsed);
+          }
+        }
+      } else runtime.frostTickClock = 0;
+      if (runtime.frostWaves.length > 0) {
+        for (const wave of runtime.frostWaves) wave.age += dt;
+        runtime.frostWaves = runtime.frostWaves.filter((wave) => wave.age < .7);
       }
 
       // 호미봇: 플레이어를 따라다니다 범위 안의 조개 구멍을 대신 판다. 플레이어가 같은
@@ -3954,6 +4051,37 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             runtime.flameBurstClock = flame.interval;
             if (supervisorRef.current) appendSupervisorEvent("flame-burst", `화염 방사 Lv.${flameLevel} · ${flame.rays}방향 · ${burned.size}마리`, runtime);
           } else runtime.flameBurstClock = .5;
+        }
+        // 서리 발자국: 0.9초마다 플레이어 자리에 서리 바닥을 남긴다(같은 자리면 수명 갱신, 최대 12개). 캠프 안에서는 남기지 않는다.
+        const frostTrailLevel = runtime.levels["frost-trail"] ?? 0;
+        if (runtime.mode === "normal" && frostTrailLevel > 0 && runtime.frostTrailClock <= 0) {
+          const trail = mudflatFrostTrailStats(frostTrailLevel);
+          const last = runtime.frostPatches[runtime.frostPatches.length - 1];
+          if (last && Math.hypot(last.x - runtime.player.x, last.y - runtime.player.y) <= 8) { last.age = 0; last.life = trail.life; last.radius = trail.radius; }
+          else {
+            runtime.frostPatches.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, radius: trail.radius, age: 0, life: trail.life });
+            while (runtime.frostPatches.length > trail.maxPatches) runtime.frostPatches.shift();
+          }
+          runtime.frostTrailClock = trail.interval;
+        }
+        // 빙결 파동: 주기마다 반경 170px 안에 해산물이 있을 때 반경 안 모든 해산물에 피해와 둔화(Lv.6 빙결)를 준다.
+        const frostWaveLevel = runtime.levels["frost-wave"] ?? 0;
+        if (runtime.mode === "normal" && frostWaveLevel > 0 && runtime.frostWaveClock <= 0) {
+          const wave = mudflatFrostWaveStats(frostWaveLevel);
+          if (revealedCreatures.some((creature) => creature.hp > 0 && Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= wave.checkRadius + creature.size)) {
+            let hits = 0;
+            for (const creature of revealedCreatures) {
+              if (creature.hp <= 0 || Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) > wave.radius + creature.size) continue;
+              damageCreature(creature, wave.damage, .2);
+              const bossScale = creature.boss ? .5 : 1;
+              if (wave.freeze) mudflatApplySlow(creature, 1, wave.slowSeconds * bossScale, runtime.elapsed);
+              else mudflatApplySlow(creature, wave.slow * bossScale, wave.slowSeconds, runtime.elapsed);
+              hits += 1;
+            }
+            runtime.frostWaves.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, age: 0, radius: wave.radius });
+            runtime.frostWaveClock = wave.interval;
+            if (supervisorRef.current) appendSupervisorEvent("frost-wave", `빙결 파동 Lv.${frostWaveLevel} · ${hits}마리${wave.freeze ? " 빙결" : " 둔화"}`, runtime);
+          } else runtime.frostWaveClock = .5;
         }
         // 뻘권: 조작 방향(멈춰 있으면 바라보는 방향) 앞 48px·좌우 40px 안에 해산물이 있으면 발동한다.
         // 통로 안의 해산물에 피해를 주고 주먹 방향으로 밀치며, 한 걸음(24px) 전진한다. 그물에 잡힌 생물은 제외.
@@ -4277,6 +4405,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         drawFallingRockTarget(context, screenPoint(falling), falling);
       }
 
+      for (const patch of runtime.frostPatches) {
+        const point = screenPoint(patch); if (point.x < -70 || point.y < -70 || point.x > width + 70 || point.y > height + 70) continue;
+        drawFrostPatch(context, point.x, point.y, patch.radius, patch.age, patch.life, actionTime);
+      }
       for (const hole of runtime.clamHoles) {
         const point = screenPoint(hole); if (point.x < -35 || point.y < -35 || point.x > width + 35 || point.y > height + 35) continue;
         context.save(); context.translate(point.x, point.y); drawClamHole(context, hole); context.restore();
@@ -4300,6 +4432,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       for (const ray of runtime.flameRays) {
         const point = screenPoint(ray);
         drawFlameRay(context, point.x, point.y, ray.angle, ray.age, ray.length, ray.width);
+      }
+      for (const wave of runtime.frostWaves) {
+        const point = screenPoint(wave);
+        drawFrostWave(context, point.x, point.y, wave.age, wave.radius);
       }
       for (const ball of runtime.fireballs) {
         const point = screenPoint(ball); if (point.x < -40 || point.y < -40 || point.x > width + 40 || point.y > height + 40) continue;
@@ -4330,6 +4466,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           }
           context.restore();
         }
+        const slowRemaining = creature.slowUntil !== undefined ? creature.slowUntil - runtime.elapsed : 0;
+        if (slowRemaining > 0 && (creature.slowFactor ?? 0) > 0) drawFrostMark(context, point.x, point.y, creature.size, (creature.slowFactor ?? 0) >= 1, slowRemaining, actionTime);
         const netStruggle = castNetMovementMultiplier(creature, runtime.castNets) === 0 ? Math.sin(actionTime * 19 + creature.id) * .8 : 0;
         const emerging = creature.eventKind === "mud-zombie" && (creature.emergeSeconds ?? 0) > 0;
         if (emerging) {
@@ -4406,6 +4544,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         const smashStats = mudflatSmashStats(Math.max(1, runtime.levels.smash ?? 0));
         drawSmashCast(context, width / 2, height / 2, runtime.smashAngle, 1 - runtime.smashEffect / SMASH_EFFECT_SECONDS, smashStats.length, smashStats.width, characterId === "lumi");
       }
+      const freshWave = runtime.frostWaves.find((wave) => wave.age < .3);
+      if (freshWave) drawFrostCast(context, width / 2, height / 2, freshWave.age, characterId === "lumi");
       if (runtime.rockLiftEffect > 0) {
         const liftStats = mudflatRockLiftStats(Math.max(1, runtime.levels["rock-lift"] ?? 0));
         drawRockLiftCast(context, width / 2, height / 2, 1 - runtime.rockLiftEffect / (MUDFLAT_ROCK_LIFT_SECONDS + MUDFLAT_ROCK_LIFT_FALL_SECONDS), Math.min(liftStats.radius, Math.hypot(width, height)), characterId === "lumi");

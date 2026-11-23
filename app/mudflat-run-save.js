@@ -18,13 +18,16 @@ const campaignShape = (value) => record(value) && value.version === 1 && ["norma
   && (value.gemsCollected === undefined || (Number.isInteger(value.gemsCollected) && value.gemsCollected >= 0))
   && (value.digsCompleted === undefined || (Number.isInteger(value.digsCompleted) && value.digsCompleted >= 0))
   && (value.hitByCrab === undefined || typeof value.hitByCrab === "boolean")
-  && (value.hitByShrimp === undefined || typeof value.hitByShrimp === "boolean");
+  && (value.hitByShrimp === undefined || typeof value.hitByShrimp === "boolean")
+  && (value.hitByRock === undefined || typeof value.hitByRock === "boolean")
+  && (value.hitByTide === undefined || typeof value.hitByTide === "boolean");
 const copyCampaign = (campaign) => ({ ...campaign, levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, inventory: { ...campaign.inventory }, lastHaul: { ...campaign.lastHaul }, ...(Array.isArray(campaign.activeSkills) ? { activeSkills: [...campaign.activeSkills] } : {}) });
 const ENTITY_FIELDS = {
   creatures: "hp maxHp speed size xp score saltHit hitFlash phase age movementAngle movementClock",
   pickups: "xp age visualX visualY fromX fromY pullTime pullDuration", projectiles: "vx vy damage life",
   harpoons: "vx vy damage distance maxDistance angle",
   fireballs: "vx vy age life damage splash wobblePhase baseAngle", flameRays: "angle age length width",
+  frostPatches: "radius age life", frostWaves: "age radius",
   netSlams: "life maxLife damage radius headDepth range angle targetId",
   castNets: "originX originY angle radius damage holdSeconds age duration",
   rocks: "radius tone", clamHoles: "radius progress", hoeBots: "targetHoleId digClock facing", clamReveals: "life maxLife",
@@ -60,6 +63,8 @@ export function encodeMudflatRun(campaign, runtime, choiceIds = [], nextSequence
     ...(Number.isInteger(runtime.digsCompleted) ? { digsCompleted: runtime.digsCompleted } : {}),
     ...(typeof runtime.hitByCrab === "boolean" ? { hitByCrab: runtime.hitByCrab } : {}),
     ...(typeof runtime.hitByShrimp === "boolean" ? { hitByShrimp: runtime.hitByShrimp } : {}),
+    ...(typeof runtime.hitByRock === "boolean" ? { hitByRock: runtime.hitByRock } : {}),
+    ...(typeof runtime.hitByTide === "boolean" ? { hitByTide: runtime.hitByTide } : {}),
   };
   return JSON.stringify({
     version: 1, savedAt, campaign: currentCampaign, stageEntryCampaign: copyCampaign(stageEntryCampaign), choiceIds, nextSequence,
@@ -115,6 +120,14 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (!Number.isInteger(runtime.digsCompleted) || runtime.digsCompleted < 0) runtime.digsCompleted = runtimeTemplate.digsCompleted;
     if (typeof runtime.hitByCrab !== "boolean") runtime.hitByCrab = runtimeTemplate.hitByCrab;
     if (typeof runtime.hitByShrimp !== "boolean") runtime.hitByShrimp = runtimeTemplate.hitByShrimp;
+    if (typeof runtime.hitByRock !== "boolean") runtime.hitByRock = runtimeTemplate.hitByRock;
+    if (typeof runtime.hitByTide !== "boolean") runtime.hitByTide = runtimeTemplate.hitByTide;
+    // 빙결 계열도 뒤에 추가됐다.
+    if (!Array.isArray(runtime.frostPatches)) runtime.frostPatches = [];
+    if (!Array.isArray(runtime.frostWaves)) runtime.frostWaves = [];
+    for (const key of ["frostTrailClock", "frostTickClock", "frostWaveClock"]) {
+      if (!finite(runtime[key])) runtime[key] = 0;
+    }
     if (!Array.isArray(runtime.hoeBots)) runtime.hoeBots = [];
     // 건곤대나이 타이머도 뒤에 추가됐다.
     if (!finite(runtime.rockLiftClock)) runtime.rockLiftClock = runtimeTemplate.rockLiftClock;
@@ -153,7 +166,7 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (!runtime.creatures.every((creature) => typeof creature.type === "string" && typeof creature.name === "string"
       && ["chase", "still", "wander", "flee", "oval"].includes(creature.movement))) return null;
     if (!runtime.creatures.every((creature) => (creature.eventKind === undefined || ["puffer-rush", "crab-line", "mud-zombie", "jellyfish"].includes(creature.eventKind))
-      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast"].every((key) => creature[key] === undefined || finite(creature[key]))
+      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast", "slowUntil", "slowFactor"].every((key) => creature[key] === undefined || finite(creature[key]))
       && (creature.knockbackChain === undefined || typeof creature.knockbackChain === "boolean")
       && (creature.uncollectible === undefined || typeof creature.uncollectible === "boolean"))) return null;
     if (!runtime.hoeBots.every((unit) => ["follow", "move", "dig"].includes(unit.phase) && Number.isInteger(unit.targetHoleId) && unit.targetHoleId >= 0)) return null;
