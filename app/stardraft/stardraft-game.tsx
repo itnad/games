@@ -1648,7 +1648,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
             <Card
               title={side.escort ? "동행 중" : "오버로드 동행"}
               sub={`완성된 오버로드 ${overlordsReady}${escorting ? " · 동행 1" : ""}`}
-              note={side.escort ? "누르면 기지로 돌려보냅니다" : overlordsReady || escorting ? "누르면 오버로드 1기가 출발합니다" : "완성된 오버로드가 없습니다"}
+              note={side.escort ? "누르면 둥지로 돌려보냅니다" : overlordsReady || escorting ? "누르면 오버로드 1기가 출발합니다" : "완성된 오버로드가 없습니다"}
               tone={side.escort ? "done" : undefined}
               disabled={!side.escort && !overlordsReady && !escorting}
               onClick={() => issue({ type: "escort", on: !side.escort })}
@@ -1682,7 +1682,7 @@ function ArmyTab({ game, issue }: { game: StwState; issue: Issue }) {
       ) : null}
       <p className="stw-hint">{plan.mission === "raid"
         ? `게릴라 드랍: ${transportName} 1기에 대기 병력 한 분대(8칸)를 태워 본진이나 앞마당 광물 줄의 일꾼을 칩니다(빠른 병력부터, 없으면 다른 지상 병력. 기술 건물을 고르면 그 건물을). 적이 몰려오거나 25초가 지나면 회수해 돌아옵니다.`
-        : `폭탄 드랍: 쉬는 ${transportName} 모두에 대기 병력을 비싼 것부터 가득 싣고 가장자리에 모였다가 한꺼번에 내립니다(1기부터). 내린 병력은 끝까지 싸웁니다.`}</p>
+        : `폭탄 드랍: 쉬는 ${transportName} 모두에 대기 병력을 비싼 것부터 가득 싣고 가장자리에 모였다가 한꺼번에 내립니다(1기부터). 내린 병력은 끝까지 싸웁니다.`}{race.id === "zerg" ? " 오버로드는 기지(본진·앞마당)마다 탐지용 1기를 남기고 나가며, 돌아오면 자기 둥지에 내려앉습니다." : ""}</p>
       <div className="stw-segment two">
         {([["raid", "게릴라 드랍"], ["bomb", "폭탄 드랍"]] as [StwDropMission, string][]).map(([mission, label]) => (
           <button key={mission} type="button" className={plan.mission === mission ? "active" : ""} aria-pressed={plan.mission === mission} onClick={() => issue({ type: "dropPlan", mission })}>{label}</button>

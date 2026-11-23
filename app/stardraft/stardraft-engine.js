@@ -23,6 +23,7 @@ import {
   STW_SPELLS,
   STW_STORM,
   STW_TICK,
+  STW_NEST,
   STW_TRANSPORT,
   STW_UNITS,
   STW_WORKER_HP,
@@ -499,8 +500,18 @@ function defenseSpot(spot) {
   return spot === "front" || spot === "rear" ? spot : undefined;
 }
 
-function freeSlot(state, side, list, prefix, { frontFirst = false } = {}) {
+/**
+ * 쓰는 중인 건물 자리. 떠 있는 오버로드도 자기 둥지 자리를 계속 잡아 둔다
+ * (띄운다고 자리가 풀리지 않는다. 둥지의 오버로드가 모두 죽어야 풀린다).
+ */
+function usedSlots(state, side) {
   const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
+  for (const unit of state.units) if (unit.side === side && unit.nest !== undefined && unit.hp > 0) used.add(unit.nest);
+  return used;
+}
+
+function freeSlot(state, side, list, prefix, { frontFirst = false } = {}) {
+  const used = usedSlots(state, side);
   // 일반 건물은 뒤쪽(본진 안쪽) 줄부터 채운다(목록 끝에 붙인 뒷줄 칸도 먼저 쓴다). 같은 줄에서는 목록 순서.
   // 방어 건물은 앞줄부터, 같은 줄에서는 가운데부터 채운다(적이 들어오는 길목).
   const order = list.map((_, i) => i).sort((a, b) => (prefix === "main" ? list[b].y - list[a].y : 0) || a - b);
@@ -511,18 +522,165 @@ function freeSlot(state, side, list, prefix, { frontFirst = false } = {}) {
 
 /** 일반 건물을 더 지을 수 있는 자리 수(본진 + 완성된 앞마당). AI가 꼭 필요한 테크 건물 자리를 남겨 둘 때 쓴다. */
 export function stwFreeSlots(state, side) {
-  const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
+  const used = usedSlots(state, side);
   let free = stwMap(state).layout.mainSlots.filter((slot, index) => !slot.blocked && !used.has(`main-${index}`)).length;
   const natural = stwNexus(state, side, "natural");
   if (natural && stwDone(natural)) free += stwMap(state).layout.naturalSlots.filter((_, index) => !used.has(`natural-${index}`)).length;
   return free;
 }
 
+/* ───────── 오버로드 둥지 ─────────
+ * 오버로드는 건물 자리 하나에 STW_NEST.capacity기씩 모여 떠 있는다(2×2). 건물일 때는 slot, 떠올라 유닛일 때는 nest가 둥지 자리이고 perch가 그 안의 칸이다.
+ * 떠올라도 둥지 소속은 그대로라 자리가 풀리지 않고, 할 일이 없으면 둥지로 돌아와 다시 건물이 된다.
+ */
+const NEST_PERCH = [{ x: -1.4, y: -1.3 }, { x: 1.4, y: -1.3 }, { x: -1.4, y: 1.3 }, { x: 1.4, y: 1.3 }];
+
+/** 둥지 자리 이름("main-3")의 기지와 아군 기준 자리. */
+function nestSlot(state, key) {
+  const [base, index] = String(key).split("-");
+  const layout = stwMap(state).layout;
+  const point = (base === "natural" ? layout.naturalSlots : layout.mainSlots)[Number(index)];
+  return point ? { base, point } : null;
+}
+
+/** 둥지 안 칸의 실제 위치. */
+function perchPoint(state, side, key, perch) {
+  const slot = nestSlot(state, key);
+  if (!slot) return null;
+  const center = stwPoint(side, slot.point);
+  const offset = NEST_PERCH[perch % NEST_PERCH.length];
+  return { x: center.x + offset.x, y: center.y + offset.y };
+}
+
+/** 둥지마다 소속 오버로드가 쓰는 칸(건물과 떠 있는 유닛 모두). */
+function nestMembers(state, side) {
+  const nests = new Map();
+  const add = (key, perch) => {
+    if (key === undefined || !nestSlot(state, key)) return;
+    if (!nests.has(key)) nests.set(key, []);
+    nests.get(key).push(perch ?? 0);
+  };
+  for (const building of state.buildings) if (building.side === side && building.type === "overlord") add(building.slot, building.perch);
+  for (const unit of state.units) if (unit.side === side && unit.type === "overlord" && unit.hp > 0) add(unit.nest, unit.perch);
+  return nests;
+}
+
+/** 앞마당 둥지에 둘 오버로드 수: 앞마당 기지가 완성되면 탐지 당번 1기, 복부 주머니 연구 뒤에는 드랍 대기조까지 한 둥지. */
+function naturalNestTarget(state, side) {
+  const natural = stwNexus(state, side, "natural");
+  if (!natural || !stwDone(natural)) return 0;
+  return stwResearchDone(state, side, "ventral") ? STW_NEST.capacity : STW_NEST.naturalWatch;
+}
+
+/** 새 앞마당 둥지 자리: 빈 앞마당 자리 가운데 가장 뒤쪽, 같으면 가장자리에 가까운 쪽(드랍 길목이자 정면에서 가장 먼 곳). */
+function naturalNestSlot(state, side) {
+  const list = stwMap(state).layout.naturalSlots;
+  const used = usedSlots(state, side);
+  const edge = (point) => Math.min(point.x, STW_LANE_WIDTH - point.x);
+  const free = list.map((point, index) => ({ point, index })).filter((item) => !item.point.blocked && !used.has(`natural-${item.index}`));
+  if (!free.length) return null;
+  const best = free.reduce((pick, item) => (item.point.y - pick.point.y || edge(pick.point) - edge(item.point) || pick.index - item.index) > 0 ? item : pick);
+  return `natural-${best.index}`;
+}
+
+/**
+ * 오버로드가 들어갈 둥지 칸. base를 주면 그 기지에서만 찾는다.
+ * 앞마당 둥지가 정원(naturalNestTarget)에 못 미치면 앞마당부터, 아니면 본진의 자리 남은 둥지 → 본진의 새 둥지(뒤쪽 줄부터) → 앞마당 순서.
+ */
+function nestPlacement(state, side, base = null) {
+  const nests = nestMembers(state, side);
+  const count = (prefix) => [...nests].reduce((sum, [key, perches]) => sum + (key.startsWith(prefix) ? perches.length : 0), 0);
+  const seat = (key) => {
+    const taken = new Set(nests.get(key) ?? []);
+    const perch = NEST_PERCH.findIndex((_, index) => !taken.has(index));
+    return perch < 0 ? null : { key, perch, point: perchPoint(state, side, key, perch), base: nestSlot(state, key).base };
+  };
+  const withRoom = (prefix) => [...nests.keys()].filter((key) => key.startsWith(prefix) && nests.get(key).length < STW_NEST.capacity)
+    .sort((a, b) => nestSlot(state, b).point.y - nestSlot(state, a).point.y || Number(a.split("-")[1]) - Number(b.split("-")[1]))[0];
+  const natural = stwNexus(state, side, "natural");
+  const naturalOpen = Boolean(natural && stwDone(natural));
+  const inNatural = () => {
+    if (!naturalOpen) return null;
+    const key = withRoom("natural-") ?? naturalNestSlot(state, side);
+    return key ? seat(key) : null;
+  };
+  const inMain = () => {
+    const key = withRoom("main-") ?? freeSlot(state, side, stwMap(state).layout.mainSlots, "main")?.key;
+    return key ? seat(key) : null;
+  };
+  if (base === "natural") return inNatural();
+  if (base === "main") return inMain();
+  if (count("natural-") < naturalNestTarget(state, side)) {
+    const place = inNatural();
+    if (place) return place;
+  }
+  return inMain() ?? inNatural();
+}
+
+/** 오버로드 건물을 띄운다(인구 +8과 둥지 자리는 그대로). */
+function liftOverlord(state, side, building) {
+  state.buildings = state.buildings.filter((item) => item !== building);
+  const unit = spawnUnit(state, side, "overlord", building.x, building.y);
+  unit.hp = Math.min(unit.maxHp, building.hp);
+  unit.nest = building.slot;
+  unit.perch = building.perch ?? 0;
+  unit.group = "rally";
+  return unit;
+}
+
+/** 할 일 없는 오버로드(작전·동행·화물·경로 없음). 둥지로 돌아가는 중이어도 바로 다시 쓸 수 있다. */
+function idleOverlord(state, unit) {
+  return unit.type === "overlord" && unit.hp > 0 && unit.op === undefined && !unit.cargo?.length && !unit.dropPath?.length && !(state.sides[unit.side].escort && unit.escort);
+}
+
+/**
+ * 둥지 관리(틱마다, 저그만).
+ * - 앞마당 기지가 완성됐는데 앞마당 둥지가 비어 있으면 본진 둥지에서 1기가 날아간다(앞마당 은폐 탐지). 본진에 2기 이상 있을 때만.
+ * - 할 일 없이 떠 있는 오버로드는 앞마당 둥지가 정원에 못 미치면 그쪽으로 소속을 옮기고, 자기 칸에 닿으면 내려앉아 다시 건물이 된다.
+ */
+function nestStep(state, side) {
+  if (state.sides[side].race !== "zerg") return;
+  const target = naturalNestTarget(state, side);
+  const naturalCount = () => [...nestMembers(state, side)].reduce((sum, [key, perches]) => sum + (key.startsWith("natural-") ? perches.length : 0), 0);
+  if (target > 0 && naturalCount() === 0) {
+    const parked = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).filter((building) => building.base === "main").sort((a, b) => b.id - a.id);
+    const place = parked.length >= 2 ? nestPlacement(state, side, "natural") : null;
+    if (place) {
+      const unit = liftOverlord(state, side, parked[0]);
+      unit.nest = place.key;
+      unit.perch = place.perch;
+    }
+  }
+  for (const unit of [...state.units]) {
+    if (unit.side !== side || !idleOverlord(state, unit)) continue;
+    const here = unit.nest !== undefined ? nestSlot(state, unit.nest) : null;
+    if (!here || (here.base === "main" && naturalCount() < target)) {
+      // 둥지가 없거나(실험실에서 바로 세운 오버로드), 앞마당 둥지에 빈 칸이 있으면 그쪽으로 간다.
+      const own = unit.nest;
+      unit.nest = undefined;
+      const place = here ? nestPlacement(state, side, "natural") : nestPlacement(state, side);
+      if (place) {
+        unit.nest = place.key;
+        unit.perch = place.perch;
+      } else unit.nest = own;
+    }
+    if (unit.nest === undefined) continue;
+    const point = perchPoint(state, side, unit.nest, unit.perch ?? 0);
+    if (!point || distance(unit.x, unit.y, point.x, point.y) > 0.4) continue;
+    const building = placeBuilding(state, side, "overlord", point, nestSlot(state, unit.nest).base, unit.nest);
+    building.perch = unit.perch ?? 0;
+    building.progress = 1;
+    building.hp = Math.min(building.maxHp, unit.hp);
+    state.units = state.units.filter((item) => item !== unit);
+  }
+}
+
 function placementFor(state, side, type, spot) {
   const layout = stwMap(state).layout;
+  if (type === "overlord") return nestPlacement(state, side);
   if (STW_BUILDINGS[type]?.refinery) {
     // 본진 간헐천 둘을 먼저, 앞마당 간헐천은 앞마당 기지가 완성된 뒤에 쓴다.
-    const used = new Set(state.buildings.filter((building) => building.side === side).map((building) => building.slot));
+    const used = usedSlots(state, side);
     const naturalBase = stwNexus(state, side, "natural");
     const naturalReady = Boolean(naturalBase && stwDone(naturalBase));
     const index = layout.geysers.findIndex((point, i) => (point.base === "main" || naturalReady) && !used.has(`geyser-${i}`));
@@ -637,13 +795,23 @@ export function stwSlots(type) {
   return STW_SLOTS[type] ?? (def.size === "small" ? 1 : def.size === "medium" ? 2 : 4);
 }
 
-/** 쉬고 있는 수송선. 저그는 복부 주머니 뒤, 침투를 마치고 떠 있는 오버로드를 먼저 쓰고 기지의 오버로드를 2기 남기고 띄운다. */
+/**
+ * 띄워 쓸 수 있는 둥지의 오버로드: 기지(본진·앞마당)마다 1기는 탐지 당번으로 남기고, 정면에 가까운 앞마당 둥지부터 낸다.
+ * all이면 당번도 맨 뒤에 붙인다(동행은 오버로드가 하나뿐이어도 띄울 수 있다).
+ */
+function parkedOverlords(state, side, { all = false } = {}) {
+  const parked = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).sort((a, b) => b.id - a.id);
+  const watch = ["natural", "main"].map((base) => parked.filter((building) => building.base === base).at(-1)).filter(Boolean);
+  const free = parked.filter((building) => !watch.includes(building));
+  return [...free.filter((building) => building.base === "natural"), ...free.filter((building) => building.base !== "natural"), ...(all ? watch.reverse() : [])];
+}
+
+/** 쉬고 있는 수송선. 저그는 복부 주머니 뒤, 할 일 없이 떠 있는 오버로드를 먼저 쓰고 둥지의 오버로드를 기지마다 1기씩 남기고 띄운다. */
 function idleCarriers(state, side) {
   const record = state.sides[side];
   if (record.race === "zerg") {
-    const floating = state.units.filter((unit) => unit.side === side && unit.type === "overlord" && !unit.escort && !unit.cargo?.length && !unit.dropPath?.length && unit.op === undefined);
-    const parked = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).sort((a, b) => b.id - a.id);
-    return [...floating, ...parked.slice(0, Math.max(0, parked.length - 2))];
+    const floating = state.units.filter((unit) => unit.side === side && idleOverlord(state, unit) && !unit.escort);
+    return [...floating, ...parkedOverlords(state, side)];
   }
   return state.units.filter((unit) => unit.side === side && STW_UNITS[unit.type].transport && unit.group === "rally" && !unit.cargo?.length && !unit.dropPath?.length && unit.op === undefined);
 }
@@ -681,7 +849,7 @@ export function stwDropCheck(state, side, mission = state.sides[side].dropPlan?.
   if (record.race === "zerg" && !stwResearchDone(state, side, "ventral")) return fail("복부 주머니 연구 필요");
   const carriers = idleCarriers(state, side);
   const name = transportName(record.race);
-  if (!carriers.length) return fail(record.race === "zerg" ? "기지에 남길 오버로드 2기 말고 쓸 오버로드가 없습니다" : `쉬는 ${name} 필요`);
+  if (!carriers.length) return fail(record.race === "zerg" ? "기지마다 탐지용으로 남길 1기 말고 쓸 오버로드가 없습니다" : `쉬는 ${name} 필요`);
   // 사람은 수송선 1기로도 폭탄 드랍을 할 수 있다(8칸 가득). AI는 예전처럼 2기 이상 모아서 간다.
   if (mission === "bomb" && carriers.length < (state.aiSides.includes(side) ? 2 : 1)) return fail(`폭탄 드랍은 쉬는 ${name} 2기 이상 필요`);
   const passengers = dropPassengers(state, side, mission);
@@ -728,9 +896,11 @@ function dropPath(transport, land) {
   return [{ x, y: transport.y }, { x, y: land.y }, { x: land.x, y: land.y }];
 }
 
-function homePath(side, transport) {
+/** 돌아오는 길. 둥지가 있는 오버로드는 자기 둥지 높이까지만 온다(앞마당 둥지면 그만큼 일찍 병력을 내리고 다시 나갈 수 있다). */
+function homePath(side, transport, state = null) {
   const x = edgeX(transport.x);
-  const home = stwPoint(side, { x: 20, y: 88 });
+  const nest = state && transport.nest !== undefined ? nestSlot(state, transport.nest) : null;
+  const home = stwPoint(side, { x: 20, y: nest ? nest.point.y : 88 });
   return [{ x, y: transport.y }, { x, y: home.y }];
 }
 
@@ -745,10 +915,7 @@ function mineralCenter(state, side, base) {
 /** 저그 오버로드 건물은 떠올라 수송선이 된다(인구 +8은 그대로). */
 function liftCarrier(state, side, carrier) {
   if (carrier.kind !== "building") return carrier;
-  state.buildings = state.buildings.filter((item) => item !== carrier);
-  const transport = spawnUnit(state, side, "overlord", carrier.x, carrier.y);
-  transport.hp = Math.min(transport.maxHp, carrier.hp);
-  return transport;
+  return liftOverlord(state, side, carrier);
 }
 
 function boardUnit(unit, transport) {
@@ -928,7 +1095,8 @@ function runCommand(state, side, command) {
       const place = placementFor(state, side, command.building, spot);
       record.minerals -= def.minerals;
       record.gas -= def.gas;
-      placeBuilding(state, side, command.building, place.point, place.base, place.key);
+      const placed = placeBuilding(state, side, command.building, place.point, place.base, place.key);
+      if (place.perch !== undefined) placed.perch = place.perch;
       if (side === "player") pushLog(state, side, `${withKoreanObject(def.name)} ${race.buildVerb}합니다.`, "info");
       return { ok: true };
     }
@@ -1163,7 +1331,7 @@ function runCommand(state, side, command) {
           }
         } else if (op.kind === "raid") {
           if (op.phase === "out") {
-            for (const transport of transports) transport.dropPath = homePath(side, transport);
+            for (const transport of transports) transport.dropPath = homePath(side, transport, state);
             op.phase = "home";
             recalled += 1;
           } else if (op.phase === "fight") {
@@ -1171,7 +1339,7 @@ function runCommand(state, side, command) {
             recalled += 1;
           }
         } else if (op.phase === "gather" || op.phase === "in") {
-          for (const transport of transports) if (transport.cargo?.length) transport.dropPath = homePath(side, transport);
+          for (const transport of transports) if (transport.cargo?.length) transport.dropPath = homePath(side, transport, state);
           op.phase = "home";
           recalled += 1;
         }
@@ -1503,6 +1671,7 @@ export function stepStardraft(state, aiThink = null) {
   for (const side of STW_SIDES) {
     stepEconomy(state, side, dt);
     if (state.sides[side].escort) escortStep(state, side);
+    nestStep(state, side);
   }
   state.pendingHits = [];
   stepBuildings(state, dt);
@@ -1852,19 +2021,16 @@ function stepProducer(state, building, record, dt) {
 function escortStep(state, side) {
   if (state.units.some((unit) => unit.side === side && unit.type === "overlord" && unit.escort)) return;
   // 침투를 마치고 돌아와 떠 있는 오버로드가 있으면 그것을 먼저 동행시킨다.
-  const idle = state.units.find((unit) => unit.side === side && unit.type === "overlord" && !unit.cargo?.length && !unit.dropPath?.length);
+  const idle = state.units.find((unit) => unit.side === side && unit.type === "overlord" && unit.op === undefined && !unit.cargo?.length && !unit.dropPath?.length);
   if (idle) {
     idle.escort = true;
     idle.group = "rally";
     return;
   }
-  const building = stwOwnBuildings(state, side, "overlord", { doneOnly: true }).sort((a, b) => b.id - a.id)[0];
+  // 둥지에서 띄운다: 탐지 당번이 아닌 앞마당 둥지의 오버로드부터, 하나뿐이면 그 하나라도.
+  const building = parkedOverlords(state, side, { all: true })[0];
   if (!building) return;
-  state.buildings = state.buildings.filter((item) => item !== building);
-  const unit = spawnUnit(state, side, "overlord", building.x, building.y);
-  unit.hp = Math.min(unit.maxHp, building.hp);
-  unit.group = "rally";
-  unit.escort = true;
+  liftOverlord(state, side, building).escort = true;
 }
 
 /* ───────── 전투 ───────── */
@@ -3782,9 +3948,10 @@ function observerStep(state, unit, plan, dt) {
   const speed = unitSpeed(state, unit);
   const slot = plan.rallySlots.get(unit.id);
   if (unit.type === "overlord" && (!state.sides[unit.side].escort || !unit.escort)) {
-    // 동행을 끄면 본진 위로 돌아가 기지를 지킨다.
+    // 동행을 끄거나 침투를 마치면 자기 둥지로 돌아간다(닿으면 nestStep이 다시 건물로 내려앉힌다). 둥지가 없으면 본진 위에 뜬다.
     const home = stwNexus(state, unit.side, "main") ?? stwNexus(state, unit.side, "natural");
-    const goal = home ? { x: home.x + 4, y: home.y - stwForward(unit.side) * 2 } : stwPoint(unit.side, { x: 20, y: 90 });
+    const perch = unit.nest !== undefined ? perchPoint(state, unit.side, unit.nest, unit.perch ?? 0) : null;
+    const goal = perch ?? (home ? { x: home.x + 4, y: home.y - stwForward(unit.side) * 2 } : stwPoint(unit.side, { x: 20, y: 90 }));
     moveToward(unit, goal.x, goal.y, speed, dt);
     return;
   }
@@ -4061,7 +4228,10 @@ function transportStep(state, unit, plan, dt) {
     if (unit.hover) moveToward(unit, unit.hover.x, unit.hover.y, speed, dt);
   } else if (unit.dropPath?.length) {
     const next = unit.dropPath[0];
-    if (moveToward(unit, next.x, next.y, speed, dt)) unit.dropPath.shift();
+    // 돌아오는 길은 2.5칸 안이면 닿은 것으로 친다: 여러 기가 같은 점으로 돌아오면 서로 벌리는 힘(spreadFlyers)에 밀려
+    // 끝내 그 점에 닿지 못하고 맴돌았다(특히 집결점에서 가까운 앞마당 둥지로 회수할 때). 가는 길과 착륙 지점은 그대로 정확히 간다.
+    const reach = !op || op.phase === "home" ? 2.5 : 0;
+    if (moveToward(unit, next.x, next.y, speed, dt) || distance(unit.x, unit.y, next.x, next.y) <= reach) unit.dropPath.shift();
   } else if (!op) {
     unit.group = "rally";
     if (unit.type === "overlord") observerStep(state, unit, plan, dt);
@@ -4205,7 +4375,7 @@ function stepOps(state) {
         const alive = riders.filter((rider) => rider.group !== "cargo");
         if (!alive.length) {
           op.phase = "home";
-          transport.dropPath = homePath(op.side, transport);
+          transport.dropPath = homePath(op.side, transport, state);
           continue;
         }
         const cx = alive.reduce((sum, rider) => sum + rider.x, 0) / alive.length;
@@ -4231,7 +4401,7 @@ function stepOps(state) {
             rider.raid = undefined;
           }
           op.phase = "home";
-          transport.dropPath = homePath(op.side, transport);
+          transport.dropPath = homePath(op.side, transport, state);
         }
       } else if (op.phase === "home" && !transport.dropPath.length) {
         unloadCargo(state, transport, (rider) => {
@@ -4276,7 +4446,7 @@ function stepOps(state) {
         });
         op.riders.push(...landed.map((rider) => rider.id));
         announceLanding(state, transport, landed, "bomb");
-        transport.dropPath = homePath(op.side, transport);
+        transport.dropPath = homePath(op.side, transport, state);
       }
       if (transports.every((transport) => !transport.cargo?.length)) op.phase = "home";
     } else if (op.phase === "home" && transports.every((transport) => !transport.dropPath.length)) {

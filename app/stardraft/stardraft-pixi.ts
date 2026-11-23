@@ -484,13 +484,15 @@ export class StwPixiRenderer {
     const root = new PIXI.Container();
     root.position.set(building.x, building.y);
     const flying = building.type === "overlord";
-    const shadow = this.sprite(this.tex.shadow, def.size * (flying ? 1.1 : 1.45));
-    shadow.position.set(flying ? 1.4 : 0.5, flying ? 2 : 0.8);
-    const body = this.sprite(this.tex.buildings[building.side][building.type], def.size);
+    // 둥지의 오버로드는 한 자리에 넷이 모이므로 조금 작게 그린다.
+    const size = def.size * (flying ? 0.8 : 1);
+    const shadow = this.sprite(this.tex.shadow, size * (flying ? 1.1 : 1.45));
+    shadow.position.set(flying ? 1.1 : 0.5, flying ? 1.6 : 0.8);
+    const body = this.sprite(this.tex.buildings[building.side][building.type], size);
     let glow: Sprite | null = null;
     root.addChild(shadow);
     // 건물에도 진영 색 바닥 고리를 깐다.
-    const ring = this.sprite(this.tex.ring, def.size * 1.18);
+    const ring = this.sprite(this.tex.ring, size * 1.18);
     ring.tint = STW_TEAM[building.side].glow;
     ring.alpha = flying ? 0.3 : 0.42;
     ring.position.copyFrom(shadow.position);

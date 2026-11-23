@@ -80,6 +80,9 @@ export type StwUnit = {
   raid?: number;
   bomb?: StwDropTarget;
   scoutPhase?: "out" | "back" | null;
+  /** 떠 있는 오버로드의 둥지 자리(main-N, natural-N)와 그 안의 칸. 떠 있어도 자리를 잡아 둔다. */
+  nest?: string;
+  perch?: number;
   /** 출발 전 탑승: 타러 가는 수송선 id. */
   boardTo?: number;
   /** 수송선: 태우기로 정했지만 아직 타지 않은 병력 id. */
@@ -104,8 +107,10 @@ export type StwBuilding = {
   type: StwBuildingType;
   x: number;
   y: number;
-  /** 건물 자리 키(main-N, natural-N, geyser-N). */
+  /** 건물 자리 키(main-N, natural-N, geyser-N). 오버로드는 한 자리(둥지)에 여럿이 모인다. */
   slot?: string;
+  /** 오버로드: 둥지 안의 칸(0~3). */
+  perch?: number;
   base: "main" | "natural";
   radius: number;
   hp: number;
