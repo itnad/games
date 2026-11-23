@@ -2358,11 +2358,16 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /mudflatUpgradeChoices\(runtime\.level, runtime\.skillInventory, runtime\.mode, Math\.random, \{ gemsCollected: runtime\.gemsCollected, digsCompleted: runtime\.digsCompleted \}\)/);
   assert.equal((source.match(/mudflatUpgradeChoices\(runtime\.level, runtime\.skillInventory, runtime\.mode, Math\.random, \{ gemsCollected: runtime\.gemsCollected, digsCompleted: runtime\.digsCompleted \}\)/g) ?? []).length, 2, "레벨업과 새로고침 둘 다 해금 집계를 넘긴다");
   assert.match(styles, /\.ms-camp-skill-levels span\.is-locked\{/);
-  // 뻘권: 조작 방향 통로 타격, 넉백 중 자기 이동·접촉 생략, 바위 충돌 추가 피해, Lv.5+ 연쇄 50%, 대왕 박하지 넉백 절반, 그물에 잡힌 생물 제외. 진동·흔들림 없음.
-  assert.match(source, /const angle = Math\.hypot\(inputX, inputY\) > \.2 \? Math\.atan2\(inputY, inputX\) : runtime\.player\.facing;/);
+  // 뻘권: 48px 안 가장 가까운 해산물 쪽으로 통로 타격, 생물마다 플레이어에서 멀어지는 방향으로 넉백, 몸은 제자리(걸음·몸통 변환 없음),
+  // 넉백 중 자기 이동·접촉 생략, 바위 충돌 추가 피해, Lv.5+ 연쇄 50%, 대왕 박하지 넉백 절반, 그물에 잡힌 생물 제외. 진동·흔들림 없음.
+  assert.match(source, /if \(gap <= smash\.triggerRange && gap < nearestDistance\) \{ nearest = creature; nearestDistance = gap; \}/);
+  assert.match(source, /const angle = Math\.atan2\(nearest\.y - runtime\.player\.y, nearest\.x - runtime\.player\.x\);/);
+  assert.doesNotMatch(source, /const stepX = runtime\.player\.x \+ dirX \* 24/);
+  assert.doesNotMatch(source, /smashBodyOffset/);
   assert.match(source, /if \(\(creature\.knockbackLife \?\? 0\) > 0\) \{ advanceKnockback\(creature, dt\);[^\n]*continue; \}/);
   assert.match(source, /castNetMovementMultiplier\(creature, runtime\.castNets\) === 0\) continue;\s*const local = localPoint\(creature\);/);
-  assert.match(source, /const scale = creature\.boss \? \.5 : 1;\s*creature\.knockbackX = dirX \* smash\.knockback \* scale/);
+  assert.match(source, /const scale = creature\.boss \? \.5 : 1;\s*creature\.knockbackX = awayX \* smash\.knockback \* scale; creature\.knockbackY = awayY \* smash\.knockback \* scale;/);
+  assert.match(source, /const awayX = awayDistance > \.001 \? \(creature\.x - runtime\.player\.x\) \/ awayDistance : dirX;/);
   assert.match(source, /damageCreature\(creature, creature\.knockbackRockBonus \?\? 0, \.18\);/);
   assert.match(source, /const chainDamage = \(creature\.knockbackDamage \?\? 0\) \* MUDFLAT_SMASH_CHAIN_RATIO;/);
   assert.match(source, /if \(creature\.knockbackChain && creature\.knockbackLife > 0\) \{/);
@@ -2371,7 +2376,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function smashPhases\(/);
   assert.match(source, /appendSupervisorEvent\("smash", `뻘권 Lv\.\$\{smashLevel\} · \$\{hits\}마리`, runtime\)/);
   assert.match(source, /function drawSmashCast\(/);
-  assert.match(source, /function smashBodyOffset\(/);
+  // 불주먹: 주먹 발광·불꽃 혀·불꼬리와 주황 화염 충격파. 예전 하늘색 충격파는 없다.
+  assert.match(source, /blast\.addColorStop\(0, "rgba\(255,244,170,\.9\)"\)/);
+  assert.match(source, /glow\.addColorStop\(0, "rgba\(255,240,160,\.9\)"\)/);
+  assert.doesNotMatch(source, /context\.fillStyle = "#dff2ff";/);
   assert.match(source, /rock\.impact = \.3;/);
   assert.match(source, /const impactShake = rock\.impact !== undefined && rock\.impact > 0/);
   assert.doesNotMatch(source, /smash[\s\S]{0,200}navigator\.vibrate/);

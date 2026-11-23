@@ -1880,44 +1880,44 @@ function smashPhases(progress: number) {
   return { t, prep, extend, impact, striking };
 }
 
-// 뻘권 몸통 자세. 준비에는 주먹 반대쪽 어깨를 빼듯 6px 물러나며 2px 낮아지고 뒤로 기울고,
-// 내지르기·충격 동안 주먹 쪽으로 4px 쏠렸다가 복귀에 원래 자세로 돌아온다.
-function smashBodyOffset(progress: number, angle: number) {
-  const { prep, extend } = smashPhases(progress);
-  const dirX = Math.cos(angle); const dirY = Math.sin(angle);
-  const side = dirX >= 0 ? 1 : -1;
-  return { x: -dirX * 6 * prep + dirX * 4 * extend, y: 2 * prep - dirY * 2 * extend, rotate: -side * .12 * prep + side * .06 * extend };
-}
-
-// 뻘권 연출. 충격파·속도선을 먼저 그리고 팔·주먹을 그 위에 그려 팔이 가려지지 않게 한다.
-// 흰색 테두리에 옅은 하늘색으로 소쿠리(황토)·건곤대나이(청록)와 구분한다. 루미는 팔 없이
-// 충격파·속도선만 그린다.
-function drawSmashCast(context: CanvasRenderingContext2D, x: number, y: number, angle: number, progress: number, length: number, width: number, lumi: boolean) {
+// 뻘권 불주먹 연출. 주먹을 불길이 감싸고(노랑 심·주황 불꽃·붉은 테두리), 내지르는 동안 뒤로 불꼬리가 길게 남으며,
+// 충격 순간 주먹 끝에서 주황 반원 화염 충격파가 통로 폭까지 터지고 불씨가 흩어진다. 팔·주먹은 충격파 위에 그려 가려지지 않는다.
+// 루미는 팔 없이 화염 충격파·불씨·속도선만 보인다. 몸통은 움직이지 않는다.
+function drawSmashCast(context: CanvasRenderingContext2D, x: number, y: number, angle: number, progress: number, length: number, width: number, lumi: boolean, time = 0) {
   const { prep, extend, impact, striking } = smashPhases(progress);
   const reachMax = 44;
   const reach = 10 + (reachMax - 10) * extend;
   const fistX = reach + 3;
+  const flicker = Math.sin(time * 42) * .5 + .5;
   context.save();
   context.translate(x, y); context.rotate(angle);
-  // 충격: 주먹 끝에서 반원 충격파가 통로 폭까지 펼쳐지고, 속도선이 통로 길이만큼 지나간다.
+  // 충격: 화염 반원 충격파 + 바깥 붉은 테두리 + 불씨 8개 + 주황 속도선.
   if (impact > 0 && impact < 1) {
     const fade = 1 - impact;
-    const radius = 10 + (width / 2 - 10) * Math.sin(impact * Math.PI / 2);
+    const radius = 12 + (width / 2 - 12) * Math.sin(impact * Math.PI / 2);
     const originX = 10 + (reachMax - 10) + 6;
-    context.globalAlpha = fade * .32;
-    context.fillStyle = "#dff2ff";
+    const blast = context.createRadialGradient(originX, 0, 2, originX, 0, Math.max(3, radius));
+    blast.addColorStop(0, "rgba(255,244,170,.9)"); blast.addColorStop(.45, "rgba(255,154,60,.7)"); blast.addColorStop(1, "rgba(255,70,30,0)");
+    context.globalAlpha = fade;
+    context.fillStyle = blast;
     context.beginPath(); context.arc(originX, 0, radius, -Math.PI / 2, Math.PI / 2); context.closePath(); context.fill();
-    context.globalAlpha = fade * .9;
-    context.strokeStyle = "#ffffff"; context.lineWidth = 3.5;
-    context.beginPath(); context.arc(originX, 0, radius, -Math.PI / 2, Math.PI / 2); context.stroke();
-    context.strokeStyle = "#9fd8ff"; context.lineWidth = 2;
-    context.beginPath(); context.arc(originX, 0, Math.max(4, radius - 7), -Math.PI / 2.3, Math.PI / 2.3); context.stroke();
-    context.strokeStyle = "rgba(240,250,255,.9)"; context.lineWidth = 2; context.lineCap = "round";
+    context.strokeStyle = "#ff5a2a"; context.lineWidth = 4;
+    context.beginPath(); context.arc(originX, 0, radius, -Math.PI / 2.1, Math.PI / 2.1); context.stroke();
+    context.strokeStyle = "#ffe08a"; context.lineWidth = 2;
+    context.beginPath(); context.arc(originX, 0, Math.max(4, radius - 8), -Math.PI / 2.4, Math.PI / 2.4); context.stroke();
+    context.fillStyle = "#ffb15c";
+    for (let ember = 0; ember < 8; ember += 1) {
+      const emberAngle = (ember / 8 - .5) * Math.PI * 1.1;
+      const travel = radius * (1.05 + (ember % 3) * .12);
+      context.globalAlpha = fade * .9;
+      context.beginPath(); context.arc(originX + Math.cos(emberAngle) * travel, Math.sin(emberAngle) * travel, 2.5 + (ember % 2), 0, Math.PI * 2); context.fill();
+    }
+    context.strokeStyle = "rgba(255,190,110,.95)"; context.lineWidth = 2.5; context.lineCap = "round";
     for (let index = -2; index <= 2; index += 1) {
       const lineY = index * (width / 5);
       const head = originX + length * Math.min(1, impact * 1.1);
       const tail = originX + length * Math.max(0, impact * 1.1 - .35);
-      context.globalAlpha = fade * (index === 0 ? .9 : .7);
+      context.globalAlpha = fade * (index === 0 ? .95 : .7);
       context.beginPath(); context.moveTo(tail, lineY); context.lineTo(head, lineY); context.stroke();
     }
   }
@@ -1926,16 +1926,20 @@ function drawSmashCast(context: CanvasRenderingContext2D, x: number, y: number, 
     context.restore();
     return;
   }
-  // 준비: 어깨를 뒤로 빼는 동안 팔은 몸 뒤쪽에 짧게 보인다. 내지르기·충격·복귀: 팔을 뻗고 거둔다.
+  // 준비: 주먹을 몸 쪽으로 당기며 불이 붙기 시작한다(작은 불꽃). 내지르기·충격: 팔을 뻗고 주먹 뒤로 불꼬리가 남는다. 복귀: 팔을 거두며 불이 잦아든다.
   const shoulderX = -6 * prep;
+  const flame = Math.max(prep * .5, extend);
   if (striking || extend >= 1) {
-    // 주먹 뒤로 길게 남는 잔상 선 3개.
     const trail = striking ? extend : Math.max(0, 1 - impact * 1.6);
     if (trail > 0) {
-      context.strokeStyle = "rgba(255,255,255,.75)"; context.lineWidth = 2; context.lineCap = "round";
       for (let index = -1; index <= 1; index += 1) {
-        context.globalAlpha = trail * (index === 0 ? .8 : .55);
-        context.beginPath(); context.moveTo(fistX - 8, -2 + index * 6); context.lineTo(fistX - 8 - 40 * trail, -2 + index * 8); context.stroke();
+        const tailLength = (46 - Math.abs(index) * 10) * trail;
+        const tailY = -2 + index * 7;
+        const tail = context.createLinearGradient(fistX - 6, tailY, fistX - 6 - tailLength, tailY);
+        tail.addColorStop(0, "rgba(255,230,120,.95)"); tail.addColorStop(.5, "rgba(255,140,50,.8)"); tail.addColorStop(1, "rgba(255,70,30,0)");
+        context.strokeStyle = tail; context.lineWidth = index === 0 ? 7 : 4; context.lineCap = "round";
+        context.globalAlpha = trail;
+        context.beginPath(); context.moveTo(fistX - 6, tailY); context.quadraticCurveTo(fistX - 6 - tailLength * .5, tailY + index * 5 * flicker, fistX - 6 - tailLength, tailY + index * 9); context.stroke();
       }
       context.globalAlpha = 1;
     }
@@ -1944,10 +1948,27 @@ function drawSmashCast(context: CanvasRenderingContext2D, x: number, y: number, 
   context.beginPath(); context.moveTo(shoulderX, -2); context.lineTo(reach, -2); context.stroke();
   context.strokeStyle = "#f0c9a5"; context.lineWidth = 7;
   context.beginPath(); context.moveTo(shoulderX, -2); context.lineTo(reach, -2); context.stroke();
-  context.fillStyle = "#e9b48c"; context.strokeStyle = "#8a5a3b"; context.lineWidth = 2;
+  // 불주먹: 바깥 발광 → 불꽃 혀 3개 → 주먹 → 노란 심.
+  if (flame > 0) {
+    const glow = context.createRadialGradient(fistX, -2, 3, fistX, -2, 16 + flicker * 3);
+    glow.addColorStop(0, "rgba(255,240,160,.9)"); glow.addColorStop(.5, "rgba(255,150,50,.6)"); glow.addColorStop(1, "rgba(255,70,30,0)");
+    context.globalAlpha = flame;
+    context.fillStyle = glow;
+    context.beginPath(); context.arc(fistX, -2, 16 + flicker * 3, 0, Math.PI * 2); context.fill();
+    context.fillStyle = "#ff9a3c";
+    for (let tongue = -1; tongue <= 1; tongue += 1) {
+      const baseY = -2 + tongue * 5;
+      const lengthScale = (10 + flicker * 5) * flame;
+      context.beginPath();
+      context.moveTo(fistX - 4, baseY - 4); context.quadraticCurveTo(fistX - 10 - lengthScale, baseY + tongue * 3, fistX - 4, baseY + 4); context.closePath(); context.fill();
+    }
+    context.globalAlpha = 1;
+  }
+  context.fillStyle = flame > .5 ? "#ffd58a" : "#e9b48c"; context.strokeStyle = flame > .5 ? "#ff5a2a" : "#8a5a3b"; context.lineWidth = 2;
   context.beginPath(); context.arc(fistX, -2, 8, 0, Math.PI * 2); context.fill(); context.stroke();
-  context.strokeStyle = "rgba(138,90,59,.8)"; context.lineWidth = 1.5;
+  context.strokeStyle = flame > .5 ? "rgba(255,90,42,.9)" : "rgba(138,90,59,.8)"; context.lineWidth = 1.5;
   context.beginPath(); context.moveTo(fistX - 3, -6); context.lineTo(fistX - 3, 2); context.stroke();
+  if (flame > .5) { context.fillStyle = "rgba(255,250,200,.9)"; context.beginPath(); context.arc(fistX + 2, -4, 2.5, 0, Math.PI * 2); context.fill(); }
   context.restore();
 }
 
@@ -4406,20 +4427,21 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             if (supervisorRef.current) appendSupervisorEvent("thunderbolt", `낙뢰 Lv.${thunderboltLevel} · ${target.name}${bolt.strikes > 1 ? ` · ${bolt.strikes}연타` : ""}`, runtime);
           } else runtime.thunderboltClock = .5;
         }
-        // 뻘권: 조작 방향(멈춰 있으면 바라보는 방향) 앞 48px·좌우 40px 안에 해산물이 있으면 발동한다.
-        // 통로 안의 해산물에 피해를 주고 주먹 방향으로 밀치며, 한 걸음(24px) 전진한다. 그물에 잡힌 생물은 제외.
+        // 뻘권: 어느 방향이든 48px 안에 해산물이 들어오면 가장 가까운 해산물 쪽으로 주먹을 내지른다. 그 방향 통로 안의 해산물에
+        // 피해를 주고, 생물마다 "다가온 반대 방향"(플레이어에서 그 생물을 향한 방향)으로 밀친다. 몸은 제자리. 그물에 잡힌 생물은 제외.
         const smashLevel = runtime.levels.smash ?? 0;
         if (runtime.mode === "normal" && smashLevel > 0 && runtime.smashClock <= 0) {
           const smash = mudflatSmashStats(smashLevel);
-          const angle = Math.hypot(inputX, inputY) > .2 ? Math.atan2(inputY, inputX) : runtime.player.facing;
-          const dirX = Math.cos(angle); const dirY = Math.sin(angle);
-          const localPoint = (creature: Creature) => { const ox = creature.x - runtime.player.x; const oy = creature.y - runtime.player.y; return { x: ox * dirX + oy * dirY, y: -ox * dirY + oy * dirX }; };
-          const shouldFire = revealedCreatures.some((creature) => {
-            if (creature.hp <= 0 || (creature.emergeSeconds ?? 0) > 0) return false;
-            const local = localPoint(creature);
-            return local.x >= 0 && local.x <= smash.triggerRange + creature.size && Math.abs(local.y) <= smash.triggerHalfWidth + creature.size;
-          });
-          if (shouldFire) {
+          let nearest: Creature | null = null; let nearestDistance = Infinity;
+          for (const creature of revealedCreatures) {
+            if (creature.hp <= 0 || (creature.emergeSeconds ?? 0) > 0) continue;
+            const gap = Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) - creature.size;
+            if (gap <= smash.triggerRange && gap < nearestDistance) { nearest = creature; nearestDistance = gap; }
+          }
+          if (nearest) {
+            const angle = Math.atan2(nearest.y - runtime.player.y, nearest.x - runtime.player.x);
+            const dirX = Math.cos(angle); const dirY = Math.sin(angle);
+            const localPoint = (creature: Creature) => { const ox = creature.x - runtime.player.x; const oy = creature.y - runtime.player.y; return { x: ox * dirX + oy * dirY, y: -ox * dirY + oy * dirX }; };
             runtime.smashCastId += 1;
             let hits = 0;
             for (const creature of revealedCreatures) {
@@ -4427,14 +4449,16 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
               const local = localPoint(creature);
               if (local.x < -creature.size || local.x > smash.length || Math.abs(local.y) > smash.width / 2 + creature.size) continue;
               damageCreature(creature, smash.damage, .2);
+              const awayDistance = Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y);
+              const awayX = awayDistance > .001 ? (creature.x - runtime.player.x) / awayDistance : dirX;
+              const awayY = awayDistance > .001 ? (creature.y - runtime.player.y) / awayDistance : dirY;
               const scale = creature.boss ? .5 : 1;
-              creature.knockbackX = dirX * smash.knockback * scale; creature.knockbackY = dirY * smash.knockback * scale;
+              creature.knockbackX = awayX * smash.knockback * scale; creature.knockbackY = awayY * smash.knockback * scale;
               creature.knockbackLife = MUDFLAT_SMASH_KNOCKBACK_SECONDS; creature.knockbackCast = runtime.smashCastId;
               creature.knockbackDamage = smash.damage; creature.knockbackRockBonus = smash.rockBonus; creature.knockbackChain = smash.chain;
+              runtime.bursts.push({ id: sequenceRef.current++, x: creature.x, y: creature.y, life: .3, maxLife: .3, color: "#ff8a3c", size: creature.size + 6 });
               hits += 1;
             }
-            const stepX = runtime.player.x + dirX * 24; const stepY = runtime.player.y + dirY * 24;
-            if (!runtime.rocks.some((rock) => rock.lift === undefined && Math.hypot(rock.x - stepX, rock.y - stepY) < rock.radius + 16)) { runtime.player.x = stepX; runtime.player.y = stepY; }
             runtime.player.facing = angle;
             runtime.smashEffect = SMASH_EFFECT_SECONDS; runtime.smashAngle = angle; runtime.smashClock = smash.cooldown;
             if (supervisorRef.current) appendSupervisorEvent("smash", `뻘권 Lv.${smashLevel} · ${hits}마리`, runtime);
@@ -4878,15 +4902,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const lumiTongReach = !inBaseCamp && runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).reach : 0;
       if (lumiArt) drawLumiGatherer(context, width / 2, height / 2, runtime.lumiMotion, lumiArt,
         actionTime, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
-      // 뻘권 준비 단계에서는 몸통을 주먹 반대쪽으로 6px 빼며 낮추고, 내지르는 동안 앞으로 쏠린다.
-      const smashPose = characterId !== "lumi" && runtime.smashEffect > 0 ? smashBodyOffset(1 - runtime.smashEffect / SMASH_EFFECT_SECONDS, runtime.smashAngle) : null;
-      context.save();
-      if (smashPose) { context.translate(width / 2 + smashPose.x, height / 2 + smashPose.y); context.rotate(smashPose.rotate); context.translate(-width / 2, -height / 2); }
+      // 뻘권 중에도 몸통은 제자리에 둔다(자리가 빠졌다 끼워지는 느낌을 없앰). 동작은 팔·불주먹 연출이 맡는다.
       if (characterId !== "lumi") drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);
-      context.restore();
       if (runtime.smashEffect > 0) {
         const smashStats = mudflatSmashStats(Math.max(1, runtime.levels.smash ?? 0));
-        drawSmashCast(context, width / 2, height / 2, runtime.smashAngle, 1 - runtime.smashEffect / SMASH_EFFECT_SECONDS, smashStats.length, smashStats.width, characterId === "lumi");
+        drawSmashCast(context, width / 2, height / 2, runtime.smashAngle, 1 - runtime.smashEffect / SMASH_EFFECT_SECONDS, smashStats.length, smashStats.width, characterId === "lumi", actionTime);
       }
       const freshWave = runtime.frostWaves.find((wave) => wave.age < .3);
       if (freshWave) drawFrostCast(context, width / 2, height / 2, freshWave.age, characterId === "lumi");
