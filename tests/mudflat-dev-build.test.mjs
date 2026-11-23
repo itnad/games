@@ -19,7 +19,7 @@ function baseCampaign(mode = "normal", stage = 1) {
   return {
     version: 1, mode, characterId: mode === "normal" ? "beginner" : "digger", stage, coins: 0, hp: 100, maxHp: 100, baseMaxHp: mode === "normal" ? 100 : 115,
     level: 1, xp: 0, nextXp: mode === "normal" ? 10 : 8, levels, activeSkills: [],
-    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false, gemsCollected: 0, digsCompleted: 0, hitByCrab: false, hitByShrimp: false,
+    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false, gemsCollected: 0, digsCompleted: 0, hitByCrab: false, hitByShrimp: false, hitByRock: false, hitByTide: false,
     lastObjectiveLabel: "", lastObjectiveComplete: false, lastObjectiveBonus: 0,
   };
 }
@@ -119,6 +119,15 @@ test("a build becomes a campaign with normalized active skills, clamped gear, HP
   assert.deepEqual([mudflatDevBuildCampaign(fireBuild, baseCampaign("normal")).hitByCrab, mudflatDevBuildCampaign(fireBuild, baseCampaign("normal")).hitByShrimp], [true, false]);
   fireBuild.autoUnlock = false; fireBuild.hitByShrimp = true;
   assert.deepEqual([mudflatDevBuildCampaign(fireBuild, baseCampaign("normal")).hitByCrab, mudflatDevBuildCampaign(fireBuild, baseCampaign("normal")).hitByShrimp], [false, true]);
+  // 빙결 기술 레벨이 있으면 바위·돌발 물살 피격 경험을 채우고, 끄면 체크박스 값만 따른다.
+  const frostBuild = createMudflatDevBuild("normal");
+  assert.deepEqual([frostBuild.hitByRock, frostBuild.hitByTide], [false, false]);
+  frostBuild.levels["frost-wave"] = 1;
+  assert.deepEqual([mudflatDevBuildCampaign(frostBuild, baseCampaign("normal")).hitByRock, mudflatDevBuildCampaign(frostBuild, baseCampaign("normal")).hitByTide], [false, true]);
+  frostBuild.levels["frost-trail"] = 2;
+  assert.deepEqual([mudflatDevBuildCampaign(frostBuild, baseCampaign("normal")).hitByRock, mudflatDevBuildCampaign(frostBuild, baseCampaign("normal")).hitByTide], [true, true]);
+  frostBuild.autoUnlock = false; frostBuild.hitByRock = true;
+  assert.deepEqual([mudflatDevBuildCampaign(frostBuild, baseCampaign("normal")).hitByRock, mudflatDevBuildCampaign(frostBuild, baseCampaign("normal")).hitByTide], [true, false]);
   // 보관된 간식은 최대 체력에 들어가지 않는다.
   const benched = createMudflatDevBuild("normal");
   benched.levels.snack = 3;

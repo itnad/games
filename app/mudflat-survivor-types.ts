@@ -67,6 +67,8 @@ export type Campaign = {
   /** 게·새우에게 피해를 받은 경험(캠페인 누적). 파이어볼·화염 방사 해금에 쓴다. */
   hitByCrab: boolean;
   hitByShrimp: boolean;
+  hitByRock: boolean;
+  hitByTide: boolean;
   lastObjectiveLabel?: string;
   lastObjectiveComplete?: boolean;
   lastObjectiveBonus?: number;

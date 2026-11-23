@@ -220,6 +220,37 @@ test("live save keeps fireballs, flame rays and fire timers, and backfills older
   assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
 });
 
+test("live save keeps frost patches, waves, slow state and ice timers, and backfills older saves", () => {
+  const { campaign, runtime } = fixture("normal");
+  runtime.frostPatches.push({ id: 51, x: 30, y: 40, radius: 56, age: .4, life: 5 });
+  runtime.frostWaves.push({ id: 52, x: 0, y: 0, age: .1, radius: 200 });
+  runtime.creatures[0].slowUntil = 14.5; runtime.creatures[0].slowFactor = 1;
+  Object.assign(runtime, { frostTrailClock: .3, frostTickClock: .2, frostWaveClock: 4.4, hitByRock: true, hitByTide: true });
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  assert.deepEqual(restored.runtime.frostPatches, runtime.frostPatches);
+  assert.deepEqual(restored.runtime.frostWaves, runtime.frostWaves);
+  assert.deepEqual([restored.runtime.creatures[0].slowUntil, restored.runtime.creatures[0].slowFactor], [14.5, 1]);
+  assert.deepEqual([restored.runtime.frostTrailClock, restored.runtime.frostTickClock, restored.runtime.frostWaveClock], [.3, .2, 4.4]);
+  assert.deepEqual([restored.runtime.hitByRock, restored.runtime.hitByTide, restored.campaign.hitByRock, restored.campaign.hitByTide], [true, true, true, true]);
+  assert.ok(restored.nextSequence > 52);
+  const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
+  for (const key of ["frostPatches", "frostWaves", "frostTrailClock", "frostTickClock", "frostWaveClock", "hitByRock", "hitByTide"]) delete legacy.runtime[key];
+  delete legacy.campaign.hitByRock; delete legacy.campaign.hitByTide;
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.deepEqual(legacyRestored.runtime.frostPatches, []);
+  assert.deepEqual(legacyRestored.runtime.frostWaves, []);
+  assert.deepEqual([legacyRestored.runtime.frostTrailClock, legacyRestored.runtime.frostWaveClock], [0, 0]);
+  assert.deepEqual([legacyRestored.runtime.hitByRock, legacyRestored.runtime.hitByTide], [false, false]);
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.runtime.creatures[0].slowFactor = "cold";
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
+  const brokenPatch = JSON.parse(encodeMudflatRun(campaign, runtime));
+  brokenPatch.runtime.frostPatches[0].life = "long";
+  assert.equal(decodeMudflatRun(JSON.stringify(brokenPatch), makeRuntime), null);
+});
+
 test("live save keeps a detached stage-entry checkpoint for rescue retries", () => {
   const { campaign, runtime } = fixture();
   const stageEntryCampaign = {

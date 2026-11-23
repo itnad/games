@@ -16,6 +16,8 @@ import {
   mudflatSmashStats,
   mudflatFireballStats,
   mudflatFlameBurstStats,
+  mudflatFrostTrailStats,
+  mudflatFrostWaveStats,
   mudflatSkillUnlocked,
   mudflatTongStats,
 } from "./mudflat-survivor-engine.js";
@@ -46,8 +48,8 @@ export const mudflatSystemBackGuardScreen = (screen: Screen) => screen === "runn
 
 export const GENERAL_CHARACTER = { id: "beginner", name: "기본 스킨", levels: { tongs: 1, harpoon: 0, net: 0, boots: 0, basket: 0, snack: 0, rocker: 0, digging: 1 }, hp: 100 };
 export const defaultCharacterId = (mode: GameMode) => mode === "normal" ? "beginner" : "digger";
-export const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "guard-basket", "hoe-bot", "rock-lift", "smash", "fireball", "flame-burst", "boots", "snack", "basket"];
-export const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", "guard-basket": "소쿠리", "hoe-bot": "호미봇", "rock-lift": "건곤", smash: "뻘권", fireball: "파이어볼", "flame-burst": "화염방사", boots: "장화", snack: "간식", basket: "담기" };
+export const GENERAL_SKILL_ORDER = ["tongs", "digging", "harpoon", "net", "rocker", "electric", "cast-net", "guard-basket", "hoe-bot", "rock-lift", "smash", "fireball", "flame-burst", "frost-trail", "frost-wave", "boots", "snack", "basket"];
+export const GENERAL_SKILL_LABELS: Record<string, string> = { tongs: "집게", digging: "호미질", harpoon: "작살", net: "뜰채", rocker: "돌뒤집개", electric: "전기", "cast-net": "그물", "guard-basket": "소쿠리", "hoe-bot": "호미봇", "rock-lift": "건곤", smash: "뻘권", fireball: "파이어볼", "flame-burst": "화염방사", "frost-trail": "서리", "frost-wave": "빙결", boots: "장화", snack: "간식", basket: "담기" };
 export const DIRECTIONAL_SEAFOOD_TYPES = new Set(["pufferfish", "whelk", "fist-whelk", "golbaengi", "shrimp", "large-shrimp"]);
 export const CATCH_FULL_MESSAGE = "더 담을 수가 없어. 다음에는 큰 통을 가져와야겠다.";
 
@@ -65,7 +67,7 @@ export function createCampaign(characterId: string, mode: GameMode, stage = 1): 
   return {
     version: 1, mode, characterId, stage: Math.max(1, Math.floor(stage)), coins: 0, hp: character.hp, maxHp: character.hp, baseMaxHp: character.hp,
     level: 1, xp: 0, nextXp: mode === "normal" ? 10 : 8, levels: { ...character.levels }, activeSkills: [],
-    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false, gemsCollected: 0, digsCompleted: 0, hitByCrab: false, hitByShrimp: false,
+    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false, gemsCollected: 0, digsCompleted: 0, hitByCrab: false, hitByShrimp: false, hitByRock: false, hitByTide: false,
     lastObjectiveLabel: "", lastObjectiveComplete: false, lastObjectiveBonus: 0,
   };
 }
@@ -75,7 +77,7 @@ export function derivedMaxHp(baseMaxHp: number, equipment: CountMap, levels: Cou
   return mudflatEquipmentStats(equipment, baseMaxHp, levels.snack ?? 0).maxHp;
 }
 
-export function unlockedNormalUpgrades(levels: CountMap, stats: { gemsCollected?: number; digsCompleted?: number; hitByCrab?: boolean; hitByShrimp?: boolean } = {}) {
+export function unlockedNormalUpgrades(levels: CountMap, stats: { gemsCollected?: number; digsCompleted?: number; hitByCrab?: boolean; hitByShrimp?: boolean; hitByRock?: boolean; hitByTide?: boolean } = {}) {
   const unlocks = mudflatAdvancedSkillUnlocks(levels, stats);
   return MUDFLAT_GENERAL_UPGRADES.filter((skill) => mudflatSkillUnlocked(skill, unlocks));
 }
@@ -137,6 +139,15 @@ export function mudflatSkillDetail(skill: (typeof MUDFLAT_GENERAL_UPGRADES)[numb
   if (skill.id === "flame-burst") {
     const current = mudflatFlameBurstStats(safeLevel); const next = mudflatFlameBurstStats(nextLevel);
     return { current: `${current.interval}초마다 ${current.rays}방향 불줄기(길이 ${current.length}px · 폭 ${current.width}px) · 닿는 해산물마다 ${current.damage} 피해 · 첫 줄기는 바라보는 방향`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: ${next.rays}방향 · 피해 ${next.damage}` };
+  }
+  if (skill.id === "frost-trail") {
+    const current = mudflatFrostTrailStats(safeLevel); const next = mudflatFrostTrailStats(nextLevel);
+    return { current: `${current.interval}초마다 반경 ${current.radius}px 서리 바닥(${current.life}초) · 위의 해산물 둔화 ${Math.round(current.slow * 100)}% · ${current.tickSeconds}초마다 ${current.tickDamage} 피해`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 반경 ${next.radius}px · ${next.life}초 · 둔화 ${Math.round(next.slow * 100)}% · 피해 ${next.tickDamage}` };
+  }
+  if (skill.id === "frost-wave") {
+    const current = mudflatFrostWaveStats(safeLevel); const next = mudflatFrostWaveStats(nextLevel);
+    const effect = (stats: ReturnType<typeof mudflatFrostWaveStats>) => stats.freeze ? `${stats.slowSeconds}초 빙결` : `${stats.slowSeconds}초 둔화 ${Math.round(stats.slow * 100)}%`;
+    return { current: `${current.interval}초마다 반경 ${current.radius}px 냉기 고리 · 닿는 해산물마다 ${current.damage} 피해 · ${effect(current)}`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 반경 ${next.radius}px · 피해 ${next.damage} · ${effect(next)}` };
   }
   if (skill.id === "boots") return { current: `이동속도와 진흙 저항 완화가 Lv.${safeLevel} 단계로 강화되었습니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 이동속도와 깊은 펄 저항이 한 단계 더 좋아집니다.` };
   if (skill.id === "snack") return { current: `기본 최대 체력의 ${safeLevel * 20}%만큼 증가합니다.`, next: safeLevel >= skill.max ? nextLabel : `${nextLabel}: 기본 최대 체력 +${nextLevel * 20}%` };

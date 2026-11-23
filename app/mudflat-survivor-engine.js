@@ -201,6 +201,8 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "smash", icon: "✊", name: "뻘권", description: "조작 방향으로 한 걸음 내디디며 주먹을 내질러 앞의 해산물에 피해를 주고 멀리 밀쳐 냅니다. 바위에 부딪히면 추가 피해, Lv.5부터는 날아가다 부딪힌 해산물도 함께 밀립니다.", max: 6, advanced: true, requiredLevel3Skills: 4 },
   { id: "fireball", icon: "☄", name: "파이어볼", description: "1초마다 제멋대로 흔들리며 날아가는 불덩이를 쏩니다. 처음 맞은 해산물과 그 근처에 피해를 주고, 레벨이 오르면 한 번에 더 많이 쏩니다.", max: 6, advanced: true, requiredSelectableSkills: 6, requiredSelectableLevel: 1, requiredHitFamily: "crab" },
   { id: "flame-burst", icon: "♨", name: "화염 방사", description: "5초마다 바라보는 방향을 시작으로 사방에 불줄기를 뿜어 닿는 모든 해산물에 큰 피해를 줍니다.", max: 6, advanced: true, requiredSelectableSkills: 5, requiredSelectableLevel: 2, requiredHitFamily: "shrimp" },
+  { id: "frost-trail", icon: "❄", name: "서리 발자국", description: "지나간 자리에 서리 바닥을 남깁니다. 바닥 위의 해산물은 느려지고 조금씩 얼어붙는 피해를 받습니다.", max: 6, advanced: true, requiredSelectableSkills: 5, requiredSelectableLevel: 1, requiredHitFamily: "rock" },
+  { id: "frost-wave", icon: "❆", name: "빙결 파동", description: "주위에 냉기 고리를 퍼뜨려 닿는 모든 해산물에 피해를 주고 느리게 합니다. Lv.6은 잠시 얼립니다.", max: 6, advanced: true, requiredSelectableSkills: 4, requiredSelectableLevel: 3, requiredHitFamily: "tide" },
 ];
 
 // 소쿠리의 달인은 캠페인 누적으로 경험치 보석 100개를 주워야 열린다.
@@ -219,6 +221,27 @@ export const MUDFLAT_FIREBALL_UNLOCK_SKILLS = 6;
 export const MUDFLAT_FLAME_BURST_UNLOCK_SKILLS = 5;
 export const MUDFLAT_FLAME_BURST_UNLOCK_LEVEL = 2;
 export const MUDFLAT_SHRIMP_TYPES = ["shrimp", "large-shrimp"];
+// 빙결 계열: 서리 발자국은 선택 기술 5개(Lv.1 이상) + 바위 피격, 빙결 파동은 선택 기술 4개(Lv.3 이상) + 돌발 물살 피격.
+export const MUDFLAT_FROST_TRAIL_UNLOCK_SKILLS = 5;
+export const MUDFLAT_FROST_WAVE_UNLOCK_SKILLS = 4;
+export const MUDFLAT_FROST_WAVE_UNLOCK_LEVEL = 3;
+// 피격 경험 종류별 잠긴 카드 문구.
+export const MUDFLAT_HIT_LABELS = { crab: "게에게 피격", shrimp: "새우에게 피격", rock: "바위에 피격", tide: "돌발 물살에 피격" };
+
+// 둔화 상태. slowUntil(원정 경과 시각)까지 이동 속도에 (1 - slowFactor)를 곱한다. factor 1은 빙결(이동 0).
+export function mudflatSlowMultiplier(creature, elapsed = 0) {
+  if (!creature || !(creature.slowUntil > elapsed)) return 1;
+  return Math.max(0, 1 - Math.max(0, Math.min(1, Number(creature.slowFactor) || 0)));
+}
+
+// 새 둔화는 더 강한 배율과 더 긴 시간 쪽으로 덮어쓴다(겹쳐 쌓지 않음).
+export function mudflatApplySlow(creature, factor = 0, seconds = 0, elapsed = 0) {
+  if (!creature) return;
+  const active = (creature.slowUntil ?? -Infinity) > elapsed;
+  const currentFactor = active ? Math.max(0, Math.min(1, Number(creature.slowFactor) || 0)) : 0;
+  creature.slowFactor = Math.max(currentFactor, Math.max(0, Math.min(1, factor)));
+  creature.slowUntil = Math.max(active ? creature.slowUntil : 0, elapsed + Math.max(0, seconds));
+}
 // 플레이어에게 피해를 준 생물이 어느 피격 경험에 해당하는지("crab" | "shrimp" | null).
 export function mudflatHitFamily(creature) {
   if (!creature) return null;
@@ -296,7 +319,7 @@ export function mudflatBleedDamage(maxHp = 0) {
  * 해금형 기술 판정. 마스터리는 인벤토리 기준이고, 소쿠리의 달인은 캠페인 누적
  * 경험치 보석 수(stats.gemsCollected)로 연다.
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean, hitByRock?: boolean, hitByTide?: boolean }} [stats]
  */
 export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const masteryCount = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !skill.advanced && (levels[skill.id] ?? 0) >= 5).length;
@@ -305,10 +328,13 @@ export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const skillCount = mudflatSelectableSkillIds(levels).length;
   const level3Count = MUDFLAT_GENERAL_UPGRADES.filter((skill) => (levels[skill.id] ?? 0) >= MUDFLAT_SMASH_UNLOCK_LEVEL).length;
   const selectableLevel2Count = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id) && (levels[skill.id] ?? 0) >= MUDFLAT_FLAME_BURST_UNLOCK_LEVEL).length;
+  const selectableLevel3Count = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id) && (levels[skill.id] ?? 0) >= MUDFLAT_FROST_WAVE_UNLOCK_LEVEL).length;
   const hitByCrab = stats?.hitByCrab === true;
   const hitByShrimp = stats?.hitByShrimp === true;
+  const hitByRock = stats?.hitByRock === true;
+  const hitByTide = stats?.hitByTide === true;
   return {
-    masteryCount, gemsCollected, digsCompleted, skillCount, level3Count, selectableLevel2Count, hitByCrab, hitByShrimp,
+    masteryCount, gemsCollected, digsCompleted, skillCount, level3Count, selectableLevel2Count, selectableLevel3Count, hitByCrab, hitByShrimp, hitByRock, hitByTide,
     electric: masteryCount >= 1, castNet: masteryCount >= 2,
     guardBasket: gemsCollected >= MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
     hoeBot: digsCompleted >= MUDFLAT_HOE_BOT_UNLOCK_DIGS,
@@ -316,6 +342,8 @@ export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
     smash: level3Count >= MUDFLAT_SMASH_UNLOCK_SKILLS,
     fireball: skillCount >= MUDFLAT_FIREBALL_UNLOCK_SKILLS && hitByCrab,
     flameBurst: selectableLevel2Count >= MUDFLAT_FLAME_BURST_UNLOCK_SKILLS && hitByShrimp,
+    frostTrail: skillCount >= MUDFLAT_FROST_TRAIL_UNLOCK_SKILLS && hitByRock,
+    frostWave: selectableLevel3Count >= MUDFLAT_FROST_WAVE_UNLOCK_SKILLS && hitByTide,
   };
 }
 
@@ -336,6 +364,8 @@ export function mudflatSkillUnlocked(skill, unlocks) {
   if (skill.id === "smash") return unlocks.smash;
   if (skill.id === "fireball") return unlocks.fireball;
   if (skill.id === "flame-burst") return unlocks.flameBurst;
+  if (skill.id === "frost-trail") return unlocks.frostTrail;
+  if (skill.id === "frost-wave") return unlocks.frostWave;
   return false;
 }
 
@@ -343,7 +373,7 @@ export function mudflatSkillUnlocked(skill, unlocks) {
 /**
  * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number, requiredSkills?: number, requiredLevel3Skills?: number, requiredSelectableSkills?: number, requiredSelectableLevel?: number, requiredHitFamily?: string }} skill
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean, hitByRock?: boolean, hitByTide?: boolean }} [stats]
  */
 export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
   const unlocks = mudflatAdvancedSkillUnlocks(levels, stats);
@@ -363,9 +393,10 @@ export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
   if (skill.requiredSelectableSkills) {
     // 선택 기술 수 조건 + 피격 경험 조건을 함께 보여 준다.
     const minLevel = skill.requiredSelectableLevel ?? 1;
-    const count = Math.min(minLevel >= 2 ? unlocks.selectableLevel2Count : unlocks.skillCount, skill.requiredSelectableSkills);
-    const hitDone = skill.requiredHitFamily === "crab" ? unlocks.hitByCrab : skill.requiredHitFamily === "shrimp" ? unlocks.hitByShrimp : true;
-    const hitLabel = skill.requiredHitFamily === "crab" ? "게에게 피격" : skill.requiredHitFamily === "shrimp" ? "새우에게 피격" : "";
+    const count = Math.min(minLevel >= 3 ? unlocks.selectableLevel3Count : minLevel >= 2 ? unlocks.selectableLevel2Count : unlocks.skillCount, skill.requiredSelectableSkills);
+    const hitFlags = { crab: unlocks.hitByCrab, shrimp: unlocks.hitByShrimp, rock: unlocks.hitByRock, tide: unlocks.hitByTide };
+    const hitDone = skill.requiredHitFamily ? hitFlags[skill.requiredHitFamily] === true : true;
+    const hitLabel = skill.requiredHitFamily ? (MUDFLAT_HIT_LABELS[skill.requiredHitFamily] ?? "") : "";
     return { unlocked: mudflatSkillUnlocked(skill, unlocks), current: count, target: skill.requiredSelectableSkills, label: `Lv.${minLevel} 이상 선택 기술 ${count} / ${skill.requiredSelectableSkills}${hitLabel ? ` · ${hitLabel} ${hitDone ? "○" : "×"}` : ""}` };
   }
   if (skill.id === "guard-basket") {
@@ -471,6 +502,40 @@ export function mudflatFlameBurstStats(level = 0) {
     length: 170,
     width: 34,
     sweepSeconds: .35,
+    checkRadius: 170,
+  };
+}
+
+// 서리 발자국 수치. interval마다 플레이어 자리에 반경 radius·수명 life의 서리 바닥을 남기고(최대 maxPatches),
+// 바닥 위 해산물에 tickSeconds마다 tickDamage와 둔화 slow를 준다. 둔화는 바닥을 벗어난 뒤 lingerSeconds 더 간다.
+export function mudflatFrostTrailStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { interval: Infinity, radius: 0, life: 0, slow: 0, tickDamage: 0, tickSeconds: .5, lingerSeconds: 1, maxPatches: 0 };
+  return {
+    interval: .9,
+    radius: [34, 38, 42, 46, 50, 56][safeLevel - 1],
+    life: [2.5, 3, 3.5, 4, 4.5, 5][safeLevel - 1],
+    slow: [.3, .35, .4, .45, .5, .55][safeLevel - 1],
+    tickDamage: [3, 4, 5, 6, 8, 10][safeLevel - 1],
+    tickSeconds: .5,
+    lingerSeconds: 1,
+    maxPatches: 12,
+  };
+}
+
+// 빙결 파동 수치. interval마다(반경 checkRadius 안에 해산물이 있을 때) 반경 radius 안 모든 해산물에 damage와
+// slowSeconds 동안 둔화 slow. Lv.6은 둔화 대신 빙결(이동 0). 대왕 박하지는 둔화 절반·빙결 시간 절반.
+export function mudflatFrostWaveStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { interval: Infinity, radius: 0, damage: 0, slow: 0, slowSeconds: 0, freeze: false, sweepSeconds: .4, checkRadius: 0 };
+  return {
+    interval: [6, 6, 6, 5, 5, 5][safeLevel - 1],
+    radius: [150, 160, 170, 180, 190, 200][safeLevel - 1],
+    damage: [30, 40, 50, 60, 70, 80][safeLevel - 1],
+    slow: safeLevel >= 6 ? 1 : [.4, .45, .5, .55, .6][safeLevel - 1],
+    slowSeconds: safeLevel >= 6 ? 1.2 : [2, 2.2, 2.4, 2.6, 2.8][safeLevel - 1],
+    freeze: safeLevel >= 6,
+    sweepSeconds: .4,
     checkRadius: 170,
   };
 }

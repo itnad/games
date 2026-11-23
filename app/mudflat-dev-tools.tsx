@@ -39,6 +39,8 @@ type DevPreset = {
   digsCompleted?: number;
   hitByCrab?: boolean;
   hitByShrimp?: boolean;
+  hitByRock?: boolean;
+  hitByTide?: boolean;
 };
 
 type LocalSnapshot = {
@@ -189,6 +191,20 @@ const DEV_PRESETS: DevPreset[] = [
     hitByShrimp: true,
   },
   {
+    id: "frost",
+    title: "3단계 바위 갯벌 · 서리 발자국 Lv.6 · 빙결 파동 Lv.6",
+    stage: 3,
+    description: "지나간 자리에 서리 바닥이 남아 게가 느려지며 틱 피해를 받고, 5초마다 냉기 고리가 반경 200px의 해산물을 1.2초 얼리는지 확인합니다.",
+    coins: 3000,
+    level: 12,
+    xp: 0,
+    nextXp: 90,
+    levels: { tongs: 3, digging: 2, harpoon: 3, "frost-trail": 6, "frost-wave": 6 },
+    equipment: { cooler: 1 },
+    hitByRock: true,
+    hitByTide: true,
+  },
+  {
     id: "final-boss",
     title: "8단계 마지막 물때",
     stage: 8,
@@ -252,6 +268,8 @@ function makePresetCampaign(preset: DevPreset) {
     digsCompleted: preset.digsCompleted ?? 0,
     hitByCrab: preset.hitByCrab === true,
     hitByShrimp: preset.hitByShrimp === true,
+    hitByRock: preset.hitByRock === true,
+    hitByTide: preset.hitByTide === true,
     equipment,
     pendingSkillDiscovery: false,
   };
@@ -628,7 +646,7 @@ export function MudflatDevTools() {
                 {build.mode === "normal" && !basic ? <label className="check"><input type="checkbox" checked={isActive} disabled={!isActive && (level <= 0 || build.activeSkills.length >= MUDFLAT_SELECTABLE_SKILL_LIMIT)} onChange={() => toggleBuildActive(skill.id)} /><span>활성</span></label> : <span className="mudflat-dev-always">{build.mode === "normal" ? "항상 작동" : ""}</span>}
               </div>;
             })}
-            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤. 건곤대나이는 선택 기술 5종, 뻘권은 Lv.3 이상 기술 4개, 파이어볼은 선택 기술 6개 + 게 피격, 화염 방사는 Lv.2 선택 기술 5개 + 새우 피격이 필요하며 레벨이 있으면 피격 경험을 채움)</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤. 건곤대나이는 선택 기술 5종, 뻘권은 Lv.3 이상 기술 4개, 파이어볼은 선택 기술 6개 + 게 피격, 화염 방사는 Lv.2 선택 기술 5개 + 새우 피격, 서리 발자국은 선택 기술 5개 + 바위 피격, 빙결 파동은 Lv.3 선택 기술 4개 + 돌발 물살 피격이 필요하며 레벨이 있으면 피격 경험을 채움)</span></label>}
           </fieldset>
           <fieldset>
             <legend>캐릭터</legend>
@@ -640,6 +658,8 @@ export function MudflatDevTools() {
             {build.mode === "normal" && <label className="field"><span>누적 경험치 보석 수</span><input type="number" min={0} value={build.gemsCollected} onChange={(event) => updateBuild({ gemsCollected: numberField(event.target.value, 0) })} /></label>}
             {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByCrab} onChange={(event) => updateBuild({ hitByCrab: event.target.checked })} /><span>게에게 피해를 받은 경험</span></label>}
             {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByShrimp} onChange={(event) => updateBuild({ hitByShrimp: event.target.checked })} /><span>새우에게 피해를 받은 경험</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByRock} onChange={(event) => updateBuild({ hitByRock: event.target.checked })} /><span>바위에 피해를 받은 경험</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByTide} onChange={(event) => updateBuild({ hitByTide: event.target.checked })} /><span>돌발 물살에 피해를 받은 경험</span></label>}
             {build.mode === "normal" && <label className="field"><span>누적 호미질 수</span><input type="number" min={0} value={build.digsCompleted} onChange={(event) => updateBuild({ digsCompleted: numberField(event.target.value, 0) })} /></label>}
           </fieldset>
           <fieldset>
