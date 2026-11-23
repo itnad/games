@@ -146,6 +146,10 @@ import {
   mudflatFireballStats,
   mudflatFlameBurstStats,
   mudflatNewUnlocks,
+  mudflatHitFamily,
+  MUDFLAT_FIREBALL_UNLOCK_SKILLS,
+  MUDFLAT_FLAME_BURST_UNLOCK_SKILLS,
+  MUDFLAT_FLAME_BURST_UNLOCK_LEVEL,
   MUDFLAT_SMASH_KNOCKBACK_SECONDS,
   MUDFLAT_SMASH_CHAIN_RATIO,
   MUDFLAT_SMASH_UNLOCK_SKILLS,
@@ -1358,29 +1362,46 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.ok(generalChoices.every((choice) => ["basket", "tongs", "harpoon", "boots", "snack", "rocker", "net", "digging"].includes(choice.id)));
   assert.equal(new Set(generalChoices.map((choice) => choice.id)).size, 3);
   assert.ok(generalChoices.every((choice) => !["electric", "cast-net"].includes(choice.id)));
-  assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5 }), { masteryCount: 1, gemsCollected: 0, digsCompleted: 0, skillCount: 0, level3Count: 1, electric: true, castNet: false, guardBasket: false, hoeBot: false, rockLift: false, smash: false, fireball: false, flameBurst: false });
-  assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5, digging: 5 }), { masteryCount: 2, gemsCollected: 0, digsCompleted: 0, skillCount: 0, level3Count: 2, electric: true, castNet: true, guardBasket: false, hoeBot: false, rockLift: false, smash: false, fireball: false, flameBurst: false });
-  // 화염 계열: 파이어볼는 작살 Lv.3, 화염 방사는 파이어볼 Lv.3으로 열린다. 마스터리 집계 제외.
+  assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5 }), { masteryCount: 1, gemsCollected: 0, digsCompleted: 0, skillCount: 0, level3Count: 1, selectableLevel2Count: 0, hitByCrab: false, hitByShrimp: false, electric: true, castNet: false, guardBasket: false, hoeBot: false, rockLift: false, smash: false, fireball: false, flameBurst: false });
+  assert.deepEqual(mudflatAdvancedSkillUnlocks({ tongs: 5, digging: 5 }), { masteryCount: 2, gemsCollected: 0, digsCompleted: 0, skillCount: 0, level3Count: 2, selectableLevel2Count: 0, hitByCrab: false, hitByShrimp: false, electric: true, castNet: true, guardBasket: false, hoeBot: false, rockLift: false, smash: false, fireball: false, flameBurst: false });
+  // 화염 계열: 파이어볼은 선택 기술 6개(Lv.1 이상, 기본 기술 제외) + 게에게 피해를 받은 경험,
+  // 화염 방사는 선택 기술 5개(Lv.2 이상) + 새우에게 피해를 받은 경험으로 열린다. 마스터리 집계 제외.
   const fireball = MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "fireball");
   const flameBurst = MUDFLAT_GENERAL_UPGRADES.find((upgrade) => upgrade.id === "flame-burst");
   assert.equal(fireball.name, "파이어볼");
   assert.equal(flameBurst.name, "화염 방사");
-  assert.deepEqual(fireball.requiredSkillLevels, { harpoon: 3 });
-  assert.deepEqual(flameBurst.requiredSkillLevels, { fireball: 3 });
+  assert.equal(MUDFLAT_FIREBALL_UNLOCK_SKILLS, 6);
+  assert.equal(MUDFLAT_FLAME_BURST_UNLOCK_SKILLS, 5);
+  assert.equal(MUDFLAT_FLAME_BURST_UNLOCK_LEVEL, 2);
+  assert.deepEqual([fireball.requiredSelectableSkills, fireball.requiredSelectableLevel, fireball.requiredHitFamily], [6, 1, "crab"]);
+  assert.deepEqual([flameBurst.requiredSelectableSkills, flameBurst.requiredSelectableLevel, flameBurst.requiredHitFamily], [5, 2, "shrimp"]);
   assert.equal(mudflatAdvancedSkillUnlocks({ fireball: 6, "flame-burst": 6 }).masteryCount, 0);
-  assert.equal(mudflatAdvancedSkillUnlocks({ harpoon: 2 }).fireball, false);
-  assert.equal(mudflatAdvancedSkillUnlocks({ harpoon: 3 }).fireball, true);
-  assert.equal(mudflatAdvancedSkillUnlocks({ harpoon: 6, fireball: 2 }).flameBurst, false);
-  assert.equal(mudflatAdvancedSkillUnlocks({ harpoon: 6, fireball: 3 }).flameBurst, true);
-  assert.equal(mudflatSkillUnlocked(fireball, mudflatAdvancedSkillUnlocks({ harpoon: 3 })), true);
-  assert.equal(mudflatSkillUnlocked(flameBurst, mudflatAdvancedSkillUnlocks({ harpoon: 3 })), false);
-  assert.deepEqual(mudflatSkillUnlockProgress(fireball, { harpoon: 1 }, {}), { unlocked: false, current: 1, target: 3, label: "작살던지기 Lv.3 필요 · 현재 Lv.1" });
-  assert.deepEqual(mudflatSkillUnlockProgress(flameBurst, { fireball: 5 }, {}), { unlocked: true, current: 3, target: 3, label: "파이어볼 Lv.3 필요 · 현재 Lv.3" });
-  assert.equal(mudflatNewUnlocks(mudflatAdvancedSkillUnlocks({ harpoon: 2 }), mudflatAdvancedSkillUnlocks({ harpoon: 3 })), true);
-  assert.equal(mudflatNewUnlocks(mudflatAdvancedSkillUnlocks({ harpoon: 3 }), mudflatAdvancedSkillUnlocks({ harpoon: 4 })), false);
+  const sixSelectable = { tongs: 6, digging: 6, harpoon: 1, net: 1, rocker: 1, boots: 1, basket: 1, snack: 1 };
+  assert.equal(mudflatAdvancedSkillUnlocks(sixSelectable, { hitByCrab: false }).fireball, false, "게 피격 경험이 없으면 잠김");
+  assert.equal(mudflatAdvancedSkillUnlocks({ ...sixSelectable, snack: 0 }, { hitByCrab: true }).fireball, false, "선택 기술 5개면 잠김 (기본 기술은 세지 않음)");
+  assert.equal(mudflatAdvancedSkillUnlocks(sixSelectable, { hitByCrab: true }).fireball, true);
+  const fiveLevel2 = { tongs: 1, digging: 1, harpoon: 2, net: 2, rocker: 2, boots: 2, basket: 2, snack: 1 };
+  assert.equal(mudflatAdvancedSkillUnlocks(fiveLevel2, { hitByShrimp: true }).flameBurst, true);
+  assert.equal(mudflatAdvancedSkillUnlocks(fiveLevel2, { hitByShrimp: false }).flameBurst, false);
+  assert.equal(mudflatAdvancedSkillUnlocks({ ...fiveLevel2, basket: 1 }, { hitByShrimp: true }).flameBurst, false, "Lv.2 이상이 4개면 잠김");
+  assert.equal(mudflatAdvancedSkillUnlocks({ ...fiveLevel2, basket: 1, digging: 6 }, { hitByShrimp: true }).flameBurst, false, "기본 기술 레벨은 세지 않음");
+  assert.equal(mudflatAdvancedSkillUnlocks(fiveLevel2, { hitByShrimp: true }).selectableLevel2Count, 5);
+  assert.equal(mudflatSkillUnlocked(fireball, mudflatAdvancedSkillUnlocks(sixSelectable, { hitByCrab: true })), true);
+  assert.equal(mudflatSkillUnlocked(flameBurst, mudflatAdvancedSkillUnlocks(sixSelectable, { hitByCrab: true, hitByShrimp: true })), false);
+  assert.deepEqual(mudflatSkillUnlockProgress(fireball, { harpoon: 1, net: 1 }, { hitByCrab: false }), { unlocked: false, current: 2, target: 6, label: "Lv.1 이상 선택 기술 2 / 6 · 게에게 피격 ×" });
+  assert.deepEqual(mudflatSkillUnlockProgress(flameBurst, fiveLevel2, { hitByShrimp: true }), { unlocked: true, current: 5, target: 5, label: "Lv.2 이상 선택 기술 5 / 5 · 새우에게 피격 ○" });
+  assert.equal(mudflatHitFamily({ family: "crab", type: "small-crab" }), "crab");
+  assert.equal(mudflatHitFamily({ family: "crab", type: "king-crab" }), "crab");
+  assert.equal(mudflatHitFamily({ family: "seafood", type: "shrimp" }), "shrimp");
+  assert.equal(mudflatHitFamily({ family: "seafood", type: "large-shrimp" }), "shrimp");
+  assert.equal(mudflatHitFamily({ family: "seafood", type: "pufferfish" }), null);
+  assert.equal(mudflatNewUnlocks(mudflatAdvancedSkillUnlocks(sixSelectable, { hitByCrab: false }), mudflatAdvancedSkillUnlocks(sixSelectable, { hitByCrab: true })), true);
+  assert.equal(mudflatNewUnlocks(mudflatAdvancedSkillUnlocks(sixSelectable, { hitByCrab: true }), mudflatAdvancedSkillUnlocks({ ...sixSelectable, harpoon: 2 }, { hitByCrab: true })), false);
   const fireOnlyLeft = { tongs: 6, digging: 6, harpoon: 6, net: 6, rocker: 6, boots: 6, basket: 6, snack: 6, electric: 6, "cast-net": 6, "guard-basket": 6, "hoe-bot": 6, "rock-lift": 6, smash: 6 };
-  assert.deepEqual(mudflatUpgradeChoices(4, fireOnlyLeft, "normal", Math.random, { gemsCollected: 100, digsCompleted: 20 }).map((choice) => choice.id), ["fireball"]);
-  assert.deepEqual(mudflatUpgradeChoices(4, { ...fireOnlyLeft, fireball: 6 }, "normal", Math.random, { gemsCollected: 100, digsCompleted: 20 }).map((choice) => choice.id), ["flame-burst"]);
+  const fireStats = { gemsCollected: 100, digsCompleted: 20, hitByCrab: true, hitByShrimp: true };
+  assert.deepEqual(mudflatUpgradeChoices(4, fireOnlyLeft, "normal", Math.random, fireStats).map((choice) => choice.id).sort(), ["fireball", "flame-burst"]);
+  assert.deepEqual(mudflatUpgradeChoices(4, fireOnlyLeft, "normal", Math.random, { ...fireStats, hitByShrimp: false }).map((choice) => choice.id), ["fireball"]);
+  assert.deepEqual(mudflatUpgradeChoices(4, fireOnlyLeft, "normal", Math.random, { ...fireStats, hitByCrab: false, hitByShrimp: false }), []);
   // 파이어볼 수치: 1초 주기, 발수 1~6, 간격 0·0.4·0.2·0.1·0.1·0.1초, 피해 10~60, 속도 240·사거리 260·명중 반경 40·흔들림 14px.
   assert.deepEqual(mudflatFireballStats(0), { interval: Infinity, shots: 0, spacing: 0, damage: 0, speed: 0, range: 0, splash: 0, wobble: 0, wobblePeriod: 1, sectorHalfAngle: 0 });
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatFireballStats(level).shots), [1, 2, 3, 4, 5, 6]);
@@ -2109,7 +2130,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /new ResizeObserver\(updateSpace\)/);
   assert.match(source, /--ms-departure-space/);
   // 소쿠리의 달인: 보석 집계, 흡입, 방어 경로. 모기떼·전기 자기 피해·밀물·출혈은 막지 않는다.
-  assert.match(source, /gemsCollected: Math\.max\(0, Math\.floor\(campaign\.gemsCollected \?\? 0\)\), digsCompleted: Math\.max\(0, Math\.floor\(campaign\.digsCompleted \?\? 0\)\), rockLiftClock: 3, rockLiftEffect: 0, smashClock: 0, smashEffect: 0, smashAngle: 0, smashCastId: 0, fireballClock: 0, fireballQueue: 0, fireballSpacingClock: 0, flameBurstClock: 0, guardBasketPullClock: 0, guardBasketCharges: 1/);
+  assert.match(source, /gemsCollected: Math\.max\(0, Math\.floor\(campaign\.gemsCollected \?\? 0\)\), digsCompleted: Math\.max\(0, Math\.floor\(campaign\.digsCompleted \?\? 0\)\), hitByCrab: campaign\.hitByCrab === true, hitByShrimp: campaign\.hitByShrimp === true, rockLiftClock: 3, rockLiftEffect: 0, smashClock: 0, smashEffect: 0, smashAngle: 0, smashCastId: 0, fireballClock: 0, fireballQueue: 0, fireballSpacingClock: 0, flameBurstClock: 0, guardBasketPullClock: 0, guardBasketCharges: 1/);
   assert.match(source, /lastBossCaught: runtime\.bossCaught, gemsCollected: runtime\.gemsCollected,/);
   assert.match(source, /if \(gained > 0\) \{\s*runtime\.gemsCollected \+= 1;/);
   assert.match(source, /runtime\.gemsCollected === MUDFLAT_GUARD_BASKET_UNLOCK_GEMS\) runtime\.discoveryMessageLife = 3/);
@@ -2171,6 +2192,10 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /Math\.hypot\(creature\.x - ball\.x, creature\.y - ball\.y\) <= ball\.splash \+ creature\.size\) damageCreature\(creature, ball\.damage, \.16\)/);
   assert.match(source, /const angle = runtime\.player\.facing \+ index \* Math\.PI \* 2 \/ flame\.rays;/);
   assert.match(source, /if \(creature\.hp <= 0 \|\| burned\.has\(creature\.id\)\) continue;/);
+  // 피격 경험은 막히지 않은 접촉 피해에서만 기록하고, 조건이 완성되는 순간 발견 문구를 띄운다.
+  assert.match(source, /const hitFamily = !contactBlocked && touchingCreature \? mudflatHitFamily\(touchingCreature\) : null;/);
+  assert.match(source, /if \(hitFamily === "crab"\) runtime\.hitByCrab = true; else runtime\.hitByShrimp = true;/);
+  assert.match(source, /hitByCrab: runtime\.hitByCrab, hitByShrimp: runtime\.hitByShrimp,/);
   assert.match(source, /<= flame\.checkRadius \+ creature\.size\)\) \{/);
   assert.match(source, /appendSupervisorEvent\("fireball-volley"/);
   assert.match(source, /appendSupervisorEvent\("flame-burst"/);

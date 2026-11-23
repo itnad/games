@@ -199,8 +199,8 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "hoe-bot", icon: "⚙", name: "호미봇", description: "호미 모양 로봇이 따라다니며 가까운 조개 구멍을 찾아 대신 파냅니다. 조개 등급은 호미질 레벨을 따릅니다.", max: 6, advanced: true, requiredDigs: 20 },
   { id: "rock-lift", icon: "⌾", name: "건곤대나이", description: "갯벌을 들썩여 가까운 바위를 띄웠다 떨어뜨립니다. 떨어진 자리의 해산물이 피해를 입고 바위는 사라지며, 바위 밑 발견물은 돌뒤집개 레벨을 따릅니다.", max: 6, advanced: true, requiredSkills: 5 },
   { id: "smash", icon: "✊", name: "뻘권", description: "조작 방향으로 한 걸음 내디디며 주먹을 내질러 앞의 해산물에 피해를 주고 멀리 밀쳐 냅니다. 바위에 부딪히면 추가 피해, Lv.5부터는 날아가다 부딪힌 해산물도 함께 밀립니다.", max: 6, advanced: true, requiredLevel3Skills: 4 },
-  { id: "fireball", icon: "☄", name: "파이어볼", description: "1초마다 제멋대로 흔들리며 날아가는 불덩이를 쏩니다. 처음 맞은 해산물과 그 근처에 피해를 주고, 레벨이 오르면 한 번에 더 많이 쏩니다.", max: 6, advanced: true, requiredSkillLevels: { harpoon: 3 } },
-  { id: "flame-burst", icon: "♨", name: "화염 방사", description: "5초마다 바라보는 방향을 시작으로 사방에 불줄기를 뿜어 닿는 모든 해산물에 큰 피해를 줍니다.", max: 6, advanced: true, requiredSkillLevels: { fireball: 3 } },
+  { id: "fireball", icon: "☄", name: "파이어볼", description: "1초마다 제멋대로 흔들리며 날아가는 불덩이를 쏩니다. 처음 맞은 해산물과 그 근처에 피해를 주고, 레벨이 오르면 한 번에 더 많이 쏩니다.", max: 6, advanced: true, requiredSelectableSkills: 6, requiredSelectableLevel: 1, requiredHitFamily: "crab" },
+  { id: "flame-burst", icon: "♨", name: "화염 방사", description: "5초마다 바라보는 방향을 시작으로 사방에 불줄기를 뿜어 닿는 모든 해산물에 큰 피해를 줍니다.", max: 6, advanced: true, requiredSelectableSkills: 5, requiredSelectableLevel: 2, requiredHitFamily: "shrimp" },
 ];
 
 // 소쿠리의 달인은 캠페인 누적으로 경험치 보석 100개를 주워야 열린다.
@@ -213,6 +213,19 @@ export const MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS = 5;
 // 뻘권은 기본 기술을 포함한 채집기술 중 Lv.3 이상이 4개면 열린다.
 export const MUDFLAT_SMASH_UNLOCK_SKILLS = 4;
 export const MUDFLAT_SMASH_UNLOCK_LEVEL = 3;
+// 화염 계열: 파이어볼은 기본 기술을 뺀 선택 기술 6개(Lv.1 이상) + 게에게 피해를 받은 경험,
+// 화염 방사는 선택 기술 5개(Lv.2 이상) + 새우에게 피해를 받은 경험으로 연다.
+export const MUDFLAT_FIREBALL_UNLOCK_SKILLS = 6;
+export const MUDFLAT_FLAME_BURST_UNLOCK_SKILLS = 5;
+export const MUDFLAT_FLAME_BURST_UNLOCK_LEVEL = 2;
+export const MUDFLAT_SHRIMP_TYPES = ["shrimp", "large-shrimp"];
+// 플레이어에게 피해를 준 생물이 어느 피격 경험에 해당하는지("crab" | "shrimp" | null).
+export function mudflatHitFamily(creature) {
+  if (!creature) return null;
+  if (creature.family === "crab") return "crab";
+  if (MUDFLAT_SHRIMP_TYPES.includes(creature.type)) return "shrimp";
+  return null;
+}
 
 // 집게와 호미질은 모든 일반 원정에 기본으로 장착되는 채집 도구다.
 // 나머지 기술 여섯 개만 빌드를 구성하는 선택 기술 슬롯을 사용한다.
@@ -283,7 +296,7 @@ export function mudflatBleedDamage(maxHp = 0) {
  * 해금형 기술 판정. 마스터리는 인벤토리 기준이고, 소쿠리의 달인은 캠페인 누적
  * 경험치 보석 수(stats.gemsCollected)로 연다.
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number, digsCompleted?: number }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean }} [stats]
  */
 export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const masteryCount = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !skill.advanced && (levels[skill.id] ?? 0) >= 5).length;
@@ -291,16 +304,18 @@ export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const digsCompleted = Math.max(0, Math.floor(Number(stats?.digsCompleted) || 0));
   const skillCount = mudflatSelectableSkillIds(levels).length;
   const level3Count = MUDFLAT_GENERAL_UPGRADES.filter((skill) => (levels[skill.id] ?? 0) >= MUDFLAT_SMASH_UNLOCK_LEVEL).length;
+  const selectableLevel2Count = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id) && (levels[skill.id] ?? 0) >= MUDFLAT_FLAME_BURST_UNLOCK_LEVEL).length;
+  const hitByCrab = stats?.hitByCrab === true;
+  const hitByShrimp = stats?.hitByShrimp === true;
   return {
-    masteryCount, gemsCollected, digsCompleted, skillCount, level3Count,
+    masteryCount, gemsCollected, digsCompleted, skillCount, level3Count, selectableLevel2Count, hitByCrab, hitByShrimp,
     electric: masteryCount >= 1, castNet: masteryCount >= 2,
     guardBasket: gemsCollected >= MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
     hoeBot: digsCompleted >= MUDFLAT_HOE_BOT_UNLOCK_DIGS,
     rockLift: skillCount >= MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS,
     smash: level3Count >= MUDFLAT_SMASH_UNLOCK_SKILLS,
-    // 화염 계열: 지속 기술은 작살 Lv.3, 광역 기술은 같은 원소의 지속 기술 Lv.3으로 연다.
-    fireball: (levels.harpoon ?? 0) >= 3,
-    flameBurst: (levels.fireball ?? 0) >= 3,
+    fireball: skillCount >= MUDFLAT_FIREBALL_UNLOCK_SKILLS && hitByCrab,
+    flameBurst: selectableLevel2Count >= MUDFLAT_FLAME_BURST_UNLOCK_SKILLS && hitByShrimp,
   };
 }
 
@@ -326,9 +341,9 @@ export function mudflatSkillUnlocked(skill, unlocks) {
 
 // 정비 화면 잠긴 카드용 진행 표시.
 /**
- * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number, requiredSkills?: number, requiredLevel3Skills?: number, requiredSkillLevels?: Record<string, number | undefined> }} skill
+ * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number, requiredSkills?: number, requiredLevel3Skills?: number, requiredSelectableSkills?: number, requiredSelectableLevel?: number, requiredHitFamily?: string }} skill
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number, digsCompleted?: number }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean }} [stats]
  */
 export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
   const unlocks = mudflatAdvancedSkillUnlocks(levels, stats);
@@ -345,12 +360,13 @@ export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
     const target = skill.requiredLevel3Skills ?? MUDFLAT_SMASH_UNLOCK_SKILLS;
     return { unlocked: unlocks.smash, current: Math.min(unlocks.level3Count, target), target, label: `Lv.${MUDFLAT_SMASH_UNLOCK_LEVEL} 이상 기술 ${Math.min(unlocks.level3Count, target)} / ${target}` };
   }
-  if (skill.requiredSkillLevels) {
-    const [requiredId, requiredLevelValue] = Object.entries(skill.requiredSkillLevels)[0] ?? ["", 0];
-    const requiredLevel = Number(requiredLevelValue) || 0;
-    const requiredName = MUDFLAT_GENERAL_UPGRADES.find((item) => item.id === requiredId)?.name ?? requiredId;
-    const current = Math.min(levels[requiredId] ?? 0, requiredLevel);
-    return { unlocked: mudflatSkillUnlocked(skill, unlocks), current, target: requiredLevel, label: `${requiredName} Lv.${requiredLevel} 필요 · 현재 Lv.${current}` };
+  if (skill.requiredSelectableSkills) {
+    // 선택 기술 수 조건 + 피격 경험 조건을 함께 보여 준다.
+    const minLevel = skill.requiredSelectableLevel ?? 1;
+    const count = Math.min(minLevel >= 2 ? unlocks.selectableLevel2Count : unlocks.skillCount, skill.requiredSelectableSkills);
+    const hitDone = skill.requiredHitFamily === "crab" ? unlocks.hitByCrab : skill.requiredHitFamily === "shrimp" ? unlocks.hitByShrimp : true;
+    const hitLabel = skill.requiredHitFamily === "crab" ? "게에게 피격" : skill.requiredHitFamily === "shrimp" ? "새우에게 피격" : "";
+    return { unlocked: mudflatSkillUnlocked(skill, unlocks), current: count, target: skill.requiredSelectableSkills, label: `Lv.${minLevel} 이상 선택 기술 ${count} / ${skill.requiredSelectableSkills}${hitLabel ? ` · ${hitLabel} ${hitDone ? "○" : "×"}` : ""}` };
   }
   if (skill.id === "guard-basket") {
     const target = skill.requiredGems ?? MUDFLAT_GUARD_BASKET_UNLOCK_GEMS;

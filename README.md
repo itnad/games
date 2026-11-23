@@ -148,6 +148,7 @@ lastSaleValue, totalScore
 lastBossCaught, lastObjective*
 gemsCollected  캠페인 누적 경험치 보석 수(소쿠리의 달인 해금 기준)
 digsCompleted  플레이어가 직접 끝낸 호미질 수(호미봇 해금 기준)
+hitByCrab, hitByShrimp  게·새우에게 접촉 피해를 받은 경험(파이어볼·화염 방사 해금 기준)
 pendingSkillDiscovery  정비 화면에서 새 기술 해금을 알릴지 여부
 ```
 

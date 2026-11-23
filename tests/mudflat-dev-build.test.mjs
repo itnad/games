@@ -19,7 +19,7 @@ function baseCampaign(mode = "normal", stage = 1) {
   return {
     version: 1, mode, characterId: mode === "normal" ? "beginner" : "digger", stage, coins: 0, hp: 100, maxHp: 100, baseMaxHp: mode === "normal" ? 100 : 115,
     level: 1, xp: 0, nextXp: mode === "normal" ? 10 : 8, levels, activeSkills: [],
-    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false, gemsCollected: 0, digsCompleted: 0,
+    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false, gemsCollected: 0, digsCompleted: 0, hitByCrab: false, hitByShrimp: false,
     lastObjectiveLabel: "", lastObjectiveComplete: false, lastObjectiveBonus: 0,
   };
 }
@@ -113,6 +113,12 @@ test("a build becomes a campaign with normalized active skills, clamped gear, HP
   assert.equal(mudflatDevBuildCampaign(botBuild, baseCampaign("normal")).digsCompleted, 0);
   botBuild.digsCompleted = 33;
   assert.equal(mudflatDevBuildCampaign(botBuild, baseCampaign("normal")).digsCompleted, 33);
+  // 화염 기술 레벨이 있으면 게·새우 피격 경험을 채우고, 끄면 체크박스 값만 따른다.
+  const fireBuild = createMudflatDevBuild("normal");
+  fireBuild.levels.fireball = 1;
+  assert.deepEqual([mudflatDevBuildCampaign(fireBuild, baseCampaign("normal")).hitByCrab, mudflatDevBuildCampaign(fireBuild, baseCampaign("normal")).hitByShrimp], [true, false]);
+  fireBuild.autoUnlock = false; fireBuild.hitByShrimp = true;
+  assert.deepEqual([mudflatDevBuildCampaign(fireBuild, baseCampaign("normal")).hitByCrab, mudflatDevBuildCampaign(fireBuild, baseCampaign("normal")).hitByShrimp], [false, true]);
   // 보관된 간식은 최대 체력에 들어가지 않는다.
   const benched = createMudflatDevBuild("normal");
   benched.levels.snack = 3;
