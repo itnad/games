@@ -683,8 +683,9 @@ export const STW_NEST = { capacity: 4, naturalWatch: 1 };
  * - gatherTimeout: 폭탄 드랍 수송선이 집결점에 모이기를 기다리는 최대 시간
  * - syncTimeout: "정면 출격과 동시에"일 때 정면이 맞붙기를 기다리는 최대 시간(출발부터)
  * - relaunchDelay: 계속 견제일 때 돌아와서 다시 나가기까지
+ * - bailHp: 병력을 태우고 날아가는 오버로드의 체력이 이 비율 아래로 떨어지면 그 자리에 병력을 내리고 돌아간다(격추되면 탄 병력도 함께 잃는다)
  */
-export const STW_TRANSPORT = { capacity: 8, raidDwell: 25, retreatRatio: 0.7, hpRatio: 0.5, pickupTimeout: 8, gatherTimeout: 60, syncTimeout: 45, relaunchDelay: 6 };
+export const STW_TRANSPORT = { capacity: 8, raidDwell: 25, retreatRatio: 0.7, hpRatio: 0.5, pickupTimeout: 8, gatherTimeout: 60, syncTimeout: 45, relaunchDelay: 6, bailHp: 0.3 };
 /** 크기 규칙에서 벗어나는 탑승 칸(질럿·다크템플러 2, 울트라리스크 8). 나머지는 소형 1, 중형 2, 대형 4. */
 export const STW_SLOTS = { zealot: 2, dark: 2, templar: 2, goliath: 2, vulture: 2, hydra: 2, ultra: 8 };
 /** 게릴라 드랍에 태우는 빠르고 싼 유닛(앞이 먼저). */

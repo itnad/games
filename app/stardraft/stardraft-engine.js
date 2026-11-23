@@ -4409,9 +4409,32 @@ function stepLoad(state, op, transports) {
 }
 
 /**
+ * 비상 하차: 병력을 태우고 날아가는 오버로드의 체력이 30%(STW_TRANSPORT.bailHp) 아래로 떨어지면 격추되기 전에 그 자리에 병력을 내린다.
+ * 격추되면 탄 병력을 모두 잃지만, 내려 두면 그 병력은 싸울 수 있다. 오버로드는 빈 몸으로 돌아간다(셔틀·드랍십은 쓰지 않는다).
+ * 가는 길(게릴라 out·폭탄 in)에 내린 병력은 공격 병력이 되어 끝까지 싸우고, 돌아오는 길(home)에 내린 병력은 대기 병력으로 걸어서 돌아온다.
+ * @returns {any[] | null} 내린 병력. 비상 하차를 하지 않았으면 null.
+ */
+function bailOut(state, op, transport, heading) {
+  if (transport.type !== "overlord" || !transport.cargo?.length || !transport.dropPath?.length || transport.hp >= transport.maxHp * STW_TRANSPORT.bailHp) return null;
+  const riders = unloadCargo(state, transport, (rider) => {
+    rider.group = heading === "home" ? "rally" : "attack";
+    rider.raid = undefined;
+    rider.bomb = heading === "bomb" ? op.target : undefined;
+  });
+  state.effects.push({ kind: "warp", side: transport.side, x1: transport.x, y1: transport.y, x2: transport.x, y2: transport.y, ttl: 0.6, max: 0.6, radius: 3 });
+  if (transport.side === "player") pushLog(state, "player", `크게 다친 오버로드가 병력 ${riders.length}기를 그 자리에 내리고 돌아갑니다.`, "warn");
+  // 가장자리 한 줄로 뒤따라오는 오버로드들과 마주치지 않게 안쪽으로 3.5칸 비켜서 돌아간다(같은 줄로 돌아서면 서로 밀려 모두 멈췄다).
+  const lane = transport.x + (transport.x < STW_LANE_WIDTH / 2 ? 3.5 : -3.5);
+  const homeY = homePath(op.side, transport, state).at(-1).y;
+  transport.dropPath = [{ x: lane, y: transport.y }, { x: lane, y: homeY }];
+  return riders;
+}
+
+/**
  * 수송 작전 진행(틱마다).
  * 게릴라: 이동(out) → 내려서 견제(fight) → 회수(pickup) → 귀환(home). 버틴 시간, 다가오는 적, 남은 체력으로 회수를 정한다.
  * 폭탄: 집결(gather) → 정면이 맞붙거나 시간이 차면 동시에 진입(in) → 귀환(home). 내린 병력은 끝까지 싸운다.
+ * 오버로드는 가는 길과 돌아오는 길에 체력이 30% 아래로 떨어지면 그 자리에 병력을 내린다(bailOut).
  */
 function stepOps(state) {
   const find = (id) => state.units.find((item) => item.id === id && item.hp > 0);
@@ -4438,7 +4461,14 @@ function stepOps(state) {
         op.done = true;
         continue;
       }
-      if (op.phase === "out" && !transport.dropPath.length) {
+      if (op.phase === "out" && bailOut(state, op, transport, "raid")) {
+        // 가는 길에 크게 다쳤다: 내린 병력은 그 자리에서 끝까지 싸우고(회수하지 않는다) 오버로드는 돌아간다.
+        op.riders = [];
+        op.phase = "home";
+      } else if (op.phase === "home" && bailOut(state, op, transport, "home")) {
+        // 회수해 돌아오는 길에 크게 다쳤다: 내린 병력은 걸어서 돌아온다.
+        op.riders = [];
+      } else if (op.phase === "out" && !transport.dropPath.length) {
         const landed = unloadCargo(state, transport, (rider) => {
           rider.group = "attack";
           rider.raid = op.id;
@@ -4517,6 +4547,9 @@ function stepOps(state) {
       }
     } else if (op.phase === "in") {
       for (const transport of transports) {
+        // 가는 길에 크게 다친 오버로드는 그 자리에 내린다(내린 병력은 다른 병력처럼 목표를 치러 간다).
+        const bailed = bailOut(state, op, transport, "bomb");
+        if (bailed) op.riders.push(...bailed.map((rider) => rider.id));
         if (transport.dropPath.length || !transport.cargo?.length) continue;
         const landed = unloadCargo(state, transport, (rider) => {
           rider.group = "attack";
@@ -4527,6 +4560,8 @@ function stepOps(state) {
         transport.dropPath = homePath(op.side, transport, state);
       }
       if (transports.every((transport) => !transport.cargo?.length)) op.phase = "home";
+    } else if (op.phase === "home" && transports.some((transport) => bailOut(state, op, transport, "home"))) {
+      // 내리기 전에 거둔 폭탄 드랍이 돌아오는 길에 크게 다쳤다: 그 오버로드의 병력은 그 자리에 내려 걸어서 돌아온다.
     } else if (op.phase === "home" && transports.every((transport) => !transport.dropPath.length)) {
       for (const transport of transports) {
         transport.groupSpeed = undefined;

@@ -3375,6 +3375,71 @@ test("스타드래프트 오버로드 둥지: 앞마당이 완성되면 탐지 �
   assert.equal(stwSupply(state, "player").cap, 20 + 9 * 8);
 });
 
+test("스타드래프트 오버로드 비상 하차: 병력을 태우고 가다 체력이 30% 아래로 떨어지면 그 자리에 내리고 돌아간다", () => {
+  const setup = () => {
+    const state = zerg("protoss");
+    state.sides.player.minerals = 9000;
+    for (let index = 0; index < 5; index += 1) stwCommand(state, "player", { type: "build", building: "overlord" });
+    finishAll(state);
+    research(state, "player", "ventral");
+    for (let index = 0; index < 12; index += 1) stwSpawnUnitAt(state, "player", "hydra", 12 + (index % 6) * 2.5, 76 + Math.floor(index / 6) * 2, "rally");
+    return state;
+  };
+  // 폭탄 드랍: 날아가는 중에 한 기가 크게 다치면 그 오버로드의 병력만 그 자리에 내린다.
+  const state = setup();
+  assert.equal(stwCommand(state, "player", { type: "drop", mission: "bomb" }).ok, true);
+  const op = state.ops[0];
+  const carriers = state.units.filter((unit) => unit.side === "player" && unit.type === "overlord" && unit.op !== undefined);
+  assert.equal(carriers.length, 3);
+  for (let index = 0; index < 600 && !(op.phase === "in" && carriers[0].y < 50); index += 1) stepStardraft(state);
+  assert.equal(op.phase, "in");
+  const [hurt, ...rest] = carriers;
+  const riders = hurt.cargo.map((id) => state.units.find((unit) => unit.id === id));
+  assert.equal(riders.length, 4);
+  hurt.hp = hurt.maxHp * 0.31;
+  stepStardraft(state);
+  assert.equal(hurt.cargo.length, 4, "30% 이상이면 계속 간다");
+  hurt.hp = hurt.maxHp * 0.29;
+  const cap = stwSupply(state, "player").cap;
+  stepStardraft(state);
+  assert.equal(hurt.cargo.length, 0, "30% 아래면 그 자리에 내린다");
+  assert.ok(riders.every((unit) => unit.hp > 0 && unit.group === "attack" && Math.hypot(unit.x - hurt.x, unit.y - hurt.y) < 3), "내린 병력은 오버로드 곁에서 공격 병력이 된다");
+  assert.ok(riders.every((unit) => unit.bomb === op.target && op.riders.includes(unit.id)), "다른 병력처럼 목표를 치러 간다");
+  assert.ok(state.log.some((entry) => /크게 다친 오버로드가 병력 4기를 그 자리에 내리고 돌아갑니다/.test(entry.text)));
+  assert.equal(stwSupply(state, "player").cap, cap, "오버로드가 살아 인구 상한은 그대로");
+  assert.ok(rest.every((unit) => unit.cargo.length === 4), "다른 오버로드는 그대로 간다");
+  const homeward = hurt.y;
+  for (let index = 0; index < 30; index += 1) stepStardraft(state);
+  assert.ok(hurt.hp > 0 && hurt.y > homeward + 2, "빈 오버로드는 돌아간다");
+  for (let index = 0; index < 900 && rest.some((unit) => unit.cargo?.length && unit.hp > 0); index += 1) stepStardraft(state);
+  const enemyMain = stwNexus(state, "enemy", "main");
+  const landed = state.units.filter((unit) => unit.side === "player" && unit.type === "hydra" && unit.hp > 0 && !riders.includes(unit) && unit.group === "attack");
+  assert.ok(landed.length && landed.every((unit) => Math.hypot(unit.x - enemyMain.x, unit.y - enemyMain.y) < 30), "나머지는 적 본진에 내린다");
+
+  // 게릴라 드랍: 가는 길에 다치면 내려서 그 자리에서 싸우고(회수하지 않는다) 오버로드는 돌아간다.
+  const raid = setup();
+  assert.equal(stwCommand(raid, "player", { type: "drop", mission: "raid" }).ok, true);
+  const raider = raid.units.find((unit) => unit.side === "player" && unit.type === "overlord" && unit.op !== undefined);
+  for (let index = 0; index < 600 && !(raid.ops[0].phase === "out" && raider.y < 55); index += 1) stepStardraft(raid);
+  const cargo = raider.cargo.map((id) => raid.units.find((unit) => unit.id === id));
+  raider.hp = raider.maxHp * 0.2;
+  stepStardraft(raid);
+  assert.equal(raider.cargo.length, 0);
+  assert.ok(cargo.every((unit) => unit.group === "attack" && unit.raid === undefined));
+  assert.equal(raid.ops[0].phase, "home");
+
+  // 셔틀·드랍십은 비상 하차를 하지 않는다.
+  const shuttleGame = quiet();
+  const shuttle = stwSpawnUnitAt(shuttleGame, "player", "shuttle", 20, 80, "rally");
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(shuttleGame, "player", "zealot", 17 + index * 2, 78, "rally");
+  stwCommand(shuttleGame, "player", { type: "drop" });
+  for (let index = 0; index < 600 && !(shuttleGame.ops[0].phase === "out" && shuttle.y < 55); index += 1) stepStardraft(shuttleGame);
+  shuttle.hp = 1;
+  shuttle.shields = 0;
+  stepStardraft(shuttleGame);
+  assert.equal(shuttle.cargo.length, 4, "셔틀은 그대로 간다");
+});
+
 test("스타드래프트 AI 오버로드 폭탄 드랍: 오버로드 여섯 기 이상과 그만큼의 병력이 모이면 한꺼번에 태워 보낸다(최대 열 기)", () => {
   const setup = (persona, overlords, army) => {
     const state = createStardraftGame({ seed: 3, difficulty: "hard", aiSides: ["player"], races: { player: "zerg", enemy: "terran" }, personas: { player: persona } });
