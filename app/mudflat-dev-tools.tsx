@@ -405,11 +405,13 @@ export function MudflatDevTools() {
   });
   const numberField = (value: string, fallback = 0) => { const parsed = Number.parseInt(value, 10); return Number.isFinite(parsed) ? parsed : fallback; };
   const buildCampaign = () => mudflatDevBuildCampaign(build, createCampaign(build.characterId, build.mode, build.stage));
-  const startBuild = () => {
-    if (buildErrors.length > 0) return;
+  // 바로 실행은 사람이 플레이하고, 감독모드 관전은 같은 세팅(기술 레벨·활성 구성·단계·장비·시드·보스 등장)을 AI 감독이 플레이한다.
+  // 감독모드는 일반 모드에서만 열리고 이어하기 저장·최고 단계를 건드리지 않는다.
+  const startBuild = (supervisor = false) => {
+    if (buildErrors.length > 0 || (supervisor && build.mode !== "normal")) return;
     try {
       const campaign = buildCampaign();
-      if (!build.supervisor) {
+      if (!supervisor) {
         window.localStorage.setItem(LAST_MODE_KEY, campaign.mode);
         window.localStorage.setItem(HIGHEST_STAGE_KEY, String(Math.max(1, Math.min(9, campaign.stage))));
         window.localStorage.removeItem(MUDFLAT_ACTIVE_RUN_KEY);
@@ -417,11 +419,11 @@ export function MudflatDevTools() {
       window.sessionStorage.setItem(MUDFLAT_DEV_LAUNCH_KEY, JSON.stringify({
         version: 1,
         seed: mudflatDevBuildSeed(build, createMudflatSeed),
-        label: `맞춤 원정 · ${campaign.stage}단계`,
+        label: `맞춤 원정 · ${campaign.stage}단계${supervisor ? " · 감독모드" : ""}`,
         campaign,
         run: true,
-        tutorial: build.stage === 1 && build.tutorial,
-        supervisor: build.supervisor,
+        tutorial: build.stage === 1 && build.tutorial && !supervisor,
+        supervisor,
         bossEarly: build.bossEarly,
       }));
       window.location.assign("/haeru");
@@ -430,7 +432,7 @@ export function MudflatDevTools() {
     }
   };
   const saveBuildOnly = () => {
-    if (buildErrors.length > 0 || build.supervisor) return;
+    if (buildErrors.length > 0) return;
     try {
       const campaign = buildCampaign();
       window.localStorage.setItem(CAMPAIGN_KEY, JSON.stringify({ ...campaign, inProgress: false }));
@@ -655,7 +657,6 @@ export function MudflatDevTools() {
             <label className="field"><span>단계 직접 입력 (9 이상은 끝없는 물때)</span><input type="number" min={1} max={MUDFLAT_DEV_BUILD_MAX_STAGE} value={build.stage} onChange={(event) => updateBuild({ stage: numberField(event.target.value, 1) })} /></label>
             {build.stage === 1 && <label className="check"><input type="checkbox" checked={build.tutorial} onChange={(event) => updateBuild({ tutorial: event.target.checked })} /><span>튜토리얼 포함</span></label>}
             <label className="check"><input type="checkbox" checked={build.bossEarly} onChange={(event) => updateBuild({ bossEarly: event.target.checked })} /><span>대왕 박하지 8초 뒤 등장 (기본 200초)</span></label>
-            <label className="check"><input type="checkbox" checked={build.supervisor} disabled={build.mode !== "normal"} onChange={(event) => updateBuild({ supervisor: event.target.checked })} /><span>AI 감독모드로 관전 (일반 저장을 건드리지 않음)</span></label>
             <fieldset className="mudflat-dev-seed">
               <legend>시드</legend>
               <div className="mudflat-dev-choice" role="group" aria-label="시드 방식">
@@ -718,8 +719,9 @@ export function MudflatDevTools() {
         </div>
         {buildErrors.length > 0 && <ul className="mudflat-dev-errors" role="alert">{buildErrors.map((error) => <li key={error}>{error}</li>)}</ul>}
         <div className="mudflat-dev-actions">
-          <button type="button" onClick={startBuild} disabled={buildErrors.length > 0}>바로 실행</button>
-          <button type="button" onClick={saveBuildOnly} disabled={buildErrors.length > 0 || build.supervisor}>정비 저장만</button>
+          <button type="button" onClick={() => startBuild(false)} disabled={buildErrors.length > 0}>바로 실행</button>
+          <button type="button" className="secondary" onClick={() => startBuild(true)} disabled={buildErrors.length > 0 || build.mode !== "normal"} title={build.mode !== "normal" ? "AI 감독모드는 일반 모드에서만 관전할 수 있습니다." : "같은 세팅으로 AI 감독이 플레이하는 것을 관전합니다. 일반 저장을 건드리지 않습니다."}>감독모드로 관전</button>
+          <button type="button" onClick={saveBuildOnly} disabled={buildErrors.length > 0}>정비 저장만</button>
           <button type="button" onClick={() => setBuild(createMudflatDevBuild(build.mode))}>초기화</button>
         </div>
       </section>
@@ -728,7 +730,7 @@ export function MudflatDevTools() {
         <header>
           <small>ONE TAP PRESETS</small>
           <h2>테스트 프리셋</h2>
-          <p>바로 실행은 현재 진행 중 저장을 지웁니다. “정비 저장만”은 다음에 해루질럿 메인에서 이어서 확인할 때 사용합니다.</p>
+          <p>바로 실행은 현재 진행 중 저장을 지웁니다. “감독모드로 관전”은 같은 세팅을 AI 감독이 플레이하는 것을 보며 저장을 건드리지 않습니다. “정비 저장만”은 다음에 해루질럿 메인에서 이어서 확인할 때 사용합니다.</p>
         </header>
         <div>
           {testPresets.map((preset) => (
@@ -738,6 +740,7 @@ export function MudflatDevTools() {
               <p>{preset.description}</p>
               <div>
                 <button type="button" onClick={() => startPreset(preset)}>바로 실행</button>
+                {(preset.mode ?? "normal") === "normal" && <button type="button" className="secondary" onClick={() => startPreset({ ...preset, supervisor: true }, createMudflatSeed())} title="같은 세팅으로 AI 감독이 플레이하는 것을 관전합니다. 일반 저장을 건드리지 않습니다.">감독모드로 관전</button>}
                 <button type="button" onClick={() => savePresetOnly(preset)}>정비 저장만</button>
               </div>
             </article>

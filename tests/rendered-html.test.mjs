@@ -434,6 +434,12 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(tools, /updateBuild\(\{ bossEarly: event\.target\.checked \}\)/);
   assert.match(tools, /bossEarly: Boolean\(preset\.bossEarly\),/);
   assert.match(tools, /bossEarly: build\.bossEarly,/);
+  // 감독모드 관전: 빌더와 모든 일반 모드 프리셋에 "감독모드로 관전" 버튼이 있고, 같은 세팅을 supervisor: true로 띄운다(체크박스 대신 버튼).
+  assert.match(tools, /const startBuild = \(supervisor = false\) => \{\n\s+if \(buildErrors\.length > 0 \|\| \(supervisor && build\.mode !== "normal"\)\) return;/);
+  assert.match(tools, /onClick=\{\(\) => startBuild\(true\)\} disabled=\{buildErrors\.length > 0 \|\| build\.mode !== "normal"\}[^>]*>감독모드로 관전<\/button>/);
+  assert.match(tools, /onClick=\{\(\) => startPreset\(\{ \.\.\.preset, supervisor: true \}, createMudflatSeed\(\)\)\}[^>]*>감독모드로 관전<\/button>/);
+  assert.doesNotMatch(tools, /updateBuild\(\{ supervisor: event\.target\.checked \}\)/);
+  assert.match(tools, /tutorial: build\.stage === 1 && build\.tutorial && !supervisor,/);
   // 맞춤 원정 빌더: 프리셋 목록 바로 위에 있고, 순수 모듈의 검증·변환을 그대로 쓴다.
   const builderSection = tools.indexOf('className="mudflat-dev-builder"');
   assert.ok(builderSection > tools.indexOf('className="mudflat-dev-grid"'));
@@ -442,10 +448,10 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(tools, /const buildErrors = validateMudflatDevBuild\(build\);/);
   assert.match(tools, /mudflatDevBuildCampaign\(build, createCampaign\(build\.characterId, build\.mode, build\.stage\)\)/);
   assert.match(tools, /seed: mudflatDevBuildSeed\(build, createMudflatSeed\)/);
-  assert.match(tools, /label: `맞춤 원정 · \$\{campaign\.stage\}단계`/);
-  assert.match(tools, /tutorial: build\.stage === 1 && build\.tutorial,\s*supervisor: build\.supervisor,/);
-  assert.match(tools, /onClick=\{startBuild\} disabled=\{buildErrors\.length > 0\}/);
-  assert.match(tools, /onClick=\{saveBuildOnly\} disabled=\{buildErrors\.length > 0 \|\| build\.supervisor\}/);
+  assert.match(tools, /label: `맞춤 원정 · \$\{campaign\.stage\}단계\$\{supervisor \? " · 감독모드" : ""\}`/);
+  assert.match(tools, /tutorial: build\.stage === 1 && build\.tutorial && !supervisor,\s*supervisor,/);
+  assert.match(tools, /onClick=\{\(\) => startBuild\(false\)\} disabled=\{buildErrors\.length > 0\}/);
+  assert.match(tools, /onClick=\{saveBuildOnly\} disabled=\{buildErrors\.length > 0\}/);
   assert.match(tools, /해금 조건 자동 충족/);
   assert.match(model, /MOSQUITO_REPELLENT_KEY = "mosquitoRepellent"/);
   assert.match(styles, /\.mudflat-dev-builder\{/);
