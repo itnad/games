@@ -190,6 +190,30 @@ test("live save keeps knockback state and smash timers, backfills older saves, a
   assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
 });
 
+test("live save keeps fireballs, flame rays and fire timers, and backfills older saves", () => {
+  const { campaign, runtime } = fixture("normal");
+  runtime.fireballs.push({ id: 41, x: 10, y: 20, vx: 170, vy: -170, age: .3, life: 1.08, damage: 60, splash: 40, wobblePhase: 1.1, baseAngle: -.78 });
+  runtime.flameRays.push({ id: 42, x: 0, y: 0, angle: 1.2, age: .1, length: 170, width: 34 });
+  Object.assign(runtime, { fireballClock: .6, fireballQueue: 2, fireballSpacingClock: .05, flameBurstClock: 3.2 });
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  assert.deepEqual(restored.runtime.fireballs, runtime.fireballs);
+  assert.deepEqual(restored.runtime.flameRays, runtime.flameRays);
+  assert.equal(restored.runtime.fireballQueue, 2);
+  assert.equal(restored.runtime.flameBurstClock, 3.2);
+  assert.ok(restored.nextSequence > 42);
+  const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
+  for (const key of ["fireballs", "flameRays", "fireballClock", "fireballQueue", "fireballSpacingClock", "flameBurstClock"]) delete legacy.runtime[key];
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.deepEqual(legacyRestored.runtime.fireballs, []);
+  assert.deepEqual(legacyRestored.runtime.flameRays, []);
+  assert.equal(legacyRestored.runtime.fireballQueue, 0);
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.runtime.fireballs[0].damage = "hot";
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
+});
+
 test("live save keeps a detached stage-entry checkpoint for rescue retries", () => {
   const { campaign, runtime } = fixture();
   const stageEntryCampaign = {

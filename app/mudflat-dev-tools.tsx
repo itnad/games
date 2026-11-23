@@ -173,6 +173,18 @@ const DEV_PRESETS: DevPreset[] = [
     equipment: { headlamp: 4, cooler: 1 },
   },
   {
+    id: "fire",
+    title: "3단계 바위 갯벌 · 화염구 난사 Lv.6 · 화염 방사 Lv.6",
+    stage: 3,
+    description: "1초마다 불덩이 6발이 흔들리며 날아가 근처까지 태우고, 5초마다 8방향 불줄기가 150 피해를 주는지 확인합니다.",
+    coins: 3000,
+    level: 12,
+    xp: 0,
+    nextXp: 90,
+    levels: { tongs: 3, digging: 2, harpoon: 3, fireball: 6, "flame-burst": 6 },
+    equipment: { cooler: 1 },
+  },
+  {
     id: "final-boss",
     title: "8단계 마지막 물때",
     stage: 8,
@@ -610,7 +622,7 @@ export function MudflatDevTools() {
                 {build.mode === "normal" && !basic ? <label className="check"><input type="checkbox" checked={isActive} disabled={!isActive && (level <= 0 || build.activeSkills.length >= MUDFLAT_SELECTABLE_SKILL_LIMIT)} onChange={() => toggleBuildActive(skill.id)} /><span>활성</span></label> : <span className="mudflat-dev-always">{build.mode === "normal" ? "항상 작동" : ""}</span>}
               </div>;
             })}
-            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤. 건곤대나이는 선택 기술 5종, 뻘권은 Lv.3 이상 기술 4개가 필요)</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤. 건곤대나이는 선택 기술 5종, 뻘권은 Lv.3 이상 기술 4개, 화염구 난사는 작살 Lv.3, 화염 방사는 화염구 난사 Lv.3이 필요)</span></label>}
           </fieldset>
           <fieldset>
             <legend>캐릭터</legend>

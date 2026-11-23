@@ -199,6 +199,8 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "hoe-bot", icon: "⚙", name: "호미봇", description: "호미 모양 로봇이 따라다니며 가까운 조개 구멍을 찾아 대신 파냅니다. 조개 등급은 호미질 레벨을 따릅니다.", max: 6, advanced: true, requiredDigs: 20 },
   { id: "rock-lift", icon: "⌾", name: "건곤대나이", description: "갯벌을 들썩여 가까운 바위를 띄웠다 떨어뜨립니다. 떨어진 자리의 해산물이 피해를 입고 바위는 사라지며, 바위 밑 발견물은 돌뒤집개 레벨을 따릅니다.", max: 6, advanced: true, requiredSkills: 5 },
   { id: "smash", icon: "✊", name: "뻘권", description: "조작 방향으로 한 걸음 내디디며 주먹을 내질러 앞의 해산물에 피해를 주고 멀리 밀쳐 냅니다. 바위에 부딪히면 추가 피해, Lv.5부터는 날아가다 부딪힌 해산물도 함께 밀립니다.", max: 6, advanced: true, requiredLevel3Skills: 4 },
+  { id: "fireball", icon: "☄", name: "화염구 난사", description: "1초마다 제멋대로 흔들리며 날아가는 불덩이를 쏩니다. 처음 맞은 해산물과 그 근처에 피해를 주고, 레벨이 오르면 한 번에 더 많이 쏩니다.", max: 6, advanced: true, requiredSkillLevels: { harpoon: 3 } },
+  { id: "flame-burst", icon: "♨", name: "화염 방사", description: "5초마다 바라보는 방향을 시작으로 사방에 불줄기를 뿜어 닿는 모든 해산물에 큰 피해를 줍니다.", max: 6, advanced: true, requiredSkillLevels: { fireball: 3 } },
 ];
 
 // 소쿠리의 달인은 캠페인 누적으로 경험치 보석 100개를 주워야 열린다.
@@ -296,7 +298,16 @@ export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
     hoeBot: digsCompleted >= MUDFLAT_HOE_BOT_UNLOCK_DIGS,
     rockLift: skillCount >= MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS,
     smash: level3Count >= MUDFLAT_SMASH_UNLOCK_SKILLS,
+    // 화염 계열: 지속 기술은 작살 Lv.3, 광역 기술은 같은 원소의 지속 기술 Lv.3으로 연다.
+    fireball: (levels.harpoon ?? 0) >= 3,
+    flameBurst: (levels.fireball ?? 0) >= 3,
   };
+}
+
+// 두 해금 상태를 비교해 새로 열린 기술이 있는지 알려 준다(발견 문구용).
+/** @param {Record<string, unknown>} before @param {Record<string, unknown>} after */
+export function mudflatNewUnlocks(before, after) {
+  return Object.entries(after).some(([key, value]) => value === true && before[key] !== true);
 }
 
 /** @param {{ id: string, advanced?: boolean }} skill @param {ReturnType<typeof mudflatAdvancedSkillUnlocks>} unlocks */
@@ -308,12 +319,14 @@ export function mudflatSkillUnlocked(skill, unlocks) {
   if (skill.id === "hoe-bot") return unlocks.hoeBot;
   if (skill.id === "rock-lift") return unlocks.rockLift;
   if (skill.id === "smash") return unlocks.smash;
+  if (skill.id === "fireball") return unlocks.fireball;
+  if (skill.id === "flame-burst") return unlocks.flameBurst;
   return false;
 }
 
 // 정비 화면 잠긴 카드용 진행 표시.
 /**
- * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number, requiredSkills?: number, requiredLevel3Skills?: number }} skill
+ * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number, requiredSkills?: number, requiredLevel3Skills?: number, requiredSkillLevels?: Record<string, number | undefined> }} skill
  * @param {Record<string, number>} levels
  * @param {{ gemsCollected?: number, digsCompleted?: number }} [stats]
  */
@@ -331,6 +344,13 @@ export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
   if (skill.id === "smash") {
     const target = skill.requiredLevel3Skills ?? MUDFLAT_SMASH_UNLOCK_SKILLS;
     return { unlocked: unlocks.smash, current: Math.min(unlocks.level3Count, target), target, label: `Lv.${MUDFLAT_SMASH_UNLOCK_LEVEL} 이상 기술 ${Math.min(unlocks.level3Count, target)} / ${target}` };
+  }
+  if (skill.requiredSkillLevels) {
+    const [requiredId, requiredLevelValue] = Object.entries(skill.requiredSkillLevels)[0] ?? ["", 0];
+    const requiredLevel = Number(requiredLevelValue) || 0;
+    const requiredName = MUDFLAT_GENERAL_UPGRADES.find((item) => item.id === requiredId)?.name ?? requiredId;
+    const current = Math.min(levels[requiredId] ?? 0, requiredLevel);
+    return { unlocked: mudflatSkillUnlocked(skill, unlocks), current, target: requiredLevel, label: `${requiredName} Lv.${requiredLevel} 필요 · 현재 Lv.${current}` };
   }
   if (skill.id === "guard-basket") {
     const target = skill.requiredGems ?? MUDFLAT_GUARD_BASKET_UNLOCK_GEMS;
@@ -401,6 +421,41 @@ export function mudflatSmashStats(level = 0) {
     chain: safeLevel >= 5,
     triggerRange: 48,
     triggerHalfWidth: 40,
+  };
+}
+
+// 화염구 난사 수치. 1초마다 한 묶음(shots발)을 spacing 간격으로 쏜다. 불덩이는 speed로 range까지
+// 날아가며 좌우로 wobble px 흔들리고, 처음 맞은 해산물 반경 splash 안에 같은 피해를 준다.
+export function mudflatFireballStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { interval: Infinity, shots: 0, spacing: 0, damage: 0, speed: 0, range: 0, splash: 0, wobble: 0, wobblePeriod: 1, sectorHalfAngle: 0 };
+  return {
+    interval: 1,
+    shots: safeLevel,
+    spacing: [0, .4, .2, .1, .1, .1][safeLevel - 1],
+    damage: safeLevel * 10,
+    speed: 240,
+    range: 260,
+    splash: 40,
+    wobble: 14,
+    wobblePeriod: .35,
+    sectorHalfAngle: Math.PI / 4,
+  };
+}
+
+// 화염 방사 수치. interval마다 바라보는 방향을 첫 줄기로 rays방향에 길이 length·폭 width 불줄기를
+// 뿜어 닿는 모든 해산물에 damage를 준다. 반경 checkRadius 안에 해산물이 있을 때만 발동한다.
+export function mudflatFlameBurstStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { interval: Infinity, rays: 0, damage: 0, length: 0, width: 0, sweepSeconds: 0, checkRadius: 0 };
+  return {
+    interval: 5,
+    rays: [4, 5, 6, 7, 8, 8][safeLevel - 1],
+    damage: safeLevel >= 6 ? 150 : 100,
+    length: 170,
+    width: 34,
+    sweepSeconds: .35,
+    checkRadius: 170,
   };
 }
 

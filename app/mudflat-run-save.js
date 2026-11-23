@@ -22,6 +22,7 @@ const ENTITY_FIELDS = {
   creatures: "hp maxHp speed size xp score saltHit hitFlash phase age movementAngle movementClock",
   pickups: "xp age visualX visualY fromX fromY pullTime pullDuration", projectiles: "vx vy damage life",
   harpoons: "vx vy damage distance maxDistance angle",
+  fireballs: "vx vy age life damage splash wobblePhase baseAngle", flameRays: "angle age length width",
   netSlams: "life maxLife damage radius headDepth range angle targetId",
   castNets: "originX originY angle radius damage holdSeconds age duration",
   rocks: "radius tone", clamHoles: "radius progress", hoeBots: "targetHoleId digClock facing", clamReveals: "life maxLife",
@@ -117,6 +118,13 @@ export function decodeMudflatRun(serialized, makeRuntime) {
       if (!finite(runtime[key])) runtime[key] = 0;
     }
     if (!Number.isInteger(runtime.smashCastId) || runtime.smashCastId < 0) runtime.smashCastId = 0;
+    // 화염구 난사·화염 방사도 뒤에 추가됐다.
+    if (!Array.isArray(runtime.fireballs)) runtime.fireballs = [];
+    if (!Array.isArray(runtime.flameRays)) runtime.flameRays = [];
+    for (const key of ["fireballClock", "fireballSpacingClock", "flameBurstClock"]) {
+      if (!finite(runtime[key])) runtime[key] = 0;
+    }
+    if (!Number.isInteger(runtime.fireballQueue) || runtime.fireballQueue < 0) runtime.fireballQueue = 0;
     // Older active-run autosaves did not know about stage-five deep-mud
     // visuals/state. They are cosmetic or transient, so backfill defaults
     // instead of discarding an otherwise valid expedition.
