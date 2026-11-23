@@ -4227,6 +4227,43 @@ test("secret route entry sets only the requested skills and leaves ordinary star
   assert.match(source, /const beginWithTutorial = \(\) => beginAtStage\(1, false, true\)/);
 });
 
+// 가운데 정렬된 전체 화면 덮개(position:fixed; place-items:center) 안의 패널은 기본 규칙에서 최대 높이와 스크롤을 가져야 한다.
+// 모바일 미디어 쿼리에만 있으면 데스크톱의 낮은 창에서 패널 위아래가 잘리고 덮개가 스크롤되지 않아 아래쪽 버튼을 누를 수 없다.
+test("centered full-screen overlay panels can scroll on short desktop viewports", async () => {
+  const baseRule = (css, selector) => {
+    const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    let depth = 0; let buffer = ""; const stack = [];
+    for (const char of stripped) {
+      if (char === "{") { stack.push(buffer.trim()); buffer = ""; depth += 1; continue; }
+      if (char === "}") {
+        const sel = stack.pop() ?? ""; const body = buffer; buffer = ""; depth -= 1;
+        const inMedia = stack.some((item) => item.startsWith("@"));
+        if (!inMedia && sel.replace(/\s+/g, " ") === selector) return body.replace(/\s+/g, "");
+        continue;
+      }
+      buffer += char;
+    }
+    return null;
+  };
+  const cases = [
+    ["../app/mudflat-survivor.css", ".ms-layer>section"],
+    ["../app/paper-dungeon.css", ".pd-reward-layer > section"],
+    ["../app/scotland-yard.css", ".sy-tutorial-modal, .sy-rules-modal"],
+    ["../app/whitechapel.css", ".wc-tutorial, .wc-rules"],
+    ["../app/clocktowers.css", ".ct-rules-layer > section, .ct-result-layer > section"],
+    ["../app/globals.css", ".learning-modal"],
+    ["../app/globals.css", ".dice-rules-card"],
+    ["../app/camel-up.css", ".cu-modal,.cu-choice"],
+  ];
+  for (const [file, selector] of cases) {
+    const css = await readFile(new URL(file, import.meta.url), "utf8");
+    const body = baseRule(css, selector);
+    assert.ok(body, `${file} ${selector} 기본 규칙이 있어야 한다`);
+    assert.match(body, /max-height:(calc\(100d?vh-\d+px\)|min\([^)]*vh[^)]*\)|\d+d?vh)/, `${file} ${selector} 최대 높이`);
+    assert.match(body, /overflow(-y)?:(auto|hiddenauto)/, `${file} ${selector} 스크롤`);
+  }
+});
+
 test("secret retry hold fires once after three seconds and cancels without falling back", async () => {
   const { createRetryHold, SECRET_RETRY_HOLD_MS } = await import("../app/mudflat-retry.js");
   let now = 0, id = 0, short = 0, long = 0;

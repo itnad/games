@@ -623,6 +623,9 @@
   padding: 34px;
   background: #1b2630;
   box-shadow: 0 28px 90px rgba(0,0,0,.45);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .sy-close {
   position: absolute;
