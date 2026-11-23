@@ -203,6 +203,8 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "flame-burst", icon: "♨", name: "화염 방사", description: "5초마다 바라보는 방향을 시작으로 사방에 불줄기를 뿜어 닿는 모든 해산물에 큰 피해를 줍니다.", max: 6, advanced: true, requiredSelectableSkills: 5, requiredSelectableLevel: 2, requiredHitFamily: "shrimp" },
   { id: "frost-trail", icon: "❄", name: "서리 발자국", description: "지나간 자리에 서리 바닥을 남깁니다. 바닥 위의 해산물은 느려지고 조금씩 얼어붙는 피해를 받습니다.", max: 6, advanced: true, requiredSelectableSkills: 5, requiredSelectableLevel: 1, requiredHitFamily: "rock" },
   { id: "frost-wave", icon: "❆", name: "빙결 파동", description: "주위에 냉기 고리를 퍼뜨려 닿는 모든 해산물에 피해를 주고 느리게 합니다. Lv.6은 잠시 얼립니다.", max: 6, advanced: true, requiredSelectableSkills: 4, requiredSelectableLevel: 3, requiredHitFamily: "tide" },
+  { id: "chain-lightning", icon: "⚡", name: "번개 체인", description: "가까운 해산물에 번개를 꽂고 근처 해산물로 번지게 합니다. 물골 위의 해산물은 더 아픕니다.", max: 6, advanced: true, requiredSelectableSkills: 5, requiredSelectableLevel: 1, requiredHitFamily: "mosquito" },
+  { id: "thunderbolt", icon: "☇", name: "낙뢰", description: "화면 안에서 체력이 가장 높은 해산물에게 하늘에서 번개를 떨어뜨립니다. Lv.5부터 연달아 떨어집니다.", max: 6, advanced: true, requiredSelectableSkills: 4, requiredSelectableLevel: 2, requiredHitFamily: "pufferfish" },
 ];
 
 // 소쿠리의 달인은 캠페인 누적으로 경험치 보석 100개를 주워야 열린다.
@@ -226,7 +228,48 @@ export const MUDFLAT_FROST_TRAIL_UNLOCK_SKILLS = 5;
 export const MUDFLAT_FROST_WAVE_UNLOCK_SKILLS = 4;
 export const MUDFLAT_FROST_WAVE_UNLOCK_LEVEL = 3;
 // 피격 경험 종류별 잠긴 카드 문구.
-export const MUDFLAT_HIT_LABELS = { crab: "게에게 피격", shrimp: "새우에게 피격", rock: "바위에 피격", tide: "돌발 물살에 피격" };
+export const MUDFLAT_HIT_LABELS = { crab: "게에게 피격", shrimp: "새우에게 피격", rock: "바위에 피격", tide: "돌발 물살에 피격", mosquito: "모기떼에게 피격", pufferfish: "복어에게 피격" };
+// 번개 계열: 번개 체인은 선택 기술 5개(Lv.1 이상) + 모기떼 피격, 낙뢰는 선택 기술 4개(Lv.2 이상) + 복어 피격.
+export const MUDFLAT_CHAIN_LIGHTNING_UNLOCK_SKILLS = 5;
+export const MUDFLAT_THUNDERBOLT_UNLOCK_SKILLS = 4;
+export const MUDFLAT_THUNDERBOLT_UNLOCK_LEVEL = 2;
+// 물골 위의 해산물은 번개 피해를 1.5배 받는다. 번개를 맞은 해산물(대왕 박하지 제외)은 0.3초 감전되어 멈춘다.
+export const MUDFLAT_LIGHTNING_WATER_MULTIPLIER = 1.5;
+export const MUDFLAT_SHOCK_SECONDS = .3;
+
+export function mudflatLightningDamage(damage = 0, inWaterChannel = false) {
+  return Math.max(0, Number(damage) || 0) * (inWaterChannel ? MUDFLAT_LIGHTNING_WATER_MULTIPLIER : 1);
+}
+
+// 감전: shockUntil(원정 경과 시각)까지 이동 0. 둔화와 별개 상태라 둔화 시간을 늘리지 않는다.
+export function mudflatShockMultiplier(creature, elapsed = 0) {
+  return creature && creature.shockUntil > elapsed ? 0 : 1;
+}
+
+// 번개 체인 경로: origin에서 checkRadius 안의 가장 가까운 생물에서 시작해, 아직 맞지 않은 가장 가까운 생물로
+// jump 거리 안에서 최대 chain번 번진다. 한 생물은 한 번만. 체력 0 이하는 제외.
+export function mudflatChainLightningPath(creatures = [], origin = { x: 0, y: 0 }, stats = {}) {
+  const alive = (Array.isArray(creatures) ? creatures : []).filter((creature) => creature && creature.hp > 0);
+  const nearest = (from, candidates, limit) => {
+    let best = null; let bestDistance = Infinity;
+    for (const creature of candidates) {
+      const distance = Math.hypot(creature.x - from.x, creature.y - from.y) - (creature.size ?? 0);
+      if (distance <= limit && distance < bestDistance) { best = creature; bestDistance = distance; }
+    }
+    return best;
+  };
+  const first = nearest(origin, alive, Math.max(0, Number(stats.checkRadius) || 0));
+  if (!first) return [];
+  const path = [first];
+  const maxChain = Math.max(1, Math.floor(Number(stats.chain) || 1));
+  while (path.length < maxChain) {
+    const last = path[path.length - 1];
+    const next = nearest(last, alive.filter((creature) => !path.includes(creature)), Math.max(0, Number(stats.jump) || 0));
+    if (!next) break;
+    path.push(next);
+  }
+  return path;
+}
 
 // 둔화 상태. slowUntil(원정 경과 시각)까지 이동 속도에 (1 - slowFactor)를 곱한다. factor 1은 빙결(이동 0).
 export function mudflatSlowMultiplier(creature, elapsed = 0) {
@@ -247,6 +290,7 @@ export function mudflatHitFamily(creature) {
   if (!creature) return null;
   if (creature.family === "crab") return "crab";
   if (MUDFLAT_SHRIMP_TYPES.includes(creature.type)) return "shrimp";
+  if (creature.type === "pufferfish") return "pufferfish";
   return null;
 }
 
@@ -319,7 +363,7 @@ export function mudflatBleedDamage(maxHp = 0) {
  * 해금형 기술 판정. 마스터리는 인벤토리 기준이고, 소쿠리의 달인은 캠페인 누적
  * 경험치 보석 수(stats.gemsCollected)로 연다.
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean, hitByRock?: boolean, hitByTide?: boolean }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean, hitByRock?: boolean, hitByTide?: boolean, hitByMosquito?: boolean, hitByPufferfish?: boolean }} [stats]
  */
 export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const masteryCount = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !skill.advanced && (levels[skill.id] ?? 0) >= 5).length;
@@ -333,8 +377,10 @@ export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const hitByShrimp = stats?.hitByShrimp === true;
   const hitByRock = stats?.hitByRock === true;
   const hitByTide = stats?.hitByTide === true;
+  const hitByMosquito = stats?.hitByMosquito === true;
+  const hitByPufferfish = stats?.hitByPufferfish === true;
   return {
-    masteryCount, gemsCollected, digsCompleted, skillCount, level3Count, selectableLevel2Count, selectableLevel3Count, hitByCrab, hitByShrimp, hitByRock, hitByTide,
+    masteryCount, gemsCollected, digsCompleted, skillCount, level3Count, selectableLevel2Count, selectableLevel3Count, hitByCrab, hitByShrimp, hitByRock, hitByTide, hitByMosquito, hitByPufferfish,
     electric: masteryCount >= 1, castNet: masteryCount >= 2,
     guardBasket: gemsCollected >= MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
     hoeBot: digsCompleted >= MUDFLAT_HOE_BOT_UNLOCK_DIGS,
@@ -344,6 +390,8 @@ export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
     flameBurst: selectableLevel2Count >= MUDFLAT_FLAME_BURST_UNLOCK_SKILLS && hitByShrimp,
     frostTrail: skillCount >= MUDFLAT_FROST_TRAIL_UNLOCK_SKILLS && hitByRock,
     frostWave: selectableLevel3Count >= MUDFLAT_FROST_WAVE_UNLOCK_SKILLS && hitByTide,
+    chainLightning: skillCount >= MUDFLAT_CHAIN_LIGHTNING_UNLOCK_SKILLS && hitByMosquito,
+    thunderbolt: selectableLevel2Count >= MUDFLAT_THUNDERBOLT_UNLOCK_SKILLS && hitByPufferfish,
   };
 }
 
@@ -366,6 +414,8 @@ export function mudflatSkillUnlocked(skill, unlocks) {
   if (skill.id === "flame-burst") return unlocks.flameBurst;
   if (skill.id === "frost-trail") return unlocks.frostTrail;
   if (skill.id === "frost-wave") return unlocks.frostWave;
+  if (skill.id === "chain-lightning") return unlocks.chainLightning;
+  if (skill.id === "thunderbolt") return unlocks.thunderbolt;
   return false;
 }
 
@@ -373,7 +423,7 @@ export function mudflatSkillUnlocked(skill, unlocks) {
 /**
  * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number, requiredSkills?: number, requiredLevel3Skills?: number, requiredSelectableSkills?: number, requiredSelectableLevel?: number, requiredHitFamily?: string }} skill
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean, hitByRock?: boolean, hitByTide?: boolean }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean, hitByRock?: boolean, hitByTide?: boolean, hitByMosquito?: boolean, hitByPufferfish?: boolean }} [stats]
  */
 export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
   const unlocks = mudflatAdvancedSkillUnlocks(levels, stats);
@@ -394,7 +444,7 @@ export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
     // 선택 기술 수 조건 + 피격 경험 조건을 함께 보여 준다.
     const minLevel = skill.requiredSelectableLevel ?? 1;
     const count = Math.min(minLevel >= 3 ? unlocks.selectableLevel3Count : minLevel >= 2 ? unlocks.selectableLevel2Count : unlocks.skillCount, skill.requiredSelectableSkills);
-    const hitFlags = { crab: unlocks.hitByCrab, shrimp: unlocks.hitByShrimp, rock: unlocks.hitByRock, tide: unlocks.hitByTide };
+    const hitFlags = { crab: unlocks.hitByCrab, shrimp: unlocks.hitByShrimp, rock: unlocks.hitByRock, tide: unlocks.hitByTide, mosquito: unlocks.hitByMosquito, pufferfish: unlocks.hitByPufferfish };
     const hitDone = skill.requiredHitFamily ? hitFlags[skill.requiredHitFamily] === true : true;
     const hitLabel = skill.requiredHitFamily ? (MUDFLAT_HIT_LABELS[skill.requiredHitFamily] ?? "") : "";
     return { unlocked: mudflatSkillUnlocked(skill, unlocks), current: count, target: skill.requiredSelectableSkills, label: `Lv.${minLevel} 이상 선택 기술 ${count} / ${skill.requiredSelectableSkills}${hitLabel ? ` · ${hitLabel} ${hitDone ? "○" : "×"}` : ""}` };
@@ -538,6 +588,50 @@ export function mudflatFrostWaveStats(level = 0) {
     sweepSeconds: .4,
     checkRadius: 170,
   };
+}
+
+// 번개 체인 수치. interval마다 checkRadius 안의 가장 가까운 해산물에 damage를 주고, jump 거리 안의 다음 해산물로
+// 최대 chain마리까지 번진다. 번질 때마다 피해가 decay만큼 줄어든다(Lv.6 5%).
+export function mudflatChainLightningStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { interval: Infinity, damage: 0, chain: 0, jump: 0, decay: 0, checkRadius: 0, flashSeconds: .25 };
+  return {
+    interval: [4, 3.5, 3, 3, 2.5, 2.5][safeLevel - 1],
+    damage: [40, 50, 60, 70, 80, 90][safeLevel - 1],
+    chain: [2, 3, 4, 5, 6, 8][safeLevel - 1],
+    jump: [90, 95, 100, 110, 120, 130][safeLevel - 1],
+    decay: [.2, .2, .15, .15, .1, .05][safeLevel - 1],
+    checkRadius: 220,
+    flashSeconds: .25,
+  };
+}
+
+// 낙뢰 수치. interval마다 화면 안에서 체력이 가장 높은 해산물(대왕 박하지 우선) 발밑에 warnSeconds 예고 뒤 번개가 떨어져
+// 대상에 damage, 반경 splash 안의 다른 해산물에 damage × splashRatio. Lv.5는 0.1초 뒤 1번, Lv.6은 0.1초 간격으로 2번 더 떨어진다.
+export function mudflatThunderboltStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { interval: Infinity, damage: 0, splash: 0, splashRatio: 0, strikes: 0, strikeGap: .1, warnSeconds: .4, boltSeconds: .3 };
+  return {
+    interval: [8, 7, 7, 6, 6, 5][safeLevel - 1],
+    damage: [100, 120, 140, 160, 180, 200][safeLevel - 1],
+    splash: 50,
+    splashRatio: [.5, .5, .5, .6, .6, .6][safeLevel - 1],
+    strikes: [1, 1, 1, 1, 2, 3][safeLevel - 1],
+    strikeGap: .1,
+    warnSeconds: .4,
+    boltSeconds: .3,
+  };
+}
+
+// 낙뢰 대상: 화면 안 생물 중 대왕 박하지가 있으면 그것, 없으면 현재 체력이 가장 높은 생물.
+export function mudflatThunderboltTarget(creatures = []) {
+  let best = null;
+  for (const creature of Array.isArray(creatures) ? creatures : []) {
+    if (!creature || creature.hp <= 0) continue;
+    if (creature.boss) return creature;
+    if (!best || creature.hp > best.hp) best = creature;
+  }
+  return best;
 }
 
 // 기술 인벤토리: 일반 모드의 `levels`는 익힌 모든 선택 기술의 레벨을 보관하고,

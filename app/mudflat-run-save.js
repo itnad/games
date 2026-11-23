@@ -20,7 +20,9 @@ const campaignShape = (value) => record(value) && value.version === 1 && ["norma
   && (value.hitByCrab === undefined || typeof value.hitByCrab === "boolean")
   && (value.hitByShrimp === undefined || typeof value.hitByShrimp === "boolean")
   && (value.hitByRock === undefined || typeof value.hitByRock === "boolean")
-  && (value.hitByTide === undefined || typeof value.hitByTide === "boolean");
+  && (value.hitByTide === undefined || typeof value.hitByTide === "boolean")
+  && (value.hitByMosquito === undefined || typeof value.hitByMosquito === "boolean")
+  && (value.hitByPufferfish === undefined || typeof value.hitByPufferfish === "boolean");
 const copyCampaign = (campaign) => ({ ...campaign, levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, inventory: { ...campaign.inventory }, lastHaul: { ...campaign.lastHaul }, ...(Array.isArray(campaign.activeSkills) ? { activeSkills: [...campaign.activeSkills] } : {}) });
 const ENTITY_FIELDS = {
   creatures: "hp maxHp speed size xp score saltHit hitFlash phase age movementAngle movementClock",
@@ -28,6 +30,7 @@ const ENTITY_FIELDS = {
   harpoons: "vx vy damage distance maxDistance angle",
   fireballs: "vx vy age life damage splash wobblePhase baseAngle", flameRays: "angle age length width",
   frostPatches: "radius age life", frostWaves: "age radius",
+  lightningArcs: "tx ty age", thunderbolts: "targetId age strikes struck nextStrikeAt lastStrikeAt damage splash splashRatio warnSeconds",
   netSlams: "life maxLife damage radius headDepth range angle targetId",
   castNets: "originX originY angle radius damage holdSeconds age duration",
   rocks: "radius tone", clamHoles: "radius progress", hoeBots: "targetHoleId digClock facing", clamReveals: "life maxLife",
@@ -65,6 +68,8 @@ export function encodeMudflatRun(campaign, runtime, choiceIds = [], nextSequence
     ...(typeof runtime.hitByShrimp === "boolean" ? { hitByShrimp: runtime.hitByShrimp } : {}),
     ...(typeof runtime.hitByRock === "boolean" ? { hitByRock: runtime.hitByRock } : {}),
     ...(typeof runtime.hitByTide === "boolean" ? { hitByTide: runtime.hitByTide } : {}),
+    ...(typeof runtime.hitByMosquito === "boolean" ? { hitByMosquito: runtime.hitByMosquito } : {}),
+    ...(typeof runtime.hitByPufferfish === "boolean" ? { hitByPufferfish: runtime.hitByPufferfish } : {}),
   };
   return JSON.stringify({
     version: 1, savedAt, campaign: currentCampaign, stageEntryCampaign: copyCampaign(stageEntryCampaign), choiceIds, nextSequence,
@@ -122,6 +127,14 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (typeof runtime.hitByShrimp !== "boolean") runtime.hitByShrimp = runtimeTemplate.hitByShrimp;
     if (typeof runtime.hitByRock !== "boolean") runtime.hitByRock = runtimeTemplate.hitByRock;
     if (typeof runtime.hitByTide !== "boolean") runtime.hitByTide = runtimeTemplate.hitByTide;
+    if (typeof runtime.hitByMosquito !== "boolean") runtime.hitByMosquito = runtimeTemplate.hitByMosquito;
+    if (typeof runtime.hitByPufferfish !== "boolean") runtime.hitByPufferfish = runtimeTemplate.hitByPufferfish;
+    // 번개 계열도 뒤에 추가됐다.
+    if (!Array.isArray(runtime.lightningArcs)) runtime.lightningArcs = [];
+    if (!Array.isArray(runtime.thunderbolts)) runtime.thunderbolts = [];
+    for (const key of ["chainLightningClock", "thunderboltClock"]) {
+      if (!finite(runtime[key])) runtime[key] = 0;
+    }
     // 빙결 계열도 뒤에 추가됐다.
     if (!Array.isArray(runtime.frostPatches)) runtime.frostPatches = [];
     if (!Array.isArray(runtime.frostWaves)) runtime.frostWaves = [];
@@ -166,7 +179,7 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (!runtime.creatures.every((creature) => typeof creature.type === "string" && typeof creature.name === "string"
       && ["chase", "still", "wander", "flee", "oval"].includes(creature.movement))) return null;
     if (!runtime.creatures.every((creature) => (creature.eventKind === undefined || ["puffer-rush", "crab-line", "mud-zombie", "jellyfish"].includes(creature.eventKind))
-      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast", "slowUntil", "slowFactor"].every((key) => creature[key] === undefined || finite(creature[key]))
+      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast", "slowUntil", "slowFactor", "shockUntil"].every((key) => creature[key] === undefined || finite(creature[key]))
       && (creature.knockbackChain === undefined || typeof creature.knockbackChain === "boolean")
       && (creature.uncollectible === undefined || typeof creature.uncollectible === "boolean"))) return null;
     if (!runtime.hoeBots.every((unit) => ["follow", "move", "dig"].includes(unit.phase) && Number.isInteger(unit.targetHoleId) && unit.targetHoleId >= 0)) return null;

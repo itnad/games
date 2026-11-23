@@ -251,6 +251,37 @@ test("live save keeps frost patches, waves, slow state and ice timers, and backf
   assert.equal(decodeMudflatRun(JSON.stringify(brokenPatch), makeRuntime), null);
 });
 
+test("live save keeps lightning arcs, thunderbolts, shock state and lightning timers, and backfills older saves", () => {
+  const { campaign, runtime } = fixture("normal");
+  runtime.lightningArcs.push({ id: 61, x: 0, y: 0, tx: 40, ty: -20, age: .05 });
+  runtime.thunderbolts.push({ id: 62, x: 80, y: 30, targetId: runtime.creatures[0].id, age: .2, strikes: 3, struck: 1, nextStrikeAt: .5, lastStrikeAt: .4, damage: 200, splash: 50, splashRatio: .6, warnSeconds: .4 });
+  runtime.creatures[0].shockUntil = 12.3;
+  Object.assign(runtime, { chainLightningClock: 1.1, thunderboltClock: 3.3, hitByMosquito: true, hitByPufferfish: true });
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  assert.deepEqual(restored.runtime.lightningArcs, runtime.lightningArcs);
+  assert.deepEqual(restored.runtime.thunderbolts, runtime.thunderbolts);
+  assert.equal(restored.runtime.creatures[0].shockUntil, 12.3);
+  assert.deepEqual([restored.runtime.chainLightningClock, restored.runtime.thunderboltClock], [1.1, 3.3]);
+  assert.deepEqual([restored.runtime.hitByMosquito, restored.runtime.hitByPufferfish, restored.campaign.hitByMosquito, restored.campaign.hitByPufferfish], [true, true, true, true]);
+  assert.ok(restored.nextSequence > 62);
+  const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
+  for (const key of ["lightningArcs", "thunderbolts", "chainLightningClock", "thunderboltClock", "hitByMosquito", "hitByPufferfish"]) delete legacy.runtime[key];
+  delete legacy.campaign.hitByMosquito; delete legacy.campaign.hitByPufferfish;
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.deepEqual(legacyRestored.runtime.lightningArcs, []);
+  assert.deepEqual(legacyRestored.runtime.thunderbolts, []);
+  assert.deepEqual([legacyRestored.runtime.chainLightningClock, legacyRestored.runtime.thunderboltClock], [0, 0]);
+  assert.deepEqual([legacyRestored.runtime.hitByMosquito, legacyRestored.runtime.hitByPufferfish], [false, false]);
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.runtime.thunderbolts[0].strikes = "many";
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
+  const brokenShock = JSON.parse(encodeMudflatRun(campaign, runtime));
+  brokenShock.runtime.creatures[0].shockUntil = "soon";
+  assert.equal(decodeMudflatRun(JSON.stringify(brokenShock), makeRuntime), null);
+});
+
 test("live save keeps a detached stage-entry checkpoint for rescue retries", () => {
   const { campaign, runtime } = fixture();
   const stageEntryCampaign = {

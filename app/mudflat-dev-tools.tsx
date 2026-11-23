@@ -41,6 +41,8 @@ type DevPreset = {
   hitByShrimp?: boolean;
   hitByRock?: boolean;
   hitByTide?: boolean;
+  hitByMosquito?: boolean;
+  hitByPufferfish?: boolean;
 };
 
 type LocalSnapshot = {
@@ -205,6 +207,20 @@ const DEV_PRESETS: DevPreset[] = [
     hitByTide: true,
   },
   {
+    id: "lightning",
+    title: "2단계 차오르는 물골 · 번개 체인 Lv.6 · 낙뢰 Lv.6",
+    stage: 2,
+    description: "2.5초마다 가까운 게에서 최대 8마리로 번개가 번지고, 5초마다 체력이 가장 높은 게 발밑에 예고가 뜬 뒤 번개가 0.1초 간격으로 세 번 떨어지는지, 물골 위의 게가 1.5배 피해를 받는지 확인합니다.",
+    coins: 3000,
+    level: 12,
+    xp: 0,
+    nextXp: 90,
+    levels: { tongs: 3, digging: 2, harpoon: 3, "chain-lightning": 6, thunderbolt: 6 },
+    equipment: { cooler: 1 },
+    hitByMosquito: true,
+    hitByPufferfish: true,
+  },
+  {
     id: "final-boss",
     title: "8단계 마지막 물때",
     stage: 8,
@@ -270,6 +286,8 @@ function makePresetCampaign(preset: DevPreset) {
     hitByShrimp: preset.hitByShrimp === true,
     hitByRock: preset.hitByRock === true,
     hitByTide: preset.hitByTide === true,
+    hitByMosquito: preset.hitByMosquito === true,
+    hitByPufferfish: preset.hitByPufferfish === true,
     equipment,
     pendingSkillDiscovery: false,
   };
@@ -646,7 +664,7 @@ export function MudflatDevTools() {
                 {build.mode === "normal" && !basic ? <label className="check"><input type="checkbox" checked={isActive} disabled={!isActive && (level <= 0 || build.activeSkills.length >= MUDFLAT_SELECTABLE_SKILL_LIMIT)} onChange={() => toggleBuildActive(skill.id)} /><span>활성</span></label> : <span className="mudflat-dev-always">{build.mode === "normal" ? "항상 작동" : ""}</span>}
               </div>;
             })}
-            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤. 건곤대나이는 선택 기술 5종, 뻘권은 Lv.3 이상 기술 4개, 파이어볼은 선택 기술 6개 + 게 피격, 화염 방사는 Lv.2 선택 기술 5개 + 새우 피격, 서리 발자국은 선택 기술 5개 + 바위 피격, 빙결 파동은 Lv.3 선택 기술 4개 + 돌발 물살 피격이 필요하며 레벨이 있으면 피격 경험을 채움)</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤. 건곤대나이는 선택 기술 5종, 뻘권은 Lv.3 이상 기술 4개, 파이어볼은 선택 기술 6개 + 게 피격, 화염 방사는 Lv.2 선택 기술 5개 + 새우 피격, 서리 발자국은 선택 기술 5개 + 바위 피격, 빙결 파동은 Lv.3 선택 기술 4개 + 돌발 물살 피격, 번개 체인은 선택 기술 5개 + 모기떼 피격, 낙뢰는 Lv.2 선택 기술 4개 + 복어 피격이 필요하며 레벨이 있으면 피격 경험을 채움)</span></label>}
           </fieldset>
           <fieldset>
             <legend>캐릭터</legend>
@@ -660,6 +678,8 @@ export function MudflatDevTools() {
             {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByShrimp} onChange={(event) => updateBuild({ hitByShrimp: event.target.checked })} /><span>새우에게 피해를 받은 경험</span></label>}
             {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByRock} onChange={(event) => updateBuild({ hitByRock: event.target.checked })} /><span>바위에 피해를 받은 경험</span></label>}
             {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByTide} onChange={(event) => updateBuild({ hitByTide: event.target.checked })} /><span>돌발 물살에 피해를 받은 경험</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByMosquito} onChange={(event) => updateBuild({ hitByMosquito: event.target.checked })} /><span>모기떼에게 피해를 받은 경험</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByPufferfish} onChange={(event) => updateBuild({ hitByPufferfish: event.target.checked })} /><span>복어에게 피해를 받은 경험</span></label>}
             {build.mode === "normal" && <label className="field"><span>누적 호미질 수</span><input type="number" min={0} value={build.digsCompleted} onChange={(event) => updateBuild({ digsCompleted: numberField(event.target.value, 0) })} /></label>}
           </fieldset>
           <fieldset>

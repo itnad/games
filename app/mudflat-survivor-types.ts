@@ -69,6 +69,8 @@ export type Campaign = {
   hitByShrimp: boolean;
   hitByRock: boolean;
   hitByTide: boolean;
+  hitByMosquito: boolean;
+  hitByPufferfish: boolean;
   lastObjectiveLabel?: string;
   lastObjectiveComplete?: boolean;
   lastObjectiveBonus?: number;

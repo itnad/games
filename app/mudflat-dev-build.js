@@ -26,7 +26,7 @@ const KIDS_BASE_SKILL_ID = "hoe";
  *   version: 1, mode: "normal" | "kids", stage: number, tutorial: boolean, supervisor: boolean,
  *   characterId: string, level: number, xp: number, nextXp: number, coins: number, hpPercent: number,
  *   levels: Record<string, number>, activeSkills: string[], equipment: Record<string, number>,
- *   mosquitoRepellent: boolean, gemsCollected: number, digsCompleted: number, hitByCrab: boolean, hitByShrimp: boolean, hitByRock: boolean, hitByTide: boolean, autoUnlock: boolean,
+ *   mosquitoRepellent: boolean, gemsCollected: number, digsCompleted: number, hitByCrab: boolean, hitByShrimp: boolean, hitByRock: boolean, hitByTide: boolean, hitByMosquito: boolean, hitByPufferfish: boolean, autoUnlock: boolean,
  *   seedMode: "fixed" | "random" | "custom", seed: number,
  * }} MudflatDevBuild
  */
@@ -57,7 +57,7 @@ export function createMudflatDevBuild(mode = "normal") {
     version: 1, mode: safeMode, stage: 1, tutorial: false, supervisor: false,
     characterId: safeMode === "normal" ? "beginner" : "digger",
     level: 1, xp: 0, nextXp: safeMode === "normal" ? 10 : 8, coins: 1000, hpPercent: 100,
-    levels, activeSkills: [], equipment, mosquitoRepellent: false, gemsCollected: 0, digsCompleted: 0, hitByCrab: false, hitByShrimp: false, hitByRock: false, hitByTide: false, autoUnlock: true,
+    levels, activeSkills: [], equipment, mosquitoRepellent: false, gemsCollected: 0, digsCompleted: 0, hitByCrab: false, hitByShrimp: false, hitByRock: false, hitByTide: false, hitByMosquito: false, hitByPufferfish: false, autoUnlock: true,
     seedMode: "fixed", seed: mudflatDevFixedSeed(1),
   };
 }
@@ -151,6 +151,8 @@ export function mudflatDevBuildCampaign(build, baseCampaign) {
     hitByShrimp: build.hitByShrimp === true || (autoUnlock && (levels["flame-burst"] ?? 0) > 0),
     hitByRock: build.hitByRock === true || (autoUnlock && (levels["frost-trail"] ?? 0) > 0),
     hitByTide: build.hitByTide === true || (autoUnlock && (levels["frost-wave"] ?? 0) > 0),
+    hitByMosquito: build.hitByMosquito === true || (autoUnlock && (levels["chain-lightning"] ?? 0) > 0),
+    hitByPufferfish: build.hitByPufferfish === true || (autoUnlock && (levels.thunderbolt ?? 0) > 0),
     pendingSkillDiscovery: false,
   };
 }
