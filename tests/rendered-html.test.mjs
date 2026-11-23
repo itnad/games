@@ -2106,6 +2106,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /runtime\.smashEffect = \.55; runtime\.smashAngle = angle; runtime\.smashClock = smash\.cooldown;/);
   assert.match(source, /appendSupervisorEvent\("smash", `뻘권 Lv\.\$\{smashLevel\} · \$\{hits\}마리`, runtime\)/);
   assert.match(source, /function drawSmashCast\(/);
+  assert.match(source, /function smashBodyOffset\(/);
+  assert.match(source, /rock\.impact = \.3;/);
+  assert.match(source, /const impactShake = rock\.impact !== undefined && rock\.impact > 0/);
   assert.doesNotMatch(source, /smash[\s\S]{0,200}navigator\.vibrate/);
   assert.match(source, /\(!beforeUnlocks\.smash && afterUnlocks\.smash\)\) runtime\.discoveryMessageLife = 3;/);
   // 건곤대나이: 떠 있는 바위는 돌뒤집개·충돌 대상이 아니고, 착지 때 피해·발견 굴림(돌뒤집개 레벨)·바위 소멸. 진동·화면 흔들림·HUD 고리는 넣지 않는다.

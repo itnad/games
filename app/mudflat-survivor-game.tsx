@@ -179,7 +179,8 @@ type CastNetEffect = ReturnType<typeof createCastNet>;
 type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number; kind?: "harvest" };
 type FloatText = Point & { id: number; life: number; text: string; color: string; kind?: "playerDamage" | "harvest" };
 // lift: 건곤대나이가 띄운 뒤 흐른 시간(초). 떠 있는 동안은 장애물이 아니고 돌뒤집개 대상도 아니다.
-type Rock = Point & { id: number; radius: number; tone: number; lift?: number };
+// impact: 뻘권에 밀린 생물이 부딪힌 뒤 남은 흔들림 시간(초).
+type Rock = Point & { id: number; radius: number; tone: number; lift?: number; impact?: number };
 type ClamHole = Point & { id: number; radius: number; progress: number; kind?: "clam" | "gaebul"; angle?: number };
 // 호미봇: 플레이어를 따라다니다 조개 구멍을 대신 파는 로봇. 피해·충돌이 없다.
 type HoeBot = Point & { id: number; targetHoleId: number; digClock: number; phase: "follow" | "move" | "dig"; facing: number };
@@ -1397,6 +1398,8 @@ function drawRock(context: CanvasRenderingContext2D, rock: Rock, effect?: RockFl
   const shakeEnvelope = effect ? Math.sin(Math.min(1, progress / .72) * Math.PI) : 0;
   const shake = effect ? Math.sin(progress * Math.PI * 14) * 2.4 * shakeEnvelope : 0;
   const liftProgress = effect ? Math.max(0, (progress - .58) / .42) : 0;
+  // 뻘권에 밀린 생물이 꽂히면 0.3초 동안 좌우로 잦아드는 흔들림.
+  const impactShake = rock.impact !== undefined && rock.impact > 0 ? Math.sin(rock.impact * 70) * 3 * (rock.impact / .3) : 0;
   if (liftHeight > 0) {
     // 떠 있는 동안은 지나갈 수 있다는 뜻으로 바닥에 반투명 청록 원을 둔다.
     context.save();
@@ -1405,7 +1408,7 @@ function drawRock(context: CanvasRenderingContext2D, rock: Rock, effect?: RockFl
     context.restore();
   }
   context.save();
-  context.translate(shake, -radius * .72 * liftProgress * liftProgress - liftHeight);
+  context.translate(shake + impactShake, -radius * .72 * liftProgress * liftProgress - liftHeight);
   context.rotate((rock.tone - .5) * .35 + shake * .015 + liftProgress * .24 + liftHeight * .004);
   context.globalAlpha = progress > .84 ? Math.max(0, (1 - progress) / .16) : 1;
   const shadowScale = Math.max(.45, 1 - liftHeight / 60);
@@ -1611,6 +1614,16 @@ function drawHoeBot(context: CanvasRenderingContext2D, x: number, y: number, pha
     }
   }
   context.restore();
+}
+
+// 뻘권 몸통 자세. 준비(0~0.15)에는 주먹 반대쪽으로 6px 물러나며 2px 낮아지고 뒤로 기울며,
+// 내지르기(0.15~0.36)에는 주먹 쪽으로 4px 쏠린다. 복귀(0.5~)에는 원래 자세로 돌아온다.
+function smashBodyOffset(progress: number, angle: number) {
+  const dirX = Math.cos(angle); const dirY = Math.sin(angle);
+  const prep = progress < .15 ? progress / .15 : progress < .36 ? 1 - (progress - .15) / .21 : 0;
+  const lunge = progress >= .15 && progress < .5 ? Math.sin(Math.min(1, (progress - .15) / .21) * Math.PI / 2) * (progress < .5 ? 1 - Math.max(0, (progress - .36) / .14) : 0) : 0;
+  const side = dirX >= 0 ? 1 : -1;
+  return { x: -dirX * 6 * prep + dirX * 4 * lunge, y: 2 * prep - dirY * 2 * lunge, rotate: -side * .12 * prep + side * .06 * lunge };
 }
 
 // 뻘권 연출. 0~0.15 준비(몸 기울임), 0.15~0.36 내지르기(팔 뻗음·잔상 선), 0.3~0.65
@@ -2831,6 +2844,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const rock = runtime.rocks.find((item) => item.lift === undefined && Math.hypot(item.x - creature.x, item.y - creature.y) <= item.radius + creature.size);
       if (rock) {
         creature.knockbackLife = 0;
+        rock.impact = .3;
         damageCreature(creature, creature.knockbackRockBonus ?? 0, .18);
         runtime.bursts.push({ id: sequenceRef.current++, x: creature.x, y: creature.y, life: .32, maxLife: .32, color: "#d8cbb4", size: creature.size + 10 });
       }
@@ -3618,6 +3632,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           } else runtime.rockLiftClock = .5;
         }
       }
+      for (const rock of runtime.rocks) {
+        if (rock.impact === undefined) continue;
+        rock.impact -= dt;
+        if (rock.impact <= 0) delete rock.impact;
+      }
       if (runtime.rocks.some((rock) => rock.lift !== undefined)) {
         const lift = mudflatRockLiftStats(Math.max(1, rockLiftLevel));
         const landed: Rock[] = [];
@@ -4206,7 +4225,12 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const lumiTongReach = !inBaseCamp && runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).reach : 0;
       if (lumiArt) drawLumiGatherer(context, width / 2, height / 2, runtime.lumiMotion, lumiArt,
         actionTime, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
+      // 뻘권 준비 단계에서는 몸통을 주먹 반대쪽으로 6px 빼며 낮추고, 내지르는 동안 앞으로 쏠린다.
+      const smashPose = characterId !== "lumi" && runtime.smashEffect > 0 ? smashBodyOffset(1 - runtime.smashEffect / .55, runtime.smashAngle) : null;
+      context.save();
+      if (smashPose) { context.translate(width / 2 + smashPose.x, height / 2 + smashPose.y); context.rotate(smashPose.rotate); context.translate(-width / 2, -height / 2); }
       if (characterId !== "lumi") drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);
+      context.restore();
       if (runtime.smashEffect > 0) {
         const smashStats = mudflatSmashStats(Math.max(1, runtime.levels.smash ?? 0));
         drawSmashCast(context, width / 2, height / 2, runtime.smashAngle, 1 - runtime.smashEffect / .55, smashStats.length, smashStats.width, characterId === "lumi");

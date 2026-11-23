@@ -143,7 +143,7 @@ export function decodeMudflatRun(serialized, makeRuntime) {
       && (creature.knockbackChain === undefined || typeof creature.knockbackChain === "boolean")
       && (creature.uncollectible === undefined || typeof creature.uncollectible === "boolean"))) return null;
     if (!runtime.hoeBots.every((unit) => ["follow", "move", "dig"].includes(unit.phase) && Number.isInteger(unit.targetHoleId) && unit.targetHoleId >= 0)) return null;
-    if (!runtime.rocks.every((rock) => rock.lift === undefined || (finite(rock.lift) && rock.lift >= 0))) return null;
+    if (!runtime.rocks.every((rock) => (rock.lift === undefined || (finite(rock.lift) && rock.lift >= 0)) && (rock.impact === undefined || finite(rock.impact)))) return null;
     if (!runtime.clamHoles.every((hole) => (hole.kind === undefined || ["clam", "gaebul"].includes(hole.kind))
       && (hole.angle === undefined || finite(hole.angle)))) return null;
     if (!runtime.pickups.every((pickup) => ["spawn", "idle", "pull", "arrived"].includes(pickup.phase) && Array.isArray(pickup.trail) && pickup.trail.every(point))) return null;
