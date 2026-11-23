@@ -109,6 +109,9 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     // 호미봇과 호미질 집계도 뒤에 추가됐다. 예전 저장은 로봇 없음·캠페인 값으로 보완한다.
     if (!Number.isInteger(runtime.digsCompleted) || runtime.digsCompleted < 0) runtime.digsCompleted = runtimeTemplate.digsCompleted;
     if (!Array.isArray(runtime.hoeBots)) runtime.hoeBots = [];
+    // 건곤대나이 타이머도 뒤에 추가됐다.
+    if (!finite(runtime.rockLiftClock)) runtime.rockLiftClock = runtimeTemplate.rockLiftClock;
+    if (!finite(runtime.rockLiftEffect) || runtime.rockLiftEffect < 0) runtime.rockLiftEffect = 0;
     // Older active-run autosaves did not know about stage-five deep-mud
     // visuals/state. They are cosmetic or transient, so backfill defaults
     // instead of discarding an otherwise valid expedition.
@@ -134,6 +137,7 @@ export function decodeMudflatRun(serialized, makeRuntime) {
       && ["chargeX", "chargeY", "eventLife", "emergeSeconds"].every((key) => creature[key] === undefined || finite(creature[key]))
       && (creature.uncollectible === undefined || typeof creature.uncollectible === "boolean"))) return null;
     if (!runtime.hoeBots.every((unit) => ["follow", "move", "dig"].includes(unit.phase) && Number.isInteger(unit.targetHoleId) && unit.targetHoleId >= 0)) return null;
+    if (!runtime.rocks.every((rock) => rock.lift === undefined || (finite(rock.lift) && rock.lift >= 0))) return null;
     if (!runtime.clamHoles.every((hole) => (hole.kind === undefined || ["clam", "gaebul"].includes(hole.kind))
       && (hole.angle === undefined || finite(hole.angle)))) return null;
     if (!runtime.pickups.every((pickup) => ["spawn", "idle", "pull", "arrived"].includes(pickup.phase) && Array.isArray(pickup.trail) && pickup.trail.every(point))) return null;

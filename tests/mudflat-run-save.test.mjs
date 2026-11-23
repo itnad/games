@@ -147,6 +147,27 @@ test("live save carries hoe bots and the dig count, backfills older saves, and r
   assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
 });
 
+test("live save keeps lifted rocks and rock-lift timers, backfills older saves, and rejects a broken lift", () => {
+  const { campaign, runtime } = fixture("normal");
+  runtime.rocks.push({ id: 31, x: 60, y: 90, radius: 17, tone: .3, lift: .42 });
+  runtime.rockLiftClock = 5.5; runtime.rockLiftEffect = .6;
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  assert.equal(restored.runtime.rocks.find((rock) => rock.id === 31).lift, .42);
+  assert.equal(restored.runtime.rocks.find((rock) => rock.id === 13).lift, undefined);
+  assert.equal(restored.runtime.rockLiftClock, 5.5);
+  assert.equal(restored.runtime.rockLiftEffect, .6);
+  const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
+  delete legacy.runtime.rockLiftClock; delete legacy.runtime.rockLiftEffect;
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.equal(legacyRestored.runtime.rockLiftClock, 3);
+  assert.equal(legacyRestored.runtime.rockLiftEffect, 0);
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.runtime.rocks[0].lift = -1;
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
+});
+
 test("live save keeps a detached stage-entry checkpoint for rescue retries", () => {
   const { campaign, runtime } = fixture();
   const stageEntryCampaign = {

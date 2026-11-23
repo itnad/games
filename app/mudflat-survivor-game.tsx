@@ -151,6 +151,10 @@ import {
   mudflatGuardBasketStats,
   mudflatHoeBotStats,
   MUDFLAT_HOE_BOT_UNLOCK_DIGS,
+  mudflatRockLiftStats,
+  MUDFLAT_ROCK_LIFT_SECONDS,
+  MUDFLAT_ROCK_LIFT_FALL_SECONDS,
+  MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS,
   mudflatSkillUnlockProgress,
   MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
   mudflatActiveLevels,
@@ -171,7 +175,8 @@ type NetSlamEffect = Point & { id: number; life: number; maxLife: number; damage
 type CastNetEffect = ReturnType<typeof createCastNet>;
 type Burst = Point & { id: number; life: number; maxLife: number; color: string; size: number; kind?: "harvest" };
 type FloatText = Point & { id: number; life: number; text: string; color: string; kind?: "playerDamage" | "harvest" };
-type Rock = Point & { id: number; radius: number; tone: number };
+// lift: 건곤대나이가 띄운 뒤 흐른 시간(초). 떠 있는 동안은 장애물이 아니고 돌뒤집개 대상도 아니다.
+type Rock = Point & { id: number; radius: number; tone: number; lift?: number };
 type ClamHole = Point & { id: number; radius: number; progress: number; kind?: "clam" | "gaebul"; angle?: number };
 // 호미봇: 플레이어를 따라다니다 조개 구멍을 대신 파는 로봇. 피해·충돌이 없다.
 type HoeBot = Point & { id: number; targetHoleId: number; digClock: number; phase: "follow" | "move" | "dig"; facing: number };
@@ -227,7 +232,7 @@ type Runtime = {
   bursts: Burst[]; floatTexts: FloatText[];
   xpCollectLife: number;
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
-  bossSpawned: boolean; openingWaveRemaining: number; spawnClock: number; gemsCollected: number; digsCompleted: number; guardBasketPullClock: number; guardBasketCharges: number; guardBasketRechargeClock: number; guardBasketFlashLife: number; guardBasketInvulnerable: number; pufferEventClock: number; crabRushClock: number; mudZombieClock: number; mudZombieTriggered: boolean; jellyfishClock: number; jellyPoisonSeconds: number; jellyPoisonTickClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
+  bossSpawned: boolean; openingWaveRemaining: number; spawnClock: number; gemsCollected: number; digsCompleted: number; rockLiftClock: number; rockLiftEffect: number; guardBasketPullClock: number; guardBasketCharges: number; guardBasketRechargeClock: number; guardBasketFlashLife: number; guardBasketInvulnerable: number; pufferEventClock: number; crabRushClock: number; mudZombieClock: number; mudZombieTriggered: boolean; jellyfishClock: number; jellyPoisonSeconds: number; jellyPoisonTickClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
   deepMudGauge: number; deepMudLock: number; deepMudStepClock: number;
   safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; mosquitoClock: number; mosquitoRunEnabled: boolean; rocksFlipped: number;
   paused: boolean; ended: boolean;
@@ -345,7 +350,7 @@ function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
     xpCollectLife: 0,
     elapsed: 0, tutorialElapsed: 0, firstMoveGuide, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
     creatures: [], pickups: [], projectiles: [], harpoons: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], hoeBots: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: activeLevels, skillInventory, activeSkills, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
-    caught: 0, catchScore: 0, bossCaught: false, gemsCollected: Math.max(0, Math.floor(campaign.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(campaign.digsCompleted ?? 0)), guardBasketPullClock: 0, guardBasketCharges: 1, guardBasketRechargeClock: 0, guardBasketFlashLife: 0, guardBasketInvulnerable: 0, bossSpawned: false, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
+    caught: 0, catchScore: 0, bossCaught: false, gemsCollected: Math.max(0, Math.floor(campaign.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(campaign.digsCompleted ?? 0)), rockLiftClock: 3, rockLiftEffect: 0, guardBasketPullClock: 0, guardBasketCharges: 1, guardBasketRechargeClock: 0, guardBasketFlashLife: 0, guardBasketInvulnerable: 0, bossSpawned: false, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
     pufferEventClock: campaign.stage >= 3 ? 18 : -1, crabRushClock: campaign.stage >= 4 ? 26 : -1,
     mudZombieClock: campaign.stage >= 6 ? 52 : -1, mudZombieTriggered: false,
     jellyfishClock: campaign.stage >= 8 ? mudflatJellyfishInterval(campaign.stage) : -1,
@@ -1371,18 +1376,38 @@ function drawMudflatDarkness(context: CanvasRenderingContext2D, width: number, h
   context.drawImage(overlay, 0, 0, width, height);
 }
 
-function drawRock(context: CanvasRenderingContext2D, rock: Rock, effect?: RockFlipEffect) {
+// 건곤대나이로 떠 있는 바위의 높이(px). 0.3초에 걸쳐 26px까지 오르며 살짝 흔들리고,
+// 체공 뒤 0.15초 동안 가속해 떨어진다.
+function rockLiftHeight(rock: Rock) {
+  if (rock.lift === undefined) return 0;
+  if (rock.lift >= MUDFLAT_ROCK_LIFT_SECONDS) {
+    const fall = Math.min(1, (rock.lift - MUDFLAT_ROCK_LIFT_SECONDS) / MUDFLAT_ROCK_LIFT_FALL_SECONDS);
+    return 26 * (1 - fall * fall);
+  }
+  const rise = Math.min(1, rock.lift / .3);
+  return 26 * rise * (2 - rise) + Math.sin(rock.lift * 11 + rock.id) * 1.5 * rise;
+}
+
+function drawRock(context: CanvasRenderingContext2D, rock: Rock, effect?: RockFlipEffect, liftHeight = 0) {
   const radius = rock.radius;
   const progress = effect ? Math.max(0, Math.min(1, 1 - effect.life / effect.maxLife)) : 0;
   const shakeEnvelope = effect ? Math.sin(Math.min(1, progress / .72) * Math.PI) : 0;
   const shake = effect ? Math.sin(progress * Math.PI * 14) * 2.4 * shakeEnvelope : 0;
   const liftProgress = effect ? Math.max(0, (progress - .58) / .42) : 0;
+  if (liftHeight > 0) {
+    // 떠 있는 동안은 지나갈 수 있다는 뜻으로 바닥에 반투명 청록 원을 둔다.
+    context.save();
+    context.strokeStyle = "rgba(120,214,206,.55)"; context.lineWidth = 2; context.setLineDash([5, 4]);
+    context.beginPath(); context.arc(0, radius * .3, radius + 6, 0, Math.PI * 2); context.stroke();
+    context.restore();
+  }
   context.save();
-  context.translate(shake, -radius * .72 * liftProgress * liftProgress);
-  context.rotate((rock.tone - .5) * .35 + shake * .015 + liftProgress * .24);
+  context.translate(shake, -radius * .72 * liftProgress * liftProgress - liftHeight);
+  context.rotate((rock.tone - .5) * .35 + shake * .015 + liftProgress * .24 + liftHeight * .004);
   context.globalAlpha = progress > .84 ? Math.max(0, (1 - progress) / .16) : 1;
+  const shadowScale = Math.max(.45, 1 - liftHeight / 60);
   context.fillStyle = "rgba(25,21,19,.28)";
-  context.beginPath(); context.ellipse(3, radius * .72, radius * 1.1, radius * .42, 0, 0, Math.PI * 2); context.fill();
+  context.beginPath(); context.ellipse(3, radius * .72 + liftHeight, radius * 1.1 * shadowScale, radius * .42 * shadowScale, 0, 0, Math.PI * 2); context.fill();
   const gradient = context.createLinearGradient(-radius, -radius, radius, radius);
   gradient.addColorStop(0, rock.tone > .5 ? "#958878" : "#81786c");
   gradient.addColorStop(1, rock.tone > .5 ? "#4f4a45" : "#5f5750");
@@ -1581,6 +1606,53 @@ function drawHoeBot(context: CanvasRenderingContext2D, x: number, y: number, pha
       context.globalAlpha = 1 - t;
       context.beginPath(); context.arc(10 + index * 4 - t * 6, -4 - t * 14, 1.8, 0, Math.PI * 2); context.fill();
     }
+  }
+  context.restore();
+}
+
+// 건곤대나이 발동 연출. 채집꾼은 호미를 머리 위로 들었다가 내리찍고(0.3초), 그 순간
+// 갯벌 물결 두 겹이 반경까지 퍼진다. 떠 있는 동안은 양팔을 받치듯 든다. 루미는 자세
+// 대신 몸 둘레 발광으로 표현한다. progress는 0(발동)에서 1(착지)까지다.
+function drawRockLiftCast(context: CanvasRenderingContext2D, x: number, y: number, progress: number, radius: number, lumi: boolean) {
+  const strikeProgress = Math.min(1, progress / .28);
+  context.save();
+  // 물결: 내리찍은 뒤 0.25초 동안 두 겹이 퍼지고 서서히 사라진다.
+  const rippleProgress = Math.max(0, Math.min(1, (progress - .22) / .3));
+  if (rippleProgress > 0 && rippleProgress < 1) {
+    for (let ring = 0; ring < 2; ring += 1) {
+      const ringProgress = Math.max(0, Math.min(1, rippleProgress - ring * .18));
+      if (ringProgress <= 0) continue;
+      context.globalAlpha = (1 - ringProgress) * .7;
+      context.strokeStyle = "#8be0d6"; context.lineWidth = 3 - ring;
+      context.beginPath(); context.ellipse(x, y + 10, radius * ringProgress, radius * ringProgress * .62, 0, 0, Math.PI * 2); context.stroke();
+    }
+  }
+  context.globalAlpha = 1;
+  if (lumi) {
+    context.strokeStyle = "rgba(139,224,214,.75)"; context.lineWidth = 3;
+    context.beginPath(); context.arc(x, y, 30 + Math.sin(progress * Math.PI * 6) * 2, 0, Math.PI * 2); context.stroke();
+    context.restore();
+    return;
+  }
+  if (strikeProgress < 1) {
+    // 호미를 들어 올렸다가 내리찍는다.
+    const swing = Math.sin(strikeProgress * Math.PI);
+    context.translate(x + 10, y - 2); context.rotate(-2.2 + swing * .9 + strikeProgress * 2.6);
+    context.strokeStyle = "rgba(28,23,20,.4)"; context.lineWidth = 8; context.lineCap = "round";
+    context.beginPath(); context.moveTo(0, 0); context.lineTo(26, 0); context.stroke();
+    context.strokeStyle = "#8a5a2b"; context.lineWidth = 4;
+    context.beginPath(); context.moveTo(0, 0); context.lineTo(26, 0); context.stroke();
+    context.fillStyle = "#c3ccd1"; context.strokeStyle = "#4b5a62"; context.lineWidth = 1.5;
+    context.beginPath(); context.moveTo(24, -3); context.lineTo(40, -7); context.lineTo(39, 4); context.lineTo(24, 3); context.closePath(); context.fill(); context.stroke();
+  } else {
+    // 떠 있는 동안 양팔을 받치듯 든다.
+    context.strokeStyle = "#f0c9a5"; context.lineWidth = 4; context.lineCap = "round";
+    const lift = Math.sin(Math.min(1, (progress - .28) / .2) * Math.PI / 2) * 10;
+    context.beginPath(); context.moveTo(x - 11, y + 2); context.lineTo(x - 20, y - 6 - lift); context.stroke();
+    context.beginPath(); context.moveTo(x + 11, y + 2); context.lineTo(x + 20, y - 6 - lift); context.stroke();
+    context.fillStyle = "rgba(139,224,214,.35)";
+    context.beginPath(); context.arc(x - 21, y - 8 - lift, 4, 0, Math.PI * 2); context.fill();
+    context.beginPath(); context.arc(x + 21, y - 8 - lift, 4, 0, Math.PI * 2); context.fill();
   }
   context.restore();
 }
@@ -3381,7 +3453,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         showPlayerMessage("앗 따가워, 몸이 이상해.", 3);
       }
       runtime.pufferTouching = pufferTouching;
-      let touchingRock = runtime.mode === "normal" || tutorialActiveAtFrame ? runtime.rocks.find((rock) => Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) < rock.radius + 16) : undefined;
+      let touchingRock = runtime.mode === "normal" || tutorialActiveAtFrame ? runtime.rocks.find((rock) => rock.lift === undefined && Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) < rock.radius + 16) : undefined;
       const guide = runtime.firstMoveGuide;
       if (tutorialActiveAtFrame && guide) {
         if (guide.step === "catch" && touchingCreature?.id === guide.catchCreatureId) {
@@ -3441,6 +3513,53 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           if (runtime.mode === "normal" && runtime.digsCompleted === MUDFLAT_HOE_BOT_UNLOCK_DIGS) runtime.discoveryMessageLife = 3;
           if (reward.id !== MUDFLAT_PEARL.id && "vibrate" in navigator) navigator.vibrate([18, 25, 35]);
         }
+      }
+
+      // 건곤대나이: 주기마다 반경 안에서 가까운 바위를 띄웠다 떨어뜨린다. 떠 있는 동안은
+      // 장애물이 아니고, 떨어지면 반경 안 해산물에 피해를 준 뒤 돌뒤집개 레벨로 발견물을
+      // 굴리고 바위는 사라진다. 캠프 안·밀물·튜토리얼 중에는 발동하지 않는다.
+      const rockLiftLevel = runtime.mode === "normal" ? (runtime.levels["rock-lift"] ?? 0) : 0;
+      runtime.rockLiftEffect = Math.max(0, runtime.rockLiftEffect - dt);
+      if (rockLiftLevel > 0 && !inBaseCamp && !tutorialActiveAtFrame && runtime.elapsed < MUDFLAT_RUN_SECONDS) {
+        const lift = mudflatRockLiftStats(rockLiftLevel);
+        runtime.rockLiftClock -= dt;
+        if (runtime.rockLiftClock <= 0) {
+          const targets = runtime.rocks
+            .filter((rock) => rock.lift === undefined && runtime.rockFlipEffect?.rockId !== rock.id
+              && !(runtime.baseCampGuideShown && isInsideBaseCamp(rock, runtime.baseCamp, runtime.stage))
+              && Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) <= lift.radius)
+            .sort((left, right) => Math.hypot(left.x - runtime.player.x, left.y - runtime.player.y) - Math.hypot(right.x - runtime.player.x, right.y - runtime.player.y))
+            .slice(0, lift.rocks);
+          if (targets.length > 0) {
+            for (const rock of targets) rock.lift = 0;
+            runtime.rockLiftEffect = MUDFLAT_ROCK_LIFT_SECONDS + MUDFLAT_ROCK_LIFT_FALL_SECONDS;
+            runtime.rockLiftClock = lift.interval;
+            if (supervisorRef.current) appendSupervisorEvent("rock-lift-cast", `건곤대나이 Lv.${rockLiftLevel} · 바위 ${targets.length}개`, runtime);
+          } else runtime.rockLiftClock = .5;
+        }
+      }
+      if (runtime.rocks.some((rock) => rock.lift !== undefined)) {
+        const lift = mudflatRockLiftStats(Math.max(1, rockLiftLevel));
+        const landed: Rock[] = [];
+        for (const rock of runtime.rocks) {
+          if (rock.lift === undefined) continue;
+          rock.lift += dt;
+          if (rock.lift >= MUDFLAT_ROCK_LIFT_SECONDS + MUDFLAT_ROCK_LIFT_FALL_SECONDS) landed.push(rock);
+        }
+        for (const rock of landed) {
+          const impactRadius = rock.radius + lift.impactPadding;
+          for (const creature of runtime.creatures) {
+            if (creature.hp > 0 && Math.hypot(creature.x - rock.x, creature.y - rock.y) <= impactRadius + creature.size) damageCreature(creature, lift.damage, .16);
+          }
+          if (Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) < rock.radius + 16) damagePlayer(10 + stageStats.contactDamageBonus, "#d69d68", "건곤대나이 바위 낙하");
+          const finding = mudflatRockCreatureForRoll(runtimeRandom(runtime), Math.max(1, runtime.levels.rocker ?? 0));
+          runtime.rocksFlipped += 1;
+          runtime.bursts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y, life: .5, maxLife: .5, color: "#b89569", size: rock.radius + 8, kind: "harvest" });
+          runtime.floatTexts.push({ id: sequenceRef.current++, x: rock.x, y: rock.y - 18, life: .6, text: "쿵", color: "#e9dcc6" });
+          if (finding) revealRockCreature(rock, finding);
+          if (supervisorRef.current) appendSupervisorEvent("rock-lift-landed", finding ? `바위 낙하 · ${finding.name} 발견` : "바위 낙하 · 빈 바위", runtime);
+        }
+        if (landed.length > 0) runtime.rocks = runtime.rocks.filter((rock) => !landed.includes(rock));
       }
 
       // 호미봇: 플레이어를 따라다니다 범위 안의 조개 구멍을 대신 판다. 플레이어가 같은
@@ -3679,7 +3798,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           const rockerLevel = runtime.levels.rocker ?? 0;
           if (rockerLevel > 0 && !runtime.rockFlipEffect && runtime.rockTurnClock <= 0) {
             const target = runtime.rocks
-              .filter((rock) => Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) <= tong.reach + rock.radius)
+              .filter((rock) => rock.lift === undefined && Math.hypot(rock.x - runtime.player.x, rock.y - runtime.player.y) <= tong.reach + rock.radius)
               .sort((left, right) => Math.hypot(left.x - runtime.player.x, left.y - runtime.player.y) - Math.hypot(right.x - runtime.player.x, right.y - runtime.player.y))[0];
             if (target) {
               const stats = mudflatRockTurnerStats(rockerLevel);
@@ -3874,7 +3993,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       for (const rock of runtime.rocks) {
         const point = screenPoint(rock); if (point.x < -45 || point.y < -45 || point.x > width + 45 || point.y > height + 45) continue;
         const effect = runtime.rockFlipEffect?.rockId === rock.id ? runtime.rockFlipEffect : undefined;
-        context.save(); context.translate(point.x, point.y); drawRock(context, rock, effect); context.restore();
+        context.save(); context.translate(point.x, point.y); drawRock(context, rock, effect, rockLiftHeight(rock)); context.restore();
       }
 
       for (const pickup of runtime.pickups) {
@@ -3964,6 +4083,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (lumiArt) drawLumiGatherer(context, width / 2, height / 2, runtime.lumiMotion, lumiArt,
         actionTime, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
       if (characterId !== "lumi") drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);
+      if (runtime.rockLiftEffect > 0) {
+        const liftStats = mudflatRockLiftStats(Math.max(1, runtime.levels["rock-lift"] ?? 0));
+        drawRockLiftCast(context, width / 2, height / 2, 1 - runtime.rockLiftEffect / (MUDFLAT_ROCK_LIFT_SECONDS + MUDFLAT_ROCK_LIFT_FALL_SECONDS), Math.min(liftStats.radius, Math.hypot(width, height)), characterId === "lumi");
+      }
       for (const falling of runtime.fallingRocks) {
         drawFallingRockBody(context, screenPoint(falling), falling, height);
       }
@@ -4307,7 +4430,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (id === "snack") runtime.player.hp = nextMaxHp;
       else runtime.player.hp = Math.min(runtime.player.hp, nextMaxHp);
       const afterUnlocks = mudflatAdvancedSkillUnlocks(runtime.skillInventory);
-      if ((!beforeUnlocks.electric && afterUnlocks.electric) || (!beforeUnlocks.castNet && afterUnlocks.castNet)) runtime.discoveryMessageLife = 3;
+      if ((!beforeUnlocks.electric && afterUnlocks.electric) || (!beforeUnlocks.castNet && afterUnlocks.castNet) || (!beforeUnlocks.rockLift && afterUnlocks.rockLift)) runtime.discoveryMessageLife = 3;
     }
     resetMovementInput(); setChoices([]); runtime.paused = false; snapshot(runtime); setScreen("running"); persistActiveRun();
   };
@@ -4411,7 +4534,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       hp = id === "snack" && !stored ? maxHp : Math.min(hp, maxHp);
     }
     const afterUnlocks = mudflatAdvancedSkillUnlocks(levels);
-    const discovered = (!beforeUnlocks.electric && afterUnlocks.electric) || (!beforeUnlocks.castNet && afterUnlocks.castNet);
+    const discovered = (!beforeUnlocks.electric && afterUnlocks.electric) || (!beforeUnlocks.castNet && afterUnlocks.castNet) || (!beforeUnlocks.rockLift && afterUnlocks.rockLift);
     const next = { ...current, coins: current.coins - price, levels, activeSkills, maxHp, hp, pendingSkillDiscovery: current.pendingSkillDiscovery || discovered };
     const storedNotice = stored ? ` · 활성 슬롯 ${MUDFLAT_SELECTABLE_SKILL_LIMIT} / ${MUDFLAT_SELECTABLE_SKILL_LIMIT} · 기술 인벤토리에 보관했습니다.` : "";
     storeCampaign(next); setCampNotice(`${discovered ? "신기술을 알게 되었습니다. " : ""}${skill.name} Lv.${level + 1} 훈련 완료${storedNotice}`);
@@ -4769,7 +4892,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const fixedNormalSkills = GENERAL_SKILL_ORDER.map((id) => MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === id)).filter((skill): skill is (typeof MUDFLAT_GENERAL_UPGRADES)[number] => Boolean(skill && MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id)));
   const normalSkills = GENERAL_SKILL_ORDER.map((id) => MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === id)).filter((skill): skill is (typeof MUDFLAT_GENERAL_UPGRADES)[number] => Boolean(skill && !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id) && (hud.levels[skill.id] ?? 0) > 0)).slice(0, 6);
   const selectedSkill = selectedSkillId ? MUDFLAT_GENERAL_UPGRADES.find((skill) => skill.id === selectedSkillId && (hud.levels[skill.id] ?? 0) > 0) : undefined;
-  const selectedSkillDetail = selectedSkill ? mudflatSkillDetail(selectedSkill, hud.levels[selectedSkill.id] ?? 1, hud.levels.digging ?? 1) : null;
+  const selectedSkillDetail = selectedSkill ? mudflatSkillDetail(selectedSkill, hud.levels[selectedSkill.id] ?? 1, hud.levels.digging ?? 1, hud.levels.rocker ?? 0) : null;
   const rerollCost = Math.ceil(hud.maxHp * .2);
   const canReroll = hud.hp > rerollCost;
   const activeStageProfile = mudflatStageProfile(hud.stage) as StageProfile;

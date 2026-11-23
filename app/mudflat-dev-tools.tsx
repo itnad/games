@@ -149,6 +149,18 @@ const DEV_PRESETS: DevPreset[] = [
     digsCompleted: 20,
   },
   {
+    id: "rock-lift",
+    title: "3단계 바위 갯벌 · 건곤대나이 Lv.6 · 돌뒤집개 Lv.1",
+    stage: 3,
+    description: "8초마다 바위 7개가 떠올랐다 떨어지며 사라지고, 낙하 피해와 돌뒤집개 Lv.1 기준 발견물이 나오는지 확인합니다.",
+    coins: 3000,
+    level: 12,
+    xp: 0,
+    nextXp: 90,
+    levels: { tongs: 3, digging: 2, rocker: 1, harpoon: 1, net: 1, boots: 1, basket: 1, "rock-lift": 6 },
+    equipment: { cooler: 1 },
+  },
+  {
     id: "final-boss",
     title: "8단계 마지막 물때",
     stage: 8,
@@ -586,7 +598,7 @@ export function MudflatDevTools() {
                 {build.mode === "normal" && !basic ? <label className="check"><input type="checkbox" checked={isActive} disabled={!isActive && (level <= 0 || build.activeSkills.length >= MUDFLAT_SELECTABLE_SKILL_LIMIT)} onChange={() => toggleBuildActive(skill.id)} /><span>활성</span></label> : <span className="mudflat-dev-always">{build.mode === "normal" ? "항상 작동" : ""}</span>}
               </div>;
             })}
-            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤)</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤. 건곤대나이는 선택 기술 5종이 필요)</span></label>}
           </fieldset>
           <fieldset>
             <legend>캐릭터</legend>
