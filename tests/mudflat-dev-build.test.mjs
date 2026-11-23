@@ -128,6 +128,9 @@ test("a build becomes a campaign with normalized active skills, clamped gear, HP
   assert.deepEqual([mudflatDevBuildCampaign(frostBuild, baseCampaign("normal")).hitByRock, mudflatDevBuildCampaign(frostBuild, baseCampaign("normal")).hitByTide], [true, true]);
   frostBuild.autoUnlock = false; frostBuild.hitByRock = true;
   assert.deepEqual([mudflatDevBuildCampaign(frostBuild, baseCampaign("normal")).hitByRock, mudflatDevBuildCampaign(frostBuild, baseCampaign("normal")).hitByTide], [true, false]);
+  // 대왕 박하지 일찍 등장은 기본 꺼짐이고 캠페인에는 들어가지 않는다(launch 전용).
+  assert.equal(createMudflatDevBuild("normal").bossEarly, false);
+  assert.equal("bossEarly" in mudflatDevBuildCampaign({ ...createMudflatDevBuild("normal"), bossEarly: true }, baseCampaign("normal")), false);
   // 번개 기술 레벨이 있으면 모기떼·복어 피격 경험을 채우고, 끄면 체크박스 값만 따른다.
   const lightningBuild = createMudflatDevBuild("normal");
   assert.deepEqual([lightningBuild.hitByMosquito, lightningBuild.hitByPufferfish], [false, false]);

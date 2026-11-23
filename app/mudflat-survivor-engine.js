@@ -618,6 +618,62 @@ export function mudflatThunderboltStats(level = 0) {
   };
 }
 
+// 대왕 박하지 단계별 강화. 3단계부터 공격 기술을 쓰고, 5단계부터 체력이 단계마다 2배(5단계 2배 … 9단계 이후 32배 고정).
+export const MUDFLAT_BOSS_ATTACK_STAGE = 3;
+export const MUDFLAT_BOSS_HP_DOUBLING_STAGE = 5;
+export const MUDFLAT_BOSS_HP_DOUBLING_CAP_STAGE = 9;
+export const MUDFLAT_BOSS_SKILL_IDS = ["charge", "jump", "fireball", "claw", "summon"];
+export const MUDFLAT_BOSS_SKILL_LABELS = { charge: "돌진", jump: "점프 공격", fireball: "파이어볼", claw: "집게발 투척", summon: "돌진 복어 소환" };
+// 개발 페이지에서 "대왕 박하지 일찍 등장"을 켜면 200초 대신 이 시각에 나온다.
+export const MUDFLAT_BOSS_SPAWN_SECONDS = 200;
+export const MUDFLAT_BOSS_EARLY_SPAWN_SECONDS = 8;
+
+export function mudflatBossHpMultiplier(stage = 1) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  if (safeStage < MUDFLAT_BOSS_HP_DOUBLING_STAGE) return 1;
+  return 2 ** (Math.min(safeStage, MUDFLAT_BOSS_HP_DOUBLING_CAP_STAGE) - MUDFLAT_BOSS_HP_DOUBLING_STAGE + 1);
+}
+
+// 단계별 보스 기술: 돌진 3·5·7, 점프 공격 4·6·8, 파이어볼(Lv.5) 5·7·8, 집게발 투척 6·8, 돌진 복어 4마리 소환 7·8. 9단계부터 전부.
+export function mudflatBossSkills(stage = 1) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  const endless = safeStage >= 9;
+  const skills = [];
+  if (endless || [3, 5, 7].includes(safeStage)) skills.push("charge");
+  if (endless || [4, 6, 8].includes(safeStage)) skills.push("jump");
+  if (endless || [5, 7, 8].includes(safeStage)) skills.push("fireball");
+  if (endless || [6, 8].includes(safeStage)) skills.push("claw");
+  if (endless || [7, 8].includes(safeStage)) skills.push("summon");
+  return skills;
+}
+
+// 보스 기술 수치. 기술 사이 4초, 등장 2초 뒤 첫 기술, 플레이어가 460px 안에 있을 때만 시작. 플레이어 피해는 단계에 따라 조금씩 오른다.
+export function mudflatBossSkillStats(stage = 1) {
+  const safeStage = Math.max(1, Math.floor(Number(stage) || 1));
+  return {
+    cooldown: 4, firstDelay: 2, engageRange: 460,
+    charge: { windup: .6, duration: .55, speed: 420 },
+    jump: { windup: .4, air: .7, radius: 80, height: 90, damage: 14 + safeStage * 2 },
+    fireball: { windup: .5, level: 5, damage: 8 + safeStage, spread: Math.PI / 18 },
+    claw: { windup: .4, speed: 320, range: 300, radius: 18, damage: 10 + safeStage },
+    summon: { windup: .8, count: 4, distance: 70 },
+  };
+}
+
+// 다음 보스 기술: 쓸 수 있는 기술 중 직전 기술을 빼고(하나뿐이면 그대로) 저장 난수로 고른다.
+/**
+ * @param {string[]} [skills]
+ * @param {string | undefined} [previous]
+ * @param {number} [roll]
+ */
+export function mudflatBossNextSkill(skills = [], previous = undefined, roll = 0) {
+  const pool = Array.isArray(skills) ? skills.filter((skill) => MUDFLAT_BOSS_SKILL_IDS.includes(skill)) : [];
+  if (pool.length === 0) return null;
+  const candidates = pool.length > 1 ? pool.filter((skill) => skill !== previous) : pool;
+  const safeRoll = Math.max(0, Math.min(.999999, Number.isFinite(roll) ? roll : 0));
+  return candidates[Math.floor(safeRoll * candidates.length)];
+}
+
 // 낙뢰 대상: 화면 안 생물 중 대왕 박하지가 있으면 그것, 없으면 현재 체력이 가장 높은 생물.
 export function mudflatThunderboltTarget(creatures = []) {
   let best = null;

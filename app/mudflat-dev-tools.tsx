@@ -43,6 +43,7 @@ type DevPreset = {
   hitByTide?: boolean;
   hitByMosquito?: boolean;
   hitByPufferfish?: boolean;
+  bossEarly?: boolean;
 };
 
 type LocalSnapshot = {
@@ -219,6 +220,19 @@ const DEV_PRESETS: DevPreset[] = [
     equipment: { cooler: 1 },
     hitByMosquito: true,
     hitByPufferfish: true,
+  },
+  {
+    id: "boss-skills",
+    title: "8단계 마지막 물때 · 대왕 박하지 8초 등장 · 점프·파이어볼·집게발·복어 소환",
+    stage: 8,
+    description: "대왕 박하지가 8초 뒤 나타나 4초마다 점프 공격(보라 고리 예고 뒤 착지 반경 80px), Lv.5 파이어볼 5발, 집게발 왕복 투척, 돌진 복어 4마리 소환을 번갈아 쓰는지, 체력이 16배(약 31,000)인지 확인합니다.",
+    coins: 3000,
+    level: 14,
+    xp: 0,
+    nextXp: 90,
+    levels: { tongs: 4, digging: 2, harpoon: 4, electric: 3, "guard-basket": 3 },
+    equipment: { cooler: 1, vest: 2 },
+    bossEarly: true,
   },
   {
     id: "final-boss",
@@ -408,6 +422,7 @@ export function MudflatDevTools() {
         run: true,
         tutorial: build.stage === 1 && build.tutorial,
         supervisor: build.supervisor,
+        bossEarly: build.bossEarly,
       }));
       window.location.assign("/haeru");
     } catch {
@@ -459,6 +474,7 @@ export function MudflatDevTools() {
         run: true,
         tutorial: Boolean(preset.tutorial),
         supervisor: Boolean(preset.supervisor),
+        bossEarly: Boolean(preset.bossEarly),
       }));
       window.location.assign("/haeru");
     } catch {
@@ -638,6 +654,7 @@ export function MudflatDevTools() {
             </div>
             <label className="field"><span>단계 직접 입력 (9 이상은 끝없는 물때)</span><input type="number" min={1} max={MUDFLAT_DEV_BUILD_MAX_STAGE} value={build.stage} onChange={(event) => updateBuild({ stage: numberField(event.target.value, 1) })} /></label>
             {build.stage === 1 && <label className="check"><input type="checkbox" checked={build.tutorial} onChange={(event) => updateBuild({ tutorial: event.target.checked })} /><span>튜토리얼 포함</span></label>}
+            <label className="check"><input type="checkbox" checked={build.bossEarly} onChange={(event) => updateBuild({ bossEarly: event.target.checked })} /><span>대왕 박하지 8초 뒤 등장 (기본 200초)</span></label>
             <label className="check"><input type="checkbox" checked={build.supervisor} disabled={build.mode !== "normal"} onChange={(event) => updateBuild({ supervisor: event.target.checked })} /><span>AI 감독모드로 관전 (일반 저장을 건드리지 않음)</span></label>
             <fieldset className="mudflat-dev-seed">
               <legend>시드</legend>

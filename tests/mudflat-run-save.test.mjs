@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { MUDFLAT_ACTIVE_RUN_KEY, encodeMudflatRun, decodeMudflatRun, writeMudflatRun, readMudflatRun, clearMudflatRun } from "../app/mudflat-run-save.js";
-import { mudflatEquipmentStats, mudflatCastNetStats, mudflatJellyfishInterval, mudflatMosquitoRunEnabled, mudflatOpeningWaveCount, mudflatNormalizeActiveSkills, mudflatActiveLevels } from "../app/mudflat-survivor-engine.js";
+import { mudflatEquipmentStats, mudflatCastNetStats, mudflatJellyfishInterval, mudflatMosquitoRunEnabled, mudflatOpeningWaveCount, mudflatNormalizeActiveSkills, mudflatActiveLevels, MUDFLAT_BOSS_SPAWN_SECONDS } from "../app/mudflat-survivor-engine.js";
 import { createLumiMotion } from "../app/mudflat-lumi-animation.js";
 import { createCastNet } from "../app/mudflat-cast-net.js";
 import { createExperiencePickup, advanceExperiencePickup } from "../app/mudflat-experience.js";
@@ -14,13 +14,13 @@ const game = readFileSync(new URL("../app/mudflat-survivor-game.tsx", import.met
 const initializer = game.match(/function makeRuntime\(campaign: Campaign, seed = createMudflatSeed\(\)\): Runtime \{[\s\S]*?\n\}/)[0];
 const makeRuntime = new Function("mudflatEquipmentStats", "createLumiMotion", "GENERAL_CHARACTER", "BASE_CAMP", "mudflatHiddenRockStage",
   "createMudflatSeed", "normalizeMudflatSeed", "nextMudflatRandom", "mudflatMosquitoRunEnabled", "mudflatOpeningWaveCount", "mudflatJellyfishInterval",
-  "mudflatNormalizeActiveSkills", "mudflatActiveLevels",
+  "mudflatNormalizeActiveSkills", "mudflatActiveLevels", "MUDFLAT_BOSS_SPAWN_SECONDS",
   ts.transpileModule(initializer, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText + "\nreturn makeRuntime;")
   (mudflatEquipmentStats, createLumiMotion, { levels: { tongs: 1, digging: 1 } }, { x: 0, y: 250 }, (stage) => stage === 3 || stage === 4,
     createMudflatSeed, normalizeMudflatSeed, (seed) => {
       const state = normalizeMudflatSeed(seed + 0x9e3779b9);
       return { state, value: state / 0x100000000 };
-    }, mudflatMosquitoRunEnabled, mudflatOpeningWaveCount, mudflatJellyfishInterval, mudflatNormalizeActiveSkills, mudflatActiveLevels);
+    }, mudflatMosquitoRunEnabled, mudflatOpeningWaveCount, mudflatJellyfishInterval, mudflatNormalizeActiveSkills, mudflatActiveLevels, MUDFLAT_BOSS_SPAWN_SECONDS);
 
 function fixture(mode = "normal") {
   const campaign = { version: 1, mode, characterId: "lumi", stage: 4, coins: 1380,
@@ -280,6 +280,35 @@ test("live save keeps lightning arcs, thunderbolts, shock state and lightning ti
   const brokenShock = JSON.parse(encodeMudflatRun(campaign, runtime));
   brokenShock.runtime.creatures[0].shockUntil = "soon";
   assert.equal(decodeMudflatRun(JSON.stringify(brokenShock), makeRuntime), null);
+});
+
+test("live save keeps boss skill state, boss projectiles and the boss spawn time, and backfills older saves", () => {
+  const { campaign, runtime } = fixture("normal");
+  runtime.creatures.push({ ...runtime.creatures[0], id: 70, type: "king-crab", name: "대왕 박하지", boss: true, bossSkill: "jump", bossSkillPhase: .6, bossSkillClock: 0, bossSkillPrev: "jump", jumpX: 120, jumpY: -40, chargeX: undefined, chargeY: undefined });
+  runtime.bossFireballs.push({ id: 71, x: 10, y: 20, vx: 170, vy: -170, age: .3, life: 1.08, damage: 16, splash: 40, wobblePhase: 1.1, baseAngle: -.78 });
+  runtime.bossClaws.push({ id: 72, x: 50, y: 60, bossId: 70, originX: 0, originY: 0, angle: .9, distance: 120, maxDistance: 300, phase: 0, damage: 18, hitPass: -1, spin: 3.3 });
+  runtime.bossSpawnAt = 8;
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  const boss = restored.runtime.creatures.find((creature) => creature.id === 70);
+  assert.deepEqual([boss.bossSkill, boss.bossSkillPhase, boss.bossSkillClock, boss.bossSkillPrev, boss.jumpX, boss.jumpY], ["jump", .6, 0, "jump", 120, -40]);
+  assert.deepEqual(restored.runtime.bossFireballs, runtime.bossFireballs);
+  assert.deepEqual(restored.runtime.bossClaws, runtime.bossClaws);
+  assert.equal(restored.runtime.bossSpawnAt, 8);
+  assert.ok(restored.nextSequence > 72);
+  const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
+  for (const key of ["bossFireballs", "bossClaws", "bossSpawnAt"]) delete legacy.runtime[key];
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.deepEqual(legacyRestored.runtime.bossFireballs, []);
+  assert.deepEqual(legacyRestored.runtime.bossClaws, []);
+  assert.equal(legacyRestored.runtime.bossSpawnAt, 200);
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.runtime.creatures.find((creature) => creature.id === 70).bossSkill = "nuke";
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
+  const brokenClaw = JSON.parse(encodeMudflatRun(campaign, runtime));
+  brokenClaw.runtime.bossClaws[0].phase = "back";
+  assert.equal(decodeMudflatRun(JSON.stringify(brokenClaw), makeRuntime), null);
 });
 
 test("live save keeps a detached stage-entry checkpoint for rescue retries", () => {

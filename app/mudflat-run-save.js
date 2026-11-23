@@ -31,6 +31,7 @@ const ENTITY_FIELDS = {
   fireballs: "vx vy age life damage splash wobblePhase baseAngle", flameRays: "angle age length width",
   frostPatches: "radius age life", frostWaves: "age radius",
   lightningArcs: "tx ty age", thunderbolts: "targetId age strikes struck nextStrikeAt lastStrikeAt damage splash splashRatio warnSeconds",
+  bossFireballs: "vx vy age life damage splash wobblePhase baseAngle", bossClaws: "bossId originX originY angle distance maxDistance phase damage hitPass spin",
   netSlams: "life maxLife damage radius headDepth range angle targetId",
   castNets: "originX originY angle radius damage holdSeconds age duration",
   rocks: "radius tone", clamHoles: "radius progress", hoeBots: "targetHoleId digClock facing", clamReveals: "life maxLife",
@@ -135,6 +136,10 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     for (const key of ["chainLightningClock", "thunderboltClock"]) {
       if (!finite(runtime[key])) runtime[key] = 0;
     }
+    // 대왕 박하지 기술도 뒤에 추가됐다. 등장 시각은 200초가 기본.
+    if (!Array.isArray(runtime.bossFireballs)) runtime.bossFireballs = [];
+    if (!Array.isArray(runtime.bossClaws)) runtime.bossClaws = [];
+    if (!finite(runtime.bossSpawnAt)) runtime.bossSpawnAt = runtimeTemplate.bossSpawnAt;
     // 빙결 계열도 뒤에 추가됐다.
     if (!Array.isArray(runtime.frostPatches)) runtime.frostPatches = [];
     if (!Array.isArray(runtime.frostWaves)) runtime.frostWaves = [];
@@ -179,8 +184,9 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (!runtime.creatures.every((creature) => typeof creature.type === "string" && typeof creature.name === "string"
       && ["chase", "still", "wander", "flee", "oval"].includes(creature.movement))) return null;
     if (!runtime.creatures.every((creature) => (creature.eventKind === undefined || ["puffer-rush", "crab-line", "mud-zombie", "jellyfish"].includes(creature.eventKind))
-      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast", "slowUntil", "slowFactor", "shockUntil"].every((key) => creature[key] === undefined || finite(creature[key]))
+      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast", "slowUntil", "slowFactor", "shockUntil", "bossSkillPhase", "bossSkillClock", "jumpX", "jumpY"].every((key) => creature[key] === undefined || finite(creature[key]))
       && (creature.knockbackChain === undefined || typeof creature.knockbackChain === "boolean")
+      && [creature.bossSkill, creature.bossSkillPrev].every((skill) => skill === undefined || ["charge", "jump", "fireball", "claw", "summon"].includes(skill))
       && (creature.uncollectible === undefined || typeof creature.uncollectible === "boolean"))) return null;
     if (!runtime.hoeBots.every((unit) => ["follow", "move", "dig"].includes(unit.phase) && Number.isInteger(unit.targetHoleId) && unit.targetHoleId >= 0)) return null;
     if (!runtime.rocks.every((rock) => (rock.lift === undefined || (finite(rock.lift) && rock.lift >= 0)) && (rock.impact === undefined || finite(rock.impact)))) return null;

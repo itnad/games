@@ -162,6 +162,17 @@ import {
   MUDFLAT_THUNDERBOLT_UNLOCK_SKILLS,
   MUDFLAT_THUNDERBOLT_UNLOCK_LEVEL,
   MUDFLAT_SHOCK_SECONDS,
+  mudflatBossHpMultiplier,
+  mudflatBossSkills,
+  mudflatBossSkillStats,
+  mudflatBossNextSkill,
+  MUDFLAT_BOSS_ATTACK_STAGE,
+  MUDFLAT_BOSS_HP_DOUBLING_STAGE,
+  MUDFLAT_BOSS_HP_DOUBLING_CAP_STAGE,
+  MUDFLAT_BOSS_SKILL_IDS,
+  MUDFLAT_BOSS_SKILL_LABELS,
+  MUDFLAT_BOSS_SPAWN_SECONDS,
+  MUDFLAT_BOSS_EARLY_SPAWN_SECONDS,
   mudflatNewUnlocks,
   mudflatHitFamily,
   MUDFLAT_FIREBALL_UNLOCK_SKILLS,
@@ -418,6 +429,11 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(tools, /id: "lightning",[\s\S]*?stage: 2,[\s\S]*?"chain-lightning": 6, thunderbolt: 6[\s\S]*?hitByMosquito: true,\n\s+hitByPufferfish: true,/);
   assert.match(tools, /updateBuild\(\{ hitByMosquito: event\.target\.checked \}\)/);
   assert.match(tools, /updateBuild\(\{ hitByPufferfish: event\.target\.checked \}\)/);
+  // 대왕 박하지 프리셋은 8단계에서 8초 뒤 등장시키고, 빌더에도 같은 선택이 있어 프리셋·빌더 모두 launch에 bossEarly를 싣는다.
+  assert.match(tools, /id: "boss-skills",[\s\S]*?stage: 8,[\s\S]*?bossEarly: true,/);
+  assert.match(tools, /updateBuild\(\{ bossEarly: event\.target\.checked \}\)/);
+  assert.match(tools, /bossEarly: Boolean\(preset\.bossEarly\),/);
+  assert.match(tools, /bossEarly: build\.bossEarly,/);
   // 맞춤 원정 빌더: 프리셋 목록 바로 위에 있고, 순수 모듈의 검증·변환을 그대로 쓴다.
   const builderSection = tools.indexOf('className="mudflat-dev-builder"');
   assert.ok(builderSection > tools.indexOf('className="mudflat-dev-grid"'));
@@ -1570,6 +1586,40 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatThunderboltTarget([{ id: 1, hp: 30 }, { id: 2, hp: 118 }, { id: 3, hp: 20, boss: true }]).id, 3, "대왕 박하지가 보이면 항상 우선");
   assert.equal(mudflatThunderboltTarget([{ id: 3, hp: 0 }]), null);
   assert.equal(mudflatThunderboltTarget([]), null);
+  // 대왕 박하지 강화: 5단계부터 체력이 단계마다 2배(9단계 이후 32배 고정), 3단계부터 공격 기술.
+  // 돌진 3·5·7, 점프 공격 4·6·8, 파이어볼 5·7·8, 집게발 투척 6·8, 돌진 복어 소환 7·8, 9단계부터 전부.
+  assert.equal(MUDFLAT_BOSS_ATTACK_STAGE, 3);
+  assert.equal(MUDFLAT_BOSS_HP_DOUBLING_STAGE, 5);
+  assert.equal(MUDFLAT_BOSS_HP_DOUBLING_CAP_STAGE, 9);
+  assert.deepEqual([MUDFLAT_BOSS_SPAWN_SECONDS, MUDFLAT_BOSS_EARLY_SPAWN_SECONDS], [200, 8]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15].map((stage) => mudflatBossHpMultiplier(stage)), [1, 1, 1, 1, 2, 4, 8, 16, 32, 32, 32]);
+  assert.deepEqual(MUDFLAT_BOSS_SKILL_IDS, ["charge", "jump", "fireball", "claw", "summon"]);
+  assert.deepEqual(MUDFLAT_BOSS_SKILL_LABELS, { charge: "돌진", jump: "점프 공격", fireball: "파이어볼", claw: "집게발 투척", summon: "돌진 복어 소환" });
+  assert.deepEqual([1, 2].map((stage) => mudflatBossSkills(stage)), [[], []]);
+  assert.deepEqual(mudflatBossSkills(3), ["charge"]);
+  assert.deepEqual(mudflatBossSkills(4), ["jump"]);
+  assert.deepEqual(mudflatBossSkills(5), ["charge", "fireball"]);
+  assert.deepEqual(mudflatBossSkills(6), ["jump", "claw"]);
+  assert.deepEqual(mudflatBossSkills(7), ["charge", "fireball", "summon"]);
+  assert.deepEqual(mudflatBossSkills(8), ["jump", "fireball", "claw", "summon"]);
+  assert.deepEqual(mudflatBossSkills(9), ["charge", "jump", "fireball", "claw", "summon"]);
+  assert.deepEqual(mudflatBossSkills(14), ["charge", "jump", "fireball", "claw", "summon"]);
+  const bossStats = mudflatBossSkillStats(8);
+  assert.deepEqual([bossStats.cooldown, bossStats.firstDelay, bossStats.engageRange], [4, 2, 460]);
+  assert.deepEqual(bossStats.charge, { windup: .6, duration: .55, speed: 420 });
+  assert.deepEqual(bossStats.jump, { windup: .4, air: .7, radius: 80, height: 90, damage: 30 });
+  assert.deepEqual(bossStats.fireball, { windup: .5, level: 5, damage: 16, spread: Math.PI / 18 });
+  assert.deepEqual(bossStats.claw, { windup: .4, speed: 320, range: 300, radius: 18, damage: 18 });
+  assert.deepEqual(bossStats.summon, { windup: .8, count: 4, distance: 70 });
+  assert.deepEqual([mudflatBossSkillStats(3).jump.damage, mudflatBossSkillStats(3).fireball.damage, mudflatBossSkillStats(3).claw.damage], [20, 11, 13]);
+  // 다음 기술은 직전 기술을 빼고 고르고, 하나뿐이면 같은 기술을 되풀이한다.
+  assert.equal(mudflatBossNextSkill(["charge"], "charge", .7), "charge");
+  assert.equal(mudflatBossNextSkill(["charge", "fireball"], "charge", .99), "fireball");
+  assert.equal(mudflatBossNextSkill(["charge", "fireball"], "fireball", .99), "charge");
+  assert.equal(mudflatBossNextSkill(["jump", "fireball", "claw", "summon"], "jump", 0), "fireball");
+  assert.equal(mudflatBossNextSkill(["jump", "fireball", "claw", "summon"], "jump", .99), "summon");
+  assert.equal(mudflatBossNextSkill(["jump", "bogus"], undefined, .99), "jump", "모르는 기술은 거른다");
+  assert.equal(mudflatBossNextSkill([], undefined, .5), null);
   // 뻘권: 기본 기술을 포함한 채집기술 중 Lv.3 이상이 4개면 열린다. 마스터리 집계에는 들어가지 않는다.
   assert.equal(MUDFLAT_SMASH_UNLOCK_SKILLS, 4);
   assert.equal(MUDFLAT_SMASH_UNLOCK_LEVEL, 3);
@@ -2397,6 +2447,23 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawLightningCast\(/);
   assert.doesNotMatch(source, /thunderbolt[\s\S]{0,200}navigator\.vibrate/);
   assert.doesNotMatch(source, /lightningArcs[\s\S]{0,200}Math\.random/);
+  // 대왕 박하지: 체력 배율은 강화 1.7배 × 단계 배율, 기술은 일반 모드에서만, 기술 중에는 기술이 이동을 맡고 공중에서는 접촉이 없다.
+  // 기술 선택·파이어볼 흩뿌림은 저장 난수, 플레이어 피해는 damagePlayer(소쿠리로 막을 수 있음), 베이스캠프 안의 플레이어는 맞지 않는다. 등장 시각은 bossSpawnAt.
+  assert.match(source, /const bossScale = forcedBoss \? \(stageProfile\.finalBoss \? 1\.7 : 1\) \* mudflatBossHpMultiplier\(runtime\.stage\) : 1;/);
+  assert.match(source, /const bossSkillIds = runtime\.mode === "normal" \? mudflatBossSkills\(runtime\.stage\) : \[\];/);
+  assert.match(source, /const next = mudflatBossNextSkill\(bossSkillIds, creature\.bossSkillPrev, runtimeRandom\(runtime\)\);/);
+  assert.match(source, /const bossActing = advanceBossSkill\(creature, dt\);\n\s+if \(bossActing\) \{/);
+  assert.match(source, /&& !bossAirborne\(creature\) && distance < creature\.size \+ 17\) \{/);
+  assert.match(source, /damagePlayer\(jump\.damage, "#b58cff", "대왕 박하지 착지"\)/);
+  assert.match(source, /damagePlayer\(ball\.damage, "#ff9a3c", "대왕 박하지 파이어볼"\)/);
+  assert.match(source, /damagePlayer\(claw\.damage, "#b58cff", "대왕 박하지 집게발"\)/);
+  assert.match(source, /eventCreatureFromTemplate\(template, point, "puffer-rush", \{ movement: "chase", speed: template\.speed \* \(1\.08 \+ runtime\.stage \* \.025\), movementAngle: angle \}\)/);
+  assert.match(source, /if \(!runtime\.bossSpawned && runtime\.elapsed >= runtime\.bossSpawnAt\) \{/);
+  assert.match(source, /if \(launch\.bossEarly\) runtime\.bossSpawnAt = MUDFLAT_BOSS_EARLY_SPAWN_SECONDS;/);
+  assert.match(source, /appendSupervisorEvent\("boss-skill"/);
+  assert.match(source, /function drawBossTelegraph\(/);
+  assert.match(source, /function drawBossClaw\(/);
+  assert.doesNotMatch(source, /advanceBossSkill[\s\S]{0,3000}Math\.random/);
   // 호미봇: 플레이어 호미질만 해금 집계, 로봇은 공유 진행도로 파고 보상은 호미질 레벨 기준, 감독 AI와 플레이어 애니메이션은 로봇 구멍을 무시한다.
   assert.match(source, /runtime\.digsCompleted \+= 1;\s*if \(runtime\.mode === "normal" && runtime\.digsCompleted === MUDFLAT_HOE_BOT_UNLOCK_DIGS\) runtime\.discoveryMessageLife = 3;/);
   assert.match(source, /const botHoleIds = new Set\(runtime\.hoeBots\.filter\(\(unit\) => unit\.phase === "dig"\)\.map\(\(unit\) => unit\.targetHoleId\)\);/);
