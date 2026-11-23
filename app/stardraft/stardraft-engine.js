@@ -1370,8 +1370,10 @@ function runCommand(state, side, command) {
       if (!check.ok) return check;
       const passengers = [...check.passengers];
       const transports = [];
+      // maxCarriers: 한 번에 쓸 수송선 수의 상한(AI의 오버로드 폭탄 드랍이 쓴다). 없으면 태울 병력이 남는 한 모두 쓴다.
+      const limit = Number.isFinite(command.maxCarriers) ? Math.max(1, command.maxCarriers) : Infinity;
       for (const carrier of check.carriers) {
-        if (!passengers.length) break;
+        if (!passengers.length || transports.length >= limit) break;
         const transport = liftCarrier(state, side, carrier);
         loadTransport(state, transport, passengers, plan.mission);
         if (transport.cargo.length || transport.boarding.length) transports.push(transport);

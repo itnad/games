@@ -732,5 +732,8 @@ export const STW_AI_PERSONAS = {
   ultra: { id: "ultra", race: "zerg", name: "울트라 운영", note: "앞마당을 빨리 먹고 성큰으로 버티며 울트라리스크와 저글링으로 민다" },
   hive: { id: "hive", race: "zerg", name: "디파일러 하이브", note: "히드라로 버티며 하이브를 올려 디파일러의 다크 스웜·플레이그와 가디언으로 민다" },
   muta: { id: "muta", race: "zerg", name: "뮤탈 저글링", note: "레어와 스파이어를 서둘러 뮤탈리스크와 저글링으로 몰아친다" },
+  hydradrop: { id: "hydradrop", race: "zerg", name: "히드라 폭탄 드랍", note: "히드라를 모으며 버티다 오버로드 여섯 기 이상에 가득 태워 적 본진에 한꺼번에 내린다" },
+  lingdrop: { id: "lingdrop", race: "zerg", name: "저글링 폭탄 드랍", note: "발업과 공격·갑피를 올린 저글링 떼를 오버로드 여섯 기 이상에 태워 적 본진에 쏟아붓는다" },
+  mixdrop: { id: "mixdrop", race: "zerg", name: "혼합 폭탄 드랍", note: "저글링·히드라·럴커를 섞어 오버로드 여섯 기 이상에 태워 적 본진에 한꺼번에 내린다" },
 };
 for (const persona of Object.values(STW_AI_PERSONAS)) persona.race ??= "protoss";

@@ -18,6 +18,7 @@ import {
   stwRallyY,
   stwResearchCheck,
   stwResearchDone,
+  stwSlots,
   stwSupply,
   stwVisible,
 } from "./stardraft-engine.js";
@@ -168,6 +169,29 @@ const BUILD_ORDERS = {
     { research: "hive" }, { build: "mound" }, { build: "sunken" }, { research: "plague" }, { build: "evo" },
     { build: "spire" }, { research: "ensnare" }, { research: "greaterSpire" }, { research: "zMissile1" }, { research: "zCarapace1" },
   ],
+  // 오버로드 폭탄 드랍 셋: 중반까지는 바탕이 되는 운영(히드라 럴커·저글링 물량)과 똑같이 싸우고, 7분쯤부터 복부 주머니와 기낭 갑피를 올려
+  // 오버로드 여섯 기 이상에 병력을 가득 태워 적 본진에 한꺼번에 내린다(MASS_BOMB).
+  // 드랍 연구를 앞당겼더니(3분 30초 레어 → 복부 주머니 → 기낭 갑피) 7분의 첫 큰 싸움에서 병력이 10기쯤 모자라 드랍을 해 보기도 전에 졌다.
+  // 히드라: 럴커 없이 히드라의 사거리·속도를 올리고, 드랍 연구 뒤에는 히드라 위주로 모은다.
+  hydradrop: [
+    { build: "overlord" }, { build: "pool" }, { build: "extractor" }, { build: "hatch" }, { build: "sunken" }, { build: "den" },
+    { build: "extractor" }, { build: "overlord" }, { research: "spines" }, { build: "hatch" }, { build: "expand", at: 300 },
+    { research: "lair", at: 300 }, { research: "ventral", at: 360 }, { research: "pneumatized", at: 400 }, { build: "evo" }, { research: "zMissile1" }, { research: "augments" },
+    { research: "zCarapace1" }, { build: "hatch" },
+  ],
+  // 저글링: 저글링 물량과 같은 빌드에 기낭 갑피를 더한다(게릴라 드랍 대신 한꺼번에 태워 보낸다).
+  lingdrop: [
+    { build: "pool" }, { build: "overlord" }, { build: "extractor" }, { research: "metabolic" }, { build: "hatch" },
+    { build: "overlord" }, { build: "expand", at: 200 }, { build: "hatch" }, { build: "evo", at: 240 }, { research: "zMelee1" },
+    { research: "lair", at: 300 }, { research: "ventral" }, { build: "extractor" }, { research: "pneumatized" }, { research: "zCarapace1" }, { research: "zMelee2" }, { research: "adrenal" }, { build: "hatch" },
+  ],
+  // 혼합: 히드라 럴커 운영(저글링 + 히드라 + 히드라 넷에 럴커 하나)에 드랍 연구를 더한다. 내려서 럴커가 박히고 저글링이 받는다.
+  mixdrop: [
+    { build: "overlord" }, { build: "pool" }, { build: "extractor" }, { build: "hatch" }, { build: "sunken" }, { build: "den" },
+    { build: "extractor" }, { build: "overlord" }, { research: "spines" }, { build: "hatch" }, { build: "expand", at: 300 },
+    { research: "lair", at: 300 }, { research: "lurkerAspect" }, { research: "ventral", at: 360 }, { research: "pneumatized", at: 400 }, { build: "evo" }, { research: "zMissile1" },
+    { research: "augments" }, { research: "zCarapace1" },
+  ],
 };
 
 /**
@@ -210,15 +234,16 @@ function lostStep(state, side, order, index, memory) {
 
 const WAVES = { rush: [4, 6, 8, 10, 12], dragoon: [8, 12, 16, 20], templar: [10, 14, 18, 22], dark: [3, 6, 10, 14], robo: [10, 14, 18, 22], bio: [8, 12, 16, 22], mech: [8, 12, 16, 20],
   tankbio: [10, 14, 20, 26], vulture: [8, 12, 16, 20], ling: [12, 20, 30, 42, 56], hydra: [14, 18, 24, 30], pool: [6, 10, 14, 20, 26], ultra: [12, 18, 24, 30],
-  corsair: [8, 12, 16, 20], wraith: [8, 12, 16, 20], muta: [12, 18, 26, 36], carrier: [8, 12, 16, 20], bc: [8, 12, 16, 20], hive: [14, 18, 24, 30], ghost: [14, 18, 22, 26], lurker: [10, 16, 22, 28] };
+  corsair: [8, 12, 16, 20], wraith: [8, 12, 16, 20], muta: [12, 18, 26, 36], carrier: [8, 12, 16, 20], bc: [8, 12, 16, 20], hive: [14, 18, 24, 30], ghost: [14, 18, 22, 26], lurker: [10, 16, 22, 28],
+  hydradrop: [14, 18, 24, 30], lingdrop: [12, 20, 30, 42, 56], mixdrop: [14, 18, 24, 30] };
 const RUSH_WAVES_VS_TERRAN = [8, 10, 12, 14];
 /** 시야 판단: 공격 병력 곁에 보이는 적의 힘에 대해 우리 힘이 이 비율 아래면 맞붙기 전에 물러난다. */
 const SIGHT_RETREAT = 0.6;
-const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, tankbio: 5, vulture: 4, ling: 9, hydra: 3, pool: 3, ultra: 3, corsair: 6, wraith: 4, muta: 7, carrier: 4, bc: 3, hive: 4, ghost: 4, lurker: 4 };
+const GATEWAY_CAP = { rush: 6, dragoon: 6, templar: 5, dark: 4, robo: 4, bio: 6, mech: 4, tankbio: 5, vulture: 4, ling: 9, hydra: 3, pool: 3, ultra: 3, corsair: 6, wraith: 4, muta: 7, carrier: 4, bc: 3, hive: 4, ghost: 4, lurker: 4, hydradrop: 4, lingdrop: 7, mixdrop: 4 };
 /** 출격 규모 상한. 저글링 물량만 더 크게 모은다(저글링은 인구 0.5). */
-const WAVE_CAP = { ling: 80 };
+const WAVE_CAP = { ling: 80, lingdrop: 80 };
 /** 빌드 순서가 끝난 뒤 남는 자원으로 더 짓는 생산 건물. */
-const EXTRA_PRODUCER = { lurker: "hatch", ghost: "barracks", bio: "barracks", mech: "factory", tankbio: "barracks", vulture: "factory", ling: "hatch", hydra: "hatch", pool: "hatch", ultra: "hatch", corsair: "gateway", wraith: "factory", muta: "hatch", carrier: "gateway", bc: "factory", hive: "hatch" };
+const EXTRA_PRODUCER = { lurker: "hatch", ghost: "barracks", bio: "barracks", mech: "factory", tankbio: "barracks", vulture: "factory", ling: "hatch", hydra: "hatch", pool: "hatch", ultra: "hatch", corsair: "gateway", wraith: "factory", muta: "hatch", carrier: "gateway", bc: "factory", hive: "hatch", hydradrop: "hatch", lingdrop: "hatch", mixdrop: "hatch" };
 /** 일꾼을 적게 뽑고 일찍 찌르는 성향: 이 시간(초)까지는 일꾼 수를 제한한다. */
 const EARLY_WORKER_CAP = { pool: { until: 210, cap: 14 } };
 /** 광물이 크게 쌓이면 성향과 상관없이 늘리는 기본 생산 건물. */
@@ -236,6 +261,15 @@ const DROP_PLANS = {
   ling: { mission: "raid", target: "alternate" },
   tankbio: { mission: "bomb", target: "production", sync: true },
 };
+/**
+ * 오버로드 폭탄 드랍 성향: 띄울 수 있는 오버로드가 min기 이상이고 그 min기째까지 타는 병력((min − 1) × 8칸 초과)이 모이면 한꺼번에 적 본진에 내린다(최대 max기).
+ * - 그 전에도 평소처럼 정면 웨이브를 보낸다. 드랍을 기다리며 집에서 버티게 했더니 상대가 마음껏 커져 먼저 밀고 들어왔다(표본 28판에서 히드라 3승·혼합 1승·저글링 0승).
+ * - 기낭 갑피(오버로드 속도 +50%)가 끝나야 보낸다. waitSpeedUntil초가 지나면 없어도 보낸다.
+ * - 복부 주머니 연구가 끝나면 오버로드를 min + 2기(기지마다 남기는 탐지 당번 2기)까지 인구와 상관없이 더 짓는다.
+ * - 보낸 오버로드의 절반 넘게 잃었으면 그 경기에서는 다시 하지 않는다(오버로드를 잃을 때마다 인구 상한이 8씩 준다).
+ * - 대공을 피해 돌아가지 않는다: 몇 기 맞더라도 들어가서 내리는 전략이다.
+ */
+const MASS_BOMB = { min: 6, max: 10, target: "production", waitSpeedUntil: 660, personas: new Set(["hydradrop", "lingdrop", "mixdrop"]) };
 const DEFAULT_PERSONA = { protoss: "dragoon", terran: "bio", zerg: "hydra" };
 /**
  * 경계 중에도 짓는 1단계 유닛 해금 건물: 질럿 러시에 드라군·파이어뱃·히드라로 맞서야 한다.
@@ -251,7 +285,7 @@ const ALERT_TECH = new Set(["core", "academy", "den", "evo", "shop"]);
  */
 // 캐리어 함대는 가스가 모자라던 때(일꾼당 0.55) 넣었더니 병력이 얇아 평원 승률이 19% → 11%로 떨어져 뺐다가, 가스 0.8에서 다시 넣었다.
 /** 대표 유닛이 가스를 많이 먹는 성향: 일꾼이 18기를 넘으면 남은 간헐천에 가스 건물을 더 짓는다. */
-const GAS_HUNGRY = new Set(["lurker", "ghost", "templar", "dark", "robo", "carrier", "corsair", "bc", "wraith", "tankbio", "mech", "ultra", "hive", "hydra", "muta"]);
+const GAS_HUNGRY = new Set(["lurker", "ghost", "templar", "dark", "robo", "carrier", "corsair", "bc", "wraith", "tankbio", "mech", "ultra", "hive", "hydra", "muta", "hydradrop", "mixdrop"]);
 /** 성향의 핵심 연구(순서대로): 건물이 서면 다른 지출보다 먼저 한다. */
 /** 본 적 병력에서 소형 근접 유닛(질럿·다크템플러·저글링)이 이 비율은 넘어야 파이어뱃을 뽑는다. */
 const FIREBAT_MIN_SMALL = 0.2;
@@ -267,6 +301,17 @@ const GHOST_BUNKER_FROM = 390;
 const GHOST_MARINE_FLOOR = 10;
 // 고스트 특수전이 출격 전에 서는 자리: 앞마당 집결지에서 이만큼 뒤(앞마당 앞줄 벙커 바로 뒤).
 const GHOST_HOLD_BEHIND = 6;
+/** 폭탄 드랍 성향이 레어와 드랍 연구의 광물을 생산보다 먼저 모으기 시작하는 시각(초). */
+const MASS_BOMB_TECH_FROM = 450;
+/**
+ * 성향의 핵심 테크 단계(TECH_STEPS). 오버로드 폭탄 드랍 성향은 7분 30초부터 레어·복부 주머니·기낭 갑피를 핵심 테크로 친다.
+ * 처음부터 핵심 테크로 두면 7분의 첫 큰 싸움에서 병력이 모자라 졌고(표본 28판에서 히드라 12승 → 4승), 아예 두지 않으면 가스는 600 넘게 남는데
+ * 광물을 유닛에 다 써서 레어가 10분에야 끝났다(드랍이 28판 중 6판에서만 나왔다).
+ */
+function techSteps(state, persona) {
+  if (MASS_BOMB.personas.has(persona)) return state.time >= MASS_BOMB_TECH_FROM ? ["lair", "ventral", "pneumatized"] : undefined;
+  return TECH_STEPS[persona];
+}
 const TECH_STEPS = {
   muta: ["lair", "spire"], ultra: ["lair", "cavern"], hive: ["lair", "nest", "hive", "mound"], lurker: ["den", "lair", "lurkerAspect"],
   bc: ["factory", "starport", "science"], ghost: ["factory", "starport", "science", "lockdown", "personnelCloak"], templar: ["core", "citadel", "archives", "storm"],
@@ -446,7 +491,7 @@ export function stwAiThink(state, side) {
   // 0-0. 가스가 400 넘게 쌓였는데 성향의 핵심 테크 건물(TECH_STEPS 중 건물)이 아직 없으면, 적이 밀고 오는 중이 아닌 한
   // 광물을 그 건물에 먼저 쓴다(생산을 멈춰서라도). 가스를 올린 뒤 캐리어 함대가 가스 1,000을 쌓아 두고 광물을 드라군에 다 써
   // 스타게이트 8분, 비컨 11분이었다(테란·저그 상대 캐리어 0기).
-  const techBuildings = (TECH_STEPS[persona] ?? []).filter((id) => STW_BUILDINGS[id]);
+  const techBuildings = (techSteps(state, persona) ?? []).filter((id) => STW_BUILDINGS[id]);
   // 앞마당이 서기 전(7분 전)에는 하지 않는다: 확장보다 테크 건물을 먼저 사면 로보 운영이 저글링 상대로 7분까지 본진 하나에 묶였다.
   // 럴커 저글링은 덴(100/50)이 전부라 성큰 둘이 서 있으면 가스 100부터, 압박을 받는 중에도 올린다. 질럿 러시에 저글링만 88기를 뽑으며
   // 덴 7분 20초, 레어 9분이었다(가스 750이 쌓였다).
@@ -488,7 +533,7 @@ export function stwAiThink(state, side) {
   const queued = stwOwnBuildings(state, side, race.base).reduce((sum, nexus) => sum + nexus.queue.length, 0);
   if (record.probes + queued + scoutingNow < probeTarget && queued < 2 * bases) stwCommand(state, side, { type: "probe" });
   // 저글링 물량은 해처리마다 저글링이 50씩 쉬지 않고 광물을 먹어 드론 차례가 오지 않는다. 일꾼이 모자라면 드론 두 마리 값을 먼저 챙긴다.
-  if ((persona === "ling" || persona === "muta") && record.probes + queued < probeTarget) save(STW_UNITS[race.worker].minerals * 2, 0, true);
+  if ((persona === "ling" || persona === "lingdrop" || persona === "muta") && record.probes + queued < probeTarget) save(STW_UNITS[race.worker].minerals * 2, 0, true);
 
   // 1-1. 테란은 아머리가 없는 동안 건물 자리 하나를 비워 둔다(1기지 본진 20칸은 8~9분에 서플라이 디팟·생산 건물로 다 찬다).
   // 자리가 없으면 캐리어·배틀크루저가 나온 뒤 아머리를 못 지어 골리앗 없이 졌다. 인구 건물·생산 건물·빌드 순서의 건물이 마지막 칸을 쓰지 않는다.
@@ -501,6 +546,10 @@ export function stwAiThink(state, side) {
   if (!keepSlot && supply.cap < 100 && supply.used + 3 + gateways * 2 >= supply.cap && pylonsBuilding < (supply.used > 40 ? 2 : 1)) {
     const result = stwCommand(state, side, { type: "build", building: race.supply });
     if (!result.ok && /광물/.test(result.reason ?? "")) save(STW_BUILDINGS[race.supply].minerals, 0, true);
+  } else if (MASS_BOMB.personas.has(persona) && !memory.bombOff && stwResearchDone(state, side, "ventral") && !pylonsBuilding
+    && stwOwnBuildings(state, side, "overlord").length + state.units.filter((unit) => unit.side === side && unit.type === "overlord").length < MASS_BOMB.min + 2) {
+    // 폭탄 드랍에 쓸 오버로드: 인구가 남아도 여섯 기(+ 탐지 당번 둘)까지 한 기씩 더 짓는다.
+    stwCommand(state, side, { type: "build", building: "overlord" });
   }
 
   // 3. 빌드 순서: 막힌 단계가 있으면 그 자원만 아껴 두고, 남는 자원으로 할 수 있는 다음 단계(최대 4개 앞)를 먼저 한다.
@@ -537,7 +586,7 @@ export function stwAiThink(state, side) {
     // 6분이 지나면 확장도 허용한다(견제로 경계가 끝없이 이어지면 경제가 영영 멈춘다). 확장 비용은 바로 아끼므로 노는 생산 건물이 멈춰 돈이 모인다.
     // 가스가 150 넘게 쌓였으면 1단계 해금 건물(코어 등)은 5분 전에도 짓는다. 가스를 쓸 유닛이 없으면 쌓이기만 한다.
     const gasIdle = record.gas >= 150;
-    const techStep = Boolean(TECH_STEPS[persona]?.includes(step.build ?? step.research));
+    const techStep = Boolean(techSteps(state, persona)?.includes(step.build ?? step.research));
     // 테크 성향의 핵심 테크는 병력이 안전하면 경계 중에도 올린다(경계가 길면 대표 유닛이 영영 늦었다).
     const allowedInAlert = step.opener || (techStep && safe) || (ffeOpening && (step.build === "forge" || step.build === "expand")) || (step.research ? state.time >= 300 && !reserve.hard : step.build === "expand" ? state.time >= 360 : step.build === race.supply || race.producers.includes(step.build) || STW_BUILDINGS[step.build]?.defense || (ALERT_TECH.has(step.build) && (state.time >= 300 || gasIdle)) || (step.build === race.refinery && !stwOwnBuildings(state, side, race.refinery).length));
     if (alert && !allowedInAlert) {
@@ -553,7 +602,7 @@ export function stwAiThink(state, side) {
     // 둘째 가스 건물은 일꾼이 18기는 돼야 짓는다. 13기에 둘째 가스를 지어 6기가 가스에 붙자, 광물이 모자라 코어도 질럿도 못 뽑고
     // 가스만 626 쌓인 채 질럿 압박에 5분 30초에 졌다.
     // 가스를 많이 쓰는 테크 성향(캐리어·배틀크루저·템플러·다크·로보·레이스)은 16기에 짓는다.
-    if (step.build === race.refinery && race.id !== "zerg" && stwOwnBuildings(state, side, race.refinery).length >= 1 && record.probes < (TECH_STEPS[persona] ? 16 : 18)) {
+    if (step.build === race.refinery && race.id !== "zerg" && stwOwnBuildings(state, side, race.refinery).length >= 1 && record.probes < (techSteps(state, persona) ? 16 : 18)) {
       blocked += 1;
       continue;
     }
@@ -603,7 +652,7 @@ export function stwAiThink(state, side) {
       // 저글링 물량은 15초 넘게 막힌 단계도 아낀다(해처리를 멈추지 않으면 연구 자금이 영영 안 모인다. 다른 저그 성향은 이 규칙으로 러시 방어가 약해져 쓰지 않는다).
       // 경계 중에는 방어 건물·인구 건물이 아니면 생산을 멈춰 가며 모으지 않는다(팩토리를 기다리느라 배럭이 놀다가 러시에 무너지던 문제).
       // 테크 성향의 핵심 테크 단계도 병력이 안전하면 반드시 아낀다(저그도).
-      const strict = step.build === "expand" || race.id !== "zerg" || (persona === "ling" && state.time - memory.headSince > 15) || (techStep && safe);
+      const strict = step.build === "expand" || race.id !== "zerg" || ((persona === "ling" || persona === "lingdrop") && state.time - memory.headSince > 15) || (techStep && safe);
       // 가스가 놀고 있으면 그 가스를 쓰게 하는 해금 건물(코어 등)도 반드시 산다(경계 중 질럿에 광물을 다 써 코어가 11분에야 섰다).
       const unlocksGas = gasIdle && ALERT_TECH.has(step.build);
       save(cost.minerals, cost.gas, (strict && (!alert || step.build === race.supply || Boolean(STW_BUILDINGS[step.build]?.defense) || (techStep && safe) || (ffeOpening && step.build === "expand"))) || unlocksGas);
@@ -1052,9 +1101,11 @@ function signatureUnit(state, side, persona) {
 /** 성향별 저글링 비율(나머지는 히드라). 덴이 없으면 모두 저글링. */
 function baseLingShare(state, side, persona) {
   const versusTerran = state.sides[stwOpponent(side)].race === "terran";
-  if (persona === "ling") return 1;
+  if (persona === "ling" || persona === "lingdrop") return 1;
   if (persona === "pool") return state.time > 480 ? 0.75 : 1;
-  if (persona === "hydra" || persona === "hive") return versusTerran ? 0.5 : 0.33;
+  // 히드라 폭탄 드랍: 드랍 연구 전에는 히드라 럴커 운영과 같고, 그 뒤에는 히드라 위주로 모은다(오버로드 한 기에 히드라 넷).
+  if (persona === "hydradrop" && stwResearchDone(state, side, "ventral")) return 0.15;
+  if (persona === "hydra" || persona === "hive" || persona === "hydradrop" || persona === "mixdrop") return versusTerran ? 0.5 : 0.33;
   // 럴커 저글링: 저글링이 몸으로 받고 럴커가 잡는다. 테란 상대로는 파이어뱃·메딕에 저글링이 녹아 히드라를 더 섞는다
   // (저글링 75%로는 7분의 해병 11·메딕 4·파이어뱃 4에 저글링 34기가 모두 죽었다).
   if (persona === "lurker") return versusTerran ? 0.34 : 0.75;
@@ -1119,7 +1170,7 @@ function zergLines(state, side, persona, units, reserve) {
     // 뮤탈 저글링도 예전에는 저글링 물량처럼 멈췄는데, 레어·스파이어를 모으는 5분 30초부터 해처리를 세워 둔 채 병력이 0이 되어 졌다.
     // 운영 전환 중에는 본진 해처리도 확장 자금을 모으는 동안 멈춘다(전투 유닛 6기는 남긴다). 해처리가 하나면 저글링이 광물을 다 먹어 확장이 안 된다.
     const macroSave = reserve.macro && !reserve.macroPressured && reserve.hard && record.minerals - STW_UNITS[unit].minerals < reserve.hard && army >= 6;
-    const desired = macroSave || (index > 0 && ((reserve.expand && reserve.safe) || (starving && (persona === "ling" || !hatchery.current)))) ? null : unit;
+    const desired = macroSave || (index > 0 && ((reserve.expand && reserve.safe) || (starving && (persona === "ling" || persona === "lingdrop" || !hatchery.current)))) ? null : unit;
     if (hatchery.line !== desired) stwCommand(state, side, { type: "line", buildingId: hatchery.id, unit: desired });
   });
 }
@@ -1306,7 +1357,7 @@ const SWITCH_TO = {
 /** 경계 중 앞마당이 없을 때 병력이 모이는 자리(아군 기준). */
 const HOLD_BACK_Y = 84;
 /** 출격 규모를 셀 때 저글링을 반 기로 치는 성향(저글링이 주력이 아닌 저그 운영). */
-const HALF_LING = new Set(["hydra", "hive", "ultra", "muta", "lurker"]);
+const HALF_LING = new Set(["hydra", "hive", "ultra", "muta", "lurker", "hydradrop", "mixdrop"]);
 const BIG_WAVE = { pool: 6, ling: 24, muta: 14, corsair: 12, wraith: 12 };
 const SWITCH_AFTER = { pool: 0, ling: 480, muta: 660, corsair: 660, wraith: 660 };
 
@@ -1606,6 +1657,35 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
   // 총공격: 광물이 바닥나 더 모을 수 없거나 인구가 거의 찼으면 기다릴 이유가 없다.
   const supply = stwSupply(state, side);
   const allIn = (stwIncome(state, side).minerals < 60 && record.minerals < 100) || supply.used >= 92;
+
+  // 오버로드 폭탄 드랍(MASS_BOMB): 띄울 오버로드가 여섯 기 이상이고 그만큼을 채울 병력이 모이면 정면 웨이브와 상관없이 바로 보낸다.
+  const massBomb = MASS_BOMB.personas.has(persona) && !memory.bombOff;
+  if (massBomb) {
+    const overlords = stwOwnBuildings(state, side, "overlord").length + state.units.filter((unit) => unit.side === side && unit.type === "overlord").length;
+    const bombing = (state.ops ?? []).some((op) => op.side === side && op.kind === "bomb" && !op.done);
+    // 지난 드랍의 결과: 보낸 오버로드의 절반 넘게 잃었으면 이 경기에서는 다시 하지 않는다.
+    if (memory.bombSent && !bombing) {
+      if (memory.bombOverlords - overlords > memory.bombSent / 2) memory.bombOff = true;
+      memory.bombSent = 0;
+    }
+    const ready = stwResearchDone(state, side, "ventral") && (stwResearchDone(state, side, "pneumatized") || state.time > MASS_BOMB.waitSpeedUntil);
+    const check = ready && !bombing && !memory.bombOff && threat < 3 ? stwDropCheck(state, side, "bomb") : null;
+    // 여섯 기째까지 타게 되는 병력(5기를 채우고 한 칸 이상)이 모이면 보낸다.
+    if (check?.ok && check.carriers.length >= MASS_BOMB.min && check.passengers.reduce((sum, unit) => sum + stwSlots(unit.type), 0) > (MASS_BOMB.min - 1) * 8) {
+      if (stwCommand(state, side, { type: "drop", mission: "bomb", target: MASS_BOMB.target, sync: false, maxCarriers: MASS_BOMB.max }).ok) {
+        memory.bombs = (memory.bombs ?? 0) + 1;
+        memory.bombSent = state.units.filter((unit) => unit.side === side && unit.type === "overlord" && unit.op !== undefined).length;
+        memory.bombOverlords = overlords;
+        // 다 태우고 남은 병력이 있으면 같은 순간 정면으로 보내 시선을 끈다.
+        const rest = stwArmy(state, side);
+        if (rest.fighters.length >= 8 && stwCommand(state, side, { type: "attack" }).ok) {
+          memory.attacking = true;
+          memory.waveStart = stwArmy(state, side).attackers.length;
+        }
+        return;
+      }
+    }
+  }
 
   if (memory.attacking) {
     // 시야 판단: 공격 병력 곁(12칸)에 보이는 적 전투 병력과 방어 건물의 힘이 우리 공격 병력보다 크게 앞서면(우리 < 적 × 0.6)
