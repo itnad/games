@@ -31,10 +31,13 @@
 ## 3. 상태와 저장
 
 - `Campaign`: 스테이지 사이에 유지되는 코인, 체력, 레벨, 기술, 장비, 조과입니다. `levels`는 기술 인벤토리(보관 기술 포함)이고 `activeSkills`는 원정에서 작동하는 최대 6개 선택 기술입니다. `activeSkills`가 없는 예전 저장은 `mudflatNormalizeActiveSkills`가 익힌 선택 기술 앞 6개로 복원합니다.
+- `Campaign.digsCompleted`는 플레이어가 직접 끝낸 호미질의 캠페인 누적 수입니다(호미봇이 판 구멍은 세지 않음). 호미봇 자체는 런타임 `hoeBots` 배열(`id`, 위치, `targetHoleId`, `digClock`, `phase: follow|move|dig`, `facing`)로 이어하기 저장에 들어가고, 예전 저장은 빈 배열로 보완합니다. 로봇이 파는 구멍은 `progress`를 공유하므로 플레이어의 "다른 구멍 진행도 초기화"에서 제외하고, 감독 AI에게 넘기는 구멍 목록과 플레이어 호미질 애니메이션에서도 제외합니다.
+- 건곤대나이는 바위 엔티티의 선택 필드 `lift`(띄운 뒤 흐른 시간)와 런타임 `rockLiftClock`(다음 발동까지)·`rockLiftEffect`(발동 연출 남은 시간)로 돌아갑니다. `lift`가 있는 바위는 돌뒤집개 대상·충돌 판정·새 발동 대상에서 빠지고, 이어하기 저장에 그대로 들어가며 예전 저장은 타이머만 보완합니다. 해금은 `mudflatSelectableSkillIds(levels).length >= 5`라 별도 누적 카운터가 없습니다.
+- 뻘권은 생물의 선택 필드 `knockbackX/Y`(남은 밀림 벡터), `knockbackLife`, `knockbackDamage`, `knockbackRockBonus`, `knockbackCast`(발동 식별값, 같은 발동에서 두 번 맞지 않게), `knockbackChain`, 바위의 선택 필드 `impact`(꽂힌 뒤 남은 흔들림 시간)과 런타임 `smashClock`·`smashEffect`·`smashAngle`·`smashCastId`로 돌아갑니다. 몸통 자세는 `smashBodyOffset`이 `drawGatherer` 호출을 감싸는 변환으로 넣습니다. 밀리는 생물은 생물 루프 맨 앞에서 `advanceKnockback`만 거치고 자기 이동·접촉을 건너뜁니다. 모두 이어하기 저장에 들어가고 예전 저장은 타이머를 0으로 보완합니다. 해금은 `Lv.3 이상 기술 수`를 인벤토리에서 바로 셉니다.
 - `Campaign.gemsCollected`는 플레이어에게 실제로 도착한 경험치 보석의 캠페인 누적 수입니다. 런타임 `gemsCollected`가 원정 중 올라가고 단계 성공 시 되돌려 씁니다. 소쿠리의 달인 상태(`guardBasketPullClock`, `guardBasketCharges`, `guardBasketRechargeClock`, `guardBasketFlashLife`, `guardBasketInvulnerable`)는 런타임에만 있으며 이어하기 저장에 포함되고, 예전 저장은 0과 완충 1회로 보완합니다.
 - 런타임은 `skillInventory`(인벤토리 전체)와 `activeSkills`를 들고 다니고, 효과 계산이 읽는 `runtime.levels`에는 기본 기술과 활성 기술만 남깁니다. 단계 성공 시 `skillInventory`와 `activeSkills`를 캠페인에 되돌려 씁니다. 이어하기 저장은 세 값을 모두 담고, `decodeMudflatRun`은 예전 저장의 `levels`를 인벤토리로 보고 활성 목록을 보완합니다.
 - `Runtime`: 진행 중 원정의 플레이어, 월드 엔티티, 타이머, 이펙트, `seed`, `rngState`입니다.
-- `Hud`: 화면 표시용 축약 상태입니다. `levels`에는 활성 기술만 있고, 보조 목표 카운터용 `rocksFlipped`와 보관 중인 기술 수 `storedSkillCount`를 함께 복사합니다.
+- `Hud`: 화면 표시용 축약 상태입니다. `levels`에는 활성 기술만 있고, 보조 목표 카운터용 `rocksFlipped`와 보관 중인 기술 수 `storedSkillCount`를 함께 복사합니다. 기술 상세 패널(`mudflatSkillDetail`)은 호미봇·건곤대나이 문구에 호미질·돌뒤집개 레벨을 함께 받아 "결과 등급 기준"을 표시합니다.
 - `choiceIds`, `nextSequence`: 기술 선택 복원과 엔티티 ID 충돌 방지용입니다.
 
 런타임의 새 필드는 저장 템플릿 검사 대상입니다. 이전 저장에도 기본값을 줄 수 있는 필드는 `decodeMudflatRun`에서 명시적으로 보완하고 테스트합니다. 의미가 달라져 안전하게 변환할 수 없으면 저장 버전을 올립니다.
@@ -47,14 +50,14 @@
 
 - 엔진의 단계 조합처럼 입력만으로 결정되는 값은 자체 결정 함수를 사용할 수 있습니다.
 - 게임 루프에서 `Math.random()`을 직접 호출하지 않습니다.
-- **예외(현재 구현)**: 레벨업 선택지와 선택지 새로고침은 `mudflatUpgradeChoices(level, skillInventory, mode, Math.random, { gemsCollected })`로 `Math.random`을 넘겨 뽑습니다. 그래서 같은 시드라도 제시되는 채집기술은 달라질 수 있고, 오늘의 갯벌에서도 참가자마다 다릅니다. 뽑힌 선택지는 `choiceIds`로 저장되어 이어하기에서 그대로 복원됩니다. 저장 난수로 옮길지는 정하지 않았습니다.
+- **예외(현재 구현)**: 레벨업 선택지와 선택지 새로고침은 `mudflatUpgradeChoices(level, skillInventory, mode, Math.random, { gemsCollected, digsCompleted })`로 `Math.random`과 해금 집계를 넘겨 뽑습니다(선택 기술 수는 인벤토리에서 바로 셉니다). 그래서 같은 시드라도 제시되는 채집기술은 달라질 수 있고, 오늘의 갯벌에서도 참가자마다 다릅니다. 뽑힌 선택지는 `choiceIds`로 저장되어 이어하기에서 그대로 복원됩니다. 저장 난수로 옮길지는 정하지 않았습니다.
 - 프레임 사이 시간은 34ms로 잘린 가변 값입니다. 30fps보다 느린 기기에서는 게임 시간이 실제 시간보다 느리게 흐르고, 주사율이 다르면 같은 시드도 세부 전개가 달라질 수 있습니다.
 - `/haeru-dev`의 일반 QA 프리셋은 고정 시드(`20261102 + 단계 × 101`)를 사용합니다. 감독모드는 기본적으로 실행할 때마다 새 시드를 만들며, 로그에 남은 시드를 직접 입력하면 같은 조건을 다시 시작할 수 있습니다. 맞춤 원정 빌더는 `단계별 고정`(프리셋과 같은 값)·`무작위`·`직접 입력` 중 고릅니다.
 - 감독모드는 같은 실제 런타임·충돌·피해 규칙을 사용하며 `Math.random()` 없이 현재 월드 상태와 감독 AI 자신의 기억(계획한 경로, 진전 기록, 잠시 포기한 목표, 생물별 접근 속도)만으로 다음 이동을 판단합니다. 따라서 같은 시드·화면 크기로 시작하면 월드와 첫 움직임은 같습니다. 다만 레벨업 선택지가 무작위이고(위 예외) 프레임 시간에 따라 세부 전개가 달라지므로, 판 전체가 똑같이 되풀이되지는 않습니다.
 
 ## 5. 개발용 감독모드
 
-`/haeru-dev`의 **AI 감독모드**는 밸런스 장기 관찰을 위한 개발 전용 진입입니다. 기본 시작 버튼은 매번 새 시드를 사용하고, 재현 시드 입력란에는 감독 플레이 로그의 `seed`를 넣어 같은 월드를 다시 시작할 수 있습니다. 로그의 `viewport`에는 시작 창 크기·화소 비율과 최초 Canvas 크기를 함께 기록하므로 화면 크기 의존 문제를 재현할 때도 참고합니다. AI가 화면에 보이는 해산물·경험치·조개구멍을 찾아 이동하고, 운석·바위·위험 생물·깊은 펄·돌발 물살을 회피하며, 최종 복귀 때 베이스캠프로 향합니다. 레벨업 선택 화면과 활성 6개가 찼을 때의 교체 선택 화면에서는 게임과 AI가 함께 멈추고 사용자가 골라야 다시 진행됩니다. 성공 후의 정비 화면에서도 회복 음식·기술 훈련·장비·소모품 구매, 기술 활성·보관 토글, 다음 출정 시점을 사용자가 직접 고릅니다(예전의 자동 정비는 없앴습니다). 감독 로그에는 `upgrade-selected`(교체 시 `· (기술) 보관`), `maintenance-purchase`, `maintenance-skill-toggle`, `guard-blocked`(소쿠리의 달인이 막은 피해 원인)가 남습니다.
+`/haeru-dev`의 **AI 감독모드**는 밸런스 장기 관찰을 위한 개발 전용 진입입니다. 기본 시작 버튼은 매번 새 시드를 사용하고, 재현 시드 입력란에는 감독 플레이 로그의 `seed`를 넣어 같은 월드를 다시 시작할 수 있습니다. 로그의 `viewport`에는 시작 창 크기·화소 비율과 최초 Canvas 크기를 함께 기록하므로 화면 크기 의존 문제를 재현할 때도 참고합니다. AI가 화면에 보이는 해산물·경험치·조개구멍을 찾아 이동하고, 운석·바위·위험 생물·깊은 펄·돌발 물살을 회피하며, 최종 복귀 때 베이스캠프로 향합니다. 레벨업 선택 화면과 활성 6개가 찼을 때의 교체 선택 화면에서는 게임과 AI가 함께 멈추고 사용자가 골라야 다시 진행됩니다. 성공 후의 정비 화면에서도 회복 음식·기술 훈련·장비·소모품 구매, 기술 활성·보관 토글, 다음 출정 시점을 사용자가 직접 고릅니다(예전의 자동 정비는 없앴습니다). 감독 로그에는 `upgrade-selected`(교체 시 `· (기술) 보관`), `maintenance-purchase`, `maintenance-skill-toggle`, `guard-blocked`(소쿠리의 달인이 막은 피해 원인), `hoe-bot-harvested`(호미봇이 캔 조개), `rock-lift-cast`·`rock-lift-landed`(건곤대나이 발동과 착지 결과), `smash`(뻘권 발동과 맞은 수)가 남습니다.
 
 감독 AI의 이동 판단(`mudflat-supervisor.js`)은 다음 규칙을 따릅니다.
 

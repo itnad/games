@@ -62,6 +62,8 @@ export type Campaign = {
   lastBossCaught: boolean;
   /** 캠페인 누적으로 주운 경험치 보석 수. 소쿠리의 달인 해금에 쓴다. */
   gemsCollected: number;
+  /** 플레이어가 직접 끝낸 호미질 수(캠페인 누적). 호미봇 해금에 쓴다. */
+  digsCompleted: number;
   lastObjectiveLabel?: string;
   lastObjectiveComplete?: boolean;
   lastObjectiveBonus?: number;

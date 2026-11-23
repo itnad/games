@@ -196,10 +196,21 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "electric", icon: "ϟ", name: "전기 스파크", description: "체력이 충분할 때 집게 범위의 해산물에게 주기적으로 전기 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 1 },
   { id: "cast-net", icon: "⌗", name: "그물 투척", description: "해산물이 모인 빈 갯벌에 그물을 펼쳐 잠시 붙잡고 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 2 },
   { id: "guard-basket", icon: "◍", name: "소쿠리의 달인", description: "소쿠리를 휘둘러 화면의 경험치 보석을 쓸어 담고, 충전된 소쿠리가 물살·운석·접촉 피해를 한 번 막아 줍니다.", max: 6, advanced: true, requiredGems: 100 },
+  { id: "hoe-bot", icon: "⚙", name: "호미봇", description: "호미 모양 로봇이 따라다니며 가까운 조개 구멍을 찾아 대신 파냅니다. 조개 등급은 호미질 레벨을 따릅니다.", max: 6, advanced: true, requiredDigs: 20 },
+  { id: "rock-lift", icon: "⌾", name: "건곤대나이", description: "갯벌을 들썩여 가까운 바위를 띄웠다 떨어뜨립니다. 떨어진 자리의 해산물이 피해를 입고 바위는 사라지며, 바위 밑 발견물은 돌뒤집개 레벨을 따릅니다.", max: 6, advanced: true, requiredSkills: 5 },
+  { id: "smash", icon: "✊", name: "뻘권", description: "조작 방향으로 한 걸음 내디디며 주먹을 내질러 앞의 해산물에 피해를 주고 멀리 밀쳐 냅니다. 바위에 부딪히면 추가 피해, Lv.5부터는 날아가다 부딪힌 해산물도 함께 밀립니다.", max: 6, advanced: true, requiredLevel3Skills: 4 },
 ];
 
 // 소쿠리의 달인은 캠페인 누적으로 경험치 보석 100개를 주워야 열린다.
 export const MUDFLAT_GUARD_BASKET_UNLOCK_GEMS = 100;
+// 호미봇은 플레이어가 직접 조개 구멍을 20번 파야 열린다(캠페인 누적). 호미질
+// 레벨과 무관하므로 호미질 Lv.1에서도 로봇의 차이를 겪어 볼 수 있다.
+export const MUDFLAT_HOE_BOT_UNLOCK_DIGS = 20;
+// 건곤대나이는 집게·호미질을 뺀 선택 기술 5종을 인벤토리에 익히면 열린다(보관 포함).
+export const MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS = 5;
+// 뻘권은 기본 기술을 포함한 채집기술 중 Lv.3 이상이 4개면 열린다.
+export const MUDFLAT_SMASH_UNLOCK_SKILLS = 4;
+export const MUDFLAT_SMASH_UNLOCK_LEVEL = 3;
 
 // 집게와 호미질은 모든 일반 원정에 기본으로 장착되는 채집 도구다.
 // 나머지 기술 여섯 개만 빌드를 구성하는 선택 기술 슬롯을 사용한다.
@@ -270,12 +281,22 @@ export function mudflatBleedDamage(maxHp = 0) {
  * 해금형 기술 판정. 마스터리는 인벤토리 기준이고, 소쿠리의 달인은 캠페인 누적
  * 경험치 보석 수(stats.gemsCollected)로 연다.
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number }} [stats]
  */
 export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const masteryCount = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !skill.advanced && (levels[skill.id] ?? 0) >= 5).length;
   const gemsCollected = Math.max(0, Math.floor(Number(stats?.gemsCollected) || 0));
-  return { masteryCount, gemsCollected, electric: masteryCount >= 1, castNet: masteryCount >= 2, guardBasket: gemsCollected >= MUDFLAT_GUARD_BASKET_UNLOCK_GEMS };
+  const digsCompleted = Math.max(0, Math.floor(Number(stats?.digsCompleted) || 0));
+  const skillCount = mudflatSelectableSkillIds(levels).length;
+  const level3Count = MUDFLAT_GENERAL_UPGRADES.filter((skill) => (levels[skill.id] ?? 0) >= MUDFLAT_SMASH_UNLOCK_LEVEL).length;
+  return {
+    masteryCount, gemsCollected, digsCompleted, skillCount, level3Count,
+    electric: masteryCount >= 1, castNet: masteryCount >= 2,
+    guardBasket: gemsCollected >= MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
+    hoeBot: digsCompleted >= MUDFLAT_HOE_BOT_UNLOCK_DIGS,
+    rockLift: skillCount >= MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS,
+    smash: level3Count >= MUDFLAT_SMASH_UNLOCK_SKILLS,
+  };
 }
 
 /** @param {{ id: string, advanced?: boolean }} skill @param {ReturnType<typeof mudflatAdvancedSkillUnlocks>} unlocks */
@@ -284,18 +305,33 @@ export function mudflatSkillUnlocked(skill, unlocks) {
   if (skill.id === "electric") return unlocks.electric;
   if (skill.id === "cast-net") return unlocks.castNet;
   if (skill.id === "guard-basket") return unlocks.guardBasket;
+  if (skill.id === "hoe-bot") return unlocks.hoeBot;
+  if (skill.id === "rock-lift") return unlocks.rockLift;
+  if (skill.id === "smash") return unlocks.smash;
   return false;
 }
 
 // 정비 화면 잠긴 카드용 진행 표시.
 /**
- * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number }} skill
+ * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number, requiredSkills?: number, requiredLevel3Skills?: number }} skill
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number }} [stats]
  */
 export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
   const unlocks = mudflatAdvancedSkillUnlocks(levels, stats);
   if (!skill?.advanced) return { unlocked: true, current: 0, target: 0, label: "" };
+  if (skill.id === "hoe-bot") {
+    const target = skill.requiredDigs ?? MUDFLAT_HOE_BOT_UNLOCK_DIGS;
+    return { unlocked: unlocks.hoeBot, current: Math.min(unlocks.digsCompleted, target), target, label: `호미질 ${Math.min(unlocks.digsCompleted, target)} / ${target}` };
+  }
+  if (skill.id === "rock-lift") {
+    const target = skill.requiredSkills ?? MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS;
+    return { unlocked: unlocks.rockLift, current: Math.min(unlocks.skillCount, target), target, label: `선택 기술 ${Math.min(unlocks.skillCount, target)} / ${target}` };
+  }
+  if (skill.id === "smash") {
+    const target = skill.requiredLevel3Skills ?? MUDFLAT_SMASH_UNLOCK_SKILLS;
+    return { unlocked: unlocks.smash, current: Math.min(unlocks.level3Count, target), target, label: `Lv.${MUDFLAT_SMASH_UNLOCK_LEVEL} 이상 기술 ${Math.min(unlocks.level3Count, target)} / ${target}` };
+  }
   if (skill.id === "guard-basket") {
     const target = skill.requiredGems ?? MUDFLAT_GUARD_BASKET_UNLOCK_GEMS;
     return { unlocked: unlocks.guardBasket, current: Math.min(unlocks.gemsCollected, target), target, label: `경험치 보석 ${Math.min(unlocks.gemsCollected, target)} / ${target}` };
@@ -315,6 +351,56 @@ export function mudflatGuardBasketStats(level = 0) {
     charges: 1,
     bleedStop: safeLevel >= 3,
     invulnerableSeconds: safeLevel >= 6 ? 1 : safeLevel >= 5 ? .8 : 0,
+  };
+}
+
+// 호미봇 수치. 로봇 레벨은 작업 속도·탐색 범위·이동 속도·대수만 정하고,
+// 파낸 조개의 등급은 플레이어의 호미질 레벨로 굴린다.
+export function mudflatHoeBotStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { digSeconds: Infinity, searchRange: 0, speedMultiplier: 0, bots: 0, gaebul: false };
+  return {
+    digSeconds: [4, 3.5, 3, 2.6, 2.2, 1.8][safeLevel - 1],
+    searchRange: [260, 320, 380, 440, 1200, 1200][safeLevel - 1],
+    speedMultiplier: [.9, 1, 1.1, 1.2, 1.3, 1.4][safeLevel - 1],
+    bots: safeLevel >= 6 ? 2 : 1,
+    gaebul: safeLevel >= 4,
+  };
+}
+
+// 건곤대나이 수치. 주기·반경·바위 수·낙하 피해만 정하고, 바위 밑 발견물은
+// 돌뒤집개 레벨로 굴린다. 체공 0.9초 뒤 0.15초에 걸쳐 떨어진다.
+export const MUDFLAT_ROCK_LIFT_SECONDS = .9;
+export const MUDFLAT_ROCK_LIFT_FALL_SECONDS = .15;
+export function mudflatRockLiftStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { interval: Infinity, radius: 0, rocks: 0, damage: 0, impactPadding: 0 };
+  return {
+    interval: [14, 13, 12, 10, 9, 8][safeLevel - 1],
+    radius: [220, 260, 300, 340, 400, 1200][safeLevel - 1],
+    rocks: [2, 3, 4, 5, 6, 7][safeLevel - 1],
+    damage: [12, 16, 20, 26, 32, 40][safeLevel - 1],
+    impactPadding: [18, 20, 22, 24, 26, 28][safeLevel - 1],
+  };
+}
+
+// 뻘권 수치. 타격 통로는 플레이어 앞 length × width, 넉백은 0.35초 동안 knockback px.
+// 바위에 부딪히면 rockBonus 추가 피해, Lv.5부터 날아가다 닿은 해산물에 50% 피해와 넉백을 전파한다.
+export const MUDFLAT_SMASH_KNOCKBACK_SECONDS = .35;
+export const MUDFLAT_SMASH_CHAIN_RATIO = .5;
+export function mudflatSmashStats(level = 0) {
+  const safeLevel = mudflatSafeLevel(level);
+  if (!safeLevel) return { cooldown: Infinity, length: 0, width: 0, damage: 0, knockback: 0, rockBonus: 0, chain: false, triggerRange: 0, triggerHalfWidth: 0 };
+  return {
+    cooldown: [12, 10, 8, 6, 5, 4][safeLevel - 1],
+    length: [120, 135, 150, 165, 180, 200][safeLevel - 1],
+    width: [70, 78, 86, 94, 102, 110][safeLevel - 1],
+    damage: [10, 15, 20, 30, 40, 50][safeLevel - 1],
+    knockback: [120, 150, 180, 210, 240, 270][safeLevel - 1],
+    rockBonus: [10, 13, 16, 20, 25, 30][safeLevel - 1],
+    chain: safeLevel >= 5,
+    triggerRange: 48,
+    triggerHalfWidth: 40,
   };
 }
 

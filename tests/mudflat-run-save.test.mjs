@@ -125,6 +125,71 @@ test("live save carries the gem count and guard basket state, and backfills olde
   assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
 });
 
+test("live save carries hoe bots and the dig count, backfills older saves, and rejects broken bots", () => {
+  const { campaign, runtime } = fixture("normal");
+  runtime.digsCompleted = 12;
+  runtime.hoeBots.push({ id: 21, x: -150, y: 700, targetHoleId: 14, digClock: .8, phase: "dig", facing: -1 });
+  runtime.hoeBots.push({ id: 22, x: -200, y: 740, targetHoleId: 0, digClock: 0, phase: "follow", facing: 1 });
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  assert.deepEqual(restored.runtime.hoeBots, runtime.hoeBots);
+  assert.equal(restored.runtime.digsCompleted, 12);
+  assert.equal(restored.campaign.digsCompleted, 12);
+  assert.ok(restored.nextSequence > 22); // 로봇 ID도 충돌 방지 범위에 든다.
+  const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
+  delete legacy.runtime.hoeBots; delete legacy.runtime.digsCompleted; delete legacy.campaign.digsCompleted;
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.deepEqual(legacyRestored.runtime.hoeBots, []);
+  assert.equal(legacyRestored.runtime.digsCompleted, 0);
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.runtime.hoeBots[0].phase = "fly";
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
+});
+
+test("live save keeps lifted rocks and rock-lift timers, backfills older saves, and rejects a broken lift", () => {
+  const { campaign, runtime } = fixture("normal");
+  runtime.rocks.push({ id: 31, x: 60, y: 90, radius: 17, tone: .3, lift: .42 });
+  runtime.rockLiftClock = 5.5; runtime.rockLiftEffect = .6;
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  assert.equal(restored.runtime.rocks.find((rock) => rock.id === 31).lift, .42);
+  assert.equal(restored.runtime.rocks.find((rock) => rock.id === 13).lift, undefined);
+  assert.equal(restored.runtime.rockLiftClock, 5.5);
+  assert.equal(restored.runtime.rockLiftEffect, .6);
+  const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
+  delete legacy.runtime.rockLiftClock; delete legacy.runtime.rockLiftEffect;
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.equal(legacyRestored.runtime.rockLiftClock, 3);
+  assert.equal(legacyRestored.runtime.rockLiftEffect, 0);
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.runtime.rocks[0].lift = -1;
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
+});
+
+test("live save keeps knockback state and smash timers, backfills older saves, and rejects a bad chain flag", () => {
+  const { campaign, runtime } = fixture("normal");
+  Object.assign(runtime.creatures[0], { knockbackX: 80, knockbackY: -20, knockbackLife: .2, knockbackDamage: 40, knockbackRockBonus: 25, knockbackCast: 3, knockbackChain: true });
+  Object.assign(runtime, { smashClock: 2.5, smashEffect: .3, smashAngle: 1.2, smashCastId: 3 });
+  const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
+  assert.ok(restored);
+  const creature = restored.runtime.creatures.find((item) => item.id === 12);
+  assert.equal(creature.knockbackX, 80);
+  assert.equal(creature.knockbackChain, true);
+  assert.equal(restored.runtime.smashCastId, 3);
+  assert.equal(restored.runtime.smashAngle, 1.2);
+  const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
+  for (const key of ["smashClock", "smashEffect", "smashAngle", "smashCastId"]) delete legacy.runtime[key];
+  const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
+  assert.ok(legacyRestored);
+  assert.equal(legacyRestored.runtime.smashClock, 0);
+  assert.equal(legacyRestored.runtime.smashCastId, 0);
+  const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
+  broken.runtime.creatures[0].knockbackChain = "yes";
+  assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
+});
+
 test("live save keeps a detached stage-entry checkpoint for rescue retries", () => {
   const { campaign, runtime } = fixture();
   const stageEntryCampaign = {

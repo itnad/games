@@ -19,7 +19,7 @@ function baseCampaign(mode = "normal", stage = 1) {
   return {
     version: 1, mode, characterId: mode === "normal" ? "beginner" : "digger", stage, coins: 0, hp: 100, maxHp: 100, baseMaxHp: mode === "normal" ? 100 : 115,
     level: 1, xp: 0, nextXp: mode === "normal" ? 10 : 8, levels, activeSkills: [],
-    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false, gemsCollected: 0,
+    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false, gemsCollected: 0, digsCompleted: 0,
     lastObjectiveLabel: "", lastObjectiveComplete: false, lastObjectiveBonus: 0,
   };
 }
@@ -46,7 +46,7 @@ test("validation names every out-of-range field without appending raw particles"
   build.levels.harpoon = 7;
   build.activeSkills = ["net", "net", "tongs", "snack"];
   build.level = 0; build.xp = -1; build.nextXp = 0; build.coins = 1.5; build.hpPercent = 101;
-  build.equipment.cooler = 9; build.gemsCollected = -3; build.seedMode = "custom"; build.seed = 0;
+  build.equipment.cooler = 9; build.gemsCollected = -3; build.digsCompleted = 2.5; build.seedMode = "custom"; build.seed = 0;
   const errors = validateMudflatDevBuild(build);
   assert.ok(errors.includes(`단계는 1부터 ${MUDFLAT_DEV_BUILD_MAX_STAGE}까지입니다.`));
   assert.ok(errors.includes("집게 숙련도는 기본 기술이라 Lv.1 이상이어야 합니다."));
@@ -62,6 +62,7 @@ test("validation names every out-of-range field without appending raw particles"
   assert.ok(errors.includes("체력 비율은 1부터 100까지입니다."));
   assert.ok(errors.includes("조과통 업그레이드 레벨은 0부터 6까지입니다."));
   assert.ok(errors.includes("경험치 보석 수는 0 이상의 정수여야 합니다."));
+  assert.ok(errors.includes("호미질 수는 0 이상의 정수여야 합니다."));
   assert.ok(errors.includes("직접 입력 시드는 1부터 4294967295 사이의 정수여야 합니다."));
   assert.ok(errors.every((message) => !/[}\]]\s*(이|가|은|는|을|를|과|와|으로|로)\b/.test(message)));
   const seven = createMudflatDevBuild("normal");
@@ -101,6 +102,17 @@ test("a build becomes a campaign with normalized active skills, clamped gear, HP
   assert.equal(mudflatDevBuildCampaign(build, baseCampaign("normal", 8)).gemsCollected, 0);
   build.gemsCollected = 250;
   assert.equal(mudflatDevBuildCampaign(build, baseCampaign("normal", 8)).gemsCollected, 250);
+  // 호미봇 레벨이 있으면 호미질 20회를 채우고, 호미질 레벨은 건드리지 않는다.
+  const botBuild = createMudflatDevBuild("normal");
+  botBuild.levels["hoe-bot"] = 2;
+  const botCampaign = mudflatDevBuildCampaign(botBuild, baseCampaign("normal"));
+  assert.equal(botCampaign.digsCompleted, 20);
+  assert.equal(botCampaign.levels.digging, 1);
+  assert.deepEqual(botCampaign.activeSkills, []);
+  botBuild.autoUnlock = false;
+  assert.equal(mudflatDevBuildCampaign(botBuild, baseCampaign("normal")).digsCompleted, 0);
+  botBuild.digsCompleted = 33;
+  assert.equal(mudflatDevBuildCampaign(botBuild, baseCampaign("normal")).digsCompleted, 33);
   // 보관된 간식은 최대 체력에 들어가지 않는다.
   const benched = createMudflatDevBuild("normal");
   benched.levels.snack = 3;

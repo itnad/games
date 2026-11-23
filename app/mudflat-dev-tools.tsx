@@ -36,6 +36,7 @@ type DevPreset = {
   levels?: CountMap;
   equipment?: CountMap;
   gemsCollected?: number;
+  digsCompleted?: number;
 };
 
 type LocalSnapshot = {
@@ -135,6 +136,43 @@ const DEV_PRESETS: DevPreset[] = [
     gemsCollected: 100,
   },
   {
+    id: "hoe-bot",
+    title: "3단계 바위 갯벌 · 호미봇 Lv.6 · 호미질 Lv.1",
+    stage: 3,
+    description: "로봇 2대가 조개 구멍을 찾아 파고, 호미질 Lv.1 기준 등급이 나오는지 확인합니다.",
+    coins: 3000,
+    level: 10,
+    xp: 0,
+    nextXp: 90,
+    levels: { tongs: 3, digging: 1, "hoe-bot": 6, basket: 1 },
+    equipment: { cooler: 1 },
+    digsCompleted: 20,
+  },
+  {
+    id: "rock-lift",
+    title: "3단계 바위 갯벌 · 건곤대나이 Lv.6 · 돌뒤집개 Lv.1",
+    stage: 3,
+    description: "8초마다 바위 7개가 떠올랐다 떨어지며 사라지고, 낙하 피해와 돌뒤집개 Lv.1 기준 발견물이 나오는지 확인합니다.",
+    coins: 3000,
+    level: 12,
+    xp: 0,
+    nextXp: 90,
+    levels: { tongs: 3, digging: 2, rocker: 1, harpoon: 1, net: 1, boots: 1, basket: 1, "rock-lift": 6 },
+    equipment: { cooler: 1 },
+  },
+  {
+    id: "smash",
+    title: "4단계 어두운 갯벌 · 뻘권 Lv.6",
+    stage: 4,
+    description: "게 일렬 돌진 앞에서 뻘권이 조작 방향으로 발동해 피해·넉백·바위 충돌·연쇄 넉백이 나오는지 확인합니다.",
+    coins: 3000,
+    level: 12,
+    xp: 0,
+    nextXp: 90,
+    levels: { tongs: 3, digging: 3, harpoon: 3, boots: 3, smash: 6 },
+    equipment: { headlamp: 4, cooler: 1 },
+  },
+  {
     id: "final-boss",
     title: "8단계 마지막 물때",
     stage: 8,
@@ -195,6 +233,7 @@ function makePresetCampaign(preset: DevPreset) {
     levels,
     activeSkills: mudflatNormalizeActiveSkills(levels, undefined, mode),
     gemsCollected: preset.gemsCollected ?? 0,
+    digsCompleted: preset.digsCompleted ?? 0,
     equipment,
     pendingSkillDiscovery: false,
   };
@@ -571,7 +610,7 @@ export function MudflatDevTools() {
                 {build.mode === "normal" && !basic ? <label className="check"><input type="checkbox" checked={isActive} disabled={!isActive && (level <= 0 || build.activeSkills.length >= MUDFLAT_SELECTABLE_SKILL_LIMIT)} onChange={() => toggleBuildActive(skill.id)} /><span>활성</span></label> : <span className="mudflat-dev-always">{build.mode === "normal" ? "항상 작동" : ""}</span>}
               </div>;
             })}
-            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인 레벨이 있으면 경험치 보석 100개로 맞춤)</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤. 건곤대나이는 선택 기술 5종, 뻘권은 Lv.3 이상 기술 4개가 필요)</span></label>}
           </fieldset>
           <fieldset>
             <legend>캐릭터</legend>
@@ -581,6 +620,7 @@ export function MudflatDevTools() {
             <label className="field"><span>코인</span><input type="number" min={0} value={build.coins} onChange={(event) => updateBuild({ coins: numberField(event.target.value, 0) })} /></label>
             <label className="field"><span>체력 (최대 체력 대비 %)</span><input type="number" min={1} max={100} value={build.hpPercent} onChange={(event) => updateBuild({ hpPercent: numberField(event.target.value, 100) })} /></label>
             {build.mode === "normal" && <label className="field"><span>누적 경험치 보석 수</span><input type="number" min={0} value={build.gemsCollected} onChange={(event) => updateBuild({ gemsCollected: numberField(event.target.value, 0) })} /></label>}
+            {build.mode === "normal" && <label className="field"><span>누적 호미질 수</span><input type="number" min={0} value={build.digsCompleted} onChange={(event) => updateBuild({ digsCompleted: numberField(event.target.value, 0) })} /></label>}
           </fieldset>
           <fieldset>
             <legend>장비</legend>

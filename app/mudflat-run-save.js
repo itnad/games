@@ -15,7 +15,8 @@ const campaignShape = (value) => record(value) && value.version === 1 && ["norma
   && value.coins >= 0 && positive(value.hp) && positive(value.maxHp) && value.hp <= value.maxHp
   && [value.levels, value.equipment, value.inventory, value.lastHaul].every(countMap)
   && (value.activeSkills === undefined || (Array.isArray(value.activeSkills) && value.activeSkills.every((id) => typeof id === "string")))
-  && (value.gemsCollected === undefined || (Number.isInteger(value.gemsCollected) && value.gemsCollected >= 0));
+  && (value.gemsCollected === undefined || (Number.isInteger(value.gemsCollected) && value.gemsCollected >= 0))
+  && (value.digsCompleted === undefined || (Number.isInteger(value.digsCompleted) && value.digsCompleted >= 0));
 const copyCampaign = (campaign) => ({ ...campaign, levels: { ...campaign.levels }, equipment: { ...campaign.equipment }, inventory: { ...campaign.inventory }, lastHaul: { ...campaign.lastHaul }, ...(Array.isArray(campaign.activeSkills) ? { activeSkills: [...campaign.activeSkills] } : {}) });
 const ENTITY_FIELDS = {
   creatures: "hp maxHp speed size xp score saltHit hitFlash phase age movementAngle movementClock",
@@ -23,7 +24,7 @@ const ENTITY_FIELDS = {
   harpoons: "vx vy damage distance maxDistance angle",
   netSlams: "life maxLife damage radius headDepth range angle targetId",
   castNets: "originX originY angle radius damage holdSeconds age duration",
-  rocks: "radius tone", clamHoles: "radius progress", clamReveals: "life maxLife",
+  rocks: "radius tone", clamHoles: "radius progress", hoeBots: "targetHoleId digClock facing", clamReveals: "life maxLife",
   mudPrints: "life maxLife angle side", bursts: "life maxLife size", floatTexts: "life", fallingRocks: "life maxLife radius",
 };
 
@@ -53,6 +54,7 @@ export function encodeMudflatRun(campaign, runtime, choiceIds = [], nextSequence
     levels: runtime.skillInventory ?? runtime.levels, equipment: runtime.equipment,
     ...(Array.isArray(runtime.activeSkills) ? { activeSkills: [...runtime.activeSkills] } : {}),
     ...(Number.isInteger(runtime.gemsCollected) ? { gemsCollected: runtime.gemsCollected } : {}),
+    ...(Number.isInteger(runtime.digsCompleted) ? { digsCompleted: runtime.digsCompleted } : {}),
   };
   return JSON.stringify({
     version: 1, savedAt, campaign: currentCampaign, stageEntryCampaign: copyCampaign(stageEntryCampaign), choiceIds, nextSequence,
@@ -104,6 +106,17 @@ export function decodeMudflatRun(serialized, makeRuntime) {
       if (!finite(runtime[key]) || runtime[key] < 0) runtime[key] = 0;
     }
     if (!Number.isInteger(runtime.guardBasketCharges) || runtime.guardBasketCharges < 0) runtime.guardBasketCharges = runtimeTemplate.guardBasketCharges;
+    // 호미봇과 호미질 집계도 뒤에 추가됐다. 예전 저장은 로봇 없음·캠페인 값으로 보완한다.
+    if (!Number.isInteger(runtime.digsCompleted) || runtime.digsCompleted < 0) runtime.digsCompleted = runtimeTemplate.digsCompleted;
+    if (!Array.isArray(runtime.hoeBots)) runtime.hoeBots = [];
+    // 건곤대나이 타이머도 뒤에 추가됐다.
+    if (!finite(runtime.rockLiftClock)) runtime.rockLiftClock = runtimeTemplate.rockLiftClock;
+    if (!finite(runtime.rockLiftEffect) || runtime.rockLiftEffect < 0) runtime.rockLiftEffect = 0;
+    // 뻘권 타이머·연출·연쇄 식별값도 뒤에 추가됐다.
+    for (const key of ["smashClock", "smashEffect", "smashAngle"]) {
+      if (!finite(runtime[key])) runtime[key] = 0;
+    }
+    if (!Number.isInteger(runtime.smashCastId) || runtime.smashCastId < 0) runtime.smashCastId = 0;
     // Older active-run autosaves did not know about stage-five deep-mud
     // visuals/state. They are cosmetic or transient, so backfill defaults
     // instead of discarding an otherwise valid expedition.
@@ -126,8 +139,11 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (!runtime.creatures.every((creature) => typeof creature.type === "string" && typeof creature.name === "string"
       && ["chase", "still", "wander", "flee", "oval"].includes(creature.movement))) return null;
     if (!runtime.creatures.every((creature) => (creature.eventKind === undefined || ["puffer-rush", "crab-line", "mud-zombie", "jellyfish"].includes(creature.eventKind))
-      && ["chargeX", "chargeY", "eventLife", "emergeSeconds"].every((key) => creature[key] === undefined || finite(creature[key]))
+      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast"].every((key) => creature[key] === undefined || finite(creature[key]))
+      && (creature.knockbackChain === undefined || typeof creature.knockbackChain === "boolean")
       && (creature.uncollectible === undefined || typeof creature.uncollectible === "boolean"))) return null;
+    if (!runtime.hoeBots.every((unit) => ["follow", "move", "dig"].includes(unit.phase) && Number.isInteger(unit.targetHoleId) && unit.targetHoleId >= 0)) return null;
+    if (!runtime.rocks.every((rock) => (rock.lift === undefined || (finite(rock.lift) && rock.lift >= 0)) && (rock.impact === undefined || finite(rock.impact)))) return null;
     if (!runtime.clamHoles.every((hole) => (hole.kind === undefined || ["clam", "gaebul"].includes(hole.kind))
       && (hole.angle === undefined || finite(hole.angle)))) return null;
     if (!runtime.pickups.every((pickup) => ["spawn", "idle", "pull", "arrived"].includes(pickup.phase) && Array.isArray(pickup.trail) && pickup.trail.every(point))) return null;
