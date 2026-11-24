@@ -42,6 +42,7 @@ const KITE_ESCAPE_ANGLES = [...KITE_ANGLES, 95, -95, 115, -115];
 const KITE_HORIZON = .6;             // 물러날 방향을 고를 때 내다보는 시간(초)
 const KITE_SLOW_AHEAD_PENALTY = 900; // 그 너머가 느린 지형이면 들어가지 않게 하는 벌점
 const RETURN_TERRAIN_WEIGHT = 20;    // 귀환·대피 때의 느린 지형 벌점(평소 260)
+const KITE_TERRAIN_WEIGHT = 120;     // 복어·보스에게서 물러날 때의 느린 지형 벌점: 물골로 물러나면 속도가 68%로 떨어져 따라잡히므로 마른 땅을 고른다
 const DEFAULT_PLAYER_SPEED = 155;
 const KITE_GRAB_MIN_XP = 5;          // 복어를 상대하는 사이에도 먼저 주울 만한 경험치(복어 7, 큰 게 6~10)
 const KITE_GRAB_GAP = 35;            // 주우러 간 자리에서 추격자의 접촉 반경까지 남아야 하는 거리
@@ -257,11 +258,17 @@ function targetForState(state, memory) {
     return {
       kind: "creature", point: creature, targetId: creature.id, key: targetKey("creature", creature), creature, band,
       kite, approach, kiteIds, cautious,
-      // 복어·보스에게서 물러나는 걸음은 지형 감속을 예상 간격 계산에 직접 넣으므로 벌점으로는 다시 세지 않는다.
+      // 복어·보스에게서 물러나는 걸음은 지형 감속을 예상 간격 계산에 넣지만, 물골 안으로 물러나면 68% 속도로 돌진 복어(약 137)에게
+      // 따라잡혀 연속 접촉·출혈이 난다(3단계 감독 로그). 그래서 평소(260)보다 낮은 벌점(120)으로 마른 땅 쪽 걸음을 고르게 한다.
       // 느린 일반 게를 상대할 때는 벌점을 그대로 둔다: 깊은 펄·물골에 서서 게를 잡다가 돌진 복어를 만나면 따라잡힌다.
-      ...(kite && cautious ? { terrainWeight: 0 } : {}),
+      ...(kite && cautious ? { terrainWeight: KITE_TERRAIN_WEIGHT } : {}),
       intent: kite ? `${creature.name} 물러나며 채집 중` : cautious ? `거리 유지 중 · ${creature.name}` : `${creature.name} 채집 중`,
-      desiredDistance: !band ? 132 : cautious ? Math.max(band.inner + 4, band.outer - KITE_CAUTIOUS_INSET) : band.center,
+      // 쫓아오는 복어는 피할 대상이 아니라 물러나며 최대한 때려 잡아야 하는 대상이다. 내가 더 빠르면(접근 속도가 내 속도의 92% 아래)
+      // 대왕 박하지와 같이 집게 끝이 몸 한가운데를 지나는 거리(집게 길이)를 지켜 타격이 가장 잦게 한다. 상대가 나만큼 빠르면
+      // 따라잡힐 여유를 둬 예전처럼 구간 바깥 끝에서 10px 안쪽을 지킨다.
+      desiredDistance: !band ? 132
+        : cautious ? (kite && approach < playerSpeed * .92 ? Math.max(tongReach, band.inner + 4) : Math.max(band.inner + 4, band.outer - KITE_CAUTIOUS_INSET))
+          : band.center,
     };
   };
   // 돌진해 오는 복어·보스가 곧 닿을 거리면 호미질·바위·경험치보다 먼저 상대한다. 멀리 있을 때는 하던 일을 계속한다.

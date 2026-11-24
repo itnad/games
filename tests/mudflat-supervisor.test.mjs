@@ -635,9 +635,14 @@ test("감독 AI는 복어보다 느려지거나 접촉 직전이면 거리 맞�
   // 접촉 반경(34.6px)까지 14px도 남지 않았다.
   const touching = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 44, y: 0 })], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
   assert.ok(Math.hypot(touching.x, touching.y) > .99 && touching.x < -.5 && touching.urgent, JSON.stringify(touching));
-  // 정상 속도에 지킬 거리면 복어 속도(128/169)만큼만 물러난다.
-  const matched = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 95.6, y: 0 })], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  // 정상 속도에 지킬 거리(집게 길이 84: 집게 끝이 복어 한가운데를 지나 타격이 가장 잦다)면 복어 속도(128/169)만큼만 물러난다.
+  const matched = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 84, y: 0 })], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
   assert.ok(Math.abs(Math.hypot(matched.x, matched.y) - 128 / 169) < .05 && matched.x < 0, JSON.stringify(matched));
+  // 복어가 나만큼 빠르면(접근 속도가 내 속도의 92% 이상) 따라잡힐 여유를 두고 예전처럼 구간 바깥 끝 10px 안쪽(95.6)을 지킨다.
+  const fast = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 95.6, y: 0, speed: 160 })], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  assert.ok(Math.abs(Math.hypot(fast.x, fast.y) - 160 / 169) < .06 && fast.x < 0, JSON.stringify(fast));
+  const fastNear = decideMudflatSupervisorMove(scene({ creatures: [chasePuffer({ x: 84, y: 0, speed: 160 })], memory: createMudflatSupervisorMemory(), tongReach: 84, playerSpeed: 169 }));
+  assert.ok(Math.hypot(fastNear.x, fastNear.y) > 160 / 169 + .03 && fastNear.x < 0, `빠른 복어가 84px면 95.6까지 벌린다: ${JSON.stringify(fastNear)}`);
 });
 
 test("감독 AI는 복어 두 마리가 양쪽에서 와도 접촉 없이 한쪽으로 빠져 둘을 뒤에 두고 잡는다", () => {
