@@ -193,14 +193,15 @@ import {
 
 type ExitProps = { onExit: () => void };
 type CreatureEventKind = "puffer-rush" | "crab-line" | "mud-zombie" | "jellyfish";
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; knockbackX?: number; knockbackY?: number; knockbackLife?: number; knockbackDamage?: number; knockbackRockBonus?: number; knockbackCast?: number; knockbackChain?: boolean; knockbackPendingDamage?: number; knockbackDelay?: number; slowUntil?: number; slowFactor?: number; shockUntil?: number; bossSkill?: string; bossSkillPhase?: number; bossSkillClock?: number; bossSkillPrev?: string; jumpX?: number; jumpY?: number; movementAngle: number; movementClock: number; facing?: 1 | -1; returnSeconds?: number; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; knockbackX?: number; knockbackY?: number; knockbackLife?: number; knockbackDamage?: number; knockbackRockBonus?: number; knockbackCast?: number; knockbackChain?: boolean; knockbackPendingDamage?: number; knockbackDelay?: number; flameCastId?: number; slowUntil?: number; slowFactor?: number; shockUntil?: number; bossSkill?: string; bossSkillPhase?: number; bossSkillClock?: number; bossSkillPrev?: string; jumpX?: number; jumpY?: number; movementAngle: number; movementClock: number; facing?: 1 | -1; returnSeconds?: number; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
 type Pickup = ReturnType<typeof createExperiencePickup>;
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
 // 파이어볼: 흔들리며 날아가는 불덩이. baseAngle 기준 수직 방향으로 사인 흔들림을 더한다.
 type Fireball = Point & { id: number; vx: number; vy: number; age: number; life: number; damage: number; splash: number; wobblePhase: number; baseAngle: number };
 // 화염 방사 불줄기 연출(피해는 발동 순간에 적용). 0.35초 뻗고 0.5초에 사라진다.
-type FlameRay = Point & { id: number; angle: number; age: number; length: number; width: number };
+// 화염 방사 불줄기: 캐릭터 위치를 따라다니고 바라보는 방향 + offset으로 돈다. castId는 발동 식별값(한 발동에 생물마다 한 번만 피해).
+type FlameRay = Point & { id: number; angle: number; age: number; length: number; width: number; offset?: number; castId?: number; damage?: number };
 // 서리 바닥: 위의 해산물을 느리게 하고 틱 피해를 준다. 수명이 끝나면 녹듯이 사라진다.
 type FrostPatch = Point & { id: number; radius: number; age: number; life: number };
 // 빙결 파동 고리 연출(피해·둔화는 발동 순간에 적용).
@@ -277,7 +278,12 @@ type Runtime = {
   deepMudGauge: number; deepMudLock: number; deepMudStepClock: number;
   safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; mosquitoClock: number; mosquitoRunEnabled: boolean; rocksFlipped: number;
   paused: boolean; ended: boolean;
+  // 사망 연출: 체력이 0이 된 뒤 흐른 실제 시간(초). 2초 동안 세상이 슬로우모션으로 돌고(첫 1초 캐릭터가 쓰러짐) 종료 화면으로 간다.
+  deathClock?: number;
 };
+const DEATH_SEQUENCE_SECONDS = 2;
+const DEATH_FALL_SECONDS = 1;
+const DEATH_SLOW_MOTION = .25;
 type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; xpCollecting?: boolean; tutorialActive?: boolean; mosquitoRepellent?: boolean; caught: number; catchCapacity: number; rocksFlipped: number; storedSkillCount: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean; charges: Record<string, { fill: number; ready: boolean }> };
 // HUD 기술 칩 충전 표시 대상: 주기 2초 이상인 선택 기술. 칩 배경이 아래에서 차오르고 준비되면 한 번 번쩍인다.
 // ready는 각 기술이 대상을 찾지 못했을 때 다시 확인하는 간격(그 안이면 "준비됨"으로 본다).
@@ -1701,8 +1707,9 @@ function drawFireball(context: CanvasRenderingContext2D, x: number, y: number, a
 
 // 화염 방사 불줄기: 0.35초 동안 길이만큼 뻗는 원뿔(노랑→주황→투명), 0.5초에 사라진다.
 function drawFlameRay(context: CanvasRenderingContext2D, x: number, y: number, angle: number, age: number, length: number, width: number) {
-  const grow = Math.min(1, age / .35);
-  const fade = age < .35 ? 1 : Math.max(0, 1 - (age - .35) / .15);
+  // 0.7초 동안 뻗고 1초에 꺼진다(마지막 0.3초 동안 사라짐). mudflatFlameBurstStats의 sweepSeconds·holdSeconds와 같다.
+  const grow = Math.min(1, age / .7);
+  const fade = age < .7 ? 1 : Math.max(0, 1 - (age - .7) / .3);
   const reach = length * grow;
   context.save(); context.translate(x, y); context.rotate(angle); context.globalAlpha = fade;
   const gradient = context.createLinearGradient(0, 0, Math.max(1, reach), 0);
@@ -1912,6 +1919,15 @@ function drawSmashEmber(context: CanvasRenderingContext2D, x: number, y: number,
     }
   }
   context.restore();
+}
+
+// 사망 연출의 쓰러지는 자세. 첫 1초 동안 바라보던 반대쪽으로 90°까지 기울고(처음엔 빠르게, 끝은 천천히) 6px 가라앉는다.
+// 1초가 지나면 그 자세로 멈춘다. 진동·화면 흔들림 없음.
+function deathFallPose(deathClock: number, facing: number) {
+  const progress = Math.min(1, Math.max(0, deathClock) / DEATH_FALL_SECONDS);
+  const eased = 1 - (1 - progress) * (1 - progress);
+  const side = Math.cos(facing) < 0 ? 1 : -1;
+  return { rotate: side * eased * Math.PI / 2, sink: eased * 6 };
 }
 
 // 둔화·빙결 표시: 하늘색 테두리와 얼음 결정 2개. 빙결은 결정이 크고 테두리가 두껍다. 만료 0.3초 전부터 깜빡인다.
@@ -3375,7 +3391,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     };
     const damagePlayer = (damage: number, color = PLAYER_DAMAGE_TEXT_COLOR, reason = "피해 누적", blockable = true) => {
       const safeDamage = Math.max(0, Math.round((Number(damage) || 0) * 100) / 100);
-      if (!safeDamage) return false;
+      if (!safeDamage || runtime.deathClock !== undefined) return false;
       if (blockable && tryGuardBasketBlock(reason)) return false;
       if (supervisorRef.current) supervisorLastDamageRef.current = reason;
       runtime.player.hp = Math.max(0, runtime.player.hp - safeDamage);
@@ -3562,7 +3578,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
 
       let inputX = joystickRef.current.x;
       let inputY = joystickRef.current.y;
-      const keys = keysRef.current;
+      const keys = runtime.deathClock !== undefined ? new Set<string>() : keysRef.current;
+      if (runtime.deathClock !== undefined) { inputX = 0; inputY = 0; }
       if (keys.has("ArrowLeft") || keys.has("KeyA")) inputX -= 1;
       if (keys.has("ArrowRight") || keys.has("KeyD")) inputX += 1;
       if (keys.has("ArrowUp") || keys.has("KeyW")) inputY -= 1;
@@ -3685,6 +3702,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
         inputX = decisionState.x;
         inputY = decisionState.y;
+        // 사망 연출 중에는 감독 AI도 움직이지 않는다.
+        if (runtime.deathClock !== undefined) { inputX = 0; inputY = 0; }
       }
       const inputLength = Math.hypot(inputX, inputY);
       if (inputLength > 1) { inputX /= inputLength; inputY /= inputLength; }
@@ -4192,9 +4211,27 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
         if (exploded.length > 0) runtime.fireballs = runtime.fireballs.filter((ball) => !exploded.includes(ball));
       }
+      // 화염 방사 불줄기: 캐릭터를 따라 움직이고 바라보는 방향으로 돌며, 뻗은 길이 안에 들어온 해산물에 발동당 한 번씩 피해를 준다.
       if (runtime.flameRays.length > 0) {
-        for (const ray of runtime.flameRays) ray.age += dt;
-        runtime.flameRays = runtime.flameRays.filter((ray) => ray.age < .5);
+        const flame = mudflatFlameBurstStats(Math.max(1, runtime.levels["flame-burst"] ?? 0));
+        for (const ray of runtime.flameRays) {
+          ray.age += dt;
+          ray.x = runtime.player.x; ray.y = runtime.player.y;
+          if (ray.offset !== undefined) ray.angle = runtime.player.facing + ray.offset;
+          if (ray.castId === undefined) continue;
+          const reach = ray.length * Math.min(1, ray.age / flame.sweepSeconds);
+          const dirX = Math.cos(ray.angle); const dirY = Math.sin(ray.angle);
+          for (const creature of runtime.creatures) {
+            if (creature.hp <= 0 || creature.flameCastId === ray.castId || !isCreatureRevealed(creature)) continue;
+            const ox = creature.x - ray.x; const oy = creature.y - ray.y;
+            const localX = ox * dirX + oy * dirY; const localY = -ox * dirY + oy * dirX;
+            if (localX >= -creature.size && localX <= reach + creature.size && Math.abs(localY) <= ray.width / 2 + creature.size) {
+              damageCreature(creature, ray.damage ?? flame.damage, .2);
+              creature.flameCastId = ray.castId;
+            }
+          }
+        }
+        runtime.flameRays = runtime.flameRays.filter((ray) => ray.age < flame.holdSeconds);
       }
       // 대왕 박하지 파이어볼: 플레이어 파이어볼과 같은 흔들림 비행. 플레이어(반지름 16 + 10)에 닿거나 사거리를 다하면 터진다. 베이스캠프 안의 플레이어는 맞지 않는다.
       if (runtime.bossFireballs.length > 0) {
@@ -4438,26 +4475,20 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             } else runtime.fireballClock = .25;
           }
         }
-        // 화염 방사: 5초마다 반경 170px 안에 해산물이 있을 때 바라보는 방향을 첫 줄기로 사방에 불줄기를
-        // 뿜는다. 피해는 발동 순간 줄기 안의 모든 해산물에 한 번씩(겹치는 줄기도 한 번).
+        // 화염 방사: 5초마다 반경 340px 안에 해산물이 있을 때 바라보는 방향을 첫 줄기로 사방에 불줄기를 뿜는다.
+        // 줄기는 1초 동안 캐릭터를 따라다니며(위치·바라보는 방향) 뻗어 나가고, 유지되는 동안 줄기에 닿은 해산물은
+        // 발동당 한 번씩 피해를 받는다(겹치는 줄기도 한 번). 피해 적용은 아래 불줄기 갱신에서 한다.
         const flameLevel = runtime.levels["flame-burst"] ?? 0;
         if (runtime.mode === "normal" && flameLevel > 0 && runtime.flameBurstClock <= 0) {
           const flame = mudflatFlameBurstStats(flameLevel);
           if (revealedCreatures.some((creature) => creature.hp > 0 && Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= flame.checkRadius + creature.size)) {
-            const burned = new Set<number>();
+            const castId = sequenceRef.current++;
             for (let index = 0; index < flame.rays; index += 1) {
-              const angle = runtime.player.facing + index * Math.PI * 2 / flame.rays;
-              runtime.flameRays.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, angle, age: 0, length: flame.length, width: flame.width });
-              const dirX = Math.cos(angle); const dirY = Math.sin(angle);
-              for (const creature of revealedCreatures) {
-                if (creature.hp <= 0 || burned.has(creature.id)) continue;
-                const ox = creature.x - runtime.player.x; const oy = creature.y - runtime.player.y;
-                const localX = ox * dirX + oy * dirY; const localY = -ox * dirY + oy * dirX;
-                if (localX >= -creature.size && localX <= flame.length + creature.size && Math.abs(localY) <= flame.width / 2 + creature.size) { damageCreature(creature, flame.damage, .2); burned.add(creature.id); }
-              }
+              const offset = index * Math.PI * 2 / flame.rays;
+              runtime.flameRays.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, angle: runtime.player.facing + offset, offset, age: 0, length: flame.length, width: flame.width, castId, damage: flame.damage });
             }
             runtime.flameBurstClock = flame.interval;
-            if (supervisorRef.current) appendSupervisorEvent("flame-burst", `화염 방사 Lv.${flameLevel} · ${flame.rays}방향 · ${burned.size}마리`, runtime);
+            if (supervisorRef.current) appendSupervisorEvent("flame-burst", `화염 방사 Lv.${flameLevel} · ${flame.rays}방향`, runtime);
           } else runtime.flameBurstClock = .5;
         }
         // 서리 발자국: 0.9초마다 플레이어 자리에 서리 바닥을 남긴다(같은 자리면 수명 갱신, 최대 12개). 캠프 안에서는 남기지 않는다.
@@ -4779,7 +4810,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         else runtime.paused = false;
       }
       if (earnedExperience > 0) { hudClock = 0; snapshot(runtime); }
-      if (runtime.player.hp <= 0) endRun(runtime);
+      // 체력 0: 바로 끝내지 않고 사망 연출을 시작한다(입력 차단, 세상은 슬로우모션). 2초 뒤 루프에서 endRun을 부른다.
+      if (runtime.player.hp <= 0 && runtime.deathClock === undefined) { runtime.deathClock = 0; resetMovementInput(); }
     };
 
     const draw = (width: number, height: number) => {
@@ -4989,10 +5021,15 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         drawRockHookBar(context, { x: width / 2, y: height / 2 }, point, runtime.rockFlipEffect);
       }
       const lumiTongReach = !inBaseCamp && runtime.mode === "normal" && (runtime.levels.tongs ?? 0) > 0 ? mudflatTongStats(runtime.levels.tongs).reach : 0;
+      // 사망 연출: 첫 1초 동안 바라보던 반대쪽으로 넘어지며(90°까지 기울고 살짝 가라앉음) 그 뒤로는 쓰러진 채 둔다.
+      const fall = runtime.deathClock !== undefined ? deathFallPose(runtime.deathClock, runtime.player.facing) : null;
+      context.save();
+      if (fall) { context.translate(width / 2, height / 2 + fall.sink); context.rotate(fall.rotate); context.translate(-width / 2, -height / 2); }
       if (lumiArt) drawLumiGatherer(context, width / 2, height / 2, runtime.lumiMotion, lumiArt,
         actionTime, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
       // 뻘권 중에도 몸통은 제자리에 둔다(자리가 빠졌다 끼워지는 느낌을 없앰). 동작은 팔·불주먹 연출이 맡는다.
       if (characterId !== "lumi") drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);
+      context.restore();
       // 뻘권 충전: 주먹에 불씨가 차오르고 준비되면 불꽃이 일렁인다(루미는 몸 옆 주황 발광). 발동 연출 중에는 그리지 않는다.
       if (runtime.mode === "normal" && (runtime.levels.smash ?? 0) > 0 && runtime.smashEffect <= 0) {
         const smashCharge = mudflatSkillCharge(runtime.smashClock, mudflatSmashStats(runtime.levels.smash ?? 1).cooldown, .1);
@@ -5214,7 +5251,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         animation = requestAnimationFrame(loop);
         return;
       }
-      update(dt, size.width, size.height); draw(size.width, size.height); hudClock += dt;
+      if (runtime.deathClock !== undefined && !runtime.ended) {
+        runtime.deathClock += dt;
+        if (runtime.deathClock >= DEATH_SEQUENCE_SECONDS) { endRun(runtime); draw(size.width, size.height); animation = requestAnimationFrame(loop); return; }
+      }
+      update(runtime.deathClock !== undefined ? dt * DEATH_SLOW_MOTION : dt, size.width, size.height); draw(size.width, size.height); hudClock += dt;
       if (hudClock >= .1) { hudClock = 0; snapshot(runtime); }
       animation = requestAnimationFrame(loop);
     };

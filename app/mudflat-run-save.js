@@ -184,12 +184,14 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (!runtime.creatures.every((creature) => typeof creature.type === "string" && typeof creature.name === "string"
       && ["chase", "still", "wander", "flee", "oval"].includes(creature.movement))) return null;
     if (!runtime.creatures.every((creature) => (creature.eventKind === undefined || ["puffer-rush", "crab-line", "mud-zombie", "jellyfish"].includes(creature.eventKind))
-      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast", "knockbackPendingDamage", "knockbackDelay", "slowUntil", "slowFactor", "shockUntil", "bossSkillPhase", "bossSkillClock", "jumpX", "jumpY"].every((key) => creature[key] === undefined || finite(creature[key]))
+      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast", "knockbackPendingDamage", "knockbackDelay", "flameCastId", "slowUntil", "slowFactor", "shockUntil", "bossSkillPhase", "bossSkillClock", "jumpX", "jumpY"].every((key) => creature[key] === undefined || finite(creature[key]))
       && (creature.knockbackChain === undefined || typeof creature.knockbackChain === "boolean")
       && [creature.bossSkill, creature.bossSkillPrev].every((skill) => skill === undefined || ["charge", "jump", "fireball", "claw", "summon"].includes(skill))
       && (creature.uncollectible === undefined || typeof creature.uncollectible === "boolean"))) return null;
     if (!runtime.hoeBots.every((unit) => ["follow", "move", "dig"].includes(unit.phase) && Number.isInteger(unit.targetHoleId) && unit.targetHoleId >= 0)) return null;
     if (!runtime.rocks.every((rock) => (rock.lift === undefined || (finite(rock.lift) && rock.lift >= 0)) && (rock.impact === undefined || finite(rock.impact)))) return null;
+    // 화염 방사 불줄기의 따라다니기·발동 식별값·피해는 뒤에 추가된 선택 항목(없으면 예전처럼 제자리 연출만).
+    if (!runtime.flameRays.every((ray) => ["offset", "castId", "damage"].every((key) => ray[key] === undefined || finite(ray[key])))) return null;
     if (!runtime.clamHoles.every((hole) => (hole.kind === undefined || ["clam", "gaebul"].includes(hole.kind))
       && (hole.angle === undefined || finite(hole.angle)))) return null;
     if (!runtime.pickups.every((pickup) => ["spawn", "idle", "pull", "arrived"].includes(pickup.phase) && Array.isArray(pickup.trail) && pickup.trail.every(point))) return null;

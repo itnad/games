@@ -195,12 +195,21 @@ test("live save keeps knockback state and smash timers, backfills older saves, a
 test("live save keeps fireballs, flame rays and fire timers, and backfills older saves", () => {
   const { campaign, runtime } = fixture("normal");
   runtime.fireballs.push({ id: 41, x: 10, y: 20, vx: 170, vy: -170, age: .3, life: 1.08, damage: 60, splash: 40, wobblePhase: 1.1, baseAngle: -.78 });
-  runtime.flameRays.push({ id: 42, x: 0, y: 0, angle: 1.2, age: .1, length: 170, width: 34 });
+  runtime.flameRays.push({ id: 42, x: 0, y: 0, angle: 1.2, age: .1, length: 340, width: 34, offset: .4, castId: 40, damage: 150 });
+  runtime.creatures[0].flameCastId = 40;
   Object.assign(runtime, { fireballClock: .6, fireballQueue: 2, fireballSpacingClock: .05, flameBurstClock: 3.2, hitByCrab: true, hitByShrimp: false });
   const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
   assert.ok(restored);
   assert.deepEqual(restored.runtime.fireballs, runtime.fireballs);
   assert.deepEqual(restored.runtime.flameRays, runtime.flameRays);
+  assert.equal(restored.runtime.creatures[0].flameCastId, 40);
+  // 예전 저장의 불줄기(따라다니기 항목 없음)도 그대로 읽힌다.
+  const olderRay = JSON.parse(encodeMudflatRun(campaign, runtime));
+  olderRay.runtime.flameRays = [{ id: 43, x: 5, y: 6, angle: .2, age: .1, length: 170, width: 34 }];
+  assert.deepEqual(decodeMudflatRun(JSON.stringify(olderRay), makeRuntime).runtime.flameRays, [{ id: 43, x: 5, y: 6, angle: .2, age: .1, length: 170, width: 34 }]);
+  const brokenRay = JSON.parse(encodeMudflatRun(campaign, runtime));
+  brokenRay.runtime.flameRays[0].castId = "x";
+  assert.equal(decodeMudflatRun(JSON.stringify(brokenRay), makeRuntime), null);
   assert.equal(restored.runtime.fireballQueue, 2);
   assert.equal(restored.runtime.flameBurstClock, 3.2);
   assert.equal(restored.runtime.hitByCrab, true);
