@@ -2429,6 +2429,18 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(styles, /\.ms-tools>button\.is-charging::after\{content:"";position:absolute;inset:0;z-index:0;transform-origin:bottom;transform:scaleY\(var\(--ms-charge,0\)\)/);
   assert.match(styles, /@keyframes ms-tool-ready\{/);
   assert.doesNotMatch(source, /drawSmashEmber[\s\S]{0,200}navigator\.vibrate/);
+  // 사망 연출: 체력 0이면 바로 끝내지 않고 deathClock을 시작해 2초 동안 세상을 1/4 속도로 돌리며 첫 1초 동안 쓰러진다.
+  // 그동안 입력과 추가 피해는 막히고, 2초가 지나면 루프에서 endRun으로 종료 화면에 간다.
+  assert.match(source, /const DEATH_SEQUENCE_SECONDS = 2;\s*const DEATH_FALL_SECONDS = 1;\s*const DEATH_SLOW_MOTION = \.25;/);
+  assert.match(source, /if \(runtime\.player\.hp <= 0 && runtime\.deathClock === undefined\) \{ runtime\.deathClock = 0; resetMovementInput\(\); \}/);
+  assert.doesNotMatch(source, /if \(runtime\.player\.hp <= 0\) endRun\(runtime\);/);
+  assert.match(source, /if \(runtime\.deathClock >= DEATH_SEQUENCE_SECONDS\) \{ endRun\(runtime\);/);
+  assert.match(source, /update\(runtime\.deathClock !== undefined \? dt \* DEATH_SLOW_MOTION : dt, size\.width, size\.height\);/);
+  assert.match(source, /if \(!safeDamage \|\| runtime\.deathClock !== undefined\) return false;/);
+  assert.equal((source.match(/if \(runtime\.deathClock !== undefined\) \{ inputX = 0; inputY = 0; \}/g) ?? []).length, 2, "사람 입력과 감독 AI 입력 모두 사망 중에는 0");
+  assert.match(source, /function deathFallPose\(/);
+  assert.match(source, /if \(fall\) \{ context\.translate\(width \/ 2, height \/ 2 \+ fall\.sink\); context\.rotate\(fall\.rotate\); context\.translate\(-width \/ 2, -height \/ 2\); \}/);
+  assert.doesNotMatch(source, /deathFallPose[\s\S]{0,300}navigator\.vibrate/);
   assert.doesNotMatch(source, /damageCreature\(creature, smash\.damage, \.2\);/);
   assert.match(source, /damageCreature\(creature, \(creature\.knockbackPendingDamage \?\? 0\) \+ \(creature\.knockbackRockBonus \?\? 0\), \.18\);/);
   assert.match(source, /if \(\(creature\.knockbackPendingDamage \?\? 0\) > 0\) damageCreature\(creature, creature\.knockbackPendingDamage \?\? 0, \.2\);/);
@@ -4651,7 +4663,7 @@ test("preloads and caches Lumi art, reports failures, and retries without a defa
   }
   const source = await readMudflatSourceBundle();
   assert.match(source, /const startLumiHold[\s\S]*?loadLumiArt\(\);[\s\S]*?window\.setTimeout/);
-  assert.match(source, /if \(lumiArt && lumiArt\.status !== "ready"\) \{[\s\S]*?return;\s*\}\s*update\(dt/);
+  assert.match(source, /if \(lumiArt && lumiArt\.status !== "ready"\) \{[\s\S]*?return;\s*\}[\s\S]{0,500}?update\(runtime\.deathClock !== undefined \? dt \* DEATH_SLOW_MOTION : dt/);
   assert.match(source, /if \(characterId !== "lumi"\) drawGatherer/);
   assert.doesNotMatch(source, /if \(!lumiDrawn\) drawGatherer/);
   assert.match(source, /\{lumiLoadingLayer\}/);
