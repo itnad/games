@@ -2542,8 +2542,22 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /일반 모드/);
   assert.match(source, /GENERAL_CHARACTER = \{[^\n]+hp: 100 \}/);
   assert.match(source, /ms-mode-picker[\s\S]*?<b>일반 모드<\/b>[\s\S]*?<b>어린이 모드<\/b>/);
-  assert.match(source, /className="ms-hero-crab" src="\/mudflat-creatures\/crab\.png"/);
+  assert.match(source, /className="ms-hero-crab" src="\/mudflat-creatures\/crab\.png" alt="" aria-hidden="true" draggable=\{false\} onClick=\{tapHeroCrab\}/);
+  // 게 그림 4연속 터치(1.5초 창)로 개발 도구 진입. 순수 도우미가 창 밖 터치를 버리고 4번째에서 발동한다.
+  assert.match(source, /const result = registerDevEntryTap\(devEntryTapsRef\.current, Date\.now\(\)\);[\s\S]*?if \(result\.triggered\) window\.location\.assign\("\/haeru-dev"\);/);
+  const { registerDevEntryTap, MUDFLAT_DEV_TAP_COUNT, MUDFLAT_DEV_TAP_WINDOW_MS } = await import("../app/mudflat-secret-entry.js");
+  assert.deepEqual([MUDFLAT_DEV_TAP_COUNT, MUDFLAT_DEV_TAP_WINDOW_MS], [4, 1500]);
+  let taps = [];
+  for (const at of [1000, 1300, 1600]) { const step = registerDevEntryTap(taps, at); assert.equal(step.triggered, false); taps = step.taps; }
+  assert.deepEqual(taps, [1000, 1300, 1600]);
+  assert.deepEqual(registerDevEntryTap(taps, 1900), { taps: [], triggered: true }, "1.5초 안의 4번째 터치에서 발동");
+  assert.deepEqual(registerDevEntryTap([1000, 1300, 1600], 2600), { taps: [1300, 1600, 2600], triggered: false }, "창 밖으로 밀린 첫 터치는 버린다");
+  assert.deepEqual(registerDevEntryTap([1000, 1300, 1600], 5000), { taps: [5000], triggered: false }, "한참 뒤 터치는 처음부터 다시 센다");
+  assert.deepEqual(registerDevEntryTap(undefined, 10), { taps: [10], triggered: false });
   assert.match(styles, /\.ms-hero-crab\{position:absolute/);
+  // 4연속 터치가 닿도록 게 그림은 포인터 이벤트를 받되, 커서·탭 하이라이트·선택·더블탭 확대로 숨은 진입을 드러내지 않는다.
+  assert.match(styles, /\.ms-hero-crab\{[^}]*pointer-events:auto;cursor:default;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:manipulation\}/);
+  assert.doesNotMatch(styles, /\.ms-hero-crab\{[^}]*pointer-events:none/);
   assert.doesNotMatch(source, /화면 아무 곳이나 누른 뒤 가고 싶은 방향으로 드래그하세요/);
   assert.match(source, /className="ms-setup-details ms-saved-expedition"/);
   assert.match(source, /className="ms-setup-details ms-route-select-details"/);

@@ -5,7 +5,7 @@
 - 운영 사이트: <https://games.itnadcom.chatgpt.site>
 - 독립 배포 사이트(자체 Cloudflare Workers): <https://games.itnadcom.workers.dev>
 - 해루질럿: <https://games.itnadcom.chatgpt.site/haeru>
-- 해루질럿 내부 QA 도구: `/haeru-dev`
+- 해루질럿 내부 QA 도구: `/haeru-dev` (제목 화면의 게 그림을 1.5초 안에 4번 연속 터치해도 열림)
 - 원격 저장소: <https://github.com/itnad/games>
 
 운영 환경은 두 곳입니다. 기존 사이트는 OpenAI Sites가 관리하는 Cloudflare Workers이고, 독립 배포 사이트는 자체 Cloudflare 계정의 Worker로 `main`에 푸시될 때마다 Cloudflare가 직접 빌드해 배포합니다. 두 사이트는 데이터베이스(D1)가 따로라서 순위표와 추천 게시판이 따로 쌓입니다. 절차는 [배포·D1·복구 가이드](docs/deployment-and-recovery.md)에 있습니다.

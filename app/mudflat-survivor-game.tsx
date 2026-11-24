@@ -8,7 +8,7 @@ import { PAPEROID_BUILD_ID } from "./app-version";
 import { MudflatDailyChallengePanel, MudflatDailyResultPanel, submitMudflatDailyResult, type MudflatDailyResult, type MudflatDailyStart } from "./mudflat-daily-challenge-panel";
 import { MudflatHoldButton, MudflatRetryButton } from "./mudflat-retry-button";
 import { createRescueRetryCampaign, createStageEntryCheckpoint, mudflatRescueCost } from "./mudflat-retry.js";
-import { withSecretExpeditionSkills } from "./mudflat-secret-entry.js";
+import { registerDevEntryTap, withSecretExpeditionSkills } from "./mudflat-secret-entry.js";
 import { CAST_NET_RETRY, advanceCastNets, castNetMovementMultiplier, castNetOnScreen, createCastNet, findCastNetTarget } from "./mudflat-cast-net.js";
 import { drawCastNetThrow } from "./mudflat-cast-net-renderer.js";
 import { MudflatExitDialog } from "./mudflat-exit-dialog";
@@ -2278,6 +2278,13 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
   const sequenceRef = useRef(1);
   const lumiHoldTimerRef = useRef<number | null>(null);
   const defeatRetryRef = useRef<Campaign | null>(null);
+  // 제목 화면 게 그림을 1.5초 안에 4번 연속 터치하면 /haeru-dev로 간다(숨은 진입, 화면 낭독기에는 노출하지 않음).
+  const devEntryTapsRef = useRef<number[]>([]);
+  const tapHeroCrab = () => {
+    const result = registerDevEntryTap(devEntryTapsRef.current, Date.now());
+    devEntryTapsRef.current = result.taps;
+    if (result.triggered) window.location.assign("/haeru-dev");
+  };
   const stageEntryRef = useRef<Campaign | null>(null);
   const dailyChallengeRef = useRef<MudflatDailyStart | null>(null);
   const supervisorRef = useRef(false);
@@ -5481,7 +5488,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     <main className="ms-shell ms-setup" data-game-menu>
       <MudflatTopbar onExit={onExit} />
       <section className="ms-setup-hero">
-        <img className="ms-hero-crab" src="/mudflat-creatures/crab.png" alt="" aria-hidden="true" />
+        <img className="ms-hero-crab" src="/mudflat-creatures/crab.png" alt="" aria-hidden="true" draggable={false} onClick={tapHeroCrab} />
         <h1>해루질에 <em>미친 자여!</em></h1>
       </section>
       <section className="ms-character-select">
