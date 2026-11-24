@@ -2964,8 +2964,9 @@ test("stardraft air units back off while reloading only from enemies they outran
   const safe = duel({ player: "protoss", enemy: "protoss" }, "carrier", "zealot", 6);
   assert.ok(safe.farthest < safe.start + 1);
 
-  // 싸움: 배틀크루저 4기는 드라군 12기를 물러나며 잡는다(예전에는 전멸).
-  const fight = stwCreateScenario({ seed: 1, time: 900, placement: "clash", races: { player: "terran", enemy: "protoss" }, sides: { player: { units: { battlecruiser: 4 } }, enemy: { units: { dragoon: 12 }, research: ["range"] } } });
+  // 싸움: 배틀크루저 4기는 드라군 10기를 물러나며 잡는다(물러나지 않던 예전에는 전멸).
+  // 체력 650·속도 2.3일 때는 12기까지 잡았다. 체력 600·속도 2(드라군 2.6보다 느리다)로 낮춘 뒤로는 11기까지 잡고 12기에는 진다.
+  const fight = stwCreateScenario({ seed: 1, time: 900, placement: "clash", races: { player: "terran", enemy: "protoss" }, sides: { player: { units: { battlecruiser: 4 } }, enemy: { units: { dragoon: 10 }, research: ["range"] } } });
   const alive = (side, type) => fight.units.filter((unit) => unit.side === side && unit.type === type && unit.hp > 0).length;
   for (let tick = 0; tick < 900 && fight.status === "playing" && alive("player", "battlecruiser") && alive("enemy", "dragoon"); tick += 1) stepStardraft(fight);
   assert.equal(alive("enemy", "dragoon"), 0);
