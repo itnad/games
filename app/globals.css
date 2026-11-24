@@ -1355,6 +1355,29 @@ footer > span {
   z-index: auto;
 }
 
+/* 전체 화면 덮개 공용 규칙. 새 덮개는 이 두 클래스를 쓰고 게임별 클래스로 색·모양만 덧붙인다.
+   패널의 최대 높이와 스크롤은 미디어 쿼리가 아닌 기본 규칙에 있어야 낮은 데스크톱 창에서도
+   패널 위아래가 잘리지 않고 아래쪽 버튼에 닿는다. tests/rendered-html.test.mjs가 모든 덮개를 검사한다. */
+.overlay-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  padding: 20px;
+  display: grid;
+  place-items: center;
+  place-content: safe center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.overlay-panel {
+  width: min(760px, 100%);
+  max-height: calc(100dvh - 40px);
+  box-sizing: border-box;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
 .game-objective-backdrop {
   position: fixed;
   inset: 0;

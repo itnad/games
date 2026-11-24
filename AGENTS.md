@@ -13,6 +13,12 @@
 - Skip publishing when the user explicitly asks to keep a change local, save only, or not publish.
 - After completing and validating a user-requested source modification, also push it to `main` in the same turn without waiting to be asked: merge `origin/main` first if it has moved, rerun the tests, then push. Skip this for read-only work, and when the user asks to keep a change local or off `main`.
 
+## Full-screen overlays
+
+- A full-screen overlay (fixed, `inset: 0`, centered backdrop) must give its panel a viewport-bound `max-height` and `overflow: auto` in the base rule, not only inside a media query. Otherwise a short desktop window cuts off the top and bottom of the panel and the bottom buttons cannot be reached.
+- Build new overlays from the shared `.overlay-layer` and `.overlay-panel` classes in `app/globals.css` and add only colors and shapes in the game stylesheet. Do not override the panel's `max-height` or `overflow` in a game stylesheet.
+- `tests/rendered-html.test.mjs` scans every stylesheet for centered fixed overlays and checks their panels. A short notice without buttons may be excluded there with a written reason; nothing else may be excluded.
+
 ## Haerujilot source-of-truth synchronization
 
 - When changing Haerujilot victory/failure conditions, stage identity, terminology, storage shape, or QA entry behavior, update the matching source, `docs/haeru-game-design.md`, `docs/haeru-architecture.md` or `docs/haeru-qa-matrix.md`, user-facing objective copy, and regression tests in the same change.
