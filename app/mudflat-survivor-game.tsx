@@ -192,7 +192,7 @@ import {
 
 type ExitProps = { onExit: () => void };
 type CreatureEventKind = "puffer-rush" | "crab-line" | "mud-zombie" | "jellyfish";
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; knockbackX?: number; knockbackY?: number; knockbackLife?: number; knockbackDamage?: number; knockbackRockBonus?: number; knockbackCast?: number; knockbackChain?: boolean; knockbackPendingDamage?: number; slowUntil?: number; slowFactor?: number; shockUntil?: number; bossSkill?: string; bossSkillPhase?: number; bossSkillClock?: number; bossSkillPrev?: string; jumpX?: number; jumpY?: number; movementAngle: number; movementClock: number; facing?: 1 | -1; returnSeconds?: number; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; knockbackX?: number; knockbackY?: number; knockbackLife?: number; knockbackDamage?: number; knockbackRockBonus?: number; knockbackCast?: number; knockbackChain?: boolean; knockbackPendingDamage?: number; knockbackDelay?: number; slowUntil?: number; slowFactor?: number; shockUntil?: number; bossSkill?: string; bossSkillPhase?: number; bossSkillClock?: number; bossSkillPrev?: string; jumpX?: number; jumpY?: number; movementAngle: number; movementClock: number; facing?: 1 | -1; returnSeconds?: number; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
 type Pickup = ReturnType<typeof createExperiencePickup>;
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
@@ -1831,6 +1831,30 @@ function drawLightningCast(context: CanvasRenderingContext2D, x: number, y: numb
   context.restore();
 }
 
+// 밀려나는 생물의 바람 자국: 날아가는 방향 뒤쪽으로 생물 크기에 맞춘 흰·주황 속도선 3줄과 옅은 잔상.
+// 남은 밀림 거리가 길수록(막 밀리기 시작) 선이 길고, 멈춰 갈수록 짧아진다.
+function drawKnockbackWind(context: CanvasRenderingContext2D, x: number, y: number, size: number, remainingX: number, remainingY: number, life: number, seed: number) {
+  const remaining = Math.hypot(remainingX, remainingY);
+  if (remaining < 1) return;
+  const backX = -remainingX / remaining; const backY = -remainingY / remaining;
+  const sideX = -backY; const sideY = backX;
+  const strength = Math.min(1, remaining / 120) * Math.min(1, life / .25 + .2);
+  const length = size * (1.6 + 2.2 * strength);
+  context.save(); context.lineCap = "round";
+  context.globalAlpha = .18 * strength; context.fillStyle = "#fff1d6";
+  context.beginPath(); context.arc(x + backX * size * .9, y + backY * size * .9, size * .85, 0, Math.PI * 2); context.fill();
+  for (let index = -1; index <= 1; index += 1) {
+    const offset = index * size * .55;
+    const wobble = Math.sin(seed * 7 + index * 2.1) * size * .15;
+    const startX = x + sideX * offset + backX * (size * .6 + Math.abs(index) * size * .2);
+    const startY = y + sideY * offset + backY * (size * .6 + Math.abs(index) * size * .2);
+    context.globalAlpha = strength * (index === 0 ? .9 : .65);
+    context.strokeStyle = index === 0 ? "#ffffff" : "#ffd6a0"; context.lineWidth = index === 0 ? Math.max(2, size * .16) : Math.max(1.5, size * .11);
+    context.beginPath(); context.moveTo(startX, startY); context.lineTo(startX + backX * length + sideX * wobble, startY + backY * length + sideY * wobble); context.stroke();
+  }
+  context.restore();
+}
+
 // 둔화·빙결 표시: 하늘색 테두리와 얼음 결정 2개. 빙결은 결정이 크고 테두리가 두껍다. 만료 0.3초 전부터 깜빡인다.
 function drawFrostMark(context: CanvasRenderingContext2D, x: number, y: number, size: number, frozen: boolean, remaining: number, time: number) {
   const blink = remaining < .3 ? (Math.sin(time * 30) > 0 ? 1 : .35) : 1;
@@ -1913,14 +1937,7 @@ function drawSmashCast(context: CanvasRenderingContext2D, x: number, y: number, 
       context.globalAlpha = fade * .9;
       context.beginPath(); context.arc(originX + Math.cos(emberAngle) * travel, Math.sin(emberAngle) * travel, 2.5 + (ember % 2), 0, Math.PI * 2); context.fill();
     }
-    context.strokeStyle = "rgba(255,190,110,.95)"; context.lineWidth = 2.5; context.lineCap = "round";
-    for (let index = -2; index <= 2; index += 1) {
-      const lineY = index * (width / 5);
-      const head = originX + length * Math.min(1, impact * 1.1);
-      const tail = originX + length * Math.max(0, impact * 1.1 - .35);
-      context.globalAlpha = fade * (index === 0 ? .95 : .7);
-      context.beginPath(); context.moveTo(tail, lineY); context.lineTo(head, lineY); context.stroke();
-    }
+    // 통로 전체를 가로지르던 큰 속도선은 뺐다. 바람 자국은 밀려나는 생물마다 제 크기에 맞춰 따로 그린다(drawKnockbackWind).
   }
   context.globalAlpha = 1;
   if (lumi) {
@@ -3272,6 +3289,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
       if (creature.knockbackLife <= 0) {
         // 밀림이 끝나는 순간 미뤄 둔 피해를 준다(바위에 꽂힌 경우는 위에서 이미 줬다).
+        delete creature.knockbackDelay;
         if ((creature.knockbackPendingDamage ?? 0) > 0) damageCreature(creature, creature.knockbackPendingDamage ?? 0, .2);
         delete creature.knockbackPendingDamage;
         delete creature.knockbackX; delete creature.knockbackY; delete creature.knockbackLife;
@@ -3889,7 +3907,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       }
       for (const creature of runtime.creatures) {
         if (creature.hp <= 0) continue;
-        if ((creature.knockbackLife ?? 0) > 0) { advanceKnockback(creature, dt); creature.hitFlash = Math.max(0, creature.hitFlash - dt); continue; }
+        if ((creature.knockbackDelay ?? 0) > 0) {
+          // 뻘권 주먹이 아직 뻗는 중: 평소대로 움직이다가 주먹이 닿는 순간부터 밀린다.
+          creature.knockbackDelay = Math.max(0, (creature.knockbackDelay ?? 0) - dt);
+          if (creature.knockbackDelay <= 0) { delete creature.knockbackDelay; creature.hitFlash = Math.max(creature.hitFlash, .2); }
+        } else if ((creature.knockbackLife ?? 0) > 0) { advanceKnockback(creature, dt); creature.hitFlash = Math.max(0, creature.hitFlash - dt); continue; }
         creature.age += dt;
         if (creature.eventLife !== undefined) creature.eventLife -= dt;
         if ((creature.emergeSeconds ?? 0) > 0) creature.emergeSeconds = Math.max(0, (creature.emergeSeconds ?? 0) - dt);
@@ -4461,8 +4483,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
               if (creature.hp <= 0 || (creature.emergeSeconds ?? 0) > 0 || castNetMovementMultiplier(creature, runtime.castNets) === 0) continue;
               const local = localPoint(creature);
               if (local.x < -creature.size || local.x > smash.length || Math.abs(local.y) > smash.width / 2 + creature.size) continue;
-              // 피해는 바로 주지 않고 밀려난 뒤(넉백이 끝나거나 바위에 꽂힐 때) 한 번에 준다. 맞는 순간에는 섬광만.
-              creature.hitFlash = Math.max(creature.hitFlash, .2);
+              // 밀림은 주먹이 다 뻗어 닿는 순간(발동 0.4초 뒤)에 시작하고, 피해는 밀려난 뒤(넉백이 끝나거나 바위에 꽂힐 때) 한 번에 준다.
+              // 그때까지 생물은 평소대로 움직이고, 주먹이 닿는 순간 섬광이 난다.
+              creature.knockbackDelay = SMASH_STRIKE_END;
               creature.knockbackPendingDamage = smash.damage;
               const awayDistance = Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y);
               const awayX = awayDistance > .001 ? (creature.x - runtime.player.x) / awayDistance : dirX;
@@ -4834,16 +4857,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       for (const creature of runtime.creatures) {
         const visibility = creatureRevealStrength(creature);
         const point = screenPoint(creature); if (visibility <= 0 || point.x < -70 || point.y < -70 || point.x > width + 70 || point.y > height + 70) continue;
-        if ((creature.knockbackLife ?? 0) > 0) {
-          const trailLength = Math.hypot(creature.knockbackX ?? 0, creature.knockbackY ?? 0) || 1;
-          const trailX = -(creature.knockbackX ?? 0) / trailLength; const trailY = -(creature.knockbackY ?? 0) / trailLength;
-          context.save();
-          for (let index = 1; index <= 2; index += 1) {
-            context.globalAlpha = .24 / index; context.fillStyle = "#eaf6ff";
-            context.beginPath(); context.arc(point.x + trailX * index * 9, point.y + trailY * index * 9, Math.max(3, creature.size * (1 - index * .2)), 0, Math.PI * 2); context.fill();
-          }
-          context.restore();
-        }
+        if ((creature.knockbackLife ?? 0) > 0 && !((creature.knockbackDelay ?? 0) > 0)) drawKnockbackWind(context, point.x, point.y, creature.size, creature.knockbackX ?? 0, creature.knockbackY ?? 0, creature.knockbackLife ?? 0, actionTime + creature.id);
         const slowRemaining = creature.slowUntil !== undefined ? creature.slowUntil - runtime.elapsed : 0;
         if (slowRemaining > 0 && (creature.slowFactor ?? 0) > 0) drawFrostMark(context, point.x, point.y, creature.size, (creature.slowFactor ?? 0) >= 1, slowRemaining, actionTime);
         if ((creature.shockUntil ?? 0) > runtime.elapsed) drawShockMark(context, point.x, point.y, creature.size, actionTime);

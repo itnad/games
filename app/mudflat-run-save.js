@@ -184,7 +184,7 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (!runtime.creatures.every((creature) => typeof creature.type === "string" && typeof creature.name === "string"
       && ["chase", "still", "wander", "flee", "oval"].includes(creature.movement))) return null;
     if (!runtime.creatures.every((creature) => (creature.eventKind === undefined || ["puffer-rush", "crab-line", "mud-zombie", "jellyfish"].includes(creature.eventKind))
-      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast", "knockbackPendingDamage", "slowUntil", "slowFactor", "shockUntil", "bossSkillPhase", "bossSkillClock", "jumpX", "jumpY"].every((key) => creature[key] === undefined || finite(creature[key]))
+      && ["chargeX", "chargeY", "eventLife", "emergeSeconds", "knockbackX", "knockbackY", "knockbackLife", "knockbackDamage", "knockbackRockBonus", "knockbackCast", "knockbackPendingDamage", "knockbackDelay", "slowUntil", "slowFactor", "shockUntil", "bossSkillPhase", "bossSkillClock", "jumpX", "jumpY"].every((key) => creature[key] === undefined || finite(creature[key]))
       && (creature.knockbackChain === undefined || typeof creature.knockbackChain === "boolean")
       && [creature.bossSkill, creature.bossSkillPrev].every((skill) => skill === undefined || ["charge", "jump", "fireball", "claw", "summon"].includes(skill))
       && (creature.uncollectible === undefined || typeof creature.uncollectible === "boolean"))) return null;

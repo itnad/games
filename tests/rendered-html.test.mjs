@@ -2402,7 +2402,12 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /runtime\.smashEffect = SMASH_EFFECT_SECONDS; runtime\.smashAngle = angle; runtime\.smashClock = smash\.cooldown;/);
   assert.match(source, /const SMASH_EFFECT_SECONDS = 1\.1;\s*const SMASH_PREP_END = \.16;\s*const SMASH_STRIKE_END = \.4;\s*const SMASH_IMPACT_END = \.8;/);
   // 피해는 맞는 순간이 아니라 밀려난 뒤(넉백 종료 또는 바위 충돌)에 한 번에 준다. 맞는 순간에는 섬광과 미뤄 둔 피해만 기록한다.
-  assert.match(source, /creature\.hitFlash = Math\.max\(creature\.hitFlash, \.2\);\s*creature\.knockbackPendingDamage = smash\.damage;/);
+  // 밀림은 주먹이 다 뻗는 0.4초 뒤에 시작하고(그때 섬광), 그동안 생물은 평소대로 움직인다. 통로 전체 속도선 대신 생물마다 바람 자국을 그린다.
+  assert.match(source, /creature\.knockbackDelay = SMASH_STRIKE_END;\s*creature\.knockbackPendingDamage = smash\.damage;/);
+  assert.match(source, /if \(\(creature\.knockbackDelay \?\? 0\) > 0\) \{[\s\S]*?creature\.knockbackDelay = Math\.max\(0, \(creature\.knockbackDelay \?\? 0\) - dt\);\s*if \(creature\.knockbackDelay <= 0\) \{ delete creature\.knockbackDelay; creature\.hitFlash = Math\.max\(creature\.hitFlash, \.2\); \}\s*\} else if \(\(creature\.knockbackLife \?\? 0\) > 0\) \{ advanceKnockback\(creature, dt\);/);
+  assert.match(source, /function drawKnockbackWind\(/);
+  assert.match(source, /drawKnockbackWind\(context, point\.x, point\.y, creature\.size, creature\.knockbackX \?\? 0, creature\.knockbackY \?\? 0, creature\.knockbackLife \?\? 0, actionTime \+ creature\.id\)/);
+  assert.doesNotMatch(source, /const head = originX \+ length \* Math\.min\(1, impact \* 1\.1\);/);
   assert.doesNotMatch(source, /damageCreature\(creature, smash\.damage, \.2\);/);
   assert.match(source, /damageCreature\(creature, \(creature\.knockbackPendingDamage \?\? 0\) \+ \(creature\.knockbackRockBonus \?\? 0\), \.18\);/);
   assert.match(source, /if \(\(creature\.knockbackPendingDamage \?\? 0\) > 0\) damageCreature\(creature, creature\.knockbackPendingDamage \?\? 0, \.2\);/);
