@@ -429,6 +429,14 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(tools, /id: "lightning",[\s\S]*?stage: 2,[\s\S]*?"chain-lightning": 6, thunderbolt: 6[\s\S]*?hitByMosquito: true,\n\s+hitByPufferfish: true,/);
   assert.match(tools, /updateBuild\(\{ hitByMosquito: event\.target\.checked \}\)/);
   assert.match(tools, /updateBuild\(\{ hitByPufferfish: event\.target\.checked \}\)/);
+  // 감독 관전 추천 프리셋 세 개: 광역(6단계)·보스(8단계, 8초 등장)·지형(3단계). 레벨 20·경험치 0, 선택 기술 6개 이하.
+  assert.match(tools, /id: "supervise-aoe",[\s\S]*?stage: 6,[\s\S]*?level: 20,[\s\S]*?nextXp: 1431,[\s\S]*?fireball: 6, "flame-burst": 6, "chain-lightning": 6, smash: 6, "frost-trail": 6/);
+  assert.match(tools, /id: "supervise-boss",[\s\S]*?stage: 8,[\s\S]*?thunderbolt: 6, "frost-wave": 6, "guard-basket": 6, electric: 3, "hoe-bot": 3[\s\S]*?bossEarly: true,/);
+  assert.match(tools, /id: "supervise-terrain",[\s\S]*?stage: 3,[\s\S]*?"rock-lift": 6, smash: 6, "hoe-bot": 6, "guard-basket": 3/);
+  for (const match of tools.matchAll(/id: "supervise-[a-z]+",[\s\S]*?levels: (\{[^}]*\})/g)) {
+    const selectable = Object.keys(JSON.parse(match[1].replace(/(\w[\w-]*|"[\w-]+"):/g, (_, key) => `"${key.replace(/"/g, "")}":`))).filter((id) => !["tongs", "digging"].includes(id));
+    assert.ok(selectable.length <= 6, `${match[0].slice(0, 30)} 선택 기술은 6개 이하여야 전부 활성된다`);
+  }
   // 대왕 박하지 프리셋은 8단계에서 8초 뒤 등장시키고, 빌더에도 같은 선택이 있어 프리셋·빌더 모두 launch에 bossEarly를 싣는다.
   assert.match(tools, /id: "boss-skills",[\s\S]*?stage: 8,[\s\S]*?bossEarly: true,/);
   assert.match(tools, /updateBuild\(\{ bossEarly: event\.target\.checked \}\)/);
@@ -4268,6 +4276,131 @@ test("centered full-screen overlay panels can scroll on short desktop viewports"
     assert.match(body, /max-height:(calc\(100d?vh-\d+px\)|min\([^)]*vh[^)]*\)|\d+d?vh)/, `${file} ${selector} 최대 높이`);
     assert.match(body, /overflow(-y)?:(auto|hiddenauto)/, `${file} ${selector} 스크롤`);
   }
+});
+
+// JSX 여는 태그를 읽는다. 속성의 { } 안 화살표 함수와 따옴표 문자열을 건너뛰고, 태그 이름·속성 문자열·끝 위치·자기 닫힘 여부를 돌려준다.
+function readJsxTag(source, start) {
+  const name = source.slice(start + 1).match(/^[A-Za-z][\w.-]*/);
+  if (!name) return null;
+  let index = start + 1 + name[0].length; let depth = 0; let quote = null;
+  for (; index < source.length; index += 1) {
+    const char = source[index];
+    if (quote) { if (char === quote && source[index - 1] !== "\\") quote = null; continue; }
+    if (char === "\"" || char === "'" || char === "`") { quote = char; continue; }
+    if (char === "{") { depth += 1; continue; }
+    if (char === "}") { depth = Math.max(0, depth - 1); continue; }
+    if (char === ">" && depth === 0) {
+      const attrs = source.slice(start + 1 + name[0].length, index);
+      return { tag: name[0], attrs, end: index + 1, selfClosing: attrs.trimEnd().endsWith("/") };
+    }
+  }
+  return null;
+}
+
+// 모든 스타일시트에서 가운데 정렬된 전체 화면 덮개를 자동으로 모아, 그 안의 패널이 기본 규칙에서 뷰포트 기준
+// 최대 높이와 스크롤을 갖는지(또는 덮개 자체가 overflow:auto + safe 정렬인지) 검사한다. 새 게임이 새 덮개를 만들면
+// 자동으로 검사 대상에 들어가며, 버튼 없는 짧은 안내문만 이유와 함께 제외할 수 있다. 규칙은 AGENTS.md "Full-screen overlays".
+test("every centered full-screen overlay keeps its panel scrollable in the base rules", async () => {
+  const { readdir } = await import("node:fs/promises");
+  const walk = async (dir, pattern) => {
+    const entries = await readdir(dir, { withFileTypes: true });
+    const files = [];
+    for (const entry of entries) {
+      if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+      const path = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) files.push(...await walk(path, pattern));
+      else if (pattern.test(entry.name)) files.push(path);
+    }
+    return files;
+  };
+  const appDir = new URL("../app", import.meta.url).pathname;
+  const cssFiles = await walk(appDir, /\.css$/);
+  const tsxFiles = await walk(appDir, /\.tsx$/);
+  // CSS를 (선택자, 선언, 미디어 쿼리 안 여부)로 펼친다.
+  const rules = [];
+  for (const file of cssFiles) {
+    const css = (await readFile(file, "utf8")).replace(/\/\*[\s\S]*?\*\//g, "");
+    const stack = []; let buffer = "";
+    for (const char of css) {
+      if (char === "{") { stack.push(buffer.trim()); buffer = ""; continue; }
+      if (char === "}") {
+        const selector = stack.pop() ?? ""; const body = buffer; buffer = "";
+        if (!selector.startsWith("@")) {
+          const inMedia = stack.some((item) => item.startsWith("@"));
+          for (const single of selector.split(",")) rules.push({ file: file.slice(appDir.length + 1), selector: single.trim().replace(/\s+/g, " "), body: body.replace(/\s+/g, "").toLowerCase(), inMedia });
+        }
+        continue;
+      }
+      buffer += char;
+    }
+  }
+  const centered = (body) => /(place-items|place-content|align-items|align-content|justify-content):(safe)?center/.test(body);
+  const fullScreen = (body) => body.includes("position:fixed") && (body.includes("inset:0") || (body.includes("top:0") && body.includes("bottom:0")));
+  const overlayClasses = new Map();
+  for (const rule of rules) {
+    const match = rule.selector.match(/^\.([\w-]+)$/);
+    if (!match || !fullScreen(rule.body) || !centered(rule.body)) continue;
+    overlayClasses.set(match[1], rule.file);
+  }
+  assert.ok(overlayClasses.size >= 20, `덮개 수집이 너무 적다: ${overlayClasses.size}`);
+  assert.ok(overlayClasses.has("ms-layer") && overlayClasses.has("overlay-layer"), "해루질럿 덮개와 공용 덮개가 수집돼야 한다");
+  // 버튼 없는 짧은 안내문만 이유와 함께 제외한다.
+  const excluded = {
+    "bk-notice": "박살 세로 화면 안내문. 버튼 없는 두 줄 안내라 뷰포트보다 길어질 수 없다.",
+    "sr-orientation-notice": "스타크 리프트 세로 화면 안내문. 버튼 없는 세 줄 안내라 뷰포트보다 길어질 수 없다.",
+    "chess-promotion-backdrop": "체스 승급 선택. 기물 버튼 4개 한 줄짜리 작은 패널이다.",
+  };
+  const baseBody = (predicate) => rules.filter((rule) => !rule.inMedia && predicate(rule.selector)).map((rule) => rule.body).join(";");
+  // 뷰포트 기준 최대 높이 + 스크롤. overflow:hidden은 패널이 세로 flex라 안쪽 목록이 스크롤하는 구조일 때만 인정한다.
+  const scrollable = (body) => /max-height:[^;]*(\d+d?vh|100%)/.test(body)
+    && (/overflow(-y)?:(auto|hiddenauto|scroll)/.test(body) || (/overflow:hidden/.test(body) && body.includes("display:flex") && body.includes("flex-direction:column")));
+  const layerScrolls = (body) => /overflow(-y)?:auto/.test(body) && /(place-content|align-content|align-items):safecenter/.test(body);
+  const problems = [];
+  for (const [overlay, file] of overlayClasses) {
+    if (excluded[overlay]) continue;
+    const ownBody = baseBody((selector) => selector === `.${overlay}`);
+    if (layerScrolls(ownBody)) continue;
+    // TSX에서 덮개 요소의 직접 자식 요소(태그와 첫 클래스)를 모은다. 속성 안의 화살표 함수({ ... })와 문자열을 건너뛰며 여는 태그를 읽는다.
+    const children = new Set();
+    for (const file of tsxFiles) {
+      const source = await readFile(file, "utf8");
+      const classPattern = new RegExp("className=\\{?[`\"]" + overlay + "(?:[\\s`\"$])");
+      for (let index = source.indexOf("<"); index !== -1 && index < source.length; index = source.indexOf("<", index + 1)) {
+        const tag = readJsxTag(source, index);
+        if (!tag || !classPattern.test(tag.attrs)) continue;
+        let position = tag.end; let depth = 0;
+        for (let guard = 0; guard < 4000; guard += 1) {
+          const next = source.indexOf("<", position);
+          if (next === -1) break;
+          if (source[next + 1] === "/") {
+            if (depth === 0) break;
+            depth -= 1; position = source.indexOf(">", next) + 1; continue;
+          }
+          const child = readJsxTag(source, next);
+          if (!child) { position = next + 1; continue; }
+          if (depth === 0) {
+            const classMatch = child.attrs.match(/className=\{?[`"]([^`"$]+)/);
+            children.add(JSON.stringify([child.tag, classMatch ? classMatch[1].trim().split(/\s+/)[0] : null]));
+          }
+          if (!child.selfClosing) depth += 1;
+          position = child.end;
+        }
+      }
+    }
+    if (children.size === 0) { problems.push(`${file}: .${overlay} 덮개를 TSX에서 찾지 못했다. 덮개 자체에 overflow-y:auto와 safe center를 주거나 제외 목록에 이유를 적어라.`); continue; }
+    // 직접 자식 중 적어도 하나(패널)는 스크롤 규칙을 가져야 한다. 닫기용 배경 버튼 같은 작은 자식은 건너뛴다.
+    const failures = [];
+    let passed = false;
+    for (const entry of children) {
+      const [tag, className] = JSON.parse(entry);
+      const selectorsForChild = (selector) => selector === `.${overlay}>${tag}` || selector === `.${overlay} > ${tag}` || selector === `.${overlay} ${tag}`
+        || (className !== null && (selector === `.${className}` || selector === `.${overlay}>.${className}` || selector === `.${overlay} > .${className}` || selector === `.${overlay} .${className}`));
+      if (scrollable(baseBody(selectorsForChild))) { passed = true; break; }
+      failures.push(`<${tag}${className ? ` class="${className}"` : ""}>`);
+    }
+    if (!passed) problems.push(`${file}: .${overlay} 안의 ${failures.join(", ")} 기본 규칙에 뷰포트 기준 max-height와 overflow:auto가 없다 (미디어 쿼리 안에만 있으면 안 됨). 공용 .overlay-panel을 쓰거나 기본 규칙에 넣어라.`);
+  }
+  assert.deepEqual(problems, []);
 });
 
 test("secret retry hold fires once after three seconds and cancels without falling back", async () => {
