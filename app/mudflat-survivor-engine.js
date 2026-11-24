@@ -480,6 +480,22 @@ export function mudflatHoeBotStats(level = 0) {
   };
 }
 
+// 호미봇 한 걸음. unit을 target 쪽으로 최대 maxStep만큼 옮기고, stopDistance 안에 들어오면(또는 이번 걸음으로 들어올 수 있으면)
+// 딱 그 거리에 멈춰 세우고 true를 돌려준다. 부동소수점 때문에 14.0000001px에서 영원히 "도착 직전"에 머무는 일을 막는다.
+export function mudflatStepToward(unit, target, stopDistance = 0, maxStep = 0) {
+  const dx = target.x - unit.x; const dy = target.y - unit.y; const length = Math.hypot(dx, dy);
+  const remaining = length - Math.max(0, stopDistance);
+  if (Math.abs(dx) > .5) unit.facing = dx > 0 ? 1 : -1;
+  if (remaining <= 1e-6) return true;
+  const safeStep = Math.max(0, Number(maxStep) || 0);
+  if (remaining <= safeStep) {
+    unit.x += dx / length * remaining; unit.y += dy / length * remaining;
+    return true;
+  }
+  unit.x += dx / length * safeStep; unit.y += dy / length * safeStep;
+  return false;
+}
+
 // 건곤대나이 수치. 주기·반경·바위 수·낙하 피해만 정하고, 바위 밑 발견물은
 // 돌뒤집개 레벨로 굴린다. 체공 0.9초 뒤 0.15초에 걸쳐 떨어진다.
 export const MUDFLAT_ROCK_LIFT_SECONDS = .9;
@@ -498,7 +514,7 @@ export function mudflatRockLiftStats(level = 0) {
 
 // 뻘권 수치. 타격 통로는 플레이어 앞 length × width, 넉백은 0.35초 동안 knockback px.
 // 바위에 부딪히면 rockBonus 추가 피해, Lv.5부터 날아가다 닿은 해산물에 50% 피해와 넉백을 전파한다.
-export const MUDFLAT_SMASH_KNOCKBACK_SECONDS = .35;
+export const MUDFLAT_SMASH_KNOCKBACK_SECONDS = .7;
 export const MUDFLAT_SMASH_CHAIN_RATIO = .5;
 export function mudflatSmashStats(level = 0) {
   const safeLevel = mudflatSafeLevel(level);
