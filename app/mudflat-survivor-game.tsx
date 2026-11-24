@@ -1889,13 +1889,13 @@ function drawFrostCast(context: CanvasRenderingContext2D, x: number, y: number, 
   context.restore();
 }
 
-// 뻘권 시간 배분(총 0.9초): 준비 0.08초 → 내지르기 0.12초(빠르게 꽂는다) → 팔 뻗은 채 충격 0.4초 → 복귀 0.3초.
+// 뻘권 시간 배분(총 1.1초): 준비 0.08초 → 내지르기 0.12초(빠르게 꽂는다) → 팔 뻗은 채 충격 0.6초 → 복귀 0.3초.
 // 내지르기는 빠르고, 팔을 뻗은 채 머무는 시간은 길게 둬 밀려 날아가는 모습을 따라갈 수 있게 한다.
 // progress(0~1)를 초 단위 단계로 바꾼다.
-const SMASH_EFFECT_SECONDS = .9;
+const SMASH_EFFECT_SECONDS = 1.1;
 const SMASH_PREP_END = .08;
 const SMASH_STRIKE_END = .2;
-const SMASH_IMPACT_END = .6;
+const SMASH_IMPACT_END = .8;
 function smashPhases(progress: number) {
   const t = Math.max(0, Math.min(1, progress)) * SMASH_EFFECT_SECONDS;
   const ease = (value: number) => Math.sin(Math.max(0, Math.min(1, value)) * Math.PI / 2);
