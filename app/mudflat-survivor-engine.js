@@ -480,6 +480,14 @@ export function mudflatHoeBotStats(level = 0) {
   };
 }
 
+// HUD 충전 표시. 주기가 있는 기술의 남은 대기 시간(clock)을 0~1 채움(fill)으로 바꾼다. 대상을 찾지 못해 짧게(0.5초 안)
+// 재시도하는 동안은 준비된 것(ready)으로 본다. 주기가 없으면 항상 준비.
+export function mudflatSkillCharge(clock = 0, interval = Infinity, readyWindow = .5) {
+  if (!(interval > 0) || !Number.isFinite(interval)) return { fill: 1, ready: true };
+  const remaining = Math.max(0, Number(clock) || 0);
+  return { fill: Math.max(0, Math.min(1, 1 - remaining / interval)), ready: remaining <= readyWindow };
+}
+
 // 호미봇 한 걸음. unit을 target 쪽으로 최대 maxStep만큼 옮기고, stopDistance 안에 들어오면(또는 이번 걸음으로 들어올 수 있으면)
 // 딱 그 거리에 멈춰 세우고 true를 돌려준다. 부동소수점 때문에 14.0000001px에서 영원히 "도착 직전"에 머무는 일을 막는다.
 export function mudflatStepToward(unit, target, stopDistance = 0, maxStep = 0) {
