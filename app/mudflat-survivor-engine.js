@@ -563,15 +563,18 @@ export function mudflatFireballStats(level = 0) {
 // 뿜어 닿는 모든 해산물에 damage를 준다. 반경 checkRadius 안에 해산물이 있을 때만 발동한다.
 export function mudflatFlameBurstStats(level = 0) {
   const safeLevel = mudflatSafeLevel(level);
-  if (!safeLevel) return { interval: Infinity, rays: 0, damage: 0, length: 0, width: 0, sweepSeconds: 0, checkRadius: 0 };
+  if (!safeLevel) return { interval: Infinity, rays: 0, damage: 0, length: 0, width: 0, sweepSeconds: 0, holdSeconds: 0, checkRadius: 0 };
+  // 줄기는 캐릭터를 따라 움직이며 holdSeconds 동안 유지된다(앞 sweepSeconds 동안 뻗고 마지막 0.3초 동안 꺼진다).
+  // 유지되는 동안 줄기에 닿은 해산물은 발동당 한 번씩 피해를 받는다.
   return {
     interval: 5,
     rays: [4, 5, 6, 7, 8, 8][safeLevel - 1],
     damage: safeLevel >= 6 ? 150 : 100,
-    length: 170,
+    length: 340,
     width: 34,
-    sweepSeconds: .35,
-    checkRadius: 170,
+    sweepSeconds: .7,
+    holdSeconds: 1,
+    checkRadius: 340,
   };
 }
 

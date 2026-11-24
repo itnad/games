@@ -193,14 +193,15 @@ import {
 
 type ExitProps = { onExit: () => void };
 type CreatureEventKind = "puffer-rush" | "crab-line" | "mud-zombie" | "jellyfish";
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; knockbackX?: number; knockbackY?: number; knockbackLife?: number; knockbackDamage?: number; knockbackRockBonus?: number; knockbackCast?: number; knockbackChain?: boolean; knockbackPendingDamage?: number; knockbackDelay?: number; slowUntil?: number; slowFactor?: number; shockUntil?: number; bossSkill?: string; bossSkillPhase?: number; bossSkillClock?: number; bossSkillPrev?: string; jumpX?: number; jumpY?: number; movementAngle: number; movementClock: number; facing?: 1 | -1; returnSeconds?: number; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; knockbackX?: number; knockbackY?: number; knockbackLife?: number; knockbackDamage?: number; knockbackRockBonus?: number; knockbackCast?: number; knockbackChain?: boolean; knockbackPendingDamage?: number; knockbackDelay?: number; flameCastId?: number; slowUntil?: number; slowFactor?: number; shockUntil?: number; bossSkill?: string; bossSkillPhase?: number; bossSkillClock?: number; bossSkillPrev?: string; jumpX?: number; jumpY?: number; movementAngle: number; movementClock: number; facing?: 1 | -1; returnSeconds?: number; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
 type Pickup = ReturnType<typeof createExperiencePickup>;
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
 // 파이어볼: 흔들리며 날아가는 불덩이. baseAngle 기준 수직 방향으로 사인 흔들림을 더한다.
 type Fireball = Point & { id: number; vx: number; vy: number; age: number; life: number; damage: number; splash: number; wobblePhase: number; baseAngle: number };
 // 화염 방사 불줄기 연출(피해는 발동 순간에 적용). 0.35초 뻗고 0.5초에 사라진다.
-type FlameRay = Point & { id: number; angle: number; age: number; length: number; width: number };
+// 화염 방사 불줄기: 캐릭터 위치를 따라다니고 바라보는 방향 + offset으로 돈다. castId는 발동 식별값(한 발동에 생물마다 한 번만 피해).
+type FlameRay = Point & { id: number; angle: number; age: number; length: number; width: number; offset?: number; castId?: number; damage?: number };
 // 서리 바닥: 위의 해산물을 느리게 하고 틱 피해를 준다. 수명이 끝나면 녹듯이 사라진다.
 type FrostPatch = Point & { id: number; radius: number; age: number; life: number };
 // 빙결 파동 고리 연출(피해·둔화는 발동 순간에 적용).
@@ -1701,8 +1702,9 @@ function drawFireball(context: CanvasRenderingContext2D, x: number, y: number, a
 
 // 화염 방사 불줄기: 0.35초 동안 길이만큼 뻗는 원뿔(노랑→주황→투명), 0.5초에 사라진다.
 function drawFlameRay(context: CanvasRenderingContext2D, x: number, y: number, angle: number, age: number, length: number, width: number) {
-  const grow = Math.min(1, age / .35);
-  const fade = age < .35 ? 1 : Math.max(0, 1 - (age - .35) / .15);
+  // 0.7초 동안 뻗고 1초에 꺼진다(마지막 0.3초 동안 사라짐). mudflatFlameBurstStats의 sweepSeconds·holdSeconds와 같다.
+  const grow = Math.min(1, age / .7);
+  const fade = age < .7 ? 1 : Math.max(0, 1 - (age - .7) / .3);
   const reach = length * grow;
   context.save(); context.translate(x, y); context.rotate(angle); context.globalAlpha = fade;
   const gradient = context.createLinearGradient(0, 0, Math.max(1, reach), 0);
@@ -4192,9 +4194,27 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
         if (exploded.length > 0) runtime.fireballs = runtime.fireballs.filter((ball) => !exploded.includes(ball));
       }
+      // 화염 방사 불줄기: 캐릭터를 따라 움직이고 바라보는 방향으로 돌며, 뻗은 길이 안에 들어온 해산물에 발동당 한 번씩 피해를 준다.
       if (runtime.flameRays.length > 0) {
-        for (const ray of runtime.flameRays) ray.age += dt;
-        runtime.flameRays = runtime.flameRays.filter((ray) => ray.age < .5);
+        const flame = mudflatFlameBurstStats(Math.max(1, runtime.levels["flame-burst"] ?? 0));
+        for (const ray of runtime.flameRays) {
+          ray.age += dt;
+          ray.x = runtime.player.x; ray.y = runtime.player.y;
+          if (ray.offset !== undefined) ray.angle = runtime.player.facing + ray.offset;
+          if (ray.castId === undefined) continue;
+          const reach = ray.length * Math.min(1, ray.age / flame.sweepSeconds);
+          const dirX = Math.cos(ray.angle); const dirY = Math.sin(ray.angle);
+          for (const creature of runtime.creatures) {
+            if (creature.hp <= 0 || creature.flameCastId === ray.castId || !isCreatureRevealed(creature)) continue;
+            const ox = creature.x - ray.x; const oy = creature.y - ray.y;
+            const localX = ox * dirX + oy * dirY; const localY = -ox * dirY + oy * dirX;
+            if (localX >= -creature.size && localX <= reach + creature.size && Math.abs(localY) <= ray.width / 2 + creature.size) {
+              damageCreature(creature, ray.damage ?? flame.damage, .2);
+              creature.flameCastId = ray.castId;
+            }
+          }
+        }
+        runtime.flameRays = runtime.flameRays.filter((ray) => ray.age < flame.holdSeconds);
       }
       // 대왕 박하지 파이어볼: 플레이어 파이어볼과 같은 흔들림 비행. 플레이어(반지름 16 + 10)에 닿거나 사거리를 다하면 터진다. 베이스캠프 안의 플레이어는 맞지 않는다.
       if (runtime.bossFireballs.length > 0) {
@@ -4438,26 +4458,20 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             } else runtime.fireballClock = .25;
           }
         }
-        // 화염 방사: 5초마다 반경 170px 안에 해산물이 있을 때 바라보는 방향을 첫 줄기로 사방에 불줄기를
-        // 뿜는다. 피해는 발동 순간 줄기 안의 모든 해산물에 한 번씩(겹치는 줄기도 한 번).
+        // 화염 방사: 5초마다 반경 340px 안에 해산물이 있을 때 바라보는 방향을 첫 줄기로 사방에 불줄기를 뿜는다.
+        // 줄기는 1초 동안 캐릭터를 따라다니며(위치·바라보는 방향) 뻗어 나가고, 유지되는 동안 줄기에 닿은 해산물은
+        // 발동당 한 번씩 피해를 받는다(겹치는 줄기도 한 번). 피해 적용은 아래 불줄기 갱신에서 한다.
         const flameLevel = runtime.levels["flame-burst"] ?? 0;
         if (runtime.mode === "normal" && flameLevel > 0 && runtime.flameBurstClock <= 0) {
           const flame = mudflatFlameBurstStats(flameLevel);
           if (revealedCreatures.some((creature) => creature.hp > 0 && Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y) <= flame.checkRadius + creature.size)) {
-            const burned = new Set<number>();
+            const castId = sequenceRef.current++;
             for (let index = 0; index < flame.rays; index += 1) {
-              const angle = runtime.player.facing + index * Math.PI * 2 / flame.rays;
-              runtime.flameRays.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, angle, age: 0, length: flame.length, width: flame.width });
-              const dirX = Math.cos(angle); const dirY = Math.sin(angle);
-              for (const creature of revealedCreatures) {
-                if (creature.hp <= 0 || burned.has(creature.id)) continue;
-                const ox = creature.x - runtime.player.x; const oy = creature.y - runtime.player.y;
-                const localX = ox * dirX + oy * dirY; const localY = -ox * dirY + oy * dirX;
-                if (localX >= -creature.size && localX <= flame.length + creature.size && Math.abs(localY) <= flame.width / 2 + creature.size) { damageCreature(creature, flame.damage, .2); burned.add(creature.id); }
-              }
+              const offset = index * Math.PI * 2 / flame.rays;
+              runtime.flameRays.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y, angle: runtime.player.facing + offset, offset, age: 0, length: flame.length, width: flame.width, castId, damage: flame.damage });
             }
             runtime.flameBurstClock = flame.interval;
-            if (supervisorRef.current) appendSupervisorEvent("flame-burst", `화염 방사 Lv.${flameLevel} · ${flame.rays}방향 · ${burned.size}마리`, runtime);
+            if (supervisorRef.current) appendSupervisorEvent("flame-burst", `화염 방사 Lv.${flameLevel} · ${flame.rays}방향`, runtime);
           } else runtime.flameBurstClock = .5;
         }
         // 서리 발자국: 0.9초마다 플레이어 자리에 서리 바닥을 남긴다(같은 자리면 수명 갱신, 최대 12개). 캠프 안에서는 남기지 않는다.

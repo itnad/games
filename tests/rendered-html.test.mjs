@@ -1467,11 +1467,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatFireballStats(level).damage), [10, 20, 30, 40, 50, 60]);
   assert.deepEqual(mudflatFireballStats(3), { interval: 1, shots: 3, spacing: .2, damage: 30, speed: 240, range: 260, splash: 40, wobble: 14, wobblePeriod: .35, sectorHalfAngle: Math.PI / 4 });
   assert.ok([1, 2, 3, 4, 5, 6].every((level) => { const stats = mudflatFireballStats(level); return (stats.shots - 1) * stats.spacing < stats.interval; }), "한 묶음은 다음 주기 전에 다 쏜다");
-  // 화염 방사 수치: 5초 주기, 4·5·6·7·8·8방향, 피해 100(Lv.6 150), 길이 170·폭 34, 발동 확인 반경 170.
-  assert.deepEqual(mudflatFlameBurstStats(0), { interval: Infinity, rays: 0, damage: 0, length: 0, width: 0, sweepSeconds: 0, checkRadius: 0 });
+  // 화염 방사 수치: 5초 주기, 4·5·6·7·8·8방향, 피해 100(Lv.6 150), 길이 340·폭 34, 0.7초 뻗고 1초 유지, 발동 확인 반경 340.
+  assert.deepEqual(mudflatFlameBurstStats(0), { interval: Infinity, rays: 0, damage: 0, length: 0, width: 0, sweepSeconds: 0, holdSeconds: 0, checkRadius: 0 });
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatFlameBurstStats(level).rays), [4, 5, 6, 7, 8, 8]);
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatFlameBurstStats(level).damage), [100, 100, 100, 100, 100, 150]);
-  assert.deepEqual(mudflatFlameBurstStats(1), { interval: 5, rays: 4, damage: 100, length: 170, width: 34, sweepSeconds: .35, checkRadius: 170 });
+  assert.deepEqual(mudflatFlameBurstStats(1), { interval: 5, rays: 4, damage: 100, length: 340, width: 34, sweepSeconds: .7, holdSeconds: 1, checkRadius: 340 });
   // 빙결 계열: 서리 발자국은 선택 기술 5개(Lv.1 이상, 기본 기술 제외) + 바위에 피해를 받은 경험,
   // 빙결 파동은 선택 기술 4개(Lv.3 이상) + 돌발 물살에 피해를 받은 경험으로 열린다. 마스터리 집계 제외.
   assert.equal(MUDFLAT_FROST_TRAIL_UNLOCK_SKILLS, 5);
@@ -2465,8 +2465,13 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /if \(!sectorHasTarget\(angle\)\) angle = runtimeRandom\(runtime\) \* Math\.PI \* 2;/);
   assert.match(source, /ball\.x \+= ball\.vx \* dt \+ perpX \* \(wobble - previousWobble\)/);
   assert.match(source, /Math\.hypot\(creature\.x - ball\.x, creature\.y - ball\.y\) <= ball\.splash \+ creature\.size\) damageCreature\(creature, ball\.damage, \.16\)/);
-  assert.match(source, /const angle = runtime\.player\.facing \+ index \* Math\.PI \* 2 \/ flame\.rays;/);
-  assert.match(source, /if \(creature\.hp <= 0 \|\| burned\.has\(creature\.id\)\) continue;/);
+  // 불줄기는 캐릭터를 따라다니며(위치·바라보는 방향 + offset) 1초 동안 유지되고, 뻗은 길이 안에 들어온 해산물은 발동(castId)당 한 번씩 맞는다.
+  assert.match(source, /const offset = index \* Math\.PI \* 2 \/ flame\.rays;/);
+  assert.match(source, /ray\.x = runtime\.player\.x; ray\.y = runtime\.player\.y;\s*if \(ray\.offset !== undefined\) ray\.angle = runtime\.player\.facing \+ ray\.offset;/);
+  assert.match(source, /if \(creature\.hp <= 0 \|\| creature\.flameCastId === ray\.castId \|\| !isCreatureRevealed\(creature\)\) continue;/);
+  assert.match(source, /const reach = ray\.length \* Math\.min\(1, ray\.age \/ flame\.sweepSeconds\);/);
+  assert.match(source, /runtime\.flameRays = runtime\.flameRays\.filter\(\(ray\) => ray\.age < flame\.holdSeconds\);/);
+  assert.doesNotMatch(source, /burned\.has\(creature\.id\)/);
   // 피격 경험은 막히지 않은 접촉 피해에서만 기록하고, 조건이 완성되는 순간 발견 문구를 띄운다.
   assert.match(source, /if \(!contactBlocked\) markHitExperience\(touchingRock \? "rock" : mudflatHitFamily\(touchingCreature\)\);/);
   assert.match(source, /const markHitExperience = \(kind: "crab" \| "shrimp" \| "rock" \| "tide" \| "mosquito" \| "pufferfish" \| null\) => \{\n\s+if \(!kind \|\| runtime\.mode !== "normal"\) return;/);
