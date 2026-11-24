@@ -192,7 +192,7 @@ import {
 
 type ExitProps = { onExit: () => void };
 type CreatureEventKind = "puffer-rush" | "crab-line" | "mud-zombie" | "jellyfish";
-type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; knockbackX?: number; knockbackY?: number; knockbackLife?: number; knockbackDamage?: number; knockbackRockBonus?: number; knockbackCast?: number; knockbackChain?: boolean; slowUntil?: number; slowFactor?: number; shockUntil?: number; bossSkill?: string; bossSkillPhase?: number; bossSkillClock?: number; bossSkillPrev?: string; jumpX?: number; jumpY?: number; movementAngle: number; movementClock: number; facing?: 1 | -1; returnSeconds?: number; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
+type Creature = Point & { id: number; type: string; name: string; family?: string; sprite?: string; icon: string; color: string; hp: number; maxHp: number; speed: number; size: number; visualScale?: number; xp: number; score: number; boss?: boolean; requiresHeadlamp?: boolean; saltHit: number; hitFlash: number; phase: number; age: number; movement: CreatureMovement; knockbackX?: number; knockbackY?: number; knockbackLife?: number; knockbackDamage?: number; knockbackRockBonus?: number; knockbackCast?: number; knockbackChain?: boolean; knockbackPendingDamage?: number; slowUntil?: number; slowFactor?: number; shockUntil?: number; bossSkill?: string; bossSkillPhase?: number; bossSkillClock?: number; bossSkillPrev?: string; jumpX?: number; jumpY?: number; movementAngle: number; movementClock: number; facing?: 1 | -1; returnSeconds?: number; ovalDirection?: number; netReleaseUntil?: number; eventKind?: CreatureEventKind; chargeX?: number; chargeY?: number; eventLife?: number; emergeSeconds?: number; uncollectible?: boolean };
 type Pickup = ReturnType<typeof createExperiencePickup>;
 type Projectile = Point & { id: number; vx: number; vy: number; damage: number; life: number };
 type Harpoon = Point & { id: number; vx: number; vy: number; damage: number; distance: number; maxDistance: number; angle: number; hitIds: Set<number> };
@@ -1865,12 +1865,12 @@ function drawFrostCast(context: CanvasRenderingContext2D, x: number, y: number, 
   context.restore();
 }
 
-// 뻘권 시간 배분(총 0.55초): 준비 0.08초 → 내지르기 0.12초 → 충격 0.2초 → 복귀 0.15초.
+// 뻘권 시간 배분(총 1.1초): 준비 0.16초 → 내지르기 0.24초 → 충격 0.4초 → 복귀 0.3초. 효과를 눈으로 따라갈 수 있게 예전의 2배 길이.
 // progress(0~1)를 초 단위 단계로 바꾼다.
-const SMASH_EFFECT_SECONDS = .55;
-const SMASH_PREP_END = .08;
-const SMASH_STRIKE_END = .2;
-const SMASH_IMPACT_END = .4;
+const SMASH_EFFECT_SECONDS = 1.1;
+const SMASH_PREP_END = .16;
+const SMASH_STRIKE_END = .4;
+const SMASH_IMPACT_END = .8;
 function smashPhases(progress: number) {
   const t = Math.max(0, Math.min(1, progress)) * SMASH_EFFECT_SECONDS;
   const ease = (value: number) => Math.sin(Math.max(0, Math.min(1, value)) * Math.PI / 2);
@@ -3250,7 +3250,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       if (rock) {
         creature.knockbackLife = 0;
         rock.impact = .3;
-        damageCreature(creature, creature.knockbackRockBonus ?? 0, .18);
+        // 바위에 꽂히면 미뤄 둔 뻘권 피해와 바위 추가 피해를 한 번에 준다.
+        damageCreature(creature, (creature.knockbackPendingDamage ?? 0) + (creature.knockbackRockBonus ?? 0), .18);
+        delete creature.knockbackPendingDamage;
         runtime.bursts.push({ id: sequenceRef.current++, x: creature.x, y: creature.y, life: .32, maxLife: .32, color: "#d8cbb4", size: creature.size + 10 });
       }
       if (creature.knockbackChain && creature.knockbackLife > 0) {
@@ -3259,7 +3261,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
           if (castNetMovementMultiplier(other, runtime.castNets) === 0) continue;
           if (Math.hypot(other.x - creature.x, other.y - creature.y) > creature.size + other.size) continue;
           const chainDamage = (creature.knockbackDamage ?? 0) * MUDFLAT_SMASH_CHAIN_RATIO;
-          damageCreature(other, chainDamage, .16);
+          // 연쇄로 맞은 생물도 밀려난 뒤에 피해를 받는다.
+          other.hitFlash = Math.max(other.hitFlash, .16);
+          other.knockbackPendingDamage = chainDamage;
           const scale = other.boss ? .5 : 1;
           other.knockbackX = (creature.knockbackX ?? 0) * scale; other.knockbackY = (creature.knockbackY ?? 0) * scale;
           other.knockbackLife = creature.knockbackLife; other.knockbackCast = creature.knockbackCast;
@@ -3267,6 +3271,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         }
       }
       if (creature.knockbackLife <= 0) {
+        // 밀림이 끝나는 순간 미뤄 둔 피해를 준다(바위에 꽂힌 경우는 위에서 이미 줬다).
+        if ((creature.knockbackPendingDamage ?? 0) > 0) damageCreature(creature, creature.knockbackPendingDamage ?? 0, .2);
+        delete creature.knockbackPendingDamage;
         delete creature.knockbackX; delete creature.knockbackY; delete creature.knockbackLife;
         delete creature.knockbackDamage; delete creature.knockbackRockBonus; delete creature.knockbackChain;
       }
@@ -4454,7 +4461,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
               if (creature.hp <= 0 || (creature.emergeSeconds ?? 0) > 0 || castNetMovementMultiplier(creature, runtime.castNets) === 0) continue;
               const local = localPoint(creature);
               if (local.x < -creature.size || local.x > smash.length || Math.abs(local.y) > smash.width / 2 + creature.size) continue;
-              damageCreature(creature, smash.damage, .2);
+              // 피해는 바로 주지 않고 밀려난 뒤(넉백이 끝나거나 바위에 꽂힐 때) 한 번에 준다. 맞는 순간에는 섬광만.
+              creature.hitFlash = Math.max(creature.hitFlash, .2);
+              creature.knockbackPendingDamage = smash.damage;
               const awayDistance = Math.hypot(creature.x - runtime.player.x, creature.y - runtime.player.y);
               const awayX = awayDistance > .001 ? (creature.x - runtime.player.x) / awayDistance : dirX;
               const awayY = awayDistance > .001 ? (creature.y - runtime.player.y) / awayDistance : dirY;

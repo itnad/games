@@ -170,13 +170,14 @@ test("live save keeps lifted rocks and rock-lift timers, backfills older saves, 
 
 test("live save keeps knockback state and smash timers, backfills older saves, and rejects a bad chain flag", () => {
   const { campaign, runtime } = fixture("normal");
-  Object.assign(runtime.creatures[0], { knockbackX: 80, knockbackY: -20, knockbackLife: .2, knockbackDamage: 40, knockbackRockBonus: 25, knockbackCast: 3, knockbackChain: true });
+  Object.assign(runtime.creatures[0], { knockbackX: 80, knockbackY: -20, knockbackLife: .2, knockbackDamage: 40, knockbackRockBonus: 25, knockbackCast: 3, knockbackChain: true, knockbackPendingDamage: 40 });
   Object.assign(runtime, { smashClock: 2.5, smashEffect: .3, smashAngle: 1.2, smashCastId: 3 });
   const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
   assert.ok(restored);
   const creature = restored.runtime.creatures.find((item) => item.id === 12);
   assert.equal(creature.knockbackX, 80);
   assert.equal(creature.knockbackChain, true);
+  assert.equal(creature.knockbackPendingDamage, 40);
   assert.equal(restored.runtime.smashCastId, 3);
   assert.equal(restored.runtime.smashAngle, 1.2);
   const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));

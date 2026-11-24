@@ -1664,8 +1664,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   const smashOnlyLeft = { tongs: 6, digging: 6, harpoon: 6, net: 6, rocker: 6, boots: 6, basket: 6, snack: 6, electric: 6, "cast-net": 6, "guard-basket": 6, "hoe-bot": 6, "rock-lift": 6, fireball: 6, "flame-burst": 6, "frost-trail": 6, "frost-wave": 6, "chain-lightning": 6, thunderbolt: 6 };
   assert.deepEqual(mudflatUpgradeChoices(4, smashOnlyLeft, "normal", Math.random, { gemsCollected: 100, digsCompleted: 20 }).map((choice) => choice.id), ["smash"]);
   assert.ok(!mudflatUpgradeChoices(4, { tongs: 2, digging: 2, harpoon: 2, net: 2, rocker: 2 }, "normal", Math.random, {}).some((choice) => choice.id === "smash"));
-  // 레벨 수치: 재사용 12→4, 피해 10→50, 통로·넉백·바위 추가 피해 증가, Lv.5부터 연쇄. 넉백 0.35초, 연쇄 50%.
-  assert.equal(MUDFLAT_SMASH_KNOCKBACK_SECONDS, .35);
+  // 레벨 수치: 재사용 12→4, 피해 10→50, 통로·넉백·바위 추가 피해 증가, Lv.5부터 연쇄. 넉백 0.7초(연출과 함께 2배로 늘림), 연쇄 50%.
+  assert.equal(MUDFLAT_SMASH_KNOCKBACK_SECONDS, .7);
   assert.equal(MUDFLAT_SMASH_CHAIN_RATIO, .5);
   assert.deepEqual(mudflatSmashStats(0), { cooldown: Infinity, length: 0, width: 0, damage: 0, knockback: 0, rockBonus: 0, chain: false, triggerRange: 0, triggerHalfWidth: 0 });
   assert.deepEqual(mudflatSmashStats(1), { cooldown: 12, length: 120, width: 70, damage: 10, knockback: 120, rockBonus: 10, chain: false, triggerRange: 48, triggerHalfWidth: 40 });
@@ -2397,11 +2397,17 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /castNetMovementMultiplier\(creature, runtime\.castNets\) === 0\) continue;\s*const local = localPoint\(creature\);/);
   assert.match(source, /const scale = creature\.boss \? \.5 : 1;\s*creature\.knockbackX = awayX \* smash\.knockback \* scale; creature\.knockbackY = awayY \* smash\.knockback \* scale;/);
   assert.match(source, /const awayX = awayDistance > \.001 \? \(creature\.x - runtime\.player\.x\) \/ awayDistance : dirX;/);
-  assert.match(source, /damageCreature\(creature, creature\.knockbackRockBonus \?\? 0, \.18\);/);
   assert.match(source, /const chainDamage = \(creature\.knockbackDamage \?\? 0\) \* MUDFLAT_SMASH_CHAIN_RATIO;/);
   assert.match(source, /if \(creature\.knockbackChain && creature\.knockbackLife > 0\) \{/);
   assert.match(source, /runtime\.smashEffect = SMASH_EFFECT_SECONDS; runtime\.smashAngle = angle; runtime\.smashClock = smash\.cooldown;/);
-  assert.match(source, /const SMASH_PREP_END = \.08;\s*const SMASH_STRIKE_END = \.2;\s*const SMASH_IMPACT_END = \.4;/);
+  assert.match(source, /const SMASH_EFFECT_SECONDS = 1\.1;\s*const SMASH_PREP_END = \.16;\s*const SMASH_STRIKE_END = \.4;\s*const SMASH_IMPACT_END = \.8;/);
+  // 피해는 맞는 순간이 아니라 밀려난 뒤(넉백 종료 또는 바위 충돌)에 한 번에 준다. 맞는 순간에는 섬광과 미뤄 둔 피해만 기록한다.
+  assert.match(source, /creature\.hitFlash = Math\.max\(creature\.hitFlash, \.2\);\s*creature\.knockbackPendingDamage = smash\.damage;/);
+  assert.doesNotMatch(source, /damageCreature\(creature, smash\.damage, \.2\);/);
+  assert.match(source, /damageCreature\(creature, \(creature\.knockbackPendingDamage \?\? 0\) \+ \(creature\.knockbackRockBonus \?\? 0\), \.18\);/);
+  assert.match(source, /if \(\(creature\.knockbackPendingDamage \?\? 0\) > 0\) damageCreature\(creature, creature\.knockbackPendingDamage \?\? 0, \.2\);/);
+  assert.match(source, /other\.knockbackPendingDamage = chainDamage;/);
+  assert.doesNotMatch(source, /damageCreature\(other, chainDamage, \.16\);/);
   assert.match(source, /function smashPhases\(/);
   assert.match(source, /appendSupervisorEvent\("smash", `뻘권 Lv\.\$\{smashLevel\} · \$\{hits\}마리`, runtime\)/);
   assert.match(source, /function drawSmashCast\(/);

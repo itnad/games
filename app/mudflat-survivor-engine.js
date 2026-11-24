@@ -514,7 +514,7 @@ export function mudflatRockLiftStats(level = 0) {
 
 // 뻘권 수치. 타격 통로는 플레이어 앞 length × width, 넉백은 0.35초 동안 knockback px.
 // 바위에 부딪히면 rockBonus 추가 피해, Lv.5부터 날아가다 닿은 해산물에 50% 피해와 넉백을 전파한다.
-export const MUDFLAT_SMASH_KNOCKBACK_SECONDS = .35;
+export const MUDFLAT_SMASH_KNOCKBACK_SECONDS = .7;
 export const MUDFLAT_SMASH_CHAIN_RATIO = .5;
 export function mudflatSmashStats(level = 0) {
   const safeLevel = mudflatSafeLevel(level);
