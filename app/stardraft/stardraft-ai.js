@@ -314,7 +314,7 @@ const MASS_BOMB = { min: 6, target: "production", waitSpeedUntil: 660, personas:
  */
 const CARRIER_BOMB = {
   reaverdrop: { base: "robo", carrier: "shuttle", tech: ["robo"], min: 3, from: 420, target: "main", riders: ["reaver", "zealot"] },
-  darkdrop: { base: "dark", carrier: "shuttle", tech: ["robo"], min: 3, from: 420, target: "main", riders: ["dark", "zealot"] },
+  darkdrop: { base: "dark", carrier: "shuttle", tech: ["robo"], min: 3, from: 420, target: "main", riders: ["dark", "zealot"], undetected: true },
   zealotdrop: { base: "dragoon", carrier: "shuttle", tech: ["robo"], min: 3, from: 420, target: "production", riders: ["zealot"] },
   // 해병은 드랍십 한 기에 6기까지만 타고 나머지 두 칸은 메딕·파이어뱃이 탄다(엔진의 섞어 태우기).
   biodrop: { base: "bio", carrier: "dropship", tech: ["factory", "starport"], min: 3, from: 420, target: "production", riders: ["marine", "medic", "firebat"] },
@@ -745,13 +745,20 @@ export function stwAiThink(state, side) {
 
   // 3-1. 은폐 유닛에 당했으면 탐지기를 갖춘다: 로보가 있으면 옵저버, 없으면 포지와 포톤 캐논.
   const units = state.units.filter((unit) => unit.side === side);
+  // 은폐 유닛에 한 번 당했으면 그 상대는 은폐를 쓰는 것이다: 150초가 지나도 잊지 않는다(프로토스). 잊으면 옵저버를 잃은 뒤 다시 뽑지 않는다.
+  if (race.id === "protoss" && record.sawCloakAt !== undefined) memory.expectCloak = true;
   const needDetection = (record.sawCloakAt !== undefined && state.time - record.sawCloakAt < 150) || (memory.expectCloak && state.time > 300);
   if (needDetection && race.id === "protoss") {
-    const hasRobo = stwHas(state, side, "robo");
+    const hasRobo = stwOwnBuildings(state, side, "robo").length > 0;
     const cannons = stwOwnBuildings(state, side, "cannon").length;
     if (!hasRobo && cannons < 2) {
       if (!stwOwnBuildings(state, side, "forge").length) stwCommand(state, side, { type: "build", building: "forge" });
       else stwCommand(state, side, { type: "build", building: "cannon" });
+    } else if (!hasRobo && stwHas(state, side, "core")) {
+      // 캐논은 기지만 지킨다. 로보틱스가 없는 성향(드라군 운영 등)도 캐논 둘 다음에는 로보틱스를 올려 옵저버를 뽑는다.
+      // 예전에는 "로보가 있으면 옵저버, 없으면 캐논"이라 로보가 없는 성향은 끝내 옵저버 없이 출격했다
+      // (리포트 경기: 드라군 운영이 20분 동안 10번 나가 병력 137기 중 91기를 다크템플러에 잃었다).
+      if (!stwCommand(state, side, { type: "build", building: "robo" }).ok) save(STW_BUILDINGS.robo.minerals, STW_BUILDINGS.robo.gas, true);
     }
   }
   if (needDetection && race.id === "terran") {
@@ -954,7 +961,9 @@ export function stwAiThink(state, side) {
   });
 
   // 5. 병력
-  manageArmy(state, side, persona, memory, settings, { alert, shuttleBomb });
+  // 은폐 유닛을 쓰는 상대에게는 옵저버가 나올 때까지 출격하지 않고 캐논 곁에서 받는다(저그의 동행 오버로드 규칙과 같다. 병력이 30기를 넘으면 그냥 나간다).
+  const blind = needDetection && observers === 0 && units.filter((unit) => !STW_UNITS[unit.type].worker).length < 30;
+  manageArmy(state, side, persona, memory, settings, { alert, shuttleBomb, holdHome: blind });
 }
 
 /** 생산 건물 n개 중 비율 share만큼을 뒤쪽 번호부터 고른다(앞쪽은 주력 유닛). */
@@ -1669,6 +1678,14 @@ function musterAtHome(state, side, memory) {
   return { y: Math.abs(foeY - 78) >= Math.abs(foeY - 96) ? 78 : 96 };
 }
 
+/** 은폐 유닛을 내릴 기지: 본 적 건물 가운데 탐지 건물이 없는 기지(본진 먼저, 앞마당은 건물을 본 적이 있을 때만). 없으면 null. */
+function undetectedBase(record) {
+  const seen = Object.values(record.seen ?? {});
+  const watched = (base) => seen.some((item) => item.base === base && STW_BUILDINGS[item.type]?.detector);
+  if (!watched("main")) return "main";
+  return seen.some((item) => item.base === "natural") && !watched("natural") ? "natural" : null;
+}
+
 /** 방어 건물을 count개까지 갖춘다. 프로토스는 포지, 저그는 스포닝 풀, 테란은 배럭이 먼저 있어야 한다. */
 function ensureDefense(state, side, race, count) {
   // 적이 이미 기지 안에 있으면 방어 건물을 새로 짓지 않는다: 짓는 중인 건물은 체력이 낮아 금방 부서진다.
@@ -1734,7 +1751,11 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
 
   // 총공격: 광물이 바닥나 더 모을 수 없거나 인구가 거의 찼으면 기다릴 이유가 없다.
   const supply = stwSupply(state, side);
-  const allIn = (stwIncome(state, side).minerals < 60 && record.minerals < 100) || supply.used >= 92;
+  // 인구가 찼어도(92 이상), 아는 적(방어 건물 + 본 병력)의 1.1배에 못 미치고 광물이 400 넘게 남았으면 총공격하지 않는다.
+  // 예전에는 인구만 차면 불리한 줄 알면서도 나갔다(리포트 경기 14:00·15:27: 우리 944·1,035 대 기준 1,108, 광물 1,300~1,700 보유).
+  // 표본 28판씩: 다크템플러 기습 17 → 19승, 드라군·히드라·바이오닉은 그대로, 경기 시간 +10초쯤.
+  const weakAtCap = record.minerals >= 400 && armyPower(army.fighters) < (defensePower(state, side) + seenFoePower(state, side, memory)) * 1.1;
+  const allIn = (stwIncome(state, side).minerals < 60 && record.minerals < 100) || (supply.used >= 92 && !weakAtCap);
   // 은폐 근접 유닛(다크템플러)은 적 탐지 건물을 알고 있는 동안 출격에서 빼고 집결지에 남긴다. 탐지 구역으로 들어가면 드러나 체력 낮은
   // 근접 유닛일 뿐인데(리포트 경기: 죽은 11기가 모두 적 기지에서, 그중 7기가 드러난 채), 집결지에서는 보이지 않는 채로 들어오는 적을 받아낸다
   // (그 경기에서 잡은 92기 중 76기가 우리 쪽 절반). 기억한 탐지 건물이 모두 사라지면(본대가 깼으면) 다시 함께 나가고, 총공격에는 모두 나간다.
@@ -1760,8 +1781,11 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
     for (const unit of check?.ok ? check.passengers : []) waiting[unit.type] = (waiting[unit.type] ?? 0) + 1;
     const seats = shuttleBomb.riders.reduce((sum, type) => sum + Math.min(waiting[type] ?? 0, shuttleBomb.limit?.[type] ?? Infinity) * stwSlots(type), 0);
     const enough = Object.entries(shuttleBomb.need ?? {}).every(([type, count]) => (waiting[type] ?? 0) >= count);
-    if (check?.ok && enough && check.carriers.length >= shuttleBomb.min && seats > (shuttleBomb.min - 1) * 8) {
-      if (stwCommand(state, side, { type: "drop", mission: "bomb", target: shuttleBomb.target, sync: true, riders: shuttleBomb.riders, riderLimit: shuttleBomb.limit }).ok) {
+    // 은폐 유닛 드랍(undetected): 지금까지 본 적 건물 가운데 탐지 건물이 없는 기지에만 내린다(본진 먼저, 본진에 있으면 건물을 본 앞마당).
+    // 두 기지 모두 탐지 건물을 봤으면 보내지 않는다. 옵저버·오버로드 같은 움직이는 탐지와 아직 못 본 건물은 알 수 없다.
+    const dropBase = shuttleBomb.undetected ? undetectedBase(record) : "main";
+    if (check?.ok && dropBase && enough && check.carriers.length >= shuttleBomb.min && seats > (shuttleBomb.min - 1) * 8) {
+      if (stwCommand(state, side, { type: "drop", mission: "bomb", target: shuttleBomb.target, base: dropBase, sync: true, riders: shuttleBomb.riders, riderLimit: shuttleBomb.limit }).ok) {
         memory.bombs = (memory.bombs ?? 0) + 1;
         memory.bombSent = state.units.filter((unit) => unit.side === side && unit.type === shuttleBomb.carrier && unit.op !== undefined).length;
         memory.bombCarriers = shuttles;

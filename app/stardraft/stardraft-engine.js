@@ -1368,6 +1368,7 @@ function runCommand(state, side, command) {
       for (const key of ["mission", "target", "repeat", "sync"]) if (command[key] !== undefined) plan[key] = command[key];
       const check = stwDropCheck(state, side, plan.mission);
       if (!check.ok) return check;
+      // base: 폭탄 드랍이 내릴 기지("natural"이면 적 앞마당, 아니면 본진). AI가 탐지 건물이 없는 기지를 골라 은폐 유닛을 내릴 때 쓴다.
       // riders: 태울 유닛 종류와 순서(AI의 폭탄 드랍이 쓴다. 리버·질럿만 태우고 드라군은 정면으로 보내는 식). 없으면 대기 병력 모두.
       const wanted = Array.isArray(command.riders) ? command.riders : null;
       // riderLimit: 종류별로 태울 수의 상한({ tank: 4 }처럼). 넘는 유닛은 태우지 않고 남긴다(탱크를 다 실어 보내면 정면 라인이 빈다).
@@ -1411,7 +1412,7 @@ function runCommand(state, side, command) {
         // 폭탄: 모두 가장자리 집결점에 모였다가 한꺼번에 들어간다.
         // 폭탄: 병력을 태운 뒤 우리 진영 가장자리에 모두 모였다가, 가장 느린 수송선 속도에 맞춰 함께 날아가 한꺼번에 내린다.
         // 예전에는 적 앞마당 바깥 집결점으로 따로따로 날아가 한 줄로 늘어섰고, 25초가 지나면 다 모이지 않아도 하나씩 들어가 차례로 격추됐다.
-        const op = { id: state.nextId++, side, kind: "bomb", target: plan.target, base: "main", transports: transports.map((item) => item.id), riders: [], phase: "load", since: state.time, sync: Boolean(plan.sync), repeat: false, value: 0 };
+        const op = { id: state.nextId++, side, kind: "bomb", target: plan.target, base: command.base === "natural" ? "natural" : "main", transports: transports.map((item) => item.id), riders: [], phase: "load", since: state.time, sync: Boolean(plan.sync), repeat: false, value: 0 };
         state.ops.push(op);
         for (const transport of transports) {
           transport.op = op.id;
@@ -2247,6 +2248,9 @@ function blockedBySwarm(state, attacker, target) {
  */
 export function stwDetected(state, unit, bySide) {
   if (!isCloaked(unit, state)) return true;
+  // 경계 중이라 탐지 밖에 서 있는 은폐 유닛은 이번 틱에 탐지 안으로 발을 디뎌도(틱 끝에 되돌려진다) 드러난 것으로 치지 않는다.
+  // 예전에는 되돌려지기 전의 그 한 틱에 적이 조준해, 계속 숨어 있던 다크템플러가 한 경기에 28번 맞았다.
+  if (unit.waryHold === state.time) return false;
   return detectionCovers(state, bySide, unit);
 }
 
@@ -2402,6 +2406,15 @@ function cloakEvade(state, unit, speed, dt) {
     if (best) break;
   }
   if (!best) return false;
+  // 고정 탐지(탐지 건물의 사거리나 그 기지 구역)에 걸렸으면 경계선에서 기다려도 달라질 것이 없다: 공격에서 빠져 집결지로 물러난다.
+  // 예전에는 탐지 경계선에 서서 10초 동안 공격도 후퇴도 못 했고(리포트 경기: 죽은 다크템플러 11기 중 8기가 그 상태에서 죽었다),
+  // 움직이는 탐지(옵저버·오버로드·베슬)에만 걸렸을 때는 예전처럼 밖에서 기다린다. 침투·드랍으로 내린 유닛은 그대로 싸운다.
+  const fixed = state.buildings.some((item) => item.side === foe && stwDone(item) && STW_BUILDINGS[item.type].detector
+    && (distance(item.x, item.y, unit.x, unit.y) <= STW_BUILDINGS[item.type].detector || inBaseZone(state, foe, item.base, unit)));
+  if (fixed && unit.group === "attack" && unit.raid === undefined && unit.bomb === undefined && !state.finalBattle) {
+    unit.group = "rally";
+    if (unit.side === "player" && !state.aiSides.includes("player")) alertOnce(state, "cloakBack", 20, "player", `탐지 건물에 드러난 ${withKoreanSubject(STW_UNITS[unit.type].name)} 집결지로 물러납니다.`, "warn");
+  }
   unit.evadeTo = { x: best.x, y: best.y };
   unit.lastEvadeAt = state.time;
   unit.evadeUntil = state.time + 5;
@@ -2956,7 +2969,10 @@ function stepUnits(state, dt) {
   const stormStarts = stormSafeStarts(state);
   const waryStarts = new Map();
   for (const unit of state.units) {
-    if (unit.hp > 0 && wary(state, unit) && !detectionCovers(state, stwOpponent(unit.side), unit)) waryStarts.set(unit, { x: unit.x, y: unit.y });
+    if (unit.hp > 0 && wary(state, unit) && !detectionCovers(state, stwOpponent(unit.side), unit)) {
+      waryStarts.set(unit, { x: unit.x, y: unit.y });
+      unit.waryHold = state.time;
+    }
   }
   const retarget = (unit, from, to) => {
     if (STW_UNITS[unit.type].role !== "melee" || from === to) return;
@@ -4411,7 +4427,7 @@ function stepLoad(state, op, transports) {
     return;
   }
   op.phase = "gather";
-  const land = landingPoint(state, op.side, op.target, "main");
+  const land = landingPoint(state, op.side, op.target, op.base ?? "main");
   const x = edgeX(land.x);
   // 사람이 지휘하는 진영: 집결점(세로 72)보다 앞에서 태웠으면 뒤로 돌아가지 않고 태운 높이의 가장자리에 모인다(중앙선 앞 DROP_STAGE_FRONT까지만).
   // 중앙 집결지에서 태운 병력이 우리 앞마당까지 되돌아갔다가 다시 나가던 낭비를 없앤다. AI는 예전 집결점을 그대로 쓴다.
@@ -4554,7 +4570,7 @@ function stepOps(state) {
       const ready = (arrived || waited > STW_TRANSPORT.gatherTimeout) && (!op.sync || frontEngaged(state, op.side) || waited > STW_TRANSPORT.syncTimeout);
       if (ready) {
         op.phase = "in";
-        const land = landingPoint(state, op.side, op.target, "main");
+        const land = landingPoint(state, op.side, op.target, op.base ?? "main");
         // 함께 날아간다: 가장 느린 수송선 속도에 맞춰 같은 길로 가서 2.4칸 간격으로 동시에 내린다.
         const groupSpeed = Math.min(...transports.map((transport) => unitSpeed(state, transport)));
         transports.forEach((transport, index) => {

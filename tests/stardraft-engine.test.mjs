@@ -3517,6 +3517,42 @@ test("스타드래프트 AI: 맞은 방어 건물을 기억하고, 탐지 건물
   assert.equal(merge(8, 2), 0, "두 번 합친 뒤에는 더 합치지 않는다");
 });
 
+test("스타드래프트 AI: 은폐 유닛을 쓰는 상대에게 로보틱스와 옵저버를 갖추고, 고정 탐지에 드러난 다크템플러는 집결지로 물러난다", () => {
+  // 로보틱스가 없는 드라군 운영: 은폐 유닛에 당했고 캐논이 둘이면 로보틱스를 올린다. 옵저버가 없는 동안에는 출격하지 않는다.
+  const state = createStardraftGame({ seed: 3, difficulty: "hard", aiSides: ["player"], races: { player: "protoss", enemy: "protoss" }, personas: { player: "dragoon" } });
+  state.time = 600;
+  state.sides.player.minerals = 5000;
+  state.sides.player.gas = 5000;
+  for (const building of ["pylon", "gateway", "core", "forge", "cannon", "cannon"]) {
+    stwCommand(state, "player", { type: "build", building });
+    finishAll(state);
+  }
+  state.sides.player.minerals = 3000;
+  state.sides.player.gas = 3000;
+  state.sides.player.sawCloakAt = 595;
+  state.sides.player.ai = { nextThink: 0, step: 99, wave: 0, attacking: false, waveStart: 0, done: [], built: [] };
+  for (let index = 0; index < 16; index += 1) stwSpawnUnitAt(state, "player", "dragoon", 8 + (index % 8) * 3, 76 + Math.floor(index / 8) * 2, "rally");
+  stwAiThink(state, "player");
+  assert.equal(stwOwnBuildings(state, "player", "robo").length, 1, "캐논 둘 다음에는 로보틱스");
+  assert.ok(state.units.filter((unit) => unit.side === "player" && unit.type === "dragoon").every((unit) => unit.group === "rally"), "옵저버가 없으면 출격하지 않는다");
+  assert.equal(state.sides.player.ai.expectCloak, true, "은폐를 쓰는 상대로 기억한다");
+
+  // 고정 탐지(캐논 구역)에 드러난 채 맞은 다크템플러는 공격에서 빠져 집결지로 물러난다. 탐지 밖에 서 있는 동안은 조준되지 않는다.
+  const field = quiet();
+  field.sides.enemy.minerals = 5000;
+  for (const building of ["pylon", "gateway", "forge", "cannon"]) {
+    stwCommand(field, "enemy", { type: "build", building });
+    finishAll(field);
+  }
+  const tower = stwOwnBuildings(field, "enemy", "cannon")[0];
+  const dark = stwSpawnUnitAt(field, "player", "dark", tower.x, tower.y + 6, "attack");
+  for (let index = 0; index < 80 && dark.group === "attack"; index += 1) stepStardraft(field);
+  assert.ok(dark.hp > 0, "죽기 전에 빠진다");
+  assert.equal(dark.group, "rally", "캐논에 맞으면 집결지로 물러난다");
+  for (let index = 0; index < 60; index += 1) stepStardraft(field);
+  assert.equal(stwDetected(field, dark, "enemy"), false, "탐지 밖으로 나와 있다");
+});
+
 test("스타드래프트 AI 셔틀 폭탄 드랍: 셔틀 세 기와 태울 유닛이 모이면 그 유닛만 태워 보내고 나머지는 정면으로 나간다", () => {
   const setup = (persona, shuttles, army) => {
     const state = createStardraftGame({ seed: 3, difficulty: "hard", aiSides: ["player"], races: { player: "protoss", enemy: "terran" }, personas: { player: persona } });
@@ -3548,6 +3584,41 @@ test("스타드래프트 AI 셔틀 폭탄 드랍: 셔틀 세 기와 태울 유�
   assert.equal(bomb(setup("zealotdrop", 2, { zealot: 12, dragoon: 6 })), undefined);
   assert.equal(bomb(setup("darkdrop", 3, { dark: 8, dragoon: 6 })), undefined, "다크템플러 8기(16칸)는 셔틀 둘 분량");
   assert.equal(bomb(setup("darkdrop", 5, { dark: 20, dragoon: 2 }))?.transports.length, 5);
+});
+
+test("스타드래프트 AI 다크템플러 드랍: 탐지 건물을 본 기지는 피해 내리고, 두 기지 모두 탐지가 있으면 보내지 않는다", () => {
+  const setup = (seen) => {
+    const state = createStardraftGame({ seed: 3, difficulty: "hard", aiSides: ["player"], races: { player: "protoss", enemy: "terran" }, personas: { player: "darkdrop" } });
+    state.time = 600;
+    state.sides.player.ai = { nextThink: 0, step: 99, wave: 0, attacking: false, waveStart: 0, committedAt: 0, done: [], built: [] };
+    seen.forEach(([type, base], index) => {
+      state.sides.player.seen[9000 + index] = { id: 9000 + index, type, x: 10 + index * 3, y: base === "main" ? 6 : 24, base, radius: 1, at: 500 };
+    });
+    for (let index = 0; index < 3; index += 1) stwSpawnUnitAt(state, "player", "shuttle", 14 + index * 4, 80, "rally");
+    for (let index = 0; index < 12; index += 1) stwSpawnUnitAt(state, "player", "dark", 8 + index * 2, 74, "rally");
+    stwAiThink(state, "player");
+    return (state.ops ?? []).find((op) => op.side === "player" && op.kind === "bomb");
+  };
+  assert.equal(setup([])?.base, "main", "본 탐지 건물이 없으면 본진");
+  assert.equal(setup([["turret", "natural"]])?.base, "main", "앞마당에만 탐지가 있어도 본진");
+  assert.equal(setup([["turret", "main"], ["barracks", "natural"]])?.base, "natural", "본진에 탐지가 있으면 건물을 본 앞마당");
+  assert.equal(setup([["turret", "main"]]), undefined, "앞마당 건물을 본 적이 없으면 보내지 않는다");
+  assert.equal(setup([["turret", "main"], ["turret", "natural"]]), undefined, "두 기지 모두 탐지가 있으면 보내지 않는다");
+
+  // 앞마당으로 정한 폭탄 드랍은 적 앞마당 착륙 지점으로 날아가 내린다.
+  const field = createStardraftGame({ seed: 3, difficulty: "hard", aiSides: ["player", "enemy"], races: { player: "protoss", enemy: "terran" } });
+  field.sides.enemy.ai = { nextThink: 1e9 };
+  field.sides.player.ai = { nextThink: 1e9 };
+  for (let index = 0; index < 3; index += 1) stwSpawnUnitAt(field, "player", "shuttle", 14 + index * 4, 80, "rally");
+  const darks = Array.from({ length: 12 }, (_, index) => stwSpawnUnitAt(field, "player", "dark", 8 + index * 2, 78, "rally"));
+  assert.equal(stwCommand(field, "player", { type: "drop", mission: "bomb", target: "main", base: "natural", riders: ["dark"] }).ok, true);
+  const op = field.ops.find((item) => item.kind === "bomb");
+  assert.equal(op.base, "natural");
+  for (let index = 0; index < 4000 && !op.riders.length; index += 1) stepStardraft(field);
+  const landed = darks.filter((unit) => op.riders.includes(unit.id));
+  assert.ok(landed.length > 0, "내린 병력이 있다");
+  const main = field.buildings.find((building) => building.side === "enemy" && building.base === "main");
+  for (const unit of landed) assert.ok(Math.abs(unit.y - main.y) > 10, "본진이 아니라 앞마당 쪽에 내린다");
 });
 
 test("스타드래프트 AI 드랍십 폭탄 드랍: 드랍십 세 기에 정한 유닛을 태우고, 해병은 한 기에 여섯까지만 태워 메딕 자리를 남긴다", () => {
