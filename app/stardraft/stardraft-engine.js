@@ -2247,6 +2247,9 @@ function blockedBySwarm(state, attacker, target) {
  */
 export function stwDetected(state, unit, bySide) {
   if (!isCloaked(unit, state)) return true;
+  // 경계 중이라 탐지 밖에 서 있는 은폐 유닛은 이번 틱에 탐지 안으로 발을 디뎌도(틱 끝에 되돌려진다) 드러난 것으로 치지 않는다.
+  // 예전에는 되돌려지기 전의 그 한 틱에 적이 조준해, 계속 숨어 있던 다크템플러가 한 경기에 28번 맞았다.
+  if (unit.waryHold === state.time) return false;
   return detectionCovers(state, bySide, unit);
 }
 
@@ -2402,6 +2405,15 @@ function cloakEvade(state, unit, speed, dt) {
     if (best) break;
   }
   if (!best) return false;
+  // 고정 탐지(탐지 건물의 사거리나 그 기지 구역)에 걸렸으면 경계선에서 기다려도 달라질 것이 없다: 공격에서 빠져 집결지로 물러난다.
+  // 예전에는 탐지 경계선에 서서 10초 동안 공격도 후퇴도 못 했고(리포트 경기: 죽은 다크템플러 11기 중 8기가 그 상태에서 죽었다),
+  // 움직이는 탐지(옵저버·오버로드·베슬)에만 걸렸을 때는 예전처럼 밖에서 기다린다. 침투·드랍으로 내린 유닛은 그대로 싸운다.
+  const fixed = state.buildings.some((item) => item.side === foe && stwDone(item) && STW_BUILDINGS[item.type].detector
+    && (distance(item.x, item.y, unit.x, unit.y) <= STW_BUILDINGS[item.type].detector || inBaseZone(state, foe, item.base, unit)));
+  if (fixed && unit.group === "attack" && unit.raid === undefined && unit.bomb === undefined && !state.finalBattle) {
+    unit.group = "rally";
+    if (unit.side === "player" && !state.aiSides.includes("player")) alertOnce(state, "cloakBack", 20, "player", `탐지 건물에 드러난 ${withKoreanSubject(STW_UNITS[unit.type].name)} 집결지로 물러납니다.`, "warn");
+  }
   unit.evadeTo = { x: best.x, y: best.y };
   unit.lastEvadeAt = state.time;
   unit.evadeUntil = state.time + 5;
@@ -2956,7 +2968,10 @@ function stepUnits(state, dt) {
   const stormStarts = stormSafeStarts(state);
   const waryStarts = new Map();
   for (const unit of state.units) {
-    if (unit.hp > 0 && wary(state, unit) && !detectionCovers(state, stwOpponent(unit.side), unit)) waryStarts.set(unit, { x: unit.x, y: unit.y });
+    if (unit.hp > 0 && wary(state, unit) && !detectionCovers(state, stwOpponent(unit.side), unit)) {
+      waryStarts.set(unit, { x: unit.x, y: unit.y });
+      unit.waryHold = state.time;
+    }
   }
   const retarget = (unit, from, to) => {
     if (STW_UNITS[unit.type].role !== "melee" || from === to) return;

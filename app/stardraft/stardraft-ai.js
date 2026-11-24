@@ -745,13 +745,20 @@ export function stwAiThink(state, side) {
 
   // 3-1. 은폐 유닛에 당했으면 탐지기를 갖춘다: 로보가 있으면 옵저버, 없으면 포지와 포톤 캐논.
   const units = state.units.filter((unit) => unit.side === side);
+  // 은폐 유닛에 한 번 당했으면 그 상대는 은폐를 쓰는 것이다: 150초가 지나도 잊지 않는다(프로토스). 잊으면 옵저버를 잃은 뒤 다시 뽑지 않는다.
+  if (race.id === "protoss" && record.sawCloakAt !== undefined) memory.expectCloak = true;
   const needDetection = (record.sawCloakAt !== undefined && state.time - record.sawCloakAt < 150) || (memory.expectCloak && state.time > 300);
   if (needDetection && race.id === "protoss") {
-    const hasRobo = stwHas(state, side, "robo");
+    const hasRobo = stwOwnBuildings(state, side, "robo").length > 0;
     const cannons = stwOwnBuildings(state, side, "cannon").length;
     if (!hasRobo && cannons < 2) {
       if (!stwOwnBuildings(state, side, "forge").length) stwCommand(state, side, { type: "build", building: "forge" });
       else stwCommand(state, side, { type: "build", building: "cannon" });
+    } else if (!hasRobo && stwHas(state, side, "core")) {
+      // 캐논은 기지만 지킨다. 로보틱스가 없는 성향(드라군 운영 등)도 캐논 둘 다음에는 로보틱스를 올려 옵저버를 뽑는다.
+      // 예전에는 "로보가 있으면 옵저버, 없으면 캐논"이라 로보가 없는 성향은 끝내 옵저버 없이 출격했다
+      // (리포트 경기: 드라군 운영이 20분 동안 10번 나가 병력 137기 중 91기를 다크템플러에 잃었다).
+      if (!stwCommand(state, side, { type: "build", building: "robo" }).ok) save(STW_BUILDINGS.robo.minerals, STW_BUILDINGS.robo.gas, true);
     }
   }
   if (needDetection && race.id === "terran") {
@@ -954,7 +961,9 @@ export function stwAiThink(state, side) {
   });
 
   // 5. 병력
-  manageArmy(state, side, persona, memory, settings, { alert, shuttleBomb });
+  // 은폐 유닛을 쓰는 상대에게는 옵저버가 나올 때까지 출격하지 않고 캐논 곁에서 받는다(저그의 동행 오버로드 규칙과 같다. 병력이 30기를 넘으면 그냥 나간다).
+  const blind = needDetection && observers === 0 && units.filter((unit) => !STW_UNITS[unit.type].worker).length < 30;
+  manageArmy(state, side, persona, memory, settings, { alert, shuttleBomb, holdHome: blind });
 }
 
 /** 생산 건물 n개 중 비율 share만큼을 뒤쪽 번호부터 고른다(앞쪽은 주력 유닛). */
