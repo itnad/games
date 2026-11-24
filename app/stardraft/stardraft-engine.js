@@ -3200,6 +3200,15 @@ function stepUnits(state, dt) {
       unit.lastTargetDistance = undefined;
     }
     unit.targetId = target?.id ?? null;
+    // 완패가 뻔한 공중 공격 유닛(AI 진영만)은 쏘지 않고 엄호 지점으로 빠진다(airRout). 사람이 지휘하는 진영의 공격 명령은 그대로 강행한다.
+    if (target && isFlying(unit) && def.damage && !def.suicide && unit.raid === undefined && !state.finalBattle && state.aiSides.includes(unit.side)) {
+      const spot = airRout(state, unit, slot);
+      if (spot) {
+        unit.targetId = null;
+        moveToward(unit, spot.x, spot.y, speed, dt);
+        continue;
+      }
+    }
     if (target) {
       const d = distance(unit.x, unit.y, target.x, target.y) - target.radius - unit.radius * 0.5;
       if (d <= range) {
@@ -3223,9 +3232,12 @@ function stepUnits(state, dt) {
         if (isFlying(unit) && unit.cooldown > def.cooldown * KITE_HOLD) {
           const threat = airKiteThreat(state, unit, range);
           if (threat) {
-            const away = Math.atan2(unit.y - threat.y, unit.x - threat.x);
-            moveToward(unit, unit.x + Math.cos(away) * 2, unit.y + Math.sin(away) * 2, speed, dt);
-            continue;
+            // 물러날 곳: 그 적을 쏠 수 있는 아군 지상 유닛 무리나 방어 건물 가운데 가까운 곳(airCoverSpot). 닿았으면 더 물러나지 않고 거기서 싸운다.
+            const spot = airCoverSpot(state, unit, threat);
+            if (spot) {
+              moveToward(unit, spot.x, spot.y, speed, dt);
+              continue;
+            }
           }
         }
         if ((def.kite || (def.role === "ranged" && !isFlying(unit))) && unit.cooldown > def.cooldown * KITE_HOLD) {
@@ -3896,6 +3908,107 @@ function airKiteThreat(state, unit, range) {
 /** 공격 웨이브에서 빠른 유닛이 가장 뒤처진 유닛보다 앞서 나갈 수 있는 거리. */
 const WAVE_LEAD = 6;
 /** 물러나며 쏘는 유닛이 재장전 끝 무렵 서서 조준하는 비율. 남은 재장전이 이 비율 아래로 내려가면 더 물러나지 않는다. */
+/** 엄호 지점을 찾는 거리, 무리로 묶는 반경, 닿았다고 치는 거리. */
+const AIR_COVER_REACH = 25;
+const AIR_COVER_GROUP = 6;
+const AIR_COVER_ARRIVE = 3;
+
+/** 그 적(threat)을 쏠 수 있는 아군 지상 유닛 무리의 중심과 방어 건물 가운데 가장 가까운 곳(reach칸 안). 없으면 null. */
+function airCover(state, unit, threat, reach) {
+  let best = null;
+  let bestDistance = reach;
+  const consider = (item, point) => {
+    const d = distance(unit.x, unit.y, point.x, point.y);
+    if (d < bestDistance) {
+      best = point;
+      bestDistance = d;
+    }
+  };
+  let anchor = null;
+  let anchorDistance = reach;
+  const friends = state.units.filter((other) => other.side === unit.side && other.hp > 0 && other.group !== "cargo" && !isFlying(other) && STW_UNITS[other.type].damage && canHit(other, threat));
+  for (const other of friends) {
+    const d = distance(unit.x, unit.y, other.x, other.y);
+    if (d < anchorDistance) {
+      anchor = other;
+      anchorDistance = d;
+    }
+  }
+  if (anchor) {
+    const group = friends.filter((other) => distance(other.x, other.y, anchor.x, anchor.y) <= AIR_COVER_GROUP);
+    consider(anchor, { x: group.reduce((sum, other) => sum + other.x, 0) / group.length, y: group.reduce((sum, other) => sum + other.y, 0) / group.length });
+  }
+  for (const building of state.buildings) {
+    if (building.side !== unit.side || building.hp <= 0 || !stwDone(building) || !STW_BUILDINGS[building.type].damage || !canHit(building, threat)) continue;
+    consider(building, { x: building.x, y: building.y });
+  }
+  return best ? { ...best, distance: bestDistance } : null;
+}
+
+/**
+ * 재장전 동안 물러날 자리. 엄호(그 적을 쏠 수 있는 아군 지상 유닛 무리·방어 건물)가 AIR_COVER_REACH칸 안에 있으면 그쪽으로 물러나고,
+ * 이미 그 곁(AIR_COVER_ARRIVE칸)이면 물러나지 않는다(null): 쫓아온 적이 엄호의 사격을 받는다. 예전에는 적의 정반대로만 물러나
+ * 아군 대공 유닛의 사거리를 벗어나고, 자기보다 빠른 적에게는 맵 끝까지 끌려갔다.
+ * 엄호로 가는 첫걸음이 그 적에게 다가가는 길이면(엄호가 적 너머에 있다) 예전처럼 적의 정반대로 물러난다. 엄호가 없을 때도 같다.
+ */
+function airCoverSpot(state, unit, threat) {
+  const away = Math.atan2(unit.y - threat.y, unit.x - threat.x);
+  const straight = { x: unit.x + Math.cos(away) * 2, y: unit.y + Math.sin(away) * 2 };
+  // 지상 적에게서는 예전처럼 정반대로 물러난다: 캐리어·배틀크루저·가디언은 지상 대공을 사거리 밖에서 때리는 것이 본업이고, 지상 유닛은 쫓아오다 우리 지상군에 막힌다.
+  // 지상 적에게도 엄호 쪽으로 물러나 그 곁에서 멈추게 했더니 캐리어 운영이 28판에서 9승 → 6승으로 떨어졌다.
+  if (!isFlying(threat)) return straight;
+  const cover = airCover(state, unit, threat, AIR_COVER_REACH);
+  if (!cover) return straight;
+  if (cover.distance <= AIR_COVER_ARRIVE) return null;
+  const toward = Math.atan2(cover.y - unit.y, cover.x - unit.x);
+  const step = { x: unit.x + Math.cos(toward) * 0.8, y: unit.y + Math.sin(toward) * 0.8 };
+  return distance(step.x, step.y, threat.x, threat.y) >= distance(unit.x, unit.y, threat.x, threat.y) ? { x: cover.x, y: cover.y } : straight;
+}
+
+/** 완패를 따지는 반경, 문턱(우리 전투력이 적의 이 배율 미만), 한 번 빠지기로 하면 이어 가는 시간. */
+const AIR_ROUT_RADIUS = 10;
+const AIR_ROUT_RATIO = 0.5;
+const AIR_ROUT_HOLD = 3;
+
+/**
+ * 완패가 뻔한 공중 공격 유닛이 빠질 자리. 둘레 AIR_ROUT_RADIUS칸에서 자기를 쏠 수 있는 적(유닛·방어 건물)의 전투력에 견줘,
+ * 그 적을 쏠 수 있는 우리 쪽(자기 포함) 전투력이 AIR_ROUT_RATIO배 미만이면 쏘지 않고 엄호 지점으로, 엄호가 없으면 집결지 쪽으로 빠진다.
+ * 엄호 곁에 닿으면 엄호의 전투력이 더해져 다시 싸운다. 그래도 모자라면 집결지까지 빠진다. 싸울 만하면 null.
+ */
+function airRout(state, unit, slot) {
+  if ((unit.routCheckAt ?? 0) > state.time) return unit.routSpot ?? null;
+  unit.routCheckAt = state.time + 0.5;
+  const near = (item) => distance(item.x, item.y, unit.x, unit.y) <= AIR_ROUT_RADIUS + (item.radius ?? 0);
+  const foes = [
+    ...state.units.filter((other) => other.side !== unit.side && other.hp > 0 && other.group !== "cargo" && near(other) && canHit(other, unit) && stwDetected(state, other, unit.side)),
+    ...state.buildings.filter((building) => building.side !== unit.side && building.hp > 0 && stwDone(building) && STW_BUILDINGS[building.type].damage && near(building) && canHit(building, unit)),
+  ];
+  const foePower = foes.reduce((sum, item) => sum + livePower(item), 0);
+  const holding = (unit.routUntil ?? 0) > state.time;
+  if (!foePower) {
+    unit.routSpot = undefined;
+    return null;
+  }
+  const ours = [
+    ...state.units.filter((other) => other.side === unit.side && other.hp > 0 && other.group !== "cargo" && near(other) && foes.some((foe) => canHit(other, foe))),
+    ...state.buildings.filter((building) => building.side === unit.side && building.hp > 0 && stwDone(building) && STW_BUILDINGS[building.type].damage && near(building) && foes.some((foe) => canHit(building, foe))),
+  ].reduce((sum, item) => sum + livePower(item), 0);
+  if (ours >= foePower * AIR_ROUT_RATIO && !holding) {
+    unit.routSpot = undefined;
+    return null;
+  }
+  if (ours < foePower * AIR_ROUT_RATIO) unit.routUntil = state.time + AIR_ROUT_HOLD;
+  const strongest = foes.reduce((best, item) => (livePower(item) > livePower(best) ? item : best), foes[0]);
+  const cover = airCover(state, unit, strongest, 60);
+  const home = { x: slot ? slot.x : unit.x, y: stwRallyY(unit.side, state.sides[unit.side].rally, state) };
+  // 엄호가 없을 때 집결지로 빠지는 것은 떨칠 수 있을 때만: 자기보다 빠른 공중 적이 쫓아오면 등을 보이고 맞기만 하므로 그 자리에서 싸운다
+  // (뮤탈 8 + 디바우러 2가 커세어 10에게서 달아나다 한 기도 못 잡고 전멸했다).
+  const chased = foes.some((item) => item.kind === "unit" && isFlying(item) && unitSpeed(state, item) >= unitSpeed(state, unit));
+  unit.routSpot = cover && cover.distance > AIR_COVER_ARRIVE ? { x: cover.x, y: cover.y } : cover || chased ? null : home;
+  if (unit.routSpot && distance(unit.x, unit.y, unit.routSpot.x, unit.routSpot.y) < 1.5) unit.routSpot = null;
+  return unit.routSpot ?? null;
+}
+
 const KITE_HOLD = 0.25;
 /** 근접 적이 이 거리(표면 기준) 안에 들어오면 물러나기 시작한다. */
 const KITE_DISTANCE = 2.2;

@@ -2973,6 +2973,58 @@ test("stardraft air units back off while reloading only from enemies they outran
   assert.ok(alive("player", "battlecruiser") >= 1);
 });
 
+test("스타드래프트 공중 유닛의 물러남: 공중 적에게서는 아군 대공 엄호 쪽으로 물러나 그 곁에서 싸우고, 완패가 뻔하면 AI 진영만 빠진다", () => {
+  // 디바우러(사거리 6)가 커세어(5)에게서 물러난다. 옆에 히드라 무리가 있으면 그쪽으로, 없으면 예전처럼 정반대로.
+  const kite = (withCover) => {
+    const state = createStardraftGame({ seed: 5, aiSides: [], races: { player: "zerg", enemy: "protoss" } });
+    const devourer = stwSpawnUnitAt(state, "player", "devourer", 20, 60, "attack");
+    const foe = stwSpawnUnitAt(state, "enemy", "corsair", 20, 55, "rally");
+    foe.stunUntil = 999;
+    const hydras = withCover ? Array.from({ length: 4 }, (_, index) => stwSpawnUnitAt(state, "player", "hydra", 30 + (index % 2), 64 + Math.floor(index / 2), "rally")) : [];
+    for (const hydra of hydras) hydra.stunUntil = 999;
+    let east = 0;
+    for (let tick = 0; tick < 40; tick += 1) {
+      stepStardraft(state);
+      east = Math.max(east, devourer.x - 20);
+    }
+    return east;
+  };
+  assert.ok(kite(true) > 1.5, `엄호 쪽으로 물러난다: ${kite(true).toFixed(1)}`);
+  assert.ok(kite(false) < 0.8, `엄호가 없으면 정반대로 물러난다: ${kite(false).toFixed(1)}`);
+
+  // 지상 적(드라군)에게서는 엄호가 있어도 예전처럼 정반대로 물러난다.
+  const ground = createStardraftGame({ seed: 5, aiSides: [], races: { player: "terran", enemy: "protoss" } });
+  const cruiser = stwSpawnUnitAt(ground, "player", "battlecruiser", 20, 60, "attack");
+  stwSpawnUnitAt(ground, "enemy", "dragoon", 20, 53, "rally").stunUntil = 999;
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(ground, "player", "goliath", 30 + (index % 2), 64 + Math.floor(index / 2), "rally").stunUntil = 999;
+  let drift = 0;
+  for (let tick = 0; tick < 40; tick += 1) {
+    stepStardraft(ground);
+    drift = Math.max(drift, Math.abs(cruiser.x - 20));
+  }
+  assert.ok(drift < 0.8, `지상 적에게서는 곧장 물러난다: ${drift.toFixed(1)}`);
+
+  // 완패가 뻔한 싸움(뮤탈 1기 대 스카웃 6기): AI 진영은 쏘지 않고 집결지 쪽으로 빠지고, 사람이 지휘하는 진영은 그대로 싸운다.
+  const hopeless = (aiSides) => {
+    const state = createStardraftGame({ seed: 5, aiSides, races: { player: "zerg", enemy: "protoss" } });
+    const muta = stwSpawnUnitAt(state, "player", "mutalisk", 20, 56, "attack");
+    for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(state, "enemy", "scout", 15 + index * 2, 52, "rally").stunUntil = 999;
+    let shots = 0;
+    let last = muta.cooldown;
+    for (let tick = 0; tick < 40; tick += 1) {
+      stepStardraft(state);
+      if (muta.cooldown > last + 0.1) shots += 1;
+      last = muta.cooldown;
+    }
+    return { shots, back: muta.y - 56 };
+  };
+  const ai = hopeless(["player"]);
+  assert.equal(ai.shots, 0, "AI 진영은 쏘지 않는다");
+  assert.ok(ai.back > 4, `집결지 쪽으로 빠진다: ${ai.back.toFixed(1)}`);
+  const human = hopeless([]);
+  assert.ok(human.shots >= 2, `사람이 지휘하는 진영은 강행한다: ${human.shots}발`);
+});
+
 test("stardraft air units shoot enemies that can hit them first, and scouts go for air targets", () => {
   // 공중 공격 유닛은 자기를 때릴 수 있는 적부터 친다(때릴 수 없는 적은 5칸 더 먼 것으로 친다). 스카웃은 공중 목표부터(지상은 6칸 더).
   const pick = (races, attackerType, near, nearDistance, far, farDistance) => {
