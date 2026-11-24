@@ -3459,6 +3459,64 @@ test("스타드래프트 오버로드 비상 하차: 병력을 태우고 가다 
   assert.ok(shipGame.log.some((entry) => /크게 다친 드랍십이 병력 4기를 그 자리에 내리고 돌아갑니다/.test(entry.text)));
 });
 
+test("스타드래프트 AI: 맞은 방어 건물을 기억하고, 탐지 건물을 아는 동안 다크템플러를 출격에서 빼며, 다크 아콘 합체는 두 번까지", () => {
+  // 시야 밖의 캐논에 맞아도 그 캐논을 기억한다(예전에는 본 것만 기억했다).
+  const shot = quiet();
+  const cannon = stwOwnBuildings(shot, "enemy").find((building) => building.type === "nexus");
+  shot.sides.enemy.minerals = 5000;
+  for (const building of ["pylon", "gateway", "forge", "cannon"]) {
+    stwCommand(shot, "enemy", { type: "build", building });
+    finishAll(shot);
+  }
+  const tower = stwOwnBuildings(shot, "enemy", "cannon")[0];
+  assert.ok(cannon && tower);
+  delete shot.sides.player.seen[tower.id];
+  const victim = stwSpawnUnitAt(shot, "player", "zealot", tower.x, tower.y + 5, "attack");
+  for (let index = 0; index < 60 && victim.hitBy !== tower.id; index += 1) {
+    delete shot.sides.player.seen[tower.id];
+    stepStardraft(shot);
+  }
+  assert.equal(victim.hitBy, tower.id, "캐논이 질럿을 쏜다");
+  assert.equal(shot.sides.player.seen[tower.id]?.type, "cannon", "쏜 캐논을 기억한다");
+
+  // 출격 명령의 hold: 그 종류는 집결지에 남는다.
+  const held = quiet();
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(held, "player", "dark", 14 + index * 2, 76, "rally");
+  for (let index = 0; index < 4; index += 1) stwSpawnUnitAt(held, "player", "dragoon", 14 + index * 2, 78, "rally");
+  assert.equal(stwCommand(held, "player", { type: "attack", hold: ["dark"] }).ok, true);
+  const groups = (state, type) => [...new Set(state.units.filter((unit) => unit.side === "player" && unit.type === type).map((unit) => unit.group))];
+  assert.deepEqual([groups(held, "dark"), groups(held, "dragoon")], [["rally"], ["attack"]]);
+
+  // AI: 적 캐논(탐지 건물)을 기억하는 동안 다크템플러는 남기고 나머지만 내보낸다. 기억이 사라지면 함께 나간다.
+  const setup = (seenCannon) => {
+    const state = createStardraftGame({ seed: 3, difficulty: "hard", aiSides: ["player"], races: { player: "protoss", enemy: "terran" }, personas: { player: "dark" } });
+    state.time = 600;
+    state.sides.player.ai = { nextThink: 0, step: 99, wave: 0, attacking: false, waveStart: 0, committedAt: 0, done: [], built: [], darkMerges: 2 };
+    for (let index = 0; index < 6; index += 1) stwSpawnUnitAt(state, "player", "dark", 10 + index * 2, 76, "rally");
+    for (let index = 0; index < 12; index += 1) stwSpawnUnitAt(state, "player", "dragoon", 8 + index * 2, 78, "rally");
+    if (seenCannon) state.sides.player.seen[9001] = { id: 9001, type: "turret", x: 20, y: 20, base: "main", radius: 1.5, at: 590 };
+    stwAiThink(state, "player");
+    return state;
+  };
+  const wary = setup(true);
+  assert.deepEqual([groups(wary, "dark"), groups(wary, "dragoon")], [["rally"], ["attack"]], "탐지 건물을 알면 다크템플러는 남는다");
+  const free = setup(false);
+  assert.deepEqual([groups(free, "dark"), groups(free, "dragoon")], [["attack"], ["attack"]], "탐지 건물을 모르면 함께 나간다");
+
+  // 다크 아콘 합체: 다크템플러가 여섯 이상일 때만, 한 경기에 두 번까지.
+  const merge = (darks, merges) => {
+    const state = createStardraftGame({ seed: 3, difficulty: "hard", aiSides: ["player"], races: { player: "protoss", enemy: "terran" }, personas: { player: "dark" } });
+    research(state, "player", "maelstrom");
+    state.sides.player.ai = { nextThink: 0, step: 99, wave: 0, attacking: false, waveStart: 0, committedAt: 0, done: [], built: [], darkMerges: merges };
+    for (let index = 0; index < darks; index += 1) stwSpawnUnitAt(state, "player", "dark", 10 + index * 2, 90, "rally");
+    stwAiThink(state, "player");
+    return state.units.filter((unit) => unit.side === "player" && unit.type === "darkArchon").length;
+  };
+  assert.equal(merge(5, 0), 0, "다섯 기로는 합치지 않는다(넷은 남긴다)");
+  assert.equal(merge(6, 0), 1);
+  assert.equal(merge(8, 2), 0, "두 번 합친 뒤에는 더 합치지 않는다");
+});
+
 test("스타드래프트 AI 셔틀 폭탄 드랍: 셔틀 세 기와 태울 유닛이 모이면 그 유닛만 태워 보내고 나머지는 정면으로 나간다", () => {
   const setup = (persona, shuttles, army) => {
     const state = createStardraftGame({ seed: 3, difficulty: "hard", aiSides: ["player"], races: { player: "protoss", enemy: "terran" }, personas: { player: persona } });
