@@ -314,7 +314,7 @@ const MASS_BOMB = { min: 6, target: "production", waitSpeedUntil: 660, personas:
  */
 const CARRIER_BOMB = {
   reaverdrop: { base: "robo", carrier: "shuttle", tech: ["robo"], min: 3, from: 420, target: "main", riders: ["reaver", "zealot"] },
-  darkdrop: { base: "dark", carrier: "shuttle", tech: ["robo"], min: 3, from: 420, target: "main", riders: ["dark", "zealot"] },
+  darkdrop: { base: "dark", carrier: "shuttle", tech: ["robo"], min: 3, from: 420, target: "main", riders: ["dark", "zealot"], undetected: true },
   zealotdrop: { base: "dragoon", carrier: "shuttle", tech: ["robo"], min: 3, from: 420, target: "production", riders: ["zealot"] },
   // 해병은 드랍십 한 기에 6기까지만 타고 나머지 두 칸은 메딕·파이어뱃이 탄다(엔진의 섞어 태우기).
   biodrop: { base: "bio", carrier: "dropship", tech: ["factory", "starport"], min: 3, from: 420, target: "production", riders: ["marine", "medic", "firebat"] },
@@ -1678,6 +1678,14 @@ function musterAtHome(state, side, memory) {
   return { y: Math.abs(foeY - 78) >= Math.abs(foeY - 96) ? 78 : 96 };
 }
 
+/** 은폐 유닛을 내릴 기지: 본 적 건물 가운데 탐지 건물이 없는 기지(본진 먼저, 앞마당은 건물을 본 적이 있을 때만). 없으면 null. */
+function undetectedBase(record) {
+  const seen = Object.values(record.seen ?? {});
+  const watched = (base) => seen.some((item) => item.base === base && STW_BUILDINGS[item.type]?.detector);
+  if (!watched("main")) return "main";
+  return seen.some((item) => item.base === "natural") && !watched("natural") ? "natural" : null;
+}
+
 /** 방어 건물을 count개까지 갖춘다. 프로토스는 포지, 저그는 스포닝 풀, 테란은 배럭이 먼저 있어야 한다. */
 function ensureDefense(state, side, race, count) {
   // 적이 이미 기지 안에 있으면 방어 건물을 새로 짓지 않는다: 짓는 중인 건물은 체력이 낮아 금방 부서진다.
@@ -1773,8 +1781,11 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
     for (const unit of check?.ok ? check.passengers : []) waiting[unit.type] = (waiting[unit.type] ?? 0) + 1;
     const seats = shuttleBomb.riders.reduce((sum, type) => sum + Math.min(waiting[type] ?? 0, shuttleBomb.limit?.[type] ?? Infinity) * stwSlots(type), 0);
     const enough = Object.entries(shuttleBomb.need ?? {}).every(([type, count]) => (waiting[type] ?? 0) >= count);
-    if (check?.ok && enough && check.carriers.length >= shuttleBomb.min && seats > (shuttleBomb.min - 1) * 8) {
-      if (stwCommand(state, side, { type: "drop", mission: "bomb", target: shuttleBomb.target, sync: true, riders: shuttleBomb.riders, riderLimit: shuttleBomb.limit }).ok) {
+    // 은폐 유닛 드랍(undetected): 지금까지 본 적 건물 가운데 탐지 건물이 없는 기지에만 내린다(본진 먼저, 본진에 있으면 건물을 본 앞마당).
+    // 두 기지 모두 탐지 건물을 봤으면 보내지 않는다. 옵저버·오버로드 같은 움직이는 탐지와 아직 못 본 건물은 알 수 없다.
+    const dropBase = shuttleBomb.undetected ? undetectedBase(record) : "main";
+    if (check?.ok && dropBase && enough && check.carriers.length >= shuttleBomb.min && seats > (shuttleBomb.min - 1) * 8) {
+      if (stwCommand(state, side, { type: "drop", mission: "bomb", target: shuttleBomb.target, base: dropBase, sync: true, riders: shuttleBomb.riders, riderLimit: shuttleBomb.limit }).ok) {
         memory.bombs = (memory.bombs ?? 0) + 1;
         memory.bombSent = state.units.filter((unit) => unit.side === side && unit.type === shuttleBomb.carrier && unit.op !== undefined).length;
         memory.bombCarriers = shuttles;
