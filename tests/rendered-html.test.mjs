@@ -173,6 +173,7 @@ import {
   MUDFLAT_BOSS_SKILL_LABELS,
   MUDFLAT_BOSS_SPAWN_SECONDS,
   MUDFLAT_BOSS_EARLY_SPAWN_SECONDS,
+  mudflatStepToward,
   mudflatNewUnlocks,
   mudflatHitFamily,
   MUDFLAT_FIREBALL_UNLOCK_SKILLS,
@@ -1600,6 +1601,20 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatThunderboltTarget([{ id: 1, hp: 30 }, { id: 2, hp: 118 }, { id: 3, hp: 20, boss: true }]).id, 3, "대왕 박하지가 보이면 항상 우선");
   assert.equal(mudflatThunderboltTarget([{ id: 3, hp: 0 }]), null);
   assert.equal(mudflatThunderboltTarget([]), null);
+  // 호미봇 걸음: 멈춤 거리 안이면 바로 도착, 한 걸음으로 들어올 수 있으면 딱 그 거리에 세우고 도착, 아니면 최대 걸음만큼 이동.
+  // 14.0000001px처럼 부동소수점으로 "도착 직전"에 머무는 상태가 생기지 않아야 한다(감독 로그에서 로봇이 구멍 앞에 서서 파지 않던 원인).
+  const bot = { x: 0, y: 0, facing: 1 };
+  assert.equal(mudflatStepToward(bot, { x: 100, y: 0 }, 14, 50), false);
+  assert.deepEqual([bot.x, bot.y], [50, 0]);
+  assert.equal(mudflatStepToward(bot, { x: 100, y: 0 }, 14, 50), true, "남은 거리 36이 걸음 50 안이면 이번 걸음으로 도착");
+  assert.equal(Math.round(Math.hypot(100 - bot.x, bot.y) * 1e6) / 1e6, 14);
+  assert.equal(mudflatStepToward(bot, { x: 100, y: 0 }, 14, 50), true, "멈춤 거리에 서 있으면 계속 도착");
+  const stuck = { x: 100 - 14.0000001, y: 0, facing: 1 };
+  assert.equal(mudflatStepToward(stuck, { x: 100, y: 0 }, 14, 3), true, "오차 범위 안이면 도착으로 본다");
+  const left = { x: 10, y: 0, facing: 1 };
+  assert.equal(mudflatStepToward(left, { x: -200, y: 0 }, 14, 40), false);
+  assert.deepEqual([left.x, left.facing], [-30, -1]);
+  assert.equal(mudflatStepToward({ x: 0, y: 0, facing: 1 }, { x: 5, y: 0 }, 14, 0), true, "이미 안쪽이면 걸음 0이어도 도착");
   // 대왕 박하지 강화: 5단계부터 체력이 단계마다 2배(9단계 이후 32배 고정), 3단계부터 공격 기술.
   // 돌진 3·5·7, 점프 공격 4·6·8, 파이어볼 5·7·8, 집게발 투척 6·8, 돌진 복어 소환 7·8, 9단계부터 전부.
   assert.equal(MUDFLAT_BOSS_ATTACK_STAGE, 3);
@@ -2483,6 +2498,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /if \(!runtime\.bossSpawned && runtime\.elapsed >= runtime\.bossSpawnAt\) \{/);
   assert.match(source, /if \(launch\.bossEarly\) runtime\.bossSpawnAt = MUDFLAT_BOSS_EARLY_SPAWN_SECONDS;/);
   assert.match(source, /appendSupervisorEvent\("boss-skill"/);
+  // 호미봇 걸음은 mudflatStepToward로 도착을 판정하고, 12초 넘게 이동 중이면 구멍을 놓는다.
+  assert.match(source, /const moveBotToward = \(unit: HoeBot, targetX: number, targetY: number, stopDistance: number\) => mudflatStepToward\(unit, \{ x: targetX, y: targetY \}, stopDistance, botSpeed \* dt\);/);
+  assert.match(source, /else if \(unit\.digClock > 12\) \{ unit\.phase = "follow"; unit\.targetHoleId = 0; unit\.digClock = 0; \}/);
   assert.match(source, /function drawBossTelegraph\(/);
   assert.match(source, /function drawBossClaw\(/);
   assert.doesNotMatch(source, /advanceBossSkill[\s\S]{0,3000}Math\.random/);

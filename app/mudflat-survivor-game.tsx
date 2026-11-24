@@ -168,6 +168,7 @@ import {
   mudflatShockMultiplier,
   MUDFLAT_SHOCK_SECONDS,
   mudflatBossHpMultiplier,
+  mudflatStepToward,
   mudflatBossSkills,
   mudflatBossSkillStats,
   mudflatBossNextSkill,
@@ -4200,14 +4201,9 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         if (runtime.hoeBots.length > bot.bots) runtime.hoeBots = runtime.hoeBots.slice(0, bot.bots);
         const botsResting = inBaseCamp || runtime.elapsed >= MUDFLAT_RUN_SECONDS || tutorialActiveAtFrame;
         const botSpeed = runtime.player.speed * bot.speedMultiplier;
-        const moveBotToward = (unit: HoeBot, targetX: number, targetY: number, stopDistance: number) => {
-          const dx = targetX - unit.x; const dy = targetY - unit.y; const length = Math.hypot(dx, dy);
-          if (length <= stopDistance) return true;
-          const step = Math.min(length - stopDistance, botSpeed * dt);
-          unit.x += dx / length * step; unit.y += dy / length * step;
-          if (Math.abs(dx) > .5) unit.facing = dx > 0 ? 1 : -1;
-          return false;
-        };
+        // 도착 판정은 mudflatStepToward가 맡는다. 예전 구현은 멈춤 거리에 14.0000001px로 닿으면 영원히 "이동 중"에 머물러
+        // 로봇이 구멍 앞에 선 채 파지 않았다(감독 로그 재현: 15초 뒤 수확 0).
+        const moveBotToward = (unit: HoeBot, targetX: number, targetY: number, stopDistance: number) => mudflatStepToward(unit, { x: targetX, y: targetY }, stopDistance, botSpeed * dt);
         runtime.hoeBots.forEach((unit, index) => {
           const targetHole = unit.targetHoleId > 0 ? runtime.clamHoles.find((hole) => hole.id === unit.targetHoleId) : undefined;
           if (unit.phase !== "follow" && (botsResting || !targetHole)) {
@@ -4231,7 +4227,10 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
               if (nearest) { unit.targetHoleId = nearest.id; unit.phase = "move"; }
             }
           } else if (unit.phase === "move" && targetHole) {
+            unit.digClock += dt;
             if (moveBotToward(unit, targetHole.x, targetHole.y, 14)) { unit.phase = "dig"; unit.digClock = 0; }
+            // 안전장치: 12초 넘게 가고 있으면(막힘·오류) 구멍을 놓고 플레이어에게 돌아간다.
+            else if (unit.digClock > 12) { unit.phase = "follow"; unit.targetHoleId = 0; unit.digClock = 0; }
           } else if (unit.phase === "dig" && targetHole) {
             unit.digClock += dt;
             const digSeconds = targetHole.kind === "gaebul" ? GAEBUL_DIG_SECONDS : CLAM_DIG_SECONDS;
