@@ -1743,7 +1743,11 @@ function manageArmy(state, side, persona, memory, settings, { holdHome = false, 
 
   // 총공격: 광물이 바닥나 더 모을 수 없거나 인구가 거의 찼으면 기다릴 이유가 없다.
   const supply = stwSupply(state, side);
-  const allIn = (stwIncome(state, side).minerals < 60 && record.minerals < 100) || supply.used >= 92;
+  // 인구가 찼어도(92 이상), 아는 적(방어 건물 + 본 병력)의 1.1배에 못 미치고 광물이 400 넘게 남았으면 총공격하지 않는다.
+  // 예전에는 인구만 차면 불리한 줄 알면서도 나갔다(리포트 경기 14:00·15:27: 우리 944·1,035 대 기준 1,108, 광물 1,300~1,700 보유).
+  // 표본 28판씩: 다크템플러 기습 17 → 19승, 드라군·히드라·바이오닉은 그대로, 경기 시간 +10초쯤.
+  const weakAtCap = record.minerals >= 400 && armyPower(army.fighters) < (defensePower(state, side) + seenFoePower(state, side, memory)) * 1.1;
+  const allIn = (stwIncome(state, side).minerals < 60 && record.minerals < 100) || (supply.used >= 92 && !weakAtCap);
   // 은폐 근접 유닛(다크템플러)은 적 탐지 건물을 알고 있는 동안 출격에서 빼고 집결지에 남긴다. 탐지 구역으로 들어가면 드러나 체력 낮은
   // 근접 유닛일 뿐인데(리포트 경기: 죽은 11기가 모두 적 기지에서, 그중 7기가 드러난 채), 집결지에서는 보이지 않는 채로 들어오는 적을 받아낸다
   // (그 경기에서 잡은 92기 중 76기가 우리 쪽 절반). 기억한 탐지 건물이 모두 사라지면(본대가 깼으면) 다시 함께 나가고, 총공격에는 모두 나간다.
