@@ -174,6 +174,7 @@ import {
   MUDFLAT_BOSS_SPAWN_SECONDS,
   MUDFLAT_BOSS_EARLY_SPAWN_SECONDS,
   mudflatStepToward,
+  mudflatSkillCharge,
   mudflatNewUnlocks,
   mudflatHitFamily,
   MUDFLAT_FIREBALL_UNLOCK_SKILLS,
@@ -1601,6 +1602,14 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(mudflatThunderboltTarget([{ id: 1, hp: 30 }, { id: 2, hp: 118 }, { id: 3, hp: 20, boss: true }]).id, 3, "대왕 박하지가 보이면 항상 우선");
   assert.equal(mudflatThunderboltTarget([{ id: 3, hp: 0 }]), null);
   assert.equal(mudflatThunderboltTarget([]), null);
+  // HUD 충전 표시: 남은 대기 시간을 0~1 채움으로 바꾸고, 0.5초 안(대상 없어 재시도 중)이면 준비로 본다. 주기가 없으면 항상 준비.
+  assert.deepEqual(mudflatSkillCharge(4, 4), { fill: 0, ready: false });
+  assert.deepEqual(mudflatSkillCharge(2, 4), { fill: .5, ready: false });
+  assert.deepEqual(mudflatSkillCharge(.4, 4), { fill: .9, ready: true });
+  assert.deepEqual(mudflatSkillCharge(0, 4), { fill: 1, ready: true });
+  assert.deepEqual(mudflatSkillCharge(-1, 4), { fill: 1, ready: true });
+  assert.deepEqual(mudflatSkillCharge(3, Infinity), { fill: 1, ready: true });
+  assert.deepEqual(mudflatSkillCharge(10, 35, 0), { fill: 1 - 10 / 35, ready: false });
   // 호미봇 걸음: 멈춤 거리 안이면 바로 도착, 한 걸음으로 들어올 수 있으면 딱 그 거리에 세우고 도착, 아니면 최대 걸음만큼 이동.
   // 14.0000001px처럼 부동소수점으로 "도착 직전"에 머무는 상태가 생기지 않아야 한다(감독 로그에서 로봇이 구멍 앞에 서서 파지 않던 원인).
   const bot = { x: 0, y: 0, facing: 1 };
@@ -2400,7 +2409,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const chainDamage = \(creature\.knockbackDamage \?\? 0\) \* MUDFLAT_SMASH_CHAIN_RATIO;/);
   assert.match(source, /if \(creature\.knockbackChain && creature\.knockbackLife > 0\) \{/);
   assert.match(source, /runtime\.smashEffect = SMASH_EFFECT_SECONDS; runtime\.smashAngle = angle; runtime\.smashClock = smash\.cooldown;/);
-  assert.match(source, /const SMASH_EFFECT_SECONDS = 1\.1;\s*const SMASH_PREP_END = \.16;\s*const SMASH_STRIKE_END = \.4;\s*const SMASH_IMPACT_END = \.8;/);
+  // 내지르기는 0.2초에 끝나고(준비 0.08 + 내지르기 0.12), 팔을 뻗은 채 0.6초 머문 뒤 0.3초에 거둔다(총 1.1초).
+  assert.match(source, /const SMASH_EFFECT_SECONDS = 1\.1;\s*const SMASH_PREP_END = \.08;\s*const SMASH_STRIKE_END = \.2;\s*const SMASH_IMPACT_END = \.8;/);
   // 피해는 맞는 순간이 아니라 밀려난 뒤(넉백 종료 또는 바위 충돌)에 한 번에 준다. 맞는 순간에는 섬광과 미뤄 둔 피해만 기록한다.
   // 밀림은 주먹이 다 뻗는 0.4초 뒤에 시작하고(그때 섬광), 그동안 생물은 평소대로 움직인다. 통로 전체 속도선 대신 생물마다 바람 자국을 그린다.
   assert.match(source, /creature\.knockbackDelay = SMASH_STRIKE_END;\s*creature\.knockbackPendingDamage = smash\.damage;/);
@@ -2408,6 +2418,17 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /function drawKnockbackWind\(/);
   assert.match(source, /drawKnockbackWind\(context, point\.x, point\.y, creature\.size, creature\.knockbackX \?\? 0, creature\.knockbackY \?\? 0, creature\.knockbackLife \?\? 0, actionTime \+ creature\.id\)/);
   assert.doesNotMatch(source, /const head = originX \+ length \* Math\.min\(1, impact \* 1\.1\);/);
+  // HUD 기술 칩 충전: 주기 2초 이상 기술(작살·투망·건곤대나이·뻘권·화염 방사·빙결 파동·번개 체인·낙뢰)과 소쿠리의 달인이 대상이고,
+  // 칩은 --ms-charge로 차오르며 준비되면 is-ready로 한 번 번쩍인다. 뻘권은 주먹 불씨도 그린다.
+  for (const id of ["harpoon", "cast-net", "rock-lift", "smash", "flame-burst", "frost-wave", "chain-lightning", "thunderbolt"]) assert.match(source, new RegExp(`\\["${id}", \\(runtime\\) => \\(\\{ clock: runtime\\.`), `${id} 충전 표시`);
+  assert.match(source, /charges\["guard-basket"\] = runtime\.guardBasketCharges > 0 \? \{ fill: 1, ready: true \} : mudflatSkillCharge\(guard\.rechargeSeconds - runtime\.guardBasketRechargeClock, guard\.rechargeSeconds, 0\);/);
+  assert.match(source, /bossCaught: runtime\.bossCaught, charges: skillCharges\(runtime\),/);
+  assert.match(source, /className=\{charge \? \(charge\.ready \? "is-charging is-ready" : "is-charging"\) : undefined\} style=\{charge \? \{ "--ms-charge": charge\.fill \} as CSSProperties : undefined\}/);
+  assert.match(source, /function drawSmashEmber\(/);
+  assert.match(source, /drawSmashEmber\(context, width \/ 2, height \/ 2, runtime\.player\.facing, smashCharge\.fill, smashCharge\.ready, actionTime, characterId === "lumi"\);/);
+  assert.match(styles, /\.ms-tools>button\.is-charging::after\{content:"";position:absolute;inset:0;z-index:0;transform-origin:bottom;transform:scaleY\(var\(--ms-charge,0\)\)/);
+  assert.match(styles, /@keyframes ms-tool-ready\{/);
+  assert.doesNotMatch(source, /drawSmashEmber[\s\S]{0,200}navigator\.vibrate/);
   assert.doesNotMatch(source, /damageCreature\(creature, smash\.damage, \.2\);/);
   assert.match(source, /damageCreature\(creature, \(creature\.knockbackPendingDamage \?\? 0\) \+ \(creature\.knockbackRockBonus \?\? 0\), \.18\);/);
   assert.match(source, /if \(\(creature\.knockbackPendingDamage \?\? 0\) > 0\) damageCreature\(creature, creature\.knockbackPendingDamage \?\? 0, \.2\);/);

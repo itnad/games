@@ -169,6 +169,7 @@ import {
   MUDFLAT_SHOCK_SECONDS,
   mudflatBossHpMultiplier,
   mudflatStepToward,
+  mudflatSkillCharge,
   mudflatBossSkills,
   mudflatBossSkillStats,
   mudflatBossNextSkill,
@@ -277,7 +278,34 @@ type Runtime = {
   safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; mosquitoClock: number; mosquitoRunEnabled: boolean; rocksFlipped: number;
   paused: boolean; ended: boolean;
 };
-type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; xpCollecting?: boolean; tutorialActive?: boolean; mosquitoRepellent?: boolean; caught: number; catchCapacity: number; rocksFlipped: number; storedSkillCount: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean };
+type Hud = { mode: GameMode; stage: number; elapsed: number; hp: number; maxHp: number; level: number; xp: number; nextXp: number; xpCollecting?: boolean; tutorialActive?: boolean; mosquitoRepellent?: boolean; caught: number; catchCapacity: number; rocksFlipped: number; storedSkillCount: number; score: number; levels: CountMap; basket: CountMap; bossCaught: boolean; charges: Record<string, { fill: number; ready: boolean }> };
+// HUD 기술 칩 충전 표시 대상: 주기 2초 이상인 선택 기술. 칩 배경이 아래에서 차오르고 준비되면 한 번 번쩍인다.
+// ready는 각 기술이 대상을 찾지 못했을 때 다시 확인하는 간격(그 안이면 "준비됨"으로 본다).
+const HUD_CHARGE_SKILLS: Array<[string, (runtime: Runtime) => { clock: number; interval: number; ready: number }]> = [
+  ["harpoon", (runtime) => ({ clock: runtime.harpoonClock, interval: mudflatHarpoonStats(runtime.levels.harpoon ?? 1, runtime.levels.net ?? 1).interval, ready: .15 })],
+  ["cast-net", (runtime) => ({ clock: runtime.castNetClock, interval: mudflatCastNetStats(runtime.levels["cast-net"] ?? 1).interval, ready: CAST_NET_RETRY })],
+  ["rock-lift", (runtime) => ({ clock: runtime.rockLiftClock, interval: mudflatRockLiftStats(runtime.levels["rock-lift"] ?? 1).interval, ready: .5 })],
+  ["smash", (runtime) => ({ clock: runtime.smashClock, interval: mudflatSmashStats(runtime.levels.smash ?? 1).cooldown, ready: .1 })],
+  ["flame-burst", (runtime) => ({ clock: runtime.flameBurstClock, interval: mudflatFlameBurstStats(runtime.levels["flame-burst"] ?? 1).interval, ready: .5 })],
+  ["frost-wave", (runtime) => ({ clock: runtime.frostWaveClock, interval: mudflatFrostWaveStats(runtime.levels["frost-wave"] ?? 1).interval, ready: .5 })],
+  ["chain-lightning", (runtime) => ({ clock: runtime.chainLightningClock, interval: mudflatChainLightningStats(runtime.levels["chain-lightning"] ?? 1).interval, ready: .5 })],
+  ["thunderbolt", (runtime) => ({ clock: runtime.thunderboltClock, interval: mudflatThunderboltStats(runtime.levels.thunderbolt ?? 1).interval, ready: .5 })],
+];
+function skillCharges(runtime: Runtime): Hud["charges"] {
+  const charges: Hud["charges"] = {};
+  if (runtime.mode !== "normal") return charges;
+  for (const [id, read] of HUD_CHARGE_SKILLS) {
+    if ((runtime.levels[id] ?? 0) <= 0) continue;
+    const { clock, interval, ready } = read(runtime);
+    charges[id] = mudflatSkillCharge(clock, interval, ready);
+  }
+  if ((runtime.levels["guard-basket"] ?? 0) > 0) {
+    // 소쿠리의 달인은 충전된 소쿠리가 있으면 준비, 없으면 재충전 진행도.
+    const guard = mudflatGuardBasketStats(runtime.levels["guard-basket"] ?? 1);
+    charges["guard-basket"] = runtime.guardBasketCharges > 0 ? { fill: 1, ready: true } : mudflatSkillCharge(guard.rechargeSeconds - runtime.guardBasketRechargeClock, guard.rechargeSeconds, 0);
+  }
+  return charges;
+}
 type SavedRun = { version: 1; savedAt: number; campaign: Campaign; stageEntryCampaign: Campaign; runtime: Runtime; choiceIds: string[]; nextSequence: number };
 type MudflatDevLaunch = { version: 1; campaign: Campaign; run?: boolean; tutorial?: boolean; supervisor?: boolean; bossEarly?: boolean; label?: string; seed?: number };
 type ClamHarvestReward = { id: string; name: string; xp: number; score: number };
@@ -340,7 +368,7 @@ function applyClamHarvestReward(
   return stored;
 }
 
-const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, catchCapacity: 500, rocksFlipped: 0, storedSkillCount: 0, score: 0, levels: {}, basket: {}, bossCaught: false };
+const emptyHud: Hud = { mode: "kids", stage: 1, elapsed: 0, hp: 100, maxHp: 100, level: 1, xp: 0, nextXp: 8, caught: 0, catchCapacity: 500, rocksFlipped: 0, storedSkillCount: 0, score: 0, levels: {}, basket: {}, bossCaught: false, charges: {} };
 
 function MudflatBrand() {
   return <span className="brand-mark" aria-hidden="true"><i /><i /><i /><i /></span>;
@@ -1855,6 +1883,37 @@ function drawKnockbackWind(context: CanvasRenderingContext2D, x: number, y: numb
   context.restore();
 }
 
+// 뻘권 충전 불씨: 바라보는 쪽 주먹 자리에 작은 불씨가 충전될수록 커지고 붉어진다. 준비되면 불꽃 혀가 일렁이고 불씨가 튄다.
+// 루미는 몸 옆에 주황 발광으로 같은 정보를 준다. 진동·소리 없음.
+function drawSmashEmber(context: CanvasRenderingContext2D, x: number, y: number, facing: number, fill: number, ready: boolean, time: number, lumi: boolean) {
+  const direction = Math.cos(facing) < 0 ? -1 : 1;
+  const flicker = Math.sin(time * 26) * .5 + .5;
+  const handX = x + direction * (lumi ? 22 : 15); const handY = y + (lumi ? -2 : 3);
+  context.save();
+  const radius = (3 + 4 * fill) * (ready ? 1 + flicker * .3 : 1);
+  const glow = context.createRadialGradient(handX, handY, 0, handX, handY, radius * 2.2);
+  glow.addColorStop(0, ready ? "rgba(255,240,160,.95)" : `rgba(255,${Math.round(120 + 60 * fill)},60,${.25 + .5 * fill})`);
+  glow.addColorStop(1, "rgba(255,70,30,0)");
+  context.globalAlpha = .35 + .65 * fill;
+  context.fillStyle = glow;
+  context.beginPath(); context.arc(handX, handY, radius * 2.2, 0, Math.PI * 2); context.fill();
+  if (ready) {
+    context.fillStyle = "#ff9a3c"; context.globalAlpha = .9;
+    for (let tongue = -1; tongue <= 1; tongue += 1) {
+      const lengthScale = 6 + flicker * 5 + Math.abs(tongue) * -2;
+      context.beginPath();
+      context.moveTo(handX - 3, handY + tongue * 2); context.quadraticCurveTo(handX + tongue * 3, handY - lengthScale, handX + 3, handY + tongue * 2); context.closePath(); context.fill();
+    }
+    context.fillStyle = "#ffd58a";
+    for (let ember = 0; ember < 2; ember += 1) {
+      const phase = (time * 1.6 + ember * .5) % 1;
+      context.globalAlpha = .9 * (1 - phase);
+      context.beginPath(); context.arc(handX + Math.sin(time * 9 + ember * 2) * 4, handY - 6 - phase * 14, 1.6, 0, Math.PI * 2); context.fill();
+    }
+  }
+  context.restore();
+}
+
 // 둔화·빙결 표시: 하늘색 테두리와 얼음 결정 2개. 빙결은 결정이 크고 테두리가 두껍다. 만료 0.3초 전부터 깜빡인다.
 function drawFrostMark(context: CanvasRenderingContext2D, x: number, y: number, size: number, frozen: boolean, remaining: number, time: number) {
   const blink = remaining < .3 ? (Math.sin(time * 30) > 0 ? 1 : .35) : 1;
@@ -1889,11 +1948,12 @@ function drawFrostCast(context: CanvasRenderingContext2D, x: number, y: number, 
   context.restore();
 }
 
-// 뻘권 시간 배분(총 1.1초): 준비 0.16초 → 내지르기 0.24초 → 충격 0.4초 → 복귀 0.3초. 효과를 눈으로 따라갈 수 있게 예전의 2배 길이.
+// 뻘권 시간 배분(총 1.1초): 준비 0.08초 → 내지르기 0.12초(빠르게 꽂는다) → 팔 뻗은 채 충격 0.6초 → 복귀 0.3초.
+// 내지르기는 빠르고, 팔을 뻗은 채 머무는 시간은 길게 둬 밀려 날아가는 모습을 따라갈 수 있게 한다.
 // progress(0~1)를 초 단위 단계로 바꾼다.
 const SMASH_EFFECT_SECONDS = 1.1;
-const SMASH_PREP_END = .16;
-const SMASH_STRIKE_END = .4;
+const SMASH_PREP_END = .08;
+const SMASH_STRIKE_END = .2;
 const SMASH_IMPACT_END = .8;
 function smashPhases(progress: number) {
   const t = Math.max(0, Math.min(1, progress)) * SMASH_EFFECT_SECONDS;
@@ -2612,7 +2672,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       storedSkillCount: runtime.mode === "normal" ? mudflatSelectableSkillIds(runtime.skillInventory).filter((id) => !runtime.activeSkills.includes(id)).length : 0,
       xpCollecting: runtime.xpCollectLife > 0, tutorialActive: firstMoveGuideActive(runtime), mosquitoRepellent: (runtime.equipment[MOSQUITO_REPELLENT_KEY] ?? 0) > 0,
       score: mudflatFinalScore({ catchScore: runtime.catchScore, caught: runtime.caught, elapsed: runtime.elapsed, bossCaught: runtime.bossCaught }),
-      levels: { ...runtime.levels }, basket: { ...runtime.basket }, bossCaught: runtime.bossCaught,
+      levels: { ...runtime.levels }, basket: { ...runtime.basket }, bossCaught: runtime.bossCaught, charges: skillCharges(runtime),
     });
   }, []);
 
@@ -4933,6 +4993,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         actionTime, runtime.player.damageCooldown > 0, (runtime.equipment.headlamp ?? 0) > 0, lumiTongReach);
       // 뻘권 중에도 몸통은 제자리에 둔다(자리가 빠졌다 끼워지는 느낌을 없앰). 동작은 팔·불주먹 연출이 맡는다.
       if (characterId !== "lumi") drawGatherer(context, width / 2, height / 2, runtime.player, characterId, (runtime.equipment.headlamp ?? 0) > 0);
+      // 뻘권 충전: 주먹에 불씨가 차오르고 준비되면 불꽃이 일렁인다(루미는 몸 옆 주황 발광). 발동 연출 중에는 그리지 않는다.
+      if (runtime.mode === "normal" && (runtime.levels.smash ?? 0) > 0 && runtime.smashEffect <= 0) {
+        const smashCharge = mudflatSkillCharge(runtime.smashClock, mudflatSmashStats(runtime.levels.smash ?? 1).cooldown, .1);
+        drawSmashEmber(context, width / 2, height / 2, runtime.player.facing, smashCharge.fill, smashCharge.ready, actionTime, characterId === "lumi");
+      }
       if (runtime.smashEffect > 0) {
         const smashStats = mudflatSmashStats(Math.max(1, runtime.levels.smash ?? 0));
         drawSmashCast(context, width / 2, height / 2, runtime.smashAngle, 1 - runtime.smashEffect / SMASH_EFFECT_SECONDS, smashStats.length, smashStats.width, characterId === "lumi", actionTime);
@@ -5818,5 +5883,5 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       </div>
     </section></div>
   ) : null;
-  return <main className={`ms-shell ms-game${hud.mode === "kids" ? " ms-kids-game" : ""}${supervisorActive ? " ms-supervisor-game" : ""}`}><header className="ms-game-head"><button onClick={openExitDialog} aria-label="나가기 선택">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {activeStageProfile.name}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label={supervisorActive ? "AI 감독모드로 자동 진행 중인 해루질럿 게임 화면" : "해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다."} /><div className="ms-hud-bars" data-xp-collecting={hud.xpCollecting || undefined}><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.floor(hud.hp)} / {Math.floor(hud.maxHp)}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div>{activeObjectiveProgress && <div className="goal" data-complete={activeObjectiveProgress.complete || undefined} role="status" aria-label={`보조 목표 ${activeObjectiveProgress.label} · ${activeObjectiveProgress.text}`}><span>목표</span><i><b style={{ width: `${Math.round(activeObjectiveProgress.ratio * 100)}%` }} /></i><em>{activeObjectiveProgress.text}</em></div>}</div>{supervisorActive && <aside className="ms-supervisor-status" role="status" aria-live="polite"><small>AI SUPERVISOR · {supervisorClears}단계 완료</small><b>{supervisorIntent}</b><span>실제 피해 판정 · 레벨업 선택만 직접 진행</span><button type="button" onClick={copySupervisorLog}>{supervisorLogCopyStatus || "플레이 로그 복사"}</button></aside>}{hud.mode === "normal" && <div className="ms-base-tools" aria-label="기본 채집 도구">{fixedNormalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)}><i>{skill.icon}</i><span>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name} <em>Lv.{hud.levels[skill.id] ?? 0}</em></span></button>)}</div>}<div className="ms-caught"><b>채집 {hud.caught}</b><span>(최대 {hud.catchCapacity})</span></div>{!supervisorActive && <div className="ms-touch-hint">아무 곳이나 누르고 드래그</div>}{hud.tutorialActive && <button type="button" className="ms-tutorial-skip" onClick={skipFirstMoveGuide}>튜토리얼 건너뛰기</button>}</section><section className={`ms-tools${hud.mode === "kids" ? " ms-kids-tools" : ""}`} aria-label="선택 기술">{hud.mode === "normal" ? <>{normalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)} aria-label={`${skill.name} 상세 보기`}><i>{skill.icon}</i><b>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name}</b><em>Lv.{hud.levels[skill.id] ?? 0}</em></button>)}{Array.from({ length: Math.max(0, 6 - normalSkills.length) }, (_, index) => <span className="ms-tool-empty" key={`empty-${index}`} aria-label="비어 있는 선택 기술 칸">+</span>)}</> : <><span><i>⌁</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "hoe")?.name}</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "net")?.name}</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>소금 결정의 정령</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>쓸어담기</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{lumiLoadingLayer}{selectedSkill && selectedSkillDetail && <aside className="ms-skill-detail" role="dialog" aria-label={`${selectedSkill.name} 상세`}><button type="button" aria-label="기술 상세 닫기" onClick={() => setSelectedSkillId(null)}>×</button><i>{selectedSkill.icon}</i><div><small>{MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(selectedSkill.id) ? "기본 채집 도구" : "선택 기술"} · Lv.{hud.levels[selectedSkill.id] ?? 0}</small><b>{selectedSkill.name}</b><p>{selectedSkillDetail.current}</p><strong>{selectedSkillDetail.next}</strong></div></aside>}{screen === "upgrade" && !swapIncoming && <div className="ms-layer"><section><small>{supervisorActive ? "SUPERVISOR PAUSED" : `LEVEL ${hud.level}`}</small><h2>새 채집 기술을 고르세요</h2><p>{supervisorActive ? "기술을 선택하면 AI가 관전을 계속합니다." : `선택 기술 ${normalSkills.length} / 6 · 집게와 호미질은 기본 기술입니다.`}</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div><button type="button" className="ms-reroll" disabled={!canReroll} onClick={rerollUpgradeChoices}>새로고침 · 최대 체력 20% ({rerollCost}) 사용</button><small className="ms-skill-slots">기본 기술 이외에 6개의 채집 기술을 활성화할 수 있습니다. 가득 차면 하나를 보관하고 바꿉니다.{hud.storedSkillCount > 0 ? ` 보관 중 ${hud.storedSkillCount}개.` : ""}</small></section></div>}{screen === "upgrade" && swapIncoming && <div className="ms-layer"><section className="ms-skill-swap" aria-label="활성 기술 교체"><small>{supervisorActive ? "SUPERVISOR PAUSED" : "SKILL SWAP"}</small><h2>{withKoreanObject(swapIncoming.name)} 넣을 자리를 고르세요</h2><p>활성 기술 {MUDFLAT_SELECTABLE_SKILL_LIMIT} / {MUDFLAT_SELECTABLE_SKILL_LIMIT} · 내려놓은 기술은 레벨을 유지한 채 기술 인벤토리에 보관됩니다.</p><div>{normalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => chooseSwap(skill.id)} aria-label={`${skill.name} 보관하고 ${swapIncoming.name} 활성화`}><i>{skill.icon}</i><span><b>{skill.name}</b><small>Lv.{hud.levels[skill.id] ?? 0} · 보관하기</small></span><em>→ {swapIncoming.name}</em></button>)}</div><button type="button" className="ms-swap-cancel" onClick={cancelSwap}>다른 기술 고르기</button><small className="ms-skill-slots">보관한 기술은 정비 화면에서 언제든 다시 활성화할 수 있습니다.</small></section></div>}{pauseLayer}{seafoodGuideLayer}{saveError && !exitOpen && <p className="ms-live-save-warning" role="status">{saveError}</p>}{exitOpen && <MudflatExitDialog onMain={() => leaveGame("main")} onHome={() => leaveGame("home")} onCancel={cancelExit} error={saveError} dailyChallenge={dailyChallengeActive} />}</main>;
+  return <main className={`ms-shell ms-game${hud.mode === "kids" ? " ms-kids-game" : ""}${supervisorActive ? " ms-supervisor-game" : ""}`}><header className="ms-game-head"><button onClick={openExitDialog} aria-label="나가기 선택">←</button><div className="ms-hud-title"><small>STAGE {hud.stage} · {activeStageProfile.name}</small><b>{formatClock(hud.elapsed)}</b></div><div className="ms-hud-score"><small>SCORE</small><b>{hud.score.toLocaleString()}</b></div><button onClick={pause} aria-label="일시정지">Ⅱ</button></header><section className="ms-canvas-wrap"><canvas ref={canvasRef} onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} aria-label={supervisorActive ? "AI 감독모드로 자동 진행 중인 해루질럿 게임 화면" : "해루질럿 게임 화면. 아무 곳이나 누르고 드래그해 이동합니다."} /><div className="ms-hud-bars" data-xp-collecting={hud.xpCollecting || undefined}><div className="hp"><span>체력</span><i><b style={{ width: `${hpWidth}%` }} /></i><em>{Math.floor(hud.hp)} / {Math.floor(hud.maxHp)}</em></div><div className="xp"><span>LV.{hud.level}</span><i><b style={{ width: `${xpWidth}%` }} /></i><em>{hud.xp} / {hud.nextXp}</em></div>{activeObjectiveProgress && <div className="goal" data-complete={activeObjectiveProgress.complete || undefined} role="status" aria-label={`보조 목표 ${activeObjectiveProgress.label} · ${activeObjectiveProgress.text}`}><span>목표</span><i><b style={{ width: `${Math.round(activeObjectiveProgress.ratio * 100)}%` }} /></i><em>{activeObjectiveProgress.text}</em></div>}</div>{supervisorActive && <aside className="ms-supervisor-status" role="status" aria-live="polite"><small>AI SUPERVISOR · {supervisorClears}단계 완료</small><b>{supervisorIntent}</b><span>실제 피해 판정 · 레벨업 선택만 직접 진행</span><button type="button" onClick={copySupervisorLog}>{supervisorLogCopyStatus || "플레이 로그 복사"}</button></aside>}{hud.mode === "normal" && <div className="ms-base-tools" aria-label="기본 채집 도구">{fixedNormalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => setSelectedSkillId(skill.id)}><i>{skill.icon}</i><span>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name} <em>Lv.{hud.levels[skill.id] ?? 0}</em></span></button>)}</div>}<div className="ms-caught"><b>채집 {hud.caught}</b><span>(최대 {hud.catchCapacity})</span></div>{!supervisorActive && <div className="ms-touch-hint">아무 곳이나 누르고 드래그</div>}{hud.tutorialActive && <button type="button" className="ms-tutorial-skip" onClick={skipFirstMoveGuide}>튜토리얼 건너뛰기</button>}</section><section className={`ms-tools${hud.mode === "kids" ? " ms-kids-tools" : ""}`} aria-label="선택 기술">{hud.mode === "normal" ? <>{normalSkills.map((skill) => { const charge = hud.charges[skill.id]; return <button type="button" key={skill.id} className={charge ? (charge.ready ? "is-charging is-ready" : "is-charging") : undefined} style={charge ? { "--ms-charge": charge.fill } as CSSProperties : undefined} onClick={() => setSelectedSkillId(skill.id)} aria-label={`${skill.name} 상세 보기${charge ? (charge.ready ? " · 준비됨" : ` · 충전 ${Math.round(charge.fill * 100)}%`) : ""}`}><i>{skill.icon}</i><b>{GENERAL_SKILL_LABELS[skill.id] ?? skill.name}</b><em>Lv.{hud.levels[skill.id] ?? 0}</em></button>; })}{Array.from({ length: Math.max(0, 6 - normalSkills.length) }, (_, index) => <span className="ms-tool-empty" key={`empty-${index}`} aria-label="비어 있는 선택 기술 칸">+</span>)}</> : <><span><i>⌁</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "hoe")?.name}</b><em>Lv.{hud.levels.hoe ?? 0}</em></span><span><i>◇</i><b>{MUDFLAT_UPGRADES.find((skill) => skill.id === "net")?.name}</b><em>Lv.{hud.levels.net ?? 0}</em></span><span><i>✦</i><b>소금 결정의 정령</b><em>Lv.{hud.levels.salt ?? 0}</em></span><span><i>≫</i><b>장화</b><em>Lv.{hud.levels.boots ?? 0}</em></span><span><i>◉</i><b>쓸어담기</b><em>Lv.{hud.levels.basket ?? 0}</em></span></>}</section>{lumiLoadingLayer}{selectedSkill && selectedSkillDetail && <aside className="ms-skill-detail" role="dialog" aria-label={`${selectedSkill.name} 상세`}><button type="button" aria-label="기술 상세 닫기" onClick={() => setSelectedSkillId(null)}>×</button><i>{selectedSkill.icon}</i><div><small>{MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(selectedSkill.id) ? "기본 채집 도구" : "선택 기술"} · Lv.{hud.levels[selectedSkill.id] ?? 0}</small><b>{selectedSkill.name}</b><p>{selectedSkillDetail.current}</p><strong>{selectedSkillDetail.next}</strong></div></aside>}{screen === "upgrade" && !swapIncoming && <div className="ms-layer"><section><small>{supervisorActive ? "SUPERVISOR PAUSED" : `LEVEL ${hud.level}`}</small><h2>새 채집 기술을 고르세요</h2><p>{supervisorActive ? "기술을 선택하면 AI가 관전을 계속합니다." : `선택 기술 ${normalSkills.length} / 6 · 집게와 호미질은 기본 기술입니다.`}</p><div>{choices.map((item) => <button key={item.id} onClick={() => chooseUpgrade(item.id)}><i>{item.icon}</i><span><b>{item.name}</b><small>{item.description}</small></span><em>Lv.{hud.levels[item.id] ?? 0} → Lv.{(hud.levels[item.id] ?? 0) + 1}</em></button>)}</div><button type="button" className="ms-reroll" disabled={!canReroll} onClick={rerollUpgradeChoices}>새로고침 · 최대 체력 20% ({rerollCost}) 사용</button><small className="ms-skill-slots">기본 기술 이외에 6개의 채집 기술을 활성화할 수 있습니다. 가득 차면 하나를 보관하고 바꿉니다.{hud.storedSkillCount > 0 ? ` 보관 중 ${hud.storedSkillCount}개.` : ""}</small></section></div>}{screen === "upgrade" && swapIncoming && <div className="ms-layer"><section className="ms-skill-swap" aria-label="활성 기술 교체"><small>{supervisorActive ? "SUPERVISOR PAUSED" : "SKILL SWAP"}</small><h2>{withKoreanObject(swapIncoming.name)} 넣을 자리를 고르세요</h2><p>활성 기술 {MUDFLAT_SELECTABLE_SKILL_LIMIT} / {MUDFLAT_SELECTABLE_SKILL_LIMIT} · 내려놓은 기술은 레벨을 유지한 채 기술 인벤토리에 보관됩니다.</p><div>{normalSkills.map((skill) => <button type="button" key={skill.id} onClick={() => chooseSwap(skill.id)} aria-label={`${skill.name} 보관하고 ${swapIncoming.name} 활성화`}><i>{skill.icon}</i><span><b>{skill.name}</b><small>Lv.{hud.levels[skill.id] ?? 0} · 보관하기</small></span><em>→ {swapIncoming.name}</em></button>)}</div><button type="button" className="ms-swap-cancel" onClick={cancelSwap}>다른 기술 고르기</button><small className="ms-skill-slots">보관한 기술은 정비 화면에서 언제든 다시 활성화할 수 있습니다.</small></section></div>}{pauseLayer}{seafoodGuideLayer}{saveError && !exitOpen && <p className="ms-live-save-warning" role="status">{saveError}</p>}{exitOpen && <MudflatExitDialog onMain={() => leaveGame("main")} onHome={() => leaveGame("home")} onCancel={cancelExit} error={saveError} dailyChallenge={dailyChallengeActive} />}</main>;
 }
