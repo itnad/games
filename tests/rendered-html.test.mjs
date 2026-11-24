@@ -2400,7 +2400,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /const chainDamage = \(creature\.knockbackDamage \?\? 0\) \* MUDFLAT_SMASH_CHAIN_RATIO;/);
   assert.match(source, /if \(creature\.knockbackChain && creature\.knockbackLife > 0\) \{/);
   assert.match(source, /runtime\.smashEffect = SMASH_EFFECT_SECONDS; runtime\.smashAngle = angle; runtime\.smashClock = smash\.cooldown;/);
-  assert.match(source, /const SMASH_EFFECT_SECONDS = 1\.1;\s*const SMASH_PREP_END = \.16;\s*const SMASH_STRIKE_END = \.4;\s*const SMASH_IMPACT_END = \.8;/);
+  // 내지르기는 0.2초에 끝나고(준비 0.08 + 내지르기 0.12), 팔을 뻗은 채 0.4초 머문 뒤 0.3초에 거둔다(총 0.9초).
+  assert.match(source, /const SMASH_EFFECT_SECONDS = \.9;\s*const SMASH_PREP_END = \.08;\s*const SMASH_STRIKE_END = \.2;\s*const SMASH_IMPACT_END = \.6;/);
   // 피해는 맞는 순간이 아니라 밀려난 뒤(넉백 종료 또는 바위 충돌)에 한 번에 준다. 맞는 순간에는 섬광과 미뤄 둔 피해만 기록한다.
   // 밀림은 주먹이 다 뻗는 0.4초 뒤에 시작하고(그때 섬광), 그동안 생물은 평소대로 움직인다. 통로 전체 속도선 대신 생물마다 바람 자국을 그린다.
   assert.match(source, /creature\.knockbackDelay = SMASH_STRIKE_END;\s*creature\.knockbackPendingDamage = smash\.damage;/);
