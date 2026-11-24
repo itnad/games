@@ -429,6 +429,14 @@ test("provides a direct-only mudflat developer tool route with local QA presets"
   assert.match(tools, /id: "lightning",[\s\S]*?stage: 2,[\s\S]*?"chain-lightning": 6, thunderbolt: 6[\s\S]*?hitByMosquito: true,\n\s+hitByPufferfish: true,/);
   assert.match(tools, /updateBuild\(\{ hitByMosquito: event\.target\.checked \}\)/);
   assert.match(tools, /updateBuild\(\{ hitByPufferfish: event\.target\.checked \}\)/);
+  // 감독 관전 추천 프리셋 세 개: 광역(6단계)·보스(8단계, 8초 등장)·지형(3단계). 레벨 20·경험치 0, 선택 기술 6개 이하.
+  assert.match(tools, /id: "supervise-aoe",[\s\S]*?stage: 6,[\s\S]*?level: 20,[\s\S]*?nextXp: 1431,[\s\S]*?fireball: 6, "flame-burst": 6, "chain-lightning": 6, smash: 6, "frost-trail": 6/);
+  assert.match(tools, /id: "supervise-boss",[\s\S]*?stage: 8,[\s\S]*?thunderbolt: 6, "frost-wave": 6, "guard-basket": 6, electric: 3, "hoe-bot": 3[\s\S]*?bossEarly: true,/);
+  assert.match(tools, /id: "supervise-terrain",[\s\S]*?stage: 3,[\s\S]*?"rock-lift": 6, smash: 6, "hoe-bot": 6, "guard-basket": 3/);
+  for (const match of tools.matchAll(/id: "supervise-[a-z]+",[\s\S]*?levels: (\{[^}]*\})/g)) {
+    const selectable = Object.keys(JSON.parse(match[1].replace(/(\w[\w-]*|"[\w-]+"):/g, (_, key) => `"${key.replace(/"/g, "")}":`))).filter((id) => !["tongs", "digging"].includes(id));
+    assert.ok(selectable.length <= 6, `${match[0].slice(0, 30)} 선택 기술은 6개 이하여야 전부 활성된다`);
+  }
   // 대왕 박하지 프리셋은 8단계에서 8초 뒤 등장시키고, 빌더에도 같은 선택이 있어 프리셋·빌더 모두 launch에 bossEarly를 싣는다.
   assert.match(tools, /id: "boss-skills",[\s\S]*?stage: 8,[\s\S]*?bossEarly: true,/);
   assert.match(tools, /updateBuild\(\{ bossEarly: event\.target\.checked \}\)/);
