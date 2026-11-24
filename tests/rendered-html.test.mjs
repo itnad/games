@@ -1467,11 +1467,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatFireballStats(level).damage), [10, 20, 30, 40, 50, 60]);
   assert.deepEqual(mudflatFireballStats(3), { interval: 1, shots: 3, spacing: .2, damage: 30, speed: 240, range: 260, splash: 40, wobble: 14, wobblePeriod: .35, sectorHalfAngle: Math.PI / 4 });
   assert.ok([1, 2, 3, 4, 5, 6].every((level) => { const stats = mudflatFireballStats(level); return (stats.shots - 1) * stats.spacing < stats.interval; }), "한 묶음은 다음 주기 전에 다 쏜다");
-  // 화염 방사 수치: 5초 주기, 4·5·6·7·8·8방향, 피해 100(Lv.6 150), 길이 340·폭 34, 0.7초 뻗고 1초 유지, 발동 확인 반경 340.
+  // 화염 방사 수치: 5초 주기, 4·5·6·7·8·8방향, 피해 100(Lv.6 150), 길이 340·폭 68, 0.7초 뻗고 1초 유지, 발동 확인 반경 340.
   assert.deepEqual(mudflatFlameBurstStats(0), { interval: Infinity, rays: 0, damage: 0, length: 0, width: 0, sweepSeconds: 0, holdSeconds: 0, checkRadius: 0 });
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatFlameBurstStats(level).rays), [4, 5, 6, 7, 8, 8]);
   assert.deepEqual([1, 2, 3, 4, 5, 6].map((level) => mudflatFlameBurstStats(level).damage), [100, 100, 100, 100, 100, 150]);
-  assert.deepEqual(mudflatFlameBurstStats(1), { interval: 5, rays: 4, damage: 100, length: 340, width: 34, sweepSeconds: .7, holdSeconds: 1, checkRadius: 340 });
+  assert.deepEqual(mudflatFlameBurstStats(1), { interval: 5, rays: 4, damage: 100, length: 340, width: 68, sweepSeconds: .7, holdSeconds: 1, checkRadius: 340 });
   // 빙결 계열: 서리 발자국은 선택 기술 5개(Lv.1 이상, 기본 기술 제외) + 바위에 피해를 받은 경험,
   // 빙결 파동은 선택 기술 4개(Lv.3 이상) + 돌발 물살에 피해를 받은 경험으로 열린다. 마스터리 집계 제외.
   assert.equal(MUDFLAT_FROST_TRAIL_UNLOCK_SKILLS, 5);

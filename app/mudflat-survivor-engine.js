@@ -571,7 +571,7 @@ export function mudflatFlameBurstStats(level = 0) {
     rays: [4, 5, 6, 7, 8, 8][safeLevel - 1],
     damage: safeLevel >= 6 ? 150 : 100,
     length: 340,
-    width: 34,
+    width: 68,
     sweepSeconds: .7,
     holdSeconds: 1,
     checkRadius: 340,
