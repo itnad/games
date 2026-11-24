@@ -218,10 +218,10 @@ export const STW_UNITS = {
   },
   battlecruiser: {
     id: "battlecruiser", race: "terran", name: "배틀크루저", short: "B", minerals: 400, gas: 300, time: 80, supply: 6, from: "starport", requires: "science",
-    hp: 600, shields: 0, armor: 3, size: "large", speed: 2, radius: 2.4, sight: 11, flying: true,
+    hp: 550, shields: 0, armor: 3, size: "large", speed: 2, radius: 2.4, sight: 11, flying: true,
     damage: 25, hits: 1, damageType: "normal", range: 8, cooldown: 1, weaponStep: 0, role: "air", targets: "both",
     energy: 75, maxEnergy: 200, energyRegen: 1.2, spells: ["yamato"],
-    note: "체력 600 전함 · 사거리 8 · 지상·공중 25 · 야마토 포(연구 후, 260 한 방, 사거리 10)",
+    note: "체력 550 전함 · 사거리 8 · 지상·공중 25 · 야마토 포(연구 후, 260 한 방, 사거리 10)",
   },
   wraith: {
     id: "wraith", race: "terran", name: "레이스", short: "W", minerals: 150, gas: 100, time: 38, supply: 2, from: "starport",
