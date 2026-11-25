@@ -1066,14 +1066,17 @@ test("stardraft storms spare allies, allies still step out of them, and templar 
   const marine = stwSpawnUnitAt(state, "enemy", "marine", 21, 50);
   marine.hp = marine.maxHp = 1e4;
   marine.stunUntil = 999;
-  state.storms.push({ id: 900, side: "player", x: 20, y: 50, ttl: 3 });
-  run(state, 1.5);
+  // 스톰은 질럿 왼쪽 4칸에 둔다. 반경 6.4(2026-11에 3.2에서 두 배로)라 가운데에 두면 질럿이 해병에게서 시야 밖까지 빠져나가 다시 붙지 못한다.
+  const center = { x: 16, y: 50 };
+  const outside = () => Math.hypot(zealot.x - center.x, zealot.y - center.y) > STW_STORM.radius;
+  state.storms.push({ id: 900, side: "player", ...center, ttl: 3 });
+  run(state, 2.2);
   assert.equal(zealot.hp + zealot.shields, 160, "아군 질럿은 맞지 않는다");
   assert.ok(marine.hp < 1e4, "적은 맞는다(적은 피하지 않는다)");
-  assert.ok(Math.hypot(zealot.x - 20, zealot.y - 50) > STW_STORM.radius, "아군은 빠져나온다");
+  assert.ok(outside(), "아군은 빠져나온다");
   // 스톰이 남아 있는 동안 해병을 치러 다시 들어가지 않는다.
-  run(state, 1);
-  assert.ok(Math.hypot(zealot.x - 20, zealot.y - 50) > STW_STORM.radius, "다시 들어가지 않는다");
+  run(state, 0.7);
+  assert.ok(outside(), "다시 들어가지 않는다");
   // 스톰이 끝나면 다시 싸우러 들어간다.
   run(state, 2);
   assert.equal(state.storms.length, 0);
@@ -5025,6 +5028,33 @@ test("stardraft ghosts hang back while charging lockdown, then step up and lock 
       cast = vultures.foes.some((unit) => (unit.stunUntil ?? 0) > vultures.state.time);
     }
     assert.equal(cast, expected, `에너지 ${energy}일 때 벌처 락다운`);
+  }
+});
+
+test("스타드래프트 고스트: 락다운이 걸려 있는 대상에는 다시 걸지 않고, 여러 고스트가 같은 대상에 겹쳐 쓰지 않는다", () => {
+  for (const theirs of [{ dragoon: 8, zealot: 6 }, { carrier: 3, zealot: 6 }, { tank: 4, goliath: 6, vulture: 4 }]) {
+    const race = theirs.tank ? "terran" : "protoss";
+    const battle = stwCreateScenario({ seed: 1, time: 900, placement: "clash", races: { player: "terran", enemy: race }, sides: {
+      player: { units: { ghost: 6, marine: 12 }, research: ["stim", "u238", "lockdown"] },
+      enemy: { units: theirs, research: race === "protoss" ? ["range", "charge", "carrierCapacity"] : ["siege"] },
+    } });
+    const seen = new Set();
+    let casts = 0;
+    for (let tick = 0; tick < 600 && battle.status === "playing" && battle.units.some((unit) => unit.side === "enemy" && unit.hp > 0); tick += 1) {
+      const before = new Map(battle.units.map((unit) => [unit.id, unit.stunUntil ?? 0]));
+      stepStardraft(battle);
+      const now = battle.effects.filter((effect) => effect.kind === "spell" && effect.spell === "lockdown" && effect.side === "player" && !seen.has(effect));
+      const targets = new Set();
+      for (const effect of now) {
+        seen.add(effect);
+        casts += 1;
+        assert.ok(!targets.has(effect.targetId), "같은 순간 같은 대상에 두 번 쓰지 않는다");
+        targets.add(effect.targetId);
+      }
+      // 걸린 대상은 락다운이 끝난 뒤에만 다시 걸린다(끝나는 바로 그 순간에 다시 거는 것은 이어 걸기라 괜찮다).
+      for (const effect of now) assert.ok((before.get(effect.targetId) ?? 0) <= battle.time + 1e-6, "아직 걸려 있는 대상에 덧씌우지 않는다");
+    }
+    assert.ok(casts >= 2, `락다운을 쓴다: ${casts}회`);
   }
 });
 

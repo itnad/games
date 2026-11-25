@@ -4238,6 +4238,9 @@ function casterReach(state, unit) {
   return ranges.length ? Math.max(4, Math.min(...ranges) - CASTER_MARGIN) : 4;
 }
 
+/** 마법을 쓸 자리로 다가갈 때 적의 사거리에서 떨어져 있을 여유(칸). */
+const CASTER_WALK_MARGIN = 1.5;
+
 /**
  * 마법을 쓸 수 있는 유닛의 전진: 범위 마법이 노리는 깨끗한 자리가 사거리 밖에 있으면 그 자리가 사거리에 들 때까지,
  * 아니면 가장 가까운 적에게 casterReach까지 간다. 사거리 안에 와서도 CASTER_IDLE초 동안 아무것도 못 썼으면
@@ -4252,7 +4255,15 @@ function casterApproach(state, unit, foe, speed, dt, minStop = 0) {
   const walk = unit.castWalk && unit.castWalk.at === state.time ? unit.castWalk : null;
   if (walk) {
     unit.castIdleSince = undefined;
-    if (distance(unit.x, unit.y, walk.x, walk.y) > walk.range) moveToward(unit, walk.x, walk.y, speed, dt);
+    // 쓸 자리로 다가가는 길에 자기를 때릴 수 있는 적(정지·락다운된 적은 빼고)의 사거리(+1.5칸)에 들어가게 되면 멈춘다. 범위 마법의 반경을 두 배로 늘린 뒤
+    // 무리 옆쪽의 자리로 돌아가던 퀸이 해병 사이를 지나 4.6칸까지 다가갔다.
+    if (distance(unit.x, unit.y, walk.x, walk.y) > walk.range) {
+      const angle = Math.atan2(walk.y - unit.y, walk.x - unit.x);
+      const next = { x: unit.x + Math.cos(angle) * speed * dt, y: unit.y + Math.sin(angle) * speed * dt };
+      const unsafe = state.units.some((enemy) => enemy.side !== unit.side && enemy.hp > 0 && enemy.group !== "cargo" && STW_UNITS[enemy.type].damage && !stunned(state, enemy) && canHit(enemy, unit)
+        && distance(enemy.x, enemy.y, next.x, next.y) <= unitRange(state, enemy) + CASTER_WALK_MARGIN);
+      if (!unsafe) moveToward(unit, walk.x, walk.y, speed, dt);
+    }
     return;
   }
   const reach = Math.max(minStop, casterReach(state, unit));
