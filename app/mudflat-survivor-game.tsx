@@ -151,6 +151,8 @@ import {
   mudflatGuardBasketStats,
   mudflatHoeBotStats,
   MUDFLAT_HOE_BOT_UNLOCK_DIGS,
+  MUDFLAT_ROCK_LIFT_UNLOCK_STAGE,
+  MUDFLAT_ROCK_LIFT_UNLOCK_FLIPS,
   mudflatRockLiftStats,
   mudflatSmashStats,
   mudflatFireballStats,
@@ -180,7 +182,6 @@ import {
   MUDFLAT_SMASH_CHAIN_RATIO,
   MUDFLAT_ROCK_LIFT_SECONDS,
   MUDFLAT_ROCK_LIFT_FALL_SECONDS,
-  MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS,
   mudflatSkillUnlockProgress,
   MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
   mudflatActiveLevels,
@@ -274,7 +275,7 @@ type Runtime = {
   bursts: Burst[]; floatTexts: FloatText[];
   xpCollectLife: number;
   level: number; xp: number; nextXp: number; caught: number; catchScore: number; bossCaught: boolean;
-  bossSpawned: boolean; bossSpawnAt: number; openingWaveRemaining: number; spawnClock: number; gemsCollected: number; digsCompleted: number; hitByCrab: boolean; hitByShrimp: boolean; hitByRock: boolean; hitByTide: boolean; hitByMosquito: boolean; hitByPufferfish: boolean; rockLiftClock: number; rockLiftEffect: number; smashClock: number; smashEffect: number; smashAngle: number; smashCastId: number; fireballClock: number; fireballQueue: number; fireballSpacingClock: number; flameBurstClock: number; frostTrailClock: number; frostTickClock: number; frostWaveClock: number; chainLightningClock: number; thunderboltClock: number; guardBasketPullClock: number; guardBasketCharges: number; guardBasketRechargeClock: number; guardBasketFlashLife: number; guardBasketInvulnerable: number; pufferEventClock: number; crabRushClock: number; mudZombieClock: number; mudZombieTriggered: boolean; jellyfishClock: number; jellyPoisonSeconds: number; jellyPoisonTickClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
+  bossSpawned: boolean; bossSpawnAt: number; openingWaveRemaining: number; spawnClock: number; gemsCollected: number; digsCompleted: number; lateRockFlips: number; hitByCrab: boolean; hitByShrimp: boolean; hitByRock: boolean; hitByTide: boolean; hitByMosquito: boolean; hitByPufferfish: boolean; rockLiftClock: number; rockLiftEffect: number; smashClock: number; smashEffect: number; smashAngle: number; smashCastId: number; fireballClock: number; fireballQueue: number; fireballSpacingClock: number; flameBurstClock: number; frostTrailClock: number; frostTickClock: number; frostWaveClock: number; chainLightningClock: number; thunderboltClock: number; guardBasketPullClock: number; guardBasketCharges: number; guardBasketRechargeClock: number; guardBasketFlashLife: number; guardBasketInvulnerable: number; pufferEventClock: number; crabRushClock: number; mudZombieClock: number; mudZombieTriggered: boolean; jellyfishClock: number; jellyPoisonSeconds: number; jellyPoisonTickClock: number; headlampSpawnClock: number; rockSpawnClock: number; clamSpawnClock: number; rockTurnClock: number; harpoonClock: number; hoeClock: number; netClock: number; castNetClock: number; electricClock: number; selfShockClock: number; electricPulseLife: number; electricStopNotified: boolean; selfShockNotified: boolean; discoveryMessageLife: number; playerMessage: string; playerMessageLife: number; playerMessageOpacity: number; pufferTouching: boolean; hiddenRockClock: number; hiddenRockIntroShown: boolean; catchFullNoticeClock: number; hoeEffect: number; rockFlipEffect: RockFlipEffect | null; bleedSeconds: number; bleedTickClock: number; emptySeafoodSeconds: number; emptySeafoodDamageClock: number;
   deepMudGauge: number; deepMudLock: number; deepMudStepClock: number;
   safeZone: Point; baseCamp: Point; baseCampGuideShown: boolean; tideDamageClock: number; tideMessageClock: number; lastTideCycle: number; lastHillCycle: number; safeZoneTransition: number; tideFlash: number; fallClock: number; fallingRocks: FallingRock[]; swarmClock: number; mosquitoClock: number; mosquitoRunEnabled: boolean; rocksFlipped: number;
   paused: boolean; ended: boolean;
@@ -424,7 +425,7 @@ function makeRuntime(campaign: Campaign, seed = createMudflatSeed()): Runtime {
     xpCollectLife: 0,
     elapsed: 0, tutorialElapsed: 0, firstMoveGuide, player: { x: 0, y: 0, hp: Math.min(campaign.hp, stats.maxHp), maxHp: stats.maxHp, baseMaxHp: campaign.baseMaxHp, speed: 155, damageCooldown: 0, facing: 0, stride: 0, walking: false },
     creatures: [], pickups: [], projectiles: [], harpoons: [], fireballs: [], flameRays: [], frostPatches: [], frostWaves: [], lightningArcs: [], thunderbolts: [], bossFireballs: [], bossClaws: [], netSlams: [], castNets: [], rocks: [], clamHoles: [], hoeBots: [], clamReveals: [], mudPrints: [], bursts: [], floatTexts: [], levels: activeLevels, skillInventory, activeSkills, equipment: { ...campaign.equipment }, basket: {}, level: campaign.level, xp: campaign.xp, nextXp: campaign.nextXp,
-    caught: 0, catchScore: 0, bossCaught: false, gemsCollected: Math.max(0, Math.floor(campaign.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(campaign.digsCompleted ?? 0)), hitByCrab: campaign.hitByCrab === true, hitByShrimp: campaign.hitByShrimp === true, hitByRock: campaign.hitByRock === true, hitByTide: campaign.hitByTide === true, hitByMosquito: campaign.hitByMosquito === true, hitByPufferfish: campaign.hitByPufferfish === true, rockLiftClock: 3, rockLiftEffect: 0, smashClock: 0, smashEffect: 0, smashAngle: 0, smashCastId: 0, fireballClock: 0, fireballQueue: 0, fireballSpacingClock: 0, flameBurstClock: 0, frostTrailClock: 0, frostTickClock: 0, frostWaveClock: 0, chainLightningClock: 0, thunderboltClock: 0, guardBasketPullClock: 0, guardBasketCharges: 1, guardBasketRechargeClock: 0, guardBasketFlashLife: 0, guardBasketInvulnerable: 0, bossSpawned: false, bossSpawnAt: MUDFLAT_BOSS_SPAWN_SECONDS, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
+    caught: 0, catchScore: 0, bossCaught: false, gemsCollected: Math.max(0, Math.floor(campaign.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(campaign.digsCompleted ?? 0)), lateRockFlips: Math.max(0, Math.floor(campaign.lateRockFlips ?? 0)), hitByCrab: campaign.hitByCrab === true, hitByShrimp: campaign.hitByShrimp === true, hitByRock: campaign.hitByRock === true, hitByTide: campaign.hitByTide === true, hitByMosquito: campaign.hitByMosquito === true, hitByPufferfish: campaign.hitByPufferfish === true, rockLiftClock: 3, rockLiftEffect: 0, smashClock: 0, smashEffect: 0, smashAngle: 0, smashCastId: 0, fireballClock: 0, fireballQueue: 0, fireballSpacingClock: 0, flameBurstClock: 0, frostTrailClock: 0, frostTickClock: 0, frostWaveClock: 0, chainLightningClock: 0, thunderboltClock: 0, guardBasketPullClock: 0, guardBasketCharges: 1, guardBasketRechargeClock: 0, guardBasketFlashLife: 0, guardBasketInvulnerable: 0, bossSpawned: false, bossSpawnAt: MUDFLAT_BOSS_SPAWN_SECONDS, openingWaveRemaining: mudflatOpeningWaveCount(campaign.stage, campaign.mode), spawnClock: 0,
     pufferEventClock: campaign.stage >= 3 ? 18 : -1, crabRushClock: campaign.stage >= 4 ? 26 : -1,
     mudZombieClock: campaign.stage >= 6 ? 52 : -1, mudZombieTriggered: false,
     jellyfishClock: campaign.stage >= 8 ? mudflatJellyfishInterval(campaign.stage) : -1,
@@ -459,7 +460,7 @@ function readSavedCampaign(): Campaign | null {
       version: 1, mode: value.mode, characterId: String(value.characterId ?? "digger"), stage: Math.max(1, Math.floor(value.stage ?? 1)),
       coins: Math.max(0, Math.floor(value.coins ?? 0)), hp: Math.max(1, Number(value.hp ?? 1)), maxHp: Math.max(1, Number(value.maxHp ?? 1)), baseMaxHp: Math.max(1, Number(value.baseMaxHp ?? (value.mode === "normal" ? 100 : (CHARACTERS.find((item) => item.id === value.characterId)?.hp ?? 100)))),
       level: Math.max(1, Math.floor(value.level ?? 1)), xp: Math.max(0, Math.floor(value.xp ?? 0)), nextXp: Math.max(1, Math.floor(value.nextXp ?? 8)),
-      levels: { ...value.levels }, activeSkills: mudflatNormalizeActiveSkills(value.levels, value.activeSkills, value.mode), equipment: { ...value.equipment }, inventory: { ...value.inventory }, lastHaul: { ...(value.lastHaul ?? {}) }, lastSaleValue: Math.max(0, Math.floor(value.lastSaleValue ?? 0)), totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught), gemsCollected: Math.max(0, Math.floor(value.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(value.digsCompleted ?? 0)), hitByCrab: value.hitByCrab === true, hitByShrimp: value.hitByShrimp === true, hitByRock: value.hitByRock === true, hitByTide: value.hitByTide === true, hitByMosquito: value.hitByMosquito === true, hitByPufferfish: value.hitByPufferfish === true,
+      levels: { ...value.levels }, activeSkills: mudflatNormalizeActiveSkills(value.levels, value.activeSkills, value.mode), equipment: { ...value.equipment }, inventory: { ...value.inventory }, lastHaul: { ...(value.lastHaul ?? {}) }, lastSaleValue: Math.max(0, Math.floor(value.lastSaleValue ?? 0)), totalScore: Math.max(0, Math.floor(value.totalScore ?? 0)), lastBossCaught: Boolean(value.lastBossCaught), gemsCollected: Math.max(0, Math.floor(value.gemsCollected ?? 0)), digsCompleted: Math.max(0, Math.floor(value.digsCompleted ?? 0)), lateRockFlips: Math.max(0, Math.floor(value.lateRockFlips ?? 0)), hitByCrab: value.hitByCrab === true, hitByShrimp: value.hitByShrimp === true, hitByRock: value.hitByRock === true, hitByTide: value.hitByTide === true, hitByMosquito: value.hitByMosquito === true, hitByPufferfish: value.hitByPufferfish === true,
       lastObjectiveLabel: String(value.lastObjectiveLabel ?? ""), lastObjectiveComplete: Boolean(value.lastObjectiveComplete), lastObjectiveBonus: Math.max(0, Math.floor(value.lastObjectiveBonus ?? 0)), pendingSkillDiscovery: Boolean(value.pendingSkillDiscovery),
     };
     restored.maxHp = derivedMaxHp(restored.baseMaxHp, restored.equipment, restored.levels, restored.mode);
@@ -2883,7 +2884,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       coins: current.coins + autoSale.value + objective.bonus,
       level: runtime.level, xp: runtime.xp, nextXp: runtime.nextXp, levels: { ...runtime.skillInventory }, activeSkills: [...runtime.activeSkills], inventory: {}, lastHaul: autoSale.haul as CountMap, lastSaleValue: autoSale.value,
       equipment: withoutMosquitoRepellent(runtime.equipment),
-      totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught, gemsCollected: runtime.gemsCollected, digsCompleted: runtime.digsCompleted, hitByCrab: runtime.hitByCrab, hitByShrimp: runtime.hitByShrimp, hitByRock: runtime.hitByRock, hitByTide: runtime.hitByTide, hitByMosquito: runtime.hitByMosquito, hitByPufferfish: runtime.hitByPufferfish,
+      totalScore: current.totalScore + score, lastBossCaught: runtime.bossCaught, gemsCollected: runtime.gemsCollected, digsCompleted: runtime.digsCompleted, lateRockFlips: runtime.lateRockFlips, hitByCrab: runtime.hitByCrab, hitByShrimp: runtime.hitByShrimp, hitByRock: runtime.hitByRock, hitByTide: runtime.hitByTide, hitByMosquito: runtime.hitByMosquito, hitByPufferfish: runtime.hitByPufferfish,
       lastObjectiveLabel: objective.label, lastObjectiveComplete: objective.complete, lastObjectiveBonus: objective.bonus,
     };
     if (supervisorRef.current) {
@@ -3772,6 +3773,11 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
             const finding = mudflatRockCreatureForRoll(runtimeRandom(runtime), runtime.levels.rocker ?? 1);
             runtime.rocks = runtime.rocks.filter((rock) => rock.id !== target.id);
             runtime.rocksFlipped += 1;
+            // 건곤대나이 해금 집계: 5단계 이후 일반 원정에서 돌뒤집개로 뒤집은 바위만 센다. 3번째에 발견 문구.
+            if (runtime.mode === "normal" && runtime.stage >= MUDFLAT_ROCK_LIFT_UNLOCK_STAGE) {
+              runtime.lateRockFlips += 1;
+              if (runtime.lateRockFlips === MUDFLAT_ROCK_LIFT_UNLOCK_FLIPS) runtime.discoveryMessageLife = 3;
+            }
             runtime.bursts.push({ id: sequenceRef.current++, x: target.x, y: target.y, life: .5, maxLife: .5, color: "#b89569", size: target.radius, kind: "harvest" });
             if (finding) revealRockCreature(target, finding);
             if (supervisorRef.current) appendSupervisorEvent("rock-flipped", finding ? `바위에서 ${finding.name} 발견` : "빈 바위 확인", runtime);
@@ -4805,7 +4811,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       runtime.floatTexts = runtime.floatTexts.filter((item) => item.life > 0);
       if (runtime.xp >= runtime.nextXp) {
         runtime.xp -= runtime.nextXp; runtime.level += 1; runtime.nextXp = Math.floor(runtime.nextXp * 1.24 + 4); runtime.paused = true;
-        const nextChoices = mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode, Math.random, { gemsCollected: runtime.gemsCollected, digsCompleted: runtime.digsCompleted });
+        const nextChoices = mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode, Math.random, runtime);
         if (nextChoices.length) { setChoices(nextChoices); setScreen("upgrade"); if ("vibrate" in navigator) navigator.vibrate([30, 30, 30]); }
         else runtime.paused = false;
       }
@@ -5416,7 +5422,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
     if (runtime.player.hp <= cost) return;
     runtime.player.hp -= cost;
     runtime.floatTexts.push({ id: sequenceRef.current++, x: runtime.player.x, y: runtime.player.y + 4, life: .72, text: `-${cost}`, color: PLAYER_DAMAGE_TEXT_COLOR, kind: "playerDamage" });
-    setChoices(mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode, Math.random, { gemsCollected: runtime.gemsCollected, digsCompleted: runtime.digsCompleted })); snapshot(runtime); persistActiveRun();
+    setChoices(mudflatUpgradeChoices(runtime.level, runtime.skillInventory, runtime.mode, Math.random, runtime)); snapshot(runtime); persistActiveRun();
     if ("vibrate" in navigator) navigator.vibrate(18);
   };
   const buyEquipment = (id: string) => {

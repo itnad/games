@@ -128,6 +128,7 @@ test("live save carries the gem count and guard basket state, and backfills olde
 test("live save carries hoe bots and the dig count, backfills older saves, and rejects broken bots", () => {
   const { campaign, runtime } = fixture("normal");
   runtime.digsCompleted = 12;
+  runtime.lateRockFlips = 2;
   runtime.hoeBots.push({ id: 21, x: -150, y: 700, targetHoleId: 14, digClock: .8, phase: "dig", facing: -1 });
   runtime.hoeBots.push({ id: 22, x: -200, y: 740, targetHoleId: 0, digClock: 0, phase: "follow", facing: 1 });
   const restored = decodeMudflatRun(encodeMudflatRun(campaign, runtime), makeRuntime);
@@ -135,13 +136,19 @@ test("live save carries hoe bots and the dig count, backfills older saves, and r
   assert.deepEqual(restored.runtime.hoeBots, runtime.hoeBots);
   assert.equal(restored.runtime.digsCompleted, 12);
   assert.equal(restored.campaign.digsCompleted, 12);
+  assert.deepEqual([restored.runtime.lateRockFlips, restored.campaign.lateRockFlips], [2, 2]);
   assert.ok(restored.nextSequence > 22); // 로봇 ID도 충돌 방지 범위에 든다.
   const legacy = JSON.parse(encodeMudflatRun(campaign, fixture("normal").runtime));
   delete legacy.runtime.hoeBots; delete legacy.runtime.digsCompleted; delete legacy.campaign.digsCompleted;
+  delete legacy.runtime.lateRockFlips; delete legacy.campaign.lateRockFlips;
   const legacyRestored = decodeMudflatRun(JSON.stringify(legacy), makeRuntime);
   assert.ok(legacyRestored);
   assert.deepEqual(legacyRestored.runtime.hoeBots, []);
   assert.equal(legacyRestored.runtime.digsCompleted, 0);
+  assert.equal(legacyRestored.runtime.lateRockFlips, 0);
+  const brokenFlips = JSON.parse(encodeMudflatRun(campaign, runtime));
+  brokenFlips.campaign.lateRockFlips = -1;
+  assert.equal(decodeMudflatRun(JSON.stringify(brokenFlips), makeRuntime), null);
   const broken = JSON.parse(encodeMudflatRun(campaign, runtime));
   broken.runtime.hoeBots[0].phase = "fly";
   assert.equal(decodeMudflatRun(JSON.stringify(broken), makeRuntime), null);
