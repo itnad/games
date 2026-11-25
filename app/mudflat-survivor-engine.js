@@ -195,9 +195,9 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "digging", icon: "⌁", name: "호미질", description: "조개 구멍에서 더 좋은 조개를 찾을 확률이 높아집니다.", max: 6 },
   { id: "electric", icon: "ϟ", name: "전기 스파크", description: "체력이 충분할 때 집게 범위의 해산물에게 주기적으로 전기 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 1 },
   { id: "cast-net", icon: "⌗", name: "그물 투척", description: "해산물이 모인 빈 갯벌에 그물을 펼쳐 잠시 붙잡고 피해를 줍니다.", max: 6, advanced: true, requiredMasteries: 2 },
-  { id: "guard-basket", icon: "◍", name: "소쿠리의 달인", description: "소쿠리를 휘둘러 화면의 경험치 보석을 쓸어 담고, 충전된 소쿠리가 물살·운석·접촉 피해를 한 번 막아 줍니다.", max: 6, advanced: true, requiredGems: 100 },
-  { id: "hoe-bot", icon: "⚙", name: "호미봇", description: "호미 모양 로봇이 따라다니며 가까운 조개 구멍을 찾아 대신 파냅니다. 조개 등급은 호미질 레벨을 따릅니다.", max: 6, advanced: true, requiredDigs: 20 },
-  { id: "rock-lift", icon: "⌾", name: "건곤대나이", description: "갯벌을 들썩여 가까운 바위를 띄웠다 떨어뜨립니다. 떨어진 자리의 해산물이 피해를 입고 바위는 사라지며, 바위 밑 발견물은 돌뒤집개 레벨을 따릅니다.", max: 6, advanced: true, requiredSkills: 5 },
+  { id: "guard-basket", icon: "◍", name: "소쿠리의 달인", description: "소쿠리를 휘둘러 화면의 경험치 보석을 쓸어 담고, 충전된 소쿠리가 물살·운석·접촉 피해를 한 번 막아 줍니다.", max: 6, advanced: true, requiredGems: 500 },
+  { id: "hoe-bot", icon: "⚙", name: "호미봇", description: "호미 모양 로봇이 따라다니며 가까운 조개 구멍을 찾아 대신 파냅니다. 조개 등급은 호미질 레벨을 따릅니다.", max: 6, advanced: true, requiredDigs: 100 },
+  { id: "rock-lift", icon: "⌾", name: "건곤대나이", description: "갯벌을 들썩여 가까운 바위를 띄웠다 떨어뜨립니다. 떨어진 자리의 해산물이 피해를 입고 바위는 사라지며, 바위 밑 발견물은 돌뒤집개 레벨을 따릅니다.", max: 6, advanced: true, requiredStage: 5, requiredRockFlips: 3 },
   { id: "smash", icon: "✊", name: "뻘권", description: "조작 방향으로 한 걸음 내디디며 주먹을 내질러 앞의 해산물에 피해를 주고 멀리 밀쳐 냅니다. 바위에 부딪히면 추가 피해, Lv.5부터는 날아가다 부딪힌 해산물도 함께 밀립니다.", max: 6, advanced: true, requiredLevel3Skills: 4 },
   { id: "fireball", icon: "☄", name: "파이어볼", description: "1초마다 제멋대로 흔들리며 날아가는 불덩이를 쏩니다. 처음 맞은 해산물과 그 근처에 피해를 주고, 레벨이 오르면 한 번에 더 많이 쏩니다.", max: 6, advanced: true, requiredSelectableSkills: 6, requiredSelectableLevel: 1, requiredHitFamily: "crab" },
   { id: "flame-burst", icon: "♨", name: "화염 방사", description: "5초마다 바라보는 방향을 시작으로 사방에 불줄기를 뿜어 닿는 모든 해산물에 큰 피해를 줍니다.", max: 6, advanced: true, requiredSelectableSkills: 5, requiredSelectableLevel: 2, requiredHitFamily: "shrimp" },
@@ -207,13 +207,14 @@ export const MUDFLAT_GENERAL_UPGRADES = [
   { id: "thunderbolt", icon: "☇", name: "낙뢰", description: "화면 안에서 체력이 가장 높은 해산물에게 하늘에서 번개를 떨어뜨립니다. Lv.5부터 연달아 떨어집니다.", max: 6, advanced: true, requiredSelectableSkills: 4, requiredSelectableLevel: 2, requiredHitFamily: "pufferfish" },
 ];
 
-// 소쿠리의 달인은 캠페인 누적으로 경험치 보석 100개를 주워야 열린다.
-export const MUDFLAT_GUARD_BASKET_UNLOCK_GEMS = 100;
-// 호미봇은 플레이어가 직접 조개 구멍을 20번 파야 열린다(캠페인 누적). 호미질
+// 소쿠리의 달인은 캠페인 누적으로 경험치 보석 500개를 주우면 열린다.
+export const MUDFLAT_GUARD_BASKET_UNLOCK_GEMS = 500;
+// 호미봇은 플레이어가 직접 조개 구멍을 100번 파야 열린다(캠페인 누적, 호미봇이 판 구멍은 세지 않음).
 // 레벨과 무관하므로 호미질 Lv.1에서도 로봇의 차이를 겪어 볼 수 있다.
-export const MUDFLAT_HOE_BOT_UNLOCK_DIGS = 20;
-// 건곤대나이는 집게·호미질을 뺀 선택 기술 5종을 인벤토리에 익히면 열린다(보관 포함).
-export const MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS = 5;
+export const MUDFLAT_HOE_BOT_UNLOCK_DIGS = 100;
+// 건곤대나이는 5단계 이후 원정에서 돌뒤집개로 바위를 3번 뒤집으면 열린다(캠페인 누적, 건곤대나이가 떨어뜨린 바위는 세지 않음).
+export const MUDFLAT_ROCK_LIFT_UNLOCK_STAGE = 5;
+export const MUDFLAT_ROCK_LIFT_UNLOCK_FLIPS = 3;
 // 뻘권은 기본 기술을 포함한 채집기술 중 Lv.3 이상이 4개면 열린다.
 export const MUDFLAT_SMASH_UNLOCK_SKILLS = 4;
 export const MUDFLAT_SMASH_UNLOCK_LEVEL = 3;
@@ -358,12 +359,13 @@ export function mudflatBleedDamage(maxHp = 0) {
  * 해금형 기술 판정. 마스터리는 인벤토리 기준이고, 소쿠리의 달인은 캠페인 누적
  * 경험치 보석 수(stats.gemsCollected)로 연다.
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean, hitByRock?: boolean, hitByTide?: boolean, hitByMosquito?: boolean, hitByPufferfish?: boolean }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number, lateRockFlips?: number, hitByCrab?: boolean, hitByShrimp?: boolean, hitByRock?: boolean, hitByTide?: boolean, hitByMosquito?: boolean, hitByPufferfish?: boolean }} [stats]
  */
 export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const masteryCount = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !skill.advanced && (levels[skill.id] ?? 0) >= 5).length;
   const gemsCollected = Math.max(0, Math.floor(Number(stats?.gemsCollected) || 0));
   const digsCompleted = Math.max(0, Math.floor(Number(stats?.digsCompleted) || 0));
+  const lateRockFlips = Math.max(0, Math.floor(Number(stats?.lateRockFlips) || 0));
   const skillCount = mudflatSelectableSkillIds(levels).length;
   const level3Count = MUDFLAT_GENERAL_UPGRADES.filter((skill) => (levels[skill.id] ?? 0) >= MUDFLAT_SMASH_UNLOCK_LEVEL).length;
   const selectableLevel2Count = MUDFLAT_GENERAL_UPGRADES.filter((skill) => !MUDFLAT_FIXED_GENERAL_SKILL_IDS.includes(skill.id) && (levels[skill.id] ?? 0) >= MUDFLAT_FLAME_BURST_UNLOCK_LEVEL).length;
@@ -375,11 +377,11 @@ export function mudflatAdvancedSkillUnlocks(levels = {}, stats = {}) {
   const hitByMosquito = stats?.hitByMosquito === true;
   const hitByPufferfish = stats?.hitByPufferfish === true;
   return {
-    masteryCount, gemsCollected, digsCompleted, skillCount, level3Count, selectableLevel2Count, selectableLevel3Count, hitByCrab, hitByShrimp, hitByRock, hitByTide, hitByMosquito, hitByPufferfish,
+    masteryCount, gemsCollected, digsCompleted, lateRockFlips, skillCount, level3Count, selectableLevel2Count, selectableLevel3Count, hitByCrab, hitByShrimp, hitByRock, hitByTide, hitByMosquito, hitByPufferfish,
     electric: masteryCount >= 1, castNet: masteryCount >= 2,
     guardBasket: gemsCollected >= MUDFLAT_GUARD_BASKET_UNLOCK_GEMS,
     hoeBot: digsCompleted >= MUDFLAT_HOE_BOT_UNLOCK_DIGS,
-    rockLift: skillCount >= MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS,
+    rockLift: lateRockFlips >= MUDFLAT_ROCK_LIFT_UNLOCK_FLIPS,
     smash: level3Count >= MUDFLAT_SMASH_UNLOCK_SKILLS,
     fireball: skillCount >= MUDFLAT_FIREBALL_UNLOCK_SKILLS && hitByCrab,
     flameBurst: selectableLevel2Count >= MUDFLAT_FLAME_BURST_UNLOCK_SKILLS && hitByShrimp,
@@ -416,9 +418,9 @@ export function mudflatSkillUnlocked(skill, unlocks) {
 
 // 정비 화면 잠긴 카드용 진행 표시.
 /**
- * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number, requiredSkills?: number, requiredLevel3Skills?: number, requiredSelectableSkills?: number, requiredSelectableLevel?: number, requiredHitFamily?: string }} skill
+ * @param {{ id: string, advanced?: boolean, requiredMasteries?: number, requiredGems?: number, requiredDigs?: number, requiredStage?: number, requiredRockFlips?: number, requiredLevel3Skills?: number, requiredSelectableSkills?: number, requiredSelectableLevel?: number, requiredHitFamily?: string }} skill
  * @param {Record<string, number>} levels
- * @param {{ gemsCollected?: number, digsCompleted?: number, hitByCrab?: boolean, hitByShrimp?: boolean, hitByRock?: boolean, hitByTide?: boolean, hitByMosquito?: boolean, hitByPufferfish?: boolean }} [stats]
+ * @param {{ gemsCollected?: number, digsCompleted?: number, lateRockFlips?: number, hitByCrab?: boolean, hitByShrimp?: boolean, hitByRock?: boolean, hitByTide?: boolean, hitByMosquito?: boolean, hitByPufferfish?: boolean }} [stats]
  */
 export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
   const unlocks = mudflatAdvancedSkillUnlocks(levels, stats);
@@ -428,8 +430,9 @@ export function mudflatSkillUnlockProgress(skill, levels = {}, stats = {}) {
     return { unlocked: unlocks.hoeBot, current: Math.min(unlocks.digsCompleted, target), target, label: `호미질 ${Math.min(unlocks.digsCompleted, target)} / ${target}` };
   }
   if (skill.id === "rock-lift") {
-    const target = skill.requiredSkills ?? MUDFLAT_ROCK_LIFT_UNLOCK_SKILLS;
-    return { unlocked: unlocks.rockLift, current: Math.min(unlocks.skillCount, target), target, label: `선택 기술 ${Math.min(unlocks.skillCount, target)} / ${target}` };
+    const target = skill.requiredRockFlips ?? MUDFLAT_ROCK_LIFT_UNLOCK_FLIPS;
+    const stage = skill.requiredStage ?? MUDFLAT_ROCK_LIFT_UNLOCK_STAGE;
+    return { unlocked: unlocks.rockLift, current: Math.min(unlocks.lateRockFlips, target), target, label: `${stage}단계 이후 돌 뒤집기 ${Math.min(unlocks.lateRockFlips, target)} / ${target}` };
   }
   if (skill.id === "smash") {
     const target = skill.requiredLevel3Skills ?? MUDFLAT_SMASH_UNLOCK_SKILLS;

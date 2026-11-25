@@ -19,7 +19,7 @@ function baseCampaign(mode = "normal", stage = 1) {
   return {
     version: 1, mode, characterId: mode === "normal" ? "beginner" : "digger", stage, coins: 0, hp: 100, maxHp: 100, baseMaxHp: mode === "normal" ? 100 : 115,
     level: 1, xp: 0, nextXp: mode === "normal" ? 10 : 8, levels, activeSkills: [],
-    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false, gemsCollected: 0, digsCompleted: 0, hitByCrab: false, hitByShrimp: false, hitByRock: false, hitByTide: false, hitByMosquito: false, hitByPufferfish: false,
+    equipment: { headlamp: 0, cooler: 0, vest: 0, gloves: 0, waders: 0 }, inventory: {}, lastHaul: {}, lastSaleValue: 0, totalScore: 0, lastBossCaught: false, gemsCollected: 0, digsCompleted: 0, lateRockFlips: 0, hitByCrab: false, hitByShrimp: false, hitByRock: false, hitByTide: false, hitByMosquito: false, hitByPufferfish: false,
     lastObjectiveLabel: "", lastObjectiveComplete: false, lastObjectiveBonus: 0,
   };
 }
@@ -96,23 +96,35 @@ test("a build becomes a campaign with normalized active skills, clamped gear, HP
   const expectedMaxHp = mudflatEquipmentStats(campaign.equipment, 100, 2).maxHp;
   assert.equal(campaign.maxHp, expectedMaxHp);
   assert.equal(campaign.hp, Math.round(expectedMaxHp / 2));
-  assert.equal(campaign.gemsCollected, 100); // 소쿠리의 달인 해금 조건 자동 충족
+  assert.equal(campaign.gemsCollected, 500); // 소쿠리의 달인 해금 조건 자동 충족
   assert.equal(campaign.pendingSkillDiscovery, false);
   build.autoUnlock = false;
   assert.equal(mudflatDevBuildCampaign(build, baseCampaign("normal", 8)).gemsCollected, 0);
   build.gemsCollected = 250;
   assert.equal(mudflatDevBuildCampaign(build, baseCampaign("normal", 8)).gemsCollected, 250);
-  // 호미봇 레벨이 있으면 호미질 20회를 채우고, 호미질 레벨은 건드리지 않는다.
+  // 호미봇 레벨이 있으면 호미질 100회를 채우고, 호미질 레벨은 건드리지 않는다.
   const botBuild = createMudflatDevBuild("normal");
   botBuild.levels["hoe-bot"] = 2;
   const botCampaign = mudflatDevBuildCampaign(botBuild, baseCampaign("normal"));
-  assert.equal(botCampaign.digsCompleted, 20);
+  assert.equal(botCampaign.digsCompleted, 100);
   assert.equal(botCampaign.levels.digging, 1);
   assert.deepEqual(botCampaign.activeSkills, []);
   botBuild.autoUnlock = false;
   assert.equal(mudflatDevBuildCampaign(botBuild, baseCampaign("normal")).digsCompleted, 0);
   botBuild.digsCompleted = 33;
   assert.equal(mudflatDevBuildCampaign(botBuild, baseCampaign("normal")).digsCompleted, 33);
+  // 건곤대나이 레벨이 있으면 5단계 이후 돌 뒤집기 3회를 채우고, 끄면 입력값만 따른다. 음수·소수는 오류.
+  const liftBuild = createMudflatDevBuild("normal");
+  assert.equal(liftBuild.lateRockFlips, 0);
+  assert.equal(mudflatDevBuildCampaign(liftBuild, baseCampaign("normal")).lateRockFlips, 0);
+  liftBuild.levels["rock-lift"] = 1;
+  assert.equal(mudflatDevBuildCampaign(liftBuild, baseCampaign("normal")).lateRockFlips, 3);
+  liftBuild.lateRockFlips = 7;
+  assert.equal(mudflatDevBuildCampaign(liftBuild, baseCampaign("normal")).lateRockFlips, 7);
+  liftBuild.autoUnlock = false; liftBuild.lateRockFlips = 1;
+  assert.equal(mudflatDevBuildCampaign(liftBuild, baseCampaign("normal")).lateRockFlips, 1);
+  liftBuild.lateRockFlips = 1.5;
+  assert.ok(validateMudflatDevBuild(liftBuild).some((error) => error.includes("돌 뒤집기")));
   // 화염 기술 레벨이 있으면 게·새우 피격 경험을 채우고, 끄면 체크박스 값만 따른다.
   const fireBuild = createMudflatDevBuild("normal");
   fireBuild.levels.fireball = 1;

@@ -17,6 +17,7 @@ const campaignShape = (value) => record(value) && value.version === 1 && ["norma
   && (value.activeSkills === undefined || (Array.isArray(value.activeSkills) && value.activeSkills.every((id) => typeof id === "string")))
   && (value.gemsCollected === undefined || (Number.isInteger(value.gemsCollected) && value.gemsCollected >= 0))
   && (value.digsCompleted === undefined || (Number.isInteger(value.digsCompleted) && value.digsCompleted >= 0))
+  && (value.lateRockFlips === undefined || (Number.isInteger(value.lateRockFlips) && value.lateRockFlips >= 0))
   && (value.hitByCrab === undefined || typeof value.hitByCrab === "boolean")
   && (value.hitByShrimp === undefined || typeof value.hitByShrimp === "boolean")
   && (value.hitByRock === undefined || typeof value.hitByRock === "boolean")
@@ -65,6 +66,7 @@ export function encodeMudflatRun(campaign, runtime, choiceIds = [], nextSequence
     ...(Array.isArray(runtime.activeSkills) ? { activeSkills: [...runtime.activeSkills] } : {}),
     ...(Number.isInteger(runtime.gemsCollected) ? { gemsCollected: runtime.gemsCollected } : {}),
     ...(Number.isInteger(runtime.digsCompleted) ? { digsCompleted: runtime.digsCompleted } : {}),
+    ...(Number.isInteger(runtime.lateRockFlips) ? { lateRockFlips: runtime.lateRockFlips } : {}),
     ...(typeof runtime.hitByCrab === "boolean" ? { hitByCrab: runtime.hitByCrab } : {}),
     ...(typeof runtime.hitByShrimp === "boolean" ? { hitByShrimp: runtime.hitByShrimp } : {}),
     ...(typeof runtime.hitByRock === "boolean" ? { hitByRock: runtime.hitByRock } : {}),
@@ -124,6 +126,8 @@ export function decodeMudflatRun(serialized, makeRuntime) {
     if (!Number.isInteger(runtime.guardBasketCharges) || runtime.guardBasketCharges < 0) runtime.guardBasketCharges = runtimeTemplate.guardBasketCharges;
     // 호미봇과 호미질 집계도 뒤에 추가됐다. 예전 저장은 로봇 없음·캠페인 값으로 보완한다.
     if (!Number.isInteger(runtime.digsCompleted) || runtime.digsCompleted < 0) runtime.digsCompleted = runtimeTemplate.digsCompleted;
+    // 건곤대나이 해금 집계(5단계 이후 돌 뒤집기)도 뒤에 추가됐다.
+    if (!Number.isInteger(runtime.lateRockFlips) || runtime.lateRockFlips < 0) runtime.lateRockFlips = runtimeTemplate.lateRockFlips;
     if (typeof runtime.hitByCrab !== "boolean") runtime.hitByCrab = runtimeTemplate.hitByCrab;
     if (typeof runtime.hitByShrimp !== "boolean") runtime.hitByShrimp = runtimeTemplate.hitByShrimp;
     if (typeof runtime.hitByRock !== "boolean") runtime.hitByRock = runtimeTemplate.hitByRock;

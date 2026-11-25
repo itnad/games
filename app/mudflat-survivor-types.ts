@@ -64,6 +64,8 @@ export type Campaign = {
   gemsCollected: number;
   /** 플레이어가 직접 끝낸 호미질 수(캠페인 누적). 호미봇 해금에 쓴다. */
   digsCompleted: number;
+  /** 5단계 이후 원정에서 돌뒤집개로 바위를 뒤집은 수(캠페인 누적). 건곤대나이 해금에 쓴다. */
+  lateRockFlips: number;
   /** 게·새우에게 피해를 받은 경험(캠페인 누적). 파이어볼·화염 방사 해금에 쓴다. */
   hitByCrab: boolean;
   hitByShrimp: boolean;

@@ -14,7 +14,7 @@ import {
   MUDFLAT_DEV_LAUNCH_KEY,
   createCampaign,
 } from "./mudflat-survivor-model";
-import { MUDFLAT_FIXED_GENERAL_SKILL_IDS, MUDFLAT_REGULAR_STAGES, MUDFLAT_SELECTABLE_SKILL_LIMIT, MUDFLAT_SHOP_EQUIPMENT, mudflatNormalizeActiveSkills, mudflatStageProfile } from "./mudflat-survivor-engine.js";
+import { MUDFLAT_FIXED_GENERAL_SKILL_IDS, MUDFLAT_REGULAR_STAGES, MUDFLAT_SELECTABLE_SKILL_LIMIT, MUDFLAT_SHOP_EQUIPMENT, mudflatNormalizeActiveSkills, mudflatStageProfile, MUDFLAT_ROCK_LIFT_UNLOCK_FLIPS } from "./mudflat-survivor-engine.js";
 import { MUDFLAT_DEV_BUILD_MAX_STAGE, createMudflatDevBuild, mudflatDevBuildCampaign, mudflatDevBuildSeed, mudflatDevBuildSkills, mudflatDevFixedSeed, validateMudflatDevBuild } from "./mudflat-dev-build.js";
 
 type DevBuild = ReturnType<typeof createMudflatDevBuild>;
@@ -37,6 +37,7 @@ type DevPreset = {
   equipment?: CountMap;
   gemsCollected?: number;
   digsCompleted?: number;
+  lateRockFlips?: number;
   hitByCrab?: boolean;
   hitByShrimp?: boolean;
   hitByRock?: boolean;
@@ -140,7 +141,7 @@ const DEV_PRESETS: DevPreset[] = [
     nextXp: 90,
     levels: { tongs: 3, digging: 3, "guard-basket": 6, basket: 1 },
     equipment: { cooler: 1 },
-    gemsCollected: 100,
+    gemsCollected: 500,
   },
   {
     id: "hoe-bot",
@@ -153,7 +154,7 @@ const DEV_PRESETS: DevPreset[] = [
     nextXp: 90,
     levels: { tongs: 3, digging: 1, "hoe-bot": 6, basket: 1 },
     equipment: { cooler: 1 },
-    digsCompleted: 20,
+    digsCompleted: 100,
   },
   {
     id: "rock-lift",
@@ -234,8 +235,8 @@ const DEV_PRESETS: DevPreset[] = [
     nextXp: 1431,
     levels: { tongs: 3, digging: 2, harpoon: 3, fireball: 6, "flame-burst": 6, "chain-lightning": 6, smash: 6, "frost-trail": 6 },
     equipment: { cooler: 1, vest: 2 },
-    gemsCollected: 100,
-    digsCompleted: 20,
+    gemsCollected: 500,
+    digsCompleted: 100,
     hitByCrab: true,
     hitByShrimp: true,
     hitByRock: true,
@@ -252,8 +253,8 @@ const DEV_PRESETS: DevPreset[] = [
     nextXp: 1431,
     levels: { tongs: 4, digging: 2, thunderbolt: 6, "frost-wave": 6, "guard-basket": 6, electric: 3, "hoe-bot": 3 },
     equipment: { cooler: 1, vest: 3 },
-    gemsCollected: 100,
-    digsCompleted: 20,
+    gemsCollected: 500,
+    digsCompleted: 100,
     hitByTide: true,
     hitByPufferfish: true,
     bossEarly: true,
@@ -269,8 +270,8 @@ const DEV_PRESETS: DevPreset[] = [
     nextXp: 1431,
     levels: { tongs: 3, digging: 2, rocker: 2, "rock-lift": 6, smash: 6, "hoe-bot": 6, "guard-basket": 3 },
     equipment: { cooler: 1, vest: 2 },
-    gemsCollected: 100,
-    digsCompleted: 20,
+    gemsCollected: 500,
+    digsCompleted: 100,
   },
   {
     id: "boss-skills",
@@ -347,6 +348,8 @@ function makePresetCampaign(preset: DevPreset) {
     activeSkills: mudflatNormalizeActiveSkills(levels, undefined, mode),
     gemsCollected: preset.gemsCollected ?? 0,
     digsCompleted: preset.digsCompleted ?? 0,
+    // 건곤대나이 레벨이 있는 프리셋은 해금 집계(5단계 이후 돌 뒤집기 3회)를 채워 둔다.
+    lateRockFlips: preset.lateRockFlips ?? ((levels["rock-lift"] ?? 0) > 0 ? MUDFLAT_ROCK_LIFT_UNLOCK_FLIPS : 0),
     hitByCrab: preset.hitByCrab === true,
     hitByShrimp: preset.hitByShrimp === true,
     hitByRock: preset.hitByRock === true,
@@ -733,7 +736,7 @@ export function MudflatDevTools() {
                 {build.mode === "normal" && !basic ? <label className="check"><input type="checkbox" checked={isActive} disabled={!isActive && (level <= 0 || build.activeSkills.length >= MUDFLAT_SELECTABLE_SKILL_LIMIT)} onChange={() => toggleBuildActive(skill.id)} /><span>활성</span></label> : <span className="mudflat-dev-always">{build.mode === "normal" ? "항상 작동" : ""}</span>}
               </div>;
             })}
-            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 100개, 호미봇은 호미질 20회로 맞춤. 건곤대나이는 선택 기술 5종, 뻘권은 Lv.3 이상 기술 4개, 파이어볼은 선택 기술 6개 + 게 피격, 화염 방사는 Lv.2 선택 기술 5개 + 새우 피격, 서리 발자국은 선택 기술 5개 + 바위 피격, 빙결 파동은 Lv.3 선택 기술 4개 + 돌발 물살 피격, 번개 체인은 선택 기술 5개 + 모기떼 피격, 낙뢰는 Lv.2 선택 기술 4개 + 복어 피격이 필요하며 레벨이 있으면 피격 경험을 채움)</span></label>}
+            {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.autoUnlock} onChange={(event) => updateBuild({ autoUnlock: event.target.checked })} /><span>해금 조건 자동 충족 (소쿠리의 달인은 경험치 보석 500개, 호미봇은 호미질 100회, 건곤대나이는 5단계 이후 돌 뒤집기 3회로 맞춤. 뻘권은 Lv.3 이상 기술 4개, 파이어볼은 선택 기술 6개 + 게 피격, 화염 방사는 Lv.2 선택 기술 5개 + 새우 피격, 서리 발자국은 선택 기술 5개 + 바위 피격, 빙결 파동은 Lv.3 선택 기술 4개 + 돌발 물살 피격, 번개 체인은 선택 기술 5개 + 모기떼 피격, 낙뢰는 Lv.2 선택 기술 4개 + 복어 피격이 필요하며 레벨이 있으면 피격 경험을 채움)</span></label>}
           </fieldset>
           <fieldset>
             <legend>캐릭터</legend>
@@ -750,6 +753,7 @@ export function MudflatDevTools() {
             {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByMosquito} onChange={(event) => updateBuild({ hitByMosquito: event.target.checked })} /><span>모기떼에게 피해를 받은 경험</span></label>}
             {build.mode === "normal" && <label className="check"><input type="checkbox" checked={build.hitByPufferfish} onChange={(event) => updateBuild({ hitByPufferfish: event.target.checked })} /><span>복어에게 피해를 받은 경험</span></label>}
             {build.mode === "normal" && <label className="field"><span>누적 호미질 수</span><input type="number" min={0} value={build.digsCompleted} onChange={(event) => updateBuild({ digsCompleted: numberField(event.target.value, 0) })} /></label>}
+            {build.mode === "normal" && <label className="field"><span>5단계 이후 돌 뒤집기 수</span><input type="number" min={0} value={build.lateRockFlips} onChange={(event) => updateBuild({ lateRockFlips: numberField(event.target.value, 0) })} /></label>}
           </fieldset>
           <fieldset>
             <legend>장비</legend>
