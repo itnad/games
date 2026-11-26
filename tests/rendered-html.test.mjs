@@ -246,6 +246,8 @@ import {
   mudflatSpawnInterval,
   mudflatStageSpawnInterval,
   mudflatStageStats,
+  mudflatStageCreatureHpScale,
+  MUDFLAT_STAGE_CREATURE_HP_SCALING,
   mudflatTideStats,
   mudflatStageTideState,
   mudflatCampObstacleAllowed,
@@ -2030,7 +2032,11 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.equal(autoSale.value, 23);
   assert.deepEqual([0, 1, 2, 3, 4, 5].map((level) => mudflatEquipmentPrice("gloves", level)), [1000, 2000, 3000, 4000, 5000, 6000]);
   assert.deepEqual([0, 1, 2, 3, 4, 5].map(mudflatTrainingPrice), [1000, 2000, 3000, 4000, 5000, 6000]);
-  assert.ok(mudflatStageStats(3).creatureHpMultiplier > mudflatStageStats(2).creatureHpMultiplier);
+  // 단계별 해산물 체력 증가는 임시 미적용(스위치 false): 일반 해산물 배율은 항상 1이고, 공식은 그대로 남아 보스가 계속 쓴다.
+  assert.equal(MUDFLAT_STAGE_CREATURE_HP_SCALING, false);
+  assert.deepEqual([1, 3, 5, 8, 9].map((stage) => mudflatStageStats(stage).creatureHpMultiplier), [1, 1, 1, 1, 1]);
+  assert.deepEqual([1, 2, 3, 8, 9].map((stage) => Math.round(mudflatStageCreatureHpScale(stage) * 100) / 100), [1, 1.16, 1.32, 2.36, 2.52]);
+  assert.deepEqual([3, 8].map((stage) => mudflatStageStats(stage).bossHpMultiplier), [mudflatStageCreatureHpScale(3), mudflatStageCreatureHpScale(8)]);
   assert.ok(mudflatStageStats(3).spawnIntervalMultiplier < mudflatStageStats(2).spawnIntervalMultiplier);
   assert.equal(MUDFLAT_REGULAR_STAGES.length, 8);
   assert.deepEqual(MUDFLAT_REGULAR_STAGES.map((stage) => stage.name), ["초입 갯벌", "차오르는 물골", "바위 갯벌", "어두운 갯벌", "깊은 펄", "거센 갯벌", "대조기 갯벌", "마지막 물때"]);
@@ -2655,6 +2661,7 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /className="ms-stage-route-preview" aria-live="polite"/);
   assert.match(source, /선택한 갯벌 요약/);
   assert.match(source, /selectedRouteStats\.creatureHpMultiplier\.toFixed\(2\)/);
+  assert.match(source, /const scale = \(forcedBoss \? bossScale \* stageStats\.bossHpMultiplier : \(1 \+ runtime\.elapsed \/ 420\) \* stageStats\.creatureHpMultiplier\) \* difficulty;/);
   assert.match(source, /disabled=\{!unlocked\}/);
   assert.doesNotMatch(source, /ms-reentry-details|ms-roadmap-details/);
   assert.match(styles, /\.ms-setup-details\{margin-top:10px/);
