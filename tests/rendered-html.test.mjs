@@ -1015,6 +1015,11 @@ test("keeps StarDraft in its own app/stardraft folder as a public mobile game at
   assert.equal(stardraftSource.match(/<GameObjectiveGuide gameId="stardraft" inline \/>/g)?.length, 2);
   assert.doesNotMatch(stardraftSource, /게임 속도 전환/);
   assert.match(stardraftSource, /<h1>간단한 조작\. 명작의 즐거움\.<\/h1>/);
+  // 전투 화면 안에서 새 경기를 열 때(오늘의 대전 "다시 도전") 그래픽 엔진이 남아 있으면 "전장을 준비하고 있습니다" 안내막을 다시 띄우지 않는다.
+  // 엔진을 만드는 effect는 화면이 바뀔 때만 돌아서, 띄우면 안내막이 지도를 가린 채 경기가 흘렀다. 경기 시계도 안내막이 걷힌 뒤에만 돈다.
+  assert.match(stardraftSource, /if \(!pixiRef\.current\) setRenderer\("loading"\);/);
+  assert.equal(stardraftSource.match(/setRenderer\("loading"\)/g)?.length, 3, "안내막을 다시 띄우는 곳은 엔진이 없을 때·엔진 정리·다시 불러오기 셋뿐이다");
+  assert.match(stardraftSource, /pixiRef\.current && rendererRef\.current === "ready" && !pausedRef\.current/);
   assert.doesNotMatch(stardraftSource, /전략은 당신이|전투는 병력이/);
   assert.match(pageSource, /id: "stardraft",[\s\S]*?title: "스타드래프트",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
@@ -1039,7 +1044,6 @@ test("keeps StarDraft in its own app/stardraft folder as a public mobile game at
   for (const label of ["경제·건설", "생산", "연구", "병력", "출격", "후퇴", "집결지", "자동 출격", "정찰", "모든 \\{mainName\\}", "내 종족", "상대 종족", "무작위", "전투 시작"]) assert.match(gameSource, new RegExp(label));
   assert.match(gameSource, /data-game-menu="true"/);
   assert.match(gameSource, /preloadStwPixiRenderer\(\)\.catch/);
-  assert.match(gameSource, /current && pixiRef\.current && !pausedRef\.current/);
   assert.match(gameSource, /iconTimer = window\.setTimeout[\s\S]*?pixi\.exportIcons\(\)[\s\S]*?, 50\)/);
   assert.match(gameSource, /지도가 표시될 때까지 전투 시간은 흐르지 않습니다\./);
   assert.match(gameSource, /지도 다시 불러오기/);
