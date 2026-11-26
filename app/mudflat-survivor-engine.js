@@ -1095,6 +1095,17 @@ export function mudflatPufferBleedStep(seconds = 0, tickClock = 1, deltaSeconds 
   return { seconds: Math.max(0, safeSeconds - activeTime), tickClock: nextTickClock, ticks };
 }
 
+// 단계별 해산물 체력 증가 스위치. 임시로 꺼 두고 시험 중이다(2026-11). 공식은 mudflatStageCreatureHpScale에 그대로 남아 있어
+// true로 되돌리면 예전처럼 단계당 +16%(8단계·끝없는 강화 단계 +24% 추가)가 다시 적용된다.
+// 대왕 박하지는 이 스위치와 무관하게 단계 배율을 계속 받는다(보스 체력 규칙을 바꾸지 않으려고).
+export const MUDFLAT_STAGE_CREATURE_HP_SCALING = false;
+
+export function mudflatStageCreatureHpScale(stage = 1) {
+  const safeStage = Math.max(1, Math.floor(stage));
+  const profile = mudflatStageProfile(safeStage);
+  return 1 + (safeStage - 1) * 0.16 + (profile.finalBoss ? .24 : 0);
+}
+
 export function mudflatStageStats(stage = 1) {
   const safeStage = Math.max(1, Math.floor(stage));
   const profile = mudflatStageProfile(safeStage);
@@ -1102,7 +1113,8 @@ export function mudflatStageStats(stage = 1) {
   const baseRockLimit = Math.round((20 + (safeStage - 1) * 2) * profile.rockMultiplier);
   const rockHeavyStage = safeStage === 3 || safeStage === 4 || profile.fallingRocks > 0;
   return {
-    creatureHpMultiplier: 1 + (safeStage - 1) * 0.16 + (profile.finalBoss ? .24 : 0),
+    creatureHpMultiplier: MUDFLAT_STAGE_CREATURE_HP_SCALING ? mudflatStageCreatureHpScale(safeStage) : 1,
+    bossHpMultiplier: mudflatStageCreatureHpScale(safeStage),
     creatureSpeedMultiplier: 1 + (safeStage - 1) * 0.045,
     spawnIntervalMultiplier: Math.max(0.5, 1 - (safeStage - 1) * 0.04) * profile.seafoodSpawnMultiplier,
     contactDamageBonus: Math.min(24, (safeStage - 1) * 2 + Math.floor(endlessDepth / 3)),

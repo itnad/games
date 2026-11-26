@@ -3011,7 +3011,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       const difficulty = runtime.mode === "normal" ? 1.15 : 1;
       // 대왕 박하지: 8단계·끝없는 강화 1.7배에 더해 5단계부터 단계마다 2배(9단계 이후 32배).
       const bossScale = forcedBoss ? (stageProfile.finalBoss ? 1.7 : 1) * mudflatBossHpMultiplier(runtime.stage) : 1;
-      const scale = (forcedBoss ? bossScale : 1 + runtime.elapsed / 420) * difficulty * stageStats.creatureHpMultiplier;
+      // 일반 해산물은 단계 체력 배율(현재 임시 미적용이면 1), 대왕 박하지는 스위치와 무관한 보스용 단계 배율을 받는다.
+      const scale = (forcedBoss ? bossScale * stageStats.bossHpMultiplier : (1 + runtime.elapsed / 420) * stageStats.creatureHpMultiplier) * difficulty;
       const openingSpeed = mudflatOpeningCreatureSpeedMultiplier(runtime.stage, runtime.elapsed, template.id, runtime.mode);
       runtime.creatures.push({
         ...template, id: sequenceRef.current++, type: template.id, x: spawnPoint.x,
