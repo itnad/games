@@ -521,7 +521,7 @@ export const STW_DEFENSE_REACH = 8;
  */
 export const STW_REPAIR = { reach: 6, delay: 3, costRatio: 1 / 3 };
 
-export const STW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 35, castRange: 9, minTargets: 3 };
+export const STW_STORM = { energy: 75, radius: 6.4, duration: 3, dps: 35, castRange: 9, minTargets: 3 };
 
 /**
  * 자동 시전 마법. 연구(research)가 있으면 끝난 뒤에만 쓴다. 모든 마법은 시전 사거리 range 안에서, 범위 마법은 radius 안에 minTargets 이상 뭉쳤을 때만 쓴다.
@@ -529,14 +529,14 @@ export const STW_STORM = { energy: 75, radius: 3.2, duration: 3, dps: 35, castRa
  */
 export const STW_SPELLS = {
   feedback: { name: "피드백", energy: 50, range: 10 },
-  maelstrom: { name: "마엘스트롬", energy: 100, range: 9, radius: 2.5, duration: 6, minTargets: 3, research: "maelstrom" },
-  stasis: { name: "스테이시스 필드", energy: 100, range: 9, radius: 2.5, duration: 15, minTargets: 3, research: "stasis" },
+  maelstrom: { name: "마엘스트롬", energy: 100, range: 9, radius: 5, duration: 6, minTargets: 3, research: "maelstrom" },
+  stasis: { name: "스테이시스 필드", energy: 100, range: 9, radius: 5, duration: 15, minTargets: 3, research: "stasis" },
   lockdown: { name: "락다운", energy: 100, range: 8, duration: 15, research: "lockdown" },
   matrix: { name: "디펜시브 매트릭스", energy: 100, range: 9, absorb: 250, duration: 30 },
   emp: { name: "EMP", energy: 100, range: 9, radius: 3, minTargets: 3, research: "emp" },
   irradiate: { name: "이레디에이트", energy: 75, range: 9, radius: 1.5, dps: 10, duration: 25, research: "irradiate" },
   yamato: { name: "야마토 포", energy: 150, range: 10, damage: 260, research: "yamato" },
-  ensnare: { name: "인스네어", energy: 75, range: 9, radius: 2.5, duration: 12, minTargets: 3, research: "ensnare" },
+  ensnare: { name: "인스네어", energy: 75, range: 9, radius: 5, duration: 12, minTargets: 3, research: "ensnare" },
   broodling: { name: "브루들링", energy: 150, range: 9, research: "broodling" },
   darkSwarm: { name: "다크 스웜", energy: 100, range: 9, radius: 3, duration: 15 },
   plague: { name: "플레이그", energy: 150, range: 9, radius: 2.5, dps: 15, duration: 20, minTargets: 3, research: "plague" },
