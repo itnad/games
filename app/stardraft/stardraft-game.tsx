@@ -800,6 +800,11 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
   }, [draw, screen]);
 
   const finished = screen === "play" && game?.status === "over";
+  // 지도를 준비하는 동안(안내막이 떠 있는 동안) 조작을 잠근다. 안내막을 띄우는 것과 같은 상태(renderer)에서 렌더할 때 바로 셈하므로,
+  // 안내막이 걷히는 바로 그 렌더에서 잠금도 풀린다(따로 둔 타이머·ref가 없어 지도가 보이는데 잠겨 있는 틈이 생기지 않는다).
+  // inert는 터치뿐 아니라 키보드 이동·화면 낭독기도 막는다. 일시정지·나가기는 로딩 중에도 쓸 수 있게 잠그지 않는다.
+  // 그래픽을 초기화하지 못한 경우("failed")는 잠그지 않는다(지도 다시 불러오기 버튼을 누를 수 있어야 하고, 시계는 엔진이 없어 멈춰 있다).
+  const locked = renderer === "loading";
 
   useEffect(() => {
     // 실험실·AI 대 AI 관전 경기는 전적에 넣지 않는다.
@@ -1146,7 +1151,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
       <header className="stw-topbar">
         <button type="button" onClick={requestExit} aria-label="전투 나가기">←</button>
         <div><span className="stw-brand">{game.daily ? `오늘의 대전 · ${STW_DIFFICULTIES[game.difficulty].name}` : replaying ? `다시 보기 · ${STW_DIFFICULTIES[game.difficulty].name}` : spectating ? (game.scoutReact ? "AI vs AI · 정찰 대응" : "AI vs AI") : STW_DIFFICULTIES[game.difficulty].name} · {mapOf(game).id === "plain" ? "" : `${mapOf(game).name} · `}{raceOf(game).name} vs {!game.hiddenEnemyRace || intel?.race ? raceOf(game, "enemy").name : "?"}</span><strong>{stwClock(game.time)}</strong></div>
-        {spectating ? null : <QueueStrip game={game} icons={icons} issue={issue} />}
+        {spectating ? null : <QueueStrip game={game} icons={icons} issue={issue} locked={locked} />}
       </header>
       {spectating ? (
         <section className="stw-hud stw-hud-watch" aria-label="양쪽 인구">
@@ -1164,7 +1169,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
         <span className="stw-res gas"><i aria-hidden="true" /><b>{Math.floor(side.gas)}</b><em>+{income.gas}</em></span>
         <span className={supply.used >= supply.cap ? "stw-res supply full" : "stw-res supply"}><i aria-hidden="true" /><b>{supply.used}/{supply.cap}</b></span>
         {/* 공격 목표: 전투 중에도 한 번에 바꾸도록 자원 줄에 체크박스로 둔다(병력 탭의 공격 목표와 같은 값). */}
-        <label className={side.focus === "buildings" ? "stw-focus active" : "stw-focus"}>
+        <label className={side.focus === "buildings" ? "stw-focus active" : "stw-focus"} inert={locked || undefined}>
           <input type="checkbox" checked={side.focus === "buildings"} onChange={(event) => issue({ type: "focus", mode: event.target.checked ? "buildings" : "fight" })} />
           <span>건물 강제공격</span>
         </label>
@@ -1197,7 +1202,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
           {renderer === "failed" ? <button type="button" className="stw-map-retry" onClick={() => { setRenderer("loading"); setRendererAttempt((value) => value + 1); }}>지도 다시 불러오기</button> : null}
           {mapAlert ? <p key={mapAlert.id} className="stw-map-alert" role="alert">{logText(mapAlert)}</p> : null}
           {game.finalBattle && !finished ? <p className="stw-final-banner" role="status">최종 결전 · 전원 출격 · 지휘 불가</p> : null}
-          {game.lab && !game.finalBattle && !finished && !paused ? <button type="button" className="stw-lab-final" onClick={() => issue({ type: "finalBattle" })}>최종 결전</button> : null}
+          {game.lab && !game.finalBattle && !finished && !paused && !locked ? <button type="button" className="stw-lab-final" onClick={() => issue({ type: "finalBattle" })}>최종 결전</button> : null}
           {battleCue && !finished && !paused && renderer === "ready" ? (
             <button type="button" className={`stw-battle-cue ${battleCue.endsWith("up") ? "up" : "down"}`} onClick={showBattle}>
               <i aria-hidden="true">{battleCue.endsWith("up") ? "▲" : "▼"}</i>{battleCue.startsWith("attack") ? "출격 병력 보기" : "교전 중 · 보기"}
@@ -1225,7 +1230,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
             </div>
           </div>
         ) : (
-        <div className="stw-status" data-open={statusOpen ? "true" : undefined}>
+        <div className="stw-status" data-open={statusOpen ? "true" : undefined} inert={locked || undefined}>
           <div className="stw-status-row">
             {/* 부대 지휘: 지도 왼쪽 위에서 지도 밖(엄지가 닿는 상태 줄 왼쪽)으로 옮겼다. 고른 부대 수가 붙는다. */}
             <button type="button" className={squadOpen ? "stw-status-squad active" : "stw-status-squad"} aria-pressed={squadOpen} onClick={() => (squadOpen ? closeSquad() : setSquadOpen(true))}>
@@ -1262,7 +1267,7 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
         </div>
         )}
         {spectating ? <SpectatorPanel game={game} speed={watchSpeed} onSpeed={pickWatchSpeed} /> : (
-        <section className="stw-panel" aria-label="선택 패널">
+        <section className="stw-panel" aria-label="선택 패널" inert={locked || undefined}>
           <nav className="stw-tabs">
             {TABS.map((item) => (
               <button key={item.id} type="button" aria-pressed={!squadOpen && tab === item.id} className={!squadOpen && tab === item.id ? "active" : ""} onClick={() => { setTab(item.id); closeSquad(); }}>
@@ -1424,12 +1429,12 @@ function queueItems(game: StwState): QueueItem[] {
 }
 
 /** 상단 오른쪽의 생산 현황: 아이콘 칩 한 줄. 테두리가 진행률 링이고, 누르면 아래에 이름·진행률·취소가 뜬다. */
-function QueueStrip({ game, icons, issue }: { game: StwState; icons: Record<string, string>; issue: Issue }) {
+function QueueStrip({ game, icons, issue, locked = false }: { game: StwState; icons: Record<string, string>; issue: Issue; locked?: boolean }) {
   const [selected, setSelected] = useState<string | null>(null);
   const items = queueItems(game);
   const active = items.find((item) => item.key === selected) ?? null;
   return (
-    <div className="stw-queue" aria-label="진행 중인 생산">
+    <div className="stw-queue" aria-label="진행 중인 생산" inert={locked || undefined}>
       <div className="stw-queue-row">
         {items.map((item) => (
           <button
