@@ -1024,6 +1024,12 @@ test("keeps StarDraft in its own app/stardraft folder as a public mobile game at
   assert.match(stardraftSource, /if \(!pixiRef\.current\) setRenderer\("loading"\);/);
   assert.equal(stardraftSource.match(/setRenderer\("loading"\)/g)?.length, 3, "안내막을 다시 띄우는 곳은 엔진이 없을 때·엔진 정리·다시 불러오기 셋뿐이다");
   assert.match(stardraftSource, /pixiRef\.current && rendererRef\.current === "ready" && !pausedRef\.current/);
+  // 지도를 준비하는 동안 조작 잠금(inert)은 안내막과 같은 상태에서 렌더 중에 바로 셈한다(타이머·ref 없이): 안내막이 걷히는 렌더에서 함께 풀린다.
+  assert.match(stardraftSource, /const locked = renderer === "loading";/);
+  assert.equal(stardraftSource.match(/inert=\{locked \|\| undefined\}/g)?.length, 4, "생산 대기열·건물 강제공격·상태 줄·조작 패널을 잠근다");
+  assert.doesNotMatch(stardraftSource, /className="stw-speed"[^>]*inert/, "일시정지는 로딩 중에도 쓸 수 있다");
+  const loadingLockCss = await readFile(new URL("../app/stardraft/stardraft.css", import.meta.url), "utf8");
+  assert.match(loadingLockCss, /\.stw-play-shell \[inert\] \{ pointer-events:none; opacity:\.72; \}/);
   assert.doesNotMatch(stardraftSource, /전략은 당신이|전투는 병력이/);
   assert.match(pageSource, /id: "stardraft",[\s\S]*?title: "스타드래프트",[\s\S]*?category: "모바일"/);
   assert.doesNotMatch(pageSource, /frontline/i);
