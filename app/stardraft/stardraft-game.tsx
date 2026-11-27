@@ -424,6 +424,12 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
   const [record, setRecord] = useState<BattleRecord>(() => (typeof window === "undefined" ? { wins: 0, losses: 0, best: {} } : readRecord()));
   const [confirmReset, setConfirmReset] = useState(false);
   const [renderer, setRenderer] = useState<"loading" | "ready" | "failed">("loading");
+  // 경기 시계는 안내막과 같은 조건으로 돈다: "전장을 준비하고 있습니다"가 떠 있는 동안에는 시간과 AI를 멈춘다.
+  // 예전에는 그래픽 엔진이 있는지만 봐서, 안내막이 남은 채 경기가 흘러갈 수 있었다(오늘의 대전 "다시 도전").
+  const rendererRef = useRef(renderer);
+  useEffect(() => {
+    rendererRef.current = renderer;
+  }, [renderer]);
   const [rendererAttempt, setRendererAttempt] = useState(0);
   const [icons, setIcons] = useState<Record<string, string>>({});
   const [labConfig, setLabConfig] = useState<LabConfig | null>(null);
@@ -514,7 +520,9 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
     // (지우지 않으면 새 경기 시각이 지난 경기의 fightUntil보다 작은 동안 지난 경기의 교전 자리로 화면이 끌려간다).
     Object.assign(cameraRef.current, { ready: false, follow: true, fightY: 0, fightUntil: -1, focusY: null, glide: null, cue: null });
     setBattleCue(null);
-    setRenderer("loading");
+    // 그래픽 엔진이 이미 있으면(전투 화면 안에서 새 경기를 열 때: 오늘의 대전 "다시 도전") 안내막을 다시 띄우지 않는다.
+    // 엔진을 만드는 effect는 화면이 바뀔 때만 돌아서, 띄우면 "준비 완료"로 돌아갈 길이 없어 안내막이 지도를 가린 채 경기가 흘렀다.
+    if (!pixiRef.current) setRenderer("loading");
     setTab("build");
     setSelected([]);
     setSquadOpen(false);
@@ -743,8 +751,8 @@ export function StardraftGame({ onExit }: { onExit: () => void }) {
       const dt = Math.min(0.25, (now - last) / 1000);
       last = now;
       const current = gameRef.current;
-      // 동적 Pixi 청크와 WebGL 지도가 준비되기 전에는 전투 시간과 AI를 진행하지 않는다.
-      if (current && pixiRef.current && !pausedRef.current && current.status === "playing") {
+      // 동적 Pixi 청크와 WebGL 지도가 준비되고 안내막이 걷히기 전에는 전투 시간과 AI를 진행하지 않는다.
+      if (current && pixiRef.current && rendererRef.current === "ready" && !pausedRef.current && current.status === "playing") {
         // 관전 경기는 고른 배속만큼 더 돌린다(엔진은 한 번에 1초까지만 받으므로 1초씩 끊어 넘긴다).
         // 기기가 느려 한 프레임의 계산이 40ms를 넘기면 거기서 멈춰 화면이 굳지 않게 한다(그만큼 배속이 덜 나온다).
         let left = dt * (current.spectate ? watchSpeedRef.current : 1);
