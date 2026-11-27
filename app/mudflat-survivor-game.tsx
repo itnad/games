@@ -171,6 +171,8 @@ import {
   MUDFLAT_SHOCK_SECONDS,
   mudflatBossHpMultiplier,
   mudflatStepToward,
+  MUDFLAT_NORMAL_CREATURE_HP_MULTIPLIER,
+  MUDFLAT_NORMAL_BOSS_HP_MULTIPLIER,
   mudflatSkillCharge,
   mudflatBossSkills,
   mudflatBossSkillStats,
@@ -3008,7 +3010,8 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
         distance += 56 + runtimeRandom(runtime) * 44;
         spawnPoint = { x: runtime.player.x + Math.cos(angle) * distance, y: runtime.player.y + Math.sin(angle) * distance };
       }
-      const difficulty = runtime.mode === "normal" ? 1.15 : 1;
+      // 일반 모드 체력 배율: 해산물은 임시로 1배(키즈와 같음), 대왕 박하지는 예전 1.15배.
+      const difficulty = runtime.mode === "normal" ? (forcedBoss ? MUDFLAT_NORMAL_BOSS_HP_MULTIPLIER : MUDFLAT_NORMAL_CREATURE_HP_MULTIPLIER) : 1;
       // 대왕 박하지: 8단계·끝없는 강화 1.7배에 더해 5단계부터 단계마다 2배(9단계 이후 32배).
       const bossScale = forcedBoss ? (stageProfile.finalBoss ? 1.7 : 1) * mudflatBossHpMultiplier(runtime.stage) : 1;
       // 일반 해산물은 단계 체력 배율(현재 임시 미적용이면 1), 대왕 박하지는 스위치와 무관한 보스용 단계 배율을 받는다.
@@ -3048,7 +3051,7 @@ export function MudflatSurvivorGame({ onExit }: ExitProps) {
       template: (typeof MUDFLAT_CREATURES)[number], point: Point, eventKind: CreatureEventKind,
       overrides: Partial<Creature> = {},
     ): Creature => {
-      const hpScale = (runtime.mode === "normal" ? 1.15 : 1) * stageStats.creatureHpMultiplier;
+      const hpScale = (runtime.mode === "normal" ? MUDFLAT_NORMAL_CREATURE_HP_MULTIPLIER : 1) * stageStats.creatureHpMultiplier;
       return {
         ...template,
         id: sequenceRef.current++, type: template.id, x: point.x, y: point.y,

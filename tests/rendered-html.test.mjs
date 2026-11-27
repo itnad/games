@@ -248,6 +248,8 @@ import {
   mudflatStageStats,
   mudflatStageCreatureHpScale,
   MUDFLAT_STAGE_CREATURE_HP_SCALING,
+  MUDFLAT_NORMAL_CREATURE_HP_MULTIPLIER,
+  MUDFLAT_NORMAL_BOSS_HP_MULTIPLIER,
   mudflatTideStats,
   mudflatStageTideState,
   mudflatCampObstacleAllowed,
@@ -2030,6 +2032,8 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.deepEqual([0, 1, 2, 3, 4, 5].map(mudflatTrainingPrice), [1000, 2000, 3000, 4000, 5000, 6000]);
   // 단계별 해산물 체력 증가는 임시 미적용(스위치 false): 일반 해산물 배율은 항상 1이고, 공식은 그대로 남아 보스가 계속 쓴다.
   assert.equal(MUDFLAT_STAGE_CREATURE_HP_SCALING, false);
+  // 일반 모드 해산물 체력 배율도 임시로 키즈와 같은 1배(예전 1.15). 대왕 박하지는 1.15배 유지.
+  assert.deepEqual([MUDFLAT_NORMAL_CREATURE_HP_MULTIPLIER, MUDFLAT_NORMAL_BOSS_HP_MULTIPLIER], [1, 1.15]);
   assert.deepEqual([1, 3, 5, 8, 9].map((stage) => mudflatStageStats(stage).creatureHpMultiplier), [1, 1, 1, 1, 1]);
   assert.deepEqual([1, 2, 3, 8, 9].map((stage) => Math.round(mudflatStageCreatureHpScale(stage) * 100) / 100), [1, 1.16, 1.32, 2.36, 2.52]);
   assert.deepEqual([3, 8].map((stage) => mudflatStageStats(stage).bossHpMultiplier), [mudflatStageCreatureHpScale(3), mudflatStageCreatureHpScale(8)]);
@@ -2658,6 +2662,9 @@ test("uses an invisible relative-drag joystick for Mudflat Survivor", async () =
   assert.match(source, /선택한 갯벌 요약/);
   assert.match(source, /selectedRouteStats\.creatureHpMultiplier\.toFixed\(2\)/);
   assert.match(source, /const scale = \(forcedBoss \? bossScale \* stageStats\.bossHpMultiplier : \(1 \+ runtime\.elapsed \/ 420\) \* stageStats\.creatureHpMultiplier\) \* difficulty;/);
+  assert.match(source, /const difficulty = runtime\.mode === "normal" \? \(forcedBoss \? MUDFLAT_NORMAL_BOSS_HP_MULTIPLIER : MUDFLAT_NORMAL_CREATURE_HP_MULTIPLIER\) : 1;/);
+  assert.match(source, /const hpScale = \(runtime\.mode === "normal" \? MUDFLAT_NORMAL_CREATURE_HP_MULTIPLIER : 1\) \* stageStats\.creatureHpMultiplier;/);
+  assert.doesNotMatch(source, /runtime\.mode === "normal" \? 1\.15 : 1/);
   assert.match(source, /disabled=\{!unlocked\}/);
   assert.doesNotMatch(source, /ms-reentry-details|ms-roadmap-details/);
   assert.match(styles, /\.ms-setup-details\{margin-top:10px/);

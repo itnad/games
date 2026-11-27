@@ -1099,6 +1099,9 @@ export function mudflatPufferBleedStep(seconds = 0, tickClock = 1, deltaSeconds 
 // true로 되돌리면 예전처럼 단계당 +16%(8단계·끝없는 강화 단계 +24% 추가)가 다시 적용된다.
 // 대왕 박하지는 이 스위치와 무관하게 단계 배율을 계속 받는다(보스 체력 규칙을 바꾸지 않으려고).
 export const MUDFLAT_STAGE_CREATURE_HP_SCALING = false;
+// 일반 모드 해산물 체력 배율. 임시로 키즈 모드와 같은 1배로 시험 중이다(예전 1.15). 대왕 박하지는 예전 1.15배를 유지한다.
+export const MUDFLAT_NORMAL_CREATURE_HP_MULTIPLIER = 1;
+export const MUDFLAT_NORMAL_BOSS_HP_MULTIPLIER = 1.15;
 
 export function mudflatStageCreatureHpScale(stage = 1) {
   const safeStage = Math.max(1, Math.floor(stage));
